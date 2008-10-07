@@ -1,0 +1,10 @@
+global:
+    server.socket_host: '127.0.0.1'
+    server.socket_port: 9999
+    server.thread_pool: 10
+
+'/':
+    tools.sessions.on: True
+    tools.sessions.storage_type: "file"
+    tools.sessions.storage_path: "/tmp"
+    tools.sessions.timeout: 60
