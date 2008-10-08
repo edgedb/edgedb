@@ -161,9 +161,20 @@ class Srv(object):
 
         cherrypy.quickstart(self, '/', config=config)
 
-#    @cherrypy.expose
-#    def highlighter_css(self):
-#        return HtmlFormatter().get_style_defs('.highlight')
+    @cherrypy.expose
+    def get(self, id=None):
+        ouput = """
+        <html>
+            <head>
+                <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+                <link rel="stylesheet" type="text/css" href="/public/ext/resources/css/ext-all.css" />
+                <link rel="stylesheet" type="text/css" href="/public/resources/highlight.css" />
+                <link rel="stylesheet" type="text/css" href="/public/resources/base.css" />
+            </head>
+            <body>
+        """
+        entity = EntityFactory.get(int(id))
+        return ouput + HTMLConceptTemlates.render(entity) + '</body></html>'
 
     @cherrypy.expose
     def index(self, *args, **kw):

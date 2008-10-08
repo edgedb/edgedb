@@ -32,10 +32,6 @@ Ext.onReady(function(){
         }
     });
 
-    tree_panel.on('topicselect', function(entity_id) {
-        DocsViewer.update(entity_id);
-    }, this);
-
     var viewport = new Ext.Viewport({
         layout : 'border',
         items: [
