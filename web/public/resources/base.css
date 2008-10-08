@@ -1,30 +1,106 @@
 .topic {
     font-family: "Myriad Pro", Arial, Helvetica, sans-serif;
-    padding: 5px;
+}
+
+.topic a {
+    color: #355F7C;
+    text-decoration: none;
+}
+
+.topic a:hover {
+    text-decoration: underline;
 }
 
 
-.topic h1 {
+.topic h1, .topic h2 {
     font-weight: normal;
-    font-size: 30px;
-    margin: 0 5px 15px 0;
+    padding: 3px 0 3px 10px;
+    background-color: #F2F2F2;
+    border-bottom: 1px solid #DCDCDC;
+    color: #20435C;
+    margin: 0;
+}
+
+.topic h3, .topiv h4, .topic h5, .topic h6 {
+    font-weight: normal;
+    padding: 3px 0 3px 10px;
+    color: #20435C;
+}
+
+.topic h1 {
+    font-size: 200%;
 }
 
 .topic h2 {
-    margin: 10px 3px 10px 0;
-    font-weight: normal;
-    font-size: 20px;
+    font-size: 130%;
+    margin-top: 20px;
+}
+
+.topic h3, .topic h4, .topic h5, .topic h6 {
+    font-size: 115%;
 }
 
 .topic dl {
-
 }
 
 .topic dt {
-    color: darkgray;
+    color: black;
+    font-style: italic;
+    font-size: 130%;
+    margin: 15px 0 5px 15px;
 }
 
 .topic dd {
-    margin: 0 0 0 15px;
+    margin: 0 0 0 30px;
 }
 
+.topic .section {
+}
+
+.topic .section .section {
+    margin: 0;
+}
+
+
+.topic .section.c-function div.function {
+    padding: 10px;
+}
+
+.topic .section.c-function div.function .returns,
+.topic .section.c-function div.function .arg-type {
+    font-weight: bold;
+    font-style: italic;
+    padding: 0 5px 0 0;
+}
+
+.topic .section.c-function div.function .aop,
+.topic .section.c-function div.function .acp,
+.topic .section.c-function div.function .dlm {
+    font-weight: bold;
+    color: #900;
+}
+
+.topic .section .desc {
+    padding-top: 7px;
+    font-size: 90%;
+    color: #555;
+}
+
+.topic .section.c-article .article-p {
+    margin: 10px 20px 10px 20px;
+}
+
+.topic .section.c-article .article-p.code,
+.topic .section.c-article .article-p.results,
+.topic .section.c-article .article-p.html,
+.topic .section.c-article .article-p.css {
+    background-color:#EEFFCC;
+    border-color:#AACC99 -moz-use-text-color;
+    border-style:solid none;
+    border-width:1px medium;
+    color:#333333;
+    overflow:auto;
+    padding:5px;
+    font-family: monospace;
+    white-space:pre;
+}

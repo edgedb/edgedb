@@ -2,9 +2,135 @@ import cherrypy
 import cherrypy.lib.static
 import os
 import simplejson
+import cgi
 
 from semantix.lib import datasources, readers
 from semantix.lib.binder.concept.entity import EntityFactory
+
+class HTMLConceptTemlates(object):
+    @staticmethod
+    def render_article(entity, default_title=None, tags_as_title=False, level=0):
+        output = '<div class="section c-article">'
+
+        tags = ''
+        if entity.attributes['tags']:
+            tags = cgi.escape(entity.attributes['tags'].value)
+
+
+        title = None
+        if entity.attributes['title'] and entity.attributes['title'].value:
+            title = entity.attributes['title'].value
+        else:
+            if default_title:
+                title = default_title
+
+        if not title and tags and tags_as_title:
+            title = tags
+
+        if title:
+            output += '<h%(level)d class="article-title">%(title)s</h%(level)d>' % {
+                                                                    'title': cgi.escape(title),
+                                                                    'level': level + 1
+                                                            }
+
+        if entity.attributes['content']:
+            output += '<div class="article-p %s">%s</div>' % (tags, cgi.escape(entity.attributes['content'].value))
+
+        if entity.links['section']:
+            for section in entity.links['section']:
+                output += HTMLConceptTemlates.render_article(section, level=level+1, tags_as_title=tags_as_title)
+
+        return output + '</div>'
+
+    @staticmethod
+    def render_function(entity):
+        def render_function_header(entity):
+            output = '<div class="function">'
+
+            if entity.links['return'] is not None:
+                output += '<span class="returns">&lt;%s&gt;</span> ' % cgi.escape(entity.links['return'].get(0).attributes['name'].value)
+
+            output += '<span class="name">%s</span><span class="aop">(</span>' % cgi.escape(entity.attributes['name'].value)
+            if entity.links['argument'] is not None:
+                args = []
+                for arg in entity.links['argument']:
+                    a = ''
+
+                    if arg.links['type'] is not None:
+                        a += '<span class="arg-type">&lt;%s&gt;</span> ' % cgi.escape(arg.links['type'].get(0).attributes['name'].value)
+
+                    a += cgi.escape(arg.attributes['name'].value)
+
+                    args.append(a)
+
+                output += '<span class="dlm">, </span>'.join(args)
+            output += '<span class="acp">)</span>'
+
+            if entity.attributes['description']:
+                output += '<div class="desc">%s</div>' % cgi.escape(entity.attributes['description'].value)
+
+            return output + '</div>'
+
+
+        output = '<div class="section c-function">'
+        output += render_function_header(entity)
+
+        if entity.links['text']:
+            for text in entity.links['text']:
+                output += HTMLConceptTemlates.render_article(text, default_title='Description', level=1)
+
+        if entity.links['example']:
+            i = 0
+            for example in entity.links['example']:
+                i += 1
+                output += HTMLConceptTemlates.render_article(example, default_title='Example #%s' % i, level=1, tags_as_title=True)
+
+        return output + '</div>'
+
+    @staticmethod
+    def default(entity):
+        output = '<div class="section default">'
+
+        if entity.attributes['description']:
+            output += '<div class="desc">%s</div>' % cgi.escape(entity.attributes['description'].value)
+
+        output += '<dl>'
+        attrs_output = ''
+        for attr in entity.attributes:
+            if attr.name not in ('name', 'description'):
+                attrs_output += '<dt>%s</dt><dd>%s</dd>' % (cgi.escape(attr.name), cgi.escape(attr.value))
+
+        if attrs_output:
+            output += '<dl>' + attrs_output + '</dl>';
+
+        output += '<h2>Links:</h2>'
+        output += '<dl>'
+        for link in entity.links:
+            output += '<dt>%s</dt>' % cgi.escape(link)
+
+            for el in entity.links[link]:
+                output += '<dd><a href="#" id="%s">%s: %s</a>&nbsp;</a></dd>' % (
+                                        el.id, cgi.escape(el.concept_name), cgi.escape(el.attributes['name'].value)
+                            )
+        output += '</dl>'
+
+        return output + '</div>'
+
+    @staticmethod
+    def render(entity):
+        concept = entity.concept_name
+        method = 'render_' + concept.replace('-', '_')
+
+        output = '<div class="topic"><h1>%s' % cgi.escape(entity.concept_name.capitalize())
+        if entity.attributes['name']:
+            output += ': %s' % cgi.escape(entity.attributes['name'].value)
+        output += '</h1>'
+
+        output += getattr(HTMLConceptTemlates, method, HTMLConceptTemlates.default)(entity)
+
+        return output + '</div>'
+
+
 
 class Srv(object):
     def __init__(self, config):
@@ -41,27 +167,6 @@ class Srv(object):
             return ''
 
         entity = EntityFactory.get(int(entity_id))
-
-        output = '<div class="topic">'
-
-        output += '<h1>%s</h1>' % entity.concept_name
-
-        output += '<h2>Attributes:</h2>'
-        output += '<dl>'
-        for attr in entity.attributes:
-            output += '<dt>%s</dt><dd>%s</dd>' % (attr.name, attr.value)
-        output += '</dl>'
-
-        output += '<h2>Links:</h2>'
-        output += '<dl>'
-        for link in entity.links:
-            output += '<dt>%s</dt>' % (link)
-
-            for el in entity.links[link]:
-                output += '<dd><a href="#" id="%s">%s: %s</a>&nbsp;</a></dd>' % (el.id, el.concept_name, el.attributes['name'])
-        output += '</dl>'
-
-
-        return output + '</div>'
+        return HTMLConceptTemlates.render(entity)
 
 Srv('config.yml')
