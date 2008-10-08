@@ -2,7 +2,9 @@ import cherrypy
 import cherrypy.lib.static
 import os
 import simplejson
+
 from semantix.lib import datasources, readers
+from semantix.lib.binder.concept.entity import EntityFactory
 
 class Srv(object):
     def __init__(self, config):
@@ -32,5 +34,34 @@ class Srv(object):
         return simplejson.dumps(
                                     datasources.fetch('entities.tree.level', entity_id=entity_id)
                                 )
+
+    @cherrypy.expose
+    def get_topic(self, entity_id):
+        if entity_id == 'root':
+            return ''
+
+        entity = EntityFactory.get(int(entity_id))
+
+        output = '<div class="topic">'
+
+        output += '<h1>%s</h1>' % entity.concept_name
+
+        output += '<h2>Attributes:</h2>'
+        output += '<dl>'
+        for attr in entity.attributes:
+            output += '<dt>%s</dt><dd>%s</dd>' % (attr.name, attr.value)
+        output += '</dl>'
+
+        output += '<h2>Links:</h2>'
+        output += '<dl>'
+        for link in entity.links:
+            output += '<dt>%s</dt>' % (link)
+
+            for el in entity.links[link]:
+                output += '<dd><a href="#" id="%s">%s: %s</a>&nbsp;</a></dd>' % (el.id, el.concept_name, el.attributes['name'])
+        output += '</dl>'
+
+
+        return output + '</div>'
 
 Srv('config.yml')

@@ -4,9 +4,9 @@ DocsViewer.TreePanel = function() {
         region:'west',
         title:'Documentation',
         split:true,
-        width: 225,
+        width: 350,
         minSize: 175,
-        maxSize: 400,
+        maxSize: 600,
         collapsible: false,
         margins:'5 0 5 5',
         cmargins:'5 5 5 5',
@@ -25,6 +25,13 @@ DocsViewer.TreePanel = function() {
         }),
         collapseFirst:false
     });
+
+    this.addEvents({topicselect:true});
+    this.on('click', this.onClick, this);
 };
 
-Ext.extend(DocsViewer.TreePanel, Ext.tree.TreePanel, {});
+Ext.extend(DocsViewer.TreePanel, Ext.tree.TreePanel, {
+    onClick : function(node) {
+        this.fireEvent('topicselect', node.id);
+    }
+});

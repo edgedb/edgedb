@@ -1,0 +1,30 @@
+.topic {
+    font-family: "Myriad Pro", Arial, Helvetica, sans-serif;
+    padding: 5px;
+}
+
+
+.topic h1 {
+    font-weight: normal;
+    font-size: 30px;
+    margin: 0 5px 15px 0;
+}
+
+.topic h2 {
+    margin: 10px 3px 10px 0;
+    font-weight: normal;
+    font-size: 20px;
+}
+
+.topic dl {
+
+}
+
+.topic dt {
+    color: darkgray;
+}
+
+.topic dd {
+    margin: 0 0 0 15px;
+}
+
