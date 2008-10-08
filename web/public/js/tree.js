@@ -1,8 +1,7 @@
-DocsViewer.TreePanel = function() {
-    DocsViewer.TreePanel.superclass.constructor.call(this, {
+Semantix.dv.TreePanel = function() {
+    Semantix.dv.TreePanel.superclass.constructor.call(this, {
         id:'docs-tree',
         region:'west',
-        title:'Documentation',
         split:true,
         width: 350,
         minSize: 175,
@@ -26,12 +25,11 @@ DocsViewer.TreePanel = function() {
         collapseFirst:false
     });
 
-    this.addEvents({topicselect:true});
     this.on('click', this.onClick, this);
 };
 
-Ext.extend(DocsViewer.TreePanel, Ext.tree.TreePanel, {
+Ext.extend(Semantix.dv.TreePanel, Ext.tree.TreePanel, {
     onClick : function(node) {
-        this.fireEvent('topicselect', node.id);
+        Semantix.Bubbling.fire('topics.selected', node.id);
     }
 });

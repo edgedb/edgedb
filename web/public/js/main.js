@@ -1,17 +1,19 @@
 
 
 Ext.onReady(function(){
-    var tree_panel = new DocsViewer.TreePanel();
+    Ext.History.init();
+
+    var tree_panel = new Semantix.dv.TreePanel();
 
     var panel = new Ext.Panel({
         region: 'center',
         margins:'5 5 5 0',
         cmargins:'5 5 5 5',
         autoScroll: true,
-        listeners: DocsViewer.LinkInterceptor
+        listeners: Semantix.dv.LinkInterceptor
     });
 
-    DocsViewer.update = function(id) {
+    Semantix.Bubbling.on('topics.selected', function(id) {
         updater = panel.getUpdater();
 
         updater.update({
@@ -20,7 +22,15 @@ Ext.onReady(function(){
                    entity_id: id
             }
         });
-    };
+
+        Ext.History.add(id);
+    });
+
+    Ext.History.on('change', function(id){
+        if(id) {
+            Semantix.Bubbling.fire('topics.selected', id);
+        }
+    });
 
     tree_panel.on('topicselect', function(entity_id) {
         DocsViewer.update(entity_id);
@@ -36,7 +46,7 @@ Ext.onReady(function(){
 
 });
 
-DocsViewer.LinkInterceptor = {
+Semantix.dv.LinkInterceptor = {
     render: function(p){
         p.body.on({
             'mousedown': function(e, t){
@@ -44,7 +54,7 @@ DocsViewer.LinkInterceptor = {
             },
             'click': function(e, t){
                 e.stopEvent();
-                DocsViewer.update(t.id);
+                Semantix.Bubbling.fire('topics.selected', t.id);
             },
             delegate:'a'
         });

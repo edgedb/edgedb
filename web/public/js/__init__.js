@@ -1,1 +1,2 @@
-DocsViewer = {}
+Semantix = {}
+Semantix.dv = {}

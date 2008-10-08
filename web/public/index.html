@@ -4,7 +4,6 @@
     <title>Documentation Viewer</title>
 
     <link rel="stylesheet" type="text/css" href="/public/ext/resources/css/ext-all.css" />
-    <link rel="stylesheet" type="text/css" href="/public/ext/resources/css/xtheme-gray.css" />
     <script type="text/javascript" src="/public/ext/ext-base.js"></script>
     <script type="text/javascript" src="/public/ext/ext-all.js"></script>
 
@@ -12,10 +11,15 @@
     <link rel="stylesheet" type="text/css" href="/public/resources/base.css" />
 
     <script type="text/javascript" src="/public/js/__init__.js"></script>
+    <script type="text/javascript" src="/public/js/bubbling.js"></script>
     <script type="text/javascript" src="/public/js/tree.js"></script>
     <script type="text/javascript" src="/public/js/main.js"></script>
 </head>
 
 <body>
+    <form id="history-form" class="x-hidden">
+        <input type="hidden" id="x-history-field" />
+        <iframe id="x-history-frame"></iframe>
+    </form>
 </body>
 </html>
