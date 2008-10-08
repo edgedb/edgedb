@@ -23,8 +23,8 @@
 
 .topic h3, .topiv h4, .topic h5, .topic h6 {
     font-weight: normal;
-    padding: 3px 0 3px 10px;
-    color: #20435C;
+    padding: 10px 0 3px 10px;
+    color: #CD5C5C;
 }
 
 .topic h1 {
@@ -53,14 +53,6 @@
 .topic dd {
     margin: 0 0 0 30px;
 }
-
-.topic .section {
-}
-
-.topic .section .section {
-    margin: 0;
-}
-
 
 .topic .section.c-function div.function {
     padding: 10px;
@@ -94,8 +86,8 @@
 .topic .section.c-article .article-p.results,
 .topic .section.c-article .article-p.html,
 .topic .section.c-article .article-p.css {
-    background-color:#EEFFCC;
-    border-color:#AACC99 -moz-use-text-color;
+    background-color:#FFFFE0;
+    border-color:#FFDAB9;
     border-style:solid none;
     border-width:1px medium;
     color:#333333;

@@ -2,7 +2,12 @@ import cherrypy
 import cherrypy.lib.static
 import os
 import simplejson
+
+
 import cgi
+from pygments import highlight
+from pygments.lexers import get_lexer_by_name
+from pygments.formatters import HtmlFormatter
 
 from semantix.lib import datasources, readers
 from semantix.lib.binder.concept.entity import EntityFactory
@@ -15,7 +20,6 @@ class HTMLConceptTemlates(object):
         tags = ''
         if entity.attributes['tags']:
             tags = cgi.escape(entity.attributes['tags'].value)
-
 
         title = None
         if entity.attributes['title'] and entity.attributes['title'].value:
@@ -33,8 +37,21 @@ class HTMLConceptTemlates(object):
                                                                     'level': level + 1
                                                             }
 
+        content = entity.attributes['content'].value
+        if tags == 'code':
+            content = highlight(content, get_lexer_by_name('javascript'), HtmlFormatter())
+            tags += ' highlight'
+        elif tags == 'css':
+            content = highlight(content, get_lexer_by_name('css'), HtmlFormatter())
+            tags += ' highlight'
+        elif tags == 'html':
+            content = highlight(content, get_lexer_by_name('html'), HtmlFormatter())
+            tags += ' highlight'
+        else:
+            content = cgi.escape(content)
+
         if entity.attributes['content']:
-            output += '<div class="article-p %s">%s</div>' % (tags, cgi.escape(entity.attributes['content'].value))
+            output += '<div class="article-p %s">%s</div>' % (tags, content)
 
         if entity.links['section']:
             for section in entity.links['section']:
@@ -143,6 +160,10 @@ class Srv(object):
                             }
 
         cherrypy.quickstart(self, '/', config=config)
+
+#    @cherrypy.expose
+#    def highlighter_css(self):
+#        return HtmlFormatter().get_style_defs('.highlight')
 
     @cherrypy.expose
     def index(self, *args, **kw):
