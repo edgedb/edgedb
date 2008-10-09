@@ -32,9 +32,10 @@ class HTMLConceptTemlates(object):
             title = tags
 
         if title:
-            output += '<h%(level)d class="article-title">%(title)s</h%(level)d>' % {
+            output += '<h%(level)d semantix:entity-id="%(id)s" class="semantix-draggable article-title">%(title)s</h%(level)d>' % {
                                                                     'title': cgi.escape(title),
-                                                                    'level': level + 1
+                                                                    'level': level + 1,
+                                                                    'id': entity.id
                                                             }
 
         content = entity.attributes['content'].value
@@ -126,7 +127,7 @@ class HTMLConceptTemlates(object):
             output += '<dt>%s</dt>' % cgi.escape(link)
 
             for el in entity.links[link]:
-                output += '<dd><a href="#" id="%s">%s: %s</a>&nbsp;</a></dd>' % (
+                output += '<dd><a href="#" semantix:entity-id="%s" class="semantix-draggable">%s: %s</a>&nbsp;</a></dd>' % (
                                         el.id, cgi.escape(el.concept_name), cgi.escape(el.attributes['name'].value)
                             )
         output += '</dl>'
@@ -138,7 +139,10 @@ class HTMLConceptTemlates(object):
         concept = entity.concept_name
         method = 'render_' + concept.replace('-', '_')
 
-        output = '<div class="topic"><h1>%s' % cgi.escape(entity.concept_name.capitalize())
+        output = '<div class="topic"><h1 semantix:entity-id="%s" class="semantix-draggable">%s' % (
+                                        entity.id, cgi.escape(entity.concept_name.capitalize())
+                                    )
+
         if entity.attributes['name']:
             output += ': %s' % cgi.escape(entity.attributes['name'].value)
         output += '</h1>'

@@ -1,16 +1,10 @@
 Semantix.dv.TreePanel = function() {
     Semantix.dv.TreePanel.superclass.constructor.call(this, {
-        id:'docs-tree',
-        region:'west',
-        split:true,
-        width: 350,
-        minSize: 175,
-        maxSize: 600,
-        collapsible: false,
-        margins:'5 0 5 5',
-        cmargins:'5 5 5 5',
+        id:'semantix-dv-docs-tree',
+        title:'Documentation',
         lines:false,
         autoScroll:true,
+        rootVisible: false,
         loader: new Ext.tree.TreeLoader({
             url: '/get_tree_level',
             preloadChildren: true,
@@ -22,14 +16,26 @@ Semantix.dv.TreePanel = function() {
             expanded:true,
             leaf: false
         }),
-        collapseFirst:false
+        collapseFirst:false,
+
+        listeners: {
+            render: function(tree) {
+                var dd_group = 'semantix-dv-dd-documents-tree';
+
+                tree.dragZone = new Semantix.ext.TreeDragZone(tree, {
+                    ddGroup: dd_group
+                });
+                tree.enableDrag = true;
+            }
+        }
     });
 
     this.on('click', this.onClick, this);
 };
 
 Ext.extend(Semantix.dv.TreePanel, Ext.tree.TreePanel, {
-    onClick : function(node) {
-        Semantix.Bubbling.fire('topics.selected', node.id);
+    onClick : function(node, e) {
+        e.stopEvent();
+        Semantix.Bubbling.fire('semantix.dv.topics.selected', node.id);
     }
 });

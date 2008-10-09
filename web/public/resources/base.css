@@ -1,3 +1,29 @@
+.x-tab-strip-top .semantix-drop-zone-active .x-tab-right,
+.x-tab-strip-top .semantix-drop-zone-active .x-tab-left,
+.x-tab-strip-top .semantix-drop-zone-active .x-tab-strip-inner {
+    background-image: url(ext/tabs-sprite-dd-active.gif) !important;
+}
+
+.x-tab-strip-top .semantix-drop-zone .x-tab-right,
+.x-tab-strip-top .semantix-drop-zone .x-tab-left,
+.x-tab-strip-top .semantix-drop-zone .x-tab-strip-inner {
+    background-image: url(ext/tabs-sprite-dd.gif);
+}
+
+.semantix-drop-zone.x-panel-body {
+    background-color: #FFCCCC;
+}
+
+.semantix-drop-zone-active.x-panel-body {
+    background-color: #CCFFCC;
+}
+
+
+
+.semantix-draggable {
+    cursor: default;
+}
+
 .topic {
     font-family: "Myriad Pro", Arial, Helvetica, sans-serif;
 }
