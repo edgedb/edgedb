@@ -1,3 +1,17 @@
+#semantix-msg-div {
+    left:35%;
+    position:absolute;
+    top:10px;
+    width:350px;
+    z-index:20000;
+}
+
+#semantix-msg-div .msg .x-box-mc {
+    font-size:14px;
+}
+
+
+
 .x-panel.x-tree a span {
     font-family:verdana,arial,tahoma,sans-serif;
     font-size:11px;
@@ -6,12 +20,11 @@
     text-decoration:underline;
 }
 .x-panel.x-tree .x-panel-body {
-    background-color:white;
     position:relative;
     padding:3px;
 }
 .x-panel.x-tree .cls {
-    border:1px solid #fff;
+    border: 1px solid transparent;
 }
 
 .x-panel.x-tree  .x-tree-selected {

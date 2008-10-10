@@ -118,7 +118,7 @@ class HTMLConceptTemlates(object):
         attrs_output = ''
         for attr_name, attr in entity.attrs.items():
             if attr_name not in ('name', 'description'):
-                attrs_output += '<dt>%s</dt><dd>%s</dd>' % (cgi.escape(attr_name), cgi.escape(attr))
+                attrs_output += '<dt>%s</dt><dd>%s</dd>' % (cgi.escape(attr_name), cgi.escape(str(attr)))
 
         if attrs_output:
             output += '<dl>' + attrs_output + '</dl>';

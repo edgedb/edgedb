@@ -20,6 +20,10 @@ Semantix.dv.BookmarksPanel = function() {
         }),
         collapseFirst:false
     });
+
+    Semantix.Bubbling.on('semantix.dv.topics.add-bookmark', function(id) {
+        Semantix.msg('added');
+    });
 };
 
 Ext.extend(Semantix.dv.BookmarksPanel, Ext.tree.TreePanel, {

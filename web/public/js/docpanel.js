@@ -1,6 +1,7 @@
 Semantix.dv.DocPanelDragZone = Ext.extend(Semantix.ext.DragZone, {
     getDragData: function(e) {
-        var source = e.getTarget('.semantix-draggable', 2);
+        var source = e.getTarget('.semantix-draggable', 1);
+        //console.log(source);
 
         if (source) {
             topic_id = Ext.fly(source).getAttributeNS('semantix', 'entity-id');
