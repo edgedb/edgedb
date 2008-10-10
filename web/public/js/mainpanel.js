@@ -1,5 +1,6 @@
 Semantix.dv.MainPanel = function(config) {
     Semantix.dv.MainPanel.superclass.constructor.call(this, Ext.apply({
+        enableTabScroll: true
     }, config));
 
     this._tabs = {};

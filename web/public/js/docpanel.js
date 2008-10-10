@@ -65,5 +65,7 @@ Ext.extend(Semantix.dv.DocPanel, Ext.Panel, {
             },
             delegate:'a'
         });
+
+        this.setTitle(this.body.query('h1')[0].innerHTML);
     }
 });

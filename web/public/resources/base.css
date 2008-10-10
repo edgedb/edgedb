@@ -1,3 +1,30 @@
+.x-panel.x-tree a span {
+    font-family:verdana,arial,tahoma,sans-serif;
+    font-size:11px;
+}
+.x-panel.x-tree .cls a:hover span {
+    text-decoration:underline;
+}
+.x-panel.x-tree .x-panel-body {
+    background-color:white;
+    position:relative;
+    padding:3px;
+}
+.x-panel.x-tree .cls {
+    border:1px solid #fff;
+}
+
+.x-panel.x-tree  .x-tree-selected {
+    border:1px dotted #a3bae9;
+    background:#DFE8F6;
+}
+.x-panel.x-tree  .x-tree-node .x-tree-selected a span{
+    background:transparent;
+    color:#1E4176;
+    font-weight:bold;
+}
+
+
 .x-tab-strip-top .semantix-drop-zone-active .x-tab-right,
 .x-tab-strip-top .semantix-drop-zone-active .x-tab-left,
 .x-tab-strip-top .semantix-drop-zone-active .x-tab-strip-inner {

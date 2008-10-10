@@ -5,6 +5,12 @@ Semantix.dv.TreePanel = function() {
         lines:false,
         autoScroll:true,
         rootVisible: false,
+
+        animCollapse:false,
+        animate: false,
+        lines:false,
+        animate: false,
+
         loader: new Ext.tree.TreeLoader({
             url: '/get_tree_level',
             preloadChildren: true,
