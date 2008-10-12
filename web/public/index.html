@@ -4,15 +4,17 @@
     <title>Documentation Viewer</title>
 
     <link rel="stylesheet" type="text/css" href="/public/ext/resources/css/ext-all.css" />
-    <script type="text/javascript" src="/public/ext/ext-base.js"></script>
+
+    <script type="text/javascript" src="/public/yui/yui.js"></script>
+    <script type="text/javascript" src="/public/ext/ext-yui-adapter.js"></script>
     <script type="text/javascript" src="/public/ext/ext-all.js"></script>
-
-    <script type="text/javascript" src="/public/js/__init__.js"></script>
-    <script type="text/javascript" src="/public/js/bubbling.js"></script>
-
 
     <link rel="stylesheet" type="text/css" href="/public/resources/highlight.css" />
     <link rel="stylesheet" type="text/css" href="/public/resources/base.css" />
+    <link rel="stylesheet" type="text/css" href="/public/resources/yui.css" />
+
+    <script type="text/javascript" src="/public/js/__init__.js"></script>
+    <script type="text/javascript" src="/public/js/bubbling.js"></script>
 
     <script type="text/javascript" src="/public/js/ux/__init__.js"></script>
     <script type="text/javascript" src="/public/js/ux/TabPanel.js"></script>
@@ -26,9 +28,6 @@
 </head>
 
 <body>
-    <form id="history-form" class="x-hidden">
-        <input type="hidden" id="x-history-field" />
-        <iframe id="x-history-frame"></iframe>
-    </form>
-</body>
+    <iframe id="yui-history-iframe" src="path-to-existing-asset"></iframe>
+    <input id="yui-history-field" type="hidden"></body>
 </html>

@@ -1,7 +1,5 @@
 
 Ext.onReady(function(){
-    Ext.History.init();
-
     var tab_panel = new Ext.ux.TabPanel({
         id: 'semantix-dv-tree-tabs',
 
@@ -33,12 +31,6 @@ Ext.onReady(function(){
         margins:'5 5 5 0',
         cmargins:'5 5 5 5'
       //  listeners: Semantix.dv.LinkInterceptor,
-    });
-
-    Ext.History.on('change', function(id){
-        if(id) {
-            Semantix.Bubbling.fire('semantix.dv.topics.selected', id);
-        }
     });
 
     var viewport = new Ext.Viewport({
