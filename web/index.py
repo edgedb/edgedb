@@ -55,7 +55,7 @@ class HTMLConceptTemlates(object):
             output += '<div class="article-p %s">%s</div>' % (tags, content)
 
         for section in entity.links['section']:
-            output += HTMLConceptTemlates.render_article(section, level=level+1, tags_as_title=tags_as_title)
+            output += HTMLConceptTemlates.render_article(section.target, level=level+1, tags_as_title=tags_as_title)
 
         return output + '</div>'
 
@@ -65,7 +65,7 @@ class HTMLConceptTemlates(object):
             output = '<div class="function">'
 
             if entity.links['return'] is not None:
-                output += '<span class="returns">&lt;%s&gt;</span> ' % cgi.escape(entity.links['return'].__iter__().next().attrs['name'])
+                output += '<span class="returns">&lt;%s&gt;</span> ' % cgi.escape(iter(entity.links['return']).next().target.attrs['name'])
 
             output += '<span class="name">%s</span><span class="aop">(</span>' % cgi.escape(entity.attrs['name'])
             if entity.links['argument'] is not None:
@@ -73,10 +73,10 @@ class HTMLConceptTemlates(object):
                 for arg in entity.links['argument']:
                     a = ''
 
-                    if arg.links['type'] is not None:
-                        a += '<span class="arg-type">&lt;%s&gt;</span> ' % cgi.escape(arg.links['type'].__iter__().next().attrs['name'])
+                    if arg.target.links['type'] is not None:
+                        a += '<span class="arg-type">&lt;%s&gt;</span> ' % cgi.escape(iter(arg.target.links['type']).next().target.attrs['name'])
 
-                    a += cgi.escape(arg.attrs['name'])
+                    a += cgi.escape(arg.target.attrs['name'])
 
                     args.append(a)
 
@@ -93,13 +93,13 @@ class HTMLConceptTemlates(object):
         output += render_function_header(entity)
 
         for text in entity.links['long-description']:
-            output += HTMLConceptTemlates.render_article(text, default_title='Description', level=1)
+            output += HTMLConceptTemlates.render_article(text.target, default_title='Description', level=1)
 
         if entity.links['example']:
             i = 0
             for example in entity.links['example']:
                 i += 1
-                output += HTMLConceptTemlates.render_article(example, default_title='Example #%s' % i, level=1, tags_as_title=True)
+                output += HTMLConceptTemlates.render_article(example.target, default_title='Example #%s' % i, level=1, tags_as_title=True)
 
         return output + '</div>'
 
@@ -139,12 +139,12 @@ class HTMLConceptTemlates(object):
             output += '<dt>%s</dt>' % cgi.escape(link[0])
 
             for el in entity.links[link]:
-                if 'name' in el.attrs:
-                    name = el.attrs['name']
+                if 'name' in el.target.attrs:
+                    name = el.target.attrs['name']
                 else:
-                    name = 'UNKNOWN NAME FOR %s' % el.concept
+                    name = 'UNKNOWN NAME FOR %s' % el.target.concept
                 output += '<dd><a href="#" semantix:entity-id="%s" class="semantix-draggable">%s: %s</a>&nbsp;</a></dd>' % (
-                                        el.id, cgi.escape(el.concept), cgi.escape(name)
+                                        el.target.id, cgi.escape(el.target.concept), cgi.escape(name)
                             )
         output += '</dl>'
 
