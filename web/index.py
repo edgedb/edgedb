@@ -39,15 +39,17 @@ class HTMLConceptTemlates(object):
                                                             }
 
         content = entity.attrs['content']
-        if tags == 'code':
-            content = highlight(content, get_lexer_by_name('javascript'), HtmlFormatter())
-            tags += ' highlight'
-        elif tags == 'css':
-            content = highlight(content, get_lexer_by_name('css'), HtmlFormatter())
-            tags += ' highlight'
-        elif tags == 'html':
-            content = highlight(content, get_lexer_by_name('html'), HtmlFormatter())
-            tags += ' highlight'
+        if entity.concept == 'code-snippet':
+            lang = iter(entity.links['language']).next().target
+            if lang.attrs['name'] == 'code':
+                content = highlight(content, get_lexer_by_name('javascript'), HtmlFormatter())
+                tags += ' highlight'
+            elif lang.attrs['name'] == 'css':
+                content = highlight(content, get_lexer_by_name('css'), HtmlFormatter())
+                tags += ' highlight'
+            elif lang.attrs['name'] == 'html':
+                content = highlight(content, get_lexer_by_name('html'), HtmlFormatter())
+                tags += ' highlight'
         else:
             content = cgi.escape(content)
 
