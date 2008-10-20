@@ -1,0 +1,25 @@
+#!INSTANCE Entity (semantix.lib.datasources.sql.Sql)
+
+cache: memory
+params:
+    entity_id:
+        type: int
+        default:
+    concept:
+        type: str
+        default:
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+            e.id,
+            e.concept_id,
+            c.name AS concept_name
+        FROM
+            entity e
+            INNER JOIN concept c ON c.id = e.concept_id
+        WHERE
+            (%(entity_id)s IS NULL OR e.id = %(entity_id)s)
+            AND (%(concept)s IS NULL OR c.name = %(concept)s)
