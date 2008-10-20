@@ -1,6 +1,6 @@
 global:
     server.socket_host: '127.0.0.1'
-    server.socket_port: 9999
+    server.socket_port: 9998
     server.thread_pool: 10
 
 '/':
