@@ -10,14 +10,14 @@ def load(cls, name):
         if domain.DomainBackend not in backends:
             backends[domain.DomainBackend] = domain.DomainBackend()
 
-        bases += tuple(backends[domain.DomainBackend].load(cls, name))
+        bases = tuple(backends[domain.DomainBackend].load(cls, name)) + bases
     elif issubclass(cls, semantix.lib.caos.concept.ConceptClass):
         bases = tuple((semantix.lib.caos.concept.Concept,))
 
         if concept.ConceptBackend not in backends:
             backends[concept.ConceptBackend] = concept.ConceptBackend()
 
-        bases += tuple(backends[concept.ConceptBackend].load(cls, name))
+        bases = tuple(backends[concept.ConceptBackend].load(cls, name)) + bases
 
     return bases
 

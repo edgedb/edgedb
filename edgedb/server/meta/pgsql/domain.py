@@ -23,10 +23,10 @@ class DomainBackend(cls.MetaBackend):
     def load(self, cls, name):
         domains = DomainBackend._fetch_domains(db.connection)
 
-        if 'aux.' + name not in domains:
+        if 'caos.' + name not in domains:
             raise domain.DomainError('reference to an undefined domain "%s"' % name)
 
-        row = domains['aux.' + name]
+        row = domains['caos.' + name]
 
         cls.constraints = {}
         cls.name = row['name']
@@ -92,7 +92,7 @@ class DomainBackend(cls.MetaBackend):
     @memoized
     def _fetch_domains(connection, schemas = None):
         if schemas is None:
-            schemas = ['aux']
+            schemas = ['caos']
 
         cursor = connection.cursor(cursor_factory = psycopg2.extras.DictCursor)
         cursor.execute("""
