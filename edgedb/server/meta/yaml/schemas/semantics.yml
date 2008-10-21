@@ -1,0 +1,86 @@
+#!CLASS Semantics (semantix.lib.readers.yaml.schema.Base)
+
+type: map
+mapping:
+    "semantic_network":
+        type: map
+        required: yes
+        mapping:
+            "concepts":
+                type: map
+                required: yes
+                mapping:
+                    =:
+                        type: map
+                        mapping:
+                            "extends":
+                                type: any
+
+                            "attributes":
+                                type: map
+                                mapping:
+                                    =:
+                                        type: map
+                                        mapping:
+                                            "default":
+                                                type: str
+
+                                            "required":
+                                                type: bool
+
+                                            "title":
+                                                type: str
+
+                                            "description":
+                                                type: str
+
+                                            "comparison":
+                                                type: str
+                                                enum: [cidirect, fuzzy]
+
+                                            "domain":
+                                                type: any
+                                                required: yes
+
+                            "links":
+                                type: seq
+                                sequence:
+                                    - type: map
+                                      mapping:
+                                        =:
+                                            type: map
+                                            mapping:
+                                                "target":
+                                                    type: str
+                                                    required: yes
+                                                "mapping":
+                                                    type: str
+                                                    enum: ["1*", "11", "**", "*1"]
+                                                    required: yes
+                                                "type":
+                                                    type: str
+                                                "title":
+                                                    type: str
+                                                "description":
+                                                    type: str
+
+                            "heuristics":
+                                type: map
+                                mapping:
+                                    "comparison":
+                                        type: seq
+                                        sequence:
+                                            -
+                                                type: map
+                                                mapping:
+                                                    "link":
+                                                        type: str
+
+                                                    "attribute":
+                                                        type: str
+
+                                                    "weight":
+                                                        type: float
+                                                        range: {min: 0.0, max: 1.0}
+                                                        required: yes
+

@@ -1,7 +1,10 @@
 from semantix.lib.caos.datasources.introspection.table import *
 from semantix.lib.caos import cls, domain, concept
 
-class ConceptBackend(cls.MetaBackend):
+class MetaBackendHelper(object):
+    def __init__(self, connection):
+        self.connection = connection
+
     def load(self, cls, name):
         columns = TableColumns.fetch(table_name=name + '_data', schema_name='caos')
 

@@ -1,0 +1,29 @@
+#!CLASS Domains (semantix.lib.readers.yaml.schema.Base)
+
+type: map
+required: yes
+mapping:
+    =: # name of a domain
+        type: map
+        required: yes
+        mapping:
+            "basetype":
+                type: str
+
+            "domain":
+                type: str
+
+            "constraints":
+                type: seq
+                sequence:
+                    -
+                        type: map
+                        mapping:
+                            "expr":
+                                type: str
+                            "min-length":
+                                type: int
+                            "max-length":
+                                type: int
+                            "regexp":
+                                type: str

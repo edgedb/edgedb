@@ -3,10 +3,9 @@ import re
 import types
 
 from semantix.lib.decorators import memoized
-from semantix.lib import db
 from semantix.lib.caos import cls, domain
 
-class DomainBackend(cls.MetaBackend):
+class MetaBackendHelper(object):
 
     typlen_re = re.compile(".* \( (?P<length>\d+) \)$", re.X)
 
@@ -20,8 +19,13 @@ class DomainBackend(cls.MetaBackend):
                         'character varying': types.UnicodeType
                     }
 
+    def __init__(self, connection):
+        self.connection = connection
+
     def load(self, cls, name):
-        domains = DomainBackend._fetch_domains(db.connection)
+        domains = MetaBackendHelper._fetch_domains(self.connection)
+
+        print domains
 
         if 'caos.' + name not in domains:
             raise domain.DomainError('reference to an undefined domain "%s"' % name)
@@ -33,7 +37,7 @@ class DomainBackend(cls.MetaBackend):
         cls.basetype = None
 
         if row['basetype'] is not None:
-            m = DomainBackend.typlen_re.match(row['basetype_full'])
+            m = MetaBackendHelper.typlen_re.match(row['basetype_full'])
             if m:
                 cls.add_constraint('max-length', m.group('length'))
 
@@ -41,9 +45,9 @@ class DomainBackend(cls.MetaBackend):
             for constraint in row['constraints']:
                 if constraint.startswith('CHECK'):
                     # Strip `CHECK()`
-                    constraint = DomainBackend.check_constraint_re.match(constraint).group('expr').replace("''", "'")
+                    constraint = MetaBackendHelper.check_constraint_re.match(constraint).group('expr').replace("''", "'")
 
-                    m = DomainBackend.re_constraint_re.match(constraint)
+                    m = MetaBackendHelper.re_constraint_re.match(constraint)
                     if m:
                         constraint = ('regexp', m.group('re'))
                     else:
@@ -53,8 +57,8 @@ class DomainBackend(cls.MetaBackend):
                 else:
                     raise IntrospectionError('unknown domain constraint type: `%s`' % constraint)
 
-        if row['basetype'] in DomainBackend.base_type_map:
-            cls.basetype = DomainBackend.base_type_map[row['basetype']]
+        if row['basetype'] in MetaBackendHelper.base_type_map:
+            cls.basetype = MetaBackendHelper.base_type_map[row['basetype']]
             bases = (cls.basetype,)
         else:
             bases = tuple()

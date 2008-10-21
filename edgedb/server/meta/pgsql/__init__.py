@@ -1,29 +1,10 @@
-from semantix.lib.caos.backends.meta.pgsql import concept, domain, link
-import semantix.lib.caos.domain
+from semantix.lib.caos.backends.meta.base import BaseMetaBackend
+from semantix.lib.caos.backends.meta.pgsql import semantics, domain
 
-backends = {}
 
-def load(cls, name):
-    if issubclass(cls, semantix.lib.caos.domain.DomainClass):
-        bases = tuple((semantix.lib.caos.domain.Domain,))
+class MetaBackend(BaseMetaBackend):
+    def __init__(self, connection):
+        super(MetaBackend, self).__init__()
 
-        if domain.DomainBackend not in backends:
-            backends[domain.DomainBackend] = domain.DomainBackend()
-
-        bases = tuple(backends[domain.DomainBackend].load(cls, name)) + bases
-    elif issubclass(cls, semantix.lib.caos.concept.ConceptClass):
-        bases = tuple((semantix.lib.caos.concept.Concept,))
-
-        if concept.ConceptBackend not in backends:
-            backends[concept.ConceptBackend] = concept.ConceptBackend()
-
-        bases = tuple(backends[concept.ConceptBackend].load(cls, name)) + bases
-
-    return bases
-
-def store(cls):
-    if issubclass(cls, semantix.lib.caos.domain.DomainClass):
-        if domain.DomainBackend not in backends:
-            backends[domain.DomainBackend] = domain.DomainBackend()
-
-        backends[domain.DomainBackend].store(cls)
+        self.semantics_backend = semantics.MetaBackendHelper(connection)
+        self.domain_backend = domain.MetaBackendHelper(connection)
