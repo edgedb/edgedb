@@ -9,7 +9,7 @@ class MetaData(object):
 
     @classmethod
     def _create_class(cls, meta, dct):
-        Domains.validate(meta)
+        Domains.validate(meta, dct)
 
         base = semantix.Import(meta['class']['parent_module'], meta['class']['parent_class'])
         return type(meta['class']['name'], (base,), {'domains': merge.merge_dicts(dct, base.domains)})

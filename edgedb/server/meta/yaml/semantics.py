@@ -12,7 +12,7 @@ class MetaData(object):
 
     @classmethod
     def _create_class(cls, meta, dct):
-        Semantics.validate(meta)
+        Semantics.validate(meta, dct)
 
         base = semantix.Import(meta['class']['parent_module'], meta['class']['parent_class'])
         return type(meta['class']['name'], (base,), {'dct': merge.merge_dicts(dct, base.dct)})
@@ -43,7 +43,7 @@ class MetaBackendHelper(object):
             concept["name"] = concept_name
 
             concept_graph[concept_name] = {"item": concept, "merge": [], "deps": []}
-            if "extends" in concept:
+            if concept['extends'] is not None:
                 if not isinstance(concept["extends"], list):
                     concept["extends"] = list((concept["extends"],))
                 else:
@@ -58,10 +58,10 @@ class MetaBackendHelper(object):
         link_types = []
 
         for node in concept_graph:
-            if "links" in node:
+            if node['links'] is not None:
                 for llink in node["links"]:
                     for link_name, link in llink.items():
-                        if "type" in link:
+                        if link['type'] is not None:
                             link_types.append(link["type"])
                         else:
                             link_types.append(link_name)
@@ -70,15 +70,13 @@ class MetaBackendHelper(object):
 
         for node in concept_graph:
             for attr in node['attributes'].values():
-                if 'required' not in attr:
+                if attr['required'] is None:
                     attr['required'] = False
-                if 'default' not in attr:
-                    attr['default'] = None
 
             concept_graph_dict[node["name"]] = node
 
         for node in concept_graph:
-            if "links" in node:
+            if node["links"] is not None:
                 for llink in node["links"]:
                     for link_name, link in llink.items():
                         if link["target"] not in concept_graph_dict:
@@ -87,7 +85,7 @@ class MetaBackendHelper(object):
             else:
                 node["links"] = []
 
-            if "extends" in node:
+            if node['extends'] is not None:
                 for parent in node["extends"]:
                     concept_graph_dict[parent]["children"].add(node["name"])
 
@@ -98,8 +96,8 @@ class MetaBackendHelper(object):
     def merge_concepts(left, right):
         result = merge.merge_dicts(left, right)
 
-        if "heuristics" in result:
-            if "comparison" in result["heuristics"]:
+        if result["heuristics"] is not None:
+            if result["heuristics"]["comparison"] is not None:
                 attrs = []
                 heuristics = []
                 for rule in reversed(result["heuristics"]["comparison"]):
