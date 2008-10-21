@@ -3,7 +3,7 @@ import copy
 import semantix
 from semantix.lib import merge, graph
 from semantix.lib.caos.domain import DomainClass
-from semantix.lib.caos.concept import ConceptClass, ConceptAttribute
+from semantix.lib.caos.concept import ConceptClass, ConceptAttribute, ConceptLink
 from semantix.lib.caos.datasources.introspection.table import *
 from semantix.lib.caos.backends.meta.base import MetaError
 from semantix.lib.caos.backends.meta.yaml.schemas.semantics import Semantics
@@ -18,9 +18,22 @@ class MetaData(object):
         base = semantix.Import(meta['class']['parent_module'], meta['class']['parent_class'])
         return type(meta['class']['name'], (base,), {'dct': merge.merge_dicts(dct, base.dct)})
 
+class MetaDataIterator(object):
+    def __init__(self, helper):
+        self.helper = helper
+        self.iter = iter(helper.semantics_list)
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        concept = next(self.iter)
+        return ConceptClass(concept['name'], meta_backend=self.helper.meta_backend)
+
 class MetaBackendHelper(object):
-    def __init__(self, metadata):
+    def __init__(self, metadata, meta_backend):
         self.semantics = metadata.dct['semantic_network']
+        self.meta_backend = meta_backend
 
         concept_graph = {}
 
@@ -66,11 +79,21 @@ class MetaBackendHelper(object):
             concept_graph_dict[node["name"]] = node
 
         for node in concept_graph:
+            if "links" in node:
+                for llink in node["links"]:
+                    for link_name, link in llink.items():
+                        if link["target"] not in concept_graph_dict:
+                            raise MetaError('reference to an undefined concept "%s" in "%s"' %
+                                            (link['target'], node['name'] + '/links/' + link_name))
+            else:
+                node["links"] = []
+
             if "extends" in node:
                 for parent in node["extends"]:
                     concept_graph_dict[parent]["children"].add(node["name"])
 
         self.semantics = concept_graph_dict
+        self.semantics_list = concept_graph
 
     @staticmethod
     def merge_concepts(left, right):
@@ -90,17 +113,10 @@ class MetaBackendHelper(object):
 
         result["extends"] = copy.deepcopy(right["extends"])
 
-        if left["name"] in result["extends"]:
-            result["extends"].remove(left["name"])
-
-        result["extends"].append(left["name"])
-
-        for cls in left["extends"]:
-            if cls in result["extends"]:
-                result["extends"].remove(cls)
-            result['extends'].append(cls)
-
         return result
+
+    def __iter__(self):
+        return MetaDataIterator(self)
 
     def load(self, name):
         if name not in self.semantics:
@@ -112,17 +128,28 @@ class MetaBackendHelper(object):
 
         dct['name'] = name
         dct['attributes'] = {}
+        dct['links'] = {}
 
         for attr_name, attr in concept['attributes'].items():
-            dct['attributes'][attr_name] = ConceptAttribute(DomainClass(attr['domain']),
+            if isinstance(attr['domain'], dict):
+                attr['domain']['name'] = name + '__' + attr_name
+
+            dct['attributes'][attr_name] = ConceptAttribute(DomainClass(attr['domain'], meta_backend=self.meta_backend),
                                                             attr['required'], attr['default'])
+
+        for llink in concept['links']:
+            for link_name, link in llink.items():
+                dct['links'][(link_name, link['target'])] = ConceptLink(name, link['target'], link_name, 0)
 
         bases = tuple()
         if len(concept['extends']) > 0:
             for parent in concept['extends']:
-                bases += (ConceptClass(parent),)
+                bases += (ConceptClass(parent, meta_backend=self.meta_backend),)
+
+        dct['parents'] = concept['extends']
 
         return bases, dct
+
 
     def store(self, cls):
         pass

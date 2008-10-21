@@ -1,9 +1,11 @@
 import psycopg2
 import re
 import types
+import copy
 
 from semantix.lib.decorators import memoized
-from semantix.lib.caos import cls, domain
+from semantix.lib.caos.domain import DomainClass
+from semantix.lib.caos.backends.meta.base import MetaError
 
 class MetaBackendHelper(object):
 
@@ -13,33 +15,58 @@ class MetaBackendHelper(object):
 
     re_constraint_re = re.compile("VALUE::text \s* ~ \s* '(?P<re>.*)'::text$", re.X)
 
+    base_domains = {
+                        'str': types.UnicodeType,
+                        'int': types.IntType,
+                        'long': types.LongType,
+                        'bool': types.BooleanType
+                   }
+
     base_type_map = {
                         'integer': types.IntType,
                         'character': types.UnicodeType,
-                        'character varying': types.UnicodeType
+                        'character varying': types.UnicodeType,
+                        'boolean': types.BooleanType,
+                        'numeric': types.LongType
                     }
 
-    def __init__(self, connection):
-        self.connection = connection
+    base_type_name_map = {
+                                'str': 'character varying',
+                                'int': 'integer',
+                                'bool': 'boolean',
+                                'long': 'numeric'
+                         }
 
-    def load(self, cls, name):
+    typmod_types = ('character', 'character varying', 'numeric')
+    fixed_length_types = {'character varying': 'character'}
+
+    def __init__(self, connection, meta_backend):
+        self.connection = connection
+        self.meta_backend = meta_backend
+
+    def load(self, name):
         domains = MetaBackendHelper._fetch_domains(self.connection)
 
-        print domains
+        if name in self.base_domains:
+            dct = {'name': name, 'constraints': {}, 'basetype': None}
+            return (self.base_domains[name],), dct
 
-        if 'caos.' + name not in domains:
-            raise domain.DomainError('reference to an undefined domain "%s"' % name)
+        if 'caos.' + name + '_domain' not in domains:
+            raise MetaError('reference to an undefined domain "%s"' % name)
 
-        row = domains['caos.' + name]
+        row = domains['caos.' + name + '_domain']
 
-        cls.constraints = {}
-        cls.name = row['name']
-        cls.basetype = None
+        bases = tuple()
+        dct = {}
+
+        dct['constraints'] = {}
+        dct['name'] = name
+        dct['basetype'] = None
 
         if row['basetype'] is not None:
             m = MetaBackendHelper.typlen_re.match(row['basetype_full'])
             if m:
-                cls.add_constraint('max-length', m.group('length'))
+                self.meta_backend.add_domain_constraint(dct['constraints'], 'max-length', m.group('length'))
 
         if row['constraints'] is not None:
             for constraint in row['constraints']:
@@ -53,20 +80,56 @@ class MetaBackendHelper(object):
                     else:
                         constraint = ('expr', constraint)
 
-                    cls.add_constraint(*constraint)
+                    self.meta_backend.add_domain_constraint(dct['constraints'], *constraint)
                 else:
                     raise IntrospectionError('unknown domain constraint type: `%s`' % constraint)
 
         if row['basetype'] in MetaBackendHelper.base_type_map:
-            cls.basetype = MetaBackendHelper.base_type_map[row['basetype']]
-            bases = (cls.basetype,)
-        else:
-            bases = tuple()
+            dct['basetype'] = MetaBackendHelper.base_type_map[row['basetype']]
+            bases = (dct['basetype'],)
 
-        return bases
+        return bases, dct
 
     def store(self, cls):
-        pass
+        try:
+            current = DomainClass(cls.name, meta_backend=self.meta_backend)
+        except MetaError:
+            current = None
+
+        if current is None:
+            self.create_domain(cls)
+
+    def create_domain(self, cls):
+        qry = 'CREATE DOMAIN "caos"."%s_domain" AS ' % cls.name
+        base = cls.basetype.name
+
+        if base in self.base_type_name_map:
+            base = self.base_type_name_map[base]
+
+        basetype = copy.copy(base)
+
+        if 'max-length' in cls.constraints and base in self.typmod_types:
+            if ('min-length' in cls.constraints
+                    and cls.constraints['max-length'] == cls.constraints['min-length']
+                    and base in self.fixed_length_types) :
+                base = self.fixed_length_types[base]
+            base += '(' + str(cls.constraints['max-length']) + ')'
+        qry += base
+
+        for constr_type, constr in cls.constraints.items():
+            if constr_type == 'regexp':
+                for re in constr:
+                    qry += self.meta_backend.cursor.mogrify(' CHECK (VALUE ~ %(re)s) ', {'re': re})
+            elif constr_type == 'expr':
+                for expr in constr:
+                    qry += ' CHECK (' + expr + ') '
+            elif constr_type == 'max-length':
+                if basetype not in self.typmod_types:
+                    qry += ' CHECK (length(VALUE::text) <= ' + str(constr) + ') '
+            elif constr_type == 'min-length':
+                qry += ' CHECK (length(VALUE::text) >= ' + str(constr) + ') '
+
+        self.meta_backend.cursor.execute(qry)
 
     @staticmethod
     @memoized

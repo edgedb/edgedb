@@ -16,6 +16,7 @@ source: |
         SELECT
                 a.attname                               AS column_name,
                 t.typname                               AS column_type,
+                t.oid::regtype::text                    AS column_type_full,
                 t.oid                                   AS column_type_oid,
                 a.attnotnull                            AS column_required,
                 pg_get_expr(def.adbin, c.oid, true)     AS column_default
