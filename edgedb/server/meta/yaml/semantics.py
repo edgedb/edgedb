@@ -13,7 +13,7 @@ class MetaData(object):
 
     @classmethod
     def _create_class(cls, meta, dct):
-        Semantics.validate(meta['filename'])
+        Semantics.validate(meta)
 
         base = semantix.Import(meta['class']['parent_module'], meta['class']['parent_class'])
         return type(meta['class']['name'], (base,), {'dct': merge.merge_dicts(dct, base.dct)})
