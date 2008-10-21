@@ -1,0 +1,50 @@
+#!INSTANCE DomainsList (semantix.lib.datasources.sql.Sql)
+
+cache: memory
+
+params:
+    schema_name:
+        type: str
+        default: "caos"
+
+filters:
+    - format: dict
+
+source: |
+        SELECT
+                t.oid                                 AS oid,
+                t.typname                             AS name,
+                ns.nspname                            AS schema,
+
+                CASE WHEN t.typbasetype != 0 THEN
+                    format_type(t.typbasetype, t.typtypmod)
+                ELSE
+                    NULL
+                END                                 AS basetype_full,
+
+                CASE WHEN t.typbasetype != 0 THEN
+                    format_type(t.typbasetype, NULL)
+                ELSE
+                    NULL
+                END                                 AS basetype,
+
+                ARRAY(SELECT
+                            pg_get_constraintdef(c.oid, true)
+                        FROM
+                            pg_constraint AS c
+                        WHERE
+                            c.contypid = t.oid)     AS constraints
+            FROM
+                pg_type AS t
+                INNER JOIN pg_namespace AS ns ON ns.oid = t.typnamespace
+                LEFT JOIN pg_class AS c ON c.reltype = t.oid
+            WHERE
+                --
+                -- Limit the schema scope
+                --
+                ns.nspname = %(schema_name)s
+                --
+                -- We're not interested in shell- or pseudotypes or arrays or table row types
+                --
+                AND t.typisdefined AND t.typtype != 'p' AND (t.typelem IS NULL OR t.typelem = 0)
+                AND (c.oid IS NULL OR c.relkind = 'c')

@@ -4,7 +4,6 @@ import semantix
 from semantix.lib import merge, graph
 from semantix.lib.caos.domain import DomainClass
 from semantix.lib.caos.concept import ConceptClass, ConceptAttribute, ConceptLink
-from semantix.lib.caos.datasources.introspection.table import *
 from semantix.lib.caos.backends.meta.base import MetaError
 from semantix.lib.caos.backends.meta.yaml.schemas.semantics import Semantics
 

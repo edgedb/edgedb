@@ -1,7 +1,8 @@
-from semantix.lib.caos.datasources.introspection.table import *
 from semantix.lib.caos.domain import DomainClass
 from semantix.lib.caos.concept import ConceptClass
 from semantix.lib.caos.backends.meta.base import MetaError
+
+from .datasources.introspection.table import *
 
 class MetaBackendHelper(object):
 

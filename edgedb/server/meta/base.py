@@ -1,3 +1,5 @@
+import types
+
 import semantix.lib.caos.domain
 import semantix.lib.caos.concept
 
@@ -5,6 +7,13 @@ class MetaError(Exception):
     pass
 
 class BaseMetaBackend(object):
+    base_domains_to_class_map = {
+                                    'str': types.UnicodeType,
+                                    'int': types.IntType,
+                                    'long': types.LongType,
+                                    'bool': types.BooleanType
+                                }
+
     def __init__(self):
         self.domain_backend = None
         self.semantics_backend = None
@@ -15,7 +24,14 @@ class BaseMetaBackend(object):
         bases = tuple()
 
         if type == 'domain':
-            bases, dct = self.domain_backend.load(name)
+            dct = {'name': name, 'constraints': {}, 'basetype': None}
+
+            if isinstance(name, str) and name in self.base_domains_to_class_map:
+                bases += (self.base_domains_to_class_map[name],)
+            else:
+                bases, dct2 = self.domain_backend.load(name)
+                dct.update(dct2)
+
             bases = bases + tuple((semantix.lib.caos.domain.Domain,))
         elif type == 'semantics':
             bases, dct = self.semantics_backend.load(name)

@@ -1,4 +1,3 @@
-import types
 import semantix
 from semantix.lib import merge
 from semantix.lib.caos.domain import DomainClass
@@ -28,13 +27,6 @@ class MetaDataIterator(object):
         return DomainClass(concept, meta_backend=self.helper.meta_backend)
 
 class MetaBackendHelper(object):
-    base_domains = {
-                        'str': types.UnicodeType,
-                        'int': types.IntType,
-                        'long': types.LongType,
-                        'bool': types.BooleanType
-                   }
-
     def __init__(self, metadata, meta_backend):
         self.domains = metadata.domains
         self.meta_backend = meta_backend
@@ -46,26 +38,11 @@ class MetaBackendHelper(object):
             domain = name
             name = domain['name']
         else:
-            if name not in self.domains and name not in self.base_domains:
+            if name not in self.domains:
                 raise MetaError('reference to an undefined domain: %s' % name)
-
-            dct['name'] = name
-            dct['basetype'] = None
-
-            if name in self.base_domains:
-                return (self.base_domains[name],), dct
-
             domain = self.domains[name]
 
         dct['name'] = name
-        dct['basetype'] = None
-
-        if name in self.base_domains:
-            return (self.base_domains[name],), dct
-
-        if domain['domain'] not in self.base_domains and domain['domain'] not in self.domains:
-            raise MetaError('reference to an undefined domain: %s' % domain['domain'])
-
         dct['basetype'] = DomainClass(domain['domain'], meta_backend=self.meta_backend)
         dct['constraints'] = {}
 
