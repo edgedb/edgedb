@@ -1,9 +1,7 @@
-import psycopg2
 import re
 import types
 import copy
 
-from semantix.lib.decorators import memoized
 from semantix.lib.caos.domain import DomainClass
 from semantix.lib.caos.backends.meta.base import MetaError
 
