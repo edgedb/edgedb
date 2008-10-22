@@ -85,7 +85,7 @@ class BaseMetaBackend(object):
         dct['basetype'] = DomainClass(domain['domain'], meta_backend=self)
         dct['constraints'] = {}
 
-        if 'constraints' in domain:
+        if domain['constraints'] is not None:
             for constr in domain['constraints']:
                 constr_type, constr = constr.items()[0]
                 if isinstance(constr, str):

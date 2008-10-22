@@ -17,13 +17,24 @@ mapping:
                 type: seq
                 sequence:
                     -
-                        type: map
-                        mapping:
-                            "expr":
-                                type: str
-                            "min-length":
-                                type: int
-                            "max-length":
-                                type: int
-                            "regexp":
-                                type: str
+                        type: choice
+                        choice:
+                            - type: map
+                              mapping:
+                                "expr":
+                                    type: str
+
+                            - type: map
+                              mapping:
+                                "min-length":
+                                    type: int
+
+                            - type: map
+                              mapping:
+                                "max-length":
+                                    type: int
+
+                            - type: map
+                              mapping:
+                                "regexp":
+                                    type: str
