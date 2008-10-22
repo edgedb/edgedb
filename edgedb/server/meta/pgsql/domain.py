@@ -198,6 +198,7 @@ class MetaBackendHelper(object):
         dct['constraints'] = {}
         dct['name'] = name
         dct['basetype'] = None
+        dct['default'] = domain_descr['default']
 
         if domain_descr['constraints'] is not None:
             for constraint_type in domain_descr['constraints']:
@@ -211,6 +212,10 @@ class MetaBackendHelper(object):
 
         dct['basetype'] = DomainClass(dct['basetype'], meta_backend=self.meta_backend)
         bases = (dct['basetype'],)
+
+        if dct['default'] is not None:
+            # Cast the default value to an appropriate type
+            dct['default'] = dct['basetype'](dct['default'])
 
         return bases, dct
 
@@ -253,6 +258,9 @@ class MetaBackendHelper(object):
                 base = self.fixed_length_types[base]
             base += '(' + str(cls.constraints['max-length']) + ')'
         qry += base
+
+        if cls.default is not None:
+            qry += self.meta_backend.cursor.mogrify(' DEFAULT %(val)s ', {'val': cls.default})
 
         for constr_type, constr in cls.constraints.items():
             if constr_type == 'regexp':

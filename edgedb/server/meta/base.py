@@ -83,6 +83,7 @@ class BaseMetaBackend(object):
         dct = {}
         dct['name'] = name
         dct['basetype'] = DomainClass(domain['domain'], meta_backend=self)
+        dct['default'] = domain['default'] if 'default' in domain else None
         dct['constraints'] = {}
 
         if domain['constraints'] is not None:

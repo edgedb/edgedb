@@ -13,6 +13,9 @@ mapping:
             "domain":
                 type: str
 
+            "default":
+                type: any
+
             "constraints":
                 type: seq
                 sequence:
