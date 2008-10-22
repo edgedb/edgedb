@@ -8,8 +8,8 @@ class MetaBackend(BaseMetaBackend):
 
         self.cursor = connection.cursor()
 
-        self.semantics_backend = semantics.MetaBackendHelper(connection, self)
         self.domain_backend = domain.MetaBackendHelper(connection, self)
+        self.semantics_backend = semantics.MetaBackendHelper(connection, self)
 
     def commit(self):
         self.cursor.connection.commit()

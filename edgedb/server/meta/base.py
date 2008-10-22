@@ -2,6 +2,7 @@ import types
 
 import semantix.lib.caos.domain
 import semantix.lib.caos.concept
+from semantix.lib.caos.domain import DomainClass
 
 class MetaError(Exception):
     pass
@@ -77,3 +78,18 @@ class BaseMetaBackend(object):
                 constraints[type].append(value)
             else:
                 constraints[type] = [value]
+
+    def load_domain(self, name, domain):
+        dct = {}
+        dct['name'] = name
+        dct['basetype'] = DomainClass(domain['domain'], meta_backend=self)
+        dct['constraints'] = {}
+
+        if 'constraints' in domain:
+            for constr in domain['constraints']:
+                constr_type, constr = constr.items()[0]
+                if isinstance(constr, str):
+                    constr = constr.strip()
+                self.add_domain_constraint(dct['constraints'], constr_type, constr)
+
+        return (dct['basetype'],), dct

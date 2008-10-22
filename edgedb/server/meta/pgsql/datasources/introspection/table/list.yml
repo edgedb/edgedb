@@ -1,0 +1,29 @@
+#!INSTANCE TableList (semantix.lib.datasources.sql.Sql)
+
+cache: memory
+
+params:
+    schema_name:
+        type: str
+        default: "caos"
+
+filters:
+    - format: dict
+
+source: |
+        SELECT
+                c.oid                                 AS oid,
+                c.relname                             AS name,
+                ns.nspname                            AS schema
+            FROM
+                pg_class AS c
+                INNER JOIN pg_namespace AS ns ON ns.oid = c.relnamespace
+            WHERE
+                --
+                -- Limit the schema scope
+                --
+                ns.nspname = %(schema_name)s
+                --
+                -- We're only interested in real tables
+                --
+                AND c.relkind = 'r'

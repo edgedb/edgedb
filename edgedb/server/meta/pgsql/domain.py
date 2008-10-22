@@ -12,18 +12,19 @@ from .datasources.introspection.domains import DomainsList
 class MetaDataIterator(object):
     def __init__(self, helper):
         self.helper = helper
-        self.iter = iter(helper.domains)
+        self.iter = iter(helper.semantics_list)
 
     def __iter__(self):
         return self
 
     def next(self):
         concept = next(self.iter)
-        return DomainClass(concept, meta_backend=self.helper.meta_backend)
+        return ConceptClass(concept['name'], meta_backend=self.helper.meta_backend)
+
 
 class MetaBackendHelper(object):
 
-    typlen_re = re.compile(".* \( (?P<length>\d+) \)$", re.X)
+    typlen_re = re.compile("(?P<type>.*) \( (?P<length>\d+) \)$", re.X)
 
     check_constraint_re = re.compile("CHECK \s* \( (?P<expr>.*) \)$", re.X)
 
@@ -44,6 +45,16 @@ class MetaBackendHelper(object):
                                 'long': 'numeric'
                          }
 
+    base_type_name_map_r = {
+                                'character varying': 'str',
+                                'character': 'str',
+                                'text': 'str',
+                                'integer': 'int',
+                                'boolean': 'bool',
+                                'numeric': 'long'
+                           }
+
+
     typmod_types = ('character', 'character varying', 'numeric')
     fixed_length_types = {'character varying': 'character'}
 
@@ -63,7 +74,62 @@ class MetaBackendHelper(object):
 
         return name
 
+
+    def domain_from_pg_type(self, type_expr, domain_name):
+        result = None
+
+        demangled = self.demangle_name(type_expr)
+
+        if demangled in self.domains:
+            result = DomainClass(demangled, meta_backend=self.meta_backend)
+        else:
+            m = MetaBackendHelper.typlen_re.match(type_expr)
+            if m:
+                typmod = m.group('length')
+                typname = m.group('type').strip()
+            else:
+                typmod = None
+                typname = type_expr
+
+            if typname in self.base_type_name_map_r:
+                domain = self.base_type_name_map_r[typname]
+
+                if typname in self.typmod_types and typmod is not None:
+                    domain = {'name': domain_name, 'domain': domain, 'constraints': [{'max-length': typmod}]}
+
+                result = DomainClass(domain, meta_backend=self.meta_backend)
+
+        return result
+
+
+    def pg_type_from_domain(self, domain_cls):
+        # Check if the domain is in our backend
+        try:
+            domain = DomainClass(domain_cls.name, meta_backend=self.meta_backend)
+        except MetaError:
+            if domain_cls.name in self.meta_backend.domain_cache:
+                domain = self.meta_backend.domain_cache[domain_cls.name]
+            else:
+                domain = None
+
+        if (domain_cls.basetype is not None and domain_cls.basetype.name == 'str'
+                and len(domain_cls.constraints) == 1 and 'max-length' in domain_cls.constraints):
+            column_type = 'varchar(%d)' % domain_cls.constraints['max-length']
+        else:
+            if domain_cls.name in self.base_type_name_map:
+                column_type = self.base_type_name_map[domain_cls.name]
+            else:
+                if domain is None:
+                    self.meta_backend.store(domain_cls)
+
+                column_type = '"caos"."%s_domain"' % domain_cls.name
+
+        return column_type
+
+
     def load(self, name):
+        if isinstance(name, dict):
+            return self.meta_backend.load_domain(name['name'], name)
 
         if name not in self.domains:
             raise MetaError('reference to an undefined domain "%s"' % name)
@@ -104,6 +170,7 @@ class MetaBackendHelper(object):
 
         return bases, dct
 
+
     def store(self, cls):
         try:
             current = DomainClass(cls.name, meta_backend=self.meta_backend)
@@ -123,6 +190,13 @@ class MetaBackendHelper(object):
         basetype = copy.copy(base)
 
         if 'max-length' in cls.constraints and base in self.typmod_types:
+            #
+            # Convert basetype + max-length constraint into a postgres-native
+            # type with typmod, e.g str[max-length: 20] --> varchar(20)
+            #
+            # Handle the case when min-length == max-length and yield a fixed-size
+            # type correctly
+            #
             if ('min-length' in cls.constraints
                     and cls.constraints['max-length'] == cls.constraints['min-length']
                     and base in self.fixed_length_types) :

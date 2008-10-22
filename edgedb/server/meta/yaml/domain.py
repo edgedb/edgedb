@@ -32,8 +32,6 @@ class MetaBackendHelper(object):
         self.meta_backend = meta_backend
 
     def load(self, name):
-        dct = {}
-
         if isinstance(name, dict):
             domain = name
             name = domain['name']
@@ -42,18 +40,7 @@ class MetaBackendHelper(object):
                 raise MetaError('reference to an undefined domain: %s' % name)
             domain = self.domains[name]
 
-        dct['name'] = name
-        dct['basetype'] = DomainClass(domain['domain'], meta_backend=self.meta_backend)
-        dct['constraints'] = {}
-
-        if 'constraints' in domain:
-            for constr in domain['constraints']:
-                constr_type, constr = constr.items()[0]
-                if isinstance(constr, str):
-                    constr = constr.strip()
-                self.meta_backend.add_domain_constraint(dct['constraints'], constr_type, constr)
-
-        return (dct['basetype'],), dct
+        return self.meta_backend.load_domain(name, domain)
 
     def store(self, cls):
         pass

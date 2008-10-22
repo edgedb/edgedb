@@ -1,52 +1,56 @@
 from semantix.lib.caos.domain import DomainClass
-from semantix.lib.caos.concept import ConceptClass
+from semantix.lib.caos.concept import ConceptClass, ConceptAttribute
 from semantix.lib.caos.backends.meta.base import MetaError
 
 from .datasources.introspection.table import *
 
+class MetaDataIterator(object):
+    def __init__(self, helper):
+        self.helper = helper
+        self.iter = iter(helper.concepts)
+
+    def __iter__(self):
+        return self
+
+    def next(self):
+        concept = next(self.iter)
+        return ConceptClass(concept, meta_backend=self.helper.meta_backend)
+
 class MetaBackendHelper(object):
-
-    base_type_name_map = {
-                             'str': 'character varying',
-                             'int': 'integer',
-                             'bool': 'boolean'
-                         }
-
-    base_type_name_map_reverse = {
-                                    'text': 'str',
-                                    'character varying': 'str',
-                                    'integer': 'int',
-                                    'boolean': 'bool'
-                                 }
 
     def __init__(self, connection, meta_backend):
         self.connection = connection
         self.meta_backend = meta_backend
+        self.domain_helper = self.meta_backend.domain_backend
+        self.concepts = dict((self.demangle_name(t['name']), t) for t in TableList.fetch(schema_name='caos'))
+
+
+    def demangle_name(self, name):
+        if name.endswith('_data'):
+            name = name[:-5]
+
+        return name
+
+
+    def mangle_name(self, name):
+        return name + '_data'
+
 
     def load(self, name):
-        columns = TableColumns.fetch(table_name=name + '_data', schema_name='caos')
-
-        if columns is None or len(columns) == 0:
+        if name not in self.concepts:
             raise MetaError('reference to an undefined concept "%s"' % name)
+
+        columns = TableColumns.fetch(table_name=self.mangle_name(name), schema_name='caos')
 
         bases = ()
         dct = {}
 
         attributes = {}
         for row in columns:
-            domain_name = row['column_type']
-            if row['column_type_full'] in self.base_type_name_map_reverse:
-                domain_name = self.base_type_name_map_reverse[row['column_type_full']]
-            elif domain_name.endswith('_domain'):
-                domain_name = domain_name[:-7]
+            domain = self.domain_helper.domain_from_pg_type(row['column_type'], name + '__' + row['column_name'])
 
             try:
-                attr = {
-                            'name': row['column_name'],
-                            'domain': DomainClass(domain_name, meta_backend=self.meta_backend),
-                            'required': row['column_required'],
-                            'default': row['column_default']
-                       }
+                attr = ConceptAttribute(domain, row['column_required'], row['column_default'])
                 attributes[row['column_name']] = attr
             except MetaError, e:
                 print e
@@ -74,32 +78,6 @@ class MetaBackendHelper(object):
         if current is None:
             self.create_concept(cls)
 
-    def get_column_type(self, domain_cls):
-        # Check if the domain is in our backend
-        try:
-            domain = DomainClass(domain_cls.name, meta_backend=self.meta_backend)
-        except MetaError:
-            if domain_cls.name in self.meta_backend.domain_cache:
-                domain = self.meta_backend.domain_cache[domain_cls.name]
-            else:
-                domain = None
-
-        if domain is None:
-            if (domain_cls.basetype is not None and domain_cls.basetype.name == 'str'
-                    and len(domain_cls.constraints) == 1 and 'max-length' in domain_cls.constraints):
-                column_type = 'varchar(%d)' % domain_cls.constraints['max-length']
-            else:
-                if domain_cls.name in self.base_type_name_map:
-                    column_type = self.base_type_name_map[domain_cls.name]
-                else:
-                    self.meta_backend.store(domain_cls)
-                    column_type = '"caos"."%s_domain"' % domain_cls.name
-        else:
-            column_type = '"caos"."%s_domain"' % domain_cls.name
-
-        return column_type
-
-
     def create_concept(self, cls):
         qry = 'CREATE TABLE "caos"."%s_data"' % cls.name
 
@@ -107,7 +85,7 @@ class MetaBackendHelper(object):
 
         for attr_name in sorted(cls.attributes.keys()):
             attr = cls.attributes[attr_name]
-            column_type = self.get_column_type(attr.domain)
+            column_type = self.domain_helper.pg_type_from_domain(attr.domain)
             column = '"%s" %s %s' % (attr_name, column_type, 'NOT NULL' if attr.required else '')
             columns.append(column)
 
@@ -117,3 +95,6 @@ class MetaBackendHelper(object):
             qry += ' INHERITS (' + ','.join(['"caos"."%s_data"' % p for p in cls.parents]) + ')'
 
         self.meta_backend.cursor.execute(qry)
+
+    def __iter__(self):
+        return MetaDataIterator(self)
