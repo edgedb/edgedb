@@ -61,8 +61,11 @@ class MetaBackendHelper(object):
         self.meta_backend = meta_backend
         self.domains = dict((self.demangle_name(d['name']), d) for d in DomainsList.fetch(schema_name='caos'))
 
-    def mangle_name(self, name):
-        return 'caos.' + name + '_domain'
+    def mangle_name(self, name, quote=False):
+        if quote:
+            return '"caos"."%s_domain"' % name
+        else:
+            return 'caos.%s_domain' % name
 
     def demangle_name(self, name):
         name = name.split('.')[-1]
@@ -120,7 +123,7 @@ class MetaBackendHelper(object):
                 if domain is None:
                     self.meta_backend.store(domain_cls)
 
-                column_type = '"caos"."%s_domain"' % domain_cls.name
+                column_type = self.mangle_name(domain_cls.name, True)
 
         return column_type
 
@@ -179,7 +182,7 @@ class MetaBackendHelper(object):
             self.create_domain(cls)
 
     def create_domain(self, cls):
-        qry = 'CREATE DOMAIN "caos"."%s_domain" AS ' % cls.name
+        qry = 'CREATE DOMAIN %s AS ' % self.mangle_name(cls.name, True)
         base = cls.basetype.name
 
         if base in self.base_type_name_map:

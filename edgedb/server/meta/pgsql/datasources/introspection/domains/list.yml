@@ -5,7 +5,7 @@ cache: memory
 params:
     schema_name:
         type: str
-        default: "caos"
+        default: "public"
 
 filters:
     - format: dict

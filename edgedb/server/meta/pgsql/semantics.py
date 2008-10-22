@@ -33,8 +33,11 @@ class MetaBackendHelper(object):
         return name
 
 
-    def mangle_name(self, name):
-        return 'caos.%s_data' % name
+    def mangle_name(self, name, quote=False):
+        if quote:
+            return '"caos"."%s_data"' % name
+        else:
+            return 'caos.%s_data' % name
 
 
     def load(self, name):
@@ -78,7 +81,7 @@ class MetaBackendHelper(object):
             self.create_concept(cls)
 
     def create_concept(self, cls):
-        qry = 'CREATE TABLE "caos"."%s_data"' % cls.name
+        qry = 'CREATE TABLE %s' % self.mangle_name(cls.name, True)
 
         columns = []
 
@@ -91,7 +94,7 @@ class MetaBackendHelper(object):
         qry += '(' + ','.join(columns) + ')'
 
         if len(cls.parents) > 0:
-            qry += ' INHERITS (' + ','.join(['"caos"."%s_data"' % p for p in cls.parents]) + ')'
+            qry += ' INHERITS (' + ','.join([self.mangle_name(p, True) for p in cls.parents]) + ')'
 
         self.meta_backend.cursor.execute(qry)
 
