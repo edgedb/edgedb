@@ -25,7 +25,6 @@ class MetaBackendHelper(object):
         self.domain_helper = self.meta_backend.domain_backend
         self.concepts = dict((self.demangle_name(t['name']), t) for t in TableList.fetch(schema_name='caos'))
 
-
     def demangle_name(self, name):
         if name.endswith('_data'):
             name = name[:-5]
@@ -47,7 +46,7 @@ class MetaBackendHelper(object):
         columns = TableColumns.fetch(table_name=self.mangle_name(name))
 
         bases = ()
-        dct = {}
+        dct = {'name': name}
 
         attributes = {}
         for row in columns:

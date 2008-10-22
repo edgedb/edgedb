@@ -1,7 +1,5 @@
 #!INSTANCE TableColumns (semantix.lib.datasources.sql.Sql)
 
-cache: memory
-
 params:
     table_name:
         type: str

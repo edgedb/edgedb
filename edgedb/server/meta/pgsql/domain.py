@@ -10,14 +10,14 @@ from .datasources.introspection.domains import DomainsList
 class MetaDataIterator(object):
     def __init__(self, helper):
         self.helper = helper
-        self.iter = iter(helper.semantics_list)
+        self.iter = iter(helper.domains)
 
     def __iter__(self):
         return self
 
     def next(self):
-        concept = next(self.iter)
-        return ConceptClass(concept['name'], meta_backend=self.helper.meta_backend)
+        domain = next(self.iter)
+        return DomainClass(domain, meta_backend=self.helper.meta_backend)
 
 
 class MetaBackendHelper(object):
@@ -26,7 +26,13 @@ class MetaBackendHelper(object):
 
     check_constraint_re = re.compile("CHECK \s* \( (?P<expr>.*) \)$", re.X)
 
-    re_constraint_re = re.compile("VALUE::text \s* ~ \s* '(?P<re>.*)'::text$", re.X)
+    constraint_type_re = re.compile("^(?P<type>[\w-]+)_\d+$", re.X)
+
+    constr_expr_res = {
+                        'regexp': re.compile("VALUE::text \s* ~ \s* '(?P<expr>.*)'::text$", re.X),
+                        'max-length': re.compile("length\(VALUE::text\) \s* <= \s* (?P<expr>\d+)$", re.X),
+                        'min-length': re.compile("length\(VALUE::text\) \s* >= \s* (?P<expr>\d+)$", re.X)
+                      }
 
     base_type_map = {
                         'integer': types.IntType,
@@ -59,7 +65,57 @@ class MetaBackendHelper(object):
     def __init__(self, connection, meta_backend):
         self.connection = connection
         self.meta_backend = meta_backend
-        self.domains = dict((self.demangle_name(d['name']), d) for d in DomainsList.fetch(schema_name='caos'))
+        self.domains = dict((self.demangle_name(d['name']), self.normalize_domain_descr(d))
+                                for d in DomainsList.fetch(schema_name='caos'))
+
+    def normalize_domain_descr(self, d):
+        if d['constraint_names'] is not None:
+            constraints = {}
+
+            for constr_name, constr_expr in zip(d['constraint_names'], d['constraints']):
+                m = self.constraint_type_re.match(constr_name)
+                if m:
+                    constr_type = m.group('type')
+                else:
+                    raise MetaError('could not parse domain constraint "%s": %s' % (constr_name, constr_expr))
+
+                if constr_expr.startswith('CHECK'):
+                    # Strip `CHECK()`
+                    constr_expr = self.check_constraint_re.match(constr_expr).group('expr').replace("''", "'")
+                else:
+                    raise MetaError('could not parse domain constraint "%s": %s' % (constr_name, constr_expr))
+
+                if constr_type in self.constr_expr_res:
+                    m = self.constr_expr_res[constr_type].match(constr_expr)
+                    if m:
+                        constr_expr = m.group('expr')
+                    else:
+                        raise MetaError('could not parse domain constraint "%s": %s' % (constr_name, constr_expr))
+
+                if constr_type in ('max-length', 'min-length'):
+                    constr_expr = int(constr_expr)
+
+                if constr_type == 'expr':
+                    # That's a very hacky way to remove casts from expressions added by Postgres
+                    constr_expr = constr_expr.replace('::text', '')
+
+                if constr_type not in constraints:
+                    constraints[constr_type] = []
+
+                constraints[constr_type].append(constr_expr)
+
+            d['constraints'] = constraints
+
+        if d['basetype'] is not None:
+            m = self.typlen_re.match(d['basetype_full'])
+            if m:
+                if 'max-length' not in d['constraints']:
+                    d['constraints']['max-length'] = []
+
+                d['constraints']['max-length'].append(int(m.group('length')))
+
+        return d
+
 
     def mangle_name(self, name, quote=False):
         if quote:
@@ -86,7 +142,7 @@ class MetaBackendHelper(object):
         else:
             m = MetaBackendHelper.typlen_re.match(type_expr)
             if m:
-                typmod = m.group('length')
+                typmod = int(m.group('length'))
                 typname = m.group('type').strip()
             else:
                 typmod = None
@@ -144,30 +200,18 @@ class MetaBackendHelper(object):
         dct['name'] = name
         dct['basetype'] = None
 
-        if domain_descr['basetype'] is not None:
-            m = MetaBackendHelper.typlen_re.match(domain_descr['basetype_full'])
-            if m:
-                self.meta_backend.add_domain_constraint(dct['constraints'], 'max-length', m.group('length'))
-
         if domain_descr['constraints'] is not None:
-            for constraint in domain_descr['constraints']:
-                if constraint.startswith('CHECK'):
-                    # Strip `CHECK()`
-                    constraint = MetaBackendHelper.check_constraint_re.match(constraint).group('expr').replace("''", "'")
+            for constraint_type in domain_descr['constraints']:
+                for constraint_expr in domain_descr['constraints'][constraint_type]:
+                    self.meta_backend.add_domain_constraint(dct['constraints'], constraint_type, constraint_expr)
 
-                    m = MetaBackendHelper.re_constraint_re.match(constraint)
-                    if m:
-                        constraint = ('regexp', m.group('re'))
-                    else:
-                        constraint = ('expr', constraint)
+        if domain_descr['basetype'] in self.base_type_name_map_r:
+            dct['basetype'] = self.base_type_name_map_r[domain_descr['basetype']]
+        else:
+            dct['basetype'] = self.demangle_name(domain_descr['basetype'])
 
-                    self.meta_backend.add_domain_constraint(dct['constraints'], *constraint)
-                else:
-                    raise IntrospectionError('unknown domain constraint type: `%s`' % constraint)
-
-        if domain_descr['basetype'] in MetaBackendHelper.base_type_map:
-            dct['basetype'] = MetaBackendHelper.base_type_map[domain_descr['basetype']]
-            bases = (dct['basetype'],)
+        dct['basetype'] = DomainClass(dct['basetype'], meta_backend=self.meta_backend)
+        bases = (dct['basetype'],)
 
         return bases, dct
 
@@ -181,12 +225,18 @@ class MetaBackendHelper(object):
         if current is None:
             self.create_domain(cls)
 
+    def get_constraint_expr(self, type, expr):
+        constr_name = '%s_%s' % (type, id(expr))
+        return ' CONSTRAINT "%s" CHECK ( %s )' % (constr_name, expr)
+
     def create_domain(self, cls):
         qry = 'CREATE DOMAIN %s AS ' % self.mangle_name(cls.name, True)
         base = cls.basetype.name
 
         if base in self.base_type_name_map:
             base = self.base_type_name_map[base]
+        else:
+            base = self.mangle_name(base, True)
 
         basetype = copy.copy(base)
 
@@ -208,15 +258,16 @@ class MetaBackendHelper(object):
         for constr_type, constr in cls.constraints.items():
             if constr_type == 'regexp':
                 for re in constr:
-                    qry += self.meta_backend.cursor.mogrify(' CHECK (VALUE ~ %(re)s) ', {'re': re})
+                    expr = self.meta_backend.cursor.mogrify('VALUE ~ %(re)s', {'re': re})
+                    qry += self.get_constraint_expr(constr_type, expr)
             elif constr_type == 'expr':
                 for expr in constr:
-                    qry += ' CHECK (' + expr + ') '
+                    qry += self.get_constraint_expr(constr_type, expr)
             elif constr_type == 'max-length':
                 if basetype not in self.typmod_types:
-                    qry += ' CHECK (length(VALUE::text) <= ' + str(constr) + ') '
+                    qry += self.get_constraint_expr(constr_type, 'length(VALUE::text) <= ' + str(constr))
             elif constr_type == 'min-length':
-                qry += ' CHECK (length(VALUE::text) >= ' + str(constr) + ') '
+                qry += self.get_constraint_expr(constr_type, 'length(VALUE::text) >= ' + str(constr))
 
         self.meta_backend.cursor.execute(qry)
 

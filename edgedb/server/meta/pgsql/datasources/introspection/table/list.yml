@@ -1,7 +1,5 @@
 #!INSTANCE TableList (semantix.lib.datasources.sql.Sql)
 
-cache: memory
-
 params:
     schema_name:
         type: str
