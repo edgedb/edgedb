@@ -2,7 +2,7 @@ import types
 
 import semantix.lib.caos.domain
 import semantix.lib.caos.concept
-from semantix.lib.caos.domain import DomainClass
+from semantix.lib.caos import DomainClass
 
 class MetaError(Exception):
     pass

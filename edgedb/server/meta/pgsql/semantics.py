@@ -1,6 +1,4 @@
-from semantix.lib.caos.domain import DomainClass
-from semantix.lib.caos.concept import ConceptClass, ConceptAttribute
-from semantix.lib.caos.backends.meta.base import MetaError
+from semantix.lib.caos import DomainClass, ConceptClass, ConceptAttribute, MetaError
 
 from .datasources.introspection.table import *
 

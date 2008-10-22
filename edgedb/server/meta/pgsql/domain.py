@@ -2,8 +2,7 @@ import re
 import types
 import copy
 
-from semantix.lib.caos.domain import DomainClass
-from semantix.lib.caos.backends.meta.base import MetaError
+from semantix.lib.caos import DomainClass, MetaError
 
 from .datasources.introspection.domains import DomainsList
 

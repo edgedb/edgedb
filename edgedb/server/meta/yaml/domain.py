@@ -1,8 +1,8 @@
 import semantix
 from semantix.lib import merge
-from semantix.lib.caos.domain import DomainClass
-from semantix.lib.caos.backends.meta.base import MetaError
-from semantix.lib.caos.backends.meta.yaml.schemas.domains import Domains
+from semantix.lib.caos import DomainClass, MetaError
+
+from .schemas.domains import Domains
 
 class MetaData(object):
     domains = {}

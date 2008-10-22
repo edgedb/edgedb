@@ -2,10 +2,9 @@ import copy
 
 import semantix
 from semantix.lib import merge, graph
-from semantix.lib.caos.domain import DomainClass
-from semantix.lib.caos.concept import ConceptClass, ConceptAttribute, ConceptLink
-from semantix.lib.caos.backends.meta.base import MetaError
-from semantix.lib.caos.backends.meta.yaml.schemas.semantics import Semantics
+from semantix.lib.caos import ConceptClass, ConceptAttribute, ConceptLink, DomainClass, MetaError
+
+from .schemas.semantics import Semantics
 
 class MetaData(object):
     dct = {}
