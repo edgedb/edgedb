@@ -5,9 +5,6 @@ cache: memory
 params:
     table_name:
         type: str
-    schema_name:
-        type: str
-        default: "public"
 
 source: |
         SELECT
@@ -24,7 +21,7 @@ source: |
                                 INNER JOIN pg_namespace ns ON c.relnamespace = ns.oid
                             WHERE
                                 c.relname = %(table_name)s
-                                AND ns.nspname = %(schema_name)s
+                                OR ns.nspname || '.' || c.relname = %(table_name)s
                       UNION ALL
                         SELECT
                                 c.oid,

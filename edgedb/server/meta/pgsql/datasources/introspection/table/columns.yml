@@ -5,9 +5,6 @@ cache: memory
 params:
     table_name:
         type: str
-    schema_name:
-        type: str
-        default: "public"
 
 filters:
     - format: dict
@@ -27,8 +24,8 @@ source: |
                 INNER JOIN pg_namespace tns ON t.typnamespace = tns.oid
                 LEFT JOIN pg_attrdef def ON def.adrelid = c.oid AND def.adnum = a.attnum
             WHERE
-                c.relname = %(table_name)s
-                AND ns.nspname = %(schema_name)s
+                (c.relname = %(table_name)s
+                    OR ns.nspname || '.' || c.relname = %(table_name)s)
                 AND a.attnum > 0
             ORDER BY
                 a.attnum

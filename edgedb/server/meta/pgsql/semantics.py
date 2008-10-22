@@ -16,6 +16,7 @@ class MetaDataIterator(object):
         concept = next(self.iter)
         return ConceptClass(concept, meta_backend=self.helper.meta_backend)
 
+
 class MetaBackendHelper(object):
 
     def __init__(self, connection, meta_backend):
@@ -33,14 +34,14 @@ class MetaBackendHelper(object):
 
 
     def mangle_name(self, name):
-        return name + '_data'
+        return 'caos.%s_data' % name
 
 
     def load(self, name):
         if name not in self.concepts:
             raise MetaError('reference to an undefined concept "%s"' % name)
 
-        columns = TableColumns.fetch(table_name=self.mangle_name(name), schema_name='caos')
+        columns = TableColumns.fetch(table_name=self.mangle_name(name))
 
         bases = ()
         dct = {}
@@ -57,14 +58,12 @@ class MetaBackendHelper(object):
 
         dct['attributes'] = attributes
 
-        inheritance = TableInheritance.fetch(table_name=name + '_data', schema_name='caos')
+        inheritance = TableInheritance.fetch(table_name=self.mangle_name(name))
         inheritance = [i[0] for i in inheritance[1:]]
 
         if len(inheritance) > 0:
             for table in inheritance:
-                if table.endswith('_data'):
-                    table = table[:-5]
-                bases += (ConceptClass(table, meta_backend=self.meta_backend),)
+                bases += (ConceptClass(self.demangle_name(table), meta_backend=self.meta_backend),)
 
         return bases, dct
 
