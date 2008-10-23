@@ -1,0 +1,2 @@
+class BaseDataBackend(object):
+    pass
