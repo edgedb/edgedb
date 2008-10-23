@@ -48,6 +48,9 @@ class MetaBackendHelper(object):
 
         attributes = {}
         for row in columns:
+            if row['column_name'] == 'entity_id':
+                continue
+
             domain = self.domain_helper.domain_from_pg_type(row['column_type'], name + '__' + row['column_name'])
 
             try:
@@ -88,7 +91,7 @@ class MetaBackendHelper(object):
             column = '"%s" %s %s' % (attr_name, column_type, 'NOT NULL' if attr.required else '')
             columns.append(column)
 
-        qry += '(' + ','.join(columns) + ')'
+        qry += '(entity_id serial NOT NULL, ' + ','.join(columns) + ')'
 
         if len(cls.parents) > 0:
             qry += ' INHERITS (' + ','.join([self.mangle_name(p, True) for p in cls.parents]) + ')'
