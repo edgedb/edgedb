@@ -25,15 +25,14 @@ class BaseMetaBackend(object):
         bases = tuple()
 
         if type == 'domain':
-            dct = {'name': name, 'constraints': {}, 'basetype': None}
+            dct = {'name': name, 'constraints': {}, 'basetype': None, 'default': None}
 
             if isinstance(name, str) and name in self.base_domains_to_class_map:
-                bases += (self.base_domains_to_class_map[name],)
+                bases += (semantix.lib.caos.domain.Domain, self.base_domains_to_class_map[name])
             else:
                 bases, dct2 = self.domain_backend.load(name)
                 dct.update(dct2)
-
-            bases = bases + tuple((semantix.lib.caos.domain.Domain,))
+                bases += tuple((semantix.lib.caos.domain.Domain,))
         elif type == 'semantics':
             bases, dct = self.semantics_backend.load(name)
             bases = bases + tuple((semantix.lib.caos.concept.Concept,))
