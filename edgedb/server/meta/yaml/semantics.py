@@ -2,7 +2,7 @@ import copy
 
 import semantix
 from semantix.lib import merge, graph
-from semantix.lib.caos import ConceptClass, ConceptAttribute, ConceptLink, DomainClass, MetaError
+from semantix.lib.caos import ConceptClass, ConceptAttributeType, ConceptLinkType, DomainClass, MetaError
 
 from .schemas.semantics import Semantics
 
@@ -130,12 +130,14 @@ class MetaBackendHelper(object):
             if isinstance(attr['domain'], dict):
                 attr['domain']['name'] = name + '__' + attr_name
 
-            dct['attributes'][attr_name] = ConceptAttribute(DomainClass(attr['domain'], meta_backend=self.meta_backend),
-                                                            attr['required'], attr['default'])
+            dct['attributes'][attr_name] = ConceptAttributeType(DomainClass(attr['domain'],
+                                                                            meta_backend=self.meta_backend),
+                                                                attr['required'], attr['default'])
 
         for llink in concept['links']:
             for link_name, link in llink.items():
-                dct['links'][(link_name, link['target'])] = ConceptLink(name, link['target'], link_name, link['mapping'])
+                dct['links'][(link_name, link['target'])] = ConceptLinkType(name, link['target'],
+                                                                            link_name, link['mapping'])
 
         # FIXME:
         dct['rlinks'] = {}

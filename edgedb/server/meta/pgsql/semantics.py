@@ -2,7 +2,7 @@ from __future__ import with_statement
 
 from psycopg2 import ProgrammingError
 
-from semantix.lib.caos import DomainClass, ConceptClass, ConceptAttribute, MetaError, ConceptLink
+from semantix.lib.caos import DomainClass, ConceptClass, ConceptAttributeType, MetaError, ConceptLinkType
 
 from .datasources.introspection.table import *
 from .datasources.meta.concept import *
@@ -108,7 +108,7 @@ class MetaBackendHelper(object):
             domain = self.domain_helper.domain_from_pg_type(row['column_type'], name + '__' + row['column_name'])
 
             try:
-                attr = ConceptAttribute(domain, row['column_required'], row['column_default'])
+                attr = ConceptAttributeType(domain, row['column_required'], row['column_default'])
                 attributes[row['column_name']] = attr
             except MetaError, e:
                 print e
@@ -117,12 +117,12 @@ class MetaBackendHelper(object):
 
         dct['links'] = {}
         for r in ConceptLinks.fetch(source_concept=name):
-            l = ConceptLink(r['source_concept'], r['target_concept'], r['link_type'], r['mapping'])
+            l = ConceptLinkType(r['source_concept'], r['target_concept'], r['link_type'], r['mapping'])
             dct['links'][(r['link_type'], r['target_concept'])] = l
 
         dct['rlinks'] = {}
         for r in ConceptLinks.fetch(target_concept=name):
-            l = ConceptLink(r['source_concept'], r['target_concept'], r['link_type'], r['mapping'])
+            l = ConceptLinkType(r['source_concept'], r['target_concept'], r['link_type'], r['mapping'])
             dct['rlinks'][(r['link_type'], r['source_concept'])] = l
 
         inheritance = TableInheritance.fetch(table_name=self.mangle_name(name))
