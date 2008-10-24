@@ -4,6 +4,9 @@ import psycopg2
 from semantix.lib.caos.backends.data.base import BaseDataBackend
 from semantix.lib.caos.backends.meta.pgsql.common import DatabaseConnection, DatabaseTable
 
+from .datasources import EntityLinks
+from ...meta.pgsql.datasources.meta.concept import ConceptLinks
+
 class EntityTable(DatabaseTable):
     def create(self):
         """
@@ -56,9 +59,66 @@ class DataBackend(BaseDataBackend):
 
             data = dict((k, unicode(attrs[k]) if attrs[k] is not None else None) for k in attrs)
             data['entity_id'] = id
+
+            print
+            print '-' * 60
+            print 'Merging entity %s[%s]' % \
+                    (concept, (data['name'] if 'name' in data else ''))
+            print '-' * 60
+
             cursor.execute(query, data)
             id = cursor.fetchone()
             if id is None:
                 raise Exception('failed to store entity')
 
         return id[0]
+
+    def load_links(self, this_concept, this_id, other_concepts=None, link_types=None, reverse=False):
+        if not reverse:
+            source_id = this_id
+            target_id = None
+            source_concepts = [this_concept]
+            target_concepts = other_concepts
+        else:
+            source_id = None
+            target_id = this_id
+            target_concepts = [this_concept]
+            source_concepts = other_concepts
+
+        link_types = link_types
+
+        links = EntityLinks.fetch(source_id=source_id, target_id=target_id,
+                                  target_concepts=target_concepts, source_concepts=source_concepts,
+                                  link_types=link_types)
+
+        return links
+
+
+    def store_links(self, concept, id, links):
+        rows = []
+
+        with self.connection as cursor:
+            for l in links:
+                l.target.flush()
+
+                print
+                print '-' * 60
+                print 'Merging link %s[%s]---{%s}-->%s[%s]' % \
+                        (l.source.__class__.name, l.source.id,
+                         l.link_type,
+                         l.target.__class__.name, (l.target.attrs['name'] if 'name' in l.target.attrs else ''))
+                print '-' * 60
+
+                lt = ConceptLinks.fetch(source_concept=l.source.__class__.name, target_concept=l.target.__class__.name,
+                                        link_type=l.link_type)
+
+                rows.append(cursor.mogrify('(%(source_id)s, %(target_id)s, %(link_type_id)s, %(weight)s)',
+                                           {'source_id': l.source.id,
+                                            'target_id': l.target.id,
+                                            'link_type_id': lt[0]['id'],
+                                            'weight': l.weight}))
+
+            if len(rows) > 0:
+                cursor.execute("""INSERT INTO caos.entity_map(source_id, target_id, link_type_id, weight)
+                                    ((VALUES %s))
+                               """ % (",".join(rows)))

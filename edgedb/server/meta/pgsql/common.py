@@ -33,7 +33,10 @@ class DatabaseTable(object):
             raise Exception('missing table definition in docstring')
 
         with self.connection as cursor:
-            cursor.execute(self.create.__doc__)
+            try:
+                cursor.execute(self.create.__doc__)
+            except psycopg2.ProgrammingError:
+                self.connection.rollback()
 
     def insert(self, *dicts, **kwargs):
         data = {}

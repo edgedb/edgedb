@@ -1,9 +1,13 @@
 #!INSTANCE ConceptLinks (semantix.lib.datasources.sql.Sql)
 
+cache: memory
+
 params:
     source_concept:
         type: str
     target_concept:
+        type: str
+    link_type:
         type: str
 
 filters:
@@ -11,6 +15,7 @@ filters:
 
 source: |
     SELECT
+            cm.id,
             cm.source_id,
             sc.name AS source_concept,
             cm.target_id,
@@ -24,3 +29,4 @@ source: |
         WHERE
             (%(source_concept)s IS NULL OR %(source_concept)s = sc.name)
             AND (%(target_concept)s IS NULL OR %(target_concept)s = tc.name)
+            AND (%(link_type)s IS NULL OR %(link_type)s = cm.link_type)

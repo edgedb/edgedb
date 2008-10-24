@@ -55,6 +55,24 @@ class ConceptMapTable(DatabaseTable):
         """
         super(ConceptMapTable, self).insert(*dicts, **kwargs)
 
+class EntityMapTable(DatabaseTable):
+    def create(self):
+        """
+            CREATE TABLE "caos"."entity_map"(
+                source_id integer NOT NULL,
+                target_id integer NOT NULL,
+                link_type_id integer NOT NULL,
+                weight integer NOT NULL,
+
+                PRIMARY KEY (source_id, target_id, link_type_id),
+                FOREIGN KEY (source_id) REFERENCES "caos"."concept"(id) ON DELETE CASCADE,
+                FOREIGN KEY (target_id) REFERENCES "caos"."concept"(id) ON DELETE CASCADE,
+                FOREIGN KEY (link_type_id) REFERENCES "caos"."concept_map"(id) ON DELETE RESTRICT
+            )
+        """
+        super(EntityMapTable, self).create()
+
+
 class MetaDataIterator(object):
     def __init__(self, helper):
         self.helper = helper
@@ -77,6 +95,8 @@ class MetaBackendHelper(object):
         self.concepts = dict((self.demangle_name(t['name']), t) for t in TableList.fetch(schema_name='caos'))
         self.concept_table = ConceptTable(self.connection)
         self.concept_map_table = ConceptMapTable(self.connection)
+        self.entity_map_table = EntityMapTable(self.connection)
+        self.entity_map_table.create()
 
     def demangle_name(self, name):
         if name.endswith('_data'):
