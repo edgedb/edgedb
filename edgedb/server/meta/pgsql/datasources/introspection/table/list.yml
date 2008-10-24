@@ -25,3 +25,7 @@ source: |
                 -- We're only interested in real tables
                 --
                 AND c.relkind = 'r'
+                --
+                -- and only caos data tables
+                --
+                AND c.relname LIKE '%%_data'

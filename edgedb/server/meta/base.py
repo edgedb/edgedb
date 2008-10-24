@@ -39,12 +39,12 @@ class BaseMetaBackend(object):
 
         return bases, dct
 
-    def store(self, cls):
+    def store(self, cls, phase=None):
         if cls.type == 'domain':
             self.domain_backend.store(cls)
             self.domain_cache[cls.name] = cls
         elif cls.type == 'semantics':
-            self.semantics_backend.store(cls)
+            self.semantics_backend.store(cls, phase)
             self.semantics_cache[cls.name] = cls
 
     def semantics(self):

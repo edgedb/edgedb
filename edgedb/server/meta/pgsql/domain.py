@@ -1,3 +1,5 @@
+from __future__ import with_statement
+
 import re
 import types
 import copy
@@ -259,24 +261,25 @@ class MetaBackendHelper(object):
             base += '(' + str(cls.constraints['max-length']) + ')'
         qry += base
 
-        if cls.default is not None:
-            qry += self.meta_backend.cursor.mogrify(' DEFAULT %(val)s ', {'val': cls.default})
+        with self.connection as cursor:
+            if cls.default is not None:
+                qry += cursor.mogrify(' DEFAULT %(val)s ', {'val': cls.default})
 
-        for constr_type, constr in cls.constraints.items():
-            if constr_type == 'regexp':
-                for re in constr:
-                    expr = self.meta_backend.cursor.mogrify('VALUE ~ %(re)s', {'re': re})
-                    qry += self.get_constraint_expr(constr_type, expr)
-            elif constr_type == 'expr':
-                for expr in constr:
-                    qry += self.get_constraint_expr(constr_type, expr)
-            elif constr_type == 'max-length':
-                if basetype not in self.typmod_types:
-                    qry += self.get_constraint_expr(constr_type, 'length(VALUE::text) <= ' + str(constr))
-            elif constr_type == 'min-length':
-                qry += self.get_constraint_expr(constr_type, 'length(VALUE::text) >= ' + str(constr))
+            for constr_type, constr in cls.constraints.items():
+                if constr_type == 'regexp':
+                    for re in constr:
+                        expr = cursor.mogrify('VALUE ~ %(re)s', {'re': re})
+                        qry += self.get_constraint_expr(constr_type, expr)
+                elif constr_type == 'expr':
+                    for expr in constr:
+                        qry += self.get_constraint_expr(constr_type, expr)
+                elif constr_type == 'max-length':
+                    if basetype not in self.typmod_types:
+                        qry += self.get_constraint_expr(constr_type, 'length(VALUE::text) <= ' + str(constr))
+                elif constr_type == 'min-length':
+                    qry += self.get_constraint_expr(constr_type, 'length(VALUE::text) >= ' + str(constr))
 
-        self.meta_backend.cursor.execute(qry)
+            cursor.execute(qry)
 
     def __iter__(self):
         return MetaDataIterator(self)

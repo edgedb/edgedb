@@ -135,7 +135,10 @@ class MetaBackendHelper(object):
 
         for llink in concept['links']:
             for link_name, link in llink.items():
-                dct['links'][(link_name, link['target'])] = ConceptLink(name, link['target'], link_name, 0)
+                dct['links'][(link_name, link['target'])] = ConceptLink(name, link['target'], link_name, link['mapping'])
+
+        # FIXME:
+        dct['rlinks'] = {}
 
         bases = tuple()
         if len(concept['extends']) > 0:
@@ -147,5 +150,5 @@ class MetaBackendHelper(object):
         return bases, dct
 
 
-    def store(self, cls):
+    def store(self, cls, phase):
         pass

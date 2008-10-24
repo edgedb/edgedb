@@ -1,0 +1,26 @@
+#!INSTANCE ConceptLinks (semantix.lib.datasources.sql.Sql)
+
+params:
+    source_concept:
+        type: str
+    target_concept:
+        type: str
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+            cm.source_id,
+            sc.name AS source_concept,
+            cm.target_id,
+            tc.name AS target_concept,
+            cm.link_type AS link_type,
+            cm.mapping
+        FROM
+            caos.concept_map cm
+            INNER JOIN caos.concept sc ON cm.source_id = sc.id
+            INNER JOIN caos.concept tc ON cm.target_id = tc.id
+        WHERE
+            (%(source_concept)s IS NULL OR %(source_concept)s = sc.name)
+            AND (%(target_concept)s IS NULL OR %(target_concept)s = tc.name)

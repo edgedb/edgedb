@@ -1,6 +1,59 @@
-from semantix.lib.caos import DomainClass, ConceptClass, ConceptAttribute, MetaError
+from __future__ import with_statement
+
+from psycopg2 import ProgrammingError
+
+from semantix.lib.caos import DomainClass, ConceptClass, ConceptAttribute, MetaError, ConceptLink
 
 from .datasources.introspection.table import *
+from .datasources.meta.concept import *
+from .common import DatabaseTable
+
+class ConceptTable(DatabaseTable):
+    def create(self):
+        """
+            CREATE TABLE "caos"."concept"(
+                id serial NOT NULL,
+                name text NOT NULL,
+
+                PRIMARY KEY (id)
+            )
+        """
+        super(ConceptTable, self).create()
+
+    def insert(self, *dicts, **kwargs):
+        """
+            INSERT INTO "caos"."concept"(name) VALUES (%(name)s) RETURNING id
+        """
+        super(ConceptTable, self).insert(*dicts, **kwargs)
+
+class ConceptMapTable(DatabaseTable):
+    def create(self):
+        """
+            CREATE TABLE "caos"."concept_map"(
+                id serial NOT NULL,
+                source_id integer NOT NULL,
+                target_id integer NOT NULL,
+                link_type varchar(255) NOT NULL,
+                mapping char(2) NOT NULL,
+
+                PRIMARY KEY (id),
+                FOREIGN KEY (source_id) REFERENCES "caos"."concept"(id) ON DELETE CASCADE,
+                FOREIGN KEY (target_id) REFERENCES "caos"."concept"(id) ON DELETE CASCADE
+            )
+        """
+        super(ConceptMapTable, self).create()
+
+    def insert(self, *dicts, **kwargs):
+        """
+            INSERT INTO "caos"."concept_map"(source_id, target_id, link_type, mapping)
+                VALUES (
+                            (SELECT id FROM caos.concept WHERE name = %(source)s),
+                            (SELECT id FROM caos.concept WHERE name = %(target)s),
+                            %(link_type)s,
+                            %(mapping)s
+                ) RETURNING id
+        """
+        super(ConceptMapTable, self).insert(*dicts, **kwargs)
 
 class MetaDataIterator(object):
     def __init__(self, helper):
@@ -22,6 +75,8 @@ class MetaBackendHelper(object):
         self.meta_backend = meta_backend
         self.domain_helper = self.meta_backend.domain_backend
         self.concepts = dict((self.demangle_name(t['name']), t) for t in TableList.fetch(schema_name='caos'))
+        self.concept_table = ConceptTable(self.connection)
+        self.concept_map_table = ConceptMapTable(self.connection)
 
     def demangle_name(self, name):
         if name.endswith('_data'):
@@ -41,11 +96,10 @@ class MetaBackendHelper(object):
         if name not in self.concepts:
             raise MetaError('reference to an undefined concept "%s"' % name)
 
-        columns = TableColumns.fetch(table_name=self.mangle_name(name))
-
         bases = ()
         dct = {'name': name}
 
+        columns = TableColumns.fetch(table_name=self.mangle_name(name))
         attributes = {}
         for row in columns:
             if row['column_name'] == 'entity_id':
@@ -61,6 +115,16 @@ class MetaBackendHelper(object):
 
         dct['attributes'] = attributes
 
+        dct['links'] = {}
+        for r in ConceptLinks.fetch(source_concept=name):
+            l = ConceptLink(r['source_concept'], r['target_concept'], r['link_type'], r['mapping'])
+            dct['links'][(r['link_type'], r['target_concept'])] = l
+
+        dct['rlinks'] = {}
+        for r in ConceptLinks.fetch(target_concept=name):
+            l = ConceptLink(r['source_concept'], r['target_concept'], r['link_type'], r['mapping'])
+            dct['rlinks'][(r['link_type'], r['source_concept'])] = l
+
         inheritance = TableInheritance.fetch(table_name=self.mangle_name(name))
         inheritance = [i[0] for i in inheritance[1:]]
 
@@ -71,32 +135,42 @@ class MetaBackendHelper(object):
         return bases, dct
 
 
-    def store(self, cls):
+    def store(self, cls, phase):
         try:
             current = ConceptClass(cls.name, meta_backend=self.meta_backend)
         except MetaError:
             current = None
 
-        if current is None:
-            self.create_concept(cls)
+        if current is None or phase == 2:
+            self.create_concept(cls, phase)
 
-    def create_concept(self, cls):
-        qry = 'CREATE TABLE %s' % self.mangle_name(cls.name, True)
 
-        columns = []
+    def create_concept(self, cls, phase):
+        if phase is None or phase == 1:
+            concept = self.concept_table.insert(name=cls.name)
 
-        for attr_name in sorted(cls.attributes.keys()):
-            attr = cls.attributes[attr_name]
-            column_type = self.domain_helper.pg_type_from_domain(attr.domain)
-            column = '"%s" %s %s' % (attr_name, column_type, 'NOT NULL' if attr.required else '')
-            columns.append(column)
+            qry = 'CREATE TABLE %s' % self.mangle_name(cls.name, True)
 
-        qry += '(entity_id serial NOT NULL, ' + ','.join(columns) + ')'
+            columns = []
 
-        if len(cls.parents) > 0:
-            qry += ' INHERITS (' + ','.join([self.mangle_name(p, True) for p in cls.parents]) + ')'
+            for attr_name in sorted(cls.attributes.keys()):
+                attr = cls.attributes[attr_name]
+                column_type = self.domain_helper.pg_type_from_domain(attr.domain)
+                column = '"%s" %s %s' % (attr_name, column_type, 'NOT NULL' if attr.required else '')
+                columns.append(column)
 
-        self.meta_backend.cursor.execute(qry)
+            qry += '(entity_id integer NOT NULL REFERENCES caos.concept(id) ON DELETE CASCADE, ' + ','.join(columns) + ')'
+
+            if len(cls.parents) > 0:
+                qry += ' INHERITS (' + ','.join([self.mangle_name(p, True) for p in cls.parents]) + ')'
+
+            with self.connection as cursor:
+                cursor.execute(qry)
+
+        if phase is None or phase == 2:
+            for link in cls.links.values():
+                self.concept_map_table.insert(source=link.source, target=link.target,
+                                              link_type=link.link_type, mapping=link.mapping)
 
     def __iter__(self):
         return MetaDataIterator(self)
