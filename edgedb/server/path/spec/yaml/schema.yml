@@ -1,0 +1,55 @@
+#!CLASS Schema (semantix.lib.readers.yaml.schema.Base)
+
+&MAP
+type: map
+mapping:
+    "node":
+        type: map
+        mapping:
+            "link":
+                type: str
+
+            "name":
+                type: str
+                required: yes
+
+            "direction":
+                type: str
+                enum: ["direct", "reverse"]
+                default: "direct"
+
+            "conditions":
+                type: seq
+                sequence:
+                    -   &CONDITION
+                        type: map
+                        mapping:
+                            "exists":
+                                *CONDITION
+                            "not-exists":
+                                *CONDITION
+                            "and":
+                                *CONDITION
+                            "or":
+                                *CONDITION
+
+                            "link":
+                                type: map
+                                mapping:
+                                    "type":
+                                        type: str
+                                        required: yes
+
+                                    "target":
+                                        type: str
+                                        required: yes
+
+                                    "direction":
+                                        type: str
+                                        enum: ["direct", "reverse"]
+                                        default: "direct"
+
+            "children":
+                type: seq
+                sequence:
+                    - *MAP

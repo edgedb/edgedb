@@ -45,7 +45,6 @@ class DatabaseTable(object):
 
         if self.insert.__doc__ is None:
             raise Exception('missing insert statement in docstring')
-
         with self.connection as cursor:
             try:
                 cursor.execute(self.insert.__doc__, data)

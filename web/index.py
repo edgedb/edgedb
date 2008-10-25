@@ -9,8 +9,12 @@ from pygments import highlight
 from pygments.lexers import get_lexer_by_name
 from pygments.formatters import HtmlFormatter
 
-from semantix.lib import datasources, readers
-from semantix.lib.caos import Entity
+from semantix.lib import datasources, readers, db
+from semantix.lib.caos import Entity, Class
+from semantix.lib.caos.backends.meta.pgsql import MetaBackend as PgSQLMetaBackend
+from semantix.lib.caos.backends.data.pgsql import DataBackend as PgSQLDataBackend
+
+from docs.datasources.entities_tree_level import EntitiesTreeLevel
 
 class HTMLConceptTemlates(object):
     @staticmethod
@@ -39,7 +43,7 @@ class HTMLConceptTemlates(object):
                                                             }
 
         content = entity.attrs['content']
-        if entity.concept == 'code-snippet':
+        if entity.name == 'code-snippet':
             lang = iter(entity.links['language']).next().target
             if lang.attrs['name'] == 'code':
                 content = highlight(content, get_lexer_by_name('javascript'), HtmlFormatter())
@@ -144,9 +148,9 @@ class HTMLConceptTemlates(object):
                 if 'name' in el.target.attrs:
                     name = el.target.attrs['name']
                 else:
-                    name = 'UNKNOWN NAME FOR %s' % el.target.concept
+                    name = 'UNKNOWN NAME FOR %s' % el.target.name
                 output += '<dd><a href="#" semantix:entity-id="%s" class="semantix-draggable">%s: %s</a>&nbsp;</a></dd>' % (
-                                        el.target.id, cgi.escape(el.target.concept), cgi.escape(name)
+                                        el.target.id, cgi.escape(el.target.name), cgi.escape(name)
                             )
         output += '</dl>'
 
@@ -154,11 +158,11 @@ class HTMLConceptTemlates(object):
 
     @staticmethod
     def render(entity):
-        concept = entity.concept
+        concept = entity.name
         method = 'render_' + concept.replace('-', '_')
 
         output = '<div class="topic"><h1 semantix:entity-id="%s" class="semantix-draggable">%s' % (
-                                        entity.id, cgi.escape(entity.concept.capitalize())
+                                        entity.id, cgi.escape(entity.name.capitalize())
                                     )
 
         if entity.attrs['name']:
@@ -180,6 +184,9 @@ class Srv(object):
                                 'tools.staticdir.on': True,
                                 'tools.staticdir.dir': os.path.join(self.current_dir, 'public')
                             }
+
+        Class.data_backend = PgSQLDataBackend(db.connection)
+        Class.meta_backend = PgSQLMetaBackend(db.connection)
 
         cherrypy.quickstart(self, '/', config=config)
 
@@ -212,7 +219,7 @@ class Srv(object):
                 entity_id = None
 
         return simplejson.dumps(
-                                    datasources.fetch('entities.tree.level', entity_id=entity_id)
+                                    EntitiesTreeLevel.fetch(entity_id=entity_id)
                                 )
 
     @cherrypy.expose

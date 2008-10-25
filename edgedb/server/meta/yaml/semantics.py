@@ -139,8 +139,7 @@ class MetaBackendHelper(object):
                 dct['links'][(link_name, link['target'])] = ConceptLinkType(name, link['target'],
                                                                             link_name, link['mapping'])
 
-        # FIXME:
-        dct['rlinks'] = {}
+        dct['rlinks'] = self.collect_rlinks(name)
 
         bases = tuple()
         if len(concept['extends']) > 0:
@@ -151,6 +150,17 @@ class MetaBackendHelper(object):
 
         return bases, dct
 
+    def collect_rlinks(self, target_concept):
+        result = {}
+
+        for concept in self.semantics_list:
+            for llink in concept['links']:
+                for link_type, link in llink.items():
+                    if link['target'] == target_concept:
+                       result[(link_type, concept['name'])] = ConceptLinkType(concept['name'], target_concept,
+                                                                              link_type, link['mapping'])
+
+        return result
 
     def store(self, cls, phase):
         pass

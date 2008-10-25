@@ -7,12 +7,16 @@ from semantix.lib.caos import DomainClass
 class MetaError(Exception):
     pass
 
+class Bool(type):
+    def __init__(self, value):
+        self.value = value
+
 class BaseMetaBackend(object):
     base_domains_to_class_map = {
                                     'str': types.UnicodeType,
                                     'int': types.IntType,
                                     'long': types.LongType,
-                                    'bool': types.BooleanType
+                                    'bool': Bool
                                 }
 
     def __init__(self):

@@ -7,6 +7,7 @@ from semantix.lib.caos import DomainClass, ConceptClass, ConceptAttributeType, M
 from .datasources.introspection.table import *
 from .datasources.meta.concept import *
 from .common import DatabaseTable
+from ...data.pgsql import EntityTable
 
 class ConceptTable(DatabaseTable):
     def create(self):
@@ -65,8 +66,8 @@ class EntityMapTable(DatabaseTable):
                 weight integer NOT NULL,
 
                 PRIMARY KEY (source_id, target_id, link_type_id),
-                FOREIGN KEY (source_id) REFERENCES "caos"."concept"(id) ON DELETE CASCADE,
-                FOREIGN KEY (target_id) REFERENCES "caos"."concept"(id) ON DELETE CASCADE,
+                FOREIGN KEY (source_id) REFERENCES "caos"."entity"(id) ON DELETE CASCADE,
+                FOREIGN KEY (target_id) REFERENCES "caos"."entity"(id) ON DELETE CASCADE,
                 FOREIGN KEY (link_type_id) REFERENCES "caos"."concept_map"(id) ON DELETE RESTRICT
             )
         """
@@ -94,7 +95,10 @@ class MetaBackendHelper(object):
         self.domain_helper = self.meta_backend.domain_backend
         self.concepts = dict((self.demangle_name(t['name']), t) for t in TableList.fetch(schema_name='caos'))
         self.concept_table = ConceptTable(self.connection)
+        self.concept_table.create()
         self.concept_map_table = ConceptMapTable(self.connection)
+        self.concept_map_table.create()
+        EntityTable(self.connection).create()
         self.entity_map_table = EntityMapTable(self.connection)
         self.entity_map_table.create()
 
@@ -179,7 +183,7 @@ class MetaBackendHelper(object):
                 column = '"%s" %s %s' % (attr_name, column_type, 'NOT NULL' if attr.required else '')
                 columns.append(column)
 
-            qry += '(entity_id integer NOT NULL REFERENCES caos.concept(id) ON DELETE CASCADE, ' + ','.join(columns) + ')'
+            qry += '(entity_id integer NOT NULL REFERENCES caos.entity(id) ON DELETE CASCADE, ' + ','.join(columns) + ')'
 
             if len(cls.parents) > 0:
                 qry += ' INHERITS (' + ','.join([self.mangle_name(p, True) for p in cls.parents]) + ')'
