@@ -1,8 +1,8 @@
 import types
 
-import semantix.lib.caos.domain
-import semantix.lib.caos.concept
-from semantix.lib.caos import DomainClass
+import semantix.caos.domain
+import semantix.caos.concept
+from semantix.caos import DomainClass
 
 class MetaError(Exception):
     pass
@@ -32,14 +32,14 @@ class BaseMetaBackend(object):
             dct = {'name': name, 'constraints': {}, 'basetype': None, 'default': None}
 
             if isinstance(name, str) and name in self.base_domains_to_class_map:
-                bases += (semantix.lib.caos.domain.Domain, self.base_domains_to_class_map[name])
+                bases += (semantix.caos.domain.Domain, self.base_domains_to_class_map[name])
             else:
                 bases, dct2 = self.domain_backend.load(name)
                 dct.update(dct2)
-                bases += tuple((semantix.lib.caos.domain.Domain,))
+                bases += tuple((semantix.caos.domain.Domain,))
         elif type == 'semantics':
             bases, dct = self.semantics_backend.load(name)
-            bases = bases + tuple((semantix.lib.caos.concept.Concept,))
+            bases = bases + tuple((semantix.caos.concept.Concept,))
 
         return bases, dct
 

@@ -1,4 +1,4 @@
-#!CLASS Semantics (semantix.lib.readers.yaml.schema.Base)
+#!CLASS Semantics (semantix.readers.yaml.schema.Base)
 
 type: map
 mapping:

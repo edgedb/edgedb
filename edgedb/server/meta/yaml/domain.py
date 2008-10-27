@@ -1,6 +1,6 @@
 import semantix
-from semantix.lib import merge
-from semantix.lib.caos import DomainClass, MetaError
+from semantix import merge
+from semantix.caos import DomainClass, MetaError
 
 from .schemas.domains import Domains
 

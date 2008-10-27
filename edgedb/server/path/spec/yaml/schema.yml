@@ -1,4 +1,4 @@
-#!CLASS Schema (semantix.lib.readers.yaml.schema.Base)
+#!CLASS Schema (semantix.readers.yaml.schema.Base)
 
 &MAP
 type: map

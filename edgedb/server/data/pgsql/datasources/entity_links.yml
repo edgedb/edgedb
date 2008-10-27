@@ -1,4 +1,4 @@
-#!INSTANCE EntityLinks (semantix.lib.datasources.sql.Sql)
+#!INSTANCE EntityLinks (semantix.datasources.sql.Sql)
 
 params:
     source_id:

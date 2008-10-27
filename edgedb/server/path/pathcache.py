@@ -1,5 +1,5 @@
-from semantix.lib import helper, datasources, readers, db, config
-from semantix.lib.caos import BaseConcept, Concept, EntityCollection
+from semantix import helper, datasources, readers, db, config
+from semantix.caos import BaseConcept, Concept, EntityCollection
 
 class PathCache(object):
     def __init__(self, heap, config):

@@ -1,4 +1,4 @@
-#!INSTANCE DomainsList (semantix.lib.datasources.sql.Sql)
+#!INSTANCE DomainsList (semantix.datasources.sql.Sql)
 
 params:
     schema_name:

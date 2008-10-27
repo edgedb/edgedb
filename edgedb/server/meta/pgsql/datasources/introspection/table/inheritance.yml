@@ -1,4 +1,4 @@
-#!INSTANCE TableInheritance (semantix.lib.datasources.sql.Sql)
+#!INSTANCE TableInheritance (semantix.datasources.sql.Sql)
 
 params:
     table_name:

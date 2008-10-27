@@ -2,7 +2,7 @@ from __future__ import with_statement
 
 from psycopg2 import ProgrammingError
 
-from semantix.lib.caos import DomainClass, ConceptClass, ConceptAttributeType, MetaError, ConceptLinkType
+from semantix.caos import DomainClass, ConceptClass, ConceptAttributeType, MetaError, ConceptLinkType
 
 from .datasources.introspection.table import *
 from .datasources.meta.concept import *

@@ -1,4 +1,4 @@
-#!CLASS Domains (semantix.lib.readers.yaml.schema.Base)
+#!CLASS Domains (semantix.readers.yaml.schema.Base)
 
 type: map
 required: yes

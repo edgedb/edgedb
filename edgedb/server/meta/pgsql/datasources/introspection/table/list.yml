@@ -1,4 +1,4 @@
-#!INSTANCE TableList (semantix.lib.datasources.sql.Sql)
+#!INSTANCE TableList (semantix.datasources.sql.Sql)
 
 params:
     schema_name:

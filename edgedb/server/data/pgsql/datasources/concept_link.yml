@@ -1,4 +1,4 @@
-#!INSTANCE ConceptLink (semantix.lib.datasources.sql.Sql)
+#!INSTANCE ConceptLink (semantix.datasources.sql.Sql)
 
 cache: memory
 

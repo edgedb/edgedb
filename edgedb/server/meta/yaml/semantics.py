@@ -1,8 +1,8 @@
 import copy
 
 import semantix
-from semantix.lib import merge, graph
-from semantix.lib.caos import ConceptClass, ConceptAttributeType, ConceptLinkType, DomainClass, MetaError
+from semantix import merge, graph
+from semantix.caos import ConceptClass, ConceptAttributeType, ConceptLinkType, DomainClass, MetaError
 
 from .schemas.semantics import Semantics
 

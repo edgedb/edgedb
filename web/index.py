@@ -9,10 +9,10 @@ from pygments import highlight
 from pygments.lexers import get_lexer_by_name
 from pygments.formatters import HtmlFormatter
 
-from semantix.lib import datasources, readers, db
-from semantix.lib.caos import Entity, Class
-from semantix.lib.caos.backends.meta.pgsql import MetaBackend as PgSQLMetaBackend
-from semantix.lib.caos.backends.data.pgsql import DataBackend as PgSQLDataBackend
+from semantix import datasources, readers, db
+from semantix.caos import Entity, Class
+from semantix.caos.backends.meta.pgsql import MetaBackend as PgSQLMetaBackend
+from semantix.caos.backends.data.pgsql import DataBackend as PgSQLDataBackend
 
 from docs.datasources.entities_tree_level import EntitiesTreeLevel
 
