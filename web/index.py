@@ -22,7 +22,7 @@ class HTMLConceptTemlates(object):
         output = '<div class="section c-article">'
 
         tags = ''
-        if entity.attrs['tags']:
+        if 'attrs' in entity.attrs:
             tags = cgi.escape(entity.attrs['tags'])
 
         title = None
@@ -132,26 +132,16 @@ class HTMLConceptTemlates(object):
         output += '<h2>Links:</h2>'
         output += '<dl>'
         for link in entity.links:
-            if link[0] is None or link[1] is None:
-                continue
 
-            result = False
-            for i in entity.links[link]:
-                result = True
+            output += '<dt>%s</dt>' % cgi.escape(link.link_type)
+            if 'name' in link.target.attrs:
+                name = link.target.attrs['name']
+            else:
+                name = 'UNKNOWN NAME FOR %s' % link.target.name
+            output += '<dd><a href="#" semantix:entity-id="%s" class="semantix-draggable">%s: %s</a>&nbsp;</a></dd>' % (
+                                    link.target.id, cgi.escape(link.target.name), cgi.escape(name)
+                        )
 
-            if not result:
-                continue
-
-            output += '<dt>%s</dt>' % cgi.escape(link[0])
-
-            for el in entity.links[link]:
-                if 'name' in el.target.attrs:
-                    name = el.target.attrs['name']
-                else:
-                    name = 'UNKNOWN NAME FOR %s' % el.target.name
-                output += '<dd><a href="#" semantix:entity-id="%s" class="semantix-draggable">%s: %s</a>&nbsp;</a></dd>' % (
-                                        el.target.id, cgi.escape(el.target.name), cgi.escape(name)
-                            )
         output += '</dl>'
 
         return output + '</div>'
