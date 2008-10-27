@@ -132,6 +132,13 @@ class DataBackend(BaseDataBackend):
         return id[0]
 
     def load_links(self, this_concept, this_id, other_concepts=None, link_types=None, reverse=False):
+
+        if link_types is not None and not isinstance(link_types, list):
+            link_types = [link_types]
+
+        if other_concepts is not None and not isinstance(other_concepts, list):
+            other_concepts = [other_concepts]
+
         if not reverse:
             source_id = this_id
             target_id = None
@@ -142,8 +149,6 @@ class DataBackend(BaseDataBackend):
             target_id = this_id
             target_concepts = [this_concept]
             source_concepts = other_concepts
-
-        link_types = link_types
 
         links = EntityLinks.fetch(source_id=source_id, target_id=target_id,
                                   target_concepts=target_concepts, source_concepts=source_concepts,
@@ -182,8 +187,13 @@ class DataBackend(BaseDataBackend):
 
             if len(rows) > 0:
                 cursor.execute("""INSERT INTO caos.entity_map(source_id, target_id, link_type_id, weight)
-                                    ((VALUES %s))
-                               """ % (",".join(rows)))
+                                    ((VALUES %s) EXCEPT (SELECT
+                                                                *
+                                                            FROM
+                                                                caos.entity_map
+                                                            WHERE
+                                                                (source_id, target_id, link_type_id, weight) in (%s)))
+                               """ % (",".join(rows), ",".join(rows)))
 
     def store_path_cache_entry(self, entity, parent_entity_id, weight):
         self.path_cache_table.insert(entity_id=entity.id,
