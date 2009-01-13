@@ -1,5 +1,5 @@
 import semantix
-from semantix import merge
+from semantix.utils import merge
 from semantix.caos import DomainClass, MetaError
 
 from .schemas.domains import Domains

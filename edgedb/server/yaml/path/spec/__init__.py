@@ -1,5 +1,5 @@
 import semantix
-from semantix import merge
+from semantix.utils import merge
 
 from .schema import Schema
 
