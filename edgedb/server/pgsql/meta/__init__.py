@@ -1,6 +1,7 @@
-from semantix.caos.backends.meta.base import BaseMetaBackend
-from semantix.caos.backends.meta.pgsql import semantics, domain
-from .common import DatabaseConnection
+from semantix.caos.backends.meta import BaseMetaBackend
+from semantix.caos.backends.pgsql.common import DatabaseConnection
+
+from . import semantics, domain
 
 class MetaBackend(BaseMetaBackend):
     def __init__(self, connection):

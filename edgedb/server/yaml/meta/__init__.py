@@ -1,5 +1,5 @@
-from semantix.caos.backends.meta.base import BaseMetaBackend
-from semantix.caos.backends.meta.yaml import semantics, domain
+from semantix.caos.backends.meta import BaseMetaBackend
+from . import semantics, domain
 
 
 class MetaBackend(BaseMetaBackend):

@@ -1,4 +1,3 @@
-from __future__ import with_statement
 import psycopg2
 
 class DatabaseConnection(object):
@@ -55,3 +54,23 @@ class DatabaseTable(object):
 
         data = cursor.fetchone()
         return data
+
+
+class EntityTable(DatabaseTable):
+    def create(self):
+        """
+            CREATE TABLE "caos"."entity"(
+                id serial NOT NULL,
+                concept_id integer NOT NULL,
+
+                PRIMARY KEY (id),
+                FOREIGN KEY (concept_id) REFERENCES "caos"."concept"(id)
+            )
+        """
+        super(EntityTable, self).create()
+
+    def insert(self, *dicts, **kwargs):
+        """
+            INSERT INTO "caos"."entity"(concept_id) (SELECT id FROM caos.concept WHERE name = %(concept)s) RETURNING id
+        """
+        return super(EntityTable, self).insert(*dicts, **kwargs)

@@ -1,13 +1,12 @@
-from __future__ import with_statement
-
 from psycopg2 import ProgrammingError
 
 from semantix.caos import DomainClass, ConceptClass, ConceptAttributeType, MetaError, ConceptLinkType
 
+from semantix.caos.backends.pgsql.common import DatabaseTable, EntityTable
+from semantix.caos.backends.pgsql.data import EntityTable
+
 from .datasources.introspection.table import *
 from .datasources.meta.concept import *
-from .common import DatabaseTable
-from ...data.pgsql import EntityTable
 
 class ConceptTable(DatabaseTable):
     def create(self):

@@ -1,9 +1,8 @@
-from __future__ import with_statement
-
 import psycopg2
-from ..base import BasePathCacheBackend
-from ...meta.pgsql.common import DatabaseConnection, DatabaseTable
-from ...meta.pgsql.datasources.meta.concept import ConceptLinks
+
+from semantix.caos.backends.path import BasePathCacheBackend
+from semantix.caos.backends.pgsql.common import DatabaseConnection, DatabaseTable
+from semantix.caos.backends.pgsql.meta.datasources.meta.concept import ConceptLinks
 from .datasources import EntityLinks
 
 

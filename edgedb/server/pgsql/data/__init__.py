@@ -1,5 +1,3 @@
-from __future__ import with_statement
-
 import psycopg2
 from semantix.caos.backends.data.base import BaseDataBackend
 from semantix.caos.backends.meta.pgsql.common import DatabaseConnection, DatabaseTable
