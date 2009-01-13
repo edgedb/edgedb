@@ -3,74 +3,10 @@ from psycopg2 import ProgrammingError
 from semantix.caos import DomainClass, ConceptClass, ConceptAttributeType, MetaError, ConceptLinkType
 
 from semantix.caos.backends.pgsql.common import DatabaseTable, EntityTable
-from semantix.caos.backends.pgsql.data import EntityTable
+from semantix.caos.backends.pgsql.common import ConceptTable, ConceptMapTable, EntityTable, EntityMapTable
 
 from .datasources.introspection.table import *
 from .datasources.meta.concept import *
-
-class ConceptTable(DatabaseTable):
-    def create(self):
-        """
-            CREATE TABLE "caos"."concept"(
-                id serial NOT NULL,
-                name text NOT NULL,
-
-                PRIMARY KEY (id)
-            )
-        """
-        super(ConceptTable, self).create()
-
-    def insert(self, *dicts, **kwargs):
-        """
-            INSERT INTO "caos"."concept"(name) VALUES (%(name)s) RETURNING id
-        """
-        super(ConceptTable, self).insert(*dicts, **kwargs)
-
-class ConceptMapTable(DatabaseTable):
-    def create(self):
-        """
-            CREATE TABLE "caos"."concept_map"(
-                id serial NOT NULL,
-                source_id integer NOT NULL,
-                target_id integer NOT NULL,
-                link_type varchar(255) NOT NULL,
-                mapping char(2) NOT NULL,
-
-                PRIMARY KEY (id),
-                FOREIGN KEY (source_id) REFERENCES "caos"."concept"(id) ON DELETE CASCADE,
-                FOREIGN KEY (target_id) REFERENCES "caos"."concept"(id) ON DELETE CASCADE
-            )
-        """
-        super(ConceptMapTable, self).create()
-
-    def insert(self, *dicts, **kwargs):
-        """
-            INSERT INTO "caos"."concept_map"(source_id, target_id, link_type, mapping)
-                VALUES (
-                            (SELECT id FROM caos.concept WHERE name = %(source)s),
-                            (SELECT id FROM caos.concept WHERE name = %(target)s),
-                            %(link_type)s,
-                            %(mapping)s
-                ) RETURNING id
-        """
-        super(ConceptMapTable, self).insert(*dicts, **kwargs)
-
-class EntityMapTable(DatabaseTable):
-    def create(self):
-        """
-            CREATE TABLE "caos"."entity_map"(
-                source_id integer NOT NULL,
-                target_id integer NOT NULL,
-                link_type_id integer NOT NULL,
-                weight integer NOT NULL,
-
-                PRIMARY KEY (source_id, target_id, link_type_id),
-                FOREIGN KEY (source_id) REFERENCES "caos"."entity"(id) ON DELETE CASCADE,
-                FOREIGN KEY (target_id) REFERENCES "caos"."entity"(id) ON DELETE CASCADE,
-                FOREIGN KEY (link_type_id) REFERENCES "caos"."concept_map"(id) ON DELETE RESTRICT
-            )
-        """
-        super(EntityMapTable, self).create()
 
 
 class MetaDataIterator(object):
