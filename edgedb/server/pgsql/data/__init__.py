@@ -112,7 +112,7 @@ class DataBackend(BaseDataBackend):
                 query += '(entity_id, ' + ','.join(['"%s"' % a for a in attrs]) + ')'
                 query += 'VALUES(%(entity_id)s, ' + ','.join(['%%(%s)s' % a for a in attrs]) + ') RETURNING entity_id'
 
-            data = dict((k, unicode(attrs[k]) if attrs[k] is not None else None) for k in attrs)
+            data = dict((k, str(attrs[k]) if attrs[k] is not None else None) for k in attrs)
             data['entity_id'] = id
 
             cursor.execute(query, data)
@@ -120,11 +120,11 @@ class DataBackend(BaseDataBackend):
             if id is None:
                 raise Exception('failed to store entity')
 
-            print
-            print '-' * 60
-            print 'Merged entity %s[%s][%s]' % \
-                    (concept, id[0], (data['name'] if 'name' in data else ''))
-            print '-' * 60
+            print()
+            print('-' * 60)
+            print('Merged entity %s[%s][%s]' % \
+                    (concept, id[0], (data['name'] if 'name' in data else '')))
+            print('-' * 60)
 
 
         return id[0]
@@ -162,13 +162,13 @@ class DataBackend(BaseDataBackend):
             for l in links:
                 l.target.flush()
 
-                print
-                print '-' * 60
-                print 'Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
+                print()
+                print('-' * 60)
+                print('Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
                         (l.source.__class__.name, l.source.id, (l.source.attrs['name'] if 'name' in l.source.attrs else ''),
                          l.link_type,
-                         l.target.__class__.name, l.target.id, (l.target.attrs['name'] if 'name' in l.target.attrs else ''))
-                print '-' * 60
+                         l.target.__class__.name, l.target.id, (l.target.attrs['name'] if 'name' in l.target.attrs else '')))
+                print('-' * 60)
 
                 # XXX: that's ugly
                 sources = [c.name for c in l.source.__class__.__mro__ if hasattr(c, 'name')]
@@ -196,7 +196,7 @@ class DataBackend(BaseDataBackend):
     def store_path_cache_entry(self, entity, parent_entity_id, weight):
         self.path_cache_table.insert(entity_id=entity.id,
                                  parent_entity_id=parent_entity_id,
-                                 name_attribute=unicode(entity.attrs['name']) if 'name' in entity.attrs else None,
+                                 name_attribute=str(entity.attrs['name']) if 'name' in entity.attrs else None,
                                  concept_name=entity.name,
                                  weight=weight)
 

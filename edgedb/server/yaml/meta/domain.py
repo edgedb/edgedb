@@ -22,7 +22,7 @@ class MetaDataIterator(object):
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         concept = next(self.iter)
         return DomainClass(concept, meta_backend=self.helper.meta_backend)
 

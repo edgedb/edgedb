@@ -39,10 +39,10 @@ def _default_merger(left, right):
 
 def normalize(graph, merger=_default_merger, allow_loops=False, allow_unresolved=False):
     # Adjacency matrix
-    adj = dict(zip(graph.keys(), (list() for i in xrange(len(graph)))))
+    adj = dict(zip(graph.keys(), (list() for i in range(len(graph)))))
 
     # Reverse adjacency matrix
-    radj = dict(zip(graph.keys(), (list() for i in xrange(len(graph)))))
+    radj = dict(zip(graph.keys(), (list() for i in range(len(graph)))))
 
     for item_name, item in graph.items():
         if "merge" in item:

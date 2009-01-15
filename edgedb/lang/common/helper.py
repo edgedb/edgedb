@@ -12,7 +12,7 @@ def dump(stuff):
             if not hasattr(attr, '__call__'):
                 buf.append('  -> %s : %s' % (name, attr))
 
-        print '\n'.join(buf) + '\n'
+        print('\n'.join(buf) + '\n')
 
     else:
         import pprint

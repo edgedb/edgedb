@@ -61,14 +61,14 @@ class PathCacheBackend(BasePathCacheBackend):
                 query += '(entity_id, ' + ','.join(['"%s"' % a for a in attrs]) + ')'
                 query += 'VALUES(%(entity_id)s, ' + ','.join(['%%(%s)s' % a for a in attrs]) + ') RETURNING entity_id'
 
-            data = dict((k, unicode(attrs[k]) if attrs[k] is not None else None) for k in attrs)
+            data = dict((k, str(attrs[k]) if attrs[k] is not None else None) for k in attrs)
             data['entity_id'] = id
 
-            print
-            print '-' * 60
-            print 'Merging entity %s[%s]' % \
-                    (concept, (data['name'] if 'name' in data else ''))
-            print '-' * 60
+            print()
+            print('-' * 60)
+            print('Merging entity %s[%s]' % \
+                    (concept, (data['name'] if 'name' in data else '')))
+            print('-' * 60)
 
             cursor.execute(query, data)
             id = cursor.fetchone()

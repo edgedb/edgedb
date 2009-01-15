@@ -1,6 +1,3 @@
-import logging
-
-
 def decorate(target_func, source_func):
     target_func.__name__ = source_func.__name__
     target_func.__doc__ = source_func.__doc__
@@ -24,7 +21,7 @@ def delegate(*args, **kwargs):
         if f is None:
             return run()
         else:
-            decorate.func_name = func.func_name
+            decorate.__name__ = func.__name__
             return run
 
     return decorate

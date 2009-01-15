@@ -13,9 +13,8 @@ class Bool(type):
 
 class BaseMetaBackend(object):
     base_domains_to_class_map = {
-                                    'str': types.UnicodeType,
-                                    'int': types.IntType,
-                                    'long': types.LongType,
+                                    'str': str,
+                                    'int': int,
                                     'bool': Bool
                                 }
 
@@ -91,7 +90,7 @@ class BaseMetaBackend(object):
 
         if domain['constraints'] is not None:
             for constr in domain['constraints']:
-                constr_type, constr = constr.items()[0]
+                constr_type, constr = list(constr.items())[0]
                 if isinstance(constr, str):
                     constr = constr.strip()
                 self.add_domain_constraint(dct['constraints'], constr_type, constr)

@@ -34,7 +34,7 @@ def merge_dicts(left_dict, right_dict, merge_function=_default_merge_func):
 
     # check that we actually have a function
     if type(merge_function) != types.FunctionType:
-        raise TypeError, "The merge_function supplied was not a valid function."
+        raise TypeError("The merge_function supplied was not a valid function.")
 
     for left_key in left_dict:
         if left_key in right_dict:

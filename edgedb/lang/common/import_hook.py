@@ -1,4 +1,4 @@
-import __builtin__, os, sys, imp
+import builtins, os, sys, imp
 
 class ImportHook(object):
     @classmethod
@@ -60,12 +60,12 @@ class ImportHook(object):
 
     @classmethod
     def determine_parent(cls, globals):
-        if not globals or not globals.has_key("__name__"):
+        if not globals or not '__name__' in globals:
             return None
 
         pname = globals['__name__']
 
-        if globals.has_key("__path__"):
+        if '__path__' in globals:
             parent = sys.modules[pname]
             assert globals is parent.__dict__
             return parent
@@ -180,10 +180,10 @@ class ImportHook(object):
 
     @classmethod
     def install(cls):
-        ImportHook.original_import = __builtin__.__import__
-        __builtin__.__import__ = cls.import_hook
+        ImportHook.original_import = builtins.__import__
+        builtins.__import__ = cls.import_hook
 
 
     @classmethod
     def uninstall(cls):
-        __builtin__.__import__ = ImportHook.original_import
+        builtins.__import__ = ImportHook.original_import

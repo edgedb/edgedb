@@ -1,7 +1,7 @@
 import cherrypy
 import cherrypy.lib.static
 import os
-import simplejson
+import json
 
 
 import cgi
@@ -10,7 +10,7 @@ from pygments.lexers import get_lexer_by_name
 from pygments.formatters import HtmlFormatter
 
 from semantix import datasources, readers, db
-from semantix.caos import Entity, backends
+from semantix.caos import Entity, Class
 from semantix.caos.backends.meta.pgsql import MetaBackend as PgSQLMetaBackend
 from semantix.caos.backends.data.pgsql import DataBackend as PgSQLDataBackend
 
@@ -175,8 +175,8 @@ class Srv(object):
                                 'tools.staticdir.dir': os.path.join(self.current_dir, 'public')
                             }
 
-        backends.data_backend = PgSQLDataBackend(db.connection)
-        backends.meta_backend = PgSQLMetaBackend(db.connection)
+        Class.data_backend = PgSQLDataBackend(db.connection)
+        Class.meta_backend = PgSQLMetaBackend(db.connection)
 
         cherrypy.quickstart(self, '/', config=config)
 
@@ -208,7 +208,7 @@ class Srv(object):
             else:
                 entity_id = None
 
-        return simplejson.dumps(
+        return json.dumps(
                                     EntitiesTreeLevel.fetch(entity_id=entity_id)
                                 )
 

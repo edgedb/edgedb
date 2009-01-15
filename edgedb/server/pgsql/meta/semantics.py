@@ -17,7 +17,7 @@ class MetaDataIterator(object):
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         concept = next(self.iter)
         return ConceptClass(concept, meta_backend=self.helper.meta_backend)
 
@@ -69,8 +69,8 @@ class MetaBackendHelper(object):
             try:
                 attr = ConceptAttributeType(domain, row['column_required'], row['column_default'])
                 attributes[row['column_name']] = attr
-            except MetaError, e:
-                print e
+            except MetaError as e:
+                print(e)
 
         dct['attributes'] = attributes
 

@@ -14,7 +14,7 @@ class MetaDataIterator(object):
     def __iter__(self):
         return self
 
-    def next(self):
+    def __next__(self):
         domain = next(self.iter)
         return DomainClass(domain, meta_backend=self.helper.meta_backend)
 
@@ -34,11 +34,11 @@ class MetaBackendHelper(object):
                       }
 
     base_type_map = {
-                        'integer': types.IntType,
-                        'character': types.UnicodeType,
-                        'character varying': types.UnicodeType,
-                        'boolean': types.BooleanType,
-                        'numeric': types.LongType
+                        'integer': int,
+                        'character': str,
+                        'character varying': str,
+                        'boolean': bool,
+                        'numeric': int
                     }
 
     base_type_name_map = {
