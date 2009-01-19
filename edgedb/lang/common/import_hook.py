@@ -29,6 +29,13 @@ class ImportHook(object):
 
     @classmethod
     def import_hook(cls, name, globals={}, locals={}, fromlist=[], level=-1):
+        if level < 1 and 'semantix' not in name:
+            cls.uninstall()
+            try:
+                return cls.original_import(name, globals, locals, fromlist, level)
+            finally:
+                cls.install()
+
         caller_name = globals.get('__name__')
         package = globals.get('__package__')
 
