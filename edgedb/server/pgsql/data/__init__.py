@@ -3,6 +3,26 @@ from semantix.caos.backends.data.base import BaseDataBackend
 from semantix.caos.backends.meta.pgsql.common import DatabaseConnection, DatabaseTable
 
 from .datasources import EntityLinks, ConceptLink
+from .adapters.caosql import CaosQLQueryAdapter
+
+class CaosQLCursor(object):
+    def __init__(self, connection):
+        self.native_cursor = connection.cursor()
+        self.adapter = CaosQLQueryAdapter()
+
+    def execute(self, query, vars=None):
+        self.native_query = self.adapter.adapt(query, vars)
+        return self.native_cursor.execute(self.native_query.text, vars)
+
+    def fetchall(self):
+        return self.wrapmany(self.native_cursor.fetchall())
+
+    def fetchmany(self, size=None):
+        return self.wrapmany(self.native_cursor.fetchmany(size))
+
+    def fetchone(self):
+        return self.wrapone(self.native_cursor.fetchone())
+
 
 class EntityTable(DatabaseTable):
     def create(self):
@@ -10,7 +30,6 @@ class EntityTable(DatabaseTable):
             CREATE TABLE "caos"."entity"(
                 id serial NOT NULL,
                 concept_id integer NOT NULL,
-
                 PRIMARY KEY (id),
                 FOREIGN KEY (concept_id) REFERENCES "caos"."concept"(id)
             )
@@ -219,3 +238,7 @@ class DataBackend(BaseDataBackend):
             for row in cursor:
                 id = row[0]
                 yield id
+
+
+    def caosqlcursor(self):
+        return CaosQLCursor(self.connection)
