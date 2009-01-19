@@ -1,4 +1,5 @@
 import builtins, os, sys, imp
+from semantix.utils.tb_set_next import tb_set_next
 
 class ImportHook(object):
     @classmethod
@@ -52,15 +53,43 @@ class ImportHook(object):
         if level > 0:
             name = cls._resolve_name(name, package, level)
 
-        parent = cls.determine_parent(globals)
-        q, tail = cls.find_head_package(parent, name)
-        m = cls.load_tail(q, tail)
+        m = None
+        try:
+            parent = cls.determine_parent(globals)
+            q, tail = cls.find_head_package(parent, name)
+            m = cls.load_tail(q, tail)
 
-        if not fromlist:
-            return q
+            if not fromlist:
+                return q
 
-        if hasattr(m, "__path__"):
-            cls.ensure_fromlist(m, fromlist)
+            if hasattr(m, "__path__"):
+                cls.ensure_fromlist(m, fromlist)
+
+        except ImportError as error:
+            def is_hook_file(fn):
+                return fn.endswith('semantix/utils/import_hook.py')
+
+            pointer = error.__traceback__
+            while pointer.tb_next:
+                if is_hook_file(pointer.tb_frame.f_code.co_filename):
+                    pointer = pointer.tb_next
+                else:
+                    break
+
+            nxt = pointer.tb_next
+            tb_set_next(pointer, None)
+            first = pointer
+
+            while nxt:
+                if not is_hook_file(nxt.tb_frame.f_code.co_filename):
+                    tb_set_next(pointer, nxt)
+                    pointer = nxt
+
+                nxt = nxt.tb_next
+
+            error.__traceback__ = first
+
+            raise error
 
         return m
 
