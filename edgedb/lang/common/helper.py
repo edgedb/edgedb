@@ -1,5 +1,5 @@
 def dump(stuff):
-    if (not (isinstance(stuff, basestring) or isinstance(stuff, int)
+    if (not (isinstance(stuff, str) or isinstance(stuff, int)
              or isinstance(stuff, list) or isinstance(stuff, dict)
              or isinstance(stuff, tuple) or isinstance(stuff, float)
              or isinstance(stuff, complex))):
