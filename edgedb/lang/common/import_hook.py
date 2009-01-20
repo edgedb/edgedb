@@ -1,7 +1,10 @@
+from __future__ import absolute_import
 import builtins, os, sys, imp
 from semantix.utils.tb_set_next import tb_set_next
 
 class ImportHook(object):
+    original_import = None
+
     @classmethod
     def _resolve_name(cls, name, package, level):
         """Return the absolute name of the module to be imported."""
@@ -65,7 +68,7 @@ class ImportHook(object):
             if hasattr(m, "__path__"):
                 cls.ensure_fromlist(m, fromlist)
 
-        except ImportError as error:
+        except Exception as error:
             def is_hook_file(fn):
                 return fn.endswith('semantix/utils/import_hook.py')
 
@@ -213,6 +216,13 @@ class ImportHook(object):
 
         return m
 
+
+    @classmethod
+    def original(cls, *args, **kwargs):
+        if ImportHook.original_import:
+            return ImportHook.original_import(*args, **kwargs)
+        else:
+            return builtins.__import__(*args, **kwargs)
 
     @classmethod
     def install(cls):
