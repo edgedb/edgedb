@@ -19,6 +19,7 @@ def dump(stuff):
         pp = pprint.PrettyPrinter(indent=4)
         pp.pprint(stuff)
 
+
 def cleandir(path):
     import os
 
@@ -28,3 +29,20 @@ def cleandir(path):
 
         for name in dirs:
             os.rmdir(os.path.join(root, name))
+
+
+def init_test_suite():
+    import inspect
+    import unittest
+
+    _globals = inspect.stack()[1][0].f_globals
+
+    def init():
+        suite = unittest.TestSuite()
+        for name, attr in _globals.items():
+            if isinstance(attr, type) and issubclass(attr, unittest.TestCase):
+                suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(attr))
+
+        return suite
+
+    _globals['suite'] = init
