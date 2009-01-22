@@ -10,9 +10,15 @@ class CaosQLCursor(object):
         self.native_cursor = connection.cursor()
         self.adapter = CaosQLQueryAdapter()
 
+    def prepare_query(self, query, vars):
+        return self.adapter.adapt(query, vars)
+
+    def execute_prepared(self, query):
+        return self.native_cursor.execute(query.text, query.vars)
+
     def execute(self, query, vars=None):
-        self.native_query = self.adapter.adapt(query, vars)
-        return self.native_cursor.execute(self.native_query.text, vars)
+        native_query = self.prepare_query(query, vars)
+        return self.execute_prepared(native_query)
 
     def fetchall(self):
         return self.wrapmany(self.native_cursor.fetchall())
