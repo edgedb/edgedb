@@ -38,11 +38,14 @@ def init_test_suite():
     _globals = inspect.stack()[1][0].f_globals
 
     def init():
+        nonlocal _globals
+
         suite = unittest.TestSuite()
         for name, attr in _globals.items():
             if isinstance(attr, type) and issubclass(attr, unittest.TestCase):
                 suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(attr))
 
+        _globals = None
         return suite
 
     _globals['suite'] = init
