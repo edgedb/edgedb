@@ -225,3 +225,42 @@ class NodeTransformer(NodeVisitor):
                     setattr(node, field, new_node)
 
         return node
+
+
+    def find_child(self, node, test_func):
+        for field, value in iter_fields(node):
+            if isinstance(value, list):
+                for n in value:
+                    if test_func(n):
+                        return n
+
+                    _n = self.find_child(n, test_func)
+                    if _n is not None:
+                        return _n
+
+            elif isinstance(value, AST):
+                if test_func(value):
+                    return value
+                else:
+                    _n = self.find_child(value, test_func)
+                    if _n is not None:
+                        return _n
+
+
+    def replace_child(self, child, new_child):
+        if child.parent is None:
+            raise ASTError('ast node does not have parent')
+
+        node = child.parent
+
+        for field, value in iter_fields(node):
+            if isinstance(value, list):
+                for i in range(0, len(value)):
+                    if value[i] == child:
+                        value[i] = new_child
+                        return True
+
+            elif isinstance(value, AST):
+                if value == child:
+                    setattr(node, field, new_child)
+                    return True
