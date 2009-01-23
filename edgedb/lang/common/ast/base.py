@@ -85,6 +85,20 @@ class ASTBlockNode(AST):
             self.body.append(node)
 
 
+def fix_parent_links(node):
+    for field, value in iter_fields(node):
+        if isinstance(value, list):
+            for n in value:
+                if isinstance(n, AST):
+                    n.parent = node
+                    fix_parent_links(n)
+
+        elif isinstance(value, AST):
+            value.parent = node
+            fix_parent_links(value)
+
+    return node
+
 def iter_fields(node):
     """
     Yield a tuple of ``(fieldname, value)`` for each field in ``node._fields``
