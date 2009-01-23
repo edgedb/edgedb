@@ -28,7 +28,7 @@ class CaosQLQueryAdapter(object):
     def _transform_tree(self, xtree):
 
         qtree = deepcopy(xtree)
-        query = qtree.child_nodes[0]
+        query = qtree.children[0]
         nodetype = type(query)
 
         if nodetype != nodes.SelectQueryNode:
