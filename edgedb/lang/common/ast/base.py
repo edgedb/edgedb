@@ -3,6 +3,7 @@
 # License: Python License
 
 import functools
+from semantix.utils.io import terminal
 
 class ASTError(Exception):
     pass
@@ -64,6 +65,13 @@ class AST(object, metaclass=MetaAST):
 
         if 'parent' in kwargs:
             self.parent = kwargs['parent']
+
+    def dump(self, *args, **kwargs):
+        if 'pretty' in kwargs and kwargs['pretty']:
+            del kwargs['pretty']
+            return pretty_dump(self, *args, **kwargs)
+        else:
+            return dump(self, *args, **kwargs)
 
     """
     def __eq__(self, node):
@@ -137,6 +145,103 @@ def dump(node, annotate_fields=True, include_attributes=False):
     if not isinstance(node, AST):
         raise TypeError('expected AST, got %r' % node.__class__.__name__)
     return _format(node)
+
+
+def pretty_dump(node, identation_size=4, width=80, field_lable_width=10, colorize=False):
+    def highlight(type, str):
+        if colorize:
+            if type == 'NODE_NAME':
+                return terminal.colorize(str, fg='red', opts=('bold',))
+            elif type == 'NODE_FIELD':
+                return terminal.colorize(str, fg='black', opts=('bold',))
+            elif type == 'LITERAL':
+                return terminal.colorize(str, fg='cyan', opts=('bold',))
+
+        else:
+            return str
+
+    def _dump(node):
+        def _format(node):
+            if isinstance(node, AST):
+                fields = [(a, _format(b)) for a, b in iter_fields(node)]
+                rv = '%s(%s' % (highlight('NODE_NAME', node.__class__.__name__), ', '.join(
+                    ('%s=%s' % (highlight('NODE_FIELD', field[0]), field[1]) for field in fields)
+                ))
+                return rv + ')'
+            elif isinstance(node, list):
+                return '[%s]' % ', '.join(_format(x) for x in node)
+            return highlight('LITERAL', repr(node))
+        if not isinstance(node, AST):
+            raise TypeError('expected AST, got %r' % node.__class__.__name__)
+        return _format(node)
+
+    """
+    returns: one line = True, multiline = False
+    """
+    def _format(node, identation=0, force_multiline=False):
+        tab = ' ' * identation_size
+
+        if not force_multiline:
+            result = dump(node)
+            if len(result) + len(tab) < width:
+                return (True, _dump(node) if colorize else result)
+
+        pad = tab * identation
+        pad_tab = pad + tab
+
+        result = '%s%s {\n' % (pad, highlight('NODE_NAME', node.__class__.__name__))
+
+        for field, value in iter_fields(node):
+            if isinstance(value, AST):
+                _f = _format(value, identation + 1)
+
+                result += '%s%s = ' % (pad_tab, highlight('NODE_FIELD', field))
+                result +=  _f[1].lstrip()
+
+                if not result.endswith('\n'):
+                    result += '\n'
+
+            elif isinstance(value, list):
+                cache = {}
+                multiline = False
+                tmp = ''
+                for n in value:
+                    _f = _format(n, identation + 2)
+                    cache[n] = _f
+                    if not _f[0]:
+                        multiline = True
+                        break
+                    tmp += _f[1]
+                else:
+                    if len(tmp) + len(tab) > width:
+                        multiline = True
+
+                if not multiline:
+                    result += '%s%s = [%s]\n' % (pad_tab, highlight('NODE_FIELD', field), tmp)
+                else:
+                    result += '%s%s = [\n' % (pad_tab, highlight('NODE_FIELD', field))
+                    for n in value:
+                        if n in cache:
+                            _f = cache[n]
+                        else:
+                            _f = _format(n, identation + 2)
+                        one_line_result, tmp = _f
+                        if one_line_result:
+                            tmp = pad_tab + tab + tmp + '\n'
+                        result += tmp
+
+                    result += '%s]\n' % pad_tab
+
+            else:
+                result += '%s%s = %s\n' % (pad_tab,
+                                           highlight('NODE_FIELD', field),
+                                           highlight('LITERAL', repr(value)))
+
+        result += '%s}\n' % pad
+        return (False, result)
+
+    return _format(node)[1]
+
 
 
 class NodeVisitor(object):
