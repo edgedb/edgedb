@@ -1,4 +1,8 @@
-from semantix.ast.base import NodeVisitor
+# Portions Copyright 2009 Sprymix Inc.
+# Portions Copyright 2008 by Armin Ronacher.
+# License: Python License
+
+from semantix.ast.visitor import NodeVisitor
 
 class SourceGenerator(NodeVisitor):
     """This visitor is able to transform a well formed syntax tree into python
