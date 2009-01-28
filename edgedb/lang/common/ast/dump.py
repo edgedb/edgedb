@@ -2,6 +2,8 @@
 # Portions Copyright 2008 by Armin Ronacher.
 # License: Python License
 
+import re as regex
+
 import semantix.ast.base
 from semantix.utils.io import terminal
 
@@ -35,7 +37,12 @@ def dump(node, annotate_fields=True, include_attributes=False):
     return _format(node)
 
 
-def pretty_dump(node, identation_size=4, width=80, field_lable_width=10, colorize=False):
+def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=None):
+    if field_mask is not None:
+        mask_re = regex.compile(field_mask)
+    else:
+        mask_re = None
+
     def highlight(type, str):
         if colorize:
             if type == 'NODE_NAME':
@@ -51,7 +58,9 @@ def pretty_dump(node, identation_size=4, width=80, field_lable_width=10, coloriz
     def _dump(node):
         def _format(node):
             if isinstance(node, semantix.ast.base.AST):
-                fields = [(a, _format(b)) for a, b in semantix.ast.base.iter_fields(node)]
+                fields = [(a, _format(b)) for a, b in semantix.ast.base.iter_fields(node) \
+                          if mask_re is None or not mask_re.match(a)]
+
                 rv = '%s(%s' % (highlight('NODE_NAME', node.__class__.__name__), ', '.join(
                     ('%s=%s' % (highlight('NODE_FIELD', field[0]), field[1]) for field in fields)
                 ))
@@ -80,6 +89,9 @@ def pretty_dump(node, identation_size=4, width=80, field_lable_width=10, coloriz
         result = '%s%s(\n' % (pad, highlight('NODE_NAME', node.__class__.__name__))
 
         for field, value in semantix.ast.base.iter_fields(node):
+            if mask_re is not None and mask_re.match(field):
+                continue
+
             if isinstance(value, semantix.ast.base.AST):
                 _f = _format(value, identation + 1)
 
