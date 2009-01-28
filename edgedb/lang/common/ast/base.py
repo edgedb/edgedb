@@ -3,6 +3,7 @@
 # License: Python License
 
 from semantix.ast import dump
+import copy
 
 class ASTError(Exception):
     pass
@@ -15,9 +16,11 @@ class MetaAST(type):
 
         MetaAST.counter += 1
 
-        fields = getattr(cls, '_fields', None)
-        if fields is None:
-            raise ASTError('%s class does not have _fields attribute')
+        fields = set(getattr(cls, '_' + cls.__name__ + '__fields', []))
+        for i in range(1, len(cls.__mro__) - 1):
+            fields |= set(getattr(cls, '_' + cls.__mro__[i].__name__ + '__fields', []))
+
+        fields = list(fields)
 
         code = 'def _init_fields(self):\n'
         code += '\tself._id = %d\n' % MetaAST.counter
@@ -27,7 +30,12 @@ class MetaAST(type):
             for field in fields:
                 if field.startswith('*'):
                     field = field[1:]
-                    code += '\tself.%s = []\n' % field
+                    code += '\tself.%s = list()\n' % field
+
+                elif field.startswith('#'):
+                    field = field[1:]
+                    code += '\tself.%s = dict()\n' % field
+
                 else:
                     code += '\tself.%s = None\n' % field
 
@@ -42,7 +50,7 @@ class MetaAST(type):
 
 
 class AST(object, metaclass=MetaAST):
-    _fields = []
+    __fields = []
 
     def __init__(self, **kwargs):
         self.parent = None
@@ -74,6 +82,8 @@ class AST(object, metaclass=MetaAST):
 
 
 class ASTBlockNode(AST):
+    __fields = ['*body']
+
     def append_node(self, node):
         if isinstance(node, list):
             for n in node:
