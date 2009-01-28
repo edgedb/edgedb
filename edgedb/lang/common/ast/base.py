@@ -16,8 +16,8 @@ class MetaAST(type):
 
         MetaAST.counter += 1
 
-        fields = set(getattr(cls, '_' + cls.__name__ + '__fields', []))
-        for i in range(1, len(cls.__mro__) - 1):
+        fields = set()
+        for i in range(0, len(cls.__mro__) - 1):
             fields |= set(getattr(cls, '_' + cls.__mro__[i].__name__ + '__fields', []))
 
         fields = list(fields)
@@ -35,6 +35,10 @@ class MetaAST(type):
                 elif field.startswith('#'):
                     field = field[1:]
                     code += '\tself.%s = dict()\n' % field
+
+                elif field.startswith('!'):
+                    field = field[1:]
+                    code += '\tself.%s = set()\n' % field
 
                 else:
                     code += '\tself.%s = None\n' % field
