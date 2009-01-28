@@ -79,6 +79,11 @@ class MetaBackendHelper(object):
             l = ConceptLinkType(r['source_concept'], r['target_concept'], r['link_type'], r['mapping'])
             dct['links'][(r['link_type'], r['target_concept'])] = l
 
+            if (None, r['target_concept']) not in dct['links']:
+                dct['links'][(None, r['target_concept'])] = [l]
+            else:
+                dct['links'][(None, r['target_concept'])].append(l)
+
         dct['rlinks'] = {}
         for r in ConceptLinks.fetch(target_concept=name):
             l = ConceptLinkType(r['source_concept'], r['target_concept'], r['link_type'], r['mapping'])

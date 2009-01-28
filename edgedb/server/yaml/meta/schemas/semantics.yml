@@ -18,6 +18,7 @@ mapping:
 
                             "attributes":
                                 type: map
+                                default: {}
                                 mapping:
                                     =:
                                         type: map
