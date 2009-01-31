@@ -18,8 +18,8 @@ def dump(node, annotate_fields=True, include_attributes=False):
     *include_attributes* can be set to True.
     """
     def _format(node):
-        if node and id(node) in visited:
-            return '[recursion]'
+        if isinstance(node, semantix.ast.base.AST) and id(node) in visited:
+            return _node_recursion_rep(node)
         visited[id(node)] = True
 
         if isinstance(node, semantix.ast.base.AST):
@@ -69,11 +69,8 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
         visited = {}
 
         def _format(node):
-            if node and id(node) in visited:
-                if colorize:
-                    return highlight('RECURSION', '[recursion]')
-                else:
-                    return '[recursion]'
+            if isinstance(node, semantix.ast.base.AST) and id(node) in visited:
+                return highlight('RECURSION', _node_recursion_rep(node))
             visited[id(node)] = True
 
             if isinstance(node, semantix.ast.base.AST):
@@ -96,11 +93,11 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
     returns: one line = True, multiline = False
     """
     def _format(node, identation=0, force_multiline=False):
-        if node and id(node) in visited:
+        if isinstance(node, semantix.ast.base.AST) and id(node) in visited:
             if colorize:
-                return (1, highlight('RECURSION', '[recursion]'))
+                return (1, highlight('RECURSION', _node_recursion_rep(node)))
             else:
-                return (1, '[recursion]')
+                return (1, _node_recursion_rep(node))
         visited[id(node)] = True
 
         tab = ' ' * identation_size
@@ -168,3 +165,12 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
         return (False, result)
 
     return _format(node)[1]
+
+
+def _node_recursion_rep(node):
+    name = node.__class__.__name__
+    if hasattr(node, 'name'):
+        name += '(name=%r)' % node.name
+    else:
+        name += '()'
+    return '[recursion: %s]' % name
