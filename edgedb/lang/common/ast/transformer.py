@@ -51,15 +51,12 @@ class NodeTransformer(NodeVisitor):
                         value = self.visit(value)
                         if value is None:
                             continue
-                        elif not isinstance(value, AST):
-                            new_values.extend(value)
-                            continue
                     new_values.append(value)
 
                 for value in new_values:
                     value.parent = node
 
-                old_value[:] = new_values
+                setattr(node, field, new_values)
 
             elif isinstance(old_value, AST):
                 new_node = self.visit(old_value)
@@ -68,7 +65,6 @@ class NodeTransformer(NodeVisitor):
                 else:
                     new_node.parent = node
                     setattr(node, field, new_node)
-
         return node
 
 
@@ -77,6 +73,8 @@ class NodeTransformer(NodeVisitor):
             raise ASTError('ast node does not have parent')
 
         node = child.parent
+        new_child.parent = node
+        child.parent = None
 
         for field, value in iter_fields(node):
             if isinstance(value, list):

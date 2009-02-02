@@ -64,7 +64,7 @@ class AST(object, metaclass=MetaAST):
             if hasattr(self, arg):
                 if isinstance(value, AST):
                     value.parent = self
-                elif isinstance(value, AST):
+                elif isinstance(value, list):
                     for v in value:
                         if isinstance(v, AST):
                             v.parent = self
