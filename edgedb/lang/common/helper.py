@@ -49,3 +49,22 @@ def init_test_suite():
         return suite
 
     _globals['suite'] = init
+
+
+def dump_code_context(filename, lineno, dump_range=4):
+    with open(filename, 'r') as file:
+        source = file.read().split('\n')
+
+    source_snippet = ''
+    for j in range(max(0, lineno-dump_range), min(len(source), lineno+dump_range)):
+        line = source[j] + '\n'
+
+        if j == lineno:
+            line = ' > ' + line
+        else:
+            line = ' | ' + line
+
+        line = '{0:6}'.format(j) + line
+        source_snippet += line
+
+    return source_snippet
