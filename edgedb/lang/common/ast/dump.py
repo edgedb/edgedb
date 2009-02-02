@@ -173,4 +173,4 @@ def _node_recursion_rep(node):
         name += '(name=%r)' % node.name
     else:
         name += '()'
-    return '[recursion: %s]' % name
+    return '<recursion: %s>' % name
