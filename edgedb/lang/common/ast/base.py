@@ -16,11 +16,12 @@ class MetaAST(type):
 
         MetaAST.counter += 1
 
-        fields = set()
+        fields = list()
         for i in range(0, len(cls.__mro__) - 1):
-            fields |= set(getattr(cls, '_' + cls.__mro__[i].__name__ + '__fields', []))
-
-        fields = list(fields)
+            lst = getattr(cls, '_' + cls.__mro__[i].__name__ + '__fields', [])
+            for item in lst:
+                if item not in fields:
+                    fields.append(item)
 
         code = 'def _init_fields(self):\n'
         code += '\tself._id = %d\n' % MetaAST.counter
