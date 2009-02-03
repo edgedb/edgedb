@@ -56,3 +56,10 @@ class NodeVisitor(object):
                     _n = self.find_child(value, test_func)
                     if _n is not None:
                         return _n
+
+    def find_parent(self, node, test_func):
+        if node.parent and test_func(node.parent):
+            return node.parent
+        elif not node.parent:
+            return None
+        return self.find_parent(node.parent, test_func)
