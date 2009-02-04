@@ -38,24 +38,26 @@ class NodeVisitor(object):
             elif isinstance(value, AST):
                 self.visit(value)
 
-    def find_child(self, node, test_func):
+    def find_children(self, node, test_func):
+        result = []
         for field, value in iter_fields(node):
             if isinstance(value, list):
                 for n in value:
                     if test_func(n):
-                        return n
+                        result.append(n)
 
-                    _n = self.find_child(n, test_func)
+                    _n = self.find_children(n, test_func)
                     if _n is not None:
-                        return _n
+                        result.extend(_n)
 
             elif isinstance(value, AST):
                 if test_func(value):
-                    return value
+                    result.append(value)
                 else:
-                    _n = self.find_child(value, test_func)
+                    _n = self.find_children(value, test_func)
                     if _n is not None:
-                        return _n
+                        result.extend(_n)
+        return result
 
     def find_parent(self, node, test_func):
         if node.parent and test_func(node.parent):
