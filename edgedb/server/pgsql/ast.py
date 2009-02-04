@@ -17,13 +17,15 @@ class SelectExprNode(AST): __fields = ['expr', 'alias']
 class FromExprNode(AST): __fields = ['expr', 'alias']
 
 class TableNode(AST):
-    __fields = ['name', '#_bonds']
+    __fields = ['name', 'concept', 'alias', '#_bonds']
 
 class SelectQueryNode(TableNode):
-    __fields = ['distinct', '*fromlist', '*targets', 'where', '#ctes']
+    __fields = ['distinct', '*fromlist', '*targets', 'where', '*ctes', '_source_graph']
 
 class CTENode(SelectQueryNode):
-    __fields = ['alias', '*_referrers']
+    __fields = ['*_referrers']
+
+class CTEAttrRefNode(AST): __fields = ['cte', 'attr']
 
 class JoinNode(TableNode):
     __fields = ['left', 'right', 'condition', 'type']

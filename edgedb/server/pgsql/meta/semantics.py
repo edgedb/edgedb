@@ -78,11 +78,12 @@ class MetaBackendHelper(object):
         for r in ConceptLinks.fetch(source_concept=name):
             l = ConceptLinkType(r['source_concept'], r['target_concept'], r['link_type'], r['mapping'])
             dct['links'][(r['link_type'], r['target_concept'])] = l
-
+            """
             if (None, r['target_concept']) not in dct['links']:
                 dct['links'][(None, r['target_concept'])] = [l]
             else:
                 dct['links'][(None, r['target_concept'])].append(l)
+            """
 
         dct['rlinks'] = {}
         for r in ConceptLinks.fetch(target_concept=name):
@@ -115,7 +116,7 @@ class MetaBackendHelper(object):
 
             qry = 'CREATE TABLE %s' % self.mangle_name(cls.name, True)
 
-            columns = []
+            columns = ['entity_id integer NOT NULL REFERENCES caos.entity(id) ON DELETE CASCADE']
 
             for attr_name in sorted(cls.attributes.keys()):
                 attr = cls.attributes[attr_name]
@@ -123,7 +124,7 @@ class MetaBackendHelper(object):
                 column = '"%s" %s %s' % (attr_name, column_type, 'NOT NULL' if attr.required else '')
                 columns.append(column)
 
-            qry += '(entity_id integer NOT NULL REFERENCES caos.entity(id) ON DELETE CASCADE, ' + ','.join(columns) + ')'
+            qry += '(' +  ','.join(columns) + ')'
 
             if len(cls.parents) > 0:
                 qry += ' INHERITS (' + ','.join([self.mangle_name(p, True) for p in cls.parents]) + ')'
