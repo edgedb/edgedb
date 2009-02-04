@@ -1,5 +1,5 @@
 from semantix.caos.caosql import ast
-from semantix.parsers.caosql import nodes as qlast
+from semantix.caos.caosql.parser import nodes as qlast
 from semantix.caos import ConceptClass
 from semantix.caos.query import CaosQLError
 

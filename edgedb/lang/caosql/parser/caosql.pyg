@@ -1,0 +1,292 @@
+code:
+    import re
+    from semantix.caos.caosql.parser.nodes import *
+    from semantix.caos.caosql.parser.errors import CaosQLSyntaxError
+
+    link_expr_re = re.compile(r'(?P<quote>["\'])(?P<direction>\<?\>?)(?P<name>\w+)(?P=quote)')
+
+
+query                           -> set_query:
+                                        return kids[0]
+;
+
+set_query                       -> union_expr:
+                                        return kids[0]
+                                 | select_query:
+                                        return kids[0]
+;
+
+union_expr                      -> intersect_expr:
+                                        return kids[0]
+                                 | union_expr 'UNION' intersect_expr:
+                                        return BinOpNode(op='union', left=kids[0], right=kids[2])
+;
+
+intersect_expr                  -> additive_expr:
+                                        return kids[0]
+                                 | intersect_expr intersect_op additive_expr:
+                                        return BinOpNode(op=kids[1][0].lower(), left=kids[0], right=kids[2])
+;
+
+intersect_op                    -> 'INTERSECT' | 'EXCEPT'
+;
+
+primary_query                   -> path_expr:
+                                        return kids[0]
+                                 | value_query:
+                                        return kids[0]
+                                 | '(' query ')':
+                                        return kids[1]
+;
+
+value_query                     -> '*' var
+                                 | constant:
+                                        return kids[0]
+                                 | 'pathof' '(' path_var ')'
+                                 | function_name '(' arg_list ')':
+                                        return CallFunctionNode(func=kids[0], args=kids[2])
+;
+
+additive_expr                   -> multiplicative_expr:
+                                        return kids[0]
+                                 | additive_expr add_op multiplicative_expr:
+                                        return BinOpNode(op=kids[1][0].lower(), left=kids[0], right=kids[2])
+;
+
+add_op                          -> '+' | '-'
+;
+
+multiplicative_expr             -> primary_query:
+                                        return kids[0]
+                                 | multiplicative_expr mul_op primary_query:
+                                        return BinOpNode(op=kids[1][0].lower(), left=kids[0], right=kids[2])
+;
+
+mul_op                          -> '*' | '/' | 'mod'
+;
+
+arg_list                        -> query (',' query )* :
+                                        return [kids[0]] + [k[1] for k in kids[1]]
+;
+
+select_query                    -> SELECT (DISTINCT)? select_expr (',' select_expr)*
+                                   (WHERE predicate)?:
+
+                                        node = SelectQueryNode()
+                                        node.distinct = kids[1] is not None
+                                        node.targets = [kids[2]] + [k[1] for k in kids[3]]
+
+                                        if kids[4] is not None:
+                                            node.where = kids[4][1]
+
+                                        return node
+;
+
+select_expr                     -> primary_query (AS select_identifier)?:
+                                        alias = kids[1][1] if kids[1] is not None else None
+                                        return SelectExprNode(expr=kids[0], alias=alias)
+;
+
+select_identifier               -> IDENTIFIER:
+                                        return kids[0]
+;
+
+predicate                       -> or_predicate:
+                                        if isinstance(kids[0], PredicateNode):
+                                            return kids[0]
+                                        else:
+                                            return PredicateNode(expr=kids[0])
+;
+
+or_predicate                    -> and_predicate:
+                                        return kids[0]
+                                 | or_predicate OR and_predicate:
+                                        return BinOpNode(op='or', left=kids[0], right=kids[2])
+;
+
+and_predicate                   -> neg_predicate:
+                                        return kids[0]
+                                 | and_predicate AND neg_predicate:
+                                        return BinOpNode(op='and', left=kids[0], right=kids[2])
+;
+
+neg_predicate                   -> simple_predicate:
+                                        return kids[0]
+                                 | NOT simple_predicate:
+                                        return UnaryOpNode(op='not', operand=kids[1])
+;
+
+simple_predicate                -> primary_query comp_op primary_query:
+                                        return BinOpNode(op=kids[1][0].lower(), left=kids[0], right=kids[2])
+                                 | path_expr:
+                                        return ExistsPredicateNode(expr=kids[0])
+                                 | EXISTS '(' set_query ')':
+                                        return ExistsPredicateNode(expr=kids[2])
+                                 | EXISTS var IN safe_set_query ':' predicate
+                                 | FOR ALL var IN safe_set_query ':' predicate
+                                 | primary_query IN safe_set_query:
+                                        return BinOpNode(op='in', left=kids[0], right=kids[2])
+                                 | primary_query comp_op quantifier safe_set_query
+                                 | boolean_constant:
+                                        return kids[0]
+                                 | '(' predicate ')':
+                                        return kids[1]
+;
+
+safe_set_query                  -> '(' set_query ')':
+                                        return kids[1]
+                                 | path_expr:
+                                        return kids[0]
+;
+
+comp_op                         -> '<' | '<=' | '=' | '!=' | '>=' | '>'
+;
+
+quantifier                      -> SOME | ANY | ALL
+;
+
+constant                        -> NULL:
+                                        return ConstantNode(value=None)
+                                 | NUMBER:
+                                        return ConstantNode(value=int(kids[0]))
+                                 | LITERAL:
+                                        return ConstantNode(value=kids[0].strip('"\''))
+                                 | boolean_constant:
+                                        return kids[0]
+;
+
+boolean_constant                -> TRUE:
+                                        return ConstantNode(value=True)
+                                 | FALSE:
+                                        return ConstantNode(value=False)
+;
+
+path_expr                       -> gpe_path:
+                                        return kids[0]
+;
+
+gpe_path                        -> gpe_path_simple:
+                                        return PathNode(steps=kids[0])
+                                 | gpe_path '|' gpe_path_simple:
+                                        return PathDisjunctionNode(left=kids[0], right=kids[2])
+;
+
+gpe_path_simple                 -> path_start gpe_subpath?:
+                                        ret = [kids[0]]
+                                        if kids[1] is not None:
+                                            ret += kids[1]
+
+                                        return ret
+;
+
+gpe_subpath                     -> gpe_subpath_no_parens:
+                                        return kids[0]
+                                 | gpe_subpath_with_parens:
+                                        return kids[0]
+;
+
+gpe_subpath_with_parens         -> '(' gpe_subpath_no_parens ')':
+                                        return kids[1]
+                                 | '(' gpe_subpath_with_parens ')':
+                                        return kids[1]
+;
+
+path_start                      -> label_expr ('@' path_var)? ('{' var '}')?:
+                                        if kids[2] is not None:
+                                            path = PathNode(steps=[kids[0]])
+                                            path.var = kids[2][1]
+                                            return path
+                                        else:
+                                            return kids[0]
+;
+
+gpe_subpath_no_parens           -> gpe_path_step+:
+                                        return kids[0]
+;
+
+gpe_path_step                   -> gpe_path_step_simple ('@' path_var)? ('{' var '}')?:
+                                        path = kids[0]
+                                        if kids[2] is not None:
+                                            if not isinstance(path, PathNode):
+                                                path = PathNode(steps=[path])
+                                            path.var = kids[2][1]
+
+                                        return path
+;
+
+gpe_path_step_simple            -> gpe_subpath_with_parens (regexp_op)?:
+                                        quantifier = kids[1][0][0] if kids[1] is not None else None
+                                        return PathNode(steps=kids[0], quantifier=quantifier)
+                                 | link_expr label_expr:
+                                        return PathStepNode(expr=kids[1].expr, link_expr=kids[0])
+;
+
+link_expr                       -> ('[' link_spec ']')? '.':
+                                        if kids[0] is not None:
+                                            return PredicateNode(expr=kids[0][1])
+                                        else:
+                                            return None
+;
+
+link_spec                       -> or_link_expr:
+                                        return kids[0]
+;
+
+or_link_expr                    -> and_link_expr:
+                                        return kids[0]
+                                 | or_link_expr OR and_link_expr:
+                                        return BinOpNode(op='or', left=kids[0], right=kids[2])
+;
+
+and_link_expr                   -> neg_link_expr:
+                                        return kids[0]
+                                 | and_link_expr AND neg_link_expr:
+                                        return BinOpNode(op='and', left=kids[0], right=kids[2])
+;
+
+neg_link_expr                   -> simple_link_expr:
+                                        return kids[0]
+                                 | NOT simple_link_expr:
+                                        return UnaryOpNode(op='not', operand=kids[1])
+;
+
+simple_link_expr                -> LITERAL:
+                                        m = link_expr_re.match(kids[0])
+                                        if not m:
+                                            raise CaosQLSyntaxError('invalid link expression', kids[0], 0)
+                                        return LinkNode(name=m.group('name'), direction=m.group('direction'))
+
+                                 | '(' link_spec ')':
+                                        return kids[1]
+;
+
+direction                       -> '<>':
+                                        return kids[0]
+                                 | '>':
+                                        return kids[0]
+                                 | '<':
+                                        return kids[0]
+;
+
+label_expr                      -> '#':
+                                        return PathStepNode(expr='#')
+                                 | LABEL_EXPR:
+                                        return PathStepNode(expr=kids[0])
+                                 | var:
+                                        return PathStepNode(expr=kids[0].name)
+;
+
+regexp_op                       -> '*' | '+' | '?'
+;
+
+function_name                   -> IDENTIFIER:
+                                        return kids[0]
+;
+
+var                             -> IDENTIFIER:
+                                        return VarNode(name=kids[0])
+;
+
+path_var                        -> IDENTIFIER:
+                                        return PathVarNode(name=kids[0])
+;

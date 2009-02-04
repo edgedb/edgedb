@@ -1,5 +1,5 @@
 from copy import deepcopy
-from semantix.parsers import caosql
+from semantix.caos.caosql import parser
 from semantix.caos.query import CaosQLCursor, CaosQLError
 from semantix.caos.caosql import ast as caosast
 from semantix.caos.backends.pgsql import ast as sqlast
@@ -71,7 +71,7 @@ class ParseContext(object):
 class CaosQLQueryAdapter(NodeVisitor):
     def __init__(self):
         super().__init__()
-        self.parser = caosql.CaosQLParser()
+        self.parser = parser.CaosQLParser()
 
     def adapt(self, query, vars=None):
 
