@@ -33,3 +33,5 @@ class JoinNode(TableNode):
 class ExistsNode(AST): __fields = ['expr']
 
 class FieldRefNode(AST): __fields = ['table', 'field']
+
+class SequenceNode(AST): __fields = ['*elements']

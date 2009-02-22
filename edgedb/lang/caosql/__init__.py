@@ -1,0 +1,2 @@
+
+class CaosQLError(Exception): pass

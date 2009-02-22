@@ -36,7 +36,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             for i, source in enumerate(node.fromlist):
                 self.new_lines = 1
                 self.visit(source)
-                if i != count -1:
+                if i != count - 1:
                     self.write(',')
 
             self.indentation -= 2
@@ -94,3 +94,13 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_ConstantNode(self, node):
         self.write(str(dbadapt(node.value)))
+
+    def visit_SequenceNode(self, node):
+        self.write('(')
+        count = len(node.elements)
+        for i, e in enumerate(node.elements):
+            self.visit(e)
+            if i != count - 1:
+                self.write(', ')
+
+        self.write(')')

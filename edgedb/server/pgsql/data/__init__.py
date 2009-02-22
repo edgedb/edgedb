@@ -21,32 +21,13 @@ class CaosQLCursor(object):
         return self.execute_prepared(native_query)
 
     def fetchall(self):
-        return self.wrapmany(self.native_cursor.fetchall())
+        return self.native_cursor.fetchall()
 
     def fetchmany(self, size=None):
-        return self.wrapmany(self.native_cursor.fetchmany(size))
+        return self.native_cursor.fetchmany(size)
 
     def fetchone(self):
-        return self.wrapone(self.native_cursor.fetchone())
-
-
-class EntityTable(DatabaseTable):
-    def create(self):
-        """
-            CREATE TABLE "caos"."entity"(
-                id serial NOT NULL,
-                concept_id integer NOT NULL,
-                PRIMARY KEY (id),
-                FOREIGN KEY (concept_id) REFERENCES "caos"."concept"(id)
-            )
-        """
-        super(EntityTable, self).create()
-
-    def insert(self, *dicts, **kwargs):
-        """
-            INSERT INTO "caos"."entity"(concept_id) (SELECT id FROM caos.concept WHERE name = %(concept)s) RETURNING id
-        """
-        return super(EntityTable, self).insert(*dicts, **kwargs)
+        return self.native_cursor.fetchone()
 
 
 class PathCacheTable(DatabaseTable):
@@ -180,33 +161,32 @@ class DataBackend(BaseDataBackend):
         return links
 
 
-    def store_links(self, concept, id, links):
+    def store_links(self, concept, link_type, source, targets):
         rows = []
 
         with self.connection as cursor:
-            for l in links:
-                l.target.flush()
+            for target in targets:
+                target.flush()
 
                 print()
                 print('-' * 60)
                 print('Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
-                        (l.source.__class__.name, l.source.id, (l.source.attrs['name'] if 'name' in l.source.attrs else ''),
-                         l.link_type,
-                         l.target.__class__.name, l.target.id, (l.target.attrs['name'] if 'name' in l.target.attrs else '')))
+                        (source.__class__.name, source.id, (source.name if hasattr(source, 'name') else ''),
+                         link_type,
+                         target.__class__.name, target.id, (target.name if hasattr(target, 'name') else '')))
                 print('-' * 60)
 
                 # XXX: that's ugly
-                sources = [c.name for c in l.source.__class__.__mro__ if hasattr(c, 'name')]
-                targets = [c.name for c in l.target.__class__.__mro__ if hasattr(c, 'name')]
+                targets = [c.name for c in target.__class__.__mro__ if hasattr(c, 'name')]
 
-                lt = ConceptLink.fetch(source_concepts=sources, target_concepts=targets,
-                                       link_type=l.link_type)
+                lt = ConceptLink.fetch(source_concepts=[source.__class__.name], target_concepts=targets,
+                                       link_type=link_type)
 
                 rows.append(cursor.mogrify('(%(source_id)s, %(target_id)s, %(link_type_id)s, %(weight)s)',
-                                           {'source_id': l.source.id,
-                                            'target_id': l.target.id,
+                                           {'source_id': source.id,
+                                            'target_id': target.id,
                                             'link_type_id': lt[0]['id'],
-                                            'weight': l.weight}))
+                                            'weight': 0}))
 
             if len(rows) > 0:
                 cursor.execute("""INSERT INTO caos.entity_map(source_id, target_id, link_type_id, weight)

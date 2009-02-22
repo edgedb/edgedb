@@ -1,10 +1,8 @@
 from copy import deepcopy
-from semantix.caos.caosql import parser
-from semantix.caos.query import CaosQLCursor, CaosQLError
+from semantix.caos.query import CaosQLError
 from semantix.caos.caosql import ast as caosast
 from semantix.caos.backends.pgsql import ast as sqlast
 from semantix.caos.backends.pgsql import codegen as sqlgen
-from semantix.caos.caosql.caosql import CaosqlTreeTransformer
 from semantix.ast.visitor import NodeVisitor
 
 class Query(object):
@@ -69,38 +67,10 @@ class ParseContext(object):
 
 
 class CaosQLQueryAdapter(NodeVisitor):
-    def __init__(self):
-        super().__init__()
-        self.parser = parser.CaosQLParser()
-
     def adapt(self, query, vars=None):
 
-        print('-' * 70)
-        print('CaosQL query:')
-        print('-' * 70)
-        print(query)
-
-        transformer = CaosqlTreeTransformer()
-
-        # Parse and normalize
-        xtree = self.parser.parse(query)
-        ntree = CaosQLCursor.normalize_query(xtree)
-
-        print('-' * 70)
-        print('CaosQL tree:')
-        print('-' * 70)
-        self._dump(ntree)
-
-        # Transform to caos tree
-        qtree = transformer.transform(ntree)
-
-        print('-' * 70)
-        print('Caos tree:')
-        print('-' * 70)
-        self._dump(qtree)
-
         # Transform to sql tree
-        qtree = self._transform_tree(qtree)
+        qtree = self._transform_tree(query)
 
         print('-' * 70)
         print('SQL tree:')
@@ -167,7 +137,11 @@ class CaosQLQueryAdapter(NodeVisitor):
             result = sqlast.BinOpNode(op=expr.op, left=left, right=right)
 
         elif expr_t == caosast.Constant:
-            result = sqlast.ConstantNode(value = expr.value)
+            result = sqlast.ConstantNode(value=expr.value)
+
+        elif expr_t == caosast.Sequence:
+            elements = [self._process_expr(context, e) for e in expr.elements]
+            result = sqlast.SequenceNode(elements=elements)
 
         elif expr_t == caosast.AtomicRef:
             if isinstance(expr.source, caosast.EntitySet):
@@ -198,6 +172,10 @@ class CaosQLQueryAdapter(NodeVisitor):
         return False
 
     def _process_graph(self, context, cte, startnode):
+        # Avoid processing the same subgraph more than once
+        if startnode in context.current.ctemap:
+            return
+
         fromnode = sqlast.FromExprNode()
         cte.fromlist.append(fromnode)
 
@@ -235,17 +213,32 @@ class CaosQLQueryAdapter(NodeVisitor):
         concept_table = None
 
         if joinpoint is None or len(step.filters) > 0 or len(step.selrefs) > 0:
-            concept_table = sqlast.TableNode(name=step.concept + '_data',
+            if step.concept is None:
+                table_name = 'entity'
+                field_name = 'id'
+            else:
+                table_name = step.concept + '_data'
+                field_name = 'entity_id'
+
+            concept_table = sqlast.TableNode(name=table_name,
                                              concept=step.concept,
-                                             alias=context.current.genalias(hint=step.concept))
-            bond = sqlast.FieldRefNode(table=concept_table, field='entity_id')
+                                             alias=context.current.genalias(hint=table_name))
+            bond = sqlast.FieldRefNode(table=concept_table, field=field_name)
             concept_table._bonds['entity'] = (bond, bond)
 
         if joinpoint is not None:
             map = sqlast.TableNode(name='entity_map', concept=step.concept,
                                    alias=context.current.genalias(hint='map'))
-            map._bonds['entity'] = (sqlast.FieldRefNode(table=map, field='source_id'),
-                                    sqlast.FieldRefNode(table=map, field='target_id'))
+
+            if link.filter:
+                if link.filter.direction == link.filter.BACKWARD:
+                    source_fld = 'target_id'
+                    target_fld = 'source_id'
+                else:
+                    source_fld = 'source_id'
+                    target_fld = 'target_id'
+            map._bonds['entity'] = (sqlast.FieldRefNode(table=map, field=source_fld),
+                                    sqlast.FieldRefNode(table=map, field=target_fld))
 
             join = self._simple_join(context, joinpoint, map)
 

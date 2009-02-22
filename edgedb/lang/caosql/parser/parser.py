@@ -1,7 +1,10 @@
 import os
 import pyggy
-from semantix.caos.caosql.parser.errors import CaosQLSyntaxError
+
 import semantix.ast
+
+from .errors import CaosQLSyntaxError
+from . import nodes as caosast
 
 class CaosQLParser(object):
     def __init__(self):
@@ -24,6 +27,26 @@ class CaosQLParser(object):
         ast = semantix.ast.fix_parent_links(raw_ast)
 
         return ast
+
+    def normalize_select_query(self, query):
+        nodetype = type(query)
+
+        qtree = query
+
+        if nodetype != caosast.SelectQueryNode:
+            selnode = caosast.SelectQueryNode()
+            selnode.targets = [caosast.SelectExprNode(expr=qtree)]
+            qtree = selnode
+
+        return qtree
+
+    def parsepath(self, path):
+        expr = self.parse(path)
+
+        if not isinstance(expr, caosast.PathNode):
+            raise CaosQLSyntaxError(token=None, expr=path, lineno=0)
+
+        return expr
 
     def getsrc(self, name):
         return os.path.join(os.path.dirname(__file__), name)

@@ -20,11 +20,9 @@ class PathStepNode(AST): __fields = ['expr', 'link_expr']
 
 class LinkNode(AST): __fields = ['name', 'direction']
 
-<<<<<<< HEAD
-class SelectQueryNode(AST): __fields = ['distinct', '*fromlist', '*targets', 'where']
-=======
-class SelectQueryNode(AST): _fields = ['distinct', '*targets', 'where']
->>>>>>> 7b31f38... caosql: Work-in-progress
+class LinkExprNode(AST): __fields = ['expr']
+
+class SelectQueryNode(AST): __fields = ['distinct', '*targets', 'where']
 
 class PredicateNode(AST): __fields = ['*expr']
 
@@ -33,3 +31,5 @@ class ExistsPredicateNode(PredicateNode): pass
 class SelectExprNode(AST): __fields = ['expr', 'alias']
 
 class FromExprNode(AST): __fields = ['expr', 'alias']
+
+class SequenceNode(AST): __fields = ['*elements']

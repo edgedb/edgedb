@@ -3,14 +3,23 @@ code:
     from semantix.caos.caosql.parser.nodes import *
     from semantix.caos.caosql.parser.errors import CaosQLSyntaxError
 
-    link_expr_re = re.compile(r'(?P<quote>["\'])(?P<direction>\<?\>?)(?P<name>\w+)(?P=quote)')
-
 
 query                           -> set_query:
                                         return kids[0]
 ;
 
-set_query                       -> union_expr:
+set_query                       -> single_set_query:
+                                        return kids[0]
+                                 | sequence:
+                                        return kids[0]
+;
+
+sequence                        -> '(' single_set_query (',' single_set_query)* ')':
+                                        elements = [kids[1]] + [k[1] for k in kids[2]]
+                                        return SequenceNode(elements=elements)
+;
+
+single_set_query                -> union_expr:
                                         return kids[0]
                                  | select_query:
                                         return kids[0]
@@ -133,8 +142,8 @@ simple_predicate                -> primary_query comp_op primary_query:
                                         return kids[1]
 ;
 
-safe_set_query                  -> '(' set_query ')':
-                                        return kids[1]
+safe_set_query                  -> sequence:
+                                        return kids[0]
                                  | path_expr:
                                         return kids[0]
 ;
@@ -221,11 +230,11 @@ gpe_path_step_simple            -> gpe_subpath_with_parens (regexp_op)?:
                                         return PathStepNode(expr=kids[1].expr, link_expr=kids[0])
 ;
 
-link_expr                       -> ('[' link_spec ']')? '.':
-                                        if kids[0] is not None:
-                                            return PredicateNode(expr=kids[0][1])
-                                        else:
-                                            return None
+link_expr                       -> '.' '[' link_spec ']' '.':
+                                        return LinkExprNode(expr=kids[2])
+                                 | '.':
+                                        expr = LinkNode(name='%', direction='>')
+                                        return LinkExprNode(expr=expr)
 ;
 
 link_spec                       -> or_link_expr:
@@ -250,14 +259,16 @@ neg_link_expr                   -> simple_link_expr:
                                         return UnaryOpNode(op='not', operand=kids[1])
 ;
 
-simple_link_expr                -> LITERAL:
-                                        m = link_expr_re.match(kids[0])
-                                        if not m:
-                                            raise CaosQLSyntaxError('invalid link expression', kids[0], 0)
-                                        return LinkNode(name=m.group('name'), direction=m.group('direction'))
-
+simple_link_expr                -> direction? link_name:
+                                        return LinkNode(name=kids[1], direction=kids[0])
                                  | '(' link_spec ')':
                                         return kids[1]
+;
+
+link_name                       -> LABEL_EXPR:
+                                        return kids[0]
+                                 | IDENTIFIER:
+                                        return kids[0]
 ;
 
 direction                       -> '<>':
@@ -268,8 +279,8 @@ direction                       -> '<>':
                                         return kids[0]
 ;
 
-label_expr                      -> '#':
-                                        return PathStepNode(expr='#')
+label_expr                      -> '%':
+                                        return PathStepNode(expr='%')
                                  | LABEL_EXPR:
                                         return PathStepNode(expr=kids[0])
                                  | var:

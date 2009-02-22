@@ -1,7 +1,7 @@
 from semantix.caos.caosql import ast
 from semantix.caos.caosql.parser import nodes as qlast
-from semantix.caos import ConceptClass
-from semantix.caos.query import CaosQLError
+from semantix.caos import backends
+from semantix.caos.caosql import CaosQLError
 
 class ParseContextLevel(object):
     def __init__(self, prevlevel=None):
@@ -79,7 +79,10 @@ class CaosqlTreeTransformer(object):
         return context.current.graph
 
     def _process_select_where(self, context, where):
-        return self._process_expr(context, where.expr)
+        if where:
+            return self._process_expr(context, where.expr)
+        else:
+            return None
 
     def _process_expr(self, context, expr):
         node = None
@@ -105,6 +108,9 @@ class CaosqlTreeTransformer(object):
             node = self._process_path(context, expr)
         elif isinstance(expr, qlast.ConstantNode):
             node = ast.Constant(value=expr.value)
+        elif isinstance(expr, qlast.SequenceNode):
+            elements=[self._process_expr(context, e) for e in expr.elements]
+            node = ast.Sequence(elements=elements)
 
         return node
 
@@ -112,7 +118,7 @@ class CaosqlTreeTransformer(object):
         return isinstance(expr, qlast.PathNode) \
                 and len(expr.steps) == 1 \
                 and isinstance(expr.steps[0], qlast.PathStepNode) \
-                and expr.steps[0].expr == '#'
+                and expr.steps[0].expr == '%'
 
     def _process_binop(self, context, expr):
 
@@ -150,8 +156,12 @@ class CaosqlTreeTransformer(object):
                 left.source.filters.append(expr)
 
                 return None
+            elif right_t == ast.Sequence and op == 'in':
+                left.source.filters.append(expr)
+
+                return None
             else:
-                raise CaosQLError('invalid binary operator: % % %'
+                raise CaosQLError('invalid binary operator: %s %s %s'
                                         % (type(left), op, type(right)))
 
         if right_t == ast.AtomicRef:
@@ -160,7 +170,7 @@ class CaosqlTreeTransformer(object):
 
                 return None
             else:
-                raise CaosQLError('invalid binary operator: % % %'
+                raise CaosQLError('invalid binary operator: %s %s %s'
                                         % (type(left), op, type(right)))
 
 
@@ -205,6 +215,17 @@ class CaosqlTreeTransformer(object):
 
             step = ast.EntitySet()
 
+            if isinstance(node, qlast.PathNode):
+                if len(node.steps) > 1:
+                    raise CaosQLError('unsupported subpath expression')
+
+                var = node.var
+                node = self._get_path_tip(node)
+                step.concept = self._normalize_concept(node.expr)
+                step.name = context.current.genalias(alias=var.name, hint=step.concept)
+
+                vars[step.name] = step
+
             if isinstance(node, qlast.PathStepNode):
 
                 if node.expr in vars and i == 0:
@@ -213,19 +234,12 @@ class CaosqlTreeTransformer(object):
                     curstep = refnode
                     continue
                 else:
-                    step.concept = node.expr
+                    step.concept = self._normalize_concept(node.expr)
                     step.name = context.current.genalias(hint=step.concept)
 
-            elif isinstance(node, qlast.PathNode):
-                if len(node.steps) > 1:
-                    raise CaosQLError('unsupported subpath expression')
+                    if node.link_expr:
+                        step.link = self._parse_link_expr(node.link_expr.expr)
 
-                var = node.var
-                node = self._get_path_tip(node)
-                step.concept = node.expr
-                step.name = context.current.genalias(alias=var.name, hint=step.concept)
-
-                vars[step.name] = step
 
             if curstep is not None:
                 if i == pathlen - 1:
@@ -234,20 +248,43 @@ class CaosqlTreeTransformer(object):
                         result = aref
                         break
 
-                link = ast.EntityLink(source=curstep, target=step)
+                link = ast.EntityLink(source=curstep, target=step, filter=step.link)
                 curstep.links.append(link)
                 step.rlinks.append(link)
-
-                if not path_recorded and curstep not in paths:
-                    paths.append(curstep)
-                    path_recorded = True
 
             if result is None:
                 result = curstep
 
             curstep = step
 
+            if not path_recorded and curstep not in paths:
+                paths.append(curstep)
+                path_recorded = True
+
         return result
+
+    def _normalize_concept(self, concept):
+        if concept == '%':
+            return None
+        else:
+            return concept
+
+    def _parse_link_expr(self, expr):
+        expr_t = type(expr)
+
+        if expr_t == qlast.LinkNode:
+            label = expr.name
+
+            if label == '%':
+                labels = None
+            else:
+                labels = [label]
+
+            return ast.EntityLinkSpec(labels=labels, direction=expr.direction)
+        elif expr_t == qlast.BinOpNode:
+            left = self._parse_link_expr(expr.left)
+            right = self._parse_link_expr(expr.right)
+            return ast.BinOp(op=expr.op, left=left, right=right)
 
     def _process_select_targets(self, context, targets):
         selector = list()
@@ -268,8 +305,13 @@ class CaosqlTreeTransformer(object):
         else:
             concept = source.concept
 
-        concept = ConceptClass(concept)
-        if step.concept in concept.attributes:
+        if concept is None:
+            atoms = ['id']
+        else:
+            (bases, dct) = backends.meta_backend.load('semantics', concept)
+            atoms = dct['attributes']
+
+        if step.concept in atoms:
             result = ast.AtomicRef(source=source, name=step.concept)
 
             if context.current.location == 'selector':
