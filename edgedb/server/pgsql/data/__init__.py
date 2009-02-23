@@ -5,6 +5,8 @@ from semantix.caos.backends.meta.pgsql.common import DatabaseConnection, Databas
 from .datasources import EntityLinks, ConceptLink
 from .adapters.caosql import CaosQLQueryAdapter
 
+from semantix.config import settings
+
 class CaosQLCursor(object):
     def __init__(self, connection):
         self.native_cursor = connection.cursor()
@@ -105,6 +107,9 @@ class DataBackend(BaseDataBackend):
             return None
 
     def store_entity(self, concept, id, attrs):
+        debug = 'caos' in settings.debug and 'sync' in settings.debug['caos'] \
+                and settings.debug['caos']['sync']
+
         with self.connection as cursor:
 
             if id is not None:
@@ -126,12 +131,12 @@ class DataBackend(BaseDataBackend):
             if id is None:
                 raise Exception('failed to store entity')
 
-            print()
-            print('-' * 60)
-            print('Merged entity %s[%s][%s]' % \
-                    (concept, id[0], (data['name'] if 'name' in data else '')))
-            print('-' * 60)
-
+            if debug:
+                print()
+                print('-' * 60)
+                print('Merged entity %s[%s][%s]' % \
+                        (concept, id[0], (data['name'] if 'name' in data else '')))
+                print('-' * 60)
 
         return id[0]
 
@@ -164,17 +169,21 @@ class DataBackend(BaseDataBackend):
     def store_links(self, concept, link_type, source, targets):
         rows = []
 
+        debug = 'caos' in settings.debug and 'sync' in settings.debug['caos'] \
+                and settings.debug['caos']['sync']
+
         with self.connection as cursor:
             for target in targets:
                 target.flush()
 
-                print()
-                print('-' * 60)
-                print('Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
-                        (source.__class__.name, source.id, (source.name if hasattr(source, 'name') else ''),
-                         link_type,
-                         target.__class__.name, target.id, (target.name if hasattr(target, 'name') else '')))
-                print('-' * 60)
+                if debug:
+                    print()
+                    print('-' * 60)
+                    print('Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
+                            (source.__class__.name, source.id, (source.name if hasattr(source, 'name') else ''),
+                             link_type,
+                             target.__class__.name, target.id, (target.name if hasattr(target, 'name') else '')))
+                    print('-' * 60)
 
                 # XXX: that's ugly
                 targets = [c.name for c in target.__class__.__mro__ if hasattr(c, 'name')]
