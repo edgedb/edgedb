@@ -2,7 +2,7 @@ import types
 
 import semantix.caos.domain
 import semantix.caos.concept
-from semantix.caos import DomainClass
+from semantix.caos import Class
 
 class MetaError(Exception):
     pass
@@ -83,7 +83,7 @@ class BaseMetaBackend(object):
     def load_atom(self, atom):
         dct = {}
         dct['name'] = atom['name']
-        dct['base'] = DomainClass(atom['extends'], meta_backend=self)
+        dct['base'] = Class(atom['extends'], meta_backend=self)
 
         if 'default' in atom and atom['default'] is not None:
             dct['default'] = dct['base'](atom['default'])

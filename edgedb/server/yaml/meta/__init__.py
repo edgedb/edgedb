@@ -3,7 +3,7 @@ import copy
 import semantix
 
 from semantix.utils import merge, graph
-from semantix.caos import ConceptClass, ConceptAttributeType, ConceptLinkType, DomainClass, MetaError
+from semantix.caos import Class, ConceptAttributeType, ConceptLinkType, MetaError
 
 from semantix.caos.backends.meta import BaseMetaBackend
 
@@ -30,11 +30,8 @@ class MetaDataIterator(object):
 
     def __next__(self):
         concept = next(self.iter)
+        return Class(concept['name'], meta_backend=self.helper)
 
-        if self.iter_atoms:
-            return DomainClass(concept['name'], meta_backend=self.helper)
-        else:
-            return ConceptClass(concept['name'], meta_backend=self.helper)
 
 class MetaBackend(BaseMetaBackend):
     def __init__(self, metadata):
@@ -177,7 +174,7 @@ class MetaBackend(BaseMetaBackend):
         for llink in concept['links']:
             for link_name, link in llink.items():
                 if 'atom' in link['target']:
-                    atom = DomainClass(link['target']['atom'], meta_backend=self)
+                    atom = Class(link['target']['atom'], meta_backend=self)
                     dct['atoms'][link_name] = ConceptAttributeType(atom, link['required'])
                 else:
                     l = ConceptLinkType(name, link['target']['concept'], link_name, link['target']['mapping'])
@@ -188,7 +185,7 @@ class MetaBackend(BaseMetaBackend):
         bases = tuple()
         if len(concept['extends']) > 0:
             for parent in concept['extends']:
-                bases += (ConceptClass(parent, meta_backend=self),)
+                bases += (Class(parent, meta_backend=self),)
 
         dct['parents'] = concept['extends']
 

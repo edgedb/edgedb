@@ -4,7 +4,7 @@ import copy
 
 from psycopg2 import ProgrammingError
 
-from semantix.caos import DomainClass, ConceptClass, ConceptAttributeType, MetaError, ConceptLinkType
+from semantix.caos import Class, ConceptAttributeType, MetaError, ConceptLinkType
 from semantix.caos.domain import Domain
 
 from semantix.caos.backends.meta import BaseMetaBackend
@@ -34,10 +34,7 @@ class MetaDataIterator(object):
     def __next__(self):
         concept = next(self.iter)
 
-        if (self.iter_atoms):
-            return DomainClass(concept, meta_backend=self.helper)
-        else:
-            return ConceptClass(concept, meta_backend=self.helper)
+        return Class(concept, meta_backend=self.helper)
 
 class MetaBackend(BaseMetaBackend):
 
@@ -179,24 +176,21 @@ class MetaBackend(BaseMetaBackend):
 
         if len(inheritance) > 0:
             for table in inheritance:
-                bases += (ConceptClass(self.demangle_concept_name(table), meta_backend=self),)
+                bases += (Class(self.demangle_concept_name(table), meta_backend=self),)
 
         return bases, dct
 
 
     def store(self, cls, phase=1):
-        if issubclass(cls, Domain):
-            klass = DomainClass
-        else:
-            klass = ConceptClass
+        is_domain = issubclass(cls, Domain)
 
         try:
-            current = klass(cls.name, meta_backend=self)
+            current = Class(cls.name, meta_backend=self)
         except MetaError:
             current = None
 
-        if current is None or (phase == 2 and klass == ConceptClass):
-            if klass == DomainClass:
+        if current is None or (phase == 2 and not is_domain):
+            if is_domain:
                 self.create_domain(cls)
             else:
                 self.create_concept(cls, phase)
@@ -314,7 +308,7 @@ class MetaBackend(BaseMetaBackend):
         demangled = self.demangle_domain_name(type_expr)
 
         if demangled in self._atoms:
-            result = DomainClass(demangled, meta_backend=self)
+            result = Class(demangled, meta_backend=self)
         else:
             m = self.typlen_re.match(type_expr)
             if m:
@@ -333,7 +327,7 @@ class MetaBackend(BaseMetaBackend):
                     self._atoms[domain_name] = domain
                     domain = domain_name
 
-                result = DomainClass(domain, meta_backend=self)
+                result = Class(domain, meta_backend=self)
 
         return result
 
@@ -341,7 +335,7 @@ class MetaBackend(BaseMetaBackend):
     def pg_type_from_domain(self, domain_cls):
         # Check if the domain is in our backend
         try:
-            domain = DomainClass(domain_cls.name, meta_backend=self)
+            domain = Class(domain_cls.name, meta_backend=self)
         except MetaError:
             if domain_cls.name in self.cache:
                 domain = self.cache[domain_cls.name]
