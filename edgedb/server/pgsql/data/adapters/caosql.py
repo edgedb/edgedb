@@ -242,6 +242,13 @@ class CaosQLQueryAdapter(NodeVisitor):
 
             join = self._simple_join(context, joinpoint, map)
 
+            if link.filter and link.filter.labels:
+                expr = self._select_link_types(context, map, link.filter.labels)
+                if step_cte.where is not None:
+                    step_cte.where = sqlast.BinOpNode(op='and', left=where, right=expr)
+                else:
+                    step_cte.where = expr
+
             if concept_table is not None:
                 join = self._simple_join(context, join, concept_table)
 
@@ -269,7 +276,11 @@ class CaosQLQueryAdapter(NodeVisitor):
                     for atref in atrefs:
                         atref.source = concept_table
 
-                step_cte.where = sqlast.PredicateNode(expr=self._process_expr(context, filter))
+                expr = sqlast.PredicateNode(expr=self._process_expr(context, filter))
+                if step_cte.where is not None:
+                    step_cte.where = sqlast.BinOpNode(op='and', left=where, right=expr)
+                else:
+                    step_cte.where = expr
 
         step_cte.fromlist.append(fromnode)
         step_cte._source_graph = step
@@ -278,6 +289,50 @@ class CaosQLQueryAdapter(NodeVisitor):
         step_cte._bonds['entity'] = (bond, bond)
 
         return step_cte
+
+    def _select_link_types(self, context, map, labels):
+        select = sqlast.SelectQueryNode()
+
+        entity_1 = sqlast.TableNode(name='entity', alias=context.current.genalias(hint='entity'))
+        entity_2 = sqlast.TableNode(name='entity', alias=context.current.genalias(hint='entity'))
+        concept_map = sqlast.TableNode(name='concept_map', alias=context.current.genalias(hint='concept_map'))
+
+        select.fromlist = [entity_1, entity_2, concept_map]
+
+        left = sqlast.FieldRefNode(table=map, field='source_id')
+        right = sqlast.FieldRefNode(table=entity_1, field='id')
+        where = sqlast.BinOpNode(op='=', left=left, right=right)
+
+        left = sqlast.FieldRefNode(table=map, field='target_id')
+        right = sqlast.FieldRefNode(table=entity_2, field='id')
+        condition = sqlast.BinOpNode(op='=', left=left, right=right)
+        where = sqlast.BinOpNode(op='and', left=where, right=condition)
+
+        left = sqlast.FieldRefNode(table=entity_1, field='concept_id')
+        right = sqlast.FieldRefNode(table=concept_map, field='source_id')
+        condition = sqlast.BinOpNode(op='=', left=left, right=right)
+        where = sqlast.BinOpNode(op='and', left=where, right=condition)
+
+        left = sqlast.FieldRefNode(table=entity_2, field='concept_id')
+        right = sqlast.FieldRefNode(table=concept_map, field='target_id')
+        condition = sqlast.BinOpNode(op='=', left=left, right=right)
+        where = sqlast.BinOpNode(op='and', left=where, right=condition)
+
+        left = sqlast.FieldRefNode(table=concept_map, field='link_type')
+        right = sqlast.SequenceNode()
+        for label in labels:
+            right.elements.append(sqlast.ConstantNode(value=label))
+        condition = sqlast.BinOpNode(op='in', left=left, right=right)
+        where = sqlast.BinOpNode(op='and', left=where, right=condition)
+
+        select.where = where
+        selexpr = sqlast.FieldRefNode(table=concept_map, field='id')
+        select.targets = [sqlast.SelectExprNode(expr=selexpr, alias='id')]
+
+        left = sqlast.FieldRefNode(table=map, field='link_type_id')
+        right = select
+
+        return sqlast.BinOpNode(op='in', left=left, right=right)
 
     def _process_path(self, context, cte, fromnode, joinpoint, pathtip):
         for link in pathtip.links:
