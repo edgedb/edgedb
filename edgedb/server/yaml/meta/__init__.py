@@ -1,10 +1,210 @@
-from semantix.caos.backends.meta import BaseMetaBackend
-from . import semantics, domain
+import copy
 
+import semantix
+
+from semantix.utils import merge, graph
+from semantix.caos import ConceptClass, ConceptAttributeType, ConceptLinkType, DomainClass, MetaError
+
+from semantix.caos.backends.meta import BaseMetaBackend
+
+class MetaData(object):
+    dct = {}
+
+    @classmethod
+    def _create_class(cls, meta, dct):
+        base = semantix.Import(meta['class']['parent_module'], meta['class']['parent_class'])
+        return type(meta['class']['name'], (base,), {'dct': merge.merge_dicts(dct, base.dct)})
+
+class MetaDataIterator(object):
+    def __init__(self, helper, iter_atoms):
+        self.helper = helper
+        self.iter_atoms = iter_atoms
+
+        if iter_atoms:
+            self.iter = iter([v for n, v in helper._atoms.items() if not n.startswith('__')])
+        else:
+            self.iter = iter(helper.concepts_list)
+
+    def __iter__(self):
+        return self
+
+    def __next__(self):
+        concept = next(self.iter)
+
+        if self.iter_atoms:
+            return DomainClass(concept['name'], meta_backend=self.helper)
+        else:
+            return ConceptClass(concept['name'], meta_backend=self.helper)
 
 class MetaBackend(BaseMetaBackend):
-    def __init__(self, semantics_metadata, domain_metadata):
-        super(MetaBackend, self).__init__()
+    def __init__(self, metadata):
+        super().__init__()
 
-        self.semantics_backend = semantics.MetaBackendHelper(semantics_metadata, self)
-        self.domain_backend = domain.MetaBackendHelper(domain_metadata, self)
+        self._atoms = {}
+        self._concepts = {}
+
+        data = metadata.dct['semantic_network']
+
+        if 'atoms' in data and data['atoms'] is not None:
+            atoms = data['atoms']
+        else:
+            atoms = {}
+
+        for atom_name, atom in atoms.items():
+            atom['name'] = atom_name
+            self._atoms[atom_name] = atom
+
+        if 'concepts' in data and data['concepts'] is not None:
+            concepts = data['concepts']
+        else:
+            concepts = {}
+
+        concept_graph = {}
+
+        for concept_name, concept in concepts.items():
+            if concept is None:
+                concept = {}
+
+            concept["name"] = concept_name
+
+            concept_graph[concept_name] = {"item": concept, "merge": [], "deps": []}
+            if concept['extends'] is not None:
+                if not isinstance(concept["extends"], list):
+                    concept["extends"] = list((concept["extends"],))
+                else:
+                    concept["extends"] = list(concept["extends"])
+                concept_graph[concept_name]["merge"].extend(concept['extends'])
+            else:
+                concept["extends"] = []
+
+            concept["children"] = set()
+
+        concept_graph = graph.normalize(concept_graph, merger=MetaBackend.merge_concepts)
+        link_types = []
+
+        for node in concept_graph:
+            if node['links'] is not None:
+                for llink in node["links"]:
+                    for link_name, link in llink.items():
+                        link_types.append(link_name)
+
+        concept_graph_dict = {}
+
+        for node in concept_graph:
+            concept_graph_dict[node["name"]] = node
+
+        for node in concept_graph:
+            if node["links"] is not None:
+                for llink in node["links"]:
+                    for link_name, link in llink.items():
+                        if 'atom' in link['target']:
+                            if not self.is_atom(link['target']['atom']):
+                                raise MetaError('reference to an undefined atom "%s" in "%s"' %
+                                                (link['target']['atom'], node['name'] + '/links/' + link_name))
+                            if 'mods' in link['target'] and link['target']['mods'] is not None:
+                                """
+                                Inline atom definition
+                                We must generate a unique name here
+                                """
+                                atom_name = '__' + node['name'] + '__' + link_name
+                                self._atoms[atom_name] = {'name': atom_name,
+                                                          'extends': link['target']['atom'],
+                                                          'mods': link['target']['mods'],
+                                                          'default': link['target']['default']}
+                                del link['target']['mods']
+                                del link['target']['default']
+                                link['target']['atom'] = atom_name
+
+                        elif 'concept' in link["target"]:
+                            if link['target']['concept'] not in concept_graph_dict:
+                                raise MetaError('reference to an undefined concept "%s" in "%s"' %
+                                                (link['target']['concept'], node['name'] + '/links/' + link_name))
+            else:
+                node["links"] = []
+
+            if node['extends'] is not None:
+                for parent in node["extends"]:
+                    concept_graph_dict[parent]["children"].add(node["name"])
+
+        self._concepts = concept_graph_dict
+        self.concepts_list = concept_graph
+
+    @staticmethod
+    def merge_concepts(left, right):
+        result = merge.merge_dicts(left, right)
+
+        if result["heuristics"] is not None:
+            if result["heuristics"]["comparison"] is not None:
+                attrs = []
+                heuristics = []
+                for rule in reversed(result["heuristics"]["comparison"]):
+                    if "attribute" not in rule or rule["attribute"] not in attrs:
+                        heuristics.append(rule)
+                        if "attribute" in rule:
+                            attrs.append(rule["attribute"])
+
+                result["heuristics"]["comparison"] = heuristics
+
+        result["extends"] = copy.deepcopy(right["extends"])
+
+        return result
+
+    def iter_concepts(self):
+        return MetaDataIterator(self, False)
+
+    def iter_atoms(self):
+        return MetaDataIterator(self, True)
+
+    def is_atom(self, name):
+        return super().is_atom(name) or name in self._atoms
+
+    def do_load(self, name):
+        atom = False
+
+        if self.is_atom(name):
+            return self.load_atom(self._atoms[name])
+
+        if name not in self._concepts:
+            raise MetaError('reference to an undefined concept "%s"' % name)
+
+        concept = self._concepts[name]
+        dct = {}
+
+        dct['name'] = name
+        dct['atoms'] = {}
+        dct['links'] = {}
+
+        for llink in concept['links']:
+            for link_name, link in llink.items():
+                if 'atom' in link['target']:
+                    atom = DomainClass(link['target']['atom'], meta_backend=self)
+                    dct['atoms'][link_name] = ConceptAttributeType(atom, link['required'])
+                else:
+                    l = ConceptLinkType(name, link['target']['concept'], link_name, link['target']['mapping'])
+                    dct['links'][(link_name, link['target']['concept'])] = l
+
+        dct['rlinks'] = self.collect_rlinks(name)
+
+        bases = tuple()
+        if len(concept['extends']) > 0:
+            for parent in concept['extends']:
+                bases += (ConceptClass(parent, meta_backend=self),)
+
+        dct['parents'] = concept['extends']
+
+        return bases, dct
+
+    def collect_rlinks(self, target_concept):
+        result = {}
+
+        for concept in self.concepts_list:
+            for llink in concept['links']:
+                for link_type, link in llink.items():
+                    if 'concept' in link['target'] and link['target']['concept'] == target_concept:
+                       result[(link_type, concept['name'])] = ConceptLinkType(concept['name'], target_concept,
+                                                                              link_type, link['target']['mapping'])
+
+        return result
+
+    def store(self, cls, phase):
+        pass

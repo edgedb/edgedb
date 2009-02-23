@@ -309,7 +309,7 @@ class CaosqlTreeTransformer(object):
             atoms = ['id']
         else:
             (bases, dct) = backends.meta_backend.load('semantics', concept)
-            atoms = dct['attributes']
+            atoms = dct['atoms']
 
         if step.concept in atoms:
             result = ast.AtomicRef(source=source, name=step.concept)
