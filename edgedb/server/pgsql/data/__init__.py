@@ -174,7 +174,7 @@ class DataBackend(BaseDataBackend):
 
         with self.connection as cursor:
             for target in targets:
-                target.flush()
+                target.sync()
 
                 if debug:
                     print()
