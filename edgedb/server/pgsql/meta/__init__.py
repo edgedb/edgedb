@@ -157,19 +157,9 @@ class MetaBackend(BaseMetaBackend):
 
         dct['links'] = {}
         for r in ConceptLinks.fetch(source_concept=name):
-            l = ConceptLinkType(r['source_concept'], r['target_concept'], r['link_type'], r['mapping'])
+            l = ConceptLinkType(r['source_concept'], r['target_concept'], r['link_type'],
+                                r['mapping'], r['required'])
             dct['links'][(r['link_type'], r['target_concept'])] = l
-            """
-            if (None, r['target_concept']) not in dct['links']:
-                dct['links'][(None, r['target_concept'])] = [l]
-            else:
-                dct['links'][(None, r['target_concept'])].append(l)
-            """
-
-        dct['rlinks'] = {}
-        for r in ConceptLinks.fetch(target_concept=name):
-            l = ConceptLinkType(r['source_concept'], r['target_concept'], r['link_type'], r['mapping'])
-            dct['rlinks'][(r['link_type'], r['source_concept'])] = l
 
         inheritance = TableInheritance.fetch(table_name=self.mangle_concept_name(name))
         inheritance = [i[0] for i in inheritance[1:]]
@@ -235,7 +225,8 @@ class MetaBackend(BaseMetaBackend):
         if phase is None or phase == 2:
             for link in cls.links.values():
                 self.concept_map_table.insert(source=link.source, target=link.target,
-                                              link_type=link.link_type, mapping=link.mapping)
+                                              link_type=link.link_type, mapping=link.mapping,
+                                              required=link.required)
 
 
     def normalize_domain_descr(self, d):

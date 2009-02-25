@@ -91,6 +91,9 @@ class MetaBackend(BaseMetaBackend):
             concept_graph_dict[node["name"]] = node
 
         for node in concept_graph:
+            atom_links = {}
+            links = {}
+
             if node["links"] is not None:
                 for llink in node["links"]:
                     for link_name, link in llink.items():
@@ -112,10 +115,27 @@ class MetaBackend(BaseMetaBackend):
                                 del link['target']['default']
                                 link['target']['atom'] = atom_name
 
+                            if link_name in links:
+                                raise MetaError('%s is already defined as a concept link'
+                                                % link_name)
+
+                            atom_links[link_name] = True
+
                         elif 'concept' in link["target"]:
                             if link['target']['concept'] not in concept_graph_dict:
                                 raise MetaError('reference to an undefined concept "%s" in "%s"' %
                                                 (link['target']['concept'], node['name'] + '/links/' + link_name))
+
+                            link_key = (link_name, link['target']['concept'])
+                            if link_key in links:
+                                raise MetaError('%s -> %s link redefinition'
+                                                % (link_name, link['target']['concept']))
+                            elif link_name in atom_links:
+                                raise MetaError('%s is already defined as a link to atom'
+                                                % link_name)
+                            else:
+                                links[link_key] = True
+                                links[link_name] = True
             else:
                 node["links"] = []
 
@@ -177,10 +197,9 @@ class MetaBackend(BaseMetaBackend):
                     atom = Class(link['target']['atom'], meta_backend=self)
                     dct['atoms'][link_name] = ConceptAttributeType(atom, link['required'])
                 else:
-                    l = ConceptLinkType(name, link['target']['concept'], link_name, link['target']['mapping'])
+                    l = ConceptLinkType(name, link['target']['concept'], link_name,
+                                        link['target']['mapping'], link['required'])
                     dct['links'][(link_name, link['target']['concept'])] = l
-
-        dct['rlinks'] = self.collect_rlinks(name)
 
         bases = tuple()
         if len(concept['extends']) > 0:
@@ -190,18 +209,6 @@ class MetaBackend(BaseMetaBackend):
         dct['parents'] = concept['extends']
 
         return bases, dct
-
-    def collect_rlinks(self, target_concept):
-        result = {}
-
-        for concept in self.concepts_list:
-            for llink in concept['links']:
-                for link_type, link in llink.items():
-                    if 'concept' in link['target'] and link['target']['concept'] == target_concept:
-                       result[(link_type, concept['name'])] = ConceptLinkType(concept['name'], target_concept,
-                                                                              link_type, link['target']['mapping'])
-
-        return result
 
     def store(self, cls, phase):
         pass

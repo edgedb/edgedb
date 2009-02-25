@@ -21,7 +21,8 @@ source: |
             cm.target_id,
             tc.name AS target_concept,
             cm.link_type AS link_type,
-            cm.mapping
+            cm.mapping,
+            cm.required
         FROM
             caos.concept_map cm
             INNER JOIN caos.concept sc ON cm.source_id = sc.id

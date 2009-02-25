@@ -30,6 +30,7 @@ mapping:
                                                   type: str
                                               "required":
                                                   type: bool
+                                                  default: False
                                               "target":
                                                   type: choice
                                                   required: yes

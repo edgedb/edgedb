@@ -83,6 +83,7 @@ class ConceptMapTable(DatabaseTable):
                 target_id integer NOT NULL,
                 link_type varchar(255) NOT NULL,
                 mapping char(2) NOT NULL,
+                required boolean NOT NULL DEFAULT FALSE,
 
                 PRIMARY KEY (id),
                 FOREIGN KEY (source_id) REFERENCES "caos"."concept"(id) ON DELETE CASCADE,
@@ -93,12 +94,13 @@ class ConceptMapTable(DatabaseTable):
 
     def insert(self, *dicts, **kwargs):
         """
-            INSERT INTO "caos"."concept_map"(source_id, target_id, link_type, mapping)
+            INSERT INTO "caos"."concept_map"(source_id, target_id, link_type, mapping, required)
                 VALUES (
                             (SELECT id FROM caos.concept WHERE name = %(source)s),
                             (SELECT id FROM caos.concept WHERE name = %(target)s),
                             %(link_type)s,
-                            %(mapping)s
+                            %(mapping)s,
+                            %(required)s
                 ) RETURNING id
         """
         super(ConceptMapTable, self).insert(*dicts, **kwargs)
