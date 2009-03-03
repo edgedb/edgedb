@@ -112,6 +112,8 @@ class DataBackend(BaseDataBackend):
 
         with self.connection as cursor:
 
+            attrs['entity_id'] = id
+
             if id is not None:
                 query = 'UPDATE "caos"."%s_data" SET ' % concept
                 query += ','.join(['%s = %%(%s)s' % (a, a) for a in attrs])
@@ -120,8 +122,8 @@ class DataBackend(BaseDataBackend):
                 id = self.entity_table.insert({'concept': concept})[0]
 
                 query = 'INSERT INTO "caos"."%s_data"' % concept
-                query += '(entity_id, ' + ','.join(['"%s"' % a for a in attrs]) + ')'
-                query += 'VALUES(%(entity_id)s, ' + ','.join(['%%(%s)s' % a for a in attrs]) + ') RETURNING entity_id'
+                query += '(' + ','.join(['"%s"' % a for a in attrs]) + ')'
+                query += 'VALUES(' + ','.join(['%%(%s)s' % a for a in attrs]) + ') RETURNING entity_id'
 
             data = dict((k, str(attrs[k]) if attrs[k] is not None else None) for k in attrs)
             data['entity_id'] = id
