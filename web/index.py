@@ -10,7 +10,7 @@ from pygments.lexers import get_lexer_by_name
 from pygments.formatters import HtmlFormatter
 
 from semantix import datasources, readers, db
-from semantix.caos import Entity, Class
+from semantix.caos import Concept, Class
 from semantix.caos.backends.meta.pgsql import MetaBackend as PgSQLMetaBackend
 from semantix.caos.backends.data.pgsql import DataBackend as PgSQLDataBackend
 
@@ -192,7 +192,7 @@ class Srv(object):
             </head>
             <body>
         """
-        entity = Entity(int(id))
+        entity = Concept(int(id))
         return ouput + HTMLConceptTemlates.render(entity) + '</body></html>'
 
     @cherrypy.expose
@@ -217,7 +217,7 @@ class Srv(object):
         if entity_id == 'root':
             return ''
 
-        entity = Entity(int(entity_id))
+        entity = Concept(int(entity_id))
         return HTMLConceptTemlates.render(entity)
 
 Srv('config.yml')
