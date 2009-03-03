@@ -187,7 +187,7 @@ class MetaBackend(BaseMetaBackend):
         concept = self._concepts[name]
         dct = {}
 
-        dct['name'] = name
+        dct['concept'] = name
         dct['atoms'] = {}
         dct['links'] = {}
 

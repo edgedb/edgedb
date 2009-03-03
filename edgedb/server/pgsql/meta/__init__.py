@@ -136,7 +136,7 @@ class MetaBackend(BaseMetaBackend):
             raise MetaError('reference to an undefined concept "%s"' % name)
 
         bases = ()
-        dct = {'name': name}
+        dct = {'concept': name}
 
         columns = TableColumns.fetch(table_name=self.mangle_concept_name(name))
         atoms = {}
@@ -175,7 +175,7 @@ class MetaBackend(BaseMetaBackend):
         is_domain = issubclass(cls, Domain)
 
         try:
-            current = Class(cls.name, meta_backend=self)
+            current = Class(cls.concept, meta_backend=self)
         except MetaError:
             current = None
 
@@ -184,7 +184,7 @@ class MetaBackend(BaseMetaBackend):
                 self.create_domain(cls)
             else:
                 self.create_concept(cls, phase)
-            self.cache[cls.name] = cls
+            self.cache[cls.concept] = cls
 
 
     def demangle_concept_name(self, name):
@@ -202,9 +202,9 @@ class MetaBackend(BaseMetaBackend):
 
     def create_concept(self, cls, phase):
         if phase is None or phase == 1:
-            concept = self.concept_table.insert(name=cls.name)
+            concept = self.concept_table.insert(name=cls.concept)
 
-            qry = 'CREATE TABLE %s' % self.mangle_concept_name(cls.name, True)
+            qry = 'CREATE TABLE %s' % self.mangle_concept_name(cls.concept, True)
 
             columns = ['entity_id integer NOT NULL REFERENCES caos.entity(id) ON DELETE CASCADE']
 

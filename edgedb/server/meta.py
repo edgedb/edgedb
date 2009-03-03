@@ -82,7 +82,7 @@ class BaseMetaBackend(object):
 
     def load_atom(self, atom):
         dct = {}
-        dct['name'] = atom['name']
+        dct['concept'] = atom['name']
         dct['base'] = Class(atom['extends'], meta_backend=self)
 
         if 'default' in atom and atom['default'] is not None:

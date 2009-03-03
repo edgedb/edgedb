@@ -180,15 +180,15 @@ class DataBackend(BaseDataBackend):
                     print()
                     print('-' * 60)
                     print('Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
-                            (source.__class__.name, source.id, (source.name if hasattr(source, 'name') else ''),
+                            (source.concept, source.id, (source.name if hasattr(source, 'name') else ''),
                              link_type,
-                             target.__class__.name, target.id, (target.name if hasattr(target, 'name') else '')))
+                             target.concept, target.id, (target.name if hasattr(target, 'name') else '')))
                     print('-' * 60)
 
                 # XXX: that's ugly
-                targets = [c.name for c in target.__class__.__mro__ if hasattr(c, 'name')]
+                targets = [c.concept for c in target.__class__.__mro__ if hasattr(c, 'concept')]
 
-                lt = ConceptLink.fetch(source_concepts=[source.__class__.name], target_concepts=targets,
+                lt = ConceptLink.fetch(source_concepts=[source.concept], target_concepts=targets,
                                        link_type=link_type)
 
                 rows.append(cursor.mogrify('(%(source_id)s, %(target_id)s, %(link_type_id)s, %(weight)s)',
