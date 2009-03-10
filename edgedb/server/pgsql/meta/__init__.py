@@ -146,7 +146,7 @@ class MetaBackend(BaseMetaBackend):
 
             atom = self.atom_from_pg_type(row['column_type'], '__' + name + '__' + row['column_name'],
                                           row['column_default'])
-            atom = ConceptLinkType(source=name, target=atom, link_type=row['column_name'],
+            atom = ConceptLinkType(source=name, targets=[atom], link_type=row['column_name'],
                                    required=row['column_required'], mapping='11')
             atoms[row['column_name']] = atom
 
@@ -154,9 +154,12 @@ class MetaBackend(BaseMetaBackend):
 
         dct['links'] = {}
         for r in ConceptLinks.fetch(source_concept=name):
-            l = ConceptLinkType(r['source_concept'], r['target_concept'], r['link_type'],
-                                r['mapping'], r['required'])
-            dct['links'][(r['link_type'], r['target_concept'])] = l
+            if r['link_type'] in dct['links']:
+                dct['links'][r['link_type']].targets.append(r['target_concept'])
+            else:
+                l = ConceptLinkType(r['source_concept'], [r['target_concept']], r['link_type'],
+                                    r['mapping'], r['required'])
+                dct['links'][r['link_type']] = l
 
         inheritance = TableInheritance.fetch(table_name=self.mangle_concept_name(name))
         inheritance = [i[0] for i in inheritance[1:]]
@@ -207,7 +210,7 @@ class MetaBackend(BaseMetaBackend):
 
             for link_name in sorted(cls.atoms.keys()):
                 atom_link = cls.atoms[link_name]
-                column_type = self.pg_type_from_atom(atom_link.target)
+                column_type = self.pg_type_from_atom(atom_link.targets[0])
                 column = '"%s" %s %s' % (link_name, column_type, 'NOT NULL' if atom_link.required else '')
                 columns.append(column)
 
@@ -221,9 +224,10 @@ class MetaBackend(BaseMetaBackend):
 
         if phase is None or phase == 2:
             for link in cls.links.values():
-                self.concept_map_table.insert(source=link.source, target=link.target,
-                                              link_type=link.link_type, mapping=link.mapping,
-                                              required=link.required)
+                for target in link.targets:
+                    self.concept_map_table.insert(source=link.source, target=target,
+                                                  link_type=link.link_type, mapping=link.mapping,
+                                                  required=link.required)
 
 
     def normalize_domain_descr(self, d):
