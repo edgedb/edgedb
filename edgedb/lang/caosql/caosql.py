@@ -1,7 +1,7 @@
 from semantix.caos.caosql import ast
 from semantix.caos.caosql.parser import nodes as qlast
-from semantix.caos import backends
 from semantix.caos.caosql import CaosQLError
+from semantix.caos.cls import Class
 
 class ParseContextLevel(object):
     def __init__(self, prevlevel=None):
@@ -308,8 +308,8 @@ class CaosqlTreeTransformer(object):
         if concept is None:
             atoms = ['id']
         else:
-            (bases, dct) = backends.meta_backend.load(concept)
-            atoms = dct['atoms']
+            cls = Class(concept)
+            atoms = [n for n, v in cls.links.items() if v.atomic()]
 
         if step.concept in atoms or step.concept == 'id':
             result = ast.AtomicRef(source=source, name=step.concept)

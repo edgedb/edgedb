@@ -139,27 +139,25 @@ class MetaBackend(BaseMetaBackend):
         dct = {'concept': name}
 
         columns = TableColumns.fetch(table_name=self.mangle_concept_name(name))
-        atoms = {}
+        links = {}
         for row in columns:
             if row['column_name'] == 'entity_id':
                 continue
 
             atom = self.atom_from_pg_type(row['column_type'], '__' + name + '__' + row['column_name'],
                                           row['column_default'])
-            atom = ConceptLinkType(source=name, targets=[atom], link_type=row['column_name'],
+            atom = ConceptLinkType(source=name, targets=[atom.name], link_type=row['column_name'],
                                    required=row['column_required'], mapping='11')
-            atoms[row['column_name']] = atom
+            links[row['column_name']] = atom
 
-        dct['atoms'] = atoms
-
-        dct['links'] = {}
         for r in ConceptLinks.fetch(source_concept=name):
-            if r['link_type'] in dct['links']:
-                dct['links'][r['link_type']].targets.append(r['target_concept'])
+            if r['link_type'] in links:
+                links[r['link_type']].targets.append(r['target_concept'])
             else:
-                l = ConceptLinkType(r['source_concept'], [r['target_concept']], r['link_type'],
-                                    r['mapping'], r['required'])
-                dct['links'][r['link_type']] = l
+                links[r['link_type']] = ConceptLinkType(r['source_concept'], [r['target_concept']],
+                                                        r['link_type'], r['mapping'], r['required'])
+
+        dct['links'] = links
 
         inheritance = TableInheritance.fetch(table_name=self.mangle_concept_name(name))
         inheritance = [i[0] for i in inheritance[1:]]
@@ -208,11 +206,12 @@ class MetaBackend(BaseMetaBackend):
 
             columns = ['entity_id integer NOT NULL REFERENCES caos.entity(id) ON DELETE CASCADE']
 
-            for link_name in sorted(cls.atoms.keys()):
-                atom_link = cls.atoms[link_name]
-                column_type = self.pg_type_from_atom(atom_link.targets[0])
-                column = '"%s" %s %s' % (link_name, column_type, 'NOT NULL' if atom_link.required else '')
-                columns.append(column)
+            for link_name in sorted(cls.links.keys()):
+                link = cls.links[link_name]
+                if link.atomic():
+                    column_type = self.pg_type_from_atom(link.targets[0])
+                    column = '"%s" %s %s' % (link_name, column_type, 'NOT NULL' if link.required else '')
+                    columns.append(column)
 
             qry += '(' +  ','.join(columns) + ')'
 
@@ -224,10 +223,11 @@ class MetaBackend(BaseMetaBackend):
 
         if phase is None or phase == 2:
             for link in cls.links.values():
-                for target in link.targets:
-                    self.concept_map_table.insert(source=link.source, target=target,
-                                                  link_type=link.link_type, mapping=link.mapping,
-                                                  required=link.required)
+                if not link.atomic():
+                    for target in link.targets:
+                        self.concept_map_table.insert(source=link.source.concept, target=target.concept,
+                                                      link_type=link.link_type, mapping=link.mapping,
+                                                      required=link.required)
 
 
     def normalize_domain_descr(self, d):

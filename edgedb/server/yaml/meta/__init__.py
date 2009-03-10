@@ -188,23 +188,23 @@ class MetaBackend(BaseMetaBackend):
         dct = {}
 
         dct['concept'] = name
-        dct['atoms'] = {}
-        dct['links'] = {}
+
+        links = {}
 
         for llink in concept['links']:
             for link_name, link in llink.items():
                 if 'atom' in link['target']:
-                    atom = Class(link['target']['atom'], meta_backend=self)
-                    dct['atoms'][link_name] = ConceptLinkType(source=name, targets=[atom],
-                                                              link_type=link_name, required=link['required'],
-                                                              mapping='11')
+                    links[link_name] = ConceptLinkType(source=name, targets=[link['target']['atom']],
+                                                       link_type=link_name, required=link['required'],
+                                                       mapping='11')
                 else:
-                    if link_name in dct['links']:
-                        dct['links'][link_name].targets.append(link['target']['concept'])
+                    if link_name in links:
+                        links[link_name].targets.append(link['target']['concept'])
                     else:
-                        l = ConceptLinkType(name, [link['target']['concept']], link_name,
-                                            link['target']['mapping'], link['required'])
-                        dct['links'][link_name] = l
+                        links[link_name] = ConceptLinkType(name, [link['target']['concept']], link_name,
+                                                           link['target']['mapping'], link['required'])
+
+        dct['links'] = links
 
         bases = tuple()
         if len(concept['extends']) > 0:

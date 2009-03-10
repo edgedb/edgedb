@@ -5,6 +5,8 @@ from semantix.caos.backends.meta.pgsql.common import DatabaseConnection, Databas
 from .datasources import EntityLinks, ConceptLink
 from .adapters.caosql import CaosQLQueryAdapter
 
+from semantix.caos.concept import BaseConceptCollection
+
 from semantix.config import settings
 
 class CaosQLCursor(object):
@@ -106,12 +108,17 @@ class DataBackend(BaseDataBackend):
         else:
             return None
 
-    def store_entity(self, concept, id, attrs):
+    def store_entity(self, entity):
+        concept = entity.concept
+        id = entity.id
+        links = entity._links
+
         debug = 'caos' in settings.debug and 'sync' in settings.debug['caos'] \
                 and settings.debug['caos']['sync']
 
         with self.connection as cursor:
 
+            attrs = {n: v for n, v in links.items() if not isinstance(v, BaseConceptCollection)}
             attrs['entity_id'] = id
 
             if id is not None:
@@ -140,7 +147,17 @@ class DataBackend(BaseDataBackend):
                         (concept, id[0], (data['name'] if 'name' in data else '')))
                 print('-' * 60)
 
-        return id[0]
+            id = id[0]
+
+            entity.setid(id)
+            entity.markclean()
+
+            for link_type, link in links.items():
+                if isinstance(link, BaseConceptCollection) and link.dirty:
+                    self.store_links(concept, link_type, entity, link)
+                    link.markclean()
+
+        return id
 
     def load_links(self, this_concept, this_id, other_concepts=None, link_types=None, reverse=False):
 
