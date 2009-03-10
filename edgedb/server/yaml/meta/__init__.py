@@ -3,7 +3,7 @@ import copy
 import semantix
 
 from semantix.utils import merge, graph
-from semantix.caos import Class, ConceptAttributeType, ConceptLinkType, MetaError
+from semantix.caos import Class, ConceptLinkType, MetaError
 
 from semantix.caos.backends.meta import BaseMetaBackend
 
@@ -195,7 +195,9 @@ class MetaBackend(BaseMetaBackend):
             for link_name, link in llink.items():
                 if 'atom' in link['target']:
                     atom = Class(link['target']['atom'], meta_backend=self)
-                    dct['atoms'][link_name] = ConceptAttributeType(atom, link['required'])
+                    dct['atoms'][link_name] = ConceptLinkType(source=name, target=atom,
+                                                              link_type=link_name, required=link['required'],
+                                                              mapping='11')
                 else:
                     l = ConceptLinkType(name, link['target']['concept'], link_name,
                                         link['target']['mapping'], link['required'])

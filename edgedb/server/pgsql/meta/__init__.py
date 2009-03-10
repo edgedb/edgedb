@@ -4,8 +4,8 @@ import copy
 
 from psycopg2 import ProgrammingError
 
-from semantix.caos import Class, ConceptAttributeType, MetaError, ConceptLinkType
-from semantix.caos.domain import Domain
+from semantix.caos import Class, MetaError, ConceptLinkType
+from semantix.caos.atom import Atom
 
 from semantix.caos.backends.meta import BaseMetaBackend
 from semantix.caos.backends.pgsql.common import DatabaseConnection
@@ -97,9 +97,9 @@ class MetaBackend(BaseMetaBackend):
 
         self._atoms = {}
         domains = DomainsList.fetch(schema_name='caos')
-        atoms = {self.demangle_domain_name(d['name']): self.normalize_domain_descr(d) for d in domains}
+        domains = {self.demangle_domain_name(d['name']): self.normalize_domain_descr(d) for d in domains}
 
-        for name, domain_descr in atoms.items():
+        for name, domain_descr in domains.items():
             atom = {}
             atom['mods'] = []
             atom['name'] = name
@@ -144,14 +144,11 @@ class MetaBackend(BaseMetaBackend):
             if row['column_name'] == 'entity_id':
                 continue
 
-            domain = self.domain_from_pg_type(row['column_type'], '__' + name + '__' + row['column_name'],
-                                              row['column_default'])
-
-            try:
-                attr = ConceptAttributeType(domain, row['column_required'])
-                atoms[row['column_name']] = attr
-            except MetaError as e:
-                print(e)
+            atom = self.atom_from_pg_type(row['column_type'], '__' + name + '__' + row['column_name'],
+                                          row['column_default'])
+            atom = ConceptLinkType(source=name, target=atom, link_type=row['column_name'],
+                                   required=row['column_required'], mapping='11')
+            atoms[row['column_name']] = atom
 
         dct['atoms'] = atoms
 
@@ -172,16 +169,16 @@ class MetaBackend(BaseMetaBackend):
 
 
     def store(self, cls, phase=1):
-        is_domain = issubclass(cls, Domain)
+        is_atom = issubclass(cls, Atom)
 
         try:
             current = Class(cls.concept, meta_backend=self)
         except MetaError:
             current = None
 
-        if current is None or (phase == 2 and not is_domain):
-            if is_domain:
-                self.create_domain(cls)
+        if current is None or (phase == 2 and not is_atom):
+            if is_atom:
+                self.create_atom(cls)
             else:
                 self.create_concept(cls, phase)
             self.cache[cls.concept] = cls
@@ -208,10 +205,10 @@ class MetaBackend(BaseMetaBackend):
 
             columns = ['entity_id integer NOT NULL REFERENCES caos.entity(id) ON DELETE CASCADE']
 
-            for attr_name in sorted(cls.atoms.keys()):
-                attr = cls.atoms[attr_name]
-                column_type = self.pg_type_from_domain(attr.domain)
-                column = '"%s" %s %s' % (attr_name, column_type, 'NOT NULL' if attr.required else '')
+            for link_name in sorted(cls.atoms.keys()):
+                atom_link = cls.atoms[link_name]
+                column_type = self.pg_type_from_atom(atom_link.target)
+                column = '"%s" %s %s' % (link_name, column_type, 'NOT NULL' if atom_link.required else '')
                 columns.append(column)
 
             qry += '(' +  ','.join(columns) + ')'
@@ -293,7 +290,7 @@ class MetaBackend(BaseMetaBackend):
         return name
 
 
-    def domain_from_pg_type(self, type_expr, domain_name, domain_default):
+    def atom_from_pg_type(self, type_expr, atom_name, atom_default):
         result = None
 
         demangled = self.demangle_domain_name(type_expr)
@@ -310,40 +307,40 @@ class MetaBackend(BaseMetaBackend):
                 typname = type_expr
 
             if typname in self.base_type_name_map_r:
-                domain = self.base_type_name_map_r[typname]
+                atom = self.base_type_name_map_r[typname]
 
                 if typname in self.typmod_types and typmod is not None:
-                    domain = {'name': domain_name, 'extends': domain,
-                              'mods': [{'max-length': typmod}], 'default': domain_default}
-                    self._atoms[domain_name] = domain
-                    domain = domain_name
+                    atom = {'name': atom_name, 'extends': atom,
+                              'mods': [{'max-length': typmod}], 'default': atom_default}
+                    self._atoms[atom_name] = atom
+                    atom = atom_name
 
-                result = Class(domain, meta_backend=self)
+                result = Class(atom, meta_backend=self)
 
         return result
 
 
-    def pg_type_from_domain(self, domain_cls):
-        # Check if the domain is in our backend
+    def pg_type_from_atom(self, atom_cls):
+        # Check if the atom is in our backend
         try:
-            domain = Class(domain_cls.name, meta_backend=self)
+            atom = Class(atom_cls.name, meta_backend=self)
         except MetaError:
-            if domain_cls.name in self.cache:
-                domain = self.cache[domain_cls.name]
+            if atom_cls.name in self.cache:
+                atom = self.cache[atom_cls.name]
             else:
-                domain = None
+                atom = None
 
-        if (domain_cls.base is not None and domain_cls.base.name == 'str'
-                and len(domain_cls.mods) == 1 and 'max-length' in domain_cls.mods):
-            column_type = 'varchar(%d)' % domain_cls.mods['max-length']
+        if (atom_cls.base is not None and atom_cls.base.name == 'str'
+                and len(atom_cls.mods) == 1 and 'max-length' in atom_cls.mods):
+            column_type = 'varchar(%d)' % atom_cls.mods['max-length']
         else:
-            if domain_cls.name in self.base_type_name_map:
-                column_type = self.base_type_name_map[domain_cls.name]
+            if atom_cls.name in self.base_type_name_map:
+                column_type = self.base_type_name_map[atom_cls.name]
             else:
-                if domain is None:
-                    self.store(domain_cls)
+                if atom is None:
+                    self.store(atom_cls)
 
-                column_type = self.mangle_domain_name(domain_cls.name, True)
+                column_type = self.mangle_domain_name(atom_cls.name, True)
 
         return column_type
 
@@ -352,7 +349,7 @@ class MetaBackend(BaseMetaBackend):
         constr_name = '%s_%s' % (type, id(expr))
         return ' CONSTRAINT "%s" CHECK ( %s )' % (constr_name, expr)
 
-    def create_domain(self, cls):
+    def create_atom(self, cls):
         qry = 'CREATE DOMAIN %s AS ' % self.mangle_domain_name(cls.name, True)
         base = cls.base.name
 

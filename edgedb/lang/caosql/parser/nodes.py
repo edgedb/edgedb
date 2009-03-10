@@ -22,7 +22,9 @@ class LinkNode(AST): __fields = ['name', 'direction']
 
 class LinkExprNode(AST): __fields = ['expr']
 
-class SelectQueryNode(AST): __fields = ['distinct', '*targets', 'where']
+class SelectQueryNode(AST): __fields = ['distinct', '*targets', 'where', '*orderby']
+
+class SortExprNode(AST): __fields = ['path', 'direction']
 
 class PredicateNode(AST): __fields = ['*expr']
 

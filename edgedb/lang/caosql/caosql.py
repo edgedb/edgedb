@@ -101,7 +101,7 @@ class CaosqlTreeTransformer(object):
             else:
                 if isinstance(left, ast.AtomicRef):
                     node = ast.AtomicExistPred(expr=left)
-                else:
+                elif left:
                     node = ast.ExistPred(expr=left)
 
         elif isinstance(expr, qlast.PathNode):
@@ -308,10 +308,10 @@ class CaosqlTreeTransformer(object):
         if concept is None:
             atoms = ['id']
         else:
-            (bases, dct) = backends.meta_backend.load('semantics', concept)
+            (bases, dct) = backends.meta_backend.load(concept)
             atoms = dct['atoms']
 
-        if step.concept in atoms:
+        if step.concept in atoms or step.concept == 'id':
             result = ast.AtomicRef(source=source, name=step.concept)
 
             if context.current.location == 'selector':

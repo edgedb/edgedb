@@ -19,6 +19,10 @@ INITIAL:
     "{S}"               : "discard"
     "{NL}"              : self.lineno += 1
     "[Aa][Ss]"          : return "AS"
+    "[Bb][Yy]"          : return "BY"
+    "[Oo][Rr][Dd][Ee][Rr]"                  : return "ORDER"
+    "[Aa][Ss][Cc]"                          : return "ASC"
+    "[Dd][Ee][Ss][Cc]"                      : return "DESC"
     "[Ii][Nn][Tt][Ee][Rr][Ss][Ee][Cc][Tt]"  : return "INTERSECT"
     "[Uu][Nn][Ii][Oo][Nn]"                  : return "UNION"
     "[Ee][Xx][Cc][Ee][Pp][Tt]"              : return "EXCEPT"

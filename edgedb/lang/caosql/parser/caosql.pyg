@@ -79,7 +79,7 @@ arg_list                        -> query (',' query )* :
 ;
 
 select_query                    -> SELECT (DISTINCT)? select_expr (',' select_expr)*
-                                   (WHERE predicate)?:
+                                   (WHERE predicate)? (ORDER BY orderby_expr (',' orderby_expr)*)?:
 
                                         node = SelectQueryNode()
                                         node.distinct = kids[1] is not None
@@ -87,6 +87,9 @@ select_query                    -> SELECT (DISTINCT)? select_expr (',' select_ex
 
                                         if kids[4] is not None:
                                             node.where = kids[4][1]
+
+                                        if kids[5] is not None:
+                                            node.orderby = [kids[5][2]] + [k[1] for k in kids[5][3]]
 
                                         return node
 ;
@@ -168,6 +171,16 @@ boolean_constant                -> TRUE:
                                         return ConstantNode(value=True)
                                  | FALSE:
                                         return ConstantNode(value=False)
+;
+
+orderby_expr                    -> path_expr sort_direction?:
+                                        return SortExprNode(path=kids[0], direction=kids[1])
+;
+
+sort_direction                  -> ASC:
+                                        return kids[0]
+                                 | DESC:
+                                        return kids[0]
 ;
 
 path_expr                       -> gpe_path:

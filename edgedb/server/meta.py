@@ -1,6 +1,6 @@
 import types
 
-import semantix.caos.domain
+import semantix.caos.atom
 import semantix.caos.concept
 from semantix.caos import Class
 
@@ -38,11 +38,11 @@ class BaseMetaBackend(object):
             bases, dct = self.get_atom_skeleton(name)
 
             if name in self.base_atoms_to_class_map:
-                bases += (semantix.caos.domain.Domain, self.base_atoms_to_class_map[name])
+                bases += (semantix.caos.atom.Atom, self.base_atoms_to_class_map[name])
             else:
                 bases, dct2 = self.do_load(name)
                 dct.update(dct2)
-                bases += tuple((semantix.caos.domain.Domain,))
+                bases += tuple((semantix.caos.atom.Atom,))
         else:
             bases, dct = self.do_load(name)
             bases = bases + tuple((semantix.caos.concept.Concept,))
