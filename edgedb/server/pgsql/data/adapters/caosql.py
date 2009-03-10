@@ -156,7 +156,11 @@ class CaosQLQueryAdapter(NodeVisitor):
             else:
                 table = expr.source
 
-            result = sqlast.FieldRefNode(table=table, field=expr.name)
+            if context.current.location == 'selector' and expr.name == 'id':
+                field_name = 'entity_id'
+            else:
+                field_name = expr.name
+            result = sqlast.FieldRefNode(table=table, field=field_name)
 
         return result
 
@@ -268,6 +272,8 @@ class CaosQLQueryAdapter(NodeVisitor):
         step_cte.targets.append(selectnode)
 
         for selref in step.selrefs:
+            if selref.name == 'id':
+                continue
             fieldref = sqlast.FieldRefNode(table=concept_table, field=selref.name)
             selectnode = sqlast.SelectExprNode(expr=fieldref, alias=selref.name)
             step_cte.targets.append(selectnode)
