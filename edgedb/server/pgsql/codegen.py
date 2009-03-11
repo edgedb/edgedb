@@ -50,6 +50,20 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.where)
             self.indentation -= 2
 
+        if node.orderby:
+            self.indentation += 1
+            self.new_lines = 1
+            self.write('ORDER BY')
+            self.new_lines = 1
+            self.indentation += 1
+            count = len(node.orderby)
+            for i, sortexpr in enumerate(node.orderby):
+                self.new_lines = 1
+                self.visit(sortexpr)
+                if i != count - 1:
+                    self.write(',')
+            self.indentation -= 2
+
         self.new_lines = 1
         self.write(')')
 
@@ -104,3 +118,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 self.write(', ')
 
         self.write(')')
+
+    def visit_SortExprNode(self, node):
+        self.visit(node.expr)
+        if node.direction:
+            self.write(' ' + node.direction)

@@ -75,6 +75,7 @@ class CaosqlTreeTransformer(object):
 
         context.current.graph.generator = self._process_select_where(context, tree.where)
         context.current.graph.selector = self._process_select_targets(context, tree.targets)
+        context.current.graph.sorter = self._process_sorter(context, tree.orderby)
 
         return context.current.graph
 
@@ -329,3 +330,12 @@ class CaosqlTreeTransformer(object):
             return last
         else:
             return self._get_path_tip(last)
+
+    def _process_sorter(self, context, sorters):
+        result = []
+
+        for sorter in sorters:
+            s = ast.SortExpr(expr=self._process_expr(context, sorter.path), direction=sorter.direction)
+            result.append(s)
+
+        return result

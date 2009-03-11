@@ -20,7 +20,8 @@ class TableNode(AST):
     __fields = ['name', 'concept', 'alias', '#_bonds']
 
 class SelectQueryNode(TableNode):
-    __fields = ['distinct', '*fromlist', '*targets', 'where', '*ctes', '_source_graph']
+    __fields = ['distinct', '*fromlist', '*targets', 'where', '*orderby', '*ctes',
+                '_source_graph', '#concept_node_map']
 
 class CTENode(SelectQueryNode):
     __fields = ['*_referrers']
@@ -35,3 +36,5 @@ class ExistsNode(AST): __fields = ['expr']
 class FieldRefNode(AST): __fields = ['table', 'field']
 
 class SequenceNode(AST): __fields = ['*elements']
+
+class SortExprNode(AST): __fields = ['expr', 'direction']

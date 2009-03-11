@@ -1,4 +1,4 @@
-from copy import deepcopy
+from copy import copy, deepcopy
 from semantix.caos.query import CaosQLError
 from semantix.caos.caosql import ast as caosast
 from semantix.caos.backends.pgsql import ast as sqlast
@@ -19,12 +19,14 @@ class ParseContextLevel(object):
             self.ctes = copy.deepcopy(prevlevel.ctes)
             self.aliascnt = copy.deepcopy(prevlevel.aliascnt)
             self.ctemap = copy.deepcopy(prevlevel.ctemap)
+            self.concept_node_map = copy.deepcopy(prevlevel.concept_node_map)
             self.location = 'query'
         else:
             self.vars = {}
             self.ctes = {}
             self.aliascnt = {}
             self.ctemap = {}
+            self.concept_node_map = {}
             self.location = 'query'
 
     def genalias(self, alias=None, hint=None):
@@ -104,6 +106,7 @@ class CaosQLQueryAdapter(NodeVisitor):
         self._process_paths(context, tree.paths)
         self._process_generator(context, tree.generator)
         self._process_selector(context, tree.selector)
+        self._process_sorter(context, tree.sorter)
 
         return context.current.query
 
@@ -116,8 +119,17 @@ class CaosQLQueryAdapter(NodeVisitor):
 
         context.current.location = 'selector'
         for expr in selector:
-            target = sqlast.SelectExprNode(expr=self._process_expr(context, expr))
+            target = sqlast.SelectExprNode(expr=self._process_expr(context, expr), alias=expr.name)
             query.targets.append(target)
+
+    def _process_sorter(self, context, sorter):
+        query = context.current.query
+        context.current.location = 'sorter'
+
+        for expr in sorter:
+            sortexpr = sqlast.SortExprNode(expr=self._process_expr(context, expr.expr),
+                                           direction=expr.direction)
+            query.orderby.append(sortexpr)
 
     def _process_paths(self, context, paths):
         query = context.current.query
@@ -152,15 +164,37 @@ class CaosQLQueryAdapter(NodeVisitor):
 
         elif expr_t == caosast.AtomicRef:
             if isinstance(expr.source, caosast.EntitySet):
-                table = context.current.ctemap[expr.source]
+                fieldref = context.current.concept_node_map[expr.source]
             else:
-                table = expr.source
+                fieldref = expr.source
 
-            if context.current.location == 'selector' and expr.name == 'id':
-                field_name = 'entity_id'
+            if isinstance(fieldref, sqlast.FieldRefNode):
+                return fieldref
+
+            if context.current.location in ('selector', 'sorter'):
+                if expr.name == 'id':
+                    result = fieldref.expr
+                else:
+                    query = context.current.query
+                    table_name = expr.source.concept + '_data'
+                    datatable = sqlast.TableNode(name=table_name,
+                                                 concept=expr.source.concept,
+                                                 alias=context.current.genalias(hint=table_name))
+                    query.fromlist.append(datatable)
+                    left = fieldref.expr
+                    right = sqlast.FieldRefNode(table=datatable, field='entity_id')
+                    whereexpr = sqlast.BinOpNode(op='=', left=left, right=right)
+                    if query.where is not None:
+                        query.where = sqlast.BinOpNode(op='and', left=query.where, right=whereexpr)
+                    else:
+                        query.where = whereexpr
+                    result = sqlast.FieldRefNode(table=datatable, field=expr.name)
+                    context.current.concept_node_map[expr.source] = result
             else:
-                field_name = expr.name
-            result = sqlast.FieldRefNode(table=table, field=field_name)
+                if isinstance(expr.source, caosast.EntitySet):
+                    result = fieldref.expr
+                else:
+                    result = sqlast.FieldRefNode(table=fieldref, field=expr.name)
 
         return result
 
@@ -223,7 +257,7 @@ class CaosQLQueryAdapter(NodeVisitor):
         source = None
         concept_table = None
 
-        if joinpoint is None or len(step.filters) > 0 or len(step.selrefs) > 0:
+        if joinpoint is None or len(step.filters) > 0:
             if step.concept is None:
                 table_name = 'entity'
                 field_name = 'id'
@@ -264,19 +298,25 @@ class CaosQLQueryAdapter(NodeVisitor):
                 join = self._simple_join(context, join, concept_table)
 
             fromnode.expr = join
+
+            for concept_node, ref in context.current.concept_node_map.items():
+                if ref.alias in joinpoint.concept_node_map:
+                    refexpr = sqlast.FieldRefNode(table=joinpoint, field=ref.alias)
+                    fieldref = sqlast.SelectExprNode(expr=refexpr, alias=ref.alias)
+                    step_cte.targets.append(fieldref)
+                    step_cte.concept_node_map[ref.alias] = fieldref
+                    context.current.concept_node_map[concept_node].expr.table = step_cte
         else:
             fromnode.expr = concept_table
 
         fieldref = fromnode.expr._bonds['entity'][1]
-        selectnode = sqlast.SelectExprNode(expr=fieldref, alias='entity_id')
+        selectnode = sqlast.SelectExprNode(expr=fieldref, alias=step_cte.alias + '_entity_id')
         step_cte.targets.append(selectnode)
+        step_cte.concept_node_map[selectnode.alias] = selectnode
 
-        for selref in step.selrefs:
-            if selref.name == 'id':
-                continue
-            fieldref = sqlast.FieldRefNode(table=concept_table, field=selref.name)
-            selectnode = sqlast.SelectExprNode(expr=fieldref, alias=selref.name)
-            step_cte.targets.append(selectnode)
+        refexpr = sqlast.FieldRefNode(table=step_cte, field=selectnode.alias)
+        selectnode = sqlast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
+        context.current.concept_node_map[step] = selectnode
 
         if step.filters:
             def filter_atomic_refs(node):
@@ -298,7 +338,7 @@ class CaosQLQueryAdapter(NodeVisitor):
         step_cte.fromlist.append(fromnode)
         step_cte._source_graph = step
 
-        bond = sqlast.FieldRefNode(table=step_cte, field='entity_id')
+        bond = sqlast.FieldRefNode(table=step_cte, field=step_cte.alias + '_entity_id')
         step_cte._bonds['entity'] = (bond, bond)
 
         return step_cte
