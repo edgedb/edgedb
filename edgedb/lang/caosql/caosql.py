@@ -103,7 +103,7 @@ class CaosqlTreeTransformer(object):
                 if isinstance(left, ast.AtomicRef):
                     node = ast.AtomicExistPred(expr=left)
                 elif left:
-                    node = ast.ExistPred(expr=left)
+                    node = None #ast.ExistPred(expr=left)
 
         elif isinstance(expr, qlast.PathNode):
             node = self._process_path(context, expr)
@@ -143,6 +143,9 @@ class CaosqlTreeTransformer(object):
                 return None
             elif left_t == ast.Constant:
                 return self._eval_const_expr(context, expr)
+            elif left_t == ast.EntitySet and op == '=':
+                expr.left = ast.AtomicRef(source=expr.left, name='id')
+                expr.right = ast.AtomicRef(source=expr.right, name='id')
 
         if left_t == ast.Constant:
             if op in ('and', 'or'):
@@ -262,6 +265,9 @@ class CaosqlTreeTransformer(object):
                 paths.append(curstep)
                 path_recorded = True
 
+        if result is None:
+            result = curstep
+
         return result
 
     def _normalize_concept(self, concept):
@@ -292,7 +298,9 @@ class CaosqlTreeTransformer(object):
 
         context.current.location = 'selector'
         for target in targets:
-            selector.append(self._process_expr(context, target.expr))
+            expr = self._process_expr(context, target.expr)
+            t = ast.SelectorExpr(expr=expr, name=target.alias)
+            selector.append(t)
 
         context.current.location = None
         return selector

@@ -119,7 +119,7 @@ class CaosQLQueryAdapter(NodeVisitor):
 
         context.current.location = 'selector'
         for expr in selector:
-            target = sqlast.SelectExprNode(expr=self._process_expr(context, expr), alias=expr.name)
+            target = sqlast.SelectExprNode(expr=self._process_expr(context, expr.expr), alias=expr.name)
             query.targets.append(target)
 
     def _process_sorter(self, context, sorter):

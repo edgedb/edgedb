@@ -16,3 +16,4 @@ class BinOp(AST): __fields = ['left', 'op', 'right']
 class ExistPred(AST): __fields = ['expr', 'outer']
 class AtomicExistPred(ExistPred): pass
 class SortExpr(AST): __fields = ['expr', 'direction']
+class SelectorExpr(AST): __fields = ['expr', 'name']
