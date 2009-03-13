@@ -55,14 +55,15 @@ class MetaBackend(BaseMetaBackend):
                         'character': str,
                         'character varying': str,
                         'boolean': bool,
-                        'numeric': int
+                        'numeric': int,
+                        'double precision': float
                     }
 
     base_type_name_map = {
                                 'str': 'character varying',
                                 'int': 'integer',
                                 'bool': 'boolean',
-                                'long': 'numeric'
+                                'float': 'double precision'
                          }
 
     base_type_name_map_r = {
@@ -71,7 +72,8 @@ class MetaBackend(BaseMetaBackend):
                                 'text': 'str',
                                 'integer': 'int',
                                 'boolean': 'bool',
-                                'numeric': 'long'
+                                'numeric': 'long',
+                                'double precision': 'float'
                            }
 
 
@@ -173,7 +175,8 @@ class MetaBackend(BaseMetaBackend):
         is_atom = issubclass(cls, Atom)
 
         try:
-            current = Class(cls.concept, meta_backend=self)
+            name = cls.name if is_atom else cls.concept
+            current = Class(name, meta_backend=self)
         except MetaError:
             current = None
 

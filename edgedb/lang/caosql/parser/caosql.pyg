@@ -160,7 +160,11 @@ quantifier                      -> SOME | ANY | ALL
 constant                        -> NULL:
                                         return ConstantNode(value=None)
                                  | NUMBER:
-                                        return ConstantNode(value=int(kids[0]))
+                                        if '.' in kids[0]:
+                                            value = float(kids[0])
+                                        else:
+                                            value = int(kids[0])
+                                        return ConstantNode(value=value)
                                  | LITERAL:
                                         return ConstantNode(value=kids[0].strip('"\''))
                                  | boolean_constant:

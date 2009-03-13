@@ -15,6 +15,7 @@ class BaseMetaBackend(object):
     base_atoms_to_class_map = {
                                   'str': str,
                                   'int': int,
+                                  'float': float,
                                   'bool': Bool
                               }
 

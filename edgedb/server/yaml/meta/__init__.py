@@ -59,6 +59,9 @@ class MetaBackend(BaseMetaBackend):
         concept_graph = {}
 
         for concept_name, concept in concepts.items():
+            if concept_name in self._atoms:
+                raise MetaError('%s already defined as an atom' % concept_name)
+
             if concept is None:
                 concept = {}
 
