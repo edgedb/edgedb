@@ -4,7 +4,7 @@ from semantix.caos.caosql import ast as caosast
 from semantix.caos.backends.pgsql import ast as sqlast
 from semantix.caos.backends.pgsql import codegen as sqlgen
 from semantix.ast.visitor import NodeVisitor
-from semantix.config import settings
+from semantix.utils.debug import debug
 
 class Query(object):
     def __init__(self, text, vars=None, context=None):
@@ -70,28 +70,21 @@ class ParseContext(object):
 
 
 class CaosQLQueryAdapter(NodeVisitor):
+    @debug
     def adapt(self, query, vars=None):
-
         # Transform to sql tree
         qtree = self._transform_tree(query)
 
-        debug = 'caos' in settings.debug and 'queries' in settings.debug['caos'] \
-                and settings.debug['caos']['queries']
-
-        if debug:
-            print('-' * 70)
-            print('SQL tree:')
-            print('-' * 70)
-            self._dump(qtree)
+        """LOG [caos.query] SQL Tree
+        self._dump(qtree)
+        """
 
         # Generate query text
         qtext = sqlgen.SQLSourceGenerator.to_source(qtree)
 
-        if debug:
-            print('-' * 70)
-            print('SQL query:')
-            print('-' * 70)
-            print(qtext)
+        """LOG [caos.query] SQL Query
+        print(qtext)
+        """
 
         return Query(qtext, vars)
 

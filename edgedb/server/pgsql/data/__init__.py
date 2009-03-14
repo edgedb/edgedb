@@ -6,8 +6,7 @@ from .datasources import EntityLinks, ConceptLink
 from .adapters.caosql import CaosQLQueryAdapter
 
 from semantix.caos.concept import BaseConceptCollection
-
-from semantix.config import settings
+from semantix.utils.debug import debug
 
 class CaosQLCursor(object):
     def __init__(self, connection):
@@ -108,13 +107,11 @@ class DataBackend(BaseDataBackend):
         else:
             return None
 
+    @debug
     def store_entity(self, entity):
         concept = entity.concept
         id = entity.id
         links = entity._links
-
-        debug = 'caos' in settings.debug and 'sync' in settings.debug['caos'] \
-                and settings.debug['caos']['sync']
 
         with self.connection as cursor:
 
@@ -140,12 +137,10 @@ class DataBackend(BaseDataBackend):
             if id is None:
                 raise Exception('failed to store entity')
 
-            if debug:
-                print()
-                print('-' * 60)
-                print('Merged entity %s[%s][%s]' % \
-                        (concept, id[0], (data['name'] if 'name' in data else '')))
-                print('-' * 60)
+            """LOG [caos.sync]
+            print('Merged entity %s[%s][%s]' % \
+                    (concept, id[0], (data['name'] if 'name' in data else '')))
+            """
 
             id = id[0]
 
@@ -185,24 +180,21 @@ class DataBackend(BaseDataBackend):
         return links
 
 
+    @debug
     def store_links(self, concept, link_type, source, targets):
         rows = []
-
-        debug = 'caos' in settings.debug and 'sync' in settings.debug['caos'] \
-                and settings.debug['caos']['sync']
 
         with self.connection as cursor:
             for target in targets:
                 target.sync()
 
-                if debug:
-                    print()
-                    print('-' * 60)
-                    print('Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
-                            (source.concept, source.id, (source.name if hasattr(source, 'name') else ''),
-                             link_type,
-                             target.concept, target.id, (target.name if hasattr(target, 'name') else '')))
-                    print('-' * 60)
+                """LOG [caos.sync]
+                print('Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
+                      (source.concept, source.id, (source.name if hasattr(source, 'name') else ''),
+                       link_type,
+                       target.concept, target.id, (target.name if hasattr(target, 'name') else ''))
+                      )
+                """
 
                 # XXX: that's ugly
                 targets = [c.concept for c in target.__class__.__mro__ if hasattr(c, 'concept')]
