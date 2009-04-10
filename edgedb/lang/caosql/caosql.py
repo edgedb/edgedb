@@ -143,7 +143,7 @@ class CaosqlTreeTransformer(object):
                 return None
             elif left_t == ast.Constant:
                 return self._eval_const_expr(context, expr)
-            elif left_t == ast.EntitySet and op == '=':
+            elif left_t == ast.EntitySet and op in ('=', '!='):
                 expr.left = ast.AtomicRef(source=expr.left, name='id')
                 expr.right = ast.AtomicRef(source=expr.right, name='id')
 
