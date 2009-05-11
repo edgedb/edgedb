@@ -31,7 +31,10 @@ class YamlImporter(abc.Finder, abc.Loader):
         new_mod = imp.new_module(fullname)
         sys.modules[fullname] = new_mod
 
-        dct = readers.read(self.module_file_map[fullname])
+        try:
+            dct = readers.read(self.module_file_map[fullname])
+        except Exception as error:
+            raise ImportError('unable to import "%s"' % fullname)
 
         for key in dct:
             setattr(new_mod, key, dct[key])
