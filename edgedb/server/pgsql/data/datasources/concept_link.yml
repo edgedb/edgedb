@@ -1,67 +1,67 @@
-#!INSTANCE ConceptLink (semantix.datasources.sql.Sql)
+ConceptLink:
+    !!python/object/apply:semantix.datasources.sql.Sql
+      - cache: memory
 
-cache: memory
+        params:
+            source_concepts:
+                type: list
+            target_concepts:
+                type: list
+            link_type:
+                type: str
 
-params:
-    source_concepts:
-        type: list
-    target_concepts:
-        type: list
-    link_type:
-        type: str
+        filters:
+            - format: dict
 
-filters:
-    - format: dict
-
-source: |
-    WITH
-        sources AS
-            (SELECT
-                    c.id,
-                    c.name,
-                    a.i AS level
-                FROM
+        source: |
+            WITH
+                sources AS
                     (SELECT
-                            (%(source_concepts)s)[i] AS concept_name,
-                            i
+                            c.id,
+                            c.name,
+                            a.i AS level
                         FROM
-                            generate_series(
-                                   array_lower(%(source_concepts)s, 1),
-                                   array_upper(%(source_concepts)s, 1)) AS g(i)) AS a
-                    INNER JOIN caos.concept c ON (a.concept_name = c.name)
-             ),
-        targets AS
-            (SELECT
-                    c.id,
-                    c.name,
-                    a.i AS level
-                FROM
+                            (SELECT
+                                    (%(source_concepts)s)[i] AS concept_name,
+                                    i
+                                FROM
+                                    generate_series(
+                                           array_lower(%(source_concepts)s, 1),
+                                           array_upper(%(source_concepts)s, 1)) AS g(i)) AS a
+                            INNER JOIN caos.concept c ON (a.concept_name = c.name)
+                     ),
+                targets AS
                     (SELECT
-                            (%(target_concepts)s)[i] AS concept_name,
-                            i
+                            c.id,
+                            c.name,
+                            a.i AS level
                         FROM
-                            generate_series(
-                                   array_lower(%(target_concepts)s, 1),
-                                   array_upper(%(target_concepts)s, 1)) AS g(i)) AS a
-                    INNER JOIN caos.concept c ON (a.concept_name = c.name)
-             )
+                            (SELECT
+                                    (%(target_concepts)s)[i] AS concept_name,
+                                    i
+                                FROM
+                                    generate_series(
+                                           array_lower(%(target_concepts)s, 1),
+                                           array_upper(%(target_concepts)s, 1)) AS g(i)) AS a
+                            INNER JOIN caos.concept c ON (a.concept_name = c.name)
+                     )
 
-    SELECT
-            cm.id,
-            cm.source_id,
-            sc.name AS source_concept,
-            cm.target_id,
-            tc.name AS target_concept,
-            cm.link_type AS link_type,
-            cm.mapping
-        FROM
-            caos.concept_map cm
-            INNER JOIN sources sc ON cm.source_id = sc.id
-            INNER JOIN targets tc ON cm.target_id = tc.id
-        WHERE
-            %(link_type)s = cm.link_type
-        ORDER BY
-            sc.level,
-            tc.level
-        LIMIT
-            1
+            SELECT
+                    cm.id,
+                    cm.source_id,
+                    sc.name AS source_concept,
+                    cm.target_id,
+                    tc.name AS target_concept,
+                    cm.link_type AS link_type,
+                    cm.mapping
+                FROM
+                    caos.concept_map cm
+                    INNER JOIN sources sc ON cm.source_id = sc.id
+                    INNER JOIN targets tc ON cm.target_id = tc.id
+                WHERE
+                    %(link_type)s = cm.link_type
+                ORDER BY
+                    sc.level,
+                    tc.level
+                LIMIT
+                    1

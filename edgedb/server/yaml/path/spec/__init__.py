@@ -1,14 +1,14 @@
 import semantix
 from semantix.utils import merge
 
-from .schema import Schema
+from .schema import Schema as PathSchema
 
 class PathSpec(object):
-    data = {}
-
-    @classmethod
-    def _create_class(cls, meta, dct):
-        Schema.validate(meta, dct)
-
-        base = semantix.Import(meta['class']['parent_module'], meta['class']['parent_class'])
-        return type(meta['class']['name'], (base,), {'data': merge.merge_dicts(dct, base.data)})
+    def __init__(self, data=None, validate=True):
+        if data:
+            if validate:
+                self.data = PathSchema.check(data)
+            else:
+                self.data = data
+        else:
+            self.data = dict()

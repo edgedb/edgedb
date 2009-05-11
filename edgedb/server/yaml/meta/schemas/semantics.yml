@@ -1,138 +1,138 @@
-#!CLASS Semantics (semantix.readers.yaml.schema.Base)
-
-type: map
-mapping:
-    "semantic_network":
-        type: map
-        required: yes
+Semantics:
+    !!python/object/apply:semantix.readers.yaml.schema.Base
+      - type: map
         mapping:
-            "concepts":
+            "semantic_network":
                 type: map
                 required: yes
                 mapping:
-                    =:
-                        type: map
-                        mapping:
-                            "extends":
-                                type: any
-
-                            "links":
-                                type: seq
-                                sequence:
-                                    - type: map
-                                      mapping:
-                                        =:
-                                          type: map
-                                          mapping:
-                                              "title":
-                                                  type: str
-                                              "description":
-                                                  type: str
-                                              "required":
-                                                  type: bool
-                                                  default: False
-                                              "target":
-                                                  type: choice
-                                                  required: yes
-                                                  choice:
-                                                      - type: map
-                                                        mapping:
-                                                          "concept":
-                                                              type: str
-                                                              required: yes
-                                                          "mapping":
-                                                              type: str
-                                                              enum: ["1*", "11", "**", "*1"]
-                                                              required: yes
-
-                                                      - type: map
-                                                        mapping:
-                                                          "atom":
-                                                              type: str
-                                                              requred: yes
-                                                          "mods":
-                                                              type: seq
-                                                              sequence:
-                                                                  - type: choice
-                                                                    choice:
-                                                                        - type: map
-                                                                          mapping:
-                                                                            "max-length":
-                                                                                type: int
-                                                                        - type: map
-                                                                          mapping:
-                                                                            "min-length":
-                                                                                type: int
-                                                                        - type: map
-                                                                          mapping:
-                                                                            "regexp":
-                                                                                type: str
-                                                                        - type: map
-                                                                          mapping:
-                                                                            "expr":
-                                                                                type: str
-                                                          "comparison":
-                                                              type: str
-                                                              enum: [cidirect, fuzzy]
-                                                          "default":
-                                                              type: str
-
-
-                            "heuristics":
-                                type: map
-                                mapping:
-                                    "comparison":
-                                        type: seq
-                                        sequence:
-                                            -
-                                                type: map
-                                                mapping:
-                                                    "link":
-                                                        type: str
-
-                                                    "attribute":
-                                                        type: str
-
-                                                    "weight":
-                                                        type: float
-                                                        range: {min: 0.0, max: 1.0}
-                                                        required: yes
-
-            "atoms":
-                type: map
-                mapping:
-                    =: # name of an atom
+                    "concepts":
                         type: map
                         required: yes
                         mapping:
-                            "extends":
-                                type: any
+                            =:
+                                type: map
+                                mapping:
+                                    "extends":
+                                        type: any
 
-                            "default":
-                                type: any
-
-                            "mods":
-                                type: seq
-                                sequence:
-                                    -
-                                        type: choice
-                                        choice:
+                                    "links":
+                                        type: seq
+                                        sequence:
                                             - type: map
                                               mapping:
-                                                "expr":
-                                                    type: str
+                                                =:
+                                                  type: map
+                                                  mapping:
+                                                      "title":
+                                                          type: str
+                                                      "description":
+                                                          type: str
+                                                      "required":
+                                                          type: bool
+                                                          default: False
+                                                      "target":
+                                                          type: choice
+                                                          required: yes
+                                                          choice:
+                                                              - type: map
+                                                                mapping:
+                                                                  "concept":
+                                                                      type: str
+                                                                      required: yes
+                                                                  "mapping":
+                                                                      type: str
+                                                                      enum: ["1*", "11", "**", "*1"]
+                                                                      required: yes
 
-                                            - type: map
-                                              mapping:
-                                                "min-length":
-                                                    type: int
+                                                              - type: map
+                                                                mapping:
+                                                                  "atom":
+                                                                      type: str
+                                                                      requred: yes
+                                                                  "mods":
+                                                                      type: seq
+                                                                      sequence:
+                                                                          - type: choice
+                                                                            choice:
+                                                                                - type: map
+                                                                                  mapping:
+                                                                                    "max-length":
+                                                                                        type: int
+                                                                                - type: map
+                                                                                  mapping:
+                                                                                    "min-length":
+                                                                                        type: int
+                                                                                - type: map
+                                                                                  mapping:
+                                                                                    "regexp":
+                                                                                        type: str
+                                                                                - type: map
+                                                                                  mapping:
+                                                                                    "expr":
+                                                                                        type: str
+                                                                  "comparison":
+                                                                      type: str
+                                                                      enum: [cidirect, fuzzy]
+                                                                  "default":
+                                                                      type: str
 
-                                            - type: map
-                                              mapping:
-                                                "max-length":
-                                                    type: int
 
-                                            - type: map
-                                              mapping:
-                                                "regexp":
-                                                    type: str
+                                    "heuristics":
+                                        type: map
+                                        mapping:
+                                            "comparison":
+                                                type: seq
+                                                sequence:
+                                                    -
+                                                        type: map
+                                                        mapping:
+                                                            "link":
+                                                                type: str
+
+                                                            "attribute":
+                                                                type: str
+
+                                                            "weight":
+                                                                type: float
+                                                                range: {min: 0.0, max: 1.0}
+                                                                required: yes
+
+                    "atoms":
+                        type: map
+                        mapping:
+                            =: # name of an atom
+                                type: map
+                                required: yes
+                                mapping:
+                                    "extends":
+                                        type: any
+
+                                    "default":
+                                        type: any
+
+                                    "mods":
+                                        type: seq
+                                        sequence:
+                                            -
+                                                type: choice
+                                                choice:
+                                                    - type: map
+                                                      mapping:
+                                                        "expr":
+                                                            type: str
+
+                                                    - type: map
+                                                      mapping:
+                                                        "min-length":
+                                                            type: int
+
+                                                    - type: map
+                                                      mapping:
+                                                        "max-length":
+                                                            type: int
+
+                                                    - type: map
+                                                      mapping:
+                                                        "regexp":
+                                                            type: str

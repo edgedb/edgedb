@@ -1,39 +1,39 @@
-#!INSTANCE TableInheritance (semantix.datasources.sql.Sql)
+TableInheritance:
+    !!python/object/apply:semantix.datasources.sql.Sql
+      - params:
+            table_name:
+                type: str
 
-params:
-    table_name:
-        type: str
-
-source: |
-        SELECT
-                *
-            FROM
-                (WITH RECURSIVE inheritance(oid, name, depth, path) AS (
-                        SELECT
-                                c.oid,
-                                c.relname,
-                                1,
-                                ARRAY[c.relname]
-                            FROM
-                                pg_class c
-                                INNER JOIN pg_namespace ns ON c.relnamespace = ns.oid
-                            WHERE
-                                c.relname = %(table_name)s
-                                OR ns.nspname || '.' || c.relname = %(table_name)s
-                      UNION ALL
-                        SELECT
-                                c.oid,
-                                c.relname,
-                                i.depth + 1,
-                                i.path || c.relname
-                            FROM
-                                pg_class c,
-                                inheritance i,
-                                pg_inherits pgi
-                            WHERE
-                                i.oid = pgi.inhrelid
-                                AND c.oid = pgi.inhparent
-                )
-                SELECT DISTINCT ON (name) name, depth FROM inheritance) q
-            ORDER BY
-                depth
+        source: |
+                SELECT
+                        *
+                    FROM
+                        (WITH RECURSIVE inheritance(oid, name, depth, path) AS (
+                                SELECT
+                                        c.oid,
+                                        c.relname,
+                                        1,
+                                        ARRAY[c.relname]
+                                    FROM
+                                        pg_class c
+                                        INNER JOIN pg_namespace ns ON c.relnamespace = ns.oid
+                                    WHERE
+                                        c.relname = %(table_name)s
+                                        OR ns.nspname || '.' || c.relname = %(table_name)s
+                              UNION ALL
+                                SELECT
+                                        c.oid,
+                                        c.relname,
+                                        i.depth + 1,
+                                        i.path || c.relname
+                                    FROM
+                                        pg_class c,
+                                        inheritance i,
+                                        pg_inherits pgi
+                                    WHERE
+                                        i.oid = pgi.inhrelid
+                                        AND c.oid = pgi.inhparent
+                        )
+                        SELECT DISTINCT ON (name) name, depth FROM inheritance) q
+                    ORDER BY
+                        depth

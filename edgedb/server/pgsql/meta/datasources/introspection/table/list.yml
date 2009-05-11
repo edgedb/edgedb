@@ -1,31 +1,31 @@
-#!INSTANCE TableList (semantix.datasources.sql.Sql)
+TableList:
+    !!python/object/apply:semantix.datasources.sql.Sql
+      - params:
+            schema_name:
+                type: str
+                default: "public"
 
-params:
-    schema_name:
-        type: str
-        default: "public"
+        filters:
+            - format: dict
 
-filters:
-    - format: dict
-
-source: |
-        SELECT
-                c.oid                                 AS oid,
-                c.relname                             AS name,
-                ns.nspname                            AS schema
-            FROM
-                pg_class AS c
-                INNER JOIN pg_namespace AS ns ON ns.oid = c.relnamespace
-            WHERE
-                --
-                -- Limit the schema scope
-                --
-                ns.nspname = %(schema_name)s
-                --
-                -- We're only interested in real tables
-                --
-                AND c.relkind = 'r'
-                --
-                -- and only caos data tables
-                --
-                AND c.relname LIKE '%%_data'
+        source: |
+                SELECT
+                        c.oid                                 AS oid,
+                        c.relname                             AS name,
+                        ns.nspname                            AS schema
+                    FROM
+                        pg_class AS c
+                        INNER JOIN pg_namespace AS ns ON ns.oid = c.relnamespace
+                    WHERE
+                        --
+                        -- Limit the schema scope
+                        --
+                        ns.nspname = %(schema_name)s
+                        --
+                        -- We're only interested in real tables
+                        --
+                        AND c.relkind = 'r'
+                        --
+                        -- and only caos data tables
+                        --
+                        AND c.relname LIKE '%%_data'

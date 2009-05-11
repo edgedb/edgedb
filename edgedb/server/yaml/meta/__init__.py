@@ -6,14 +6,19 @@ from semantix.utils import merge, graph
 from semantix.caos import Class, ConceptLinkType, MetaError
 
 from semantix.caos.backends.meta import BaseMetaBackend
+from semantix.caos.backends.yaml.meta.schemas import Semantics as SemanticsSchema
 
 class MetaData(object):
-    dct = {}
+    def __init__(self, dct=None, validate=True):
+        if dct:
+            if validate:
+                self.dct = SemanticsSchema.check(dct)
+            else:
+                self.dct = dct
+        else:
+            self.dct = dict()
 
-    @classmethod
-    def _create_class(cls, meta, dct):
-        base = semantix.Import(meta['class']['parent_module'], meta['class']['parent_class'])
-        return type(meta['class']['name'], (base,), {'dct': merge.merge_dicts(dct, base.dct)})
+
 
 class MetaDataIterator(object):
     def __init__(self, helper, iter_atoms):

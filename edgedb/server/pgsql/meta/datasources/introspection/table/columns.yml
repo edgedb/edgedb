@@ -1,29 +1,29 @@
-#!INSTANCE TableColumns (semantix.datasources.sql.Sql)
+TableColumns:
+    !!python/object/apply:semantix.datasources.sql.Sql
+      - params:
+            table_name:
+                type: str
 
-params:
-    table_name:
-        type: str
+        filters:
+            - format: dict
 
-filters:
-    - format: dict
-
-source: |
-        SELECT
-                a.attname                               AS column_name,
-                format_type(t.oid, a.atttypmod)         AS column_type,
-                t.oid                                   AS column_type_oid,
-                a.attnotnull                            AS column_required,
-                pg_get_expr(def.adbin, c.oid, true)     AS column_default
-            FROM
-                pg_class c
-                INNER JOIN pg_namespace ns ON c.relnamespace = ns.oid
-                INNER JOIN pg_attribute a ON c.oid = a.attrelid
-                INNER JOIN pg_type t ON a.atttypid = t.oid
-                INNER JOIN pg_namespace tns ON t.typnamespace = tns.oid
-                LEFT JOIN pg_attrdef def ON def.adrelid = c.oid AND def.adnum = a.attnum
-            WHERE
-                (c.relname = %(table_name)s
-                    OR ns.nspname || '.' || c.relname = %(table_name)s)
-                AND a.attnum > 0
-            ORDER BY
-                a.attnum
+        source: |
+                SELECT
+                        a.attname                               AS column_name,
+                        format_type(t.oid, a.atttypmod)         AS column_type,
+                        t.oid                                   AS column_type_oid,
+                        a.attnotnull                            AS column_required,
+                        pg_get_expr(def.adbin, c.oid, true)     AS column_default
+                    FROM
+                        pg_class c
+                        INNER JOIN pg_namespace ns ON c.relnamespace = ns.oid
+                        INNER JOIN pg_attribute a ON c.oid = a.attrelid
+                        INNER JOIN pg_type t ON a.atttypid = t.oid
+                        INNER JOIN pg_namespace tns ON t.typnamespace = tns.oid
+                        LEFT JOIN pg_attrdef def ON def.adrelid = c.oid AND def.adnum = a.attnum
+                    WHERE
+                        (c.relname = %(table_name)s
+                            OR ns.nspname || '.' || c.relname = %(table_name)s)
+                        AND a.attnum > 0
+                    ORDER BY
+                        a.attnum
