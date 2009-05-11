@@ -28,11 +28,14 @@ class YamlImporter(abc.Finder, abc.Loader):
         if fullname in sys.modules:
             return sys.modules[fullname]
 
+        filename = self.module_file_map[fullname]
+
         new_mod = imp.new_module(fullname)
+        setattr(new_mod, '__file__', filename)
         sys.modules[fullname] = new_mod
 
         try:
-            dct = readers.read(self.module_file_map[fullname])
+            dct = readers.read(filename)
         except Exception as error:
             raise ImportError('unable to import "%s"' % fullname)
 
