@@ -137,13 +137,17 @@ class CaosqlTreeTransformer(object):
 
         if left_t == right_t:
             if left_t == ast.AtomicRef:
-                left.source.filters.append(expr)
-                right.source.filters.append(expr)
-
-                return None
+                if left.source == right.source:
+                    left.source.filters.append(expr)
+                    return None
+                else:
+                    return expr
             elif left_t == ast.Constant:
                 return self._eval_const_expr(context, expr)
             elif left_t == ast.EntitySet and op in ('=', '!='):
+                """
+                Reference to entity is equivalent to it's id reference
+                """
                 expr.left = ast.AtomicRef(source=expr.left, name='id')
                 expr.right = ast.AtomicRef(source=expr.right, name='id')
 
