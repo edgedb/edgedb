@@ -1,6 +1,6 @@
 # Portions Copyright 2009 Sprymix Inc.
 # Portions Copyright 2008 by Armin Ronacher.
-# License: Python License
+# License: PSFL
 
 from semantix.ast.base import *
 from semantix.ast.visitor import *
