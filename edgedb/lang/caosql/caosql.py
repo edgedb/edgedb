@@ -248,7 +248,6 @@ class CaosqlTreeTransformer(object):
 
                 if node.expr in vars and i == 0:
                     refnode = vars[node.expr]
-                    #curstep = ast.EntitySetRef(ptr=refnode, name=refnode.name, concept=refnode.concept)
                     curstep = refnode
                     continue
                 else:
@@ -322,11 +321,7 @@ class CaosqlTreeTransformer(object):
     def _is_attr_ref(self, context, source, step):
         result = None
 
-        if isinstance(source, ast.EntitySetRef):
-            concept = source.ptr.concept
-            source = source.ptr
-        else:
-            concept = source.concept
+        concept = source.concept
 
         if concept is None:
             atoms = ['id']

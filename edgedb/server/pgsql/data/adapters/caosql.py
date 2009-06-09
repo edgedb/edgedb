@@ -140,7 +140,7 @@ class CaosQLQueryAdapter(NodeVisitor):
         if expr_t == caosast.ExistPred:
             result = self._process_expr(context, expr.expr)
 
-        elif expr_t in (caosast.EntitySet, caosast.EntitySetRef):
+        elif expr_t == caosast.EntitySet:
             self._process_graph(context, context.current.query, expr)
 
         elif expr_t == caosast.BinOp:
@@ -237,14 +237,7 @@ class CaosQLQueryAdapter(NodeVisitor):
         fromnode = sqlast.FromExprNode()
         cte.fromlist.append(fromnode)
 
-        first = None
-
-        if isinstance(startnode, caosast.EntitySetRef):
-            first = startnode.ptr
-        else:
-            first = startnode
-
-        fromnode.expr = self._get_step_cte(context, cte, first, None, None)
+        fromnode.expr = self._get_step_cte(context, cte, startnode, None, None)
 
         self._process_path(context, cte, fromnode, fromnode.expr, startnode)
 

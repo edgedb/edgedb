@@ -4,7 +4,6 @@ class Referrer(AST): __fields = ['*refs']
 class GraphExpr(AST): __fields = ['*paths', '*generator', '*selector', '*sorter']
 class AtomicRef(Referrer): __fields = ['name', 'expr']
 class EntitySet(AST): __fields = ['name', 'concept', '*filters', '*links', '*altlinks', '*rlinks', '*selrefs']
-class EntitySetRef(AST): __fields = [ 'name', 'concept', 'ptr', '*links']
 class EntityLink(AST): __fields = ['filter', 'source', 'target']
 class EntityLinkSpec(AST):
         __fields = ['*labels', 'direction']
