@@ -1,5 +1,6 @@
 from semantix.ast import *
 
+class BaseExpr(AST): __fields = ['*refs']
 class GraphExpr(AST): __fields = ['*paths', '*generator', '*selector', '*sorter']
 class AtomicRef(AST): __fields = ['name', 'source', 'expr']
 class EntitySet(AST): __fields = ['name', 'concept', '*filters', '*links', '*altlinks', '*rlinks', '*selrefs']
@@ -17,3 +18,4 @@ class ExistPred(AST): __fields = ['expr', 'outer']
 class AtomicExistPred(ExistPred): pass
 class SortExpr(AST): __fields = ['expr', 'direction']
 class SelectorExpr(AST): __fields = ['expr', 'name']
+class FunctionCall(AST): __fields = ['name', '*args']

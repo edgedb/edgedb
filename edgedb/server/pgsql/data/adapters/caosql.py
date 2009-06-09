@@ -155,6 +155,10 @@ class CaosQLQueryAdapter(NodeVisitor):
             elements = [self._process_expr(context, e) for e in expr.elements]
             result = sqlast.SequenceNode(elements=elements)
 
+        elif expr_t == caosast.FunctionCall:
+            args = [self._process_expr(context, a) for a in expr.args]
+            result = sqlast.FunctionCallNode(name=expr.name, args=args)
+
         elif expr_t == caosast.AtomicRef:
             if isinstance(expr.source, caosast.EntitySet):
                 fieldref = context.current.concept_node_map[expr.source]

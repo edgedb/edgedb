@@ -38,3 +38,5 @@ class FieldRefNode(AST): __fields = ['table', 'field']
 class SequenceNode(AST): __fields = ['*elements']
 
 class SortExprNode(AST): __fields = ['expr', 'direction']
+
+class FunctionCallNode(AST): __fields = ['name', '*args']

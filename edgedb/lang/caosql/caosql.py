@@ -118,6 +118,9 @@ class CaosqlTreeTransformer(object):
         elif isinstance(expr, qlast.SequenceNode):
             elements=[self._process_expr(context, e) for e in expr.elements]
             node = ast.Sequence(elements=elements)
+        elif isinstance(expr, qlast.CallFunctionNode):
+            args = [self._process_expr(context, a) for a in expr.args]
+            node = ast.FunctionCall(name=expr.func, args=args)
 
         return node
 

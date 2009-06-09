@@ -119,6 +119,17 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
         self.write(')')
 
+    def visit_FunctionCallNode(self, node):
+        self.write(node.name)
+        self.write('(')
+        count = len(node.args)
+        for i, e in enumerate(node.args):
+            self.visit(e)
+            if i != count - 1:
+                self.write(', ')
+
+        self.write(')')
+
     def visit_SortExprNode(self, node):
         self.visit(node.expr)
         if node.direction:
