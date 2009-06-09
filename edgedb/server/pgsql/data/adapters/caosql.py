@@ -89,7 +89,7 @@ class CaosQLQueryAdapter(NodeVisitor):
         return Query(qtext, vars)
 
     def _dump(self, tree):
-        print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^_'))
+        print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*)|(refs)$'))
 
     def _transform_tree(self, tree):
 
@@ -160,10 +160,10 @@ class CaosQLQueryAdapter(NodeVisitor):
             result = sqlast.FunctionCallNode(name=expr.name, args=args)
 
         elif expr_t == caosast.AtomicRef:
-            if isinstance(expr.refs[0], caosast.EntitySet):
-                fieldref = context.current.concept_node_map[expr.refs[0]]
+            if isinstance(expr.ref(), caosast.EntitySet):
+                fieldref = context.current.concept_node_map[expr.ref()]
             else:
-                fieldref = expr.refs[0]
+                fieldref = expr.ref()
 
             datatable = None
 
@@ -187,9 +187,9 @@ class CaosQLQueryAdapter(NodeVisitor):
                 else:
                     if not datatable:
                         query = context.current.query
-                        table_name = expr.refs[0].concept + '_data'
+                        table_name = expr.ref().concept + '_data'
                         datatable = sqlast.TableNode(name=table_name,
-                                                     concept=expr.refs[0].concept,
+                                                     concept=expr.ref().concept,
                                                      alias=context.current.genalias(hint=table_name))
                         query.fromlist.append(datatable)
 
@@ -202,9 +202,9 @@ class CaosQLQueryAdapter(NodeVisitor):
                             query.where = whereexpr
 
                     result = sqlast.FieldRefNode(table=datatable, field=expr.name)
-                    context.current.concept_node_map[expr.refs[0]] = result
+                    context.current.concept_node_map[expr.ref()] = result
             else:
-                if isinstance(expr.refs[0], caosast.EntitySet):
+                if isinstance(expr.ref(), caosast.EntitySet):
                     result = fieldref_expr
                 else:
                     result = sqlast.FieldRefNode(table=fieldref, field=expr.name)
@@ -360,7 +360,8 @@ class CaosQLQueryAdapter(NodeVisitor):
 
                 if atrefs:
                     for atref in atrefs:
-                        atref.refs[0] = concept_table
+                        atref.refs.pop()
+                        atref.refs.add(concept_table)
 
                 expr = sqlast.PredicateNode(expr=self._process_expr(context, filter))
                 if step_cte.where is not None:
