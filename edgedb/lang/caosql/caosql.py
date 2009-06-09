@@ -85,7 +85,7 @@ class CaosqlTreeTransformer(object):
         if where:
             expr = self._process_expr(context, where.expr)
             if isinstance(expr, ast.AtomicRef):
-                expr.source.filters.append(expr.expr)
+                expr.refs[0].filters.append(expr.expr)
                 expr = None
             return expr
         else:
@@ -146,8 +146,8 @@ class CaosqlTreeTransformer(object):
 
         if left_t == right_t:
             if left_t == ast.AtomicRef:
-                if left.source == right.source:
-                    return ast.AtomicRef(expr=expr, source=left.source)
+                if left.refs[0] == right.refs[0]:
+                    return ast.AtomicRef(expr=expr, refs=left.refs)
                 else:
                     return expr
             elif left_t == ast.Constant:
@@ -156,8 +156,8 @@ class CaosqlTreeTransformer(object):
                 """
                 Reference to entity is equivalent to it's id reference
                 """
-                expr.left = ast.AtomicRef(source=expr.left, name='id')
-                expr.right = ast.AtomicRef(source=expr.right, name='id')
+                expr.left = ast.AtomicRef(refs=[expr.left], name='id')
+                expr.right = ast.AtomicRef(refs=[expr.right], name='id')
 
         if left_t == ast.Constant:
             if op in ('and', 'or'):
@@ -170,11 +170,11 @@ class CaosqlTreeTransformer(object):
         if left_t == ast.AtomicRef:
             if right_t == ast.Constant:
                 if context.current.location == 'generator':
-                    left.source.filters.append(expr)
+                    left.refs[0].filters.append(expr)
                     return None
             elif right_t == ast.Sequence and op == 'in':
                 if context.current.location == 'generator':
-                    left.source.filters.append(expr)
+                    left.refs[0].filters.append(expr)
                     return None
             else:
                 raise CaosQLError('invalid binary operator: %s %s %s'
@@ -183,7 +183,7 @@ class CaosqlTreeTransformer(object):
         if right_t == ast.AtomicRef:
             if left_t == ast.Constant:
                 if context.current.location == 'generator':
-                    right.source.filters.append(expr)
+                    right.refs[0].filters.append(expr)
                     return None
             elif left_t == ast.BinOp:
                 pass
@@ -335,7 +335,7 @@ class CaosqlTreeTransformer(object):
             atoms = [n for n, v in cls.links.items() if v.atomic()]
 
         if step.concept in atoms or step.concept == 'id':
-            result = ast.AtomicRef(source=source, name=step.concept)
+            result = ast.AtomicRef(refs=[source], name=step.concept)
 
             if context.current.location == 'selector':
                 source.selrefs.append(result)

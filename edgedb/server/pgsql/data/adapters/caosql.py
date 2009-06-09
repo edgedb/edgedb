@@ -160,10 +160,10 @@ class CaosQLQueryAdapter(NodeVisitor):
             result = sqlast.FunctionCallNode(name=expr.name, args=args)
 
         elif expr_t == caosast.AtomicRef:
-            if isinstance(expr.source, caosast.EntitySet):
-                fieldref = context.current.concept_node_map[expr.source]
+            if isinstance(expr.refs[0], caosast.EntitySet):
+                fieldref = context.current.concept_node_map[expr.refs[0]]
             else:
-                fieldref = expr.source
+                fieldref = expr.refs[0]
 
             datatable = None
 
@@ -187,9 +187,9 @@ class CaosQLQueryAdapter(NodeVisitor):
                 else:
                     if not datatable:
                         query = context.current.query
-                        table_name = expr.source.concept + '_data'
+                        table_name = expr.refs[0].concept + '_data'
                         datatable = sqlast.TableNode(name=table_name,
-                                                     concept=expr.source.concept,
+                                                     concept=expr.refs[0].concept,
                                                      alias=context.current.genalias(hint=table_name))
                         query.fromlist.append(datatable)
 
@@ -202,9 +202,9 @@ class CaosQLQueryAdapter(NodeVisitor):
                             query.where = whereexpr
 
                     result = sqlast.FieldRefNode(table=datatable, field=expr.name)
-                    context.current.concept_node_map[expr.source] = result
+                    context.current.concept_node_map[expr.refs[0]] = result
             else:
-                if isinstance(expr.source, caosast.EntitySet):
+                if isinstance(expr.refs[0], caosast.EntitySet):
                     result = fieldref_expr
                 else:
                     result = sqlast.FieldRefNode(table=fieldref, field=expr.name)
@@ -357,7 +357,7 @@ class CaosQLQueryAdapter(NodeVisitor):
 
         if step.filters:
             def filter_atomic_refs(node):
-                return isinstance(node, caosast.AtomicRef) #and node.source == step
+                return isinstance(node, caosast.AtomicRef) # and node.refs[0] == step
 
             for f in step.filters:
                 filter = deepcopy(f)
@@ -367,7 +367,7 @@ class CaosQLQueryAdapter(NodeVisitor):
 
                 if atrefs:
                     for atref in atrefs:
-                        atref.source = concept_table
+                        atref.refs[0] = concept_table
 
                 expr = sqlast.PredicateNode(expr=self._process_expr(context, filter))
                 if step_cte.where is not None:
