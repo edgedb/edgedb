@@ -1,7 +1,7 @@
 from semantix.ast import *
 
 class GraphExpr(AST): __fields = ['*paths', '*generator', '*selector', '*sorter']
-class AtomicRef(AST): __fields = ['name', 'source']
+class AtomicRef(AST): __fields = ['name', 'source', 'expr']
 class EntitySet(AST): __fields = ['name', 'concept', '*filters', '*links', '*altlinks', '*rlinks', '*selrefs']
 class EntitySetRef(AST): __fields = [ 'name', 'concept', 'ptr', '*links']
 class EntityLink(AST): __fields = ['filter', 'source', 'target']

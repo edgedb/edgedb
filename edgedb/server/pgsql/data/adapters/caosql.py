@@ -161,31 +161,47 @@ class CaosQLQueryAdapter(NodeVisitor):
             else:
                 fieldref = expr.source
 
+            datatable = None
+
             if isinstance(fieldref, sqlast.FieldRefNode):
-                return fieldref
+                if fieldref.field == expr.name:
+                    return fieldref
+                else:
+                    datatable = fieldref.table
+
+            if isinstance(fieldref, sqlast.SelectExprNode):
+                fieldref_expr = fieldref.expr
+            else:
+                fieldref_expr = fieldref
+
+            if expr.expr is not None:
+               return self._process_expr(context, expr.expr)
 
             if context.current.location in ('selector', 'sorter'):
                 if expr.name == 'id':
-                    result = fieldref.expr
+                    result = fieldref_expr
                 else:
-                    query = context.current.query
-                    table_name = expr.source.concept + '_data'
-                    datatable = sqlast.TableNode(name=table_name,
-                                                 concept=expr.source.concept,
-                                                 alias=context.current.genalias(hint=table_name))
-                    query.fromlist.append(datatable)
-                    left = fieldref.expr
-                    right = sqlast.FieldRefNode(table=datatable, field='entity_id')
-                    whereexpr = sqlast.BinOpNode(op='=', left=left, right=right)
-                    if query.where is not None:
-                        query.where = sqlast.BinOpNode(op='and', left=query.where, right=whereexpr)
-                    else:
-                        query.where = whereexpr
+                    if not datatable:
+                        query = context.current.query
+                        table_name = expr.source.concept + '_data'
+                        datatable = sqlast.TableNode(name=table_name,
+                                                     concept=expr.source.concept,
+                                                     alias=context.current.genalias(hint=table_name))
+                        query.fromlist.append(datatable)
+
+                        left = fieldref_expr
+                        right = sqlast.FieldRefNode(table=datatable, field='entity_id')
+                        whereexpr = sqlast.BinOpNode(op='=', left=left, right=right)
+                        if query.where is not None:
+                            query.where = sqlast.BinOpNode(op='and', left=query.where, right=whereexpr)
+                        else:
+                            query.where = whereexpr
+
                     result = sqlast.FieldRefNode(table=datatable, field=expr.name)
                     context.current.concept_node_map[expr.source] = result
             else:
                 if isinstance(expr.source, caosast.EntitySet):
-                    result = fieldref.expr
+                    result = fieldref_expr
                 else:
                     result = sqlast.FieldRefNode(table=fieldref, field=expr.name)
 
@@ -238,6 +254,16 @@ class CaosQLQueryAdapter(NodeVisitor):
         return join
 
     def _get_step_cte(self, context, cte, step, joinpoint, link):
+        """
+        Generates a Common Table Expression for a given step in the path
+
+        @param context: parse context
+        @param cte: parent CTE
+        @param step: CaosQL path step expression
+        @param joinpoint: current position in parent CTE join chain
+        """
+
+        # Avoid processing the same step twice
         if step in context.current.ctemap:
             return context.current.ctemap[step]
 
@@ -250,6 +276,11 @@ class CaosQLQueryAdapter(NodeVisitor):
         source = None
         concept_table = None
 
+        #
+        # If the step contains filters or is a first step in a path,
+        # we must use the entity table as a join expression, otherwise
+        # entity_map is used.
+        #
         if joinpoint is None or len(step.filters) > 0:
             if step.concept is None:
                 table_name = 'entity'
@@ -264,7 +295,12 @@ class CaosQLQueryAdapter(NodeVisitor):
             bond = sqlast.FieldRefNode(table=concept_table, field=field_name)
             concept_table._bonds['entity'] = (bond, bond)
 
-        if joinpoint is not None:
+        if joinpoint is None:
+            fromnode.expr = concept_table
+        else:
+            #
+            # Append the step to the join chain taking link filter into account
+            #
             map = sqlast.TableNode(name='entity_map', concept=step.concept,
                                    alias=context.current.genalias(hint='map'))
 
@@ -292,6 +328,10 @@ class CaosQLQueryAdapter(NodeVisitor):
 
             fromnode.expr = join
 
+            #
+            # Pull the references to fields inside the CTE one level up to keep
+            # them visible.
+            #
             for concept_node, ref in context.current.concept_node_map.items():
                 if ref.alias in joinpoint.concept_node_map:
                     refexpr = sqlast.FieldRefNode(table=joinpoint, field=ref.alias)
@@ -299,25 +339,28 @@ class CaosQLQueryAdapter(NodeVisitor):
                     step_cte.targets.append(fieldref)
                     step_cte.concept_node_map[ref.alias] = fieldref
                     context.current.concept_node_map[concept_node].expr.table = step_cte
-        else:
-            fromnode.expr = concept_table
 
+        # Include target entity id in the Select expression list ...
         fieldref = fromnode.expr._bonds['entity'][1]
         selectnode = sqlast.SelectExprNode(expr=fieldref, alias=step_cte.alias + '_entity_id')
         step_cte.targets.append(selectnode)
         step_cte.concept_node_map[selectnode.alias] = selectnode
 
+        # ... and record in in global map in case it has to be pulled up later
         refexpr = sqlast.FieldRefNode(table=step_cte, field=selectnode.alias)
         selectnode = sqlast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
         context.current.concept_node_map[step] = selectnode
 
         if step.filters:
             def filter_atomic_refs(node):
-                return isinstance(node, caosast.AtomicRef) and node.source == step
+                return isinstance(node, caosast.AtomicRef) #and node.source == step
 
-            for filter in step.filters:
+            for f in step.filters:
+                filter = deepcopy(f)
+
                 # Fixup atomic refs sources
                 atrefs = self.find_children(filter, filter_atomic_refs)
+
                 if atrefs:
                     for atref in atrefs:
                         atref.source = concept_table

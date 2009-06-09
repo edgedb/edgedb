@@ -80,8 +80,14 @@ class CaosqlTreeTransformer(object):
         return context.current.graph
 
     def _process_select_where(self, context, where):
+        context.current.location = 'generator'
+
         if where:
-            return self._process_expr(context, where.expr)
+            expr = self._process_expr(context, where.expr)
+            if isinstance(expr, ast.AtomicRef):
+                expr.source.filters.append(expr.expr)
+                expr = None
+            return expr
         else:
             return None
 
@@ -138,8 +144,7 @@ class CaosqlTreeTransformer(object):
         if left_t == right_t:
             if left_t == ast.AtomicRef:
                 if left.source == right.source:
-                    left.source.filters.append(expr)
-                    return None
+                    return ast.AtomicRef(expr=expr, source=left.source)
                 else:
                     return expr
             elif left_t == ast.Constant:
@@ -161,22 +166,24 @@ class CaosqlTreeTransformer(object):
 
         if left_t == ast.AtomicRef:
             if right_t == ast.Constant:
-                left.source.filters.append(expr)
-
-                return None
+                if context.current.location == 'generator':
+                    left.source.filters.append(expr)
+                    return None
             elif right_t == ast.Sequence and op == 'in':
-                left.source.filters.append(expr)
-
-                return None
+                if context.current.location == 'generator':
+                    left.source.filters.append(expr)
+                    return None
             else:
                 raise CaosQLError('invalid binary operator: %s %s %s'
                                         % (type(left), op, type(right)))
 
         if right_t == ast.AtomicRef:
             if left_t == ast.Constant:
-                right.source.filters.append(expr)
-
-                return None
+                if context.current.location == 'generator':
+                    right.source.filters.append(expr)
+                    return None
+            elif left_t == ast.BinOp:
+                pass
             else:
                 raise CaosQLError('invalid binary operator: %s %s %s'
                                         % (type(left), op, type(right)))
@@ -344,6 +351,8 @@ class CaosqlTreeTransformer(object):
             return self._get_path_tip(last)
 
     def _process_sorter(self, context, sorters):
+        context.current.location = 'sorter'
+
         result = []
 
         for sorter in sorters:
