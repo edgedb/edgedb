@@ -28,7 +28,7 @@ class ParseContextLevel(object):
 
             return '_' + hint + str(self.aliascnt[hint])
         elif alias in self.vars:
-            raise CaosQLError('Path var redefinition: % is already used' %  alias)
+            raise CaosQLError('Path var redefinition: %s is already used' %  alias)
         else:
             return alias
 
@@ -60,7 +60,7 @@ class ParseContext(object):
 class CaosqlTreeTransformer(object):
     def _dump(self, tree):
         if tree is not None:
-            print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^_'))
+            print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*)|(refs)$'))
         else:
             print('None')
 

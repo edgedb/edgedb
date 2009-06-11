@@ -99,7 +99,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_BinOpNode(self, node):
         self.write('(')
         self.visit(node.left)
-        self.write(' ' + node.op + ' ')
+        self.write(' ' + node.op.upper() + ' ')
         self.visit(node.right)
         self.write(')')
 

@@ -89,7 +89,7 @@ class CaosQLQueryAdapter(NodeVisitor):
         return Query(qtext, vars)
 
     def _dump(self, tree):
-        print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*)|(refs)$'))
+        print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*)$'))
 
     def _transform_tree(self, tree):
 
@@ -273,24 +273,18 @@ class CaosQLQueryAdapter(NodeVisitor):
         source = None
         concept_table = None
 
-        #
-        # If the step contains filters or is a first step in a path,
-        # we must use the entity table as a join expression, otherwise
-        # entity_map is used.
-        #
-        if joinpoint is None or len(step.filters) > 0:
-            if step.concept is None:
-                table_name = 'entity'
-                field_name = 'id'
-            else:
-                table_name = step.concept + '_data'
-                field_name = 'entity_id'
+        if step.concept is None:
+            table_name = 'entity'
+            field_name = 'id'
+        else:
+            table_name = step.concept + '_data'
+            field_name = 'entity_id'
 
-            concept_table = sqlast.TableNode(name=table_name,
-                                             concept=step.concept,
-                                             alias=context.current.genalias(hint=table_name))
-            bond = sqlast.FieldRefNode(table=concept_table, field=field_name)
-            concept_table._bonds['entity'] = (bond, bond)
+        concept_table = sqlast.TableNode(name=table_name,
+                                         concept=step.concept,
+                                         alias=context.current.genalias(hint=table_name))
+        bond = sqlast.FieldRefNode(table=concept_table, field=field_name)
+        concept_table._bonds['entity'] = (bond, bond)
 
         if joinpoint is None:
             fromnode.expr = concept_table
@@ -320,8 +314,7 @@ class CaosQLQueryAdapter(NodeVisitor):
                 else:
                     step_cte.where = expr
 
-            if concept_table is not None:
-                join = self._simple_join(context, join, concept_table)
+            join = self._simple_join(context, join, concept_table)
 
             fromnode.expr = join
 
@@ -365,7 +358,7 @@ class CaosQLQueryAdapter(NodeVisitor):
 
                 expr = sqlast.PredicateNode(expr=self._process_expr(context, filter))
                 if step_cte.where is not None:
-                    step_cte.where = sqlast.BinOpNode(op='and', left=where, right=expr)
+                    step_cte.where = sqlast.BinOpNode(op='and', left=step_cte.where, right=expr)
                 else:
                     step_cte.where = expr
 
@@ -422,7 +415,17 @@ class CaosQLQueryAdapter(NodeVisitor):
         return sqlast.BinOpNode(op='in', left=left, right=right)
 
     def _process_path(self, context, cte, fromnode, joinpoint, pathtip):
+        jp = joinpoint
+
         for link in pathtip.links:
-            join = self._get_step_cte(context, cte, link.target, joinpoint, link)
+            join = self._get_step_cte(context, cte, link.target, jp, link)
             fromnode.expr = join
             self._process_path(context, cte, fromnode, join, link.target)
+
+            # This is here to preserve the original joinpoint bond field
+            # to produce correct branch join
+            #
+            # XXX: do something about that deepcopy
+            joinpoint_bond_fields = (jp._bonds['entity'][0].field, jp._bonds['entity'][1].field)
+            jp = deepcopy(join)
+            (jp._bonds['entity'][0].field, jp._bonds['entity'][1].field) = joinpoint_bond_fields
