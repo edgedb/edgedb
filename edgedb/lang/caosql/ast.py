@@ -29,7 +29,7 @@ class Base(AST):
 
 class GraphExpr(AST): __fields = ['*paths', '*generator', '*selector', '*sorter']
 class AtomicRef(Base): __fields = ['name', 'expr']
-class EntitySet(Base): __fields = ['name', 'concept', '*filters', '*links', '*altlinks', '*rlinks', '*selrefs']
+class EntitySet(Base): __fields = ['id', 'name', 'concept', '*filters', '*links', '*altlinks', '*rlinks', '*selrefs']
 class EntityLink(Base): __fields = ['filter', 'source', 'target']
 class EntityLinkSpec(AST):
         __fields = ['*labels', 'direction']

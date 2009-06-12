@@ -8,10 +8,12 @@ class ParseContextLevel(object):
         if prevlevel is not None:
             self.vars = copy.deepcopy(prevlevel.vars)
             self.paths = copy.deepcopy(prevlevel.paths)
+            self.prefixes = copy.deepcopy(prevlevel.prefixes)
             self.aliascnt = copy.deepcopy(prevlevel.aliascnt)
             self.location = None
         else:
             self.vars = {}
+            self.prefixes = {}
             self.aliascnt = {}
             self.paths = []
             self.location = None
@@ -224,6 +226,7 @@ class CaosqlTreeTransformer(object):
         path_recorded = False
 
         vars = context.current.vars
+        prefixes = context.current.prefixes
         pathlen = len(path.steps)
 
         result = None
@@ -240,34 +243,49 @@ class CaosqlTreeTransformer(object):
                 var = node.var
                 node = self._get_path_tip(node)
                 step.concept = self._normalize_concept(node.expr)
-                step.name = context.current.genalias(alias=var.name, hint=step.concept)
+                step.id = step.name = context.current.genalias(alias=var.name, hint=step.concept)
 
                 vars[step.name] = step
 
+
             if isinstance(node, qlast.PathStepNode):
 
-                if node.expr in vars and i == 0:
+                if node.expr in vars and (i == 0 or node.epxr.beginswith('#')):
                     refnode = vars[node.expr]
                     curstep = refnode
                     continue
                 else:
                     step.concept = self._normalize_concept(node.expr)
+
+                    if not step.id:
+                        step.id = step.concept
+
                     step.name = context.current.genalias(hint=step.concept)
 
                     if node.link_expr:
                         step.link = self._parse_link_expr(node.link_expr.expr)
 
-
             if curstep is not None:
+                step.id = curstep.id + ':' + step.id
+
                 if i == pathlen - 1:
                     aref = self._is_attr_ref(context, curstep, step)
                     if aref:
                         result = aref
                         break
 
+            if step.id in prefixes:
+                curstep = prefixes[step.id]
+                continue
+
+            prefixes[step.id] = step
+
+            if curstep is not None:
                 link = ast.EntityLink(source=curstep, target=step, filter=step.link)
                 curstep.links.append(link)
                 step.rlinks.append(link)
+
+
 
             if result is None:
                 result = curstep
