@@ -4,7 +4,7 @@ from semantix.caos.caosql import ast as caosast
 from semantix.caos.backends.pgsql import ast as sqlast
 from semantix.caos.backends.pgsql import codegen as sqlgen
 from semantix.ast.visitor import NodeVisitor
-from semantix.utils.debug import debug
+from semantix.utils.debug import debug, highlight
 
 class Query(object):
     def __init__(self, text, vars=None, context=None):
@@ -83,7 +83,7 @@ class CaosQLQueryAdapter(NodeVisitor):
         qtext = sqlgen.SQLSourceGenerator.to_source(qtree)
 
         """LOG [caos.query] SQL Query
-        print(qtext)
+        print(highlight(qtext, 'sql'))
         """
 
         return Query(qtext, vars)

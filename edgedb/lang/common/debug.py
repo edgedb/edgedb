@@ -89,8 +89,8 @@ def highlight(code, lang=None):
     try:
         from pygments import highlight as h
         from pygments.lexers import get_lexer_by_name
-        from pygments.formatters import TerminalFormatter
+        from pygments.formatters import Terminal256Formatter
     except ImportError:
         return code
 
-    return h(code, get_lexer_by_name(lang), TerminalFormatter(bg='dark'))
+    return h(code, get_lexer_by_name(lang), Terminal256Formatter(bg='dark', style='native'))
