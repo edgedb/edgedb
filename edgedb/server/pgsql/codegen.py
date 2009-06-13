@@ -1,5 +1,4 @@
 from semantix.ast import codegen
-from psycopg2.extensions import adapt as dbadapt
 
 class SQLSourceGeneratorError(Exception): pass
 
@@ -107,7 +106,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.expr)
 
     def visit_ConstantNode(self, node):
-        self.write(str(dbadapt(node.value)))
+        # XXX: FIXME: put proper backend data escaping here
+        self.write("'" + str(node.value) + "'")
 
     def visit_SequenceNode(self, node):
         self.write('(')

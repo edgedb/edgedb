@@ -31,6 +31,6 @@ ConceptLinks:
                     INNER JOIN caos.concept sc ON cm.source_id = sc.id
                     INNER JOIN caos.concept tc ON cm.target_id = tc.id
                 WHERE
-                    (%(source_concept)s IS NULL OR %(source_concept)s = sc.name)
-                    AND (%(target_concept)s IS NULL OR %(target_concept)s = tc.name)
-                    AND (%(link_type)s IS NULL OR %(link_type)s = cm.link_type)
+                    (%(source_concept)s::text IS NULL OR %(source_concept)s::text = sc.name)
+                    AND (%(target_concept)s::text IS NULL OR %(target_concept)s::text = tc.name)
+                    AND (%(link_type)s::text IS NULL OR %(link_type)s::text = cm.link_type)

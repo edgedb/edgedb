@@ -2,13 +2,11 @@ import re
 import types
 import copy
 
-from psycopg2 import ProgrammingError
-
 from semantix.caos import Class, MetaError, ConceptLinkType
 from semantix.caos.atom import Atom
 
 from semantix.caos.backends.meta import BaseMetaBackend
-from semantix.caos.backends.pgsql.common import DatabaseConnection
+from semantix.caos.backends.pgsql.common import BackendCommon, DatabaseConnection
 
 from semantix.caos.backends.pgsql.common import DatabaseTable, EntityTable
 from semantix.caos.backends.pgsql.common import ConceptTable, ConceptMapTable, EntityTable, EntityMapTable
@@ -36,49 +34,21 @@ class MetaDataIterator(object):
 
         return Class(concept, meta_backend=self.helper)
 
-class MetaBackend(BaseMetaBackend):
+class MetaBackend(BaseMetaBackend, BackendCommon):
 
-    typlen_re = re.compile("(?P<type>.*) \( (?P<length>\d+) \)$", re.X)
+    typlen_re = re.compile(r"(?P<type>.*) \( (?P<length>\d+) (?:\s*,\s*(?P<precision>\d+))? \)$", re.X)
 
-    check_constraint_re = re.compile("CHECK \s* \( (?P<expr>.*) \)$", re.X)
+    check_constraint_re = re.compile(r"CHECK \s* \( (?P<expr>.*) \)$", re.X)
 
-    constraint_type_re = re.compile("^(?P<type>[\w-]+)_\d+$", re.X)
+    constraint_type_re = re.compile(r"^(?P<type>[\w-]+)_\d+$", re.X)
+
+    cast_re = re.compile(r"(::(?P<type>(?:(?P<quote>\"?)[\w-]+(?P=quote)\.)?(?P<quote1>\"?)[\w-]+(?P=quote1)))+$", re.X)
 
     constr_expr_res = {
                         'regexp': re.compile("VALUE::text \s* ~ \s* '(?P<expr>.*)'::text$", re.X),
                         'max-length': re.compile("length\(VALUE::text\) \s* <= \s* (?P<expr>\d+)$", re.X),
                         'min-length': re.compile("length\(VALUE::text\) \s* >= \s* (?P<expr>\d+)$", re.X)
                       }
-
-    base_type_map = {
-                        'integer': int,
-                        'character': str,
-                        'character varying': str,
-                        'boolean': bool,
-                        'numeric': int,
-                        'double precision': float
-                    }
-
-    base_type_name_map = {
-                                'str': 'character varying',
-                                'int': 'integer',
-                                'bool': 'boolean',
-                                'float': 'double precision'
-                         }
-
-    base_type_name_map_r = {
-                                'character varying': 'str',
-                                'character': 'str',
-                                'text': 'str',
-                                'integer': 'int',
-                                'boolean': 'bool',
-                                'numeric': 'long',
-                                'double precision': 'float'
-                           }
-
-
-    typmod_types = ('character', 'character varying', 'numeric')
-    fixed_length_types = {'character varying': 'character'}
 
 
     def __init__(self, connection):
@@ -188,19 +158,6 @@ class MetaBackend(BaseMetaBackend):
             self.cache[cls.concept] = cls
 
 
-    def demangle_concept_name(self, name):
-        if name.endswith('_data'):
-            name = name[:-5]
-
-        return name
-
-
-    def mangle_concept_name(self, name, quote=False):
-        if quote:
-            return '"caos"."%s_data"' % name
-        else:
-            return 'caos.%s_data' % name
-
     def create_concept(self, cls, phase):
         if phase is None or phase == 1:
             concept = self.concept_table.insert(name=cls.concept)
@@ -279,23 +236,35 @@ class MetaBackend(BaseMetaBackend):
 
                 d['constraints']['max-length'].append(int(m.group('length')))
 
+        if d['default'] is not None:
+            # Strip casts from default expression
+            d['default'] = self.cast_re.sub('', d['default'])
+
         return d
 
+    def pg_type_from_atom(self, atom_cls):
+        # Check if the atom is in our backend
+        try:
+            atom = Class(atom_cls.name, meta_backend=self)
+        except MetaError:
+            if atom_cls.name in self.cache:
+                atom = self.cache[atom_cls.name]
+            else:
+                atom = None
 
-    def mangle_domain_name(self, name, quote=False):
-        if quote:
-            return '"caos"."%s_domain"' % name
+        if (atom_cls.base is not None and atom_cls.base.name == 'str'
+                and len(atom_cls.mods) == 1 and 'max-length' in atom_cls.mods):
+            column_type = 'varchar(%d)' % atom_cls.mods['max-length']
         else:
-            return 'caos.%s_domain' % name
+            if atom_cls.name in self.base_type_name_map:
+                column_type = self.base_type_name_map[atom_cls.name]
+            else:
+                if atom is None:
+                    self.store(atom_cls)
 
-    def demangle_domain_name(self, name):
-        name = name.split('.')[-1]
+                column_type = self.mangle_domain_name(atom_cls.name, True)
 
-        if name.endswith('_domain'):
-            name = name[:-7]
-
-        return name
-
+        return column_type
 
     def atom_from_pg_type(self, type_expr, atom_name, atom_default):
         result = None
@@ -325,32 +294,6 @@ class MetaBackend(BaseMetaBackend):
                 result = Class(atom, meta_backend=self)
 
         return result
-
-
-    def pg_type_from_atom(self, atom_cls):
-        # Check if the atom is in our backend
-        try:
-            atom = Class(atom_cls.name, meta_backend=self)
-        except MetaError:
-            if atom_cls.name in self.cache:
-                atom = self.cache[atom_cls.name]
-            else:
-                atom = None
-
-        if (atom_cls.base is not None and atom_cls.base.name == 'str'
-                and len(atom_cls.mods) == 1 and 'max-length' in atom_cls.mods):
-            column_type = 'varchar(%d)' % atom_cls.mods['max-length']
-        else:
-            if atom_cls.name in self.base_type_name_map:
-                column_type = self.base_type_name_map[atom_cls.name]
-            else:
-                if atom is None:
-                    self.store(atom_cls)
-
-                column_type = self.mangle_domain_name(atom_cls.name, True)
-
-        return column_type
-
 
     def get_constraint_expr(self, type, expr):
         constr_name = '%s_%s' % (type, id(expr))
@@ -383,14 +326,17 @@ class MetaBackend(BaseMetaBackend):
         qry += base
 
         with self.connection as cursor:
+            params = []
+
             if cls.default is not None:
-                # XXX: do something about the whole adapt() thing
-                qry += cursor.mogrify(' DEFAULT %(val)s ', {'val': str(cls.default)})
+                # XXX: FIXME: put proper backend data escaping here
+                qry += ' DEFAULT \'%s\' ' % str(cls.default)
 
             for constr_type, constr in cls.mods.items():
                 if constr_type == 'regexp':
                     for re in constr:
-                        expr = cursor.mogrify('VALUE ~ %(re)s', {'re': re})
+                        # XXX: FIXME: put proper backend data escaping here
+                        expr = 'VALUE ~ \'%s\'' % re
                         qry += self.get_constraint_expr(constr_type, expr)
                 elif constr_type == 'expr':
                     for expr in constr:
@@ -401,4 +347,4 @@ class MetaBackend(BaseMetaBackend):
                 elif constr_type == 'min-length':
                     qry += self.get_constraint_expr(constr_type, 'length(VALUE::text) >= ' + str(constr))
 
-            cursor.execute(qry)
+            cursor.execute(qry, params)

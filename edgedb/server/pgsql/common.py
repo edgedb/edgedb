@@ -1,4 +1,79 @@
-import psycopg2
+import postgresql
+from semantix.caos import Class, MetaError, ConceptLinkType
+
+class BackendCommon(object):
+    base_type_map = {
+                        'integer': int,
+                        'character': str,
+                        'character varying': str,
+                        'boolean': bool,
+                        'numeric': int,
+                        'double precision': float
+                    }
+
+    base_type_name_map = {
+                                'str': 'character varying',
+                                'int': 'numeric',
+                                'bool': 'boolean',
+                                'float': 'double precision'
+                         }
+
+    base_type_name_map_r = {
+                                'character varying': 'str',
+                                'character': 'str',
+                                'text': 'str',
+                                'integer': 'int',
+                                'boolean': 'bool',
+                                'numeric': 'int',
+                                'double precision': 'float'
+                           }
+
+
+    typmod_types = ('character', 'character varying', 'numeric')
+    fixed_length_types = {'character varying': 'character'}
+
+
+    def demangle_concept_name(self, name):
+        if name.endswith('_data'):
+            name = name[:-5]
+
+        return name
+
+
+    def mangle_concept_name(self, name, quote=False):
+        if quote:
+            return '"caos"."%s_data"' % name
+        else:
+            return 'caos.%s_data' % name
+
+
+
+    def mangle_domain_name(self, name, quote=False):
+        if quote:
+            return '"caos"."%s_domain"' % name
+        else:
+            return 'caos.%s_domain' % name
+
+    def demangle_domain_name(self, name):
+        name = name.split('.')[-1]
+
+        if name.endswith('_domain'):
+            name = name[:-7]
+
+        return name
+
+    def pg_type_from_atom_class(self, atom_cls):
+        if (atom_cls.base is not None and atom_cls.base.name == 'str'
+                and len(atom_cls.mods) == 1 and 'max-length' in atom_cls.mods):
+            column_type = 'varchar(%d)' % atom_cls.mods['max-length']
+        else:
+            if atom_cls.name in self.base_type_name_map:
+                column_type = self.base_type_name_map[atom_cls.name]
+            else:
+                column_type = self.mangle_domain_name(atom_cls.name, True)
+
+        return column_type
+
 
 class DatabaseConnection(object):
 
@@ -6,7 +81,7 @@ class DatabaseConnection(object):
         self.connection = connection
 
     def cursor(self):
-        return self.connection.cursor(cursor_factory = psycopg2.extras.DictCursor)
+        return self.connection.cursor()
 
     def commit(self):
         return self.connection.commit()
@@ -34,7 +109,7 @@ class DatabaseTable(object):
         with self.connection as cursor:
             try:
                 cursor.execute(self.create.__doc__)
-            except psycopg2.ProgrammingError:
+            except postgresql.exceptions.DuplicateTableError:
                 self.connection.rollback()
 
     def insert(self, *dicts, **kwargs):
@@ -47,7 +122,7 @@ class DatabaseTable(object):
         with self.connection as cursor:
             try:
                 cursor.execute(self.insert.__doc__, data)
-            except psycopg2.ProgrammingError:
+            except postgresql.exceptions.UndefinedTableError:
                 self.connection.rollback()
                 self.create()
                 cursor.execute(self.insert.__doc__, data)

@@ -1,6 +1,7 @@
-import psycopg2
-from semantix.caos.backends.data.base import BaseDataBackend
-from semantix.caos.backends.meta.pgsql.common import DatabaseConnection, DatabaseTable
+from semantix.caos.backends.data import BaseDataBackend
+from semantix.caos.backends.pgsql.common import BackendCommon
+from semantix.caos.backends.pgsql.common import DatabaseConnection, DatabaseTable, EntityTable, ConceptTable
+import semantix.caos.query
 
 from .datasources import EntityLinks, ConceptLink
 from .adapters.caosql import CaosQLQueryAdapter
@@ -17,6 +18,8 @@ class CaosQLCursor(object):
         return self.adapter.adapt(query, vars)
 
     def execute_prepared(self, query):
+        if query.vars is None:
+            query.vars = []
         return self.native_cursor.execute(query.text, query.vars)
 
     def execute(self, query, vars=None):
@@ -72,9 +75,11 @@ class PathCacheTable(DatabaseTable):
         return super(PathCacheTable, self).insert(*dicts, **kwargs)
 
 
-class DataBackend(BaseDataBackend):
+class DataBackend(BaseDataBackend, BackendCommon):
     def __init__(self, connection):
         self.connection = DatabaseConnection(connection)
+        self.concept_table = ConceptTable(self.connection)
+        self.concept_table.create()
         self.entity_table = EntityTable(self.connection)
         self.entity_table.create()
         self.path_cache_table = PathCacheTable(self.connection)
@@ -112,6 +117,7 @@ class DataBackend(BaseDataBackend):
         concept = entity.concept
         id = entity.id
         links = entity._links
+        clinks = entity.__class__.links
 
         with self.connection as cursor:
 
@@ -120,14 +126,14 @@ class DataBackend(BaseDataBackend):
 
             if id is not None:
                 query = 'UPDATE "caos"."%s_data" SET ' % concept
-                query += ','.join(['%s = %%(%s)s' % (a, a) for a in attrs])
+                query += ','.join(['%s = %%(%s)s::%s' % (a, a, self.pg_type_from_atom_class(clinks[a].targets[0]) if a in clinks else 'int') for a, v in attrs.items()])
                 query += ' WHERE entity_id = %d RETURNING entity_id' % id
             else:
                 id = self.entity_table.insert({'concept': concept})[0]
 
                 query = 'INSERT INTO "caos"."%s_data"' % concept
                 query += '(' + ','.join(['"%s"' % a for a in attrs]) + ')'
-                query += 'VALUES(' + ','.join(['%%(%s)s' % a for a in attrs]) + ') RETURNING entity_id'
+                query += 'VALUES(' + ','.join(['%%(%s)s::%s' % (a, ('text::' + self.pg_type_from_atom_class(clinks[a].targets[0])) if a in clinks else 'int') for a, v in attrs.items()]) + ') RETURNING entity_id'
 
             data = dict((k, str(attrs[k]) if attrs[k] is not None else None) for k in attrs)
             data['entity_id'] = id
@@ -185,7 +191,9 @@ class DataBackend(BaseDataBackend):
         rows = []
 
         with self.connection as cursor:
-            for target in targets:
+
+            params = []
+            for i, target in enumerate(targets):
                 target.sync()
 
                 """LOG [caos.sync]
@@ -202,11 +210,10 @@ class DataBackend(BaseDataBackend):
                 lt = ConceptLink.fetch(source_concepts=[source.concept], target_concepts=targets,
                                        link_type=link_type)
 
-                rows.append(cursor.mogrify('(%(source_id)s, %(target_id)s, %(link_type_id)s, %(weight)s)',
-                                           {'source_id': source.id,
-                                            'target_id': target.id,
-                                            'link_type_id': lt[0]['id'],
-                                            'weight': 0}))
+                rows.append('(%s::int, %s::int, %s::int, %s::int)')
+                params += [source.id, target.id, lt[0]['id'], 0]
+
+            params += params
 
             if len(rows) > 0:
                 cursor.execute("""INSERT INTO caos.entity_map(source_id, target_id, link_type_id, weight)
@@ -216,7 +223,7 @@ class DataBackend(BaseDataBackend):
                                                                 caos.entity_map
                                                             WHERE
                                                                 (source_id, target_id, link_type_id, weight) in (%s)))
-                               """ % (",".join(rows), ",".join(rows)))
+                               """ % (",".join(rows), ",".join(rows)), params)
 
     def store_path_cache_entry(self, entity, parent_entity_id, weight):
         self.path_cache_table.insert(entity_id=entity.id,

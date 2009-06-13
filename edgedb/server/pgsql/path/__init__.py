@@ -1,5 +1,3 @@
-import psycopg2
-
 from semantix.caos.backends.path import BasePathCacheBackend
 from semantix.caos.backends.pgsql.common import DatabaseConnection, DatabaseTable
 from semantix.caos.backends.pgsql.meta.datasources.meta.concept import ConceptLinks
