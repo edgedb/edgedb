@@ -241,12 +241,12 @@ class CaosQLQueryAdapter(NodeVisitor):
 
         self._process_path(context, cte, fromnode, fromnode.expr, startnode)
 
-    def _simple_join(self, context, left, right, bond='entity'):
-        condition = sqlast.BinOpNode(op='=', left=left._bonds[bond][1],
-                                             right=right._bonds[bond][0])
-
+    def _simple_join(self, context, left, right, key):
+        condition = sqlast.BinOpNode(op='=', left=left.bonds(key)[-1], right=right.bonds(key)[-1])
         join = sqlast.JoinNode(type='inner', left=left, right=right, condition=condition)
-        join._bonds[bond] = (right._bonds[bond][1], right._bonds[bond][1])
+
+        join.updatebonds(left)
+        join.updatebonds(right)
 
         return join
 
@@ -284,7 +284,7 @@ class CaosQLQueryAdapter(NodeVisitor):
                                          concept=step.concept,
                                          alias=context.current.genalias(hint=table_name))
         bond = sqlast.FieldRefNode(table=concept_table, field=field_name)
-        concept_table._bonds['entity'] = (bond, bond)
+        concept_table.addbond(step.concept, bond)
 
         if joinpoint is None:
             fromnode.expr = concept_table
@@ -302,10 +302,11 @@ class CaosQLQueryAdapter(NodeVisitor):
                 else:
                     source_fld = 'source_id'
                     target_fld = 'target_id'
-            map._bonds['entity'] = (sqlast.FieldRefNode(table=map, field=source_fld),
-                                    sqlast.FieldRefNode(table=map, field=target_fld))
 
-            join = self._simple_join(context, joinpoint, map)
+            map.addbond(link.source.concept, sqlast.FieldRefNode(table=map, field=source_fld))
+            map.addbond(step.concept, sqlast.FieldRefNode(table=map, field=target_fld))
+
+            join = self._simple_join(context, joinpoint, map, link.source.concept)
 
             if link.filter and link.filter.labels:
                 expr = self._select_link_types(context, map, link.filter.labels)
@@ -314,7 +315,7 @@ class CaosQLQueryAdapter(NodeVisitor):
                 else:
                     step_cte.where = expr
 
-            join = self._simple_join(context, join, concept_table)
+            join = self._simple_join(context, join, concept_table, step.concept)
 
             fromnode.expr = join
 
@@ -331,7 +332,7 @@ class CaosQLQueryAdapter(NodeVisitor):
                     context.current.concept_node_map[concept_node].expr.table = step_cte
 
         # Include target entity id in the Select expression list ...
-        fieldref = fromnode.expr._bonds['entity'][1]
+        fieldref = fromnode.expr.bonds(step.concept)[-1]
         selectnode = sqlast.SelectExprNode(expr=fieldref, alias=step_cte.alias + '_entity_id')
         step_cte.targets.append(selectnode)
         step_cte.concept_node_map[selectnode.alias] = selectnode
@@ -366,7 +367,7 @@ class CaosQLQueryAdapter(NodeVisitor):
         step_cte._source_graph = step
 
         bond = sqlast.FieldRefNode(table=step_cte, field=step_cte.alias + '_entity_id')
-        step_cte._bonds['entity'] = (bond, bond)
+        step_cte.addbond(step.concept, bond)
 
         return step_cte
 
@@ -426,6 +427,4 @@ class CaosQLQueryAdapter(NodeVisitor):
             # to produce correct branch join
             #
             # XXX: do something about that deepcopy
-            joinpoint_bond_fields = (jp._bonds['entity'][0].field, jp._bonds['entity'][1].field)
             jp = deepcopy(join)
-            (jp._bonds['entity'][0].field, jp._bonds['entity'][1].field) = joinpoint_bond_fields

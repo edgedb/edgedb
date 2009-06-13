@@ -14,7 +14,7 @@ class Base(AST):
         super().__init__(**kwargs)
 
     def __setattr__(self, name, value):
-        if isinstance(value, Base):
+        if name in self._fields and isinstance(value, Base):
             self.refs.update(value.refs)
         AST.__setattr__(self, name, value)
 

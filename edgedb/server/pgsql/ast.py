@@ -19,6 +19,31 @@ class FromExprNode(AST): __fields = ['expr', 'alias']
 class TableNode(AST):
     __fields = ['name', 'concept', 'alias', '#_bonds']
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        if not self._bonds:
+            self._bonds = {}
+
+    def bonds(self, key):
+        return self._bonds[key]
+
+    def addbond(self, key, bond):
+        if key not in self._bonds:
+            self._bonds[key] = [bond]
+        else:
+            self._bonds[key].append(bond)
+
+        return bond
+
+    def updatebonds(self, node):
+        for key, values in node._bonds.items():
+            if key not in self._bonds:
+                self._bonds[key] = values
+            else:
+                self._bonds[key].extend(values)
+
+
 class SelectQueryNode(TableNode):
     __fields = ['distinct', '*fromlist', '*targets', 'where', '*orderby', '*ctes',
                 '_source_graph', '#concept_node_map']
