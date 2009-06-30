@@ -258,7 +258,7 @@ class CaosqlTreeTransformer(object):
                     step.concept = self._normalize_concept(node.expr)
 
                     if not step.id:
-                        step.id = step.concept
+                        step.id = step.concept if step.concept is not None else '_entity'
 
                     step.name = context.current.genalias(hint=step.concept)
 

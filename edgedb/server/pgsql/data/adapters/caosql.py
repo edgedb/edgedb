@@ -237,9 +237,7 @@ class CaosQLQueryAdapter(NodeVisitor):
         fromnode = sqlast.FromExprNode()
         cte.fromlist.append(fromnode)
 
-        fromnode.expr = self._get_step_cte(context, cte, startnode, None, None)
-
-        self._process_path(context, cte, fromnode, fromnode.expr, startnode)
+        fromnode.expr = self._process_path(context, cte, None, startnode)
 
     def _simple_join(self, context, left, right, key):
         condition = sqlast.BinOpNode(op='=', left=left.bonds(key)[-1], right=right.bonds(key)[-1])
@@ -304,9 +302,9 @@ class CaosQLQueryAdapter(NodeVisitor):
                     target_fld = 'target_id'
 
             map.addbond(link.source.concept, sqlast.FieldRefNode(table=map, field=source_fld))
-            map.addbond(step.concept, sqlast.FieldRefNode(table=map, field=target_fld))
 
             join = self._simple_join(context, joinpoint, map, link.source.concept)
+            join.addbond(step.concept, sqlast.FieldRefNode(table=map, field=target_fld))
 
             if link.filter and link.filter.labels:
                 expr = self._select_link_types(context, map, link.filter.labels)
@@ -329,6 +327,9 @@ class CaosQLQueryAdapter(NodeVisitor):
                     fieldref = sqlast.SelectExprNode(expr=refexpr, alias=ref.alias)
                     step_cte.targets.append(fieldref)
                     step_cte.concept_node_map[ref.alias] = fieldref
+
+                    bondref = sqlast.FieldRefNode(table=step_cte, field=ref.alias)
+                    step_cte.addbond(concept_node.concept, bondref)
                     context.current.concept_node_map[concept_node].expr.table = step_cte
 
         # Include target entity id in the Select expression list ...
@@ -415,16 +416,14 @@ class CaosQLQueryAdapter(NodeVisitor):
 
         return sqlast.BinOpNode(op='in', left=left, right=right)
 
-    def _process_path(self, context, cte, fromnode, joinpoint, pathtip):
-        jp = joinpoint
+    def _process_path(self, context, cte, joinpoint, pathtip):
+        join = joinpoint
+
+        if join is None:
+            join = self._get_step_cte(context, cte, pathtip, None, None)
 
         for link in pathtip.links:
-            join = self._get_step_cte(context, cte, link.target, jp, link)
-            fromnode.expr = join
-            self._process_path(context, cte, fromnode, join, link.target)
+            join = self._get_step_cte(context, cte, link.target, join, link)
+            join = self._process_path(context, cte, join, link.target)
 
-            # This is here to preserve the original joinpoint bond field
-            # to produce correct branch join
-            #
-            # XXX: do something about that deepcopy
-            jp = deepcopy(join)
+        return join
