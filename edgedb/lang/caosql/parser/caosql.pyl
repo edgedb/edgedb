@@ -32,6 +32,7 @@ INITIAL:
     "[Dd][Ii][Ss][Tt][Ii][Nn][Cc][Tt]"      : return "DISTINCT"
     "[Tt][Rr][Uu][Ee]"                      : return "TRUE"
     "[Ff][Aa][Ll][Ss][Ee]"                  : return "FALSE"
+    "[Uu][Ss][Ii][Nn][Gg]"                  : return "USING"
     "[Nn][Uu][Ll][Ll]"  : return "NULL"
     "\("                : return "("
     "\)"                : return ")"
@@ -65,6 +66,7 @@ INITIAL:
     ">="                : return ">="
     "<="                : return "<="
     "!="                : return "="
+    ":"                 : return ":"
     "\|"                : return "|"
     "{Literal}"         : return "LITERAL"
 

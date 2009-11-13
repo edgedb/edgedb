@@ -16,13 +16,15 @@ class PathNode(AST): __fields = ['*steps', 'quantifier', 'var']
 
 class PathDisjunctionNode(AST): __fields = ['left', 'right']
 
-class PathStepNode(AST): __fields = ['expr', 'link_expr']
+class PathStepNode(AST): __fields = ['namespace', 'expr', 'link_expr']
 
 class LinkNode(AST): __fields = ['name', 'direction']
 
 class LinkExprNode(AST): __fields = ['expr']
 
-class SelectQueryNode(AST): __fields = ['distinct', '*targets', 'where', '*orderby']
+class SelectQueryNode(AST): __fields = ['namespaces', 'distinct', '*targets', 'where', '*orderby']
+
+class NamespaceDeclarationNode(AST): __fields = ['namespace', 'alias']
 
 class SortExprNode(AST): __fields = ['path', 'direction']
 

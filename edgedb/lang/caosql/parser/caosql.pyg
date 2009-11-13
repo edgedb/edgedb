@@ -78,20 +78,36 @@ arg_list                        -> query (',' query )* :
                                         return [kids[0]] + [k[1] for k in kids[1]]
 ;
 
-select_query                    -> SELECT (DISTINCT)? select_expr (',' select_expr)*
+select_query                    -> (USING select_nsdecl (',' select_nsdecl)*)?
+                                   SELECT (DISTINCT)? select_expr (',' select_expr)*
                                    (WHERE predicate)? (ORDER BY orderby_expr (',' orderby_expr)*)?:
 
                                         node = SelectQueryNode()
-                                        node.distinct = kids[1] is not None
-                                        node.targets = [kids[2]] + [k[1] for k in kids[3]]
 
-                                        if kids[4] is not None:
-                                            node.where = kids[4][1]
+                                        if kids[0]:
+                                            node.namespaces = [kids[0][1]] + [k[1] for k in kids[0][2]]
+
+                                        node.distinct = kids[2] is not None
+                                        node.targets = [kids[3]] + [k[1] for k in kids[4]]
 
                                         if kids[5] is not None:
-                                            node.orderby = [kids[5][2]] + [k[1] for k in kids[5][3]]
+                                            node.where = kids[5][1]
+
+                                        if kids[6] is not None:
+                                            node.orderby = [kids[6][2]] + [k[1] for k in kids[6][3]]
 
                                         return node
+;
+
+select_nsdecl                   -> nsname (AS select_identifier)?:
+                                        node = NamespaceDeclarationNode()
+                                        node.namespace = kids[0]
+                                        if kids[1] is not None:
+                                            node.alias = kids[1][1]
+                                        return node
+;
+nsname                          -> IDENTIFIER ('.' IDENTIFIER)*:
+                                        return '.'.join([kids[0]] + [k[1] for k in kids[1]])
 ;
 
 select_expr                     -> primary_query (AS select_identifier)?:
@@ -276,13 +292,13 @@ neg_link_expr                   -> simple_link_expr:
                                         return UnaryOpNode(op='not', operand=kids[1])
 ;
 
-simple_link_expr                -> direction? link_name:
+simple_link_expr                -> direction? graph_name:
                                         return LinkNode(name=kids[1], direction=kids[0])
                                  | '(' link_spec ')':
                                         return kids[1]
 ;
 
-link_name                       -> LABEL_EXPR:
+graph_name                       -> LABEL_EXPR:
                                         return kids[0]
                                  | IDENTIFIER:
                                         return kids[0]
@@ -298,10 +314,11 @@ direction                       -> '<>':
 
 label_expr                      -> '%':
                                         return PathStepNode(expr='%')
-                                 | LABEL_EXPR:
-                                        return PathStepNode(expr=kids[0])
-                                 | var:
-                                        return PathStepNode(expr=kids[0].name)
+                                 | (nsname ':')? graph_name:
+                                        node = PathStepNode(expr=kids[1])
+                                        if kids[0]:
+                                            node.namespace = kids[0][0]
+                                        return node
 ;
 
 regexp_op                       -> '*' | '+' | '?'
