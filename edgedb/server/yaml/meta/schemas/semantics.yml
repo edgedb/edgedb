@@ -15,9 +15,11 @@ Semantics:
                                 mapping:
                                     "extends":
                                         type: any
+                                        default: None
 
                                     "links":
                                         type: seq
+                                        default: []
                                         sequence:
                                             - type: map
                                               mapping:
@@ -107,9 +109,11 @@ Semantics:
                                 mapping:
                                     "extends":
                                         type: any
+                                        default: None
 
                                     "default":
                                         type: any
+                                        default: None
 
                                     "mods":
                                         type: seq
