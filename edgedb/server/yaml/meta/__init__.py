@@ -52,49 +52,43 @@ class MetaBackend(BaseMetaBackend):
 
         link_types = self.read_link_types(self.concepts_list)
 
-        for node in self.concepts_list:
-            atom_links = {}
+        for name, node in self._concepts.items():
             links = {}
+            link_target_types = {}
 
-            for llink in node["links"]:
-                for link_name, link in llink.items():
-                    if 'atom' in link['target']:
-                        if not self.is_atom(link['target']['atom']):
-                            raise MetaError('reference to an undefined atom "%s" in "%s"' %
-                                            (link['target']['atom'], node['name'] + '/links/' + link_name))
-                        if 'mods' in link['target'] and link['target']['mods'] is not None:
-                            # Got an inline atom definition.
-                            # We must generate a unique name here
-                            atom_name = '__' + node['name'] + '__' + link_name
-                            self._atoms[atom_name] = {'name': atom_name,
-                                                      'extends': link['target']['atom'],
-                                                      'mods': link['target']['mods'],
-                                                      'default': link['target']['default']}
-                            del link['target']['mods']
-                            del link['target']['default']
-                            link['target']['atom'] = atom_name
+            for (link_name, target), link in node["links"].items():
+                if (link_name, target) in links:
+                    raise MetaError('%s --%s--> %s link redefinition' % (name, link_name, target))
 
-                        if link_name in links:
-                            raise MetaError('%s is already defined as a concept link'
-                                            % link_name)
+                if self.is_atom(target):
+                    if link_name in link_target_types and link_target_types[link_name] != 'atom':
+                        raise MetaError('%s link is already defined as a link to non-atom')
 
-                        atom_links[link_name] = True
+                    if 'mods' in link and link['mods'] is not None:
+                        # Got an inline atom definition.
+                        # We must generate a unique name here
+                        atom_name = '__' + node['name'] + '__' + link_name
+                        self._atoms[atom_name] = {'name': atom_name,
+                                                  'extends': target,
+                                                  'mods': link['mods'],
+                                                  'default': link['default']}
+                        del link['mods']
+                        del link['default']
+                        link['target'] = atom_name
 
-                    elif 'concept' in link["target"]:
-                        if link['target']['concept'] not in self._concepts:
-                            raise MetaError('reference to an undefined concept "%s" in "%s"' %
-                                            (link['target']['concept'], node['name'] + '/links/' + link_name))
+                    if 'mapping' in link and link['mapping'] != '11':
+                        raise MetaError('%s: links to atoms can only have a "1 to 1" mapping' % link_name)
 
-                        link_key = (link_name, link['target']['concept'])
-                        if link_key in links:
-                            raise MetaError('%s -> %s link redefinition'
-                                            % (link_name, link['target']['concept']))
-                        elif link_name in atom_links:
-                            raise MetaError('%s is already defined as a link to atom'
-                                            % link_name)
-                        else:
-                            links[link_key] = True
-                            links[link_name] = True
+                    link_target_types[link_name] = 'atom'
+                else:
+                    if link_name in link_target_types and link_target_types[link_name] == 'atom':
+                        raise MetaError('%s link is already defined as a link to atom')
+
+                    if target not in self._concepts:
+                        raise MetaError('reference to an undefined node "%s" in "%s"' %
+                                        (target, node['name'] + '/links/' + link_name))
+
+                    link_target_types[link_name] = 'concept'
 
             if node['extends'] is not None:
                 for parent in node["extends"]:
@@ -116,7 +110,7 @@ class MetaBackend(BaseMetaBackend):
 
     def read_concepts(self, data):
         if 'concepts' in data and data['concepts'] is not None:
-            concepts = data['concepts']
+            concepts = copy.deepcopy(data['concepts'])
         else:
             concepts = {}
 
@@ -144,15 +138,36 @@ class MetaBackend(BaseMetaBackend):
 
             concept["children"] = set()
 
+            links = {}
+
+            for llink in concept["links"]:
+                (link_name, link) = list(llink.items())[0]
+
+                if isinstance(link, str):
+                    target = link
+                    properties = {
+                                  'default': None,
+                                  'required': False,
+                                  'mods': None,
+                                  'extends': None,
+                                  'mapping': '11'
+                                  }
+                else:
+                    (target, properties) = list(link.items())[0]
+
+                properties['target'] = target
+                links[(link_name, target)] = properties
+
+            concept['links'] = links
+
         return concept_graph
 
     def read_link_types(self, concept_graph):
         link_types = []
         for node in concept_graph:
             if node['links'] is not None:
-                for llink in node["links"]:
-                    for link_name, link in llink.items():
-                        link_types.append(link_name)
+                for (link_name, target), link in node["links"].items():
+                    link_types.append(link_name)
 
         return link_types
 
@@ -201,18 +216,16 @@ class MetaBackend(BaseMetaBackend):
 
         links = {}
 
-        for llink in concept['links']:
-            for link_name, link in llink.items():
-                if 'atom' in link['target']:
-                    links[link_name] = ConceptLinkType(source=name, targets=[link['target']['atom']],
-                                                       link_type=link_name, required=link['required'],
-                                                       mapping='11')
-                else:
-                    if link_name in links:
-                        links[link_name].targets.append(link['target']['concept'])
-                    else:
-                        links[link_name] = ConceptLinkType(name, [link['target']['concept']], link_name,
-                                                           link['target']['mapping'], link['required'])
+        for link_key, link in concept['links'].items():
+            if link_key[0] in links:
+                links[link_key[0]].targets.append(link['target'])
+            else:
+                links[link_key[0]] = ConceptLinkType(
+                                        source=name,
+                                        targets=[link['target']],
+                                        link_type=link_key[0],
+                                        required=link['required'],
+                                        mapping=link['mapping'])
 
         dct['links'] = links
 

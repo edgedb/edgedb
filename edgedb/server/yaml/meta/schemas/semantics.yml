@@ -22,62 +22,58 @@ Semantics:
                                         default: []
                                         sequence:
                                             - type: map
+                                              max-length: 1
+                                              min-length: 1
                                               mapping:
                                                 =:
-                                                  type: map
-                                                  mapping:
-                                                      "title":
-                                                          type: str
-                                                      "description":
-                                                          type: str
-                                                      "required":
-                                                          type: bool
-                                                          default: False
-                                                      "target":
-                                                          type: choice
-                                                          required: yes
-                                                          choice:
-                                                              - type: map
-                                                                mapping:
-                                                                  "concept":
-                                                                      type: str
-                                                                      required: yes
-                                                                  "mapping":
-                                                                      type: str
-                                                                      enum: ["1*", "11", "**", "*1"]
-                                                                      required: yes
+                                                  type: choice
+                                                  required: yes
+                                                  choice:
+                                                    - type: str
+                                                    - type: map
+                                                      mapping:
+                                                        =:
+                                                            type: map
+                                                            mapping:
+                                                              "title":
+                                                                  type: str
+                                                              "description":
+                                                                  type: str
+                                                              "required":
+                                                                  type: bool
+                                                                  default: False
+                                                              "mapping":
+                                                                  type: str
+                                                                  enum: ["1*", "11", "**", "*1"]
+                                                                  required: yes
+                                                                  default: "11"
 
-                                                              - type: map
-                                                                mapping:
-                                                                  "atom":
-                                                                      type: str
-                                                                      requred: yes
-                                                                  "mods":
-                                                                      type: seq
-                                                                      sequence:
-                                                                          - type: choice
-                                                                            choice:
-                                                                                - type: map
-                                                                                  mapping:
-                                                                                    "max-length":
-                                                                                        type: int
-                                                                                - type: map
-                                                                                  mapping:
-                                                                                    "min-length":
-                                                                                        type: int
-                                                                                - type: map
-                                                                                  mapping:
-                                                                                    "regexp":
-                                                                                        type: str
-                                                                                - type: map
-                                                                                  mapping:
-                                                                                    "expr":
-                                                                                        type: str
-                                                                  "comparison":
-                                                                      type: str
-                                                                      enum: [cidirect, fuzzy]
-                                                                  "default":
-                                                                      type: str
+                                                              "mods":
+                                                                  type: seq
+                                                                  sequence:
+                                                                      - type: choice
+                                                                        choice:
+                                                                            - type: map
+                                                                              mapping:
+                                                                                "max-length":
+                                                                                    type: int
+                                                                            - type: map
+                                                                              mapping:
+                                                                                "min-length":
+                                                                                    type: int
+                                                                            - type: map
+                                                                              mapping:
+                                                                                "regexp":
+                                                                                    type: str
+                                                                            - type: map
+                                                                              mapping:
+                                                                                "expr":
+                                                                                    type: str
+                                                              "comparison":
+                                                                  type: str
+                                                                  enum: [cidirect, fuzzy]
+                                                              "default":
+                                                                  type: str
 
 
                                     "heuristics":
