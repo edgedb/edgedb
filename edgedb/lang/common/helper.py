@@ -31,26 +31,6 @@ def cleandir(path):
             os.rmdir(os.path.join(root, name))
 
 
-def init_test_suite():
-    import inspect
-    import unittest
-
-    _globals = inspect.stack()[1][0].f_globals
-
-    def init():
-        nonlocal _globals
-
-        suite = unittest.TestSuite()
-        for name, attr in _globals.items():
-            if isinstance(attr, type) and issubclass(attr, unittest.TestCase):
-                suite.addTest(unittest.defaultTestLoader.loadTestsFromTestCase(attr))
-
-        _globals = None
-        return suite
-
-    _globals['suite'] = init
-
-
 def dump_code_context(filename, lineno, dump_range=4):
     with open(filename, 'r') as file:
         source = file.read().split('\n')
