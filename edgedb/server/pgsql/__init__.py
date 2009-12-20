@@ -2,12 +2,14 @@ import re
 import types
 import copy
 
+import postgresql.string
+from postgresql.driver.dbapi20 import Cursor as CompatCursor
+
 from semantix.caos import MetaError
 
 from semantix.caos.backends.meta import MetaBackend
 from semantix.caos.backends.data import DataBackend
 from semantix.caos.backends.meta import RealmMeta, Atom, Concept, ConceptLinkType
-from semantix.caos.backends.pgsql.common import DatabaseConnection
 
 from semantix.caos.backends.pgsql.common import DatabaseTable, EntityTable
 from semantix.caos.backends.pgsql.common import ConceptTable, ConceptMapTable, EntityMapTable
@@ -26,8 +28,10 @@ from semantix.utils.debug import debug
 
 class CaosQLCursor(object):
     def __init__(self, connection):
-        self.native_cursor = connection.cursor()
+        self.connection = connection
+        self.cursor = CompatCursor(connection)
         self.adapter = CaosQLQueryAdapter()
+        self.current_portal = None
 
     def prepare_query(self, query, vars):
         return self.adapter.adapt(query, vars)
@@ -35,20 +39,23 @@ class CaosQLCursor(object):
     def execute_prepared(self, query):
         if query.vars is None:
             query.vars = []
-        return self.native_cursor.execute(query.text, query.vars)
+
+        sql, pxf, nparams = self.cursor._convert_query(query.text)
+        ps = self.connection.prepare(sql)
+        if query.vars:
+            self.current_portal = ps.rows(*pxf(query.vars))
+        else:
+            self.current_portal = ps.rows()
 
     def execute(self, query, vars=None):
         native_query = self.prepare_query(query, vars)
         return self.execute_prepared(native_query)
 
     def fetchall(self):
-        return self.native_cursor.fetchall()
-
-    def fetchmany(self, size=None):
-        return self.native_cursor.fetchmany(size)
+        return list(self.current_portal)
 
     def fetchone(self):
-        return self.native_cursor.fetchone()
+        return next(self.current_portal)
 
 
 class PathCacheTable(DatabaseTable):
@@ -140,7 +147,7 @@ class Backend(MetaBackend, DataBackend):
     def __init__(self, connection):
         super().__init__()
 
-        self.connection = DatabaseConnection(connection)
+        self.connection = connection
 
         self.concept_table = ConceptTable(self.connection)
         self.concept_table.create()
@@ -240,7 +247,7 @@ class Backend(MetaBackend, DataBackend):
         if phase is None or phase == 1:
             self.concept_table.insert(name=obj.name)
 
-            qry = 'CREATE TABLE %s' % self.mangle_concept_name(obj.name, True)
+            qry = 'CREATE TABLE %s' % self.mangle_concept_name(obj.name)
 
             columns = ['entity_id integer NOT NULL REFERENCES caos.entity(id) ON DELETE CASCADE']
 
@@ -255,10 +262,9 @@ class Backend(MetaBackend, DataBackend):
             qry += '(' +  ','.join(columns) + ')'
 
             if len(obj.base) > 0:
-                qry += ' INHERITS (' + ','.join([self.mangle_concept_name(p, True) for p in obj.base]) + ')'
+                qry += ' INHERITS (' + ','.join([self.mangle_concept_name(p) for p in obj.base]) + ')'
 
-            with self.connection as cursor:
-                cursor.execute(qry)
+            self.connection.execute(qry)
 
         if phase is None or phase == 2:
             for link in obj.links.values():
@@ -321,23 +327,26 @@ class Backend(MetaBackend, DataBackend):
 
         return d
 
+    def runquery(self, query, params=None):
+        cursor = CompatCursor(self.connection)
+        query, pxf, nparams = cursor._convert_query(query)
+        ps = self.connection.prepare(query)
+        if params:
+            return ps.rows(*pxf(params))
+        else:
+            return ps.rows()
+
     def demangle_concept_name(self, name):
         if name.endswith('_data'):
             name = name[:-5]
 
         return name
 
-    def mangle_concept_name(self, name, quote=False):
-        if quote:
-            return '"caos"."%s_data"' % name
-        else:
-            return 'caos.%s_data' % name
+    def mangle_concept_name(self, name):
+        return postgresql.string.qname('caos', name + '_data')
 
-    def mangle_domain_name(self, name, quote=False):
-        if quote:
-            return '"caos"."%s_domain"' % name
-        else:
-            return 'caos.%s_domain' % name
+    def mangle_domain_name(self, name):
+        return postgresql.string.qname('caos', name + '_domain')
 
     def demangle_domain_name(self, name):
         name = name.split('.')[-1]
@@ -355,7 +364,7 @@ class Backend(MetaBackend, DataBackend):
             if atom_obj.name in self.base_type_name_map:
                 column_type = self.base_type_name_map[atom_obj.name]
             else:
-                column_type = self.mangle_domain_name(atom_obj.name, True)
+                column_type = self.mangle_domain_name(atom_obj.name)
         return column_type
 
     def pg_type_from_atom(self, atom_obj):
@@ -367,7 +376,7 @@ class Backend(MetaBackend, DataBackend):
                 column_type = self.base_type_name_map[atom_obj.name]
             else:
                 self.store(atom_obj, allow_existing=True)
-                column_type = self.mangle_domain_name(atom_obj.name, True)
+                column_type = self.mangle_domain_name(atom_obj.name)
 
         return column_type
 
@@ -408,13 +417,13 @@ class Backend(MetaBackend, DataBackend):
             if obj.name in self.domains:
                 return
 
-        qry = 'CREATE DOMAIN %s AS ' % self.mangle_domain_name(obj.name, True)
+        qry = 'CREATE DOMAIN %s AS ' % self.mangle_domain_name(obj.name)
         base = obj.base
 
         if base in self.base_type_name_map:
             base = self.base_type_name_map[base]
         else:
-            base = self.mangle_domain_name(base, True)
+            base = self.mangle_domain_name(base)
 
         basetype = copy.copy(base)
 
@@ -433,29 +442,25 @@ class Backend(MetaBackend, DataBackend):
             base += '(' + str(obj.mods['max-length']) + ')'
         qry += base
 
-        with self.connection as cursor:
-            params = []
+        if obj.default is not None:
+            qry += ' DEFAULT %s ' % postgresql.string.quote_literal(str(obj.default))
 
-            if obj.default is not None:
-                # XXX: FIXME: put proper backend data escaping here
-                qry += ' DEFAULT \'%s\' ' % str(obj.default)
+        for constr_type, constr in obj.mods.items():
+            if constr_type == 'regexp':
+                for re in constr:
+                    # XXX: FIXME: put proper backend data escaping here
+                    expr = 'VALUE ~ %s' % postgresql.string.quote_literal(re)
+                    qry += self.get_constraint_expr(constr_type, expr)
+            elif constr_type == 'expr':
+                for expr in constr:
+                    qry += self.get_constraint_expr(constr_type, expr)
+            elif constr_type == 'max-length':
+                if basetype not in self.typmod_types:
+                    qry += self.get_constraint_expr(constr_type, 'length(VALUE::text) <= ' + str(constr))
+            elif constr_type == 'min-length':
+                qry += self.get_constraint_expr(constr_type, 'length(VALUE::text) >= ' + str(constr))
 
-            for constr_type, constr in obj.mods.items():
-                if constr_type == 'regexp':
-                    for re in constr:
-                        # XXX: FIXME: put proper backend data escaping here
-                        expr = 'VALUE ~ \'%s\'' % re
-                        qry += self.get_constraint_expr(constr_type, expr)
-                elif constr_type == 'expr':
-                    for expr in constr:
-                        qry += self.get_constraint_expr(constr_type, expr)
-                elif constr_type == 'max-length':
-                    if basetype not in self.typmod_types:
-                        qry += self.get_constraint_expr(constr_type, 'length(VALUE::text) <= ' + str(constr))
-                elif constr_type == 'min-length':
-                    qry += self.get_constraint_expr(constr_type, 'length(VALUE::text) >= ' + str(constr))
-
-            cursor.execute(qry, params)
+        self.connection.execute(qry)
 
         self.domains.add(obj.name)
 
@@ -467,19 +472,14 @@ class Backend(MetaBackend, DataBackend):
                             INNER JOIN caos.concept c ON c.id = e.concept_id
                         WHERE
                             e.id = %d""" % id
-        cursor = self.connection.cursor()
-        cursor.execute(query)
-        result = cursor.fetchone()
-        if result is None:
-            return None
-        else:
-            return result[0]
+
+        ps = self.connection.prepare(query)
+        return ps.first()
 
     def load_entity(self, concept, id):
-        query = 'SELECT * FROM "caos"."%s_data" WHERE entity_id = %d' % (concept, id)
-        cursor = self.connection.cursor()
-        cursor.execute(query)
-        result = cursor.fetchone()
+        query = 'SELECT * FROM %s WHERE entity_id = %d' % (self.mangle_concept_name(concept), id)
+        ps = self.connection.prepare(query)
+        result = ps.first()
 
         if result is not None:
             return dict((k, result[k]) for k in result.keys() if k != 'entity_id')
@@ -493,27 +493,27 @@ class Backend(MetaBackend, DataBackend):
         links = entity._links
         clinks = entity.__class__.links
 
-        with self.connection as cursor:
+        with self.connection.xact():
 
             attrs = {n: v for n, v in links.items() if not isinstance(v, BaseConceptCollection)}
             attrs['entity_id'] = id
 
             if id is not None:
-                query = 'UPDATE "caos"."%s_data" SET ' % concept
+                query = 'UPDATE %s SET ' % self.mangle_concept_name(concept)
                 query += ','.join(['%s = %%(%s)s::%s' % (a, a, self.pg_type_from_atom_class(clinks[a].targets[0]) if a in clinks else 'int') for a, v in attrs.items()])
                 query += ' WHERE entity_id = %d RETURNING entity_id' % id
             else:
-                id = self.entity_table.insert({'concept': concept})[0]
+                id = self.entity_table.insert({'concept': concept})[0][0]
 
-                query = 'INSERT INTO "caos"."%s_data"' % concept
+                query = 'INSERT INTO %s' % self.mangle_concept_name(concept)
                 query += '(' + ','.join(['"%s"' % a for a in attrs]) + ')'
                 query += 'VALUES(' + ','.join(['%%(%s)s::%s' % (a, ('text::' + self.pg_type_from_atom_class(clinks[a].targets[0])) if a in clinks else 'int') for a, v in attrs.items()]) + ') RETURNING entity_id'
 
             data = dict((k, str(attrs[k]) if attrs[k] is not None else None) for k in attrs)
             data['entity_id'] = id
 
-            cursor.execute(query, data)
-            id = cursor.fetchone()
+            rows = self.runquery(query, data)
+            id = next(rows)
             if id is None:
                 raise Exception('failed to store entity')
 
@@ -565,41 +565,39 @@ class Backend(MetaBackend, DataBackend):
     def store_links(self, concept, link_type, source, targets):
         rows = []
 
-        with self.connection as cursor:
+        params = []
+        for i, target in enumerate(targets):
+            target.sync()
 
-            params = []
-            for i, target in enumerate(targets):
-                target.sync()
+            """LOG [caos.sync]
+            print('Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
+                  (source.concept, source.id, (source.name if hasattr(source, 'name') else ''),
+                   link_type,
+                   target.concept, target.id, (target.name if hasattr(target, 'name') else ''))
+                  )
+            """
 
-                """LOG [caos.sync]
-                print('Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
-                      (source.concept, source.id, (source.name if hasattr(source, 'name') else ''),
-                       link_type,
-                       target.concept, target.id, (target.name if hasattr(target, 'name') else ''))
-                      )
-                """
+            # XXX: that's ugly
+            targets = [c.concept for c in target.__class__.__mro__ if hasattr(c, 'concept')]
 
-                # XXX: that's ugly
-                targets = [c.concept for c in target.__class__.__mro__ if hasattr(c, 'concept')]
+            lt = ConceptLink.fetch(connection=self.connection,
+                                   source_concepts=[source.concept], target_concepts=targets,
+                                   link_type=link_type)
 
-                lt = ConceptLink.fetch(connection=self.connection,
-                                       source_concepts=[source.concept], target_concepts=targets,
-                                       link_type=link_type)
+            rows.append('(%s::int, %s::int, %s::int, %s::int)')
+            params += [source.id, target.id, lt[0]['id'], 0]
 
-                rows.append('(%s::int, %s::int, %s::int, %s::int)')
-                params += [source.id, target.id, lt[0]['id'], 0]
+        params += params
 
-            params += params
-
-            if len(rows) > 0:
-                cursor.execute("""INSERT INTO caos.entity_map(source_id, target_id, link_type_id, weight)
-                                    ((VALUES %s) EXCEPT (SELECT
-                                                                *
-                                                            FROM
-                                                                caos.entity_map
-                                                            WHERE
-                                                                (source_id, target_id, link_type_id, weight) in (%s)))
-                               """ % (",".join(rows), ",".join(rows)), params)
+        if len(rows) > 0:
+            self.runquery("""INSERT INTO caos.entity_map(source_id, target_id, link_type_id, weight)
+                                ((VALUES %s) EXCEPT (SELECT
+                                                            *
+                                                        FROM
+                                                            caos.entity_map
+                                                        WHERE
+                                                            (source_id, target_id, link_type_id, weight) in (%s)))
+                           """ % (",".join(rows), ",".join(rows)), params)
 
     def store_path_cache_entry(self, entity, parent_entity_id, weight):
         self.path_cache_table.insert(entity_id=entity.id,
@@ -612,21 +610,6 @@ class Backend(MetaBackend, DataBackend):
         self.path_cache_table.create()
         with self.connection as cursor:
             cursor.execute('DELETE FROM caos.path_cache')
-
-
-    def iter(self, concept):
-        with self.connection as cursor:
-            cursor.execute('''SELECT
-                                    id
-                                FROM
-                                    caos.entity
-                                WHERE
-                                    concept_id = (SELECT id FROM caos.concept WHERE name = %(concept)s)''',
-                            {'concept': concept})
-
-            for row in cursor:
-                id = row[0]
-                yield id
 
 
     def caosqlcursor(self):

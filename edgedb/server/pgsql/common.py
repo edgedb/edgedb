@@ -1,41 +1,20 @@
 import postgresql
+from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
-class DatabaseConnection(object):
-
-    def __init__(self, connection):
-        self.connection = connection
-
-    def cursor(self):
-        return self.connection.cursor()
-
-    def commit(self):
-        return self.connection.commit()
-
-    def rollback(self):
-        return self.connection.rollback()
-
-    def __enter__(self):
-        return self.cursor()
-
-    def __exit__(self, type, value, tb):
-        if tb is None:
-            self.commit()
-        else:
-            self.rollback()
 
 class DatabaseTable(object):
     def __init__(self, connection):
         self.connection = connection
+        self.cursor = CompatCursor(connection)
 
     def create(self):
         if self.create.__doc__ is None:
             raise Exception('missing table definition in docstring')
 
-        with self.connection as cursor:
-            try:
-                cursor.execute(self.create.__doc__)
-            except postgresql.exceptions.DuplicateTableError:
-                self.connection.rollback()
+        try:
+            self.runquery(self.create.__doc__)
+        except postgresql.exceptions.DuplicateTableError:
+            pass
 
     def insert(self, *dicts, **kwargs):
         data = {}
@@ -44,17 +23,18 @@ class DatabaseTable(object):
 
         if self.insert.__doc__ is None:
             raise Exception('missing insert statement in docstring')
-        with self.connection as cursor:
-            try:
-                cursor.execute(self.insert.__doc__, data)
-            except postgresql.exceptions.UndefinedTableError:
-                self.connection.rollback()
-                self.create()
-                cursor.execute(self.insert.__doc__, data)
 
-        data = cursor.fetchone()
-        return data
+        result = self.runquery(self.insert.__doc__, data)
 
+        return result
+
+    def runquery(self, query, params=None):
+        query, pxf, nparams = self.cursor._convert_query(query)
+        ps = self.connection.prepare(query)
+        if params:
+            return ps(*pxf(params))
+        else:
+            return ps()
 
 class ConceptTable(DatabaseTable):
     def create(self):

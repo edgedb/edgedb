@@ -1,5 +1,4 @@
-import postgresql.iri
-import postgresql.driver.dbapi20 as pg_driver
+import postgresql
 import urllib.parse
 
 from semantix.caos.backends.resolver.shell import BackendShell, BackendResolverHelper
@@ -9,6 +8,5 @@ from semantix.caos.backends.pgsql import Backend
 class BackendResolver(BackendResolverHelper):
     def resolve(self, url):
         url = urllib.parse.urlunsplit(url)
-        params = postgresql.iri.parse(url)
-        connection = pg_driver.connect(**params)
+        connection = postgresql.open(url)
         return BackendShell(backend_class=Backend, connection=connection)
