@@ -1,7 +1,8 @@
+import copy
 from semantix.caos.caosql import ast
 from semantix.caos.caosql.parser import nodes as qlast
 from semantix.caos.caosql import CaosQLError
-from semantix.caos.cls import Class
+
 
 class ParseContextLevel(object):
     def __init__(self, prevlevel=None):
@@ -60,6 +61,10 @@ class ParseContext(object):
 
 
 class CaosqlTreeTransformer(object):
+    def __init__(self, realm):
+        self.realm = realm
+        self.cls = realm.getfactory()
+
     def _dump(self, tree):
         if tree is not None:
             print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*)|(refs)$'))
@@ -344,7 +349,7 @@ class CaosqlTreeTransformer(object):
         if concept is None:
             atoms = ['id']
         else:
-            cls = Class(concept)
+            cls = self.cls(concept)
             atoms = [n for n, v in cls.links.items() if v.atomic()]
 
         if step.concept in atoms or step.concept == 'id':

@@ -1,0 +1,2 @@
+class BackendResolverError(Exception):
+    pass

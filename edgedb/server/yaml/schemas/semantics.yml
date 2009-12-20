@@ -6,6 +6,10 @@ Semantics:
                 type: map
                 required: yes
                 mapping:
+                    "backend":
+                        type: str
+                        required: no
+                        default: "data"
                     "concepts":
                         type: map
                         required: yes

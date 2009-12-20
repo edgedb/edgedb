@@ -1,2 +1,2 @@
-class BaseDataBackend(object):
+class DataBackend(object):
     pass
