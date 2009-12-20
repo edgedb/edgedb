@@ -1,4 +1,5 @@
 import bisect
+import collections
 
 class GenericWrapperMeta(type):
 
@@ -85,3 +86,48 @@ class SortedList(list):
             self.inserting = False
         else:
             super(SortedList, self).insert(i, x)
+
+
+class OrderedSet(collections.MutableSet):
+
+    def __init__(self, iterable=None):
+        self.map = collections.OrderedDict()
+        if iterable is not None:
+            self |= iterable
+
+    def __del__(self):
+        self.clear()
+
+    def add(self, key):
+        if key not in self.map:
+            self.map[key] = True
+
+    def discard(self, key):
+        if key in self.map:
+            self.map.pop(key)
+
+    def popitem(self, last=True):
+        key, value = self.map.popitem(last)
+        return key
+
+    def __len__(self):
+        return len(self.map)
+
+    def __contains__(self, key):
+        return key in self.map
+
+    def __iter__(self):
+        return iter(list(self.map.keys()))
+
+    def __reversed__(self):
+        return reversed(self.map)
+
+    def __repr__(self):
+        if not self:
+            return '%s()' % (self.__class__.__name__,)
+        return '%s(%r)' % (self.__class__.__name__, list(self))
+
+    def __eq__(self, other):
+        if isinstance(other, OrderedSet):
+            return len(self) == len(other) and list(self) == list(other)
+        return not self.isdisjoint(other)
