@@ -122,3 +122,42 @@ class EntityMapTable(DatabaseTable):
             )
         """
         super(EntityMapTable, self).create()
+
+
+class PathCacheTable(DatabaseTable):
+    def create(self):
+        """
+            CREATE TABLE caos.path_cache (
+                id                  serial NOT NULL,
+
+                entity_id           integer NOT NULL,
+                parent_entity_id    integer,
+
+                name_attribute      varchar(255),
+                concept_name        varchar(255) NOT NULL,
+
+                weight              integer,
+
+                PRIMARY KEY (id),
+                UNIQUE(entity_id, parent_entity_id),
+
+                FOREIGN KEY (entity_id) REFERENCES caos.entity(id)
+                    ON UPDATE CASCADE ON DELETE CASCADE,
+
+                FOREIGN KEY (parent_entity_id) REFERENCES caos.entity(id)
+                    ON UPDATE CASCADE ON DELETE CASCADE
+            )
+        """
+        super(PathCacheTable, self).create()
+
+    def insert(self, *dicts, **kwargs):
+        """
+            INSERT INTO
+                caos.path_cache
+                    (entity_id, parent_entity_id, name_attribute, concept_name, weight)
+
+                VALUES(%(entity_id)s, %(parent_entity_id)s,
+                       %(name_attribute)s, %(concept_name)s, %(weight)s)
+            RETURNING entity_id
+        """
+        return super(PathCacheTable, self).insert(*dicts, **kwargs)

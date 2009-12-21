@@ -11,7 +11,7 @@ from semantix.caos.backends.meta import MetaBackend
 from semantix.caos.backends.data import DataBackend
 from semantix.caos.backends.meta import RealmMeta, Atom, Concept, ConceptLinkType
 
-from semantix.caos.backends.pgsql.common import DatabaseTable, EntityTable
+from semantix.caos.backends.pgsql.common import PathCacheTable, EntityTable
 from semantix.caos.backends.pgsql.common import ConceptTable, ConceptMapTable, EntityMapTable
 
 from .datasources.introspection.domains import DomainsList
@@ -56,45 +56,6 @@ class CaosQLCursor(object):
 
     def fetchone(self):
         return next(self.current_portal)
-
-
-class PathCacheTable(DatabaseTable):
-    def create(self):
-        """
-            CREATE TABLE caos.path_cache (
-                id                  serial NOT NULL,
-
-                entity_id           integer NOT NULL,
-                parent_entity_id    integer,
-
-                name_attribute      varchar(255),
-                concept_name        varchar(255) NOT NULL,
-
-                weight              integer,
-
-                PRIMARY KEY (id),
-                UNIQUE(entity_id, parent_entity_id),
-
-                FOREIGN KEY (entity_id) REFERENCES caos.entity(id)
-                    ON UPDATE CASCADE ON DELETE CASCADE,
-
-                FOREIGN KEY (parent_entity_id) REFERENCES caos.entity(id)
-                    ON UPDATE CASCADE ON DELETE CASCADE
-            )
-        """
-        super(PathCacheTable, self).create()
-
-    def insert(self, *dicts, **kwargs):
-        """
-            INSERT INTO
-                caos.path_cache
-                    (entity_id, parent_entity_id, name_attribute, concept_name, weight)
-
-                VALUES(%(entity_id)s, %(parent_entity_id)s,
-                       %(name_attribute)s, %(concept_name)s, %(weight)s)
-            RETURNING entity_id
-        """
-        return super(PathCacheTable, self).insert(*dicts, **kwargs)
 
 
 class Backend(MetaBackend, DataBackend):
@@ -153,20 +114,127 @@ class Backend(MetaBackend, DataBackend):
         self.concept_table.create()
         self.concept_map_table = ConceptMapTable(self.connection)
         self.concept_map_table.create()
-        EntityTable(self.connection).create()
-        self.entity_map_table = EntityMapTable(self.connection)
-        self.entity_map_table.create()
 
         self.entity_table = EntityTable(self.connection)
         self.entity_table.create()
+        self.entity_map_table = EntityMapTable(self.connection)
+        self.entity_map_table.create()
+
         self.path_cache_table = PathCacheTable(self.connection)
         self.path_cache_table.create()
 
         self.domains = set()
 
+
     def getmeta(self):
         meta = RealmMeta()
 
+        self.read_atoms(meta)
+        self.read_concepts(meta)
+
+        return meta
+
+
+    def synchronize(self, meta):
+        for obj in meta:
+            self.store(obj, 1)
+
+        for obj in meta:
+            self.store(obj, 2)
+
+
+    def get_concept_from_entity(self, id):
+        query = """SELECT
+                            c.name
+                        FROM
+                            caos.entity e
+                            INNER JOIN caos.concept c ON c.id = e.concept_id
+                        WHERE
+                            e.id = %d""" % id
+
+        ps = self.connection.prepare(query)
+        return ps.first()
+
+
+    def load_entity(self, concept, id):
+        query = 'SELECT * FROM %s WHERE entity_id = %d' % (self.mangle_concept_name(concept), id)
+        ps = self.connection.prepare(query)
+        result = ps.first()
+
+        if result is not None:
+            return dict((k, result[k]) for k in result.keys() if k != 'entity_id')
+        else:
+            return None
+
+
+    @debug
+    def store_entity(self, entity):
+        concept = entity.concept
+        id = entity.id
+        links = entity._links
+        clinks = entity.__class__.links
+
+        with self.connection.xact():
+
+            attrs = {n: v for n, v in links.items() if not isinstance(v, BaseConceptCollection)}
+            attrs['entity_id'] = id
+
+            if id is not None:
+                query = 'UPDATE %s SET ' % self.mangle_concept_name(concept)
+                query += ','.join(['%s = %%(%s)s::%s' % (a, a, self.pg_type_from_atom_class(clinks[a].targets[0]) if a in clinks else 'int') for a, v in attrs.items()])
+                query += ' WHERE entity_id = %d RETURNING entity_id' % id
+            else:
+                id = self.entity_table.insert({'concept': concept})[0][0]
+
+                query = 'INSERT INTO %s' % self.mangle_concept_name(concept)
+                query += '(' + ','.join(['"%s"' % a for a in attrs]) + ')'
+                query += 'VALUES(' + ','.join(['%%(%s)s::%s' % (a, ('text::' + self.pg_type_from_atom_class(clinks[a].targets[0])) if a in clinks else 'int') for a, v in attrs.items()]) + ') RETURNING entity_id'
+
+            data = dict((k, str(attrs[k]) if attrs[k] is not None else None) for k in attrs)
+            data['entity_id'] = id
+
+            rows = self.runquery(query, data)
+            id = next(rows)
+            if id is None:
+                raise Exception('failed to store entity')
+
+            """LOG [caos.sync]
+            print('Merged entity %s[%s][%s]' % \
+                    (concept, id[0], (data['name'] if 'name' in data else '')))
+            """
+
+            id = id[0]
+
+            entity.setid(id)
+            entity.markclean()
+
+            for link_type, link in links.items():
+                if isinstance(link, BaseConceptCollection) and link.dirty:
+                    self.store_links(concept, link_type, entity, link)
+                    link.markclean()
+
+        return id
+
+
+    def caosqlcursor(self):
+        return CaosQLCursor(self.connection)
+
+
+    def store_path_cache_entry(self, entity, parent_entity_id, weight):
+        self.path_cache_table.insert(entity_id=entity.id,
+                                 parent_entity_id=parent_entity_id,
+                                 name_attribute=str(entity.attrs['name']) if 'name' in entity.attrs else None,
+                                 concept_name=entity.name,
+                                 weight=weight)
+
+
+    def clear_path_cache(self):
+        self.path_cache_table.create()
+        with self.connection as cursor:
+            cursor.execute('DELETE FROM caos.path_cache')
+
+
+    def read_atoms(self, meta):
         domains = DomainsList.fetch(schema_name='caos', connection=self.connection)
         domains = {self.demangle_domain_name(d['name']): self.normalize_domain_descr(d) for d in domains}
         self.domains = set(domains.keys())
@@ -187,6 +255,8 @@ class Backend(MetaBackend, DataBackend):
 
             meta.add(atom)
 
+
+    def read_concepts(self, meta):
         tables = TableList.fetch(schema_name='caos', connection=self.connection)
 
         for t in tables:
@@ -224,15 +294,6 @@ class Backend(MetaBackend, DataBackend):
                                        r['link_type'], r['mapping'], r['required'])
                 concept.add_link(link)
 
-        return meta
-
-
-    def synchronize(self, meta):
-        for obj in meta:
-            self.store(obj, 1)
-
-        for obj in meta:
-            self.store(obj, 2)
 
     def store(self, obj, phase=1, allow_existing=False):
         is_atom = isinstance(obj, Atom)
@@ -243,170 +304,6 @@ class Backend(MetaBackend, DataBackend):
         else:
             self.create_concept(obj, phase, allow_existing)
 
-    def create_concept(self, obj, phase, allow_exsiting):
-        if phase is None or phase == 1:
-            self.concept_table.insert(name=obj.name)
-
-            qry = 'CREATE TABLE %s' % self.mangle_concept_name(obj.name)
-
-            columns = ['entity_id integer NOT NULL REFERENCES caos.entity(id) ON DELETE CASCADE']
-
-            for link_name in sorted(obj.links.keys()):
-                link = obj.links[link_name]
-                if link.atomic():
-                    target_atom = list(link.targets)[0]
-                    column_type = self.pg_type_from_atom(target_atom)
-                    column = '"%s" %s %s' % (link_name, column_type, 'NOT NULL' if link.required else '')
-                    columns.append(column)
-
-            qry += '(' +  ','.join(columns) + ')'
-
-            if len(obj.base) > 0:
-                qry += ' INHERITS (' + ','.join([self.mangle_concept_name(p) for p in obj.base]) + ')'
-
-            self.connection.execute(qry)
-
-        if phase is None or phase == 2:
-            for link in obj.links.values():
-                if not link.atomic():
-                    for target in link.targets:
-                        self.concept_map_table.insert(source=link.source.name, target=target.name,
-                                                      link_type=link.link_type, mapping=link.mapping,
-                                                      required=link.required)
-
-
-    def normalize_domain_descr(self, d):
-        if d['constraint_names'] is not None:
-            constraints = {}
-
-            for constr_name, constr_expr in zip(d['constraint_names'], d['constraints']):
-                m = self.constraint_type_re.match(constr_name)
-                if m:
-                    constr_type = m.group('type')
-                else:
-                    raise MetaError('could not parse domain constraint "%s": %s' % (constr_name, constr_expr))
-
-                if constr_expr.startswith('CHECK'):
-                    # Strip `CHECK()`
-                    constr_expr = self.check_constraint_re.match(constr_expr).group('expr').replace("''", "'")
-                else:
-                    raise MetaError('could not parse domain constraint "%s": %s' % (constr_name, constr_expr))
-
-                if constr_type in self.constr_expr_res:
-                    m = self.constr_expr_res[constr_type].match(constr_expr)
-                    if m:
-                        constr_expr = m.group('expr')
-                    else:
-                        raise MetaError('could not parse domain constraint "%s": %s' % (constr_name, constr_expr))
-
-                if constr_type in ('max-length', 'min-length'):
-                    constr_expr = int(constr_expr)
-
-                if constr_type == 'expr':
-                    # That's a very hacky way to remove casts from expressions added by Postgres
-                    constr_expr = constr_expr.replace('::text', '')
-
-                if constr_type not in constraints:
-                    constraints[constr_type] = []
-
-                constraints[constr_type].append(constr_expr)
-
-            d['constraints'] = constraints
-
-        if d['basetype'] is not None:
-            m = self.typlen_re.match(d['basetype_full'])
-            if m:
-                if 'max-length' not in d['constraints']:
-                    d['constraints']['max-length'] = []
-
-                d['constraints']['max-length'].append(int(m.group('length')))
-
-        if d['default'] is not None:
-            # Strip casts from default expression
-            d['default'] = self.cast_re.sub('', d['default'])
-
-        return d
-
-    def runquery(self, query, params=None):
-        cursor = CompatCursor(self.connection)
-        query, pxf, nparams = cursor._convert_query(query)
-        ps = self.connection.prepare(query)
-        if params:
-            return ps.rows(*pxf(params))
-        else:
-            return ps.rows()
-
-    def demangle_concept_name(self, name):
-        if name.endswith('_data'):
-            name = name[:-5]
-
-        return name
-
-    def mangle_concept_name(self, name):
-        return postgresql.string.qname('caos', name + '_data')
-
-    def mangle_domain_name(self, name):
-        return postgresql.string.qname('caos', name + '_domain')
-
-    def demangle_domain_name(self, name):
-        name = name.split('.')[-1]
-
-        if name.endswith('_domain'):
-            name = name[:-7]
-
-        return name
-
-    def pg_type_from_atom_class(self, atom_obj):
-        if (atom_obj.base is not None and (atom_obj.base == str or (hasattr(atom_obj.base, 'name') and atom_obj.base.name == 'str'))
-                and len(atom_obj.mods) == 1 and 'max-length' in atom_obj.mods):
-            column_type = 'varchar(%d)' % atom_obj.mods['max-length']
-        else:
-            if atom_obj.name in self.base_type_name_map:
-                column_type = self.base_type_name_map[atom_obj.name]
-            else:
-                column_type = self.mangle_domain_name(atom_obj.name)
-        return column_type
-
-    def pg_type_from_atom(self, atom_obj):
-        if (atom_obj.base is not None and atom_obj.base == 'str'
-                and len(atom_obj.mods) == 1 and 'max-length' in atom_obj.mods):
-            column_type = 'varchar(%d)' % atom_obj.mods['max-length']
-        else:
-            if atom_obj.name in self.base_type_name_map:
-                column_type = self.base_type_name_map[atom_obj.name]
-            else:
-                self.store(atom_obj, allow_existing=True)
-                column_type = self.mangle_domain_name(atom_obj.name)
-
-        return column_type
-
-    def atom_from_pg_type(self, type_expr, atom_name, atom_default, meta):
-
-        demangled = self.demangle_domain_name(type_expr)
-        atom = meta.get(demangled)
-
-        if not atom:
-            m = self.typlen_re.match(type_expr)
-            if m:
-                typmod = int(m.group('length'))
-                typname = m.group('type').strip()
-            else:
-                typmod = None
-                typname = type_expr
-
-            if typname in self.base_type_name_map_r:
-                atom = meta.get(self.base_type_name_map_r[typname])
-
-                if typname in self.typmod_types and typmod is not None:
-                    atom = Atom(name=atom_name, base=atom.name, default=atom_default, automatic=True)
-                    atom.add_mod('max-length', typmod)
-                    meta.add(atom)
-
-        return atom
-
-    def get_constraint_expr(self, type, expr):
-        constr_name = '%s_%s' % (type, id(expr))
-        return ' CONSTRAINT "%s" CHECK ( %s )' % (constr_name, expr)
 
     def create_atom(self, obj, allow_existing):
         if allow_existing:
@@ -464,101 +361,37 @@ class Backend(MetaBackend, DataBackend):
 
         self.domains.add(obj.name)
 
-    def get_concept_from_entity(self, id):
-        query = """SELECT
-                            c.name
-                        FROM
-                            caos.entity e
-                            INNER JOIN caos.concept c ON c.id = e.concept_id
-                        WHERE
-                            e.id = %d""" % id
 
-        ps = self.connection.prepare(query)
-        return ps.first()
+    def create_concept(self, obj, phase, allow_exsiting):
+        if phase is None or phase == 1:
+            self.concept_table.insert(name=obj.name)
 
-    def load_entity(self, concept, id):
-        query = 'SELECT * FROM %s WHERE entity_id = %d' % (self.mangle_concept_name(concept), id)
-        ps = self.connection.prepare(query)
-        result = ps.first()
+            qry = 'CREATE TABLE %s' % self.mangle_concept_name(obj.name)
 
-        if result is not None:
-            return dict((k, result[k]) for k in result.keys() if k != 'entity_id')
-        else:
-            return None
+            columns = ['entity_id integer NOT NULL REFERENCES caos.entity(id) ON DELETE CASCADE']
 
-    @debug
-    def store_entity(self, entity):
-        concept = entity.concept
-        id = entity.id
-        links = entity._links
-        clinks = entity.__class__.links
+            for link_name in sorted(obj.links.keys()):
+                link = obj.links[link_name]
+                if link.atomic():
+                    target_atom = list(link.targets)[0]
+                    column_type = self.pg_type_from_atom(target_atom)
+                    column = '"%s" %s %s' % (link_name, column_type, 'NOT NULL' if link.required else '')
+                    columns.append(column)
 
-        with self.connection.xact():
+            qry += '(' +  ','.join(columns) + ')'
 
-            attrs = {n: v for n, v in links.items() if not isinstance(v, BaseConceptCollection)}
-            attrs['entity_id'] = id
+            if len(obj.base) > 0:
+                qry += ' INHERITS (' + ','.join([self.mangle_concept_name(p) for p in obj.base]) + ')'
 
-            if id is not None:
-                query = 'UPDATE %s SET ' % self.mangle_concept_name(concept)
-                query += ','.join(['%s = %%(%s)s::%s' % (a, a, self.pg_type_from_atom_class(clinks[a].targets[0]) if a in clinks else 'int') for a, v in attrs.items()])
-                query += ' WHERE entity_id = %d RETURNING entity_id' % id
-            else:
-                id = self.entity_table.insert({'concept': concept})[0][0]
+            self.connection.execute(qry)
 
-                query = 'INSERT INTO %s' % self.mangle_concept_name(concept)
-                query += '(' + ','.join(['"%s"' % a for a in attrs]) + ')'
-                query += 'VALUES(' + ','.join(['%%(%s)s::%s' % (a, ('text::' + self.pg_type_from_atom_class(clinks[a].targets[0])) if a in clinks else 'int') for a, v in attrs.items()]) + ') RETURNING entity_id'
-
-            data = dict((k, str(attrs[k]) if attrs[k] is not None else None) for k in attrs)
-            data['entity_id'] = id
-
-            rows = self.runquery(query, data)
-            id = next(rows)
-            if id is None:
-                raise Exception('failed to store entity')
-
-            """LOG [caos.sync]
-            print('Merged entity %s[%s][%s]' % \
-                    (concept, id[0], (data['name'] if 'name' in data else '')))
-            """
-
-            id = id[0]
-
-            entity.setid(id)
-            entity.markclean()
-
-            for link_type, link in links.items():
-                if isinstance(link, BaseConceptCollection) and link.dirty:
-                    self.store_links(concept, link_type, entity, link)
-                    link.markclean()
-
-        return id
-
-    def load_links(self, this_concept, this_id, other_concepts=None, link_types=None, reverse=False):
-
-        if link_types is not None and not isinstance(link_types, list):
-            link_types = [link_types]
-
-        if other_concepts is not None and not isinstance(other_concepts, list):
-            other_concepts = [other_concepts]
-
-        if not reverse:
-            source_id = this_id
-            target_id = None
-            source_concepts = [this_concept]
-            target_concepts = other_concepts
-        else:
-            source_id = None
-            target_id = this_id
-            target_concepts = [this_concept]
-            source_concepts = other_concepts
-
-        links = EntityLinks.fetch(connection=self.connection,
-                                  source_id=source_id, target_id=target_id,
-                                  target_concepts=target_concepts, source_concepts=source_concepts,
-                                  link_types=link_types)
-
-        return links
+        if phase is None or phase == 2:
+            for link in obj.links.values():
+                if not link.atomic():
+                    for target in link.targets:
+                        self.concept_map_table.insert(source=link.source.name, target=target.name,
+                                                      link_type=link.link_type, mapping=link.mapping,
+                                                      required=link.required)
 
 
     @debug
@@ -599,18 +432,172 @@ class Backend(MetaBackend, DataBackend):
                                                             (source_id, target_id, link_type_id, weight) in (%s)))
                            """ % (",".join(rows), ",".join(rows)), params)
 
-    def store_path_cache_entry(self, entity, parent_entity_id, weight):
-        self.path_cache_table.insert(entity_id=entity.id,
-                                 parent_entity_id=parent_entity_id,
-                                 name_attribute=str(entity.attrs['name']) if 'name' in entity.attrs else None,
-                                 concept_name=entity.name,
-                                 weight=weight)
 
-    def clear_path_cache(self):
-        self.path_cache_table.create()
-        with self.connection as cursor:
-            cursor.execute('DELETE FROM caos.path_cache')
+    def load_links(self, this_concept, this_id, other_concepts=None, link_types=None, reverse=False):
+
+        if link_types is not None and not isinstance(link_types, list):
+            link_types = [link_types]
+
+        if other_concepts is not None and not isinstance(other_concepts, list):
+            other_concepts = [other_concepts]
+
+        if not reverse:
+            source_id = this_id
+            target_id = None
+            source_concepts = [this_concept]
+            target_concepts = other_concepts
+        else:
+            source_id = None
+            target_id = this_id
+            target_concepts = [this_concept]
+            source_concepts = other_concepts
+
+        links = EntityLinks.fetch(connection=self.connection,
+                                  source_id=source_id, target_id=target_id,
+                                  target_concepts=target_concepts, source_concepts=source_concepts,
+                                  link_types=link_types)
+
+        return links
 
 
-    def caosqlcursor(self):
-        return CaosQLCursor(self.connection)
+    def normalize_domain_descr(self, d):
+        if d['constraint_names'] is not None:
+            constraints = {}
+
+            for constr_name, constr_expr in zip(d['constraint_names'], d['constraints']):
+                m = self.constraint_type_re.match(constr_name)
+                if m:
+                    constr_type = m.group('type')
+                else:
+                    raise MetaError('could not parse domain constraint "%s": %s' % (constr_name, constr_expr))
+
+                if constr_expr.startswith('CHECK'):
+                    # Strip `CHECK()`
+                    constr_expr = self.check_constraint_re.match(constr_expr).group('expr').replace("''", "'")
+                else:
+                    raise MetaError('could not parse domain constraint "%s": %s' % (constr_name, constr_expr))
+
+                if constr_type in self.constr_expr_res:
+                    m = self.constr_expr_res[constr_type].match(constr_expr)
+                    if m:
+                        constr_expr = m.group('expr')
+                    else:
+                        raise MetaError('could not parse domain constraint "%s": %s' % (constr_name, constr_expr))
+
+                if constr_type in ('max-length', 'min-length'):
+                    constr_expr = int(constr_expr)
+
+                if constr_type == 'expr':
+                    # That's a very hacky way to remove casts from expressions added by Postgres
+                    constr_expr = constr_expr.replace('::text', '')
+
+                if constr_type not in constraints:
+                    constraints[constr_type] = []
+
+                constraints[constr_type].append(constr_expr)
+
+            d['constraints'] = constraints
+
+        if d['basetype'] is not None:
+            m = self.typlen_re.match(d['basetype_full'])
+            if m:
+                if 'max-length' not in d['constraints']:
+                    d['constraints']['max-length'] = []
+
+                d['constraints']['max-length'].append(int(m.group('length')))
+
+        if d['default'] is not None:
+            # Strip casts from default expression
+            d['default'] = self.cast_re.sub('', d['default'])
+
+        return d
+
+
+    def runquery(self, query, params=None):
+        cursor = CompatCursor(self.connection)
+        query, pxf, nparams = cursor._convert_query(query)
+        ps = self.connection.prepare(query)
+        if params:
+            return ps.rows(*pxf(params))
+        else:
+            return ps.rows()
+
+
+    def demangle_concept_name(self, name):
+        if name.endswith('_data'):
+            name = name[:-5]
+
+        return name
+
+
+    def mangle_concept_name(self, name):
+        return postgresql.string.qname('caos', name + '_data')
+
+
+    def mangle_domain_name(self, name):
+        return postgresql.string.qname('caos', name + '_domain')
+
+
+    def demangle_domain_name(self, name):
+        name = name.split('.')[-1]
+
+        if name.endswith('_domain'):
+            name = name[:-7]
+
+        return name
+
+
+    def pg_type_from_atom_class(self, atom_obj):
+        if (atom_obj.base is not None and (atom_obj.base == str or (hasattr(atom_obj.base, 'name') and atom_obj.base.name == 'str'))
+                and len(atom_obj.mods) == 1 and 'max-length' in atom_obj.mods):
+            column_type = 'varchar(%d)' % atom_obj.mods['max-length']
+        else:
+            if atom_obj.name in self.base_type_name_map:
+                column_type = self.base_type_name_map[atom_obj.name]
+            else:
+                column_type = self.mangle_domain_name(atom_obj.name)
+        return column_type
+
+
+    def pg_type_from_atom(self, atom_obj):
+        if (atom_obj.base is not None and atom_obj.base == 'str'
+                and len(atom_obj.mods) == 1 and 'max-length' in atom_obj.mods):
+            column_type = 'varchar(%d)' % atom_obj.mods['max-length']
+        else:
+            if atom_obj.name in self.base_type_name_map:
+                column_type = self.base_type_name_map[atom_obj.name]
+            else:
+                self.store(atom_obj, allow_existing=True)
+                column_type = self.mangle_domain_name(atom_obj.name)
+
+        return column_type
+
+
+    def atom_from_pg_type(self, type_expr, atom_name, atom_default, meta):
+
+        demangled = self.demangle_domain_name(type_expr)
+        atom = meta.get(demangled)
+
+        if not atom:
+            m = self.typlen_re.match(type_expr)
+            if m:
+                typmod = int(m.group('length'))
+                typname = m.group('type').strip()
+            else:
+                typmod = None
+                typname = type_expr
+
+            if typname in self.base_type_name_map_r:
+                atom = meta.get(self.base_type_name_map_r[typname])
+
+                if typname in self.typmod_types and typmod is not None:
+                    atom = Atom(name=atom_name, base=atom.name, default=atom_default, automatic=True)
+                    atom.add_mod('max-length', typmod)
+                    meta.add(atom)
+
+        return atom
+
+
+    def get_constraint_expr(self, type, expr):
+        constr_name = '%s_%s' % (type, id(expr))
+        return ' CONSTRAINT "%s" CHECK ( %s )' % (constr_name, expr)
