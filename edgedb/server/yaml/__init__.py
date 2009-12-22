@@ -3,7 +3,7 @@ import copy
 import semantix
 
 from semantix.utils import merge, graph
-from semantix import readers
+from semantix import lang
 from semantix.caos import MetaError
 
 from semantix.caos.backends.meta import MetaBackend, RealmMeta, Atom, Concept, ConceptLinkType
@@ -13,7 +13,7 @@ class Backend(MetaBackend):
 
     def __init__(self, source_path):
         super().__init__()
-        self.metadata = next(readers.read(source_path))[1]
+        self.metadata = next(lang.read(source_path))[1]
 
     def getmeta(self):
         meta = RealmMeta()

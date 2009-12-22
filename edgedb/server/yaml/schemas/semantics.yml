@@ -1,4 +1,4 @@
-%SCHEMA semantix.readers.yaml.schema.Schema
+%SCHEMA semantix.lang.yaml.schema.Schema
 %NAME Semantics
 ---
 type: map

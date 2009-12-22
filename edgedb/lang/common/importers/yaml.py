@@ -3,7 +3,7 @@ import os
 import imp
 from importlib import abc
 
-from semantix import readers
+from semantix import lang
 
 class YamlImporter(abc.Finder, abc.Loader):
     def __init__(self, *args, **kwargs):
@@ -35,12 +35,12 @@ class YamlImporter(abc.Finder, abc.Loader):
         sys.modules[fullname] = new_mod
 
         try:
-            documents = readers.read(filename)
+            attributes = lang.read(filename)
         except Exception as error:
             raise ImportError('unable to import "%s" (%s)' % (fullname, error))
 
-        for document_name, document in documents:
-            if document_name:
-                setattr(new_mod, document_name, document)
+        for attribute_name, attribute_value in attributes:
+            if attribute_name:
+                setattr(new_mod, attribute_name, attribute_value)
 
         return new_mod
