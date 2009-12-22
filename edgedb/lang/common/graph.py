@@ -38,6 +38,8 @@ def _default_merger(left, right):
     return merge_dicts(left, right)
 
 def normalize(graph, merger=_default_merger, allow_loops=False, allow_unresolved=False):
+    # TODO: Use tarjan algorithm here to properly determine cycles
+
     # Adjacency matrix
     adj = dict(zip(graph.keys(), (list() for i in range(len(graph)))))
 

@@ -1,38 +1,39 @@
-EntityLinks:
-    !!python/object/apply:semantix.datasources.sql.Sql
-      - params:
-            source_id:
-                type: int
-            target_id:
-                type: int
-            source_concepts:
-                type: list
-            target_concepts:
-                type: list
-            link_types:
-                type: list
+%SCHEMA semantix.datasources.schemas.Sql
+%NAME EntityLinks
+---
+params:
+    source_id:
+        type: int
+    target_id:
+        type: int
+    source_concepts:
+        type: list
+    target_concepts:
+        type: list
+    link_types:
+        type: list
 
-        filters:
-            - format: dict
+filters:
+    - format: dict
 
-        source: |
-            SELECT
-                    em.source_id AS source_id,
-                    sc.name AS source_concept,
-                    em.target_id AS target_id,
-                    tc.name AS target_concept,
-                    cm.link_type AS link_type,
-                    em.weight AS weight
-                FROM
-                    caos.entity_map em
-                    INNER JOIN caos.concept_map cm ON em.link_type_id = cm.id
-                    INNER JOIN caos.concept sc ON sc.id = cm.source_id
-                    INNER JOIN caos.concept tc ON tc.id = cm.target_id
-                WHERE
-                    (%(source_id)s IS NULL OR em.source_id = %(source_id)s)
-                    AND (%(target_id)s IS NULL OR em.target_id = %(target_id)s)
-                    AND (%(source_concepts)s IS NULL OR sc.name = any(%(source_concepts)s))
-                    AND (%(target_concepts)s IS NULL OR tc.name = any(%(target_concepts)s))
-                    AND (%(link_types)s IS NULL OR cm.link_type = any(%(link_types)s))
-                ORDER BY
-                    em.weight
+source: |
+    SELECT
+            em.source_id AS source_id,
+            sc.name AS source_concept,
+            em.target_id AS target_id,
+            tc.name AS target_concept,
+            cm.link_type AS link_type,
+            em.weight AS weight
+        FROM
+            caos.entity_map em
+            INNER JOIN caos.concept_map cm ON em.link_type_id = cm.id
+            INNER JOIN caos.concept sc ON sc.id = cm.source_id
+            INNER JOIN caos.concept tc ON tc.id = cm.target_id
+        WHERE
+            (%(source_id)s IS NULL OR em.source_id = %(source_id)s)
+            AND (%(target_id)s IS NULL OR em.target_id = %(target_id)s)
+            AND (%(source_concepts)s IS NULL OR sc.name = any(%(source_concepts)s))
+            AND (%(target_concepts)s IS NULL OR tc.name = any(%(target_concepts)s))
+            AND (%(link_types)s IS NULL OR cm.link_type = any(%(link_types)s))
+        ORDER BY
+            em.weight

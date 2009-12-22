@@ -1,61 +1,62 @@
-DomainsList:
-    !!python/object/apply:semantix.datasources.sql.Sql
-      - params:
-            schema_name:
-                type: str
-                default: "public"
+%SCHEMA semantix.datasources.schemas.Sql
+%NAME DomainsList
+---
+params:
+    schema_name:
+        type: str
+        default: "public"
 
-        filters:
-            - format: dict
+filters:
+    - format: dict
 
-        source: |
-                SELECT
-                        t.oid                                 AS oid,
-                        t.typname                             AS name,
-                        ns.nspname                            AS schema,
+source: |
+        SELECT
+                t.oid                                 AS oid,
+                t.typname                             AS name,
+                ns.nspname                            AS schema,
 
-                        CASE WHEN t.typbasetype != 0 THEN
-                            format_type(t.typbasetype, t.typtypmod)
-                        ELSE
-                            NULL
-                        END                                 AS basetype_full,
+                CASE WHEN t.typbasetype != 0 THEN
+                    format_type(t.typbasetype, t.typtypmod)
+                ELSE
+                    NULL
+                END                                 AS basetype_full,
 
-                        CASE WHEN t.typbasetype != 0 THEN
-                            format_type(t.typbasetype, NULL)
-                        ELSE
-                            NULL
-                        END                                 AS basetype,
+                CASE WHEN t.typbasetype != 0 THEN
+                    format_type(t.typbasetype, NULL)
+                ELSE
+                    NULL
+                END                                 AS basetype,
 
-                        ARRAY(SELECT
-                                    pg_get_constraintdef(c.oid, true)
-                                FROM
-                                    pg_constraint AS c
-                                WHERE
-                                    c.contypid = t.oid
-                                ORDER BY
-                                    c.oid)                  AS constraints,
+                ARRAY(SELECT
+                            pg_get_constraintdef(c.oid, true)
+                        FROM
+                            pg_constraint AS c
+                        WHERE
+                            c.contypid = t.oid
+                        ORDER BY
+                            c.oid)                  AS constraints,
 
-                        ARRAY(SELECT
-                                    c.conname
-                                FROM
-                                    pg_constraint AS c
-                                WHERE
-                                    c.contypid = t.oid
-                                ORDER BY
-                                    c.oid)                  AS constraint_names,
+                ARRAY(SELECT
+                            c.conname
+                        FROM
+                            pg_constraint AS c
+                        WHERE
+                            c.contypid = t.oid
+                        ORDER BY
+                            c.oid)                  AS constraint_names,
 
-                        t.typdefault                        AS default
-                    FROM
-                        pg_type AS t
-                        INNER JOIN pg_namespace AS ns ON ns.oid = t.typnamespace
-                        LEFT JOIN pg_class AS c ON c.reltype = t.oid
-                    WHERE
-                        --
-                        -- Limit the schema scope
-                        --
-                        ns.nspname = %(schema_name)s
-                        --
-                        -- We're not interested in shell- or pseudotypes or arrays or table row types
-                        --
-                        AND t.typisdefined AND t.typtype != 'p' AND (t.typelem IS NULL OR t.typelem = 0)
-                        AND (c.oid IS NULL OR c.relkind = 'c')
+                t.typdefault                        AS default
+            FROM
+                pg_type AS t
+                INNER JOIN pg_namespace AS ns ON ns.oid = t.typnamespace
+                LEFT JOIN pg_class AS c ON c.reltype = t.oid
+            WHERE
+                --
+                -- Limit the schema scope
+                --
+                ns.nspname = %(schema_name)s
+                --
+                -- We're not interested in shell- or pseudotypes or arrays or table row types
+                --
+                AND t.typisdefined AND t.typtype != 'p' AND (t.typelem IS NULL OR t.typelem = 0)
+                AND (c.oid IS NULL OR c.relkind = 'c')

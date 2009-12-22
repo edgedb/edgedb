@@ -13,4 +13,4 @@ endif
 all:
 
 test:
-	@PYTHONPATH="$$PYTHONPATH:$(abspath $(root))" python3.1 /usr/bin/py.test $(tests) $(debug)
+	@PYTHONPATH="$$PYTHONPATH:$(abspath $(root))" python3.1 /usr/bin/py.test $(tests) $(debug) -x

@@ -26,3 +26,12 @@ def check(variable, type):
         return variable is None
 
     raise Exception('check_type: checking on unknown type: %s' % type)
+
+
+class ClassFactory(type):
+    def __new__(cls, name, bases, dct):
+        result = super(ClassFactory, cls).__new__(cls, str(name), bases, dct)
+        return result
+
+    def __init__(cls, name, bases, dct):
+        super(ClassFactory, cls).__init__(name, bases, dct)

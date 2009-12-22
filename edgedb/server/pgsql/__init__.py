@@ -235,7 +235,7 @@ class Backend(MetaBackend, DataBackend):
 
 
     def read_atoms(self, meta):
-        domains = DomainsList.fetch(schema_name='caos', connection=self.connection)
+        domains = DomainsList(self.connection).fetch(schema_name='caos')
         domains = {self.demangle_domain_name(d['name']): self.normalize_domain_descr(d) for d in domains}
         self.domains = set(domains.keys())
 
@@ -257,12 +257,12 @@ class Backend(MetaBackend, DataBackend):
 
 
     def read_concepts(self, meta):
-        tables = TableList.fetch(schema_name='caos', connection=self.connection)
+        tables = TableList(self.connection).fetch(schema_name='caos')
 
         for t in tables:
             name = self.demangle_concept_name(t['name'])
 
-            inheritance = TableInheritance.fetch(table_name=t['name'], connection=self.connection)
+            inheritance = TableInheritance(self.connection).fetch(table_name=t['name'])
             inheritance = [i[0] for i in inheritance[1:]]
 
             bases = tuple()
@@ -272,7 +272,7 @@ class Backend(MetaBackend, DataBackend):
 
             concept = Concept(name=name, base=bases)
 
-            columns = TableColumns.fetch(table_name=t['name'], connection=self.connection)
+            columns = TableColumns(self.connection).fetch(table_name=t['name'])
             for row in columns:
                 if row['column_name'] == 'entity_id':
                     continue
@@ -289,7 +289,7 @@ class Backend(MetaBackend, DataBackend):
             name = self.demangle_concept_name(t['name'])
             concept = meta.get(name)
 
-            for r in ConceptLinks.fetch(source_concept=name, connection=self.connection):
+            for r in ConceptLinks(self.connection).fetch(source_concept=name):
                 link = ConceptLinkType(meta.get(r['source_concept']), {meta.get(r['target_concept'])},
                                        r['link_type'], r['mapping'], r['required'])
                 concept.add_link(link)
@@ -308,7 +308,7 @@ class Backend(MetaBackend, DataBackend):
     def create_atom(self, obj, allow_existing):
         if allow_existing:
             if not self.domains:
-                domains = DomainsList.fetch(connection=self.connection, schema_name='caos')
+                domains = DomainsList(self.connection).fetch(schema_name='caos')
                 self.domains = {d['name'] for d in domains}
 
             if obj.name in self.domains:
@@ -413,7 +413,7 @@ class Backend(MetaBackend, DataBackend):
             # XXX: that's ugly
             targets = [c.concept for c in target.__class__.__mro__ if hasattr(c, 'concept')]
 
-            lt = ConceptLink.fetch(connection=self.connection,
+            lt = ConceptLink(self.connection).fetch(
                                    source_concepts=[source.concept], target_concepts=targets,
                                    link_type=link_type)
 
@@ -452,7 +452,7 @@ class Backend(MetaBackend, DataBackend):
             target_concepts = [this_concept]
             source_concepts = other_concepts
 
-        links = EntityLinks.fetch(connection=self.connection,
+        links = EntityLinks(self.connection).fetch(
                                   source_id=source_id, target_id=target_id,
                                   target_concepts=target_concepts, source_concepts=source_concepts,
                                   link_types=link_types)

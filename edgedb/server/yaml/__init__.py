@@ -7,25 +7,13 @@ from semantix import readers
 from semantix.caos import MetaError
 
 from semantix.caos.backends.meta import MetaBackend, RealmMeta, Atom, Concept, ConceptLinkType
-from semantix.caos.backends.yaml.schemas import Semantics as SemanticsSchema
-
-
-class MetaData(object):
-    def __init__(self, dct=None, validate=True):
-        if dct:
-            if validate:
-                self.dct = SemanticsSchema.check(dct)
-            else:
-                self.dct = dct
-        else:
-            self.dct = dict()
 
 
 class Backend(MetaBackend):
 
     def __init__(self, source_path):
         super().__init__()
-        self.metadata = SemanticsSchema.check(readers.read(source_path))
+        self.metadata = next(readers.read(source_path))[1]
 
     def getmeta(self):
         meta = RealmMeta()
