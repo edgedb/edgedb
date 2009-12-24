@@ -18,7 +18,7 @@ class Backend(MetaBackend):
     def getmeta(self):
         meta = RealmMeta()
 
-        data = self.metadata['semantic_network']
+        data = self.metadata
 
         self.read_atoms(data, meta)
 
