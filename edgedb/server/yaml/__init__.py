@@ -13,7 +13,7 @@ class Backend(MetaBackend):
 
     def __init__(self, source_path):
         super().__init__()
-        self.metadata = next(lang.load(source_path))[1]
+        self.metadata = next(lang.load(source_path))
 
     def getmeta(self):
         meta = RealmMeta()
