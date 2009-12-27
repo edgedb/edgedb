@@ -1,6 +1,7 @@
 import re
 import types
 import copy
+import importlib
 
 import postgresql.string
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
@@ -9,7 +10,8 @@ from semantix.caos import MetaError
 
 from semantix.caos.backends.meta import MetaBackend
 from semantix.caos.backends.data import DataBackend
-from semantix.caos.backends.meta import RealmMeta, Atom, Concept, ConceptLinkType
+from semantix.caos.backends.meta import RealmMeta, Atom, Concept, ConceptLink as ConceptLinkType
+from semantix.caos.backends import meta as metamod
 
 from semantix.caos.backends.pgsql.common import PathCacheTable, EntityTable
 from semantix.caos.backends.pgsql.common import ConceptTable, ConceptMapTable, EntityMapTable
@@ -64,7 +66,7 @@ class Backend(MetaBackend, DataBackend):
 
     check_constraint_re = re.compile(r"CHECK \s* \( (?P<expr>.*) \)$", re.X)
 
-    constraint_type_re = re.compile(r"^(?P<type>[\w-]+)_\d+$", re.X)
+    constraint_type_re = re.compile(r"^(?P<type>[.\w-]+)_\d+$", re.X)
 
     cast_re = re.compile(r"(::(?P<type>(?:(?P<quote>\"?)[\w-]+(?P=quote)\.)?(?P<quote1>\"?)[\w-]+(?P=quote1)))+$", re.X)
 
@@ -251,7 +253,7 @@ class Backend(MetaBackend, DataBackend):
             if domain_descr['constraints'] is not None:
                 for constraint_type in domain_descr['constraints']:
                     for constraint_expr in domain_descr['constraints'][constraint_type]:
-                        atom.add_mod(constraint_type, constraint_expr)
+                        atom.add_mod(constraint_type(constraint_expr))
 
             meta.add(atom)
 
@@ -279,6 +281,8 @@ class Backend(MetaBackend, DataBackend):
 
                 atom = self.atom_from_pg_type(row['column_type'], '__' + name + '__' + row['column_name'],
                                               row['column_default'], meta)
+
+                meta.add(atom)
                 atom = ConceptLinkType(source=concept, targets={atom}, link_type=row['column_name'],
                                        required=row['column_required'], mapping='11')
                 concept.add_link(atom)
@@ -296,7 +300,7 @@ class Backend(MetaBackend, DataBackend):
 
 
     def store(self, obj, phase=1, allow_existing=False):
-        is_atom = isinstance(obj, Atom)
+        is_atom = isinstance(obj, metamod.Atom)
 
         if is_atom:
             if phase == 1:
@@ -324,7 +328,15 @@ class Backend(MetaBackend, DataBackend):
 
         basetype = copy.copy(base)
 
-        if 'max-length' in obj.mods and base in self.typmod_types:
+        has_max_length = False
+
+        if base in self.typmod_types:
+            for mod, modvalue in obj.mods.items():
+                if issubclass(mod, metamod.AtomModMaxLength):
+                    has_max_length = modvalue
+                    break
+
+        if has_max_length:
             #
             # Convert basetype + max-length constraint into a postgres-native
             # type with typmod, e.g str[max-length: 20] --> varchar(20)
@@ -332,30 +344,38 @@ class Backend(MetaBackend, DataBackend):
             # Handle the case when min-length == max-length and yield a fixed-size
             # type correctly
             #
-            if ('min-length' in obj.mods
-                    and obj.mods['max-length'] == obj.mods['min-length']
-                    and base in self.fixed_length_types) :
+            has_min_length = False
+            if base in self.fixed_length_types:
+                for mod, modvalue in obj.mods.items():
+                    if issubclass(mod, metamod.AtomModMinLength):
+                        has_min_length = modvalue
+                        break
+
+            if (has_min_length and has_min_length.value == has_max_length.value):
                 base = self.fixed_length_types[base]
-            base += '(' + str(obj.mods['max-length']) + ')'
+            base += '(' + str(has_max_length.value) + ')'
+
         qry += base
 
         if obj.default is not None:
             qry += ' DEFAULT %s ' % postgresql.string.quote_literal(str(obj.default))
 
         for constr_type, constr in obj.mods.items():
-            if constr_type == 'regexp':
-                for re in constr:
-                    # XXX: FIXME: put proper backend data escaping here
+            classtr = '%s.%s' % (constr_type.__module__, constr_type.__name__)
+            if issubclass(constr_type, metamod.AtomModRegExp):
+                for re in constr.regexps:
                     expr = 'VALUE ~ %s' % postgresql.string.quote_literal(re)
-                    qry += self.get_constraint_expr(constr_type, expr)
-            elif constr_type == 'expr':
-                for expr in constr:
-                    qry += self.get_constraint_expr(constr_type, expr)
-            elif constr_type == 'max-length':
+                    qry += self.get_constraint_expr(classtr, expr)
+            elif issubclass(constr_type, metamod.AtomModExpr):
+                # XXX: TODO: Generic expression support requires sophisticated expression translation
+                continue
+                for expr in constr.exprs:
+                    qry += self.get_constraint_expr(classtr, expr)
+            elif issubclass(constr_type, metamod.AtomModMaxLength):
                 if basetype not in self.typmod_types:
-                    qry += self.get_constraint_expr(constr_type, 'length(VALUE::text) <= ' + str(constr))
-            elif constr_type == 'min-length':
-                qry += self.get_constraint_expr(constr_type, 'length(VALUE::text) >= ' + str(constr))
+                    qry += self.get_constraint_expr(classtr, 'length(VALUE::text) <= ' + str(constr.value))
+            elif issubclass(constr_type, metamod.AtomModMinLength):
+                qry += self.get_constraint_expr(classtr, 'length(VALUE::text) >= ' + str(constr.value))
 
         self.connection.execute(qry)
 
@@ -459,6 +479,15 @@ class Backend(MetaBackend, DataBackend):
 
         return links
 
+    def mod_class_to_str(self, constr_class):
+        if issubclass(constr_class, metamod.AtomModExpr):
+            return 'expr'
+        elif issubclass(constr_class, metamod.AtomModRegExp):
+            return 'regexp'
+        elif issubclass(constr_class, metamod.AtomModMinLength):
+            return 'min-length'
+        elif issubclass(constr_class, metamod.AtomModMaxLength):
+            return 'max-length'
 
     def normalize_domain_descr(self, d):
         if d['constraint_names'] is not None:
@@ -477,17 +506,24 @@ class Backend(MetaBackend, DataBackend):
                 else:
                     raise MetaError('could not parse domain constraint "%s": %s' % (constr_name, constr_expr))
 
-                if constr_type in self.constr_expr_res:
-                    m = self.constr_expr_res[constr_type].match(constr_expr)
+                constr_mod, dot, constr_class = constr_type.rpartition('.')
+
+                constr_mod = importlib.import_module(constr_mod)
+                constr_type = getattr(constr_mod, constr_class)
+
+                constr_type_str = self.mod_class_to_str(constr_type)
+
+                if constr_type_str in self.constr_expr_res:
+                    m = self.constr_expr_res[constr_type_str].match(constr_expr)
                     if m:
                         constr_expr = m.group('expr')
                     else:
                         raise MetaError('could not parse domain constraint "%s": %s' % (constr_name, constr_expr))
 
-                if constr_type in ('max-length', 'min-length'):
+                if issubclass(constr_type, (metamod.AtomModMinLength, metamod.AtomModMaxLength)):
                     constr_expr = int(constr_expr)
 
-                if constr_type == 'expr':
+                if issubclass(constr_type, metamod.AtomModExpr):
                     # That's a very hacky way to remove casts from expressions added by Postgres
                     constr_expr = constr_expr.replace('::text', '')
 
@@ -501,10 +537,10 @@ class Backend(MetaBackend, DataBackend):
         if d['basetype'] is not None:
             m = self.typlen_re.match(d['basetype_full'])
             if m:
-                if 'max-length' not in d['constraints']:
-                    d['constraints']['max-length'] = []
+                if metamod.AtomModMaxLength not in d['constraints']:
+                    d['constraints'][metamod.AtomModMaxLength] = []
 
-                d['constraints']['max-length'].append(int(m.group('length')))
+                d['constraints'][metamod.AtomModMaxLength].append(int(m.group('length')))
 
         if d['default'] is not None:
             # Strip casts from default expression
@@ -549,8 +585,8 @@ class Backend(MetaBackend, DataBackend):
 
     def pg_type_from_atom_class(self, atom_obj):
         if (atom_obj.base is not None and (atom_obj.base == str or (hasattr(atom_obj.base, 'name') and atom_obj.base.name == 'str'))
-                and len(atom_obj.mods) == 1 and 'max-length' in atom_obj.mods):
-            column_type = 'varchar(%d)' % atom_obj.mods['max-length']
+                and len(atom_obj.mods) == 1 and issubclass(next(iter(atom_obj.mods.keys())), metamod.AtomModMaxLength)):
+            column_type = 'varchar(%d)' % next(iter(atom_obj.mods.values())).value
         else:
             if atom_obj.name in self.base_type_name_map:
                 column_type = self.base_type_name_map[atom_obj.name]
@@ -561,8 +597,8 @@ class Backend(MetaBackend, DataBackend):
 
     def pg_type_from_atom(self, atom_obj):
         if (atom_obj.base is not None and atom_obj.base == 'str'
-                and len(atom_obj.mods) == 1 and 'max-length' in atom_obj.mods):
-            column_type = 'varchar(%d)' % atom_obj.mods['max-length']
+                and len(atom_obj.mods) == 1 and issubclass(next(iter(atom_obj.mods.keys())), metamod.AtomModMaxLength)):
+            column_type = 'varchar(%d)' % next(iter(atom_obj.mods.values())).value
         else:
             if atom_obj.name in self.base_type_name_map:
                 column_type = self.base_type_name_map[atom_obj.name]
@@ -592,7 +628,7 @@ class Backend(MetaBackend, DataBackend):
 
                 if typname in self.typmod_types and typmod is not None:
                     atom = Atom(name=atom_name, base=atom.name, default=atom_default, automatic=True)
-                    atom.add_mod('max-length', typmod)
+                    atom.add_mod(metamod.AtomModMaxLength(typmod))
                     meta.add(atom)
 
         return atom
@@ -600,4 +636,4 @@ class Backend(MetaBackend, DataBackend):
 
     def get_constraint_expr(self, type, expr):
         constr_name = '%s_%s' % (type, id(expr))
-        return ' CONSTRAINT "%s" CHECK ( %s )' % (constr_name, expr)
+        return ' CONSTRAINT %s CHECK ( %s )' % (postgresql.string.quote_ident(constr_name), expr)

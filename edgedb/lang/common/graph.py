@@ -76,7 +76,7 @@ def normalize(graph, merger=_default_merger, allow_loops=False, allow_unresolved
     merged = {}
 
     for item_name in sorted:
-        item = copy.deepcopy(graph[item_name])
+        item = graph[item_name]
 
         if "merge" in item:
             for merge in item["merge"]:

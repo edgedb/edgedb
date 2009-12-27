@@ -1,190 +1,198 @@
 import copy
 
-import semantix
+import importlib
+import collections
+import itertools
 
 from semantix.utils import merge, graph
 from semantix import lang
 from semantix.caos import MetaError
 
-from semantix.caos.backends.meta import MetaBackend, RealmMeta, Atom, Concept, ConceptLinkType
+from semantix.caos.backends import meta
+from semantix.caos.backends.meta import RealmMeta
 
 
-class Backend(MetaBackend):
+class AtomModExpr(meta.AtomModExpr, lang.meta.Object):
+    @classmethod
+    def construct(cls, data, context):
+        return cls(data['expr'], context=context)
 
-    def __init__(self, source_path):
-        super().__init__()
-        self.metadata = next(lang.load(source_path))
 
-    def getmeta(self):
-        meta = RealmMeta()
+class AtomModMinLength(meta.AtomModMinLength, lang.meta.Object):
+    @classmethod
+    def construct(cls, data, context):
+        return cls(data['min-length'], context=context)
 
-        data = self.metadata
 
-        self.read_atoms(data, meta)
+class AtomModMaxLength(meta.AtomModMaxLength, lang.meta.Object):
+    @classmethod
+    def construct(cls, data, context):
+        return cls(data['max-length'], context=context)
 
-        concepts = graph.normalize(self.read_concepts(data, meta), merger=self.merge_concepts)
 
-        link_types = self.read_link_types(concepts)
+class AtomModRegExp(meta.AtomModRegExp, lang.meta.Object):
+    @classmethod
+    def construct(cls, data, context):
+        return cls(data['regexp'], context=context)
 
-        for node in concepts:
 
-            concept = Concept(name=node['name'], base=node['extends'], backend=data['backend'])
-            meta.add(concept)
+class Atom(meta.Atom, lang.meta.Object):
+    @classmethod
+    def construct(cls, data, context):
+        atom = cls(name=None, backend=data.get('backend'), base=data['extends'], default=data['default'])
+        atom.context = context
+        mods = data.get('mods')
+        if mods:
+            for mod in mods:
+                atom.add_mod(mod)
+        return atom
 
-        for node in concepts:
-            concept = meta.get(node['name'])
+
+class Concept(meta.Concept, lang.meta.Object):
+    @classmethod
+    def construct(cls, data, context):
+        extends = data['extends']
+        if extends and not isinstance(extends, list):
+            extends = [extends]
+
+        concept = cls(name=None, backend=data.get('backend'), base=extends)
+        concept.context = context
+        for link in data['links']:
+            concept.add_link(link)
+        return concept
+
+
+class ConceptLink(meta.ConceptLink, lang.meta.Object):
+    @classmethod
+    def construct(cls, data, context):
+        name, info = next(iter(data.items()))
+        if isinstance(info, str):
+            return cls(source=None, targets={info}, link_type=name)
+        else:
+            targets = set(info.keys())
+            info = next(iter(info.values()))
+            result = cls(source=None, targets=targets, link_type=name, mapping=info['mapping'], required=info['required'])
+            result.mods = info.get('mods')
+            return result
+
+
+class OrderedDict(collections.OrderedDict, lang.meta.Object):
+    @classmethod
+    def construct(cls, data, context):
+        return cls(data)
+
+
+class MetaSet(lang.meta.Object):
+    def __init__(self, data, context):
+        self.context = context
+        self.metaindex = RealmMeta()
+
+        backend = data.get('backend')
+
+        for atom_name, atom in data['atoms'].items():
+            atom.name = atom_name
+            atom.backend = backend
+            self.metaindex.add(atom)
+
+        concepts = graph.normalize(self.read_concepts(data, self.metaindex), merger=self.merge_concepts)
+
+        for concept in concepts:
+            self.metaindex.add(concept)
+
+        for concept in concepts:
             links = {}
             link_target_types = {}
 
-            for (link_name, target), link in node["links"].items():
-                if (link_name, target) in links:
-                    raise MetaError('%s --%s--> %s link redefinition' % (node['name'], link_name, target))
+            for link_name, link in concept.links.items():
+                if not isinstance(link.source, meta.GraphObject):
+                    link.source = self.metaindex.get(link.source)
 
-                target_obj = meta.get(target)
+                targets = set()
 
-                if not target_obj:
-                    raise MetaError('reference to an undefined node "%s" in "%s"' %
-                                    (target, node['name'] + '/links/' + link_name))
+                for target in link.targets:
+                    if (link_name, target) in links:
+                        raise MetaError('%s --%s--> %s link redefinition' % (concept.name, link_name, target))
 
-                if isinstance(target_obj, Atom):
-                    if link_name in link_target_types and link_target_types[link_name] != 'atom':
-                        raise MetaError('%s link is already defined as a link to non-atom')
+                    if isinstance(target, meta.GraphObject):
+                        # Inherited link
+                        targets.add(target)
+                        continue
 
-                    if 'mods' in link and link['mods'] is not None:
-                        # Got an inline atom definition.
-                        # We must generate a unique name here
-                        atom_name = '__' + node['name'] + '__' + link_name
-                        atom = Atom(name=atom_name, base=target, default=link['default'], automatic=True, backend=data['backend'])
-                        self.add_atom_mods(atom, link['mods'])
-                        meta.add(atom)
+                    target_obj = self.metaindex.get(target)
+                    target_name = target_obj.name
 
-                        del link['mods']
-                        del link['default']
-                        link['target'] = atom_name
+                    targets.add(target_obj)
 
-                    if 'mapping' in link and link['mapping'] != '11':
-                        raise MetaError('%s: links to atoms can only have a "1 to 1" mapping' % link_name)
+                    if not target_obj:
+                        raise MetaError('reference to an undefined node "%s" in "%s"' %
+                                        (target, concept.name + '/links/' + link_name))
 
-                    link_target_types[link_name] = 'atom'
-                else:
-                    if link_name in link_target_types and link_target_types[link_name] == 'atom':
-                        raise MetaError('%s link is already defined as a link to atom')
+                    if isinstance(target_obj, meta.Atom):
+                        if link_name in link_target_types and link_target_types[link_name] != 'atom':
+                            raise MetaError('%s link is already defined as a link to non-atom')
 
-                    link_target_types[link_name] = 'concept'
+                        mods = getattr(link, 'mods', None)
+                        if mods:
+                            # Got an inline atom definition.
+                            # We must generate a unique name here
+                            atom_name = '__' + concept.name + '__' + link_name
+                            atom = Atom(name=atom_name, base=target_name,
+                                        default=getattr(link, 'default', None), automatic=True,
+                                        backend=concept.backend)
+                            for mod in link.mods:
+                                atom.add_mod(mod)
+                            self.metaindex.add(atom)
 
-                link_obj = ConceptLinkType(
-                                            source=meta.get(node['name']),
-                                            targets={meta.get(link['target'])},
-                                            link_type=link_name,
-                                            required=link['required'],
-                                            mapping=link['mapping'])
-                concept.add_link(link_obj)
+                            targets = {atom}
 
+                        if link.mapping != '11':
+                            raise MetaError('%s: links to atoms can only have a "1 to 1" mapping' % link_name)
 
-            """ XXX: is this needed?
-            if node['extends'] is not None:
-                for parent in node["extends"]:
-                    self._concepts[parent]["children"].add(node["name"])
-            """
+                        link_target_types[link_name] = 'atom'
+                    else:
+                        if link_name in link_target_types and link_target_types[link_name] == 'atom':
+                            raise MetaError('%s link is already defined as a link to atom')
 
-        return meta
-
-    def add_atom_mods(self, atom, mods):
-        for mod in mods:
-            mod_type, mod = list(mod.items())[0]
-            if isinstance(mod, str):
-                mod = mod.strip()
-            atom.add_mod(mod_type, mod)
-
-    def read_atoms(self, data, meta):
-        if 'atoms' in data and data['atoms'] is not None:
-            for atom_name, atom_desc in data['atoms'].items():
-                atom = Atom(name=atom_name, base=atom_desc['extends'], default=atom_desc['default'], backend=data['backend'])
-
-                if atom_desc['mods'] is not None:
-                    self.add_atom_mods(atom, atom_desc['mods'])
-
-                meta.add(atom)
+                        link_target_types[link_name] = 'concept'
+                link.targets = targets
 
     def read_concepts(self, data, meta):
-        if 'concepts' in data and data['concepts'] is not None:
-            concepts = copy.deepcopy(data['concepts'])
-        else:
-            concepts = {}
-
         concept_graph = {}
 
-        for concept_name, concept in concepts.items():
-            if meta.get(concept_name):
-                raise MetaError('%s already defined' % concept_name)
+        for concept_name, concept in data['concepts'].items():
+            concept.name = concept_name
+            concept.backend = data.get('backend')
 
-            if concept is None:
-                concept = {}
+            for link in concept.links.values():
+                link.source = concept.name
 
-            concept["name"] = concept_name
+            if meta.get(concept.name):
+                raise MetaError('%s already defined' % concept.name)
 
-            concept_graph[concept_name] = {"item": concept, "merge": [], "deps": []}
-
-            if concept['extends'] is not None:
-                if not isinstance(concept["extends"], list):
-                    concept["extends"] = list((concept["extends"],))
-                else:
-                    concept["extends"] = list(concept["extends"])
-                concept_graph[concept_name]["merge"].extend(concept['extends'])
-            else:
-                concept["extends"] = []
-
-            concept["children"] = set()
-
-            links = {}
-
-            for llink in concept["links"]:
-                (link_name, link) = list(llink.items())[0]
-
-                if isinstance(link, str):
-                    target = link
-                    properties = {
-                                  'default': None,
-                                  'required': False,
-                                  'mods': None,
-                                  'extends': None,
-                                  'mapping': '11'
-                                  }
-                else:
-                    (target, properties) = list(link.items())[0]
-
-                properties['target'] = target
-                links[(link_name, target)] = properties
-
-            concept['links'] = links
+            concept_graph[concept.name] = {"item": concept, "merge": [], "deps": []}
+            if concept.base:
+                concept_graph[concept.name]["merge"].extend(concept.base)
 
         return concept_graph
 
-    def read_link_types(self, concept_graph):
-        link_types = []
-        for node in concept_graph:
-            if node['links'] is not None:
-                for (link_name, target) in node["links"]:
-                    link_types.append(link_name)
-
-        return link_types
-
     @staticmethod
     def merge_concepts(left, right):
-        result = merge.merge_dicts(left, right)
+        right.merge(left)
+        return right
 
-        if result["heuristics"] is not None:
-            if result["heuristics"]["comparison"] is not None:
-                attrs = []
-                heuristics = []
-                for rule in reversed(result["heuristics"]["comparison"]):
-                    if "attribute" not in rule or rule["attribute"] not in attrs:
-                        heuristics.append(rule)
-                        if "attribute" in rule:
-                            attrs.append(rule["attribute"])
+    @classmethod
+    def construct(cls, data, context):
+        return cls(data, context)
 
-                result["heuristics"]["comparison"] = heuristics
+    def items(self):
+        return itertools.chain([('_index_', self.metaindex)], self.metaindex.index_by_name.items())
 
-        result["extends"] = copy.deepcopy(right["extends"])
 
-        return result
+class Backend(meta.MetaBackend):
+
+    def __init__(self, source_path):
+        super().__init__()
+        self.metadata = importlib.import_module(source_path)
+
+    def getmeta(self):
+        return self.metadata._index_

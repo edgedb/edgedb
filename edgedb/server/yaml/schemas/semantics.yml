@@ -2,6 +2,7 @@
 %NAME Semantics
 ---
 type: map
+object: semantix.caos.backends.yaml.MetaSet
 mapping:
     "backend":
         type: str
@@ -9,10 +10,12 @@ mapping:
         default: "data"
     "concepts":
         type: map
+        object: semantix.caos.backends.yaml.OrderedDict
         required: yes
         mapping:
             =:
                 type: map
+                object: semantix.caos.backends.yaml.Concept
                 mapping:
                     "extends":
                         type: any
@@ -23,6 +26,7 @@ mapping:
                         default: []
                         sequence:
                             - type: map
+                              object: semantix.caos.backends.yaml.ConceptLink
                               max-length: 1
                               min-length: 1
                               mapping:
@@ -49,24 +53,28 @@ mapping:
                                                   required: yes
                                                   default: "11"
 
-                                              "mods":
+                                              "mods": &ATOM_MODS
                                                   type: seq
                                                   sequence:
                                                       - type: choice
                                                         choice:
                                                             - type: map
+                                                              object: semantix.caos.backends.yaml.AtomModMaxLength
                                                               mapping:
                                                                 "max-length":
                                                                     type: int
                                                             - type: map
+                                                              object: semantix.caos.backends.yaml.AtomModMinLength
                                                               mapping:
                                                                 "min-length":
                                                                     type: int
                                                             - type: map
+                                                              object: semantix.caos.backends.yaml.AtomModRegExp
                                                               mapping:
                                                                 "regexp":
                                                                     type: str
                                                             - type: map
+                                                              object: semantix.caos.backends.yaml.AtomModExpr
                                                               mapping:
                                                                 "expr":
                                                                     type: str
@@ -99,9 +107,11 @@ mapping:
 
     "atoms":
         type: map
+        object: semantix.caos.backends.yaml.OrderedDict
         mapping:
             =: # name of an atom
                 type: map
+                object: semantix.caos.backends.yaml.Atom
                 required: yes
                 mapping:
                     "extends":
@@ -112,28 +122,4 @@ mapping:
                         type: any
                         default: None
 
-                    "mods":
-                        type: seq
-                        sequence:
-                            -
-                                type: choice
-                                choice:
-                                    - type: map
-                                      mapping:
-                                        "expr":
-                                            type: str
-
-                                    - type: map
-                                      mapping:
-                                        "min-length":
-                                            type: int
-
-                                    - type: map
-                                      mapping:
-                                        "max-length":
-                                            type: int
-
-                                    - type: map
-                                      mapping:
-                                        "regexp":
-                                            type: str
+                    "mods": *ATOM_MODS
