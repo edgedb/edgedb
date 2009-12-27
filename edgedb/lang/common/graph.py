@@ -1,6 +1,3 @@
-import copy
-from semantix.utils.merge import merge_dicts
-
 class UnresolvedReferenceError(Exception):
     pass
 
@@ -34,10 +31,7 @@ def dfs(adj, radj, root, allow_loops=False):
 
     return list
 
-def _default_merger(left, right):
-    return merge_dicts(left, right)
-
-def normalize(graph, merger=_default_merger, allow_loops=False, allow_unresolved=False):
+def normalize(graph, merger, allow_loops=False, allow_unresolved=False):
     # TODO: Use tarjan algorithm here to properly determine cycles
 
     # Adjacency matrix

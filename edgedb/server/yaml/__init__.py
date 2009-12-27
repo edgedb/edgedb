@@ -4,7 +4,7 @@ import importlib
 import collections
 import itertools
 
-from semantix.utils import merge, graph
+from semantix.utils import graph
 from semantix import lang
 from semantix.caos import MetaError
 
