@@ -1,4 +1,5 @@
 import copy
+from semantix.caos.name import Name as CaosName
 from semantix.caos.caosql import ast
 from semantix.caos.caosql.parser import nodes as qlast
 from semantix.caos.caosql import CaosQLError
@@ -9,6 +10,7 @@ class ParseContextLevel(object):
         if prevlevel is not None:
             self.vars = copy.deepcopy(prevlevel.vars)
             self.paths = copy.deepcopy(prevlevel.paths)
+            self.namespaces = copy.deepcopy(prevlevel.namespaces)
             self.prefixes = copy.deepcopy(prevlevel.prefixes)
             self.aliascnt = copy.deepcopy(prevlevel.aliascnt)
             self.location = None
@@ -17,6 +19,7 @@ class ParseContextLevel(object):
             self.prefixes = {}
             self.aliascnt = {}
             self.paths = []
+            self.namespaces = {}
             self.location = None
 
     def genalias(self, alias=None, hint=None):
@@ -29,7 +32,7 @@ class ParseContextLevel(object):
             else:
                 self.aliascnt[hint] += 1
 
-            return '_' + hint + str(self.aliascnt[hint])
+            return '_' + str(hint) + str(self.aliascnt[hint])
         elif alias in self.vars:
             raise CaosQLError('Path var redefinition: %s is already used' %  alias)
         else:
@@ -79,6 +82,10 @@ class CaosqlTreeTransformer(object):
 
     def _transform_select(self, context, tree):
         context.current.graph = ast.GraphExpr()
+
+        if tree.namespaces:
+            for ns in tree.namespaces:
+                context.current.namespaces[ns.alias] = ns.namespace
 
         context.current.graph.generator = self._process_select_where(context, tree.where)
         context.current.graph.selector = self._process_select_targets(context, tree.targets)
@@ -247,8 +254,18 @@ class CaosqlTreeTransformer(object):
 
                 var = node.var
                 node = self._get_path_tip(node)
-                step.concept = self._normalize_concept(node.expr)
-                step.id = step.name = context.current.genalias(alias=var.name, hint=step.concept)
+
+                if i == pathlen - 1 and self._is_attr_ref(context, curstep, node.expr):
+                    step.atom = node.expr
+                    hint = str(curstep.concept) + '.' + node.expr
+                else:
+                    step.concept = self._normalize_concept(context, node.expr, node.namespace)
+                    if step.concept:
+                        hint = step.concept.name
+                    else:
+                        hint = None
+
+                step.id = step.name = context.current.genalias(alias=var.name, hint=hint)
 
                 vars[step.name] = step
 
@@ -260,12 +277,20 @@ class CaosqlTreeTransformer(object):
                     curstep = refnode
                     continue
                 else:
-                    step.concept = self._normalize_concept(node.expr)
+                    if i == pathlen - 1 and self._is_attr_ref(context, curstep, node.expr):
+                        step.atom = node.expr
+                        hint = str(curstep.concept) + '.' + node.expr
+                    else:
+                        step.concept = self._normalize_concept(context, node.expr, node.namespace)
+                        if step.concept:
+                            hint = step.concept.name
+                        else:
+                            hint = None
 
                     if not step.id:
-                        step.id = step.concept if step.concept is not None else '_entity'
+                        step.id = str(step.concept.name) if step.concept is not None else '_entity'
 
-                    step.name = context.current.genalias(hint=step.concept)
+                    step.name = context.current.genalias(hint=hint)
 
                     if node.link_expr:
                         step.link = self._parse_link_expr(node.link_expr.expr)
@@ -273,11 +298,9 @@ class CaosqlTreeTransformer(object):
             if curstep is not None:
                 step.id = curstep.id + ':' + step.id
 
-                if i == pathlen - 1:
-                    aref = self._is_attr_ref(context, curstep, step)
-                    if aref:
-                        result = aref
-                        break
+                if step.atom:
+                    result = self._get_attr_ref(context, curstep, step)
+                    break
 
             if step.id in prefixes:
                 curstep = prefixes[step.id]
@@ -306,10 +329,12 @@ class CaosqlTreeTransformer(object):
 
         return result
 
-    def _normalize_concept(self, concept):
+    def _normalize_concept(self, context, concept, namespace):
         if concept == '%':
             return None
         else:
+            concept = self.realm.meta.get(name=concept,
+                                          module_aliases=context.current.namespaces)
             return concept
 
     def _parse_link_expr(self, expr):
@@ -341,22 +366,18 @@ class CaosqlTreeTransformer(object):
         context.current.location = None
         return selector
 
-    def _is_attr_ref(self, context, source, step):
-        result = None
+    def _is_attr_ref(self, context, source, expr):
+        atoms = ['id']
+        if source.concept:
+            atoms += [n for n, v in source.concept.links.items() if v.atomic()]
 
-        concept = source.concept
+        return expr in atoms
 
-        if concept is None:
-            atoms = ['id']
-        else:
-            cls = self.cls(concept)
-            atoms = [n for n, v in cls.links.items() if v.atomic()]
+    def _get_attr_ref(self, context, source, step):
+        result = ast.AtomicRef(refs={source}, name=step.atom)
 
-        if step.concept in atoms or step.concept == 'id':
-            result = ast.AtomicRef(refs={source}, name=step.concept)
-
-            if context.current.location == 'selector':
-                source.selrefs.append(result)
+        if context.current.location == 'selector':
+            source.selrefs.append(result)
 
         return result
 

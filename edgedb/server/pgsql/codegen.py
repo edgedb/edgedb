@@ -1,4 +1,6 @@
+import postgresql.string
 from semantix.ast import codegen
+
 
 class SQLSourceGeneratorError(Exception): pass
 
@@ -67,20 +69,20 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
         if node.alias:
-            self.write(' AS ' + node.alias)
+            self.write(' AS ' + postgresql.string.quote_ident(node.alias))
 
     def visit_SelectExprNode(self, node):
         self.visit(node.expr)
         if node.alias:
-            self.write(' AS ' + node.alias)
+            self.write(' AS ' + postgresql.string.quote_ident(node.alias))
 
     def visit_FieldRefNode(self, node):
-        self.write(node.table.alias + '.' + node.field)
+        self.write(postgresql.string.qname(node.table.alias, node.field))
 
     def visit_FromExprNode(self, node):
         self.visit(node.expr)
         if node.alias:
-            self.write(' AS ' + node.alias)
+            self.write(' AS ' + postgresql.string.quote_ident(node.alias))
 
     def visit_JoinNode(self, node):
         self.visit(node.left)
@@ -91,9 +93,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.condition)
 
     def visit_TableNode(self, node):
-        self.write('caos.' + node.name)
+        self.write(postgresql.string.qname(node.schema, node.name))
         if node.alias:
-            self.write(' AS ' + node.alias)
+            self.write(' AS ' + postgresql.string.quote_ident(node.alias))
 
     def visit_BinOpNode(self, node):
         self.write('(')
@@ -106,8 +108,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.expr)
 
     def visit_ConstantNode(self, node):
-        # XXX: FIXME: put proper backend data escaping here
-        self.write("'" + str(node.value) + "'")
+        self.write(postgresql.string.quote_literal(str(node.value)))
 
     def visit_SequenceNode(self, node):
         self.write('(')

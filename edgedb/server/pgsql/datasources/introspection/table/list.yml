@@ -21,7 +21,7 @@ source: |
                 --
                 -- Limit the schema scope
                 --
-                ns.nspname = %(schema_name)s
+                ns.nspname LIKE %(schema_name)s
                 --
                 -- We're only interested in real tables
                 --

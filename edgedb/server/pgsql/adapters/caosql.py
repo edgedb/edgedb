@@ -1,10 +1,10 @@
-from copy import copy, deepcopy
+import copy
 from semantix.caos.query import CaosQLError
 from semantix.caos.caosql import ast as caosast
 from semantix.caos.backends.pgsql import ast as sqlast
 from semantix.caos.backends.pgsql import codegen as sqlgen
 from semantix.ast.visitor import NodeVisitor
-from semantix.utils.debug import debug, highlight
+from semantix.utils.debug import debug
 
 class Query(object):
     def __init__(self, text, vars=None, context=None):
@@ -187,8 +187,9 @@ class CaosQLQueryAdapter(NodeVisitor):
                 else:
                     if not datatable:
                         query = context.current.query
-                        table_name = expr.ref().concept + '_data'
+                        table_name, table_schema = self._caos_name_to_pg_table(expr.ref().concept.name)
                         datatable = sqlast.TableNode(name=table_name,
+                                                     schema=table_schema,
                                                      concept=expr.ref().concept,
                                                      alias=context.current.genalias(hint=table_name))
                         query.fromlist.append(datatable)
@@ -268,17 +269,16 @@ class CaosQLQueryAdapter(NodeVisitor):
 
         fromnode = sqlast.FromExprNode()
 
-        source = None
-        concept_table = None
-
         if step.concept is None:
             table_name = 'entity'
+            table_schema_name = 'caos'
             field_name = 'id'
         else:
-            table_name = step.concept + '_data'
+            table_name, table_schema_name = self._caos_name_to_pg_table(step.concept.name)
             field_name = 'entity_id'
 
         concept_table = sqlast.TableNode(name=table_name,
+                                         schema=table_schema_name,
                                          concept=step.concept,
                                          alias=context.current.genalias(hint=table_name))
         bond = sqlast.FieldRefNode(table=concept_table, field=field_name)
@@ -290,7 +290,7 @@ class CaosQLQueryAdapter(NodeVisitor):
             #
             # Append the step to the join chain taking link filter into account
             #
-            map = sqlast.TableNode(name='entity_map', concept=step.concept,
+            map = sqlast.TableNode(name='entity_map', schema='caos', concept=step.concept,
                                    alias=context.current.genalias(hint='map'))
 
             if link.filter:
@@ -309,7 +309,7 @@ class CaosQLQueryAdapter(NodeVisitor):
             if link.filter and link.filter.labels:
                 expr = self._select_link_types(context, map, link.filter.labels)
                 if step_cte.where is not None:
-                    step_cte.where = sqlast.BinOpNode(op='and', left=where, right=expr)
+                    step_cte.where = sqlast.BinOpNode(op='and', left=step_cte.where, right=expr)
                 else:
                     step_cte.where = expr
 
@@ -347,9 +347,7 @@ class CaosQLQueryAdapter(NodeVisitor):
             def filter_atomic_refs(node):
                 return isinstance(node, caosast.AtomicRef) # and node.refs[0] == step
 
-            for f in step.filters:
-                filter = deepcopy(f)
-
+            for filter in step.filters:
                 # Fixup atomic refs sources
                 atrefs = self.find_children(filter, filter_atomic_refs)
 
@@ -372,12 +370,16 @@ class CaosQLQueryAdapter(NodeVisitor):
 
         return step_cte
 
+    def _caos_name_to_pg_table(self, name):
+        # XXX: TODO: centralize this with pgsql backend
+        return name.name + '_data', 'caos_' + name.module
+
     def _select_link_types(self, context, map, labels):
         select = sqlast.SelectQueryNode()
 
-        entity_1 = sqlast.TableNode(name='entity', alias=context.current.genalias(hint='entity'))
-        entity_2 = sqlast.TableNode(name='entity', alias=context.current.genalias(hint='entity'))
-        concept_map = sqlast.TableNode(name='concept_map', alias=context.current.genalias(hint='concept_map'))
+        entity_1 = sqlast.TableNode(name='entity', schema='caos', alias=context.current.genalias(hint='entity'))
+        entity_2 = sqlast.TableNode(name='entity', schema='caos', alias=context.current.genalias(hint='entity'))
+        concept_map = sqlast.TableNode(name='concept_map', schema='caos', alias=context.current.genalias(hint='concept_map'))
 
         select.fromlist = [entity_1, entity_2, concept_map]
 

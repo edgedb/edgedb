@@ -7,6 +7,7 @@ import postgresql.string
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
 from semantix.caos import MetaError
+from semantix.caos.name import Name as CaosName
 
 from semantix.caos.backends.meta import MetaBackend
 from semantix.caos.backends.data import DataBackend
@@ -16,6 +17,7 @@ from semantix.caos.backends import meta as metamod
 from semantix.caos.backends.pgsql.common import PathCacheTable, EntityTable
 from semantix.caos.backends.pgsql.common import ConceptTable, ConceptMapTable, EntityMapTable
 
+from .datasources.introspection import SchemasList
 from .datasources.introspection.domains import DomainsList
 from .datasources.introspection.table import TableColumns, TableInheritance, TableList
 from .datasources.meta.concept import ConceptLinks
@@ -86,20 +88,20 @@ class Backend(MetaBackend, DataBackend):
                     }
 
     base_type_name_map = {
-                                'str': 'character varying',
-                                'int': 'numeric',
-                                'bool': 'boolean',
-                                'float': 'double precision'
+                                CaosName('builtin:str'): 'character varying',
+                                CaosName('builtin:int'): 'numeric',
+                                CaosName('builtin:bool'): 'boolean',
+                                CaosName('builtin:float'): 'double precision'
                          }
 
     base_type_name_map_r = {
-                                'character varying': 'str',
-                                'character': 'str',
-                                'text': 'str',
-                                'integer': 'int',
-                                'boolean': 'bool',
-                                'numeric': 'int',
-                                'double precision': 'float'
+                                'character varying': CaosName('builtin:str'),
+                                'character': CaosName('builtin:str'),
+                                'text': CaosName('builtin:str'),
+                                'integer': CaosName('builtin:int'),
+                                'boolean': CaosName('builtin:bool'),
+                                'numeric': CaosName('builtin:int'),
+                                'double precision': CaosName('builtin:float')
                            }
 
 
@@ -111,6 +113,13 @@ class Backend(MetaBackend, DataBackend):
         super().__init__()
 
         self.connection = connection
+
+        self.domains = set()
+        schemas = SchemasList(self.connection).fetch(schema_name='caos%')
+        self.modules = {self.pg_schema_name_to_module_name(s['name']) for s in schemas}
+
+        if 'caos' not in self.modules:
+            self.create_primary_schema()
 
         self.concept_table = ConceptTable(self.connection)
         self.concept_table.create()
@@ -125,8 +134,6 @@ class Backend(MetaBackend, DataBackend):
         self.path_cache_table = PathCacheTable(self.connection)
         self.path_cache_table.create()
 
-        self.domains = set()
-
 
     def getmeta(self):
         meta = RealmMeta()
@@ -138,11 +145,12 @@ class Backend(MetaBackend, DataBackend):
 
 
     def synchronize(self, meta):
-        for obj in meta:
-            self.store(obj, 1)
+        with self.connection.xact():
+            for obj in meta:
+                self.store(obj, 1)
 
-        for obj in meta:
-            self.store(obj, 2)
+            for obj in meta:
+                self.store(obj, 2)
 
 
     def get_concept_from_entity(self, id):
@@ -159,7 +167,7 @@ class Backend(MetaBackend, DataBackend):
 
 
     def load_entity(self, concept, id):
-        query = 'SELECT * FROM %s WHERE entity_id = %d' % (self.mangle_concept_name(concept), id)
+        query = 'SELECT * FROM %s WHERE entity_id = %d' % (self.concept_name_to_pg_table_name(concept), id)
         ps = self.connection.prepare(query)
         result = ps.first()
 
@@ -182,13 +190,13 @@ class Backend(MetaBackend, DataBackend):
             attrs['entity_id'] = id
 
             if id is not None:
-                query = 'UPDATE %s SET ' % self.mangle_concept_name(concept)
+                query = 'UPDATE %s SET ' % self.concept_name_to_pg_table_name(concept)
                 query += ','.join(['%s = %%(%s)s::%s' % (a, a, self.pg_type_from_atom_class(clinks[a].targets[0]) if a in clinks else 'int') for a, v in attrs.items()])
                 query += ' WHERE entity_id = %d RETURNING entity_id' % id
             else:
-                id = self.entity_table.insert({'concept': concept})[0][0]
+                id = self.entity_table.insert({'concept': str(concept)})[0][0]
 
-                query = 'INSERT INTO %s' % self.mangle_concept_name(concept)
+                query = 'INSERT INTO %s' % self.concept_name_to_pg_table_name(concept)
                 query += '(' + ','.join(['"%s"' % a for a in attrs]) + ')'
                 query += 'VALUES(' + ','.join(['%%(%s)s::%s' % (a, ('text::' + self.pg_type_from_atom_class(clinks[a].targets[0])) if a in clinks else 'int') for a, v in attrs.items()]) + ') RETURNING entity_id'
 
@@ -237,8 +245,10 @@ class Backend(MetaBackend, DataBackend):
 
 
     def read_atoms(self, meta):
-        domains = DomainsList(self.connection).fetch(schema_name='caos')
-        domains = {self.demangle_domain_name(d['name']): self.normalize_domain_descr(d) for d in domains}
+        domains = DomainsList(self.connection).fetch(schema_name='caos%')
+        domains = {CaosName(name=self.pg_domain_name_to_atom_name(d['name']),
+                            module=self.pg_schema_name_to_module_name(d['schema'])):
+                   self.normalize_domain_descr(d) for d in domains}
         self.domains = set(domains.keys())
 
         for name, domain_descr in domains.items():
@@ -246,7 +256,8 @@ class Backend(MetaBackend, DataBackend):
             if domain_descr['basetype'] in self.base_type_name_map_r:
                 bases = self.base_type_name_map_r[domain_descr['basetype']]
             else:
-                bases = self.demangle_domain_name(domain_descr['basetype'])
+                bases = CaosName(name=self.pg_domain_name_to_atom_name(domain_descr['basetype']),
+                                 module=self.pg_schema_name_to_module_name(domain_descr['basetype_schema']))
 
             atom = Atom(name=name, base=bases, default=domain_descr['default'])
 
@@ -259,28 +270,31 @@ class Backend(MetaBackend, DataBackend):
 
 
     def read_concepts(self, meta):
-        tables = TableList(self.connection).fetch(schema_name='caos')
+        tables = TableList(self.connection).fetch(schema_name='caos%')
 
         for t in tables:
-            name = self.demangle_concept_name(t['name'])
+            name = self.pg_table_name_to_concept_name(t['name'])
+            module = self.pg_schema_name_to_module_name(t['schema'])
 
-            inheritance = TableInheritance(self.connection).fetch(table_name=t['name'])
-            inheritance = [i[0] for i in inheritance[1:]]
+            inheritance = TableInheritance(self.connection).fetch(table_name=t['name'], schema_name=t['schema'])
+            inheritance = [i[:2] for i in inheritance[1:]]
 
             bases = tuple()
             if len(inheritance) > 0:
                 for table in inheritance:
-                    bases += (self.demangle_concept_name(table),)
+                    base_name = self.pg_table_name_to_concept_name(table[0])
+                    base_module = self.pg_schema_name_to_module_name(table[1])
+                    bases += (CaosName(name=base_name, module=base_module),)
 
-            concept = Concept(name=name, base=bases)
+            concept = Concept(name=CaosName(name=name, module=module), base=bases)
 
-            columns = TableColumns(self.connection).fetch(table_name=t['name'])
+            columns = TableColumns(self.connection).fetch(table_name=t['name'], schema_name=t['schema'])
             for row in columns:
                 if row['column_name'] == 'entity_id':
                     continue
 
                 atom = self.atom_from_pg_type(row['column_type'], '__' + name + '__' + row['column_name'],
-                                              row['column_default'], meta)
+                                              t['schema'], row['column_default'], meta)
 
                 meta.add(atom)
                 atom = ConceptLinkType(source=concept, targets={atom}, link_type=row['column_name'],
@@ -290,23 +304,41 @@ class Backend(MetaBackend, DataBackend):
             meta.add(concept)
 
         for t in tables:
-            name = self.demangle_concept_name(t['name'])
+            name = self.pg_table_name_to_concept_name(t['name'])
+            module = self.pg_schema_name_to_module_name(t['schema'])
+            name = CaosName(name=name, module=module)
             concept = meta.get(name)
 
-            for r in ConceptLinks(self.connection).fetch(source_concept=name):
+            for r in ConceptLinks(self.connection).fetch(source_concept=str(name)):
                 link = ConceptLinkType(meta.get(r['source_concept']), {meta.get(r['target_concept'])},
                                        r['link_type'], r['mapping'], r['required'])
                 concept.add_link(link)
 
 
     def store(self, obj, phase=1, allow_existing=False):
-        is_atom = isinstance(obj, metamod.Atom)
+        with self.connection.xact():
+            if obj.name.module not in self.modules:
+                self.create_module(obj.name.module)
 
-        if is_atom:
-            if phase == 1:
-                self.create_atom(obj, allow_existing)
-        else:
-            self.create_concept(obj, phase, allow_existing)
+            is_atom = isinstance(obj, metamod.Atom)
+
+            if is_atom:
+                if phase == 1:
+                    self.create_atom(obj, allow_existing)
+            else:
+                self.create_concept(obj, phase, allow_existing)
+
+
+    def create_primary_schema(self):
+        qry = 'CREATE SCHEMA %s' % postgresql.string.quote_ident('caos')
+        self.connection.execute(qry)
+        self.modules.add('caos')
+
+
+    def create_module(self, module_name):
+        qry = 'CREATE SCHEMA %s' % self.module_name_to_pg_schema_name(module_name)
+        self.connection.execute(qry)
+        self.modules.add(module_name)
 
 
     def create_atom(self, obj, allow_existing):
@@ -318,13 +350,13 @@ class Backend(MetaBackend, DataBackend):
             if obj.name in self.domains:
                 return
 
-        qry = 'CREATE DOMAIN %s AS ' % self.mangle_domain_name(obj.name)
+        qry = 'CREATE DOMAIN %s AS ' % self.atom_name_to_pg_domain_name(obj.name)
         base = obj.base
 
         if base in self.base_type_name_map:
             base = self.base_type_name_map[base]
         else:
-            base = self.mangle_domain_name(base)
+            base = self.atom_name_to_pg_domain_name(base)
 
         basetype = copy.copy(base)
 
@@ -384,9 +416,9 @@ class Backend(MetaBackend, DataBackend):
 
     def create_concept(self, obj, phase, allow_exsiting):
         if phase is None or phase == 1:
-            self.concept_table.insert(name=obj.name)
+            self.concept_table.insert(name=str(obj.name))
 
-            qry = 'CREATE TABLE %s' % self.mangle_concept_name(obj.name)
+            qry = 'CREATE TABLE %s' % self.concept_name_to_pg_table_name(obj.name)
 
             columns = ['entity_id integer NOT NULL REFERENCES caos.entity(id) ON DELETE CASCADE']
 
@@ -400,8 +432,8 @@ class Backend(MetaBackend, DataBackend):
 
             qry += '(' +  ','.join(columns) + ')'
 
-            if len(obj.base) > 0:
-                qry += ' INHERITS (' + ','.join([self.mangle_concept_name(p) for p in obj.base]) + ')'
+            if obj.base:
+                qry += ' INHERITS (' + ','.join([self.concept_name_to_pg_table_name(p) for p in obj.base]) + ')'
 
             self.connection.execute(qry)
 
@@ -409,7 +441,7 @@ class Backend(MetaBackend, DataBackend):
             for link in obj.links.values():
                 if not link.atomic():
                     for target in link.targets:
-                        self.concept_map_table.insert(source=link.source.name, target=target.name,
+                        self.concept_map_table.insert(source=str(link.source.name), target=str(target.name),
                                                       link_type=link.link_type, mapping=link.mapping,
                                                       required=link.required)
 
@@ -431,10 +463,10 @@ class Backend(MetaBackend, DataBackend):
             """
 
             # XXX: that's ugly
-            targets = [c.concept for c in target.__class__.__mro__ if hasattr(c, 'concept')]
+            targets = [str(c.concept) for c in target.__class__.__mro__ if hasattr(c, 'concept')]
 
             lt = ConceptLink(self.connection).fetch(
-                                   source_concepts=[source.concept], target_concepts=targets,
+                                   source_concepts=[str(source.concept)], target_concepts=targets,
                                    link_type=link_type)
 
             rows.append('(%s::int, %s::int, %s::int, %s::int)')
@@ -559,44 +591,52 @@ class Backend(MetaBackend, DataBackend):
             return ps.rows()
 
 
-    def demangle_concept_name(self, name):
+    def module_name_to_pg_schema_name(self, module_name):
+        return postgresql.string.quote_ident('caos_' + module_name)
+
+
+    def pg_schema_name_to_module_name(self, schema_name):
+        if schema_name.startswith('caos_'):
+            return schema_name[5:]
+        else:
+            return schema_name
+
+
+    def concept_name_to_pg_table_name(self, name):
+        return postgresql.string.qname('caos_' + name.module, name.name + '_data')
+
+
+    def pg_table_name_to_concept_name(self, name):
         if name.endswith('_data'):
             name = name[:-5]
-
         return name
 
 
-    def mangle_concept_name(self, name):
-        return postgresql.string.qname('caos', name + '_data')
+    def atom_name_to_pg_domain_name(self, name):
+        return postgresql.string.qname('caos_' + name.module, name.name + '_domain')
 
 
-    def mangle_domain_name(self, name):
-        return postgresql.string.qname('caos', name + '_domain')
-
-
-    def demangle_domain_name(self, name):
+    def pg_domain_name_to_atom_name(self, name):
         name = name.split('.')[-1]
-
         if name.endswith('_domain'):
             name = name[:-7]
-
         return name
 
 
     def pg_type_from_atom_class(self, atom_obj):
-        if (atom_obj.base is not None and (atom_obj.base == str or (hasattr(atom_obj.base, 'name') and atom_obj.base.name == 'str'))
+        if (atom_obj.base is not None and (atom_obj.base == str or (hasattr(atom_obj.base, 'name') and atom_obj.base.name == 'builtin:str'))
                 and len(atom_obj.mods) == 1 and issubclass(next(iter(atom_obj.mods.keys())), metamod.AtomModMaxLength)):
             column_type = 'varchar(%d)' % next(iter(atom_obj.mods.values())).value
         else:
             if atom_obj.name in self.base_type_name_map:
                 column_type = self.base_type_name_map[atom_obj.name]
             else:
-                column_type = self.mangle_domain_name(atom_obj.name)
+                column_type = self.atom_name_to_pg_domain_name(atom_obj.name)
         return column_type
 
 
     def pg_type_from_atom(self, atom_obj):
-        if (atom_obj.base is not None and atom_obj.base == 'str'
+        if (atom_obj.base is not None and atom_obj.base == 'builtin:str'
                 and len(atom_obj.mods) == 1 and issubclass(next(iter(atom_obj.mods.keys())), metamod.AtomModMaxLength)):
             column_type = 'varchar(%d)' % next(iter(atom_obj.mods.values())).value
         else:
@@ -604,15 +644,16 @@ class Backend(MetaBackend, DataBackend):
                 column_type = self.base_type_name_map[atom_obj.name]
             else:
                 self.store(atom_obj, allow_existing=True)
-                column_type = self.mangle_domain_name(atom_obj.name)
+                column_type = self.atom_name_to_pg_domain_name(atom_obj.name)
 
         return column_type
 
 
-    def atom_from_pg_type(self, type_expr, atom_name, atom_default, meta):
+    def atom_from_pg_type(self, type_expr, atom_name, atom_schema, atom_default, meta):
 
-        demangled = self.demangle_domain_name(type_expr)
-        atom = meta.get(demangled)
+        demangled = self.pg_domain_name_to_atom_name(type_expr)
+        atom = meta.get(demangled, None)
+        atom_name = CaosName(name=atom_name, module=self.pg_schema_name_to_module_name(atom_schema))
 
         if not atom:
             m = self.typlen_re.match(type_expr)

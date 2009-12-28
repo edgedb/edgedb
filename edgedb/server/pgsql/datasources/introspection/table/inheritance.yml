@@ -4,15 +4,19 @@
 params:
     table_name:
         type: str
+    schema_name:
+        type: str
+        default: "public"
 
 source: |
         SELECT
                 *
             FROM
-                (WITH RECURSIVE inheritance(oid, name, depth, path) AS (
+                (WITH RECURSIVE inheritance(oid, name, ns, depth, path) AS (
                         SELECT
                                 c.oid,
                                 c.relname,
+                                ns.nspname,
                                 1,
                                 ARRAY[c.relname]
                             FROM
@@ -20,21 +24,24 @@ source: |
                                 INNER JOIN pg_namespace ns ON c.relnamespace = ns.oid
                             WHERE
                                 c.relname = %(table_name)s
-                                OR ns.nspname || '.' || c.relname = %(table_name)s
+                                AND ns.nspname = %(schema_name)s
                       UNION ALL
                         SELECT
                                 c.oid,
                                 c.relname,
+                                ns.nspname,
                                 i.depth + 1,
                                 i.path || c.relname
                             FROM
                                 pg_class c,
                                 inheritance i,
-                                pg_inherits pgi
+                                pg_inherits pgi,
+                                pg_namespace ns
                             WHERE
                                 i.oid = pgi.inhrelid
                                 AND c.oid = pgi.inhparent
+                                AND ns.oid = c.relnamespace
                 )
-                SELECT DISTINCT ON (name) name, depth FROM inheritance) q
+                SELECT DISTINCT ON (name) name, ns, depth FROM inheritance) q
             ORDER BY
                 depth

@@ -17,7 +17,7 @@ class SelectExprNode(AST): __fields = ['expr', 'alias']
 class FromExprNode(AST): __fields = ['expr', 'alias']
 
 class TableNode(AST):
-    __fields = ['name', 'concept', 'alias', '#_bonds']
+    __fields = ['name', 'schema', 'concept', 'alias', '#_bonds']
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

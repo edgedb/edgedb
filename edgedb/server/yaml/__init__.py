@@ -7,6 +7,7 @@ import itertools
 from semantix.utils import graph
 from semantix import lang
 from semantix.caos import MetaError
+from semantix.caos.name import Name as CaosName
 
 from semantix.caos.backends import meta
 from semantix.caos.backends.meta import RealmMeta
@@ -51,9 +52,12 @@ class Atom(meta.Atom, lang.meta.Object):
 class Concept(meta.Concept, lang.meta.Object):
     @classmethod
     def construct(cls, data, context):
-        extends = data['extends']
-        if extends and not isinstance(extends, list):
-            extends = [extends]
+        extends = data.get('extends')
+        if extends:
+            if not isinstance(extends, list):
+                extends = [CaosName(name=extends, module=context.module.__name__)]
+            else:
+                extends = [CaosName(name=e, module=context.module.__name__) for e in extends]
 
         concept = cls(name=None, backend=data.get('backend'), base=extends)
         concept.context = context
@@ -86,11 +90,14 @@ class MetaSet(lang.meta.Object):
     def __init__(self, data, context):
         self.context = context
         self.metaindex = RealmMeta()
+        self.metaindex.add_module(context.module.__name__, None)
 
         backend = data.get('backend')
 
         for atom_name, atom in data['atoms'].items():
-            atom.name = atom_name
+            atom.name = CaosName(name=atom_name, module=atom.context.module.__name__)
+            atom_base = self.metaindex.get(atom.base)
+            atom.base = atom_base.name
             atom.backend = backend
             self.metaindex.add(atom)
 
@@ -110,22 +117,21 @@ class MetaSet(lang.meta.Object):
                 targets = set()
 
                 for target in link.targets:
-                    if (link_name, target) in links:
-                        raise MetaError('%s --%s--> %s link redefinition' % (concept.name, link_name, target))
-
                     if isinstance(target, meta.GraphObject):
                         # Inherited link
                         targets.add(target)
                         continue
 
                     target_obj = self.metaindex.get(target)
-                    target_name = target_obj.name
-
-                    targets.add(target_obj)
 
                     if not target_obj:
                         raise MetaError('reference to an undefined node "%s" in "%s"' %
-                                        (target, concept.name + '/links/' + link_name))
+                                        (target, str(concept.name) + '/links/' + link_name))
+
+                    if (link_name, target) in links:
+                        raise MetaError('%s --%s--> %s link redefinition' % (concept.name, link_name, target))
+
+                    targets.add(target_obj)
 
                     if isinstance(target_obj, meta.Atom):
                         if link_name in link_target_types and link_target_types[link_name] != 'atom':
@@ -135,8 +141,9 @@ class MetaSet(lang.meta.Object):
                         if mods:
                             # Got an inline atom definition.
                             # We must generate a unique name here
-                            atom_name = '__' + concept.name + '__' + link_name
-                            atom = Atom(name=atom_name, base=target_name,
+                            atom_name = '__' + concept.name.name + '__' + link_name
+                            atom = Atom(name=CaosName(name=atom_name, module=concept.name.module),
+                                        base=target_obj.name,
                                         default=getattr(link, 'default', None), automatic=True,
                                         backend=concept.backend)
                             for mod in link.mods:
@@ -160,13 +167,13 @@ class MetaSet(lang.meta.Object):
         concept_graph = {}
 
         for concept_name, concept in data['concepts'].items():
-            concept.name = concept_name
+            concept.name = CaosName(name=concept_name, module=concept.context.module.__name__)
             concept.backend = data.get('backend')
 
             for link in concept.links.values():
                 link.source = concept.name
 
-            if meta.get(concept.name):
+            if meta.get(concept.name, None):
                 raise MetaError('%s already defined' % concept.name)
 
             concept_graph[concept.name] = {"item": concept, "merge": [], "deps": []}

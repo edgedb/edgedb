@@ -1,0 +1,22 @@
+%SCHEMA semantix.datasources.schemas.Sql
+%NAME SchemasList
+---
+params:
+    schema_name:
+        type: str
+        default: null
+
+filters:
+    - format: dict
+
+source: |
+        SELECT
+                ns.oid                                AS oid,
+                ns.nspname                            AS name
+            FROM
+                pg_namespace AS ns
+            WHERE
+                --
+                -- Limit the schema scope
+                --
+                %(schema_name)s::text IS NULL OR ns.nspname LIKE %(schema_name)s

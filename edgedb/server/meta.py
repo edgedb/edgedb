@@ -2,6 +2,7 @@ import re
 import collections
 import semantix.caos.atom
 import semantix.caos.concept
+from semantix.caos.name import Name as CaosName
 from semantix.utils.datastructures import OrderedSet
 
 
@@ -26,7 +27,7 @@ class Bool(type):
 class GraphObject(object):
     def __init__(self, name, backend=None, base=None):
         self.name = name
-        self.base = base if base else tuple()
+        self.base = base
         self.backend = backend
 
     def get_class_template(self, realm):
@@ -126,11 +127,10 @@ class AtomModRegExp(AtomMod):
 
 
 class Atom(GraphObject):
-    def __init__(self, name, backend=None, base=None, default=None, builtin=False, automatic=False):
+    def __init__(self, name, backend=None, base=None, default=None, automatic=False):
         super().__init__(name, backend, base)
         self.mods = {}
         self.default = default
-        self.builtin = builtin
         self.automatic = automatic
 
     def add_mod(self, mod):
@@ -140,26 +140,57 @@ class Atom(GraphObject):
             self.mods[mod.__class__].merge(mod)
 
     def get_class_template(self, realm):
-        bases = tuple()
+        base = self.get_class_base(realm)
+        default = self.get_class_default(realm, base)
 
-        if isinstance(self.base, str):
+        dct = {'name': self.name, 'mods': self.mods, 'base': base, 'realm': realm, 'backend': self.backend,
+               'default': default}
+
+        bases = self.get_class_mro(realm, base)
+        return (bases, dct)
+
+    def get_class_base(self, realm):
+        if isinstance(self.base, CaosName):
             base = realm.getfactory()(self.base)
         else:
             base = self.base
 
-        dct = {'name': self.name, 'mods': self.mods, 'base': base, 'realm': realm, 'backend': self.backend}
+        return base
 
+    def get_class_mro(self, realm, clsbase):
+        bases = tuple()
+
+        if self.base:
+            if isinstance(self.base, CaosName):
+                base = realm.meta.get(self.base)
+            else:
+                base = self.base
+
+            bases = base.get_class_mro(realm, clsbase)
+            if clsbase not in bases:
+                bases = (clsbase,) + bases
+        else:
+            bases = (semantix.caos.atom.Atom,)
+
+        return bases
+
+    def get_class_default(self, realm, base):
         if self.default is not None:
-            dct['default'] = base(self.default)
-        else:
-            dct['default'] = None
+            return base(self.default)
 
-        if self.builtin:
-            bases = (semantix.caos.atom.Atom, base)
-        else:
-            bases = (base, semantix.caos.atom.Atom)
 
-        return (bases, dct)
+class BuiltinAtom(Atom):
+    base_atoms_to_class_map = {
+                                'str': str,
+                                'int': int,
+                                'float': float,
+                                'bool': Bool
+                              }
+
+    def get_class_mro(self, realm, clsbase):
+        base = self.base_atoms_to_class_map[self.name.name]
+        bases = (semantix.caos.atom.Atom, base)
+        return bases
 
 
 class Concept(GraphObject):
@@ -236,12 +267,15 @@ class RealmMetaIterator(object):
 class RealmMeta(object):
 
     def __init__(self):
+        # XXX: TODO: refactor this ugly index explosion into a single smart and efficient one
         self.index = OrderedSet()
         self.index_by_type = {'concept': OrderedSet(), 'atom': OrderedSet()}
         self.index_by_name = collections.OrderedDict()
+        self.index_by_module = collections.OrderedDict()
         self.index_builtin = OrderedSet()
         self.index_automatic = OrderedSet()
         self.index_by_backend = {}
+        self.modules = {None: []}
 
         self._init_builtin()
 
@@ -249,19 +283,38 @@ class RealmMeta(object):
         self.index.add(obj)
         type = 'atom' if isinstance(obj, Atom) else 'concept'
         self.index_by_type[type].add(obj)
-        self.index_by_name[obj.name] = obj
 
+        if obj.name.module not in self.index_by_module:
+            self.index_by_module[obj.name.module] = collections.OrderedDict()
+        self.index_by_module[obj.name.module][obj.name.name] = obj
+        self.index_by_name[obj.name] = obj
+        if obj.name.module.startswith('caos'):
+            raise Exception('mangled name passed %s' % obj.name)
         if obj.backend:
             self.index_by_backend[obj.backend] = obj
 
         if isinstance(obj, Atom):
-            if obj.builtin:
+            if obj.name.module == 'builtin':
                 self.index_builtin.add(obj)
             elif obj.automatic:
                 self.index_automatic.add(obj)
 
-    def get(self, name):
-        return self.index_by_name.get(name)
+    def add_module(self, module, alias):
+        if alias is None:
+            self.modules[None].append(module)
+        elif alias in self.modules:
+            raise MetaError('Alias %s is already bound to module %s' % (alias, self.modules[alias]))
+        else:
+            self.modules[alias] = module
+
+    def get(self, name, default=MetaError, module_aliases=None):
+        obj = self.lookup_name(name, module_aliases)
+        if not obj:
+            if default and issubclass(default, MetaError):
+                raise default('reference to a non-existent semantic graph node: %s' % name)
+            else:
+                obj = default
+        return obj
 
     def backends(self):
         return list(self.index_by_backend.keys())
@@ -275,14 +328,29 @@ class RealmMeta(object):
     def __contains__(self, obj):
         return obj in self.index
 
-    def _init_builtin(self):
-        base_atoms_to_class_map = {
-                                    'str': str,
-                                    'int': int,
-                                    'float': float,
-                                    'bool': Bool
-                                  }
+    def lookup_name(self, name, module_aliases=None):
+        if isinstance(name, CaosName):
+            return self.lookup_qname(name, module_aliases)
+        elif CaosName.is_qualified(name):
+            return self.lookup_qname(CaosName(name), module_aliases)
+        else:
+            default_modules = self.modules[None]
+            if module_aliases:
+                default_modules += [module_aliases.get(None, [])]
+            for module in default_modules:
+                result = self.lookup_qname(CaosName(name=name, module=module))
+                if result:
+                    return result
 
-        for clsname, baseclass in base_atoms_to_class_map.items():
-            atom = Atom(name=clsname, base=baseclass, builtin=True)
+    def lookup_qname(self, name, module_aliases=None):
+        module_name = module_aliases.get(name.module, name.module) if module_aliases else name.module
+        module = self.index_by_module.get(module_name)
+        if module:
+            return module.get(name.name)
+
+    def _init_builtin(self):
+        for clsname in BuiltinAtom.base_atoms_to_class_map:
+            atom = BuiltinAtom(name=CaosName(name=clsname, module='builtin'))
             self.add(atom)
+
+        self.add_module('builtin', None)

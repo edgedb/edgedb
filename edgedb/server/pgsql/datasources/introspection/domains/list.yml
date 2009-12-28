@@ -27,6 +27,8 @@ source: |
                     NULL
                 END                                 AS basetype,
 
+                bns.nspname                         AS basetype_schema,
+
                 ARRAY(SELECT
                             pg_get_constraintdef(c.oid, true)
                         FROM
@@ -50,11 +52,13 @@ source: |
                 pg_type AS t
                 INNER JOIN pg_namespace AS ns ON ns.oid = t.typnamespace
                 LEFT JOIN pg_class AS c ON c.reltype = t.oid
+                LEFT JOIN pg_type AS bt ON t.typbasetype = bt.oid
+                LEFT JOIN pg_namespace AS bns ON bns.oid = bt.typnamespace
             WHERE
                 --
                 -- Limit the schema scope
                 --
-                ns.nspname = %(schema_name)s
+                ns.nspname LIKE %(schema_name)s
                 --
                 -- We're not interested in shell- or pseudotypes or arrays or table row types
                 --
