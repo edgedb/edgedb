@@ -17,8 +17,13 @@ mapping:
                 object: semantix.caos.backends.yaml.Concept
                 mapping:
                     "extends":
-                        type: any
+                        type: choice
                         default:
+                        choice:
+                            - type: str
+                            - type: seq
+                              sequence:
+                                - type: str
 
                     "links":
                         type: seq
@@ -114,11 +119,17 @@ mapping:
                 required: yes
                 mapping:
                     "extends":
-                        type: any
-                        default: None
+                        type: choice
+                        default:
+                        choice:
+                            - type: str
+                            - type: seq
+                              sequence:
+                                - type: str
+
 
                     "default":
                         type: any
-                        default: None
+                        default:
 
                     "mods": *ATOM_MODS
