@@ -240,7 +240,7 @@ class ConceptLink(object):
 
 
 class RealmMetaIterator(object):
-    def __init__(self, index, type):
+    def __init__(self, index, type, include_automatic=False):
         self.index = index
         self.type = type
 
@@ -254,7 +254,9 @@ class RealmMetaIterator(object):
             else:
                 sourceset = itertype
 
-        filtered = sourceset - index.index_builtin - index.index_automatic
+        filtered = sourceset - index.index_builtin
+        if not include_automatic:
+            filtered -= index.index_automatic
         self.iter = iter(filtered)
 
     def __iter__(self):
@@ -275,7 +277,7 @@ class RealmMeta(object):
         self.index_builtin = OrderedSet()
         self.index_automatic = OrderedSet()
         self.index_by_backend = {}
-        self.modules = {None: []}
+        self.modules = {}
 
         self._init_builtin()
 
@@ -300,9 +302,7 @@ class RealmMeta(object):
                 self.index_automatic.add(obj)
 
     def add_module(self, module, alias):
-        if alias is None:
-            self.modules[None].append(module)
-        elif alias in self.modules:
+        if alias in self.modules:
             raise MetaError('Alias %s is already bound to module %s' % (alias, self.modules[alias]))
         else:
             self.modules[alias] = module
@@ -322,29 +322,62 @@ class RealmMeta(object):
     def __iter__(self):
         return RealmMetaIterator(self, None)
 
-    def __call__(self, type=None):
-        return RealmMetaIterator(self, type)
+    def __call__(self, type=None, include_automatic=False):
+        return RealmMetaIterator(self, type, include_automatic)
 
     def __contains__(self, obj):
         return obj in self.index
 
-    def lookup_name(self, name, module_aliases=None):
+    def normalize_name(self, name, module_aliases=None):
         if isinstance(name, CaosName):
-            return self.lookup_qname(name, module_aliases)
+            module = name.module
+            nqname = name.name
         elif CaosName.is_qualified(name):
-            return self.lookup_qname(CaosName(name), module_aliases)
+            name = CaosName(name)
+            module = name.module
+            nqname = name.name
         else:
-            default_modules = self.modules[None]
-            if module_aliases:
-                default_modules += [module_aliases.get(None, [])]
-            for module in default_modules:
-                result = self.lookup_qname(CaosName(name=name, module=module))
-                if result:
-                    return result
+            module = None
+            nqname = name
 
-    def lookup_qname(self, name, module_aliases=None):
-        module_name = module_aliases.get(name.module, name.module) if module_aliases else name.module
-        module = self.index_by_module.get(module_name)
+        norm_name = None
+
+        if module is None:
+            object = None
+            default_module = self.resolve_module(module, module_aliases)
+
+            if default_module:
+                object = self.lookup_qname(CaosName(name=nqname, module=default_module))
+            if not object:
+                object = self.lookup_qname(CaosName(name=nqname, module='builtin'))
+            if object:
+                norm_name = object.name
+        else:
+            fullmodule = self.resolve_module(module, module_aliases)
+
+            if fullmodule:
+                norm_name = CaosName(name=nqname, module=fullmodule)
+
+        if norm_name:
+            return norm_name
+        elif not module:
+            raise MetaError('could not normalize caos name %s' % name)
+        else:
+            return CaosName(name=nqname, module=module)
+
+    def resolve_module(self, module, module_aliases):
+        if module_aliases:
+            module = module_aliases.get(module, self.modules.get(module))
+        else:
+            module = self.modules.get(module)
+        return module
+
+    def lookup_name(self, name, module_aliases=None):
+        name = self.normalize_name(name, module_aliases)
+        return self.lookup_qname(name)
+
+    def lookup_qname(self, name):
+        module = self.index_by_module.get(name.module)
         if module:
             return module.get(name.name)
 
@@ -352,5 +385,3 @@ class RealmMeta(object):
         for clsname in BuiltinAtom.base_atoms_to_class_map:
             atom = BuiltinAtom(name=CaosName(name=clsname, module='builtin'))
             self.add(atom)
-
-        self.add_module('builtin', None)

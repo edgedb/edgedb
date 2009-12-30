@@ -651,9 +651,10 @@ class Backend(MetaBackend, DataBackend):
 
     def atom_from_pg_type(self, type_expr, atom_name, atom_schema, atom_default, meta):
 
-        demangled = self.pg_domain_name_to_atom_name(type_expr)
-        atom = meta.get(demangled, None)
-        atom_name = CaosName(name=atom_name, module=self.pg_schema_name_to_module_name(atom_schema))
+        atom_name = CaosName(name=self.pg_domain_name_to_atom_name(type_expr),
+                             module=self.pg_schema_name_to_module_name(atom_schema))
+
+        atom = meta.get(atom_name, None)
 
         if not atom:
             m = self.typlen_re.match(type_expr)
