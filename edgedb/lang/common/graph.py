@@ -47,7 +47,7 @@ def normalize(graph, merger, allow_loops=False, allow_unresolved=False):
                     adj[item_name].append(merge)
                     radj[merge].append(item_name)
                 elif not allow_unresolved:
-                    raise UnresolvedReferenceError("reference to an undefined item " + merge + " in " + item_name)
+                    raise UnresolvedReferenceError("reference to an undefined item %s in %s" % (merge, item_name))
 
         if "deps" in item:
             for dep in item["deps"]:
@@ -55,7 +55,7 @@ def normalize(graph, merger, allow_loops=False, allow_unresolved=False):
                     adj[item_name].append(dep)
                     radj[dep].append(item_name)
                 elif not allow_unresolved:
-                    raise UnresolvedReferenceError("reference to an undefined item " + dep + " in " + item_name)
+                    raise UnresolvedReferenceError("reference to an undefined item %s in %s" % (dep, item_name))
 
     if not allow_loops:
         for item in graph:
