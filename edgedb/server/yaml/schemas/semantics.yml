@@ -10,7 +10,6 @@ mapping:
         default: "data"
     "concepts":
         type: map
-        object: semantix.caos.backends.yaml.OrderedDict
         default: {}
         mapping:
             =:
@@ -107,7 +106,6 @@ mapping:
 
     "atoms":
         type: map
-        object: semantix.caos.backends.yaml.OrderedDict
         default: {}
         mapping:
             =: # name of an atom

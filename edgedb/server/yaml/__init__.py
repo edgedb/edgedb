@@ -78,12 +78,6 @@ class ConceptLink(meta.ConceptLink, lang.meta.Object):
             return result
 
 
-class OrderedDict(collections.OrderedDict, lang.meta.Object):
-    @classmethod
-    def construct(cls, data, context):
-        return cls(data)
-
-
 class ImportContext(lang.ImportContext):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
