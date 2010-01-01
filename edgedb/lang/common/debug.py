@@ -2,6 +2,8 @@ import inspect
 import re
 import ast
 
+from semantix.utils.functional import decorate
+
 enabled = False
 channels = set()
 
@@ -27,10 +29,17 @@ def _indent_code(source, absolute=None, relative=None):
 
     if absolute is not None:
         source = '\n'.join([(' ' * absolute) + line[tab_size:] \
-                          for line in source.split('\n') \
-                          if line.strip()])
+                          for line in source.split('\n')])
 
     return source
+
+def _set_location(node, lineno):
+    if 'lineno' in node._attributes:
+        node.lineno = lineno
+
+    for c in ast.iter_child_nodes(node):
+        _set_location(c, lineno)
+    return node
 
 class debug(object):
     active = False
@@ -42,7 +51,11 @@ class debug(object):
         cls.active = True
 
         source = _indent_code(inspect.getsource(func), absolute=0)
-        tree = ast.parse(source)
+        sourceloc = inspect.getsourcelines(func)[1]
+        orig_file = inspect.getsourcefile(func)
+
+        tree = ast.parse(source, filename=orig_file)
+        ast.increment_lineno(tree, sourceloc - 1)
 
         class Transformer(ast.NodeTransformer):
 
@@ -60,28 +73,45 @@ class debug(object):
                             tags = {t.strip() for t in m.group('tags').split(',')}
 
                             comment = node.value.s.split('\n')
-                            code = _indent_code('\n'.join(comment[1:]), absolute=4)
+
+                            # Str().lineno is for the _last_ line of the string.
+                            # We want to use the first.
+                            lineno = node.lineno - len(comment) + 1
+
+                            text = 'import semantix.utils.debug\n' \
+                                   'if semantix.utils.debug.channels & %r:\n' \
+                                   '    pass\n' % tags
 
                             if title:
-                                code = '    print("\\n" + "=" * 80 + "\\n" + %r' \
-                                       ' + "\\n" + "=" * 80)\n' % title + code
+                                text += '    print("\\n" + "="*80 + "\\n" + %r + "\\n" + "="*80)\n' % title
 
-                            code = 'import semantix.utils.debug\n' \
-                                   'if semantix.utils.debug.channels & %r:\n' % tags + code
+                            code = ast.parse(text.rstrip(), filename=orig_file)
+                            code = ast.fix_missing_locations(code)
+                            _set_location(code, lineno)
 
-                            return ast.parse(code).body
+                            ctext = _indent_code('\n'.join(comment[1:]), absolute=0)
+                            ccode = ast.parse(ctext, filename=orig_file)
+
+                            ast.increment_lineno(ccode, lineno)
+
+                            # Prepend the custom code to the If block body
+                            code.body[1].body.extend(ccode.body)
+
+                            return code.body
                         else:
                             raise DebugDecoratorParseError('invalid debug decorator syntax')
                 return node
 
         tree = Transformer().visit(tree)
-        code = compile(ast.fix_missing_locations(tree), '<string>', 'exec')
+        code = compile(tree, orig_file if orig_file else '<string>', 'exec')
 
         _locals = {}
         exec(code, func.__globals__, _locals)
 
         new_func = _locals[func.__name__]
         cls.active = False
+
+        decorate(new_func, func)
 
         return new_func
 
