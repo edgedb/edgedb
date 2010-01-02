@@ -11,7 +11,7 @@ from semantix.caos.name import Name as CaosName
 
 from semantix.caos.backends.meta import MetaBackend
 from semantix.caos.backends.data import DataBackend
-from semantix.caos.backends.meta import RealmMeta, Atom, Concept, ConceptLink as ConceptLinkType
+from semantix.caos.backends.meta import RealmMeta, Atom, Concept, Link
 from semantix.caos.backends import meta as metamod
 
 from semantix.caos.backends.pgsql.common import PathCacheTable, EntityTable
@@ -238,9 +238,9 @@ class Backend(MetaBackend, DataBackend):
             entity.setid(id)
             entity.markclean()
 
-            for link_type, link in links.items():
+            for name, link in links.items():
                 if isinstance(link, BaseConceptCollection) and link.dirty:
-                    self.store_links(concept, link_type, entity, link)
+                    self.store_links(concept, name, entity, link)
                     link.markclean()
 
         return id
@@ -317,8 +317,8 @@ class Backend(MetaBackend, DataBackend):
                                               t['schema'], row['column_default'], meta)
 
                 meta.add(atom)
-                atom = ConceptLinkType(source=concept, targets={atom}, link_type=row['column_name'],
-                                       required=row['column_required'], mapping='11')
+                atom = Link(name=row['column_name'], source=concept, targets={atom},
+                            required=row['column_required'], mapping='11')
                 concept.add_link(atom)
 
             meta.add(concept)
@@ -330,8 +330,9 @@ class Backend(MetaBackend, DataBackend):
             concept = meta.get(name)
 
             for r in ConceptLinks(self.connection).fetch(source_concept=str(name)):
-                link = ConceptLinkType(meta.get(r['source_concept']), {meta.get(r['target_concept'])},
-                                       r['link_type'], r['mapping'], r['required'])
+                link = Link(name=r['name'], source=meta.get(r['source_concept']),
+                            targets={meta.get(r['target_concept'])}, mapping=r['mapping'],
+                            required=r['required'])
                 concept.add_link(link)
 
 
@@ -464,12 +465,12 @@ class Backend(MetaBackend, DataBackend):
                 if not link.atomic():
                     for target in link.targets:
                         self.concept_map_table.insert(source=str(link.source.name), target=str(target.name),
-                                                      link_type=link.link_type, mapping=link.mapping,
+                                                      name=link.name, mapping=link.mapping,
                                                       required=link.required)
 
 
     @debug
-    def store_links(self, concept, link_type, source, targets):
+    def store_links(self, concept, link_name, source, targets):
         rows = []
 
         params = []
@@ -479,7 +480,7 @@ class Backend(MetaBackend, DataBackend):
             """LOG [caos.sync]
             print('Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
                   (source.concept, source.id, (source.name if hasattr(source, 'name') else ''),
-                   link_type,
+                   link_name,
                    target.concept, target.id, (target.name if hasattr(target, 'name') else ''))
                   )
             """
@@ -489,7 +490,7 @@ class Backend(MetaBackend, DataBackend):
 
             lt = ConceptLink(self.connection).fetch(
                                    source_concepts=[str(source.concept)], target_concepts=targets,
-                                   link_type=link_type)
+                                   name=link_name)
 
             rows.append('(%s::int, %s::int, %s::int, %s::int)')
             params += [source.id, target.id, lt[0]['id'], 0]
@@ -507,10 +508,10 @@ class Backend(MetaBackend, DataBackend):
                            """ % (",".join(rows), ",".join(rows)), params)
 
 
-    def load_links(self, this_concept, this_id, other_concepts=None, link_types=None, reverse=False):
+    def load_links(self, this_concept, this_id, other_concepts=None, link_names=None, reverse=False):
 
-        if link_types is not None and not isinstance(link_types, list):
-            link_types = [link_types]
+        if link_names is not None and not isinstance(link_names, list):
+            link_names = [link_names]
 
         if other_concepts is not None and not isinstance(other_concepts, list):
             other_concepts = [other_concepts]
@@ -529,7 +530,7 @@ class Backend(MetaBackend, DataBackend):
         links = EntityLinks(self.connection).fetch(
                                   source_id=source_id, target_id=target_id,
                                   target_concepts=target_concepts, source_concepts=source_concepts,
-                                  link_types=link_types)
+                                  link_names=link_names)
 
         return links
 

@@ -7,7 +7,7 @@ ifdef tests
 endif
 
 ifdef debug
-    debug:=--semantix-debug=$(debug)
+    debug:=--semantix-debug=$(debug) --capture=no
 endif
 
 all:

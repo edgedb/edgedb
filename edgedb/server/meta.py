@@ -205,10 +205,10 @@ class Concept(GraphObject):
         self.links.update(other.links)
 
     def add_link(self, link):
-        if link.link_type in self.links:
-            self.links[link.link_type].targets.update(link.targets)
+        if link.name in self.links:
+            self.links[link.name].targets.update(link.targets)
         else:
-            self.links[link.link_type] = link
+            self.links[link.name] = link
 
     def get_class_template(self, realm):
         dct = {'concept': self.name, 'links': self.links, 'parents': self.base, 'realm': realm, 'backend': self.backend}
@@ -225,13 +225,11 @@ class Concept(GraphObject):
         return (bases, dct)
 
 
-class ConceptLink(object):
-    __slots__ = ['source', 'targets', 'link_type', 'mapping', 'required']
-
-    def __init__(self, source, targets, link_type, mapping='11', required=False):
+class Link(GraphObject):
+    def __init__(self, name, backend=None, source=None, targets=None, mapping='11', required=False):
+        super().__init__(name, backend)
         self.source = source
         self.targets = targets
-        self.link_type = link_type
         self.mapping = mapping
         self.required = required
 

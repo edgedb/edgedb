@@ -7,7 +7,7 @@ params:
         type: list
     target_concepts:
         type: list
-    link_type:
+    name:
         type: str
 
 filters:
@@ -52,14 +52,14 @@ source: |
             sc.name AS source_concept,
             cm.target_id,
             tc.name AS target_concept,
-            cm.link_type AS link_type,
+            cm.name AS name,
             cm.mapping
         FROM
             caos.concept_map cm
             INNER JOIN sources sc ON cm.source_id = sc.id
             INNER JOIN targets tc ON cm.target_id = tc.id
         WHERE
-            %(link_type)s = cm.link_type
+            %(name)s = cm.name
         ORDER BY
             sc.level,
             tc.level

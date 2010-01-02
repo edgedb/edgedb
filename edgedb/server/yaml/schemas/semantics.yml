@@ -30,7 +30,7 @@ mapping:
                         default: []
                         sequence:
                             - type: map
-                              object: semantix.caos.backends.yaml.ConceptLink
+                              object: semantix.caos.backends.yaml.Link
                               max-length: 1
                               min-length: 1
                               mapping:

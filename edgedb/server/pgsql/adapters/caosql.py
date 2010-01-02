@@ -402,7 +402,7 @@ class CaosQLQueryAdapter(NodeVisitor):
         condition = sqlast.BinOpNode(op='=', left=left, right=right)
         where = sqlast.BinOpNode(op='and', left=where, right=condition)
 
-        left = sqlast.FieldRefNode(table=concept_map, field='link_type')
+        left = sqlast.FieldRefNode(table=concept_map, field='name')
         right = sqlast.SequenceNode()
         for label in labels:
             right.elements.append(sqlast.ConstantNode(value=label))

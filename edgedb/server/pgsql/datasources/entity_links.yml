@@ -10,7 +10,7 @@ params:
         type: list
     target_concepts:
         type: list
-    link_types:
+    link_names:
         type: list
 
 filters:
@@ -22,7 +22,7 @@ source: |
             sc.name AS source_concept,
             em.target_id AS target_id,
             tc.name AS target_concept,
-            cm.link_type AS link_type,
+            cm.name AS name,
             em.weight AS weight
         FROM
             caos.entity_map em
@@ -34,6 +34,6 @@ source: |
             AND (%(target_id)s IS NULL OR em.target_id = %(target_id)s)
             AND (%(source_concepts)s IS NULL OR sc.name = any(%(source_concepts)s))
             AND (%(target_concepts)s IS NULL OR tc.name = any(%(target_concepts)s))
-            AND (%(link_types)s IS NULL OR cm.link_type = any(%(link_types)s))
+            AND (%(link_names)s IS NULL OR cm.name = any(%(link_names)s))
         ORDER BY
             em.weight

@@ -64,16 +64,16 @@ class Concept(meta.Concept, lang.meta.Object):
         return concept
 
 
-class ConceptLink(meta.ConceptLink, lang.meta.Object):
+class Link(meta.Link, lang.meta.Object):
     @classmethod
     def construct(cls, data, context):
         name, info = next(iter(data.items()))
         if isinstance(info, str):
-            return cls(source=None, targets={info}, link_type=name)
+            return cls(source=None, targets={info}, name=name)
         else:
             targets = set(info.keys())
             info = next(iter(info.values()))
-            result = cls(source=None, targets=targets, link_type=name, mapping=info['mapping'], required=info['required'])
+            result = cls(name=name, targets=targets, mapping=info['mapping'], required=info['required'])
             result.mods = info.get('mods')
             return result
 

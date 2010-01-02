@@ -45,7 +45,8 @@ class ConceptTable(DatabaseTable):
                 id serial NOT NULL,
                 name text NOT NULL,
 
-                PRIMARY KEY (id)
+                PRIMARY KEY (id),
+                UNIQUE (name)
             )
         """
         super(ConceptTable, self).create()
@@ -56,14 +57,31 @@ class ConceptTable(DatabaseTable):
         """
         super(ConceptTable, self).insert(*dicts, **kwargs)
 
+
+class LinkTable(DatabaseTable):
+    def create(self):
+        """
+            CREATE TABLE "caos"."link"(
+                id serial NOT NULL,
+                name text NOT NULL,
+                description text NOT NULL,
+                mapping char(2) NOT NULL,
+
+                PRIMARY KEY (id),
+                UNIQUE (name)
+            )
+        """
+        super(ConceptTable, self).create()
+
+
 class ConceptMapTable(DatabaseTable):
     def create(self):
         """
             CREATE TABLE "caos"."concept_map"(
                 id serial NOT NULL,
+                name varchar(255) NOT NULL,
                 source_id integer NOT NULL,
                 target_id integer NOT NULL,
-                link_type varchar(255) NOT NULL,
                 mapping char(2) NOT NULL,
                 required boolean NOT NULL DEFAULT FALSE,
 
@@ -76,11 +94,11 @@ class ConceptMapTable(DatabaseTable):
 
     def insert(self, *dicts, **kwargs):
         """
-            INSERT INTO "caos"."concept_map"(source_id, target_id, link_type, mapping, required)
+            INSERT INTO "caos"."concept_map"(source_id, target_id, name, mapping, required)
                 VALUES (
                             (SELECT id FROM caos.concept WHERE name = %(source)s),
                             (SELECT id FROM caos.concept WHERE name = %(target)s),
-                            %(link_type)s,
+                            %(name)s,
                             %(mapping)s,
                             %(required)s
                 ) RETURNING id
