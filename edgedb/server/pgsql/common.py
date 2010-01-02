@@ -1,6 +1,8 @@
 import postgresql
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
+from semantix.caos.backends.meta import MetaError
+
 
 class DatabaseTable(object):
     def __init__(self, connection):
@@ -100,10 +102,7 @@ class EntityTable(DatabaseTable):
         super(EntityTable, self).create()
 
     def insert(self, *dicts, **kwargs):
-        """
-            INSERT INTO "caos"."entity"(concept_id) (SELECT id FROM caos.concept WHERE name = %(concept)s) RETURNING id
-        """
-        return super(EntityTable, self).insert(*dicts, **kwargs)
+        raise MetaError('direct inserts into entity table are not allowed')
 
 
 class EntityMapTable(DatabaseTable):
@@ -115,10 +114,7 @@ class EntityMapTable(DatabaseTable):
                 link_type_id integer NOT NULL,
                 weight integer NOT NULL,
 
-                PRIMARY KEY (source_id, target_id, link_type_id),
-                FOREIGN KEY (source_id) REFERENCES "caos"."entity"(id) ON DELETE CASCADE,
-                FOREIGN KEY (target_id) REFERENCES "caos"."entity"(id) ON DELETE CASCADE,
-                FOREIGN KEY (link_type_id) REFERENCES "caos"."concept_map"(id) ON DELETE RESTRICT
+                PRIMARY KEY (source_id, target_id, link_type_id)
             )
         """
         super(EntityMapTable, self).create()

@@ -167,12 +167,12 @@ class Backend(MetaBackend, DataBackend):
 
 
     def load_entity(self, concept, id):
-        query = 'SELECT * FROM %s WHERE entity_id = %d' % (self.concept_name_to_pg_table_name(concept), id)
+        query = 'SELECT * FROM %s WHERE id = %d' % (self.concept_name_to_pg_table_name(concept), id)
         ps = self.connection.prepare(query)
         result = ps.first()
 
         if result is not None:
-            return dict((k, result[k]) for k in result.keys() if k != 'entity_id')
+            return dict((k, result[k]) for k in result.keys() if k not in ('id', 'concept_id'))
         else:
             return None
 
@@ -187,21 +187,42 @@ class Backend(MetaBackend, DataBackend):
         with self.connection.xact():
 
             attrs = {n: v for n, v in links.items() if not isinstance(v, BaseConceptCollection)}
-            attrs['entity_id'] = id
 
             if id is not None:
                 query = 'UPDATE %s SET ' % self.concept_name_to_pg_table_name(concept)
-                query += ','.join(['%s = %%(%s)s::%s' % (a, a, self.pg_type_from_atom_class(clinks[a].targets[0]) if a in clinks else 'int') for a, v in attrs.items()])
-                query += ' WHERE entity_id = %d RETURNING entity_id' % id
+                cols = []
+                for a, v in attrs.items():
+                    if a in clinks:
+                        col_type = 'text::%s' % self.pg_type_from_atom_class(clinks[a].targets[0])
+                    else:
+                        col_type = 'int'
+                    cols.append('%s = %%(%s)s::%s' % (a, a, col_type))
+                query += ','.join(cols)
+                query += ' WHERE id = %d RETURNING id' % id
             else:
-                id = self.entity_table.insert({'concept': str(concept)})[0][0]
+                if attrs:
+                    cols_names = ', ' + ', '.join(['"%s"' % a for a in attrs])
+                    cols = []
+                    for a, v in attrs.items():
+                        if a in clinks:
+                            col_type = 'text::%s' % self.pg_type_from_atom_class(clinks[a].targets[0])
+                        else:
+                            col_type = 'int'
+                        cols.append('%%(%s)s::%s' % (a, col_type))
+                    cols_values = ', ' + ', '.join(cols)
+                else:
+                    cols_names = ''
+                    cols_values = ''
 
-                query = 'INSERT INTO %s' % self.concept_name_to_pg_table_name(concept)
-                query += '(' + ','.join(['"%s"' % a for a in attrs]) + ')'
-                query += 'VALUES(' + ','.join(['%%(%s)s::%s' % (a, ('text::' + self.pg_type_from_atom_class(clinks[a].targets[0])) if a in clinks else 'int') for a, v in attrs.items()]) + ') RETURNING entity_id'
+                query = 'INSERT INTO %s (id, concept_id%s)' % (self.concept_name_to_pg_table_name(concept),
+                                                                cols_names)
+
+                query += '''VALUES(nextval('caos.entity_id_seq'::regclass),
+                                   (SELECT id FROM caos.concept WHERE name = %(concept)s) %(cols)s)
+                            RETURNING id''' % {'concept': postgresql.string.quote_literal(str(concept)),
+                                               'cols': cols_values}
 
             data = dict((k, str(attrs[k]) if attrs[k] is not None else None) for k in attrs)
-            data['entity_id'] = id
 
             rows = self.runquery(query, data)
             id = next(rows)
@@ -214,7 +235,6 @@ class Backend(MetaBackend, DataBackend):
             """
 
             id = id[0]
-
             entity.setid(id)
             entity.markclean()
 
@@ -290,7 +310,7 @@ class Backend(MetaBackend, DataBackend):
 
             columns = TableColumns(self.connection).fetch(table_name=t['name'], schema_name=t['schema'])
             for row in columns:
-                if row['column_name'] == 'entity_id':
+                if row['column_name'] in ('id', 'concept_id'):
                     continue
 
                 atom = self.atom_from_pg_type(row['column_type'], '__' + name + '__' + row['column_name'],
@@ -420,7 +440,7 @@ class Backend(MetaBackend, DataBackend):
 
             qry = 'CREATE TABLE %s' % self.concept_name_to_pg_table_name(obj.name)
 
-            columns = ['entity_id integer NOT NULL REFERENCES caos.entity(id) ON DELETE CASCADE']
+            columns = []
 
             for link_name in sorted(obj.links.keys()):
                 link = obj.links[link_name]
@@ -434,6 +454,8 @@ class Backend(MetaBackend, DataBackend):
 
             if obj.base:
                 qry += ' INHERITS (' + ','.join([self.concept_name_to_pg_table_name(p) for p in obj.base]) + ')'
+            else:
+                qry += ' INHERITS (%s) ' % 'caos.entity'
 
             self.connection.execute(qry)
 

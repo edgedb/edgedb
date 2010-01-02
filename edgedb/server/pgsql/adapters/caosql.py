@@ -179,7 +179,7 @@ class CaosQLQueryAdapter(NodeVisitor):
                 fieldref_expr = fieldref
 
             if expr.expr is not None:
-               return self._process_expr(context, expr.expr)
+                return self._process_expr(context, expr.expr)
 
             if context.current.location in ('selector', 'sorter'):
                 if expr.name == 'id':
@@ -195,7 +195,7 @@ class CaosQLQueryAdapter(NodeVisitor):
                         query.fromlist.append(datatable)
 
                         left = fieldref_expr
-                        right = sqlast.FieldRefNode(table=datatable, field='entity_id')
+                        right = sqlast.FieldRefNode(table=datatable, field='id')
                         whereexpr = sqlast.BinOpNode(op='=', left=left, right=right)
                         if query.where is not None:
                             query.where = sqlast.BinOpNode(op='and', left=query.where, right=whereexpr)
@@ -275,7 +275,7 @@ class CaosQLQueryAdapter(NodeVisitor):
             field_name = 'id'
         else:
             table_name, table_schema_name = self._caos_name_to_pg_table(step.concept.name)
-            field_name = 'entity_id'
+            field_name = 'id'
 
         concept_table = sqlast.TableNode(name=table_name,
                                          schema=table_schema_name,
