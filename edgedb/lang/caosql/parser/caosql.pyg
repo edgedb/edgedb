@@ -292,8 +292,9 @@ neg_link_expr                   -> simple_link_expr:
                                         return UnaryOpNode(op='not', operand=kids[1])
 ;
 
-simple_link_expr                -> direction? graph_name:
-                                        return LinkNode(name=kids[1], direction=kids[0])
+simple_link_expr                -> direction? label_expr:
+                                        return LinkNode(name=kids[1].expr, namespace=kids[1].namespace,
+                                                        direction=kids[0])
                                  | '(' link_spec ')':
                                         return kids[1]
 ;

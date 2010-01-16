@@ -19,19 +19,23 @@ filters:
 
 source: |
     SELECT
-            cm.id,
-            cm.source_id,
-            sc.name AS source_concept,
-            cm.target_id,
-            tc.name AS target_concept,
-            cm.name AS name,
-            cm.mapping,
-            cm.required
+            l.id,
+            l.source_id,
+            sc.name AS source,
+            l.target_id,
+            tc.name AS target,
+            l.name AS name,
+            l.mapping,
+            l.required,
+            l.title,
+            l.description,
+            l.implicit,
+            l.atomic
         FROM
-            caos.concept_map cm
-            INNER JOIN caos.concept sc ON cm.source_id = sc.id
-            INNER JOIN caos.concept tc ON cm.target_id = tc.id
+            caos.link l
+            LEFT JOIN caos.concept sc ON l.source_id = sc.id
+            LEFT JOIN caos.concept tc ON l.target_id = tc.id
         WHERE
             (%(source_concept)s::text IS NULL OR %(source_concept)s::text = sc.name)
             AND (%(target_concept)s::text IS NULL OR %(target_concept)s::text = tc.name)
-            AND (%(name)s::text IS NULL OR %(name)s::text = cm.name)
+            AND (%(name)s::text IS NULL OR %(name)s::text = l.name)

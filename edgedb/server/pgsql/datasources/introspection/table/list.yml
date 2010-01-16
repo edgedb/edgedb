@@ -5,6 +5,8 @@ params:
     schema_name:
         type: str
         default: "public"
+    table_pattern:
+        type: str
 
 filters:
     - format: dict
@@ -23,10 +25,10 @@ source: |
                 --
                 ns.nspname LIKE %(schema_name)s
                 --
-                -- We're only interested in real tables
+                -- Only specified tables
+                --
+                AND c.relname LIKE %(table_pattern)s
+                --
+                -- And only real tables
                 --
                 AND c.relkind = 'r'
-                --
-                -- and only caos data tables
-                --
-                AND c.relname LIKE '%%_data'

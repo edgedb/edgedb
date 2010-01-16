@@ -3,6 +3,7 @@ from semantix.caos.query import CaosQLError
 from semantix.caos.caosql import ast as caosast
 from semantix.caos.backends.pgsql import ast as sqlast
 from semantix.caos.backends.pgsql import codegen as sqlgen
+from semantix.caos.backends.meta import Link as MetaLink
 from semantix.ast.visitor import NodeVisitor
 from semantix.utils.debug import debug, highlight
 
@@ -240,9 +241,11 @@ class CaosQLQueryAdapter(NodeVisitor):
 
         fromnode.expr = self._process_path(context, cte, None, startnode)
 
-    def _simple_join(self, context, left, right, key):
-        condition = sqlast.BinOpNode(op='=', left=left.bonds(key)[-1], right=right.bonds(key)[-1])
-        join = sqlast.JoinNode(type='inner', left=left, right=right, condition=condition)
+    def _simple_join(self, context, left, right, key, type='inner'):
+        condition = left.bonds(key)[-1]
+        if not isinstance(condition, sqlast.BinOpNode):
+            condition = sqlast.BinOpNode(op='=', left=left.bonds(key)[-1], right=right.bonds(key)[-1])
+        join = sqlast.JoinNode(type=type, left=left, right=right, condition=condition)
 
         join.updatebonds(left)
         join.updatebonds(right)
@@ -287,11 +290,11 @@ class CaosQLQueryAdapter(NodeVisitor):
         if joinpoint is None:
             fromnode.expr = concept_table
         else:
+            target_id_field = sqlast.FieldRefNode(table=concept_table, field='id')
+
             #
             # Append the step to the join chain taking link filter into account
             #
-            map = sqlast.TableNode(name='entity_map', schema='caos', concept=step.concept,
-                                   alias=context.current.genalias(hint='map'))
 
             if link.filter:
                 if link.filter.direction == link.filter.BACKWARD:
@@ -301,18 +304,37 @@ class CaosQLQueryAdapter(NodeVisitor):
                     source_fld = 'source_id'
                     target_fld = 'target_id'
 
-            map.addbond(link.source.concept, sqlast.FieldRefNode(table=map, field=source_fld))
+                join = joinpoint
 
-            join = self._simple_join(context, joinpoint, map, link.source.concept)
-            join.addbond(step.concept, sqlast.FieldRefNode(table=map, field=target_fld))
+                target_bond_expr = None
 
             if link.filter and link.filter.labels:
-                expr = self._select_link_types(context, map, link.filter.labels)
-                if step_cte.where is not None:
-                    step_cte.where = sqlast.BinOpNode(op='and', left=step_cte.where, right=expr)
-                else:
-                    step_cte.where = expr
+                for label in link.filter.labels:
+                    map = sqlast.TableNode(name=label.name.name + '_link',
+                                           schema='caos_' + label.name.module, concept=step.concept,
+                                           alias=context.current.genalias(hint='map'))
+                    map.addbond(link.source.concept, sqlast.FieldRefNode(table=map, field=source_fld))
+                    join = self._simple_join(context, joinpoint, map, link.source.concept, type='left')
 
+                    cond_expr = sqlast.BinOpNode(left=sqlast.FieldRefNode(table=map, field=target_fld),
+                                                 op='=', right=target_id_field)
+
+                    if target_bond_expr:
+                        target_bond_expr = sqlast.BinOpNode(left=target_bond_expr, op='or',
+                                                            right=cond_expr)
+                    else:
+                        target_bond_expr = cond_expr
+
+            else:
+                map = sqlast.TableNode(name='entity_map', schema='caos', concept=step.concept,
+                                       alias=context.current.genalias(hint='map'))
+
+                map.addbond(link.source.concept, sqlast.FieldRefNode(table=map, field=source_fld))
+                join = self._simple_join(context, joinpoint, map, link.source.concept)
+
+                target_bond_expr = sqlast.FieldRefNode(table=map, field=target_fld)
+
+            join.addbond(step.concept, target_bond_expr)
             join = self._simple_join(context, join, concept_table, step.concept)
 
             fromnode.expr = join
@@ -374,14 +396,15 @@ class CaosQLQueryAdapter(NodeVisitor):
         # XXX: TODO: centralize this with pgsql backend
         return name.name + '_data', 'caos_' + name.module
 
-    def _select_link_types(self, context, map, labels):
+    def _select_link_types(self, context, map, link):
         select = sqlast.SelectQueryNode()
+        labels = link.filter.labels
 
         entity_1 = sqlast.TableNode(name='entity', schema='caos', alias=context.current.genalias(hint='entity'))
         entity_2 = sqlast.TableNode(name='entity', schema='caos', alias=context.current.genalias(hint='entity'))
-        concept_map = sqlast.TableNode(name='concept_map', schema='caos', alias=context.current.genalias(hint='concept_map'))
+        link = sqlast.TableNode(name='link', schema='caos', alias=context.current.genalias(hint='link'))
 
-        select.fromlist = [entity_1, entity_2, concept_map]
+        select.fromlist = [entity_1, entity_2, link]
 
         left = sqlast.FieldRefNode(table=map, field='source_id')
         right = sqlast.FieldRefNode(table=entity_1, field='id')
@@ -393,16 +416,16 @@ class CaosQLQueryAdapter(NodeVisitor):
         where = sqlast.BinOpNode(op='and', left=where, right=condition)
 
         left = sqlast.FieldRefNode(table=entity_1, field='concept_id')
-        right = sqlast.FieldRefNode(table=concept_map, field='source_id')
+        right = sqlast.FieldRefNode(table=link, field='source_id')
         condition = sqlast.BinOpNode(op='=', left=left, right=right)
         where = sqlast.BinOpNode(op='and', left=where, right=condition)
 
         left = sqlast.FieldRefNode(table=entity_2, field='concept_id')
-        right = sqlast.FieldRefNode(table=concept_map, field='target_id')
+        right = sqlast.FieldRefNode(table=link, field='target_id')
         condition = sqlast.BinOpNode(op='=', left=left, right=right)
         where = sqlast.BinOpNode(op='and', left=where, right=condition)
 
-        left = sqlast.FieldRefNode(table=concept_map, field='name')
+        left = sqlast.FieldRefNode(table=link, field='name')
         right = sqlast.SequenceNode()
         for label in labels:
             right.elements.append(sqlast.ConstantNode(value=label))
@@ -410,7 +433,7 @@ class CaosQLQueryAdapter(NodeVisitor):
         where = sqlast.BinOpNode(op='and', left=where, right=condition)
 
         select.where = where
-        selexpr = sqlast.FieldRefNode(table=concept_map, field='id')
+        selexpr = sqlast.FieldRefNode(table=link, field='id')
         select.targets = [sqlast.SelectExprNode(expr=selexpr, alias='id')]
 
         left = sqlast.FieldRefNode(table=map, field='link_type_id')

@@ -1,0 +1,16 @@
+%SCHEMA semantix.datasources.schemas.Sql
+%NAME AtomList
+---
+params:
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+            c.id AS id,
+            c.name AS name,
+            c.title AS title,
+            c.description AS description
+        FROM
+            caos.atom c

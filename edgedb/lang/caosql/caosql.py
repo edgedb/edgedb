@@ -3,6 +3,7 @@ from semantix.caos.name import Name as CaosName
 from semantix.caos.caosql import ast
 from semantix.caos.caosql.parser import nodes as qlast
 from semantix.caos.caosql import CaosQLError
+from semantix.caos.backends import meta
 
 
 class ParseContextLevel(object):
@@ -64,9 +65,10 @@ class ParseContext(object):
 
 
 class CaosqlTreeTransformer(object):
-    def __init__(self, realm):
+    def __init__(self, realm, module_aliases=None):
         self.realm = realm
         self.cls = realm.getfactory()
+        self.module_aliases = module_aliases
 
     def _dump(self, tree):
         if tree is not None:
@@ -86,6 +88,9 @@ class CaosqlTreeTransformer(object):
         if tree.namespaces:
             for ns in tree.namespaces:
                 context.current.namespaces[ns.alias] = ns.namespace
+
+        if self.module_aliases:
+            context.current.namespaces.update(self.module_aliases)
 
         context.current.graph.generator = self._process_select_where(context, tree.where)
         context.current.graph.selector = self._process_select_targets(context, tree.targets)
@@ -255,8 +260,8 @@ class CaosqlTreeTransformer(object):
                 var = node.var
                 node = self._get_path_tip(node)
 
-                if i == pathlen - 1 and self._is_attr_ref(context, curstep, node.expr):
-                    step.atom = node.expr
+                if i == pathlen - 1 and self._is_attr_ref(context, curstep, node):
+                    step.atom = (node.namespace, node.expr)
                     hint = str(curstep.concept) + '.' + node.expr
                 else:
                     step.concept = self._normalize_concept(context, node.expr, node.namespace)
@@ -277,8 +282,8 @@ class CaosqlTreeTransformer(object):
                     curstep = refnode
                     continue
                 else:
-                    if i == pathlen - 1 and self._is_attr_ref(context, curstep, node.expr):
-                        step.atom = node.expr
+                    if i == pathlen - 1 and self._is_attr_ref(context, curstep, node):
+                        step.atom = (node.namespace, node.expr)
                         hint = str(curstep.concept) + '.' + node.expr
                     else:
                         step.concept = self._normalize_concept(context, node.expr, node.namespace)
@@ -293,7 +298,7 @@ class CaosqlTreeTransformer(object):
                     step.name = context.current.genalias(hint=hint)
 
                     if node.link_expr:
-                        step.link = self._parse_link_expr(node.link_expr.expr)
+                        step.link = self._parse_link_expr(context, node.link_expr.expr)
 
             if curstep is not None:
                 step.id = curstep.id + ':' + step.id
@@ -333,25 +338,29 @@ class CaosqlTreeTransformer(object):
         if concept == '%':
             return None
         else:
-            concept = self.realm.meta.get(name=concept,
-                                          module_aliases=context.current.namespaces)
+            concept = self.realm.meta.get(name=concept, module_aliases=context.current.namespaces,
+                                          type=meta.Node)
             return concept
 
-    def _parse_link_expr(self, expr):
+    def _parse_link_expr(self, context, expr):
         expr_t = type(expr)
 
         if expr_t == qlast.LinkNode:
-            label = expr.name
-
-            if label == '%':
+            if expr.name == '%':
+                # None means 'any link'
                 labels = None
             else:
-                labels = [label]
+                label = (expr.namespace, expr.name)
+                # Resolve all potential link globs into a list of specific link objects
+                labels = self.realm.meta.match(name=label, module_aliases=context.current.namespaces,
+                                               type=meta.Link)
+                if not labels:
+                    raise CaosQLError('could not find any links matching %s' % label)
 
             return ast.EntityLinkSpec(labels=labels, direction=expr.direction)
         elif expr_t == qlast.BinOpNode:
-            left = self._parse_link_expr(expr.left)
-            right = self._parse_link_expr(expr.right)
+            left = self._parse_link_expr(context, expr.left)
+            right = self._parse_link_expr(context, expr.right)
             return ast.BinOp(op=expr.op, left=left, right=right)
 
     def _process_select_targets(self, context, targets):
@@ -366,15 +375,26 @@ class CaosqlTreeTransformer(object):
         context.current.location = None
         return selector
 
-    def _is_attr_ref(self, context, source, expr):
-        atoms = ['id']
+    def _is_attr_ref(self, context, source, target):
+        if target.expr == 'id':
+            return True
+        elif target.expr == '%':
+            return False
+
+        atoms = []
         if source.concept:
             atoms += [n for n, v in source.concept.links.items() if v.atomic()]
 
-        return expr in atoms
+        name = self.realm.meta.normalize_name(name=(target.namespace, target.expr),
+                                              module_aliases=context.current.namespaces)
+        return name in atoms
 
     def _get_attr_ref(self, context, source, step):
-        result = ast.AtomicRef(refs={source}, name=step.atom)
+        if step.atom == (None, 'id'):
+            name = 'id'
+        else:
+            name = self.realm.meta.normalize_name(name=step.atom, module_aliases=context.current.namespaces)
+        result = ast.AtomicRef(refs={source}, name=str(name))
 
         if context.current.location == 'selector':
             source.selrefs.append(result)

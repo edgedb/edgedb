@@ -1,23 +1,56 @@
+import re
 import postgresql
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
 from semantix.caos.backends.meta import MetaError
 
 
-class DatabaseTable(object):
+def pack_hstore(dct):
+    if dct:
+        result = []
+        for key, value in dct.items():
+            result.append(postgresql.string.quote_ident(key) + '=>'
+                          + postgresql.string.quote_ident(str(value)))
+        return ', '.join(result)
+    else:
+        return None
+
+
+hstore_split_re = re.compile('("(?:[^"]|"")*")=>("(?:[^"]|"")*")')
+
+def unpack_hstore(string):
+    if not string:
+        return None
+
+    result = {}
+    parts = hstore_split_re.split(string)[1:-1]
+    count = (len(parts) + 1) // 3
+
+    def _unquote(var):
+        return var[1:-1].replace('""', '"')
+
+    for i in range(0, count):
+        key, value = parts[i*3:i*3+2]
+        result[_unquote(key)] = _unquote(value)
+    return result
+
+
+class DatabaseObject(object):
     def __init__(self, connection):
         self.connection = connection
         self.cursor = CompatCursor(connection)
 
     def create(self):
         if self.create.__doc__ is None:
-            raise Exception('missing table definition in docstring')
+            raise Exception('missing DDL statement in docstring')
 
         try:
             self.runquery(self.create.__doc__)
         except postgresql.exceptions.DuplicateTableError:
             pass
 
+
+class DatabaseTable(DatabaseObject):
     def insert(self, *dicts, **kwargs):
         data = {}
         for d in dicts + (kwargs,):
@@ -38,72 +71,105 @@ class DatabaseTable(object):
         else:
             return ps()
 
-class ConceptTable(DatabaseTable):
+
+class MetaObjectTable(DatabaseTable):
     def create(self):
         """
-            CREATE TABLE "caos"."concept"(
+            CREATE TABLE "caos"."metaobject"(
                 id serial NOT NULL,
                 name text NOT NULL,
+                title hstore,
+                description hstore,
 
                 PRIMARY KEY (id),
                 UNIQUE (name)
             )
         """
-        super(ConceptTable, self).create()
+        super().create()
+
+
+class AtomTable(DatabaseTable):
+    def create(self):
+        """
+            CREATE TABLE "caos"."atom"(
+                PRIMARY KEY (id),
+                UNIQUE (name)
+            ) INHERITS ("caos"."metaobject")
+        """
+        super().create()
 
     def insert(self, *dicts, **kwargs):
         """
-            INSERT INTO "caos"."concept"(name) VALUES (%(name)s) RETURNING id
+            INSERT INTO "caos"."atom"(id, name, title, description)
+            VALUES (nextval('"caos"."metaobject_id_seq"'::regclass),
+                            %(name)s, %(title)s::text::hstore, %(description)s::text::hstore)
+            RETURNING id
         """
-        super(ConceptTable, self).insert(*dicts, **kwargs)
+        kwargs['title'] = pack_hstore(kwargs['title'])
+        kwargs['description'] = pack_hstore(kwargs['description'])
+        super().insert(*dicts, **kwargs)
+
+
+class ConceptTable(DatabaseTable):
+    def create(self):
+        """
+            CREATE TABLE "caos"."concept"(
+                PRIMARY KEY (id),
+                UNIQUE (name)
+            ) INHERITS ("caos"."metaobject")
+        """
+        super().create()
+
+    def insert(self, *dicts, **kwargs):
+        """
+            INSERT INTO "caos"."concept"(id, name, title, description)
+            VALUES (nextval('"caos"."metaobject_id_seq"'::regclass),
+                    %(name)s, %(title)s::text::hstore, %(description)s::text::hstore)
+            RETURNING id
+        """
+        kwargs['title'] = pack_hstore(kwargs['title'])
+        kwargs['description'] = pack_hstore(kwargs['description'])
+        super().insert(*dicts, **kwargs)
 
 
 class LinkTable(DatabaseTable):
     def create(self):
         """
             CREATE TABLE "caos"."link"(
-                id serial NOT NULL,
-                name text NOT NULL,
-                description text NOT NULL,
-                mapping char(2) NOT NULL,
-
-                PRIMARY KEY (id),
-                UNIQUE (name)
-            )
-        """
-        super(ConceptTable, self).create()
-
-
-class ConceptMapTable(DatabaseTable):
-    def create(self):
-        """
-            CREATE TABLE "caos"."concept_map"(
-                id serial NOT NULL,
-                name varchar(255) NOT NULL,
-                source_id integer NOT NULL,
-                target_id integer NOT NULL,
+                source_id integer,
+                target_id integer,
                 mapping char(2) NOT NULL,
                 required boolean NOT NULL DEFAULT FALSE,
+                implicit boolean NOT NULL DEFAULT FALSE,
+                atomic boolean NOT NULL DEFAULT FALSE,
 
                 PRIMARY KEY (id),
                 FOREIGN KEY (source_id) REFERENCES "caos"."concept"(id) ON DELETE CASCADE,
                 FOREIGN KEY (target_id) REFERENCES "caos"."concept"(id) ON DELETE CASCADE
-            )
+            ) INHERITS("caos"."metaobject")
         """
-        super(ConceptMapTable, self).create()
+        super().create()
 
     def insert(self, *dicts, **kwargs):
         """
-            INSERT INTO "caos"."concept_map"(source_id, target_id, name, mapping, required)
+            INSERT INTO "caos"."link"(id, source_id, target_id, name, mapping, required, title, description,
+                                                                                         implicit, atomic)
                 VALUES (
+                            nextval('"caos"."metaobject_id_seq"'::regclass),
                             (SELECT id FROM caos.concept WHERE name = %(source)s),
                             (SELECT id FROM caos.concept WHERE name = %(target)s),
                             %(name)s,
                             %(mapping)s,
-                            %(required)s
+                            %(required)s,
+                            %(title)s::text::hstore,
+                            %(description)s::text::hstore,
+                            %(implicit)s,
+                            %(atomic)s
                 ) RETURNING id
         """
-        super(ConceptMapTable, self).insert(*dicts, **kwargs)
+        kwargs['title'] = pack_hstore(kwargs['title'])
+        kwargs['description'] = pack_hstore(kwargs['description'])
+        super().insert(*dicts, **kwargs)
 
 
 class EntityTable(DatabaseTable):
@@ -117,7 +183,7 @@ class EntityTable(DatabaseTable):
                 FOREIGN KEY (concept_id) REFERENCES "caos"."concept"(id)
             )
         """
-        super(EntityTable, self).create()
+        super().create()
 
     def insert(self, *dicts, **kwargs):
         raise MetaError('direct inserts into entity table are not allowed')
@@ -130,12 +196,11 @@ class EntityMapTable(DatabaseTable):
                 source_id integer NOT NULL,
                 target_id integer NOT NULL,
                 link_type_id integer NOT NULL,
-                weight integer NOT NULL,
 
                 PRIMARY KEY (source_id, target_id, link_type_id)
             )
         """
-        super(EntityMapTable, self).create()
+        super().create()
 
 
 class PathCacheTable(DatabaseTable):
@@ -162,7 +227,7 @@ class PathCacheTable(DatabaseTable):
                     ON UPDATE CASCADE ON DELETE CASCADE
             )
         """
-        super(PathCacheTable, self).create()
+        super().create()
 
     def insert(self, *dicts, **kwargs):
         """
@@ -174,4 +239,4 @@ class PathCacheTable(DatabaseTable):
                        %(name_attribute)s, %(concept_name)s, %(weight)s)
             RETURNING entity_id
         """
-        return super(PathCacheTable, self).insert(*dicts, **kwargs)
+        return super().insert(*dicts, **kwargs)

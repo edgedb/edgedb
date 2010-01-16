@@ -12,6 +12,17 @@ from semantix.caos.name import Name as CaosName
 from semantix.caos.backends import meta
 from semantix.caos.backends.meta import RealmMeta
 
+from semantix.utils.nlang import morphology
+
+
+class WordCombination(morphology.WordCombination, lang.meta.Object):
+    @classmethod
+    def construct(cls, data, context):
+        if isinstance(data, str):
+            return cls(data)
+        else:
+            return cls.from_dict(data)
+
 
 class AtomModExpr(meta.AtomModExpr, lang.meta.Object):
     @classmethod
@@ -40,7 +51,8 @@ class AtomModRegExp(meta.AtomModRegExp, lang.meta.Object):
 class Atom(meta.Atom, lang.meta.Object):
     @classmethod
     def construct(cls, data, context):
-        atom = cls(name=None, backend=data.get('backend'), base=data['extends'], default=data['default'])
+        atom = cls(name=None, backend=data.get('backend'), base=data['extends'], default=data['default'],
+                   title=data['title'], description=data['description'])
         atom.context = context
         mods = data.get('mods')
         if mods:
@@ -57,31 +69,74 @@ class Concept(meta.Concept, lang.meta.Object):
             if not isinstance(extends, list):
                 extends = [extends]
 
-        concept = cls(name=None, backend=data.get('backend'), base=extends)
+        concept = cls(name=None, backend=data.get('backend'), base=extends, title=data['title'],
+                      description=data['description'])
         concept.context = context
-        for link in data['links']:
-            concept.add_link(link)
+        concept._links = data['links']
         return concept
+
+
+class LinkProperty(meta.LinkProperty, lang.meta.Object):
+    @classmethod
+    def construct(cls, data, context):
+        if isinstance(data, str):
+            result = cls(name=None, atom=data)
+            result.context = context
+        else:
+            atom_name, info = next(iter(data.items()))
+            result = cls(name=None, atom=atom_name, title=info['title'], description=info['description'])
+            result.mods = info.get('mods')
+            result.context = context
+        return result
+
+
+class LinkDef(meta.Link, lang.meta.Object):
+    @classmethod
+    def construct(cls, data, context):
+        extends = data.get('extends')
+        if extends:
+            if not isinstance(extends, list):
+                extends = [extends]
+
+        link = cls(name=None, backend=data.get('backend'), base=extends, title=data['title'],
+                   description=data['description'])
+        link.context = context
+        for property_name, property in data['properties'].items():
+            property.name = property_name
+            link.add_property(property)
+        return link
 
 
 class Link(meta.Link, lang.meta.Object):
     @classmethod
     def construct(cls, data, context):
-        name, info = next(iter(data.items()))
-        if isinstance(info, str):
-            return cls(source=None, targets={info}, name=name)
+        result = []
+
+        if isinstance(data, str):
+            link = cls(source=None, target=data, name=None)
+            link.context = context
+            result.append(link)
+        elif isinstance(data, list):
+            for target in data:
+                link = cls(source=None, target=target, name=None)
+                link.context = context
+                result.append(link)
         else:
-            targets = set(info.keys())
-            info = next(iter(info.values()))
-            result = cls(name=name, targets=targets, mapping=info['mapping'], required=info['required'])
-            result.mods = info.get('mods')
-            return result
+            for target, info in data.items():
+                link = cls(name=None, target=target, mapping=info['mapping'], required=info['required'],
+                           title=info['title'], description=info['description'])
+                link.mods = info.get('mods')
+                link.context = context
+                result.append(link)
+
+        return result
 
 
 class ImportContext(lang.ImportContext):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.metaindex = RealmMeta()
+        self.metaindex.add_module(args[0], args[0])
         self.toplevel = False
 
     @classmethod
@@ -89,6 +144,7 @@ class ImportContext(lang.ImportContext):
         result = cls(name)
         if parent and isinstance(parent, ImportContext):
             result.metaindex = parent.metaindex
+            result.metaindex.add_module(name, name)
             result.toplevel = False
         else:
             result.toplevel = True
@@ -124,14 +180,21 @@ class MetaSet(lang.meta.Object):
             localindex.add_module(module.__name__, alias)
 
         self.read_atoms(data, globalindex, localindex)
+        self.read_links(data, globalindex, localindex)
         self.read_concepts(data, globalindex, localindex)
 
         if self.toplevel:
+            # The final pass on concepts may produce additional links and atoms,
+            # thus, it has to be performed first.
             concepts = self.order_concepts(globalindex)
+            links = self.order_links(globalindex)
             atoms = self.order_atoms(globalindex)
 
             for atom in atoms:
                 self.finalindex.add(atom)
+
+            for link in links:
+                self.finalindex.add(link)
 
             for concept in concepts:
                 self.finalindex.add(concept)
@@ -166,6 +229,57 @@ class MetaSet(lang.meta.Object):
         return graph.normalize(g, merger=None)
 
 
+    def read_links(self, data, globalmeta, localmeta):
+        for link_name, link in data['links'].items():
+            module = link.context.document.module.__name__
+            link.name = CaosName(name=link_name, module=module)
+
+            properties = {}
+            for property_name, property in link.properties.items():
+                property.name = CaosName(name=link_name + '__' + property_name, module=module)
+                property.atom = localmeta.normalize_name(property.atom)
+                properties[property.name] = property
+            link.properties = properties
+
+            globalmeta.add(link)
+            localmeta.add(link)
+
+
+    def order_links(self, globalmeta):
+        g = {}
+
+        for link in globalmeta('link', include_automatic=True):
+            for property_name, property in link.properties.items():
+                if not isinstance(property.atom, meta.GraphObject):
+                    property.atom = globalmeta.get(property.atom)
+
+                    mods = getattr(property, 'mods', None)
+                    if mods:
+                        # Got an inline atom definition.
+                        default = getattr(property, 'default', None)
+                        atom = self.genatom(link, property.atom.name, default, property_name, mods)
+                        globalmeta.add(atom)
+                        property.atom = atom
+
+            if link.source and not isinstance(link.source, meta.GraphObject):
+                link.source = globalmeta.get(link.source)
+
+            if link.target and not isinstance(link.target, meta.GraphObject):
+                link.target = globalmeta.get(link.target)
+
+            g[link.name] = {"item": link, "merge": [], "deps": []}
+
+            if link.implicit_derivative and not link.atomic():
+                base = globalmeta.get(next(iter(link.base)))
+                if base.atom:
+                    raise MetaError('implicitly defined atomic link % used to link to concept' % link.name)
+
+            if link.base:
+                g[link.name]['merge'].extend(link.base)
+
+        return graph.normalize(g, merger=self.merge_objects)
+
+
     def read_concepts(self, data, globalmeta, localmeta):
         backend = data.get('backend')
 
@@ -183,9 +297,34 @@ class MetaSet(lang.meta.Object):
             if concept.base:
                 concept.base = [localmeta.normalize_name(b) for b in concept.base]
 
-            for link in concept.links.values():
-                link.source = concept.name
-                link.targets = [localmeta.normalize_name(t) for t in link.targets]
+            for link_name, links in concept._links.items():
+                for link in links:
+                    link.source = concept.name
+                    link.target = localmeta.normalize_name(link.target)
+
+                    link_qname = localmeta.normalize_name(link_name, default=None)
+                    if not link_qname:
+                        # The link has not been defined globally.
+                        if not CaosName.is_qualified(link_name):
+                            # If the name is not fully qualified, assume inline link definition.
+                            # The only attribute that is used for global definition is the name.
+                            link_qname = CaosName(name=link_name, module=link.context.document.module.__name__)
+                            linkdef = Link(name=link_qname)
+                            linkdef.atom = globalmeta.get(link.target, type=meta.Atom, default=None) is not None
+                            globalmeta.add(linkdef)
+                            localmeta.add(linkdef)
+                        else:
+                            link_qname = CaosName(link_name)
+
+                    # A new implicit subclass of the link is created for each (source, link_name, target)
+                    # combination
+                    link.base = {link_qname}
+                    link.implicit_derivative = True
+                    link_genname = Link.gen_link_name(link.source, link.target, link_qname.name)
+                    link.name = CaosName(name=link_genname, module=link.context.document.module.__name__)
+                    globalmeta.add(link)
+                    localmeta.add(link)
+                    concept.add_link(link)
 
 
     def order_concepts(self, globalmeta):
@@ -195,47 +334,25 @@ class MetaSet(lang.meta.Object):
             links = {}
             link_target_types = {}
 
-            for link_name, link in concept.links.items():
-                if not isinstance(link.source, meta.GraphObject):
-                    link.source = globalmeta.get(link.source)
+            for link_name, links in concept.links.items():
+                for link in links:
+                    if not isinstance(link.source, meta.GraphObject):
+                        link.source = globalmeta.get(link.source)
 
-                targets = set()
+                    if not isinstance(link.target, meta.GraphObject):
+                        link.target = globalmeta.get(link.target)
 
-                for target in link.targets:
-                    if isinstance(target, meta.GraphObject):
-                        # Inherited link
-                        targets.add(target)
-                        continue
-
-                    target_obj = globalmeta.get(target)
-
-                    if not target_obj:
-                        raise MetaError('reference to an undefined node "%s" in "%s"' %
-                                        (target, str(concept.name) + '/links/' + link_name))
-
-                    if (link_name, target) in links:
-                        raise MetaError('%s --%s--> %s link redefinition' % (concept.name, link_name, target))
-
-                    targets.add(target_obj)
-
-                    if isinstance(target_obj, meta.Atom):
+                    if isinstance(link.target, meta.Atom):
                         if link_name in link_target_types and link_target_types[link_name] != 'atom':
                             raise MetaError('%s link is already defined as a link to non-atom')
 
                         mods = getattr(link, 'mods', None)
                         if mods:
                             # Got an inline atom definition.
-                            # We must generate a unique name here
-                            atom_name = '__' + concept.name.name + '__' + link_name
-                            atom = Atom(name=CaosName(name=atom_name, module=concept.name.module),
-                                        base=target_obj.name,
-                                        default=getattr(link, 'default', None), automatic=True,
-                                        backend=concept.backend)
-                            for mod in link.mods:
-                                atom.add_mod(mod)
+                            default = getattr(link, 'default', None)
+                            atom = self.genatom(concept, link.target.name, default, link_name, mods)
                             globalmeta.add(atom)
-
-                            targets = {atom}
+                            link.target = atom
 
                         if link.mapping != '11':
                             raise MetaError('%s: links to atoms can only have a "1 to 1" mapping' % link_name)
@@ -246,17 +363,27 @@ class MetaSet(lang.meta.Object):
                             raise MetaError('%s link is already defined as a link to atom')
 
                         link_target_types[link_name] = 'concept'
-                link.targets = targets
 
             g[concept.name] = {"item": concept, "merge": [], "deps": []}
             if concept.base:
                 g[concept.name]["merge"].extend(concept.base)
 
-        return graph.normalize(g, merger=self.merge_concepts)
+        return graph.normalize(g, merger=self.merge_objects)
 
+
+    def genatom(self, host, base, default, link_name, mods):
+        atom_name = '__' + host.name.name + '__' + link_name.name
+        atom = Atom(name=CaosName(name=atom_name, module=host.name.module),
+                    base=base,
+                    default=default,
+                    automatic=True,
+                    backend=host.backend)
+        for mod in mods:
+            atom.add_mod(mod)
+        return atom
 
     @staticmethod
-    def merge_concepts(left, right):
+    def merge_objects(left, right):
         right.merge(left)
         return right
 

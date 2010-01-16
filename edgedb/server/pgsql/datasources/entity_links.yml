@@ -22,18 +22,18 @@ source: |
             sc.name AS source_concept,
             em.target_id AS target_id,
             tc.name AS target_concept,
-            cm.name AS name,
+            l.name AS name,
             em.weight AS weight
         FROM
             caos.entity_map em
-            INNER JOIN caos.concept_map cm ON em.link_type_id = cm.id
-            INNER JOIN caos.concept sc ON sc.id = cm.source_id
-            INNER JOIN caos.concept tc ON tc.id = cm.target_id
+            INNER JOIN caos.link l ON em.link_type_id = l.id
+            INNER JOIN caos.concept sc ON sc.id = l.source_id
+            INNER JOIN caos.concept tc ON tc.id = l.target_id
         WHERE
             (%(source_id)s IS NULL OR em.source_id = %(source_id)s)
             AND (%(target_id)s IS NULL OR em.target_id = %(target_id)s)
             AND (%(source_concepts)s IS NULL OR sc.name = any(%(source_concepts)s))
             AND (%(target_concepts)s IS NULL OR tc.name = any(%(target_concepts)s))
-            AND (%(link_names)s IS NULL OR cm.name = any(%(link_names)s))
+            AND (%(link_names)s IS NULL OR l.name = any(%(link_names)s))
         ORDER BY
             em.weight

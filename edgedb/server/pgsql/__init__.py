@@ -14,20 +14,22 @@ from semantix.caos.backends.data import DataBackend
 from semantix.caos.backends.meta import RealmMeta, Atom, Concept, Link
 from semantix.caos.backends import meta as metamod
 
-from semantix.caos.backends.pgsql.common import PathCacheTable, EntityTable
-from semantix.caos.backends.pgsql.common import ConceptTable, ConceptMapTable, EntityMapTable
+from semantix.caos.backends.pgsql.common import PathCacheTable, EntityTable, EntityMapTable, unpack_hstore
+from semantix.caos.backends.pgsql.common import AtomTable, ConceptTable, LinkTable, MetaObjectTable
 
 from .datasources.introspection import SchemasList
 from .datasources.introspection.domains import DomainsList
 from .datasources.introspection.table import TableColumns, TableInheritance, TableList
 from .datasources.meta.concept import ConceptLinks
 
-from .datasources import EntityLinks, ConceptLink
+from .datasources import EntityLinks, ConceptLink, ConceptList, AtomList
 from .adapters.caosql import CaosQLQueryAdapter
 
 import semantix.caos.query
 from semantix.caos.concept import BaseConceptCollection
 from semantix.utils.debug import debug
+
+from semantix.utils.nlang import morphology
 
 
 class CaosQLCursor(object):
@@ -121,10 +123,14 @@ class Backend(MetaBackend, DataBackend):
         if 'caos' not in self.modules:
             self.create_primary_schema()
 
+        self.metaobject_table = MetaObjectTable(self.connection)
+        self.metaobject_table.create()
+        self.atom_table = AtomTable(self.connection)
+        self.atom_table.create()
         self.concept_table = ConceptTable(self.connection)
         self.concept_table.create()
-        self.concept_map_table = ConceptMapTable(self.connection)
-        self.concept_map_table.create()
+        self.link_table = LinkTable(self.connection)
+        self.link_table.create()
 
         self.entity_table = EntityTable(self.connection)
         self.entity_table.create()
@@ -140,17 +146,16 @@ class Backend(MetaBackend, DataBackend):
 
         self.read_atoms(meta)
         self.read_concepts(meta)
+        self.read_links(meta)
 
         return meta
 
 
     def synchronize(self, meta):
         with self.connection.xact():
-            for obj in meta:
-                self.store(obj, 1)
-
-            for obj in meta:
-                self.store(obj, 2)
+            for type in ('atom', 'concept', 'link'):
+                for obj in meta(type):
+                    self.store(obj)
 
 
     def get_concept_from_entity(self, id):
@@ -191,21 +196,21 @@ class Backend(MetaBackend, DataBackend):
             if id is not None:
                 query = 'UPDATE %s SET ' % self.concept_name_to_pg_table_name(concept)
                 cols = []
-                for a, v in attrs.items():
+                for a in attrs:
                     if a in clinks:
-                        col_type = 'text::%s' % self.pg_type_from_atom_class(clinks[a].targets[0])
+                        col_type = 'text::%s' % self.pg_type_from_atom_class(clinks[a].first.target)
                     else:
                         col_type = 'int'
-                    cols.append('%s = %%(%s)s::%s' % (a, a, col_type))
+                    cols.append('%s = %%(%s)s::%s' % (postgresql.string.quote_ident(str(a)), str(a), col_type))
                 query += ','.join(cols)
                 query += ' WHERE id = %d RETURNING id' % id
             else:
                 if attrs:
                     cols_names = ', ' + ', '.join(['"%s"' % a for a in attrs])
                     cols = []
-                    for a, v in attrs.items():
+                    for a in attrs:
                         if a in clinks:
-                            col_type = 'text::%s' % self.pg_type_from_atom_class(clinks[a].targets[0])
+                            col_type = 'text::%s' % self.pg_type_from_atom_class(clinks[a].first.target)
                         else:
                             col_type = 'int'
                         cols.append('%%(%s)s::%s' % (a, col_type))
@@ -222,7 +227,7 @@ class Backend(MetaBackend, DataBackend):
                             RETURNING id''' % {'concept': postgresql.string.quote_literal(str(concept)),
                                                'cols': cols_values}
 
-            data = dict((k, str(attrs[k]) if attrs[k] is not None else None) for k in attrs)
+            data = dict((str(k), str(attrs[k]) if attrs[k] is not None else None) for k in attrs)
 
             rows = self.runquery(query, data)
             id = next(rows)
@@ -240,7 +245,7 @@ class Backend(MetaBackend, DataBackend):
 
             for name, link in links.items():
                 if isinstance(link, BaseConceptCollection) and link.dirty:
-                    self.store_links(concept, name, entity, link)
+                    self.store_links(entity, link, name)
                     link.markclean()
 
         return id
@@ -271,6 +276,15 @@ class Backend(MetaBackend, DataBackend):
                    self.normalize_domain_descr(d) for d in domains}
         self.domains = set(domains.keys())
 
+        atom_list = AtomList(self.connection).fetch()
+
+        atoms = {}
+        for row in atom_list:
+            name = CaosName(row['name'])
+            atoms[name] = {'name': name,
+                           'title': self.hstore_to_word_combination(row['title']),
+                           'description': self.hstore_to_word_combination(row['description'])}
+
         for name, domain_descr in domains.items():
 
             if domain_descr['basetype'] in self.base_type_name_map_r:
@@ -279,7 +293,8 @@ class Backend(MetaBackend, DataBackend):
                 bases = CaosName(name=self.pg_domain_name_to_atom_name(domain_descr['basetype']),
                                  module=self.pg_schema_name_to_module_name(domain_descr['basetype_schema']))
 
-            atom = Atom(name=name, base=bases, default=domain_descr['default'])
+            atom = Atom(name=name, base=bases, default=domain_descr['default'], title=atoms[name]['title'],
+                        description=atoms[name]['description'])
 
             if domain_descr['constraints'] is not None:
                 for constraint_type in domain_descr['constraints']:
@@ -289,65 +304,95 @@ class Backend(MetaBackend, DataBackend):
             meta.add(atom)
 
 
+    def read_links(self, meta):
+
+        link_tables = TableList(self.connection).fetch(schema_name='caos%', table_pattern='%_link')
+
+        tables = {}
+
+        for t in link_tables:
+            name = self.pg_table_name_to_link_name(t['name'])
+            module = self.pg_schema_name_to_module_name(t['schema'])
+            name = CaosName(name=name, module=module)
+
+            tables[name] = t
+
+        links_list = ConceptLinks(self.connection).fetch()
+
+        for r in links_list:
+            name = CaosName(r['name'])
+            bases = tuple()
+
+            if not r['implicit'] and not r['atomic']:
+                table = tables.get(name)
+                if not table:
+                    raise MetaError('internal inconsistency: record for link %s exists but the table is missing'
+                                    % name)
+
+                bases = self.pg_table_inheritance_to_bases(t['name'], t['schema'])
+            else:
+                if r['implicit']:
+                    bases = (meta.get(r['name'].rpartition('_')[0]),)
+
+            title = self.hstore_to_word_combination(r['title'])
+            description = self.hstore_to_word_combination(r['description'])
+            source = meta.get(r['source']) if r['source'] else None
+            target = meta.get(r['target']) if r['target'] else None
+
+            link = Link(name=name, base=bases, source=source, target=target,
+                        mapping=r['mapping'], required=r['required'],
+                        title=title, description=description)
+            meta.add(link)
+
+            if source:
+                source.add_link(link)
+
+
     def read_concepts(self, meta):
-        tables = TableList(self.connection).fetch(schema_name='caos%')
+        tables = TableList(self.connection).fetch(schema_name='caos%', table_pattern='%_data')
+        concept_list = ConceptList(self.connection).fetch()
+
+        concepts = {}
+        for row in concept_list:
+            name = CaosName(row['name'])
+            concepts[name] = {'name': name,
+                              'title': self.hstore_to_word_combination(row['title']),
+                              'description': self.hstore_to_word_combination(row['description'])}
 
         for t in tables:
             name = self.pg_table_name_to_concept_name(t['name'])
             module = self.pg_schema_name_to_module_name(t['schema'])
+            name = CaosName(name=name, module=module)
 
-            inheritance = TableInheritance(self.connection).fetch(table_name=t['name'], schema_name=t['schema'])
-            inheritance = [i[:2] for i in inheritance[1:]]
+            bases = self.pg_table_inheritance_to_bases(t['name'], t['schema'])
 
-            bases = tuple()
-            if len(inheritance) > 0:
-                for table in inheritance:
-                    base_name = self.pg_table_name_to_concept_name(table[0])
-                    base_module = self.pg_schema_name_to_module_name(table[1])
-                    bases += (CaosName(name=base_name, module=base_module),)
-
-            concept = Concept(name=CaosName(name=name, module=module), base=bases)
+            concept = Concept(name=name, base=bases, title=concepts[name]['title'],
+                              description=concepts[name]['description'])
 
             columns = TableColumns(self.connection).fetch(table_name=t['name'], schema_name=t['schema'])
             for row in columns:
                 if row['column_name'] in ('id', 'concept_id'):
                     continue
 
-                atom = self.atom_from_pg_type(row['column_type'], '__' + name + '__' + row['column_name'],
+                atom = self.atom_from_pg_type(row['column_type'], '__' + name.name + '__' + row['column_name'],
                                               t['schema'], row['column_default'], meta)
 
                 meta.add(atom)
-                atom = Link(name=row['column_name'], source=concept, targets={atom},
-                            required=row['column_required'], mapping='11')
-                concept.add_link(atom)
 
             meta.add(concept)
 
-        for t in tables:
-            name = self.pg_table_name_to_concept_name(t['name'])
-            module = self.pg_schema_name_to_module_name(t['schema'])
-            name = CaosName(name=name, module=module)
-            concept = meta.get(name)
 
-            for r in ConceptLinks(self.connection).fetch(source_concept=str(name)):
-                link = Link(name=r['name'], source=meta.get(r['source_concept']),
-                            targets={meta.get(r['target_concept'])}, mapping=r['mapping'],
-                            required=r['required'])
-                concept.add_link(link)
-
-
-    def store(self, obj, phase=1, allow_existing=False):
+    def store(self, obj, allow_existing=False):
         with self.connection.xact():
             if obj.name.module not in self.modules:
                 self.create_module(obj.name.module)
 
-            is_atom = isinstance(obj, metamod.Atom)
-
-            if is_atom:
-                if phase == 1:
-                    self.create_atom(obj, allow_existing)
+            if isinstance(obj, metamod.Atom):
+                self.create_atom(obj, allow_existing)
+            elif isinstance(obj, metamod.Link):
+                self.create_link(obj)
             else:
-                self.create_concept(obj, phase, allow_existing)
+                self.create_concept(obj)
 
 
     def create_primary_schema(self):
@@ -432,49 +477,90 @@ class Backend(MetaBackend, DataBackend):
 
         self.connection.execute(qry)
 
+        title = obj.title.as_dict() if obj.title else None
+        description = obj.description.as_dict() if obj.description else None
+        self.atom_table.insert(name=str(obj.name), title=title, description=description)
+
         self.domains.add(obj.name)
 
 
-    def create_concept(self, obj, phase, allow_exsiting):
-        if phase is None or phase == 1:
-            self.concept_table.insert(name=str(obj.name))
+    def create_link(self, link):
+        title = link.title.as_dict() if link.title else None
+        description = link.description.as_dict() if link.description else None
 
-            qry = 'CREATE TABLE %s' % self.concept_name_to_pg_table_name(obj.name)
+        source_name = str(link.source.name) if link.source else None
+        target_name = str(link.target.name) if link.target else None
+
+        #
+        # We do not want to create a separate table for atomic links since those
+        # are represented by table columns.  Implicit derivative links also do not get
+        # their own table since they're just a special case of the parent.
+        #
+        # On the other hand, much like with concepts we want all other links to be in
+        # separate tables even if they do not define additional properties.
+        # This is to allow for further schema evolution.
+        #
+        if not link.atomic() and not link.implicit_derivative:
+            table = self.link_name_to_pg_table_name(link.name)
+            qry = 'CREATE TABLE %s' % table
 
             columns = []
 
-            for link_name in sorted(obj.links.keys()):
-                link = obj.links[link_name]
-                if link.atomic():
-                    target_atom = list(link.targets)[0]
-                    column_type = self.pg_type_from_atom(target_atom)
-                    column = '"%s" %s %s' % (link_name, column_type, 'NOT NULL' if link.required else '')
-                    columns.append(column)
+            for property_name, property in link.properties.items():
+                column_type = self.pg_type_from_atom(property.atom)
+                column = '"%s" %s' % (property_name, column_type)
+                columns.append(column)
 
             qry += '(' +  ','.join(columns) + ')'
 
-            if obj.base:
-                qry += ' INHERITS (' + ','.join([self.concept_name_to_pg_table_name(p) for p in obj.base]) + ')'
+            if link.base:
+                qry += ' INHERITS (' + ','.join([self.link_name_to_pg_table_name(p) for p in link.base]) + ')'
             else:
-                qry += ' INHERITS (%s) ' % 'caos.entity'
+                qry += ' INHERITS (%s) ' % 'caos.entity_map'
 
             self.connection.execute(qry)
 
-        if phase is None or phase == 2:
-            for link in obj.links.values():
-                if not link.atomic():
-                    for target in link.targets:
-                        self.concept_map_table.insert(source=str(link.source.name), target=str(target.name),
-                                                      name=link.name, mapping=link.mapping,
-                                                      required=link.required)
+        id = self.link_table.insert(source=source_name, target=target_name,
+                                    name=str(link.name), mapping=link.mapping,
+                                    required=link.required, title=title, description=description,
+                                    implicit=link.implicit_derivative,
+                                    atomic=link.atomic())
+
+
+    def create_concept(self, obj):
+        title = obj.title.as_dict() if obj.title else None
+        description = obj.description.as_dict() if obj.description else None
+        self.concept_table.insert(name=str(obj.name), title=title, description=description)
+
+        qry = 'CREATE TABLE %s' % self.concept_name_to_pg_table_name(obj.name)
+
+        columns = []
+
+        for link_name in sorted(obj.links.keys()):
+            links = obj.links[link_name]
+            for link in links:
+                if isinstance(link.target, metamod.Atom):
+                    column_type = self.pg_type_from_atom(link.target)
+                    column = '"%s" %s %s' % (link_name, column_type, 'NOT NULL' if link.required else '')
+                    columns.append(column)
+
+        columns.append('PRIMARY KEY(id)')
+        qry += '(' +  ','.join(columns) + ')'
+
+        if obj.base:
+            qry += ' INHERITS (' + ','.join([self.concept_name_to_pg_table_name(p) for p in obj.base]) + ')'
+        else:
+            qry += ' INHERITS (%s) ' % 'caos.entity'
+
+        self.connection.execute(qry)
 
 
     @debug
-    def store_links(self, concept, link_name, source, targets):
+    def store_links(self, source, targets, link_name):
         rows = []
 
         params = []
-        for i, target in enumerate(targets):
+        for target in targets:
             target.sync()
 
             """LOG [caos.sync]
@@ -485,27 +571,16 @@ class Backend(MetaBackend, DataBackend):
                   )
             """
 
-            # XXX: that's ugly
-            targets = [str(c.concept) for c in target.__class__.__mro__ if hasattr(c, 'concept')]
+            full_link_name = Link.gen_link_name(source.concept, target.concept, link_name)
+            lt = ConceptLink(self.connection).fetch(name=str(full_link_name))
 
-            lt = ConceptLink(self.connection).fetch(
-                                   source_concepts=[str(source.concept)], target_concepts=targets,
-                                   name=link_name)
-
-            rows.append('(%s::int, %s::int, %s::int, %s::int)')
-            params += [source.id, target.id, lt[0]['id'], 0]
-
-        params += params
+            rows.append('(%s::int, %s::int, %s::int)')
+            params += [source.id, target.id, lt[0]['id']]
 
         if len(rows) > 0:
-            self.runquery("""INSERT INTO caos.entity_map(source_id, target_id, link_type_id, weight)
-                                ((VALUES %s) EXCEPT (SELECT
-                                                            *
-                                                        FROM
-                                                            caos.entity_map
-                                                        WHERE
-                                                            (source_id, target_id, link_type_id, weight) in (%s)))
-                           """ % (",".join(rows), ",".join(rows)), params)
+            table = self.link_name_to_pg_table_name(link_name)
+            self.runquery("""INSERT INTO %s(source_id, target_id, link_type_id) (VALUES %s)""" %
+                          (table, ",".join(rows)), params)
 
 
     def load_links(self, this_concept, this_id, other_concepts=None, link_names=None, reverse=False):
@@ -614,6 +689,20 @@ class Backend(MetaBackend, DataBackend):
             return ps.rows()
 
 
+    def pg_table_inheritance_to_bases(self, table_name, schema_name):
+        inheritance = TableInheritance(self.connection).fetch(table_name=table_name, schema_name=schema_name)
+        inheritance = [i[:2] for i in inheritance[1:]]
+
+        bases = tuple()
+        if len(inheritance) > 0:
+            for table in inheritance:
+                base_name = self.pg_table_name_to_concept_name(table[0])
+                base_module = self.pg_schema_name_to_module_name(table[1])
+                bases += (CaosName(name=base_name, module=base_module),)
+
+        return bases
+
+
     def module_name_to_pg_schema_name(self, module_name):
         return postgresql.string.quote_ident('caos_' + module_name)
 
@@ -631,6 +720,16 @@ class Backend(MetaBackend, DataBackend):
 
     def pg_table_name_to_concept_name(self, name):
         if name.endswith('_data'):
+            name = name[:-5]
+        return name
+
+
+    def link_name_to_pg_table_name(self, name):
+        return postgresql.string.qname('caos_' + name.module, name.name + '_link')
+
+
+    def pg_table_name_to_link_name(self, name):
+        if name.endswith('_link'):
             name = name[:-5]
         return name
 
@@ -702,3 +801,11 @@ class Backend(MetaBackend, DataBackend):
     def get_constraint_expr(self, type, expr):
         constr_name = '%s_%s' % (type, id(expr))
         return ' CONSTRAINT %s CHECK ( %s )' % (postgresql.string.quote_ident(constr_name), expr)
+
+
+    def hstore_to_word_combination(self, hstore):
+        dct = unpack_hstore(hstore)
+        if dct:
+            return morphology.WordCombination.from_dict(dct)
+        else:
+            return None

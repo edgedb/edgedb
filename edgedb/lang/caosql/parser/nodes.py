@@ -18,7 +18,7 @@ class PathDisjunctionNode(AST): __fields = ['left', 'right']
 
 class PathStepNode(AST): __fields = ['namespace', 'expr', 'link_expr']
 
-class LinkNode(AST): __fields = ['name', 'direction']
+class LinkNode(AST): __fields = ['name', 'namespace', 'direction']
 
 class LinkExprNode(AST): __fields = ['expr']
 
