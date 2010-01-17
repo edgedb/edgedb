@@ -165,14 +165,14 @@ class Backend(MetaBackend, DataBackend):
                             caos.entity e
                             INNER JOIN caos.concept c ON c.id = e.concept_id
                         WHERE
-                            e.id = %d""" % id
+                            e.id = '%s'""" % id
 
         ps = self.connection.prepare(query)
         return ps.first()
 
 
     def load_entity(self, concept, id):
-        query = 'SELECT * FROM %s WHERE id = %d' % (self.concept_name_to_pg_table_name(concept), id)
+        query = 'SELECT * FROM %s WHERE id = \'%s\'' % (self.concept_name_to_pg_table_name(concept), id)
         ps = self.connection.prepare(query)
         result = ps.first()
 
@@ -203,7 +203,7 @@ class Backend(MetaBackend, DataBackend):
                         col_type = 'int'
                     cols.append('%s = %%(%s)s::%s' % (postgresql.string.quote_ident(str(a)), str(a), col_type))
                 query += ','.join(cols)
-                query += ' WHERE id = %d RETURNING id' % id
+                query += ' WHERE id = %s RETURNING id' % postgresql.string.quote_literal(str(id))
             else:
                 if attrs:
                     cols_names = ', ' + ', '.join(['"%s"' % a for a in attrs])
@@ -222,7 +222,7 @@ class Backend(MetaBackend, DataBackend):
                 query = 'INSERT INTO %s (id, concept_id%s)' % (self.concept_name_to_pg_table_name(concept),
                                                                 cols_names)
 
-                query += '''VALUES(nextval('caos.entity_id_seq'::regclass),
+                query += '''VALUES(uuid_generate_v1mc(),
                                    (SELECT id FROM caos.concept WHERE name = %(concept)s) %(cols)s)
                             RETURNING id''' % {'concept': postgresql.string.quote_literal(str(concept)),
                                                'cols': cols_values}
@@ -574,7 +574,7 @@ class Backend(MetaBackend, DataBackend):
             full_link_name = Link.gen_link_name(source.concept, target.concept, link_name)
             lt = ConceptLink(self.connection).fetch(name=str(full_link_name))
 
-            rows.append('(%s::int, %s::int, %s::int)')
+            rows.append('(%s::uuid, %s::uuid, %s::int)')
             params += [source.id, target.id, lt[0]['id']]
 
         if len(rows) > 0:

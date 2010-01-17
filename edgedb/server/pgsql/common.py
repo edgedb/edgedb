@@ -2,8 +2,7 @@ import re
 import postgresql
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
-from semantix.caos.backends.meta import MetaError
-
+from semantix.caos.backends import meta
 
 def pack_hstore(dct):
     if dct:
@@ -102,7 +101,7 @@ class AtomTable(DatabaseTable):
         """
             INSERT INTO "caos"."atom"(id, name, title, description)
             VALUES (nextval('"caos"."metaobject_id_seq"'::regclass),
-                            %(name)s, %(title)s::text::hstore, %(description)s::text::hstore)
+                    %(name)s, %(title)s::text::hstore, %(description)s::text::hstore)
             RETURNING id
         """
         kwargs['title'] = pack_hstore(kwargs['title'])
@@ -176,7 +175,7 @@ class EntityTable(DatabaseTable):
     def create(self):
         """
             CREATE TABLE "caos"."entity"(
-                id serial NOT NULL,
+                id uuid NOT NULL DEFAULT uuid_generate_v1mc(),
                 concept_id integer NOT NULL,
 
                 PRIMARY KEY (id),
@@ -186,15 +185,15 @@ class EntityTable(DatabaseTable):
         super().create()
 
     def insert(self, *dicts, **kwargs):
-        raise MetaError('direct inserts into entity table are not allowed')
+        raise meta.MetaError('direct inserts into entity table are not allowed')
 
 
 class EntityMapTable(DatabaseTable):
     def create(self):
         """
             CREATE TABLE "caos"."entity_map"(
-                source_id integer NOT NULL,
-                target_id integer NOT NULL,
+                source_id uuid NOT NULL,
+                target_id uuid NOT NULL,
                 link_type_id integer NOT NULL,
 
                 PRIMARY KEY (source_id, target_id, link_type_id)
@@ -207,10 +206,10 @@ class PathCacheTable(DatabaseTable):
     def create(self):
         """
             CREATE TABLE caos.path_cache (
-                id                  serial NOT NULL,
+                id uuid NOT NULL DEFAULT uuid_generate_v1mc(),
 
-                entity_id           integer NOT NULL,
-                parent_entity_id    integer,
+                entity_id           uuid NOT NULL,
+                parent_entity_id    uuid,
 
                 name_attribute      varchar(255),
                 concept_name        varchar(255) NOT NULL,
