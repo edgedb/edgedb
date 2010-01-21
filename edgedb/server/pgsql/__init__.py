@@ -459,7 +459,8 @@ class Backend(MetaBackend, DataBackend):
             qry += ' DEFAULT %s ' % postgresql.string.quote_literal(str(obj.default))
 
         for constr_type, constr in obj.mods.items():
-            classtr = '%s.%s' % (constr_type.__module__, constr_type.__name__)
+            canonical = constr_type.get_canonical_class()
+            classtr = '%s.%s' % (canonical.__module__, canonical.__name__)
             if issubclass(constr_type, metamod.AtomModRegExp):
                 for re in constr.regexps:
                     expr = 'VALUE ~ %s' % postgresql.string.quote_literal(re)

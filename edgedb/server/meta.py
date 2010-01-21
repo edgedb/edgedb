@@ -27,7 +27,13 @@ class Bool(type):
         self.value = value
 
 
-class GraphObject(object):
+class MetaObject(object):
+    @classmethod
+    def get_canonical_class(cls):
+        return cls
+
+
+class GraphObject(MetaObject):
     def __init__(self, name, backend=None, base=None, title=None, description=None):
         self.name = name
         self.base = base
@@ -73,7 +79,7 @@ class Node(GraphObject):
     pass
 
 
-class AtomMod(object):
+class AtomMod(MetaObject):
     def __init__(self, context):
         self.context = context
 

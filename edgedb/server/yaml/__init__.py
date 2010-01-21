@@ -15,121 +15,119 @@ from semantix.caos.backends.meta import RealmMeta
 from semantix.utils.nlang import morphology
 
 
-class WordCombination(morphology.WordCombination, lang.meta.Object):
+class LangObject(lang.meta.Object):
     @classmethod
-    def construct(cls, data, context):
-        if isinstance(data, str):
-            return cls(data)
+    def get_canonical_class(cls):
+        for base in cls.__bases__:
+            if issubclass(base, meta.MetaObject):
+                return base
+
+        return cls
+
+
+class WordCombination(LangObject, morphology.WordCombination):
+    def construct(self):
+        if isinstance(self.data, str):
+            morphology.WordCombination.__init__(self, self.data)
         else:
-            return cls.from_dict(data)
+            word = morphology.WordCombination.from_dict(self.data)
+            self.forms = word.forms
+            self.value = self.forms.get('singular', next(iter(self.forms.values())))
 
 
-class AtomModExpr(meta.AtomModExpr, lang.meta.Object):
-    @classmethod
-    def construct(cls, data, context):
-        return cls(data['expr'], context=context)
+class AtomModExpr(LangObject, meta.AtomModExpr):
+    def construct(self):
+        meta.AtomModExpr.__init__(self, self.data['expr'], context=self.context)
 
 
-class AtomModMinLength(meta.AtomModMinLength, lang.meta.Object):
-    @classmethod
-    def construct(cls, data, context):
-        return cls(data['min-length'], context=context)
+class AtomModMinLength(LangObject, meta.AtomModMinLength):
+    def construct(self):
+        meta.AtomModMinLength.__init__(self, self.data['min-length'], context=self.context)
 
 
-class AtomModMaxLength(meta.AtomModMaxLength, lang.meta.Object):
-    @classmethod
-    def construct(cls, data, context):
-        return cls(data['max-length'], context=context)
+class AtomModMaxLength(LangObject, meta.AtomModMaxLength):
+    def construct(self):
+        meta.AtomModMaxLength.__init__(self, self.data['max-length'], context=self.context)
 
 
-class AtomModRegExp(meta.AtomModRegExp, lang.meta.Object):
-    @classmethod
-    def construct(cls, data, context):
-        return cls(data['regexp'], context=context)
+class AtomModRegExp(LangObject, meta.AtomModRegExp):
+    def construct(self):
+        meta.AtomModRegExp.__init__(self, self.data['regexp'], context=self.context)
 
 
-class Atom(meta.Atom, lang.meta.Object):
-    @classmethod
-    def construct(cls, data, context):
-        atom = cls(name=None, backend=data.get('backend'), base=data['extends'], default=data['default'],
-                   title=data['title'], description=data['description'])
-        atom.context = context
+class Atom(LangObject, meta.Atom):
+    def construct(self):
+        data = self.data
+        meta.Atom.__init__(self, name=None, backend=data.get('backend'), base=data['extends'],
+                           default=data['default'], title=data['title'],
+                           description=data['description'])
         mods = data.get('mods')
         if mods:
             for mod in mods:
-                atom.add_mod(mod)
-        return atom
+                self.add_mod(mod)
 
 
-class Concept(meta.Concept, lang.meta.Object):
-    @classmethod
-    def construct(cls, data, context):
+class Concept(LangObject, meta.Concept):
+    def construct(self):
+        data = self.data
         extends = data.get('extends')
         if extends:
             if not isinstance(extends, list):
                 extends = [extends]
 
-        concept = cls(name=None, backend=data.get('backend'), base=extends, title=data['title'],
-                      description=data['description'])
-        concept.context = context
-        concept._links = data['links']
-        return concept
+        meta.Concept.__init__(self, name=None, backend=data.get('backend'), base=extends,
+                              title=data.get('title'), description=data.get('description'))
+        self._links = data.get('links', {})
 
 
-class LinkProperty(meta.LinkProperty, lang.meta.Object):
-    @classmethod
-    def construct(cls, data, context):
+class LinkProperty(LangObject, meta.LinkProperty):
+    def construct(self):
+        data = self.data
         if isinstance(data, str):
-            result = cls(name=None, atom=data)
-            result.context = context
+            meta.LinkProperty.__init__(self, name=None, atom=data)
         else:
             atom_name, info = next(iter(data.items()))
-            result = cls(name=None, atom=atom_name, title=info['title'], description=info['description'])
-            result.mods = info.get('mods')
-            result.context = context
-        return result
+            meta.LinkProperty.__init__(self, name=None, atom=atom_name, title=info['title'],
+                                       description=info['description'])
+            self.mods = info.get('mods')
 
 
-class LinkDef(meta.Link, lang.meta.Object):
-    @classmethod
-    def construct(cls, data, context):
+class LinkDef(LangObject, meta.Link):
+    def construct(self):
+        data = self.data
         extends = data.get('extends')
         if extends:
             if not isinstance(extends, list):
                 extends = [extends]
 
-        link = cls(name=None, backend=data.get('backend'), base=extends, title=data['title'],
-                   description=data['description'])
-        link.context = context
+        meta.Link.__init__(self, name=None, backend=data.get('backend'), base=extends, title=data['title'],
+                           description=data['description'])
         for property_name, property in data['properties'].items():
             property.name = property_name
-            link.add_property(property)
-        return link
+            self.add_property(property)
 
 
-class Link(meta.Link, lang.meta.Object):
-    @classmethod
-    def construct(cls, data, context):
-        result = []
+class LinkList(LangObject, list):
 
+    def construct(self):
+        data = self.data
         if isinstance(data, str):
-            link = cls(source=None, target=data, name=None)
-            link.context = context
-            result.append(link)
+            link = meta.Link(source=None, target=data, name=None)
+            link.context = self.context
+            self.append(link)
         elif isinstance(data, list):
             for target in data:
-                link = cls(source=None, target=target, name=None)
-                link.context = context
-                result.append(link)
+                link = meta.Link(source=None, target=target, name=None)
+                link.context = self.context
+                self.append(link)
         else:
             for target, info in data.items():
-                link = cls(name=None, target=target, mapping=info['mapping'], required=info['required'],
-                           title=info['title'], description=info['description'])
+                link = meta.Link(name=None, target=target, mapping=info['mapping'],
+                                 required=info['required'], title=info['title'],
+                                 description=info['description'])
                 link.mods = info.get('mods')
-                link.context = context
-                result.append(link)
-
-        return result
+                link.context = self.context
+                self.append(link)
 
 
 class ImportContext(lang.ImportContext):
@@ -165,9 +163,10 @@ class ImportContext(lang.ImportContext):
         return result
 
 
-class MetaSet(lang.meta.Object):
-    def __init__(self, data, context):
-        self.context = context
+class MetaSet(LangObject):
+    def construct(self):
+        data = self.data
+        context = self.context
         self.finalindex = RealmMeta()
 
         self.toplevel = context.document.import_context.toplevel
@@ -309,7 +308,7 @@ class MetaSet(lang.meta.Object):
                             # If the name is not fully qualified, assume inline link definition.
                             # The only attribute that is used for global definition is the name.
                             link_qname = CaosName(name=link_name, module=link.context.document.module.__name__)
-                            linkdef = Link(name=link_qname)
+                            linkdef = meta.Link(name=link_qname)
                             linkdef.atom = globalmeta.get(link.target, type=meta.Atom, default=None) is not None
                             globalmeta.add(linkdef)
                             localmeta.add(linkdef)
@@ -320,7 +319,7 @@ class MetaSet(lang.meta.Object):
                     # combination
                     link.base = {link_qname}
                     link.implicit_derivative = True
-                    link_genname = Link.gen_link_name(link.source, link.target, link_qname.name)
+                    link_genname = meta.Link.gen_link_name(link.source, link.target, link_qname.name)
                     link.name = CaosName(name=link_genname, module=link.context.document.module.__name__)
                     globalmeta.add(link)
                     localmeta.add(link)
@@ -373,11 +372,11 @@ class MetaSet(lang.meta.Object):
 
     def genatom(self, host, base, default, link_name, mods):
         atom_name = '__' + host.name.name + '__' + link_name.name
-        atom = Atom(name=CaosName(name=atom_name, module=host.name.module),
-                    base=base,
-                    default=default,
-                    automatic=True,
-                    backend=host.backend)
+        atom = meta.Atom(name=CaosName(name=atom_name, module=host.name.module),
+                         base=base,
+                         default=default,
+                         automatic=True,
+                         backend=host.backend)
         for mod in mods:
             atom.add_mod(mod)
         return atom
@@ -386,11 +385,6 @@ class MetaSet(lang.meta.Object):
     def merge_objects(left, right):
         right.merge(left)
         return right
-
-
-    @classmethod
-    def construct(cls, data, context):
-        return cls(data, context)
 
 
     def items(self):
