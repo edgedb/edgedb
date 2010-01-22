@@ -8,6 +8,7 @@ from semantix.utils import graph
 from semantix import lang
 from semantix.caos import MetaError
 from semantix.caos.name import Name as CaosName
+from semantix.caos import concept
 
 from semantix.caos.backends import meta
 from semantix.caos.backends.meta import RealmMeta
@@ -389,6 +390,31 @@ class MetaSet(LangObject):
 
     def items(self):
         return itertools.chain([('_index_', self.finalindex)], self.finalindex.index_by_name.items())
+
+
+class EntityShell(LangObject, concept.EntityShell):
+    def __init__(self, data, context):
+        super().__init__(data=data, context=context)
+        concept.EntityShell.__init__(self)
+
+    def construct(self):
+        if isinstance(self.data, str):
+            self.id = self.data
+        else:
+            aliases = {alias: mod.__name__ for alias, mod in self.context.document.imports.items()}
+            factory = self.context.document.realm.getfactory(module_aliases=aliases)
+
+            concept, data = next(iter(self.data.items()))
+            self.entity = factory(concept)(**data)
+            self.context.document.entities.append(self.entity)
+
+
+class DataSet(LangObject):
+    def construct(self):
+
+        entities = {id: [shell.entity for shell in shells] for id, shells in self.data.items()}
+        for entity in self.context.document.entities:
+            entity.materialize_links(entities)
 
 
 class Backend(meta.MetaBackend):

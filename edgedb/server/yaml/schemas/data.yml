@@ -1,0 +1,32 @@
+%SCHEMA semantix.lang.yaml.schema.Schema
+%NAME Data
+---
+type: map
+object: semantix.caos.backends.yaml.DataSet
+mapping:
+    =:
+        type: map
+        type: seq
+        required: yes
+        sequence:
+            - &CONCEPT_DATA
+              type: map
+              object: semantix.caos.backends.yaml.EntityShell
+              max-length: 1
+              min-length: 1
+              mapping:
+                =:
+                    type: map
+                    mapping:
+                        =: # Link Name
+                            type: choice
+                            required: yes
+                            choice:
+                                - type: seq
+                                  sequence:
+                                    - type: choice
+                                      choice:
+                                        - *CONCEPT_DATA
+                                        - type: str
+                                          object: semantix.caos.backends.yaml.EntityShell
+                                - type: scalar
