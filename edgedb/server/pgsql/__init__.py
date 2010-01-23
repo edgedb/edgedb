@@ -6,6 +6,8 @@ import importlib
 import postgresql.string
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
+from semantix.utils import graph
+
 from semantix.caos import MetaError
 from semantix.caos.name import Name as CaosName
 
@@ -154,7 +156,7 @@ class Backend(MetaBackend, DataBackend):
     def synchronize(self, meta):
         with self.connection.xact():
             for type in ('atom', 'concept', 'link'):
-                for obj in meta(type):
+                for obj in meta(type, include_builtin=True, include_automatic=True):
                     self.store(obj)
 
 
@@ -283,7 +285,8 @@ class Backend(MetaBackend, DataBackend):
             name = CaosName(row['name'])
             atoms[name] = {'name': name,
                            'title': self.hstore_to_word_combination(row['title']),
-                           'description': self.hstore_to_word_combination(row['description'])}
+                           'description': self.hstore_to_word_combination(row['description']),
+                           'automatic': row['automatic']}
 
         for name, domain_descr in domains.items():
 
@@ -294,7 +297,7 @@ class Backend(MetaBackend, DataBackend):
                                  module=self.pg_schema_name_to_module_name(domain_descr['basetype_schema']))
 
             atom = Atom(name=name, base=bases, default=domain_descr['default'], title=atoms[name]['title'],
-                        description=atoms[name]['description'])
+                        description=atoms[name]['description'], automatic=atoms[name]['automatic'])
 
             if domain_descr['constraints'] is not None:
                 for constraint_type in domain_descr['constraints']:
@@ -319,9 +322,12 @@ class Backend(MetaBackend, DataBackend):
 
         links_list = ConceptLinks(self.connection).fetch()
 
+        g = {}
+
         for r in links_list:
             name = CaosName(r['name'])
             bases = tuple()
+            properties = {}
 
             if not r['implicit'] and not r['atomic']:
                 table = tables.get(name)
@@ -330,9 +336,22 @@ class Backend(MetaBackend, DataBackend):
                                     % name)
 
                 bases = self.pg_table_inheritance_to_bases(t['name'], t['schema'])
+
+                columns = TableColumns(self.connection).fetch(table_name=t['name'], schema_name=t['schema'])
+                for row in columns:
+                    if row['column_name'] in ('source_id', 'target_id', 'link_type_id'):
+                        continue
+
+                    atom = self.atom_from_pg_type(row['column_type'], t['schema'],
+                                                  row['column_default'], meta)
+                    meta.add(atom)
+
+                    property_name = CaosName(name=row['column_name'], module=t['schema'])
+                    property = metamod.LinkProperty(name=property_name, atom=atom)
+                    properties[property_name] = property
             else:
                 if r['implicit']:
-                    bases = (meta.get(r['name'].rpartition('_')[0]),)
+                    bases = (meta.get(r['name'].rpartition('_')[0]).name,)
 
             title = self.hstore_to_word_combination(r['title'])
             description = self.hstore_to_word_combination(r['description'])
@@ -342,10 +361,26 @@ class Backend(MetaBackend, DataBackend):
             link = Link(name=name, base=bases, source=source, target=target,
                         mapping=r['mapping'], required=r['required'],
                         title=title, description=description)
-            meta.add(link)
+            link.implicit_derivative = r['implicit']
+            link.properties = properties
 
             if source:
                 source.add_link(link)
+
+            g[link.name] = {"item": link, "merge": [], "deps": []}
+            if link.base:
+                g[link.name]['merge'].extend(link.base)
+
+            meta.add(link)
+
+        graph.normalize(g, merger=metamod.Link.merge)
+
+        g = {}
+        for concept in meta(type='concept', include_automatic=True):
+            g[concept.name] = {"item": concept, "merge": [], "deps": []}
+            if concept.base:
+                g[concept.name]["merge"].extend(concept.base)
+        graph.normalize(g, merger=metamod.Concept.merge)
 
 
     def read_concepts(self, meta):
@@ -374,8 +409,7 @@ class Backend(MetaBackend, DataBackend):
                 if row['column_name'] in ('id', 'concept_id'):
                     continue
 
-                atom = self.atom_from_pg_type(row['column_type'], '__' + name.name + '__' + row['column_name'],
-                                              t['schema'], row['column_default'], meta)
+                atom = self.atom_from_pg_type(row['column_type'], t['schema'], row['column_default'], meta)
 
                 meta.add(atom)
 
@@ -415,6 +449,15 @@ class Backend(MetaBackend, DataBackend):
 
             if obj.name in self.domains:
                 return
+
+        title = obj.title.as_dict() if obj.title else None
+        description = obj.description.as_dict() if obj.description else None
+        self.atom_table.insert(name=str(obj.name), title=title, description=description,
+                               automatic=obj.automatic)
+        self.domains.add(obj.name)
+
+        if isinstance(obj, metamod.BuiltinAtom):
+            return
 
         qry = 'CREATE DOMAIN %s AS ' % self.atom_name_to_pg_domain_name(obj.name)
         base = obj.base
@@ -477,12 +520,6 @@ class Backend(MetaBackend, DataBackend):
                 qry += self.get_constraint_expr(classtr, 'length(VALUE::text) >= ' + str(constr.value))
 
         self.connection.execute(qry)
-
-        title = obj.title.as_dict() if obj.title else None
-        description = obj.description.as_dict() if obj.description else None
-        self.atom_table.insert(name=str(obj.name), title=title, description=description)
-
-        self.domains.add(obj.name)
 
 
     def create_link(self, link):
@@ -699,7 +736,8 @@ class Backend(MetaBackend, DataBackend):
             for table in inheritance:
                 base_name = self.pg_table_name_to_concept_name(table[0])
                 base_module = self.pg_schema_name_to_module_name(table[1])
-                bases += (CaosName(name=base_name, module=base_module),)
+                if base_module != 'caos':
+                    bases += (CaosName(name=base_name, module=base_module),)
 
         return bases
 
@@ -772,7 +810,7 @@ class Backend(MetaBackend, DataBackend):
         return column_type
 
 
-    def atom_from_pg_type(self, type_expr, atom_name, atom_schema, atom_default, meta):
+    def atom_from_pg_type(self, type_expr, atom_schema, atom_default, meta):
 
         atom_name = CaosName(name=self.pg_domain_name_to_atom_name(type_expr),
                              module=self.pg_schema_name_to_module_name(atom_schema))

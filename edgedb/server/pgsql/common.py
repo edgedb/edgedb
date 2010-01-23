@@ -91,6 +91,8 @@ class AtomTable(DatabaseTable):
     def create(self):
         """
             CREATE TABLE "caos"."atom"(
+                automatic bool NOT NULL DEFAULT FALSE,
+
                 PRIMARY KEY (id),
                 UNIQUE (name)
             ) INHERITS ("caos"."metaobject")
@@ -99,9 +101,9 @@ class AtomTable(DatabaseTable):
 
     def insert(self, *dicts, **kwargs):
         """
-            INSERT INTO "caos"."atom"(id, name, title, description)
+            INSERT INTO "caos"."atom"(id, name, title, description, automatic)
             VALUES (nextval('"caos"."metaobject_id_seq"'::regclass),
-                    %(name)s, %(title)s::text::hstore, %(description)s::text::hstore)
+                    %(name)s, %(title)s::text::hstore, %(description)s::text::hstore, %(automatic)s)
             RETURNING id
         """
         kwargs['title'] = pack_hstore(kwargs['title'])
@@ -142,9 +144,7 @@ class LinkTable(DatabaseTable):
                 implicit boolean NOT NULL DEFAULT FALSE,
                 atomic boolean NOT NULL DEFAULT FALSE,
 
-                PRIMARY KEY (id),
-                FOREIGN KEY (source_id) REFERENCES "caos"."concept"(id) ON DELETE CASCADE,
-                FOREIGN KEY (target_id) REFERENCES "caos"."concept"(id) ON DELETE CASCADE
+                PRIMARY KEY (id)
             ) INHERITS("caos"."metaobject")
         """
         super().create()
@@ -155,8 +155,8 @@ class LinkTable(DatabaseTable):
                                                                                          implicit, atomic)
                 VALUES (
                             nextval('"caos"."metaobject_id_seq"'::regclass),
-                            (SELECT id FROM caos.concept WHERE name = %(source)s),
-                            (SELECT id FROM caos.concept WHERE name = %(target)s),
+                            (SELECT id FROM caos.metaobject WHERE name = %(source)s),
+                            (SELECT id FROM caos.metaobject WHERE name = %(target)s),
                             %(name)s,
                             %(mapping)s,
                             %(required)s,

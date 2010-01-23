@@ -75,7 +75,7 @@ def normalize(graph, merger, allow_loops=False, allow_unresolved=False):
         if "merge" in item:
             for merge in item["merge"]:
                 if merge in graph:
-                    item["item"] = merger(merged[merge], item["item"])
+                    merger(item["item"], merged[merge])
 
         if item_name not in merged:
             merged[item_name] = item["item"]

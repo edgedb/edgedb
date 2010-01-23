@@ -277,7 +277,7 @@ class MetaSet(LangObject):
             if link.base:
                 g[link.name]['merge'].extend(link.base)
 
-        return graph.normalize(g, merger=self.merge_objects)
+        return graph.normalize(g, merger=meta.Link.merge)
 
 
     def read_concepts(self, data, globalmeta, localmeta):
@@ -368,7 +368,7 @@ class MetaSet(LangObject):
             if concept.base:
                 g[concept.name]["merge"].extend(concept.base)
 
-        return graph.normalize(g, merger=self.merge_objects)
+        return graph.normalize(g, merger=meta.Concept.merge)
 
 
     def genatom(self, host, base, default, link_name, mods):
@@ -381,11 +381,6 @@ class MetaSet(LangObject):
         for mod in mods:
             atom.add_mod(mod)
         return atom
-
-    @staticmethod
-    def merge_objects(left, right):
-        right.merge(left)
-        return right
 
 
     def items(self):

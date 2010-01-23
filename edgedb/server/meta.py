@@ -335,7 +335,7 @@ class Link(GraphObject):
 
 
 class RealmMetaIterator(object):
-    def __init__(self, index, type, include_automatic=False):
+    def __init__(self, index, type, include_automatic=False, include_builtin=False):
         self.index = index
         self.type = type
 
@@ -349,7 +349,9 @@ class RealmMetaIterator(object):
             else:
                 sourceset = itertype
 
-        filtered = sourceset - index.index_builtin
+        filtered = sourceset
+        if not include_builtin:
+            filtered -= index.index_builtin
         if not include_automatic:
             filtered -= index.index_automatic
         self.iter = iter(filtered)
@@ -450,8 +452,8 @@ class RealmMeta(object):
     def __iter__(self):
         return RealmMetaIterator(self, None)
 
-    def __call__(self, type=None, include_automatic=False):
-        return RealmMetaIterator(self, type, include_automatic)
+    def __call__(self, type=None, include_automatic=False, include_builtin=False):
+        return RealmMetaIterator(self, type, include_automatic, include_builtin)
 
     def __contains__(self, obj):
         return obj in self.index

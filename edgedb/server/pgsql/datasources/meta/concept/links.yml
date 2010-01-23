@@ -33,8 +33,8 @@ source: |
             l.atomic
         FROM
             caos.link l
-            LEFT JOIN caos.concept sc ON l.source_id = sc.id
-            LEFT JOIN caos.concept tc ON l.target_id = tc.id
+            LEFT JOIN caos.metaobject sc ON l.source_id = sc.id
+            LEFT JOIN caos.metaobject tc ON l.target_id = tc.id
         WHERE
             (%(source_concept)s::text IS NULL OR %(source_concept)s::text = sc.name)
             AND (%(target_concept)s::text IS NULL OR %(target_concept)s::text = tc.name)
