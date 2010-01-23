@@ -522,7 +522,7 @@ class RealmMeta(object):
         elif isinstance(name, tuple):
             module = name[0]
             nqname = name[1]
-            name = module + ':' + nqname if module else nqname
+            name = module + '.' + nqname if module else nqname
         elif CaosName.is_qualified(name):
             name = CaosName(name)
             module = name.module

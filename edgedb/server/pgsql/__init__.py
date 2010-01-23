@@ -90,20 +90,20 @@ class Backend(MetaBackend, DataBackend):
                     }
 
     base_type_name_map = {
-                                CaosName('builtin:str'): 'character varying',
-                                CaosName('builtin:int'): 'numeric',
-                                CaosName('builtin:bool'): 'boolean',
-                                CaosName('builtin:float'): 'double precision'
+                                CaosName('builtin.str'): 'character varying',
+                                CaosName('builtin.int'): 'numeric',
+                                CaosName('builtin.bool'): 'boolean',
+                                CaosName('builtin.float'): 'double precision'
                          }
 
     base_type_name_map_r = {
-                                'character varying': CaosName('builtin:str'),
-                                'character': CaosName('builtin:str'),
-                                'text': CaosName('builtin:str'),
-                                'integer': CaosName('builtin:int'),
-                                'boolean': CaosName('builtin:bool'),
-                                'numeric': CaosName('builtin:int'),
-                                'double precision': CaosName('builtin:float')
+                                'character varying': CaosName('builtin.str'),
+                                'character': CaosName('builtin.str'),
+                                'text': CaosName('builtin.str'),
+                                'integer': CaosName('builtin.int'),
+                                'boolean': CaosName('builtin.bool'),
+                                'numeric': CaosName('builtin.int'),
+                                'double precision': CaosName('builtin.float')
                            }
 
 
@@ -747,7 +747,7 @@ class Backend(MetaBackend, DataBackend):
 
 
     def pg_type_from_atom_class(self, atom_obj):
-        if (atom_obj.base is not None and (atom_obj.base == str or (hasattr(atom_obj.base, 'name') and atom_obj.base.name == 'builtin:str'))
+        if (atom_obj.base is not None and (atom_obj.base == str or (hasattr(atom_obj.base, 'name') and atom_obj.base.name == 'builtin.str'))
                 and len(atom_obj.mods) == 1 and issubclass(next(iter(atom_obj.mods.keys())), metamod.AtomModMaxLength)):
             column_type = 'varchar(%d)' % next(iter(atom_obj.mods.values())).value
         else:
@@ -759,7 +759,7 @@ class Backend(MetaBackend, DataBackend):
 
 
     def pg_type_from_atom(self, atom_obj):
-        if (atom_obj.base is not None and atom_obj.base == 'builtin:str'
+        if (atom_obj.base is not None and atom_obj.base == 'builtin.str'
                 and len(atom_obj.mods) == 1 and issubclass(next(iter(atom_obj.mods.keys())), metamod.AtomModMaxLength)):
             column_type = 'varchar(%d)' % next(iter(atom_obj.mods.values())).value
         else:
