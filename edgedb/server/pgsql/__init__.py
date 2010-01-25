@@ -186,10 +186,9 @@ class Backend(MetaBackend, DataBackend):
 
     @debug
     def store_entity(self, entity):
-        concept = entity.concept
+        concept = entity.__class__._metadata.name
         id = entity.id
-        links = entity._links
-        clinks = entity.__class__.links
+        links = entity._instancedata.links
 
         with self.connection.xact():
 
@@ -199,8 +198,9 @@ class Backend(MetaBackend, DataBackend):
                 query = 'UPDATE %s SET ' % self.concept_name_to_pg_table_name(concept)
                 cols = []
                 for a in attrs:
-                    if a in clinks:
-                        col_type = 'text::%s' % self.pg_type_from_atom_class(clinks[a].first.target)
+                    if hasattr(entity.__class__, str(a)):
+                        l = getattr(entity.__class__, str(a))
+                        col_type = 'text::%s' % self.pg_type_from_atom_class(l.first.target)
                     else:
                         col_type = 'int'
                     cols.append('%s = %%(%s)s::%s' % (postgresql.string.quote_ident(str(a)), str(a), col_type))
@@ -211,8 +211,9 @@ class Backend(MetaBackend, DataBackend):
                     cols_names = ', ' + ', '.join(['"%s"' % a for a in attrs])
                     cols = []
                     for a in attrs:
-                        if a in clinks:
-                            col_type = 'text::%s' % self.pg_type_from_atom_class(clinks[a].first.target)
+                        if hasattr(entity.__class__, str(a)):
+                            l = getattr(entity.__class__, str(a))
+                            col_type = 'text::%s' % self.pg_type_from_atom_class(l.first.target)
                         else:
                             col_type = 'int'
                         cols.append('%%(%s)s::%s' % (a, col_type))
@@ -609,7 +610,7 @@ class Backend(MetaBackend, DataBackend):
                   )
             """
 
-            full_link_name = Link.gen_link_name(source.concept, target.concept, link_name)
+            full_link_name = Link.gen_link_name(source._metadata.name, target._metadata.name, link_name)
             lt = ConceptLink(self.connection).fetch(name=str(full_link_name))
 
             rows.append('(%s::uuid, %s::uuid, %s::int)')
@@ -789,10 +790,10 @@ class Backend(MetaBackend, DataBackend):
                 and len(atom_obj.mods) == 1 and issubclass(next(iter(atom_obj.mods.keys())), metamod.AtomModMaxLength)):
             column_type = 'varchar(%d)' % next(iter(atom_obj.mods.values())).value
         else:
-            if atom_obj.name in self.base_type_name_map:
-                column_type = self.base_type_name_map[atom_obj.name]
+            if atom_obj._metadata.name in self.base_type_name_map:
+                column_type = self.base_type_name_map[atom_obj._metadata.name]
             else:
-                column_type = self.atom_name_to_pg_domain_name(atom_obj.name)
+                column_type = self.atom_name_to_pg_domain_name(atom_obj._metadata.name)
         return column_type
 
 

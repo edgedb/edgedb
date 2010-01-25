@@ -33,6 +33,18 @@ class MetaObject(object):
         return cls
 
 
+def get_safe_attrname(name, reserved):
+    name = str(name)
+    while name in reserved:
+        name += '_'
+    return name
+
+
+class GraphObjectMetaData(object):
+    def __init__(self, name=None):
+        self.name = name
+
+
 class GraphObject(MetaObject):
     def __init__(self, name, backend=None, base=None, title=None, description=None):
         self.name = name
@@ -47,15 +59,29 @@ class GraphObject(MetaObject):
             construct a class representing the graph object
         """
         bases = self.get_class_base(realm)
-        dct = {'name': self.name, 'realm': realm, 'backend': self.backend, '__module__': self.name.module}
+
+        reserved = set()
+        if bases:
+            for base in bases:
+                if hasattr(base, '_metadata') and isinstance(base._metadata, GraphObjectMetaData):
+                    reserved.update(base._metadata.reserved_attrnames)
+                else:
+                    reserved.update(dir(base))
+
+        metadata = GraphObjectMetaData()
+        metadata.realm = realm
+        metadata.name = self.name
+        metadata.backend = self.backend
+        metadata.reserved_attrnames = reserved
+        dct = {'_metadata': metadata, '__module__': self.name.module}
 
         name = self.get_class_name(realm)
 
         if self.title:
-            dct['title'] = self.title
+            dct['_title'] = self.title
 
         if self.description:
-            dct['description'] = self.description
+            dct['_description'] = self.description
 
         return name, bases, dct
 
@@ -233,6 +259,7 @@ class Concept(Node):
     def __init__(self, name, backend=None, base=None, title=None, description=None):
         super().__init__(name, backend, base, title, description)
 
+        self.ownlinks = {}
         self.links = {}
 
     def merge(self, other):
@@ -250,15 +277,17 @@ class Concept(Node):
             links.add(link)
         else:
             self.links[key] = semantix.caos.link.LinkSet([link], name=key)
+            self.ownlinks[key] = self.links[key]
 
     def get_class_template(self, realm):
         name, bases, dct = super().get_class_template(realm)
-        dct.update({'concept': self.name, 'links': self.links, 'parents': self.base})
+        dct['_metadata'].links = self.links
+        dct['_metadata'].ownlinks = self.ownlinks
+        dct['_metadata'].slinks = {}
 
-        # XXX: static concept class attributes may mask "real" entity attributes
-        # since those are now set using fully qualified name and Concept::__getattr__
-        # does not get triggered.
-        del dct['name']
+        for link_name, links in self.ownlinks.items():
+            dct[str(link_name)] = links
+            dct[get_safe_attrname(link_name.name, dct['_metadata'].reserved_attrnames)] = links
 
         return (name, bases, dct)
 
