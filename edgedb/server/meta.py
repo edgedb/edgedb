@@ -1,6 +1,7 @@
 import re
 import collections
 import hashlib
+import uuid
 
 import semantix.caos.atom
 import semantix.caos.concept
@@ -246,7 +247,8 @@ class BuiltinAtom(Atom):
                                 'str': str,
                                 'int': int,
                                 'float': float,
-                                'bool': Bool
+                                'bool': Bool,
+                                'uuid': uuid.UUID
                               }
 
     def get_class_mro(self, realm, clsbase):
@@ -295,11 +297,12 @@ class Concept(Node):
 
     def get_class_base(self, realm):
         bases = tuple()
+        factory = realm.getfactory()
         if self.base:
-            factory = realm.getfactory()
-
             for parent in self.base:
                 bases += (factory(parent),)
+        elif self.name != 'builtin.Object':
+            bases += (factory('builtin.Object'),)
 
         bases += (semantix.caos.concept.Concept,)
         return bases
@@ -424,10 +427,11 @@ class RealmMeta(object):
         if obj.backend:
             self.index_by_backend[obj.backend] = obj
 
+        if obj.name.module == 'builtin':
+            self.index_builtin.add(obj)
+
         if isinstance(obj, Atom):
-            if obj.name.module == 'builtin':
-                self.index_builtin.add(obj)
-            elif obj.automatic:
+            if obj.automatic:
                 self.index_automatic.add(obj)
 
     def add_module(self, module, alias):
@@ -543,10 +547,19 @@ class RealmMeta(object):
             return module.get(name.name)
 
     def _init_builtin(self):
+        self.add_module('builtin', 'builtin')
+
         for clsname in BuiltinAtom.base_atoms_to_class_map:
             atom = BuiltinAtom(name=CaosName(name=clsname, module='builtin'))
             self.add(atom)
-        self.add_module('builtin', 'builtin')
+
+        base_object = Concept(name=CaosName(name='Object', module='builtin'))
+        id = self.get(CaosName(name='uuid', module='builtin'))
+        id_link = Link(name=CaosName(name='id', module='builtin'), source=base_object, target=id,
+                                     mapping='11', required=True)
+        base_object.add_link(id_link)
+        self.add(id_link)
+        self.add(base_object)
 
     def _split_name(self, name):
         if isinstance(name, CaosName):

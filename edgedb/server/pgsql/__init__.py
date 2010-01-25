@@ -2,6 +2,7 @@ import re
 import types
 import copy
 import importlib
+import uuid
 
 import postgresql.string
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
@@ -88,14 +89,16 @@ class Backend(MetaBackend, DataBackend):
                         'character varying': str,
                         'boolean': bool,
                         'numeric': int,
-                        'double precision': float
+                        'double precision': float,
+                        'uuid': uuid.UUID
                     }
 
     base_type_name_map = {
                                 CaosName('builtin.str'): 'character varying',
                                 CaosName('builtin.int'): 'numeric',
                                 CaosName('builtin.bool'): 'boolean',
-                                CaosName('builtin.float'): 'double precision'
+                                CaosName('builtin.float'): 'double precision',
+                                CaosName('builtin.uuid'): 'uuid'
                          }
 
     base_type_name_map_r = {
@@ -105,7 +108,8 @@ class Backend(MetaBackend, DataBackend):
                                 'integer': CaosName('builtin.int'),
                                 'boolean': CaosName('builtin.bool'),
                                 'numeric': CaosName('builtin.int'),
-                                'double precision': CaosName('builtin.float')
+                                'double precision': CaosName('builtin.float'),
+                                'uuid': CaosName('builtin.uuid')
                            }
 
 
@@ -567,6 +571,9 @@ class Backend(MetaBackend, DataBackend):
 
 
     def create_concept(self, obj):
+        if isinstance(obj, metamod.Concept) and obj.name == 'builtin.Object':
+            return
+
         title = obj.title.as_dict() if obj.title else None
         description = obj.description.as_dict() if obj.description else None
         self.concept_table.insert(name=str(obj.name), title=title, description=description)
