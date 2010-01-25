@@ -1,5 +1,6 @@
 import re
 import collections
+import keyword
 import hashlib
 import uuid
 
@@ -69,7 +70,7 @@ class GraphObject(MetaObject):
                 if hasattr(base, '_metadata') and isinstance(base._metadata, GraphObjectMetaData):
                     reserved.update(base._metadata.reserved_attrnames)
                 else:
-                    reserved.update(dir(base))
+                    reserved.update(list(dir(base)) + keyword.kwlist)
 
         metadata = GraphObjectMetaData()
         metadata.realm = realm
