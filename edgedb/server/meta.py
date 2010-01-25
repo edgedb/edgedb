@@ -22,9 +22,11 @@ class MetaBackend(object):
         pass
 
 
-class Bool(type):
-    def __init__(self, value):
-        self.value = value
+class Bool(int):
+    def __repr__(self):
+        return 'True' if self else 'False'
+
+    __str__ = __repr__
 
 
 class MetaObject(object):
