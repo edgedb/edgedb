@@ -5,6 +5,20 @@ class GenericWrapperMeta(type):
 
     def __init__(cls, name, bases, dict):
         super().__init__(name, bases, dict)
+
+        write_methods = set()
+        read_methods = set()
+
+        for i in range(0, len(cls.__mro__) - 1):
+            lst = getattr(cls, '_' + cls.__mro__[i].__name__ + '__read_methods', set())
+            read_methods.update(lst)
+            lst = getattr(cls, '_' + cls.__mro__[i].__name__ + '__write_methods', set())
+            write_methods.update(lst)
+
+        cls.read_methods = read_methods
+        cls.write_methods = write_methods
+        cls.original_base = cls.__mro__[1]
+
         cls._sethook('read')
         cls._sethook('write')
 
@@ -34,16 +48,61 @@ class GenericWrapper(object, metaclass=GenericWrapperMeta):
         return hookbody
 
 
-class SetWrapper(set, GenericWrapper):
+class Container(GenericWrapper):
+    __read_methods = ('__contains__',)
 
-    write_methods = ('update', 'intersection_update', 'difference_update', 'symmetric_difference_update',
-                     'add', 'remove', 'discard', 'pop', 'clear')
 
-    read_methods = ('__iter__', '__len__', '__contains__', 'isdisjoint', 'issubset', '__le__', '__lt__',
-                    'issuperset', '__ge__', '__gt__', 'union', '__or__', 'intersection', '__and__',
-                    'difference', '__sub__', 'symmetric_difference', '__xor__')
+class Hashable(GenericWrapper):
+    __read_methods = ('__hash__',)
 
-    original_base = set
+
+class Iterable(GenericWrapper):
+    __read_methods = ('__iter__',)
+
+
+class Sized(GenericWrapper):
+    __read_methods = ('__len__',)
+
+
+class Callable(GenericWrapper):
+    __read_methods = ('__call__',)
+
+
+class Sequence(Sized, Iterable, Container):
+    __read_methods = ('__getitem__', '__reversed__', 'index', 'count')
+
+
+class MutableSequence(Sequence):
+    __write_methods = ('__setitem__', '__delitem__', 'insert', 'append', 'reverse', 'extend', 'pop', 'remove',
+                       '__iadd__')
+
+
+class Set(Sized, Iterable, Container):
+    __read_methods = ('__le__', '__lt__', '__eq__', '__ne__', '__gt__', '__ge__', '__and__', '__or__',
+                      '__sub__', '__xor__', 'isdisjoint')
+
+class MutableSet(Set):
+    __write_methods = ('add', 'discard', 'clear', 'pop', 'remove', '__ior__', '__iand__', '__ixor__',
+                       '__isub__')
+
+
+class Mapping(Sized, Iterable, Container):
+    __read_methods = ('__getitem__', '__contains__', 'keys', 'items', 'values', 'get', '__eq__', '__ne__')
+
+
+class MutableMapping(Mapping):
+    __write_methods = ('__setitem__', '__delitem__', 'pop', 'popitem', 'clear', 'update')
+
+
+class SetWrapper(set, MutableSet):
+
+    __write_methods = ('update', 'intersection_update', 'difference_update', 'symmetric_difference_update')
+
+    __read_methods = ('issubset', 'issuperset', 'union', 'intersection', 'difference', 'symmetric_difference')
+
+
+class ListWrapper(list, MutableSequence):
+    pass
 
 
 class SortedList(list):
