@@ -87,7 +87,7 @@ class GraphObject(MetaObject):
         if self.description:
             dct['_description'] = self.description
 
-        return name, bases, dct
+        return name, bases, dct, type
 
     def get_class_base(self, realm):
         if isinstance(self.base, CaosName):
@@ -210,7 +210,7 @@ class Atom(Node):
             self.mods[mod.__class__].merge(mod)
 
     def get_class_template(self, realm):
-        name, bases, dct = super().get_class_template(realm)
+        name, bases, dct, metaclass = super().get_class_template(realm)
 
         base = bases[0] if bases else None
 
@@ -219,7 +219,7 @@ class Atom(Node):
         dct.update({'mods': self.mods, 'base': base, 'default': default})
 
         bases = self.get_class_mro(realm, base)
-        return (name, bases, dct)
+        return (name, bases, dct, metaclass)
 
     def get_class_mro(self, realm, clsbase):
         bases = tuple()
@@ -281,11 +281,11 @@ class Concept(Node):
         if links:
             links.add(link)
         else:
-            self.links[key] = semantix.caos.link.LinkSet([link], name=key)
+            self.links[key] = LinkSet(links=[link], name=key, source=link.source)
             self.ownlinks[key] = self.links[key]
 
     def get_class_template(self, realm):
-        name, bases, dct = super().get_class_template(realm)
+        name, bases, dct, metaclass = super().get_class_template(realm)
         dct['_metadata'].links = self.links
         dct['_metadata'].ownlinks = self.ownlinks
         dct['_metadata'].slinks = {}
@@ -294,7 +294,7 @@ class Concept(Node):
             dct[str(link_name)] = links
             dct[get_safe_attrname(link_name.name, dct['_metadata'].reserved_attrnames)] = links
 
-        return (name, bases, dct)
+        return (name, bases, dct, metaclass)
 
     def get_class_base(self, realm):
         bases = tuple()
@@ -307,6 +307,48 @@ class Concept(Node):
 
         bases += (semantix.caos.concept.Concept,)
         return bases
+
+    def __str__(self):
+        return '%s' % self.name
+
+
+class LinkSet(GraphObject):
+    def __init__(self, name, source, links):
+        super().__init__(name=name)
+        self.links = set(links)
+        self.name = name
+        self.source = source
+
+    def add(self, link):
+        self.links.add(link)
+
+    def atomic(self):
+        return len(self.links) == 1 and self.first.atomic()
+
+    def singular(self):
+        return len(self.links) == 1 and self.first.mapping == '11'
+
+    @property
+    def first(self):
+        return next(iter(self.links))
+
+    def get_class_template(self, realm):
+        name, bases, dct, metaclass = super().get_class_template(realm)
+
+        dct['_metadata'].link_name = self.name
+        dct['_metadata'].links = self.links
+        dct['_metadata'].source = self.source
+        metaclass = semantix.caos.link.LinkSetMeta
+
+        return (name, bases, dct, metaclass)
+
+    def get_class_base(self, realm):
+        bases = tuple()
+        bases += (semantix.caos.link.LinkSet,)
+        return bases
+
+    def __iter__(self):
+        return iter(self.links)
 
 
 class LinkProperty(GraphObject):
@@ -337,7 +379,7 @@ class Link(GraphObject):
         self.properties[property.name] = property
 
     def get_class_template(self, realm):
-        name, bases, dct = super().get_class_template(realm)
+        name, bases, dct, metaclass = super().get_class_template(realm)
         dct.update({'source': self.source, 'target': self.target, 'required': self.required})
 
         if self.mapping:
@@ -346,7 +388,7 @@ class Link(GraphObject):
         if self.properties:
             dct['properties'] = self.properties
 
-        return (name, bases, dct)
+        return (name, bases, dct, metaclass)
 
     def get_class_base(self, realm):
         bases = tuple()

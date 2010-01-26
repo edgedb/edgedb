@@ -11,6 +11,8 @@ from semantix.utils import graph
 
 from semantix.caos import MetaError
 from semantix.caos.name import Name as CaosName
+from semantix.caos.atom import Atom as CaosAtom
+from semantix.caos.concept import Concept as CaosConcept
 
 from semantix.caos.backends.meta import MetaBackend
 from semantix.caos.backends.data import DataBackend
@@ -196,7 +198,10 @@ class Backend(MetaBackend, DataBackend):
 
         with self.connection.xact():
 
-            attrs = {n: v for n, v in links.items() if not isinstance(v, BaseConceptCollection)}
+            attrs = {}
+            for n, v in links.items():
+                if issubclass(getattr(entity.__class__, str(n)), CaosAtom):
+                    attrs[n] = v
 
             if id is not None:
                 query = 'UPDATE %s SET ' % self.concept_name_to_pg_table_name(concept)
@@ -204,7 +209,7 @@ class Backend(MetaBackend, DataBackend):
                 for a in attrs:
                     if hasattr(entity.__class__, str(a)):
                         l = getattr(entity.__class__, str(a))
-                        col_type = 'text::%s' % self.pg_type_from_atom_class(l.first.target)
+                        col_type = 'text::%s' % self.pg_type_from_atom_class(l)
                     else:
                         col_type = 'int'
                     cols.append('%s = %%(%s)s::%s' % (postgresql.string.quote_ident(str(a)), str(a), col_type))
@@ -217,7 +222,7 @@ class Backend(MetaBackend, DataBackend):
                     for a in attrs:
                         if hasattr(entity.__class__, str(a)):
                             l = getattr(entity.__class__, str(a))
-                            col_type = 'text::%s' % self.pg_type_from_atom_class(l.first.target)
+                            col_type = 'text::%s' % self.pg_type_from_atom_class(l)
                         else:
                             col_type = 'int'
                         cols.append('%%(%s)s::%s' % (a, col_type))

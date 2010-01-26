@@ -17,7 +17,6 @@ class GenericWrapperMeta(type):
 
         cls.read_methods = read_methods
         cls.write_methods = write_methods
-        cls.original_base = cls.__mro__[1]
 
         cls._sethook('read')
         cls._sethook('write')
@@ -100,9 +99,11 @@ class SetWrapper(set, MutableSet):
 
     __read_methods = ('issubset', 'issuperset', 'union', 'intersection', 'difference', 'symmetric_difference')
 
+    original_base = set
+
 
 class ListWrapper(list, MutableSequence):
-    pass
+    original_base = list
 
 
 class SortedList(list):
