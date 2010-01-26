@@ -393,51 +393,6 @@ class CaosQLQueryAdapter(ast.visitor.NodeVisitor):
         # XXX: TODO: centralize this with pgsql backend
         return name.name + '_data', 'caos_' + name.module
 
-    def _select_link_types(self, context, map, link):
-        select = pgsql.ast.SelectQueryNode()
-        labels = link.filter.labels
-
-        entity_1 = pgsql.ast.TableNode(name='entity', schema='caos', alias=context.current.genalias(hint='entity'))
-        entity_2 = pgsql.ast.TableNode(name='entity', schema='caos', alias=context.current.genalias(hint='entity'))
-        link = pgsql.ast.TableNode(name='link', schema='caos', alias=context.current.genalias(hint='link'))
-
-        select.fromlist = [entity_1, entity_2, link]
-
-        left = pgsql.ast.FieldRefNode(table=map, field='source_id')
-        right = pgsql.ast.FieldRefNode(table=entity_1, field='id')
-        where = pgsql.ast.BinOpNode(op='=', left=left, right=right)
-
-        left = pgsql.ast.FieldRefNode(table=map, field='target_id')
-        right = pgsql.ast.FieldRefNode(table=entity_2, field='id')
-        condition = pgsql.ast.BinOpNode(op='=', left=left, right=right)
-        where = pgsql.ast.BinOpNode(op='and', left=where, right=condition)
-
-        left = pgsql.ast.FieldRefNode(table=entity_1, field='concept_id')
-        right = pgsql.ast.FieldRefNode(table=link, field='source_id')
-        condition = pgsql.ast.BinOpNode(op='=', left=left, right=right)
-        where = pgsql.ast.BinOpNode(op='and', left=where, right=condition)
-
-        left = pgsql.ast.FieldRefNode(table=entity_2, field='concept_id')
-        right = pgsql.ast.FieldRefNode(table=link, field='target_id')
-        condition = pgsql.ast.BinOpNode(op='=', left=left, right=right)
-        where = pgsql.ast.BinOpNode(op='and', left=where, right=condition)
-
-        left = pgsql.ast.FieldRefNode(table=link, field='name')
-        right = pgsql.ast.SequenceNode()
-        for label in labels:
-            right.elements.append(pgsql.ast.ConstantNode(value=label))
-        condition = pgsql.ast.BinOpNode(op='in', left=left, right=right)
-        where = pgsql.ast.BinOpNode(op='and', left=where, right=condition)
-
-        select.where = where
-        selexpr = pgsql.ast.FieldRefNode(table=link, field='id')
-        select.targets = [pgsql.ast.SelectExprNode(expr=selexpr, alias='id')]
-
-        left = pgsql.ast.FieldRefNode(table=map, field='link_type_id')
-        right = select
-
-        return pgsql.ast.BinOpNode(op='in', left=left, right=right)
-
     def _process_path(self, context, cte, joinpoint, pathtip):
         join = joinpoint
 
