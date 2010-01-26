@@ -1,6 +1,6 @@
-from semantix.ast import *
+from semantix import ast
 
-class Base(AST):
+class Base(ast.AST):
     __fields = ['!refs']
 
     def __init__(self, **kwargs):
@@ -16,7 +16,7 @@ class Base(AST):
     def __setattr__(self, name, value):
         if name in self._fields and isinstance(value, Base):
             self.refs.update(value.refs)
-        AST.__setattr__(self, name, value)
+        ast.AST.__setattr__(self, name, value)
 
     def ref(self, slice_=None):
         if slice_ is None:
@@ -27,11 +27,11 @@ class Base(AST):
         else:
             return list(self.refs)[slice_]
 
-class GraphExpr(AST): __fields = ['*paths', '*generator', '*selector', '*sorter']
+class GraphExpr(ast.AST): __fields = ['*paths', '*generator', '*selector', '*sorter']
 class AtomicRef(Base): __fields = ['name', 'expr']
 class EntitySet(Base): __fields = ['id', 'name', 'concept', 'atom', '*filters', '*links', '*altlinks', '*rlinks', '*selrefs']
 class EntityLink(Base): __fields = ['filter', 'source', 'target']
-class EntityLinkSpec(AST):
+class EntityLinkSpec(ast.AST):
         __fields = ['*labels', 'direction']
         BACKWARD='<'
         FORWARD='>'

@@ -1,9 +1,8 @@
 import copy
-from semantix.caos.name import Name as CaosName
 from semantix.caos.caosql import ast
 from semantix.caos.caosql.parser import nodes as qlast
 from semantix.caos.caosql import CaosQLError
-from semantix.caos.backends import meta
+from semantix.caos.backends import objects
 
 
 class ParseContextLevel(object):
@@ -339,7 +338,7 @@ class CaosqlTreeTransformer(object):
             return None
         else:
             concept = self.realm.meta.get(name=concept, module_aliases=context.current.namespaces,
-                                          type=meta.Node)
+                                          type=objects.Node)
             return concept
 
     def _parse_link_expr(self, context, expr):
@@ -353,7 +352,7 @@ class CaosqlTreeTransformer(object):
                 label = (expr.namespace, expr.name)
                 # Resolve all potential link globs into a list of specific link objects
                 labels = self.realm.meta.match(name=label, module_aliases=context.current.namespaces,
-                                               type=meta.Link)
+                                               type=objects.Link)
                 if not labels:
                     raise CaosQLError('could not find any links matching %s' % label)
 

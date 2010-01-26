@@ -1,5 +1,4 @@
 from semantix.caos.backends.resolver.shell import BackendShell, BackendResolverHelper
-from semantix.caos.backends.resolver.error import BackendResolverError
 from semantix.caos.backends.yaml import Backend
 
 class BackendResolver(BackendResolverHelper):

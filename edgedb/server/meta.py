@@ -4,19 +4,10 @@ import keyword
 import hashlib
 import uuid
 
-import semantix.caos.atom
-import semantix.caos.concept
-import semantix.caos.link
-from semantix.caos.name import Name as CaosName
+from semantix import caos
 from semantix.utils.datastructures import OrderedSet
 
-
-class MetaError(Exception):
-    pass
-
-
-class MetaMismatchError(Exception):
-    pass
+from semantix.caos.backends import objects
 
 
 class MetaBackend(object):
@@ -31,25 +22,7 @@ class Bool(int):
     __str__ = __repr__
 
 
-class MetaObject(object):
-    @classmethod
-    def get_canonical_class(cls):
-        return cls
-
-
-def get_safe_attrname(name, reserved):
-    name = str(name)
-    while name in reserved:
-        name += '_'
-    return name
-
-
-class GraphObjectMetaData(object):
-    def __init__(self, name=None):
-        self.name = name
-
-
-class GraphObject(MetaObject):
+class GraphObject(objects.MetaObject):
     def __init__(self, name, backend=None, base=None, title=None, description=None):
         self.name = name
         self.base = base
@@ -67,12 +40,12 @@ class GraphObject(MetaObject):
         reserved = set()
         if bases:
             for base in bases:
-                if hasattr(base, '_metadata') and isinstance(base._metadata, GraphObjectMetaData):
+                if hasattr(base, '_metadata') and isinstance(base._metadata, objects.GraphObjectMetaData):
                     reserved.update(base._metadata.reserved_attrnames)
                 else:
                     reserved.update(list(dir(base)) + keyword.kwlist)
 
-        metadata = GraphObjectMetaData()
+        metadata = objects.GraphObjectMetaData()
         metadata.realm = realm
         metadata.name = self.name
         metadata.backend = self.backend
@@ -90,7 +63,7 @@ class GraphObject(MetaObject):
         return name, bases, dct, type
 
     def get_class_base(self, realm):
-        if isinstance(self.base, CaosName):
+        if isinstance(self.base, caos.Name):
             base = (realm.getfactory()(self.base),)
         else:
             base = self.base
@@ -105,11 +78,7 @@ class GraphObject(MetaObject):
             raise MetaMismatchError("cannot merge instances of %s and %s" % (obj.__class__.__name__, self.__class__.__name__))
 
 
-class Node(GraphObject):
-    pass
-
-
-class AtomMod(MetaObject):
+class AtomMod(objects.MetaObject):
     def __init__(self, context):
         self.context = context
 
@@ -193,7 +162,7 @@ class AtomModRegExp(AtomMod):
         return '<%s: %s>' % (self.__class__.__name__, ', '.join(self.regexps.keys()))
 
 
-class Atom(Node):
+class Atom(GraphObject, objects.Atom):
     _type = 'atom'
 
     def __init__(self, name, backend=None, base=None, title=None, description=None,
@@ -225,7 +194,7 @@ class Atom(Node):
         bases = tuple()
 
         if self.base:
-            if isinstance(self.base, CaosName):
+            if isinstance(self.base, caos.Name):
                 base = realm.meta.get(self.base)
             else:
                 base = self.base
@@ -234,7 +203,7 @@ class Atom(Node):
             if clsbase not in bases:
                 bases = (clsbase,) + bases
         else:
-            bases = (semantix.caos.atom.Atom,)
+            bases = (caos.atom.Atom,)
 
         return bases
 
@@ -254,11 +223,11 @@ class BuiltinAtom(Atom):
 
     def get_class_mro(self, realm, clsbase):
         base = self.base_atoms_to_class_map[self.name.name]
-        bases = (semantix.caos.atom.Atom, base)
+        bases = (caos.atom.Atom, base)
         return bases
 
 
-class Concept(Node):
+class Concept(GraphObject, objects.Concept):
     _type = 'concept'
 
     def __init__(self, name, backend=None, base=None, title=None, description=None):
@@ -292,7 +261,7 @@ class Concept(Node):
 
         for link_name, links in self.ownlinks.items():
             dct[str(link_name)] = links
-            dct[get_safe_attrname(link_name.name, dct['_metadata'].reserved_attrnames)] = links
+            dct[objects.get_safe_attrname(link_name.name, dct['_metadata'].reserved_attrnames)] = links
 
         return (name, bases, dct, metaclass)
 
@@ -305,7 +274,7 @@ class Concept(Node):
         elif self.name != 'builtin.Object':
             bases += (factory('builtin.Object'),)
 
-        bases += (semantix.caos.concept.Concept,)
+        bases += (caos.concept.Concept,)
         return bases
 
     def __str__(self):
@@ -338,13 +307,13 @@ class LinkSet(GraphObject):
         dct['_metadata'].link_name = self.name
         dct['_metadata'].links = self.links
         dct['_metadata'].source = self.source
-        metaclass = semantix.caos.link.LinkSetMeta
+        metaclass = caos.link.LinkSetMeta
 
         return (name, bases, dct, metaclass)
 
     def get_class_base(self, realm):
         bases = tuple()
-        bases += (semantix.caos.link.LinkSet,)
+        bases += (caos.link.LinkSet,)
         return bases
 
     def __iter__(self):
@@ -358,7 +327,7 @@ class LinkProperty(GraphObject):
         self.mods = {}
 
 
-class Link(GraphObject):
+class Link(GraphObject, objects.Link):
     _type = 'link'
 
     def __init__(self, name, backend=None, base=None, title=None, description=None,
@@ -398,7 +367,7 @@ class Link(GraphObject):
             for parent in self.base:
                 bases += (factory(parent),)
 
-        bases += (semantix.caos.link.Link,)
+        bases += (caos.link.Link,)
         return bases
 
     @classmethod
@@ -480,20 +449,20 @@ class RealmMeta(object):
     def add_module(self, module, alias):
         existing = self.modules.get(alias)
         if existing and existing != module:
-            raise MetaError('Alias %s is already bound to module %s' % (alias, self.modules[alias]))
+            raise caos.MetaError('Alias %s is already bound to module %s' % (alias, self.modules[alias]))
         else:
             self.modules[alias] = module
             self.rmodules.add(module)
 
-    def get(self, name, default=MetaError, module_aliases=None, type=None):
+    def get(self, name, default=caos.MetaError, module_aliases=None, type=None):
         obj = self.lookup_name(name, module_aliases, default=None)
         if not obj:
-            if default and issubclass(default, MetaError):
+            if default and issubclass(default, caos.MetaError):
                 raise default('reference to a non-existent semantic graph node: %s' % name)
             else:
                 obj = default
         if type and not isinstance(obj, type):
-            if default and issubclass(default, MetaError):
+            if default and issubclass(default, caos.MetaError):
                 raise default('reference to a non-existent %s %s' %
                               (type.__name__, name))
             else:
@@ -536,7 +505,7 @@ class RealmMeta(object):
     def __contains__(self, obj):
         return obj in self.index
 
-    def normalize_name(self, name, module_aliases=None, default=MetaError):
+    def normalize_name(self, name, module_aliases=None, default=caos.MetaError):
         name, module, nqname = self._split_name(name)
         norm_name = None
 
@@ -545,9 +514,9 @@ class RealmMeta(object):
             default_module = self.resolve_module(module, module_aliases)
 
             if default_module:
-                object = self.lookup_qname(CaosName(name=nqname, module=default_module))
+                object = self.lookup_qname(caos.Name(name=nqname, module=default_module))
             if not object:
-                object = self.lookup_qname(CaosName(name=nqname, module='builtin'))
+                object = self.lookup_qname(caos.Name(name=nqname, module='builtin'))
             if object:
                 norm_name = object.name
         else:
@@ -562,12 +531,12 @@ class RealmMeta(object):
                         fullmodule = module
 
                 if fullmodule:
-                    norm_name = CaosName(name=nqname, module=fullmodule)
+                    norm_name = caos.Name(name=nqname, module=fullmodule)
 
         if norm_name:
             return norm_name
         else:
-            if default and issubclass(default, MetaError):
+            if default and issubclass(default, caos.MetaError):
                 raise default('could not normalize caos name %s' % name)
             else:
                 return default
@@ -579,7 +548,7 @@ class RealmMeta(object):
             module = self.modules.get(module)
         return module
 
-    def lookup_name(self, name, module_aliases=None, default=MetaError):
+    def lookup_name(self, name, module_aliases=None, default=caos.MetaError):
         name = self.normalize_name(name, module_aliases, default=default)
         if name:
             return self.lookup_qname(name)
@@ -593,27 +562,27 @@ class RealmMeta(object):
         self.add_module('builtin', 'builtin')
 
         for clsname in BuiltinAtom.base_atoms_to_class_map:
-            atom = BuiltinAtom(name=CaosName(name=clsname, module='builtin'))
+            atom = BuiltinAtom(name=caos.Name(name=clsname, module='builtin'))
             self.add(atom)
 
-        base_object = Concept(name=CaosName(name='Object', module='builtin'))
-        id = self.get(CaosName(name='uuid', module='builtin'))
-        id_link = Link(name=CaosName(name='id', module='builtin'), source=base_object, target=id,
+        base_object = Concept(name=caos.Name(name='Object', module='builtin'))
+        id = self.get(caos.Name(name='uuid', module='builtin'))
+        id_link = Link(name=caos.Name(name='id', module='builtin'), source=base_object, target=id,
                                      mapping='11', required=True)
         base_object.add_link(id_link)
         self.add(id_link)
         self.add(base_object)
 
     def _split_name(self, name):
-        if isinstance(name, CaosName):
+        if isinstance(name, caos.Name):
             module = name.module
             nqname = name.name
         elif isinstance(name, tuple):
             module = name[0]
             nqname = name[1]
             name = module + '.' + nqname if module else nqname
-        elif CaosName.is_qualified(name):
-            name = CaosName(name)
+        elif caos.Name.is_qualified(name):
+            name = caos.Name(name)
             module = name.module
             nqname = name.name
         else:

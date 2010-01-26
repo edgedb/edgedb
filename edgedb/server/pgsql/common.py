@@ -2,7 +2,7 @@ import re
 import postgresql
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
-from semantix.caos.backends import meta
+from semantix import caos
 
 def pack_hstore(dct):
     if dct:
@@ -185,7 +185,7 @@ class EntityTable(DatabaseTable):
         super().create()
 
     def insert(self, *dicts, **kwargs):
-        raise meta.MetaError('direct inserts into entity table are not allowed')
+        raise caos.MetaError('direct inserts into entity table are not allowed')
 
 
 class EntityMapTable(DatabaseTable):

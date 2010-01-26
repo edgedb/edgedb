@@ -1,10 +1,7 @@
 import copy
-from semantix.caos.query import CaosQLError
-from semantix.caos.caosql import ast as caosast
-from semantix.caos.backends.pgsql import ast as sqlast
-from semantix.caos.backends.pgsql import codegen as sqlgen
-from semantix.caos.backends.meta import Link as MetaLink
-from semantix.ast.visitor import NodeVisitor
+from semantix import ast
+from semantix.caos import caosql
+from semantix.caos.backends import pgsql
 from semantix.utils.debug import debug, highlight
 
 class Query(object):
@@ -42,7 +39,7 @@ class ParseContextLevel(object):
 
             return '_' + hint + str(self.aliascnt[hint])
         elif alias in self.vars:
-            raise CaosQLError('Path var redefinition: % is already used' %  alias)
+            raise caosql.CaosQLError('Path var redefinition: % is already used' %  alias)
         else:
             return alias
 
@@ -70,7 +67,7 @@ class ParseContext(object):
     current = property(_current)
 
 
-class CaosQLQueryAdapter(NodeVisitor):
+class CaosQLQueryAdapter(ast.visitor.NodeVisitor):
     @debug
     def adapt(self, query, vars=None):
         # Transform to sql tree
@@ -81,7 +78,7 @@ class CaosQLQueryAdapter(NodeVisitor):
         """
 
         # Generate query text
-        qtext = sqlgen.SQLSourceGenerator.to_source(qtree)
+        qtext = pgsql.codegen.SQLSourceGenerator.to_source(qtree)
 
         """LOG [caos.query] SQL Query
         print(highlight(qtext, 'sql'))
@@ -95,7 +92,7 @@ class CaosQLQueryAdapter(NodeVisitor):
     def _transform_tree(self, tree):
 
         context = ParseContext()
-        context.current.query = sqlast.SelectQueryNode()
+        context.current.query = pgsql.ast.SelectQueryNode()
 
         self._process_paths(context, tree.paths)
         self._process_generator(context, tree.generator)
@@ -113,7 +110,7 @@ class CaosQLQueryAdapter(NodeVisitor):
 
         context.current.location = 'selector'
         for expr in selector:
-            target = sqlast.SelectExprNode(expr=self._process_expr(context, expr.expr), alias=expr.name)
+            target = pgsql.ast.SelectExprNode(expr=self._process_expr(context, expr.expr), alias=expr.name)
             query.targets.append(target)
 
     def _process_sorter(self, context, sorter):
@@ -121,7 +118,7 @@ class CaosQLQueryAdapter(NodeVisitor):
         context.current.location = 'sorter'
 
         for expr in sorter:
-            sortexpr = sqlast.SortExprNode(expr=self._process_expr(context, expr.expr),
+            sortexpr = pgsql.ast.SortExprNode(expr=self._process_expr(context, expr.expr),
                                            direction=expr.direction)
             query.orderby.append(sortexpr)
 
@@ -138,43 +135,43 @@ class CaosQLQueryAdapter(NodeVisitor):
 
         expr_t = type(expr)
 
-        if expr_t == caosast.ExistPred:
+        if expr_t == caosql.ast.ExistPred:
             result = self._process_expr(context, expr.expr)
 
-        elif expr_t == caosast.EntitySet:
+        elif expr_t == caosql.ast.EntitySet:
             self._process_graph(context, context.current.query, expr)
 
-        elif expr_t == caosast.BinOp:
+        elif expr_t == caosql.ast.BinOp:
             left = self._process_expr(context, expr.left)
             right = self._process_expr(context, expr.right)
-            result = sqlast.BinOpNode(op=expr.op, left=left, right=right)
+            result = pgsql.ast.BinOpNode(op=expr.op, left=left, right=right)
 
-        elif expr_t == caosast.Constant:
-            result = sqlast.ConstantNode(value=expr.value)
+        elif expr_t == caosql.ast.Constant:
+            result = pgsql.ast.ConstantNode(value=expr.value)
 
-        elif expr_t == caosast.Sequence:
+        elif expr_t == caosql.ast.Sequence:
             elements = [self._process_expr(context, e) for e in expr.elements]
-            result = sqlast.SequenceNode(elements=elements)
+            result = pgsql.ast.SequenceNode(elements=elements)
 
-        elif expr_t == caosast.FunctionCall:
+        elif expr_t == caosql.ast.FunctionCall:
             args = [self._process_expr(context, a) for a in expr.args]
-            result = sqlast.FunctionCallNode(name=expr.name, args=args)
+            result = pgsql.ast.FunctionCallNode(name=expr.name, args=args)
 
-        elif expr_t == caosast.AtomicRef:
-            if isinstance(expr.ref(), caosast.EntitySet):
+        elif expr_t == caosql.ast.AtomicRef:
+            if isinstance(expr.ref(), caosql.ast.EntitySet):
                 fieldref = context.current.concept_node_map[expr.ref()]
             else:
                 fieldref = expr.ref()
 
             datatable = None
 
-            if isinstance(fieldref, sqlast.FieldRefNode):
+            if isinstance(fieldref, pgsql.ast.FieldRefNode):
                 if fieldref.field == expr.name:
                     return fieldref
                 else:
                     datatable = fieldref.table
 
-            if isinstance(fieldref, sqlast.SelectExprNode):
+            if isinstance(fieldref, pgsql.ast.SelectExprNode):
                 fieldref_expr = fieldref.expr
             else:
                 fieldref_expr = fieldref
@@ -189,39 +186,39 @@ class CaosQLQueryAdapter(NodeVisitor):
                     if not datatable:
                         query = context.current.query
                         table_name, table_schema = self._caos_name_to_pg_table(expr.ref().concept.name)
-                        datatable = sqlast.TableNode(name=table_name,
+                        datatable = pgsql.ast.TableNode(name=table_name,
                                                      schema=table_schema,
                                                      concept=expr.ref().concept,
                                                      alias=context.current.genalias(hint=table_name))
                         query.fromlist.append(datatable)
 
                         left = fieldref_expr
-                        right = sqlast.FieldRefNode(table=datatable, field='id')
-                        whereexpr = sqlast.BinOpNode(op='=', left=left, right=right)
+                        right = pgsql.ast.FieldRefNode(table=datatable, field='id')
+                        whereexpr = pgsql.ast.BinOpNode(op='=', left=left, right=right)
                         if query.where is not None:
-                            query.where = sqlast.BinOpNode(op='and', left=query.where, right=whereexpr)
+                            query.where = pgsql.ast.BinOpNode(op='and', left=query.where, right=whereexpr)
                         else:
                             query.where = whereexpr
 
-                    result = sqlast.FieldRefNode(table=datatable, field=expr.name)
+                    result = pgsql.ast.FieldRefNode(table=datatable, field=expr.name)
                     context.current.concept_node_map[expr.ref()] = result
             else:
-                if isinstance(expr.ref(), caosast.EntitySet):
+                if isinstance(expr.ref(), caosql.ast.EntitySet):
                     result = fieldref_expr
                 else:
-                    result = sqlast.FieldRefNode(table=fieldref, field=expr.name)
+                    result = pgsql.ast.FieldRefNode(table=fieldref, field=expr.name)
 
         return result
 
     def _attr_in_table(self, context, table, attr):
-        if isinstance(table, sqlast.TableNode):
+        if isinstance(table, pgsql.ast.TableNode):
             """
             It's either "entity_map" or one of the "*_data" tables.
             Entity data table is guaranteed to have the attr here, but entity map
             obviously can only yield ids.
             """
             return table.name == 'entity_map'
-        elif isinstance(table, sqlast.SelectQueryNode):
+        elif isinstance(table, pgsql.ast.SelectQueryNode):
             """
             For Select we check the aliases
             """
@@ -236,16 +233,16 @@ class CaosQLQueryAdapter(NodeVisitor):
         if startnode in context.current.ctemap:
             return
 
-        fromnode = sqlast.FromExprNode()
+        fromnode = pgsql.ast.FromExprNode()
         cte.fromlist.append(fromnode)
 
         fromnode.expr = self._process_path(context, cte, None, startnode)
 
     def _simple_join(self, context, left, right, key, type='inner'):
         condition = left.bonds(key)[-1]
-        if not isinstance(condition, sqlast.BinOpNode):
-            condition = sqlast.BinOpNode(op='=', left=left.bonds(key)[-1], right=right.bonds(key)[-1])
-        join = sqlast.JoinNode(type=type, left=left, right=right, condition=condition)
+        if not isinstance(condition, pgsql.ast.BinOpNode):
+            condition = pgsql.ast.BinOpNode(op='=', left=left.bonds(key)[-1], right=right.bonds(key)[-1])
+        join = pgsql.ast.JoinNode(type=type, left=left, right=right, condition=condition)
 
         join.updatebonds(left)
         join.updatebonds(right)
@@ -266,11 +263,11 @@ class CaosQLQueryAdapter(NodeVisitor):
         if step in context.current.ctemap:
             return context.current.ctemap[step]
 
-        step_cte = sqlast.SelectQueryNode(name=step.name, concept=step.concept,
+        step_cte = pgsql.ast.SelectQueryNode(name=step.name, concept=step.concept,
                                           alias=context.current.genalias(alias=step.name))
         context.current.ctemap[step] = step_cte
 
-        fromnode = sqlast.FromExprNode()
+        fromnode = pgsql.ast.FromExprNode()
 
         if step.concept is None:
             table_name = 'entity'
@@ -280,17 +277,17 @@ class CaosQLQueryAdapter(NodeVisitor):
             table_name, table_schema_name = self._caos_name_to_pg_table(step.concept.name)
             field_name = 'id'
 
-        concept_table = sqlast.TableNode(name=table_name,
+        concept_table = pgsql.ast.TableNode(name=table_name,
                                          schema=table_schema_name,
                                          concept=step.concept,
                                          alias=context.current.genalias(hint=table_name))
-        bond = sqlast.FieldRefNode(table=concept_table, field=field_name)
+        bond = pgsql.ast.FieldRefNode(table=concept_table, field=field_name)
         concept_table.addbond(step.concept, bond)
 
         if joinpoint is None:
             fromnode.expr = concept_table
         else:
-            target_id_field = sqlast.FieldRefNode(table=concept_table, field='id')
+            target_id_field = pgsql.ast.FieldRefNode(table=concept_table, field='id')
 
             #
             # Append the step to the join chain taking link filter into account
@@ -310,29 +307,29 @@ class CaosQLQueryAdapter(NodeVisitor):
 
             if link.filter and link.filter.labels:
                 for label in link.filter.labels:
-                    map = sqlast.TableNode(name=label.name.name + '_link',
+                    map = pgsql.ast.TableNode(name=label.name.name + '_link',
                                            schema='caos_' + label.name.module, concept=step.concept,
                                            alias=context.current.genalias(hint='map'))
-                    map.addbond(link.source.concept, sqlast.FieldRefNode(table=map, field=source_fld))
+                    map.addbond(link.source.concept, pgsql.ast.FieldRefNode(table=map, field=source_fld))
                     join = self._simple_join(context, joinpoint, map, link.source.concept, type='left')
 
-                    cond_expr = sqlast.BinOpNode(left=sqlast.FieldRefNode(table=map, field=target_fld),
+                    cond_expr = pgsql.ast.BinOpNode(left=pgsql.ast.FieldRefNode(table=map, field=target_fld),
                                                  op='=', right=target_id_field)
 
                     if target_bond_expr:
-                        target_bond_expr = sqlast.BinOpNode(left=target_bond_expr, op='or',
+                        target_bond_expr = pgsql.ast.BinOpNode(left=target_bond_expr, op='or',
                                                             right=cond_expr)
                     else:
                         target_bond_expr = cond_expr
 
             else:
-                map = sqlast.TableNode(name='entity_map', schema='caos', concept=step.concept,
+                map = pgsql.ast.TableNode(name='entity_map', schema='caos', concept=step.concept,
                                        alias=context.current.genalias(hint='map'))
 
-                map.addbond(link.source.concept, sqlast.FieldRefNode(table=map, field=source_fld))
+                map.addbond(link.source.concept, pgsql.ast.FieldRefNode(table=map, field=source_fld))
                 join = self._simple_join(context, joinpoint, map, link.source.concept)
 
-                target_bond_expr = sqlast.FieldRefNode(table=map, field=target_fld)
+                target_bond_expr = pgsql.ast.FieldRefNode(table=map, field=target_fld)
 
             join.addbond(step.concept, target_bond_expr)
             join = self._simple_join(context, join, concept_table, step.concept)
@@ -345,29 +342,29 @@ class CaosQLQueryAdapter(NodeVisitor):
             #
             for concept_node, ref in context.current.concept_node_map.items():
                 if ref.alias in joinpoint.concept_node_map:
-                    refexpr = sqlast.FieldRefNode(table=joinpoint, field=ref.alias)
-                    fieldref = sqlast.SelectExprNode(expr=refexpr, alias=ref.alias)
+                    refexpr = pgsql.ast.FieldRefNode(table=joinpoint, field=ref.alias)
+                    fieldref = pgsql.ast.SelectExprNode(expr=refexpr, alias=ref.alias)
                     step_cte.targets.append(fieldref)
                     step_cte.concept_node_map[ref.alias] = fieldref
 
-                    bondref = sqlast.FieldRefNode(table=step_cte, field=ref.alias)
+                    bondref = pgsql.ast.FieldRefNode(table=step_cte, field=ref.alias)
                     step_cte.addbond(concept_node.concept, bondref)
                     context.current.concept_node_map[concept_node].expr.table = step_cte
 
         # Include target entity id in the Select expression list ...
         fieldref = fromnode.expr.bonds(step.concept)[-1]
-        selectnode = sqlast.SelectExprNode(expr=fieldref, alias=step_cte.alias + '_entity_id')
+        selectnode = pgsql.ast.SelectExprNode(expr=fieldref, alias=step_cte.alias + '_entity_id')
         step_cte.targets.append(selectnode)
         step_cte.concept_node_map[selectnode.alias] = selectnode
 
         # ... and record in in global map in case it has to be pulled up later
-        refexpr = sqlast.FieldRefNode(table=step_cte, field=selectnode.alias)
-        selectnode = sqlast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
+        refexpr = pgsql.ast.FieldRefNode(table=step_cte, field=selectnode.alias)
+        selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
         context.current.concept_node_map[step] = selectnode
 
         if step.filters:
             def filter_atomic_refs(node):
-                return isinstance(node, caosast.AtomicRef) # and node.refs[0] == step
+                return isinstance(node, caosql.ast.AtomicRef) # and node.refs[0] == step
 
             for filter in step.filters:
                 # Fixup atomic refs sources
@@ -378,16 +375,16 @@ class CaosQLQueryAdapter(NodeVisitor):
                         atref.refs.pop()
                         atref.refs.add(concept_table)
 
-                expr = sqlast.PredicateNode(expr=self._process_expr(context, filter))
+                expr = pgsql.ast.PredicateNode(expr=self._process_expr(context, filter))
                 if step_cte.where is not None:
-                    step_cte.where = sqlast.BinOpNode(op='and', left=step_cte.where, right=expr)
+                    step_cte.where = pgsql.ast.BinOpNode(op='and', left=step_cte.where, right=expr)
                 else:
                     step_cte.where = expr
 
         step_cte.fromlist.append(fromnode)
         step_cte._source_graph = step
 
-        bond = sqlast.FieldRefNode(table=step_cte, field=step_cte.alias + '_entity_id')
+        bond = pgsql.ast.FieldRefNode(table=step_cte, field=step_cte.alias + '_entity_id')
         step_cte.addbond(step.concept, bond)
 
         return step_cte
@@ -397,49 +394,49 @@ class CaosQLQueryAdapter(NodeVisitor):
         return name.name + '_data', 'caos_' + name.module
 
     def _select_link_types(self, context, map, link):
-        select = sqlast.SelectQueryNode()
+        select = pgsql.ast.SelectQueryNode()
         labels = link.filter.labels
 
-        entity_1 = sqlast.TableNode(name='entity', schema='caos', alias=context.current.genalias(hint='entity'))
-        entity_2 = sqlast.TableNode(name='entity', schema='caos', alias=context.current.genalias(hint='entity'))
-        link = sqlast.TableNode(name='link', schema='caos', alias=context.current.genalias(hint='link'))
+        entity_1 = pgsql.ast.TableNode(name='entity', schema='caos', alias=context.current.genalias(hint='entity'))
+        entity_2 = pgsql.ast.TableNode(name='entity', schema='caos', alias=context.current.genalias(hint='entity'))
+        link = pgsql.ast.TableNode(name='link', schema='caos', alias=context.current.genalias(hint='link'))
 
         select.fromlist = [entity_1, entity_2, link]
 
-        left = sqlast.FieldRefNode(table=map, field='source_id')
-        right = sqlast.FieldRefNode(table=entity_1, field='id')
-        where = sqlast.BinOpNode(op='=', left=left, right=right)
+        left = pgsql.ast.FieldRefNode(table=map, field='source_id')
+        right = pgsql.ast.FieldRefNode(table=entity_1, field='id')
+        where = pgsql.ast.BinOpNode(op='=', left=left, right=right)
 
-        left = sqlast.FieldRefNode(table=map, field='target_id')
-        right = sqlast.FieldRefNode(table=entity_2, field='id')
-        condition = sqlast.BinOpNode(op='=', left=left, right=right)
-        where = sqlast.BinOpNode(op='and', left=where, right=condition)
+        left = pgsql.ast.FieldRefNode(table=map, field='target_id')
+        right = pgsql.ast.FieldRefNode(table=entity_2, field='id')
+        condition = pgsql.ast.BinOpNode(op='=', left=left, right=right)
+        where = pgsql.ast.BinOpNode(op='and', left=where, right=condition)
 
-        left = sqlast.FieldRefNode(table=entity_1, field='concept_id')
-        right = sqlast.FieldRefNode(table=link, field='source_id')
-        condition = sqlast.BinOpNode(op='=', left=left, right=right)
-        where = sqlast.BinOpNode(op='and', left=where, right=condition)
+        left = pgsql.ast.FieldRefNode(table=entity_1, field='concept_id')
+        right = pgsql.ast.FieldRefNode(table=link, field='source_id')
+        condition = pgsql.ast.BinOpNode(op='=', left=left, right=right)
+        where = pgsql.ast.BinOpNode(op='and', left=where, right=condition)
 
-        left = sqlast.FieldRefNode(table=entity_2, field='concept_id')
-        right = sqlast.FieldRefNode(table=link, field='target_id')
-        condition = sqlast.BinOpNode(op='=', left=left, right=right)
-        where = sqlast.BinOpNode(op='and', left=where, right=condition)
+        left = pgsql.ast.FieldRefNode(table=entity_2, field='concept_id')
+        right = pgsql.ast.FieldRefNode(table=link, field='target_id')
+        condition = pgsql.ast.BinOpNode(op='=', left=left, right=right)
+        where = pgsql.ast.BinOpNode(op='and', left=where, right=condition)
 
-        left = sqlast.FieldRefNode(table=link, field='name')
-        right = sqlast.SequenceNode()
+        left = pgsql.ast.FieldRefNode(table=link, field='name')
+        right = pgsql.ast.SequenceNode()
         for label in labels:
-            right.elements.append(sqlast.ConstantNode(value=label))
-        condition = sqlast.BinOpNode(op='in', left=left, right=right)
-        where = sqlast.BinOpNode(op='and', left=where, right=condition)
+            right.elements.append(pgsql.ast.ConstantNode(value=label))
+        condition = pgsql.ast.BinOpNode(op='in', left=left, right=right)
+        where = pgsql.ast.BinOpNode(op='and', left=where, right=condition)
 
         select.where = where
-        selexpr = sqlast.FieldRefNode(table=link, field='id')
-        select.targets = [sqlast.SelectExprNode(expr=selexpr, alias='id')]
+        selexpr = pgsql.ast.FieldRefNode(table=link, field='id')
+        select.targets = [pgsql.ast.SelectExprNode(expr=selexpr, alias='id')]
 
-        left = sqlast.FieldRefNode(table=map, field='link_type_id')
+        left = pgsql.ast.FieldRefNode(table=map, field='link_type_id')
         right = select
 
-        return sqlast.BinOpNode(op='in', left=left, right=right)
+        return pgsql.ast.BinOpNode(op='in', left=left, right=right)
 
     def _process_path(self, context, cte, joinpoint, pathtip):
         join = joinpoint

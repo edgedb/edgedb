@@ -1,22 +1,22 @@
-from semantix.ast import *
+from semantix import ast
 
-class ArgListNode(AST): __fields = ['name', '*args']
-class BinOpNode(AST):  __fields = ['left', 'op', 'right']
-class CallFunctionNode(AST):  __fields = ['func', '*args']
+class ArgListNode(ast.AST): __fields = ['name', '*args']
+class BinOpNode(ast.AST):  __fields = ['left', 'op', 'right']
+class CallFunctionNode(ast.AST):  __fields = ['func', '*args']
 
-class VarNode(AST): __fields = ['name']
+class VarNode(ast.AST): __fields = ['name']
 class PathVarNode(VarNode): pass
-class ConstantNode(AST): __fields = ['value']
+class ConstantNode(ast.AST): __fields = ['value']
 
-class UnaryOpNode(AST): __fields = ['op', 'operand']
+class UnaryOpNode(ast.AST): __fields = ['op', 'operand']
 
-class PredicateNode(AST): __fields = ['*expr']
+class PredicateNode(ast.AST): __fields = ['*expr']
 
-class SelectExprNode(AST): __fields = ['expr', 'alias']
+class SelectExprNode(ast.AST): __fields = ['expr', 'alias']
 
-class FromExprNode(AST): __fields = ['expr', 'alias']
+class FromExprNode(ast.AST): __fields = ['expr', 'alias']
 
-class TableNode(AST):
+class TableNode(ast.AST):
     __fields = ['name', 'schema', 'concept', 'alias', '#_bonds']
 
     def __init__(self, **kwargs):
@@ -51,17 +51,17 @@ class SelectQueryNode(TableNode):
 class CTENode(SelectQueryNode):
     __fields = ['*_referrers']
 
-class CTEAttrRefNode(AST): __fields = ['cte', 'attr']
+class CTEAttrRefNode(ast.AST): __fields = ['cte', 'attr']
 
 class JoinNode(TableNode):
     __fields = ['left', 'right', 'condition', 'type']
 
-class ExistsNode(AST): __fields = ['expr']
+class ExistsNode(ast.AST): __fields = ['expr']
 
-class FieldRefNode(AST): __fields = ['table', 'field']
+class FieldRefNode(ast.AST): __fields = ['table', 'field']
 
-class SequenceNode(AST): __fields = ['*elements']
+class SequenceNode(ast.AST): __fields = ['*elements']
 
-class SortExprNode(AST): __fields = ['expr', 'direction']
+class SortExprNode(ast.AST): __fields = ['expr', 'direction']
 
-class FunctionCallNode(AST): __fields = ['name', '*args']
+class FunctionCallNode(ast.AST): __fields = ['name', '*args']

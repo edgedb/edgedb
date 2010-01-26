@@ -2,8 +2,7 @@ import postgresql
 import urllib.parse
 
 from semantix.caos.backends.resolver.shell import BackendShell, BackendResolverHelper
-from semantix.caos.backends.resolver.error import BackendResolverError
-from semantix.caos.backends.pgsql import Backend
+from semantix.caos.backends.pgsql.backend import Backend
 
 class BackendResolver(BackendResolverHelper):
     def resolve(self, url):

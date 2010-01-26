@@ -1,4 +1,3 @@
-from semantix.caos.backends.meta import RealmMeta
 from semantix.caos.backends.yaml import ImportContext
 from semantix.lang.yaml.loader import AttributeMappingNode
 from .semantics import Semantics

@@ -5,22 +5,17 @@ import collections
 import itertools
 
 from semantix.utils import graph
-from semantix import lang
-from semantix.caos import MetaError
-from semantix.caos.name import Name as CaosName
-from semantix.caos import concept
-
-from semantix.caos.backends import meta
-from semantix.caos.backends.meta import RealmMeta
-
 from semantix.utils.nlang import morphology
+
+from semantix import caos, lang
+from semantix.caos.backends import meta, objects
 
 
 class LangObject(lang.meta.Object):
     @classmethod
     def get_canonical_class(cls):
         for base in cls.__bases__:
-            if issubclass(base, meta.MetaObject):
+            if issubclass(base, objects.MetaObject):
                 return base
 
         return cls
@@ -134,7 +129,7 @@ class LinkList(LangObject, list):
 class ImportContext(lang.ImportContext):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.metaindex = RealmMeta()
+        self.metaindex = meta.RealmMeta()
         self.metaindex.add_module(args[0], args[0])
         self.toplevel = False
 
@@ -168,12 +163,12 @@ class MetaSet(LangObject):
     def construct(self):
         data = self.data
         context = self.context
-        self.finalindex = RealmMeta()
+        self.finalindex = meta.RealmMeta()
 
         self.toplevel = context.document.import_context.toplevel
         globalindex = context.document.import_context.metaindex
 
-        localindex = RealmMeta()
+        localindex = meta.RealmMeta()
         localindex.add_module(context.document.module.__name__, None)
 
         for alias, module in context.document.imports.items():
@@ -204,7 +199,7 @@ class MetaSet(LangObject):
         backend = data.get('backend')
 
         for atom_name, atom in data['atoms'].items():
-            atom.name = CaosName(name=atom_name, module=atom.context.document.module.__name__)
+            atom.name = caos.Name(name=atom_name, module=atom.context.document.module.__name__)
             atom.backend = backend
             globalmeta.add(atom)
             localmeta.add(atom)
@@ -232,11 +227,11 @@ class MetaSet(LangObject):
     def read_links(self, data, globalmeta, localmeta):
         for link_name, link in data['links'].items():
             module = link.context.document.module.__name__
-            link.name = CaosName(name=link_name, module=module)
+            link.name = caos.Name(name=link_name, module=module)
 
             properties = {}
             for property_name, property in link.properties.items():
-                property.name = CaosName(name=link_name + '__' + property_name, module=module)
+                property.name = caos.Name(name=link_name + '__' + property_name, module=module)
                 property.atom = localmeta.normalize_name(property.atom)
                 properties[property.name] = property
             link.properties = properties
@@ -272,7 +267,8 @@ class MetaSet(LangObject):
             if link.implicit_derivative and not link.atomic():
                 base = globalmeta.get(next(iter(link.base)))
                 if base.atom:
-                    raise MetaError('implicitly defined atomic link % used to link to concept' % link.name)
+                    raise caos.MetaError('implicitly defined atomic link % used to link to concept' %
+                                         link.name)
 
             if link.base:
                 g[link.name]['merge'].extend(link.base)
@@ -284,11 +280,11 @@ class MetaSet(LangObject):
         backend = data.get('backend')
 
         for concept_name, concept in data['concepts'].items():
-            concept.name = CaosName(name=concept_name, module=concept.context.document.module.__name__)
+            concept.name = caos.Name(name=concept_name, module=concept.context.document.module.__name__)
             concept.backend = backend
 
             if globalmeta.get(concept.name, None):
-                raise MetaError('%s already defined' % concept.name)
+                raise caos.MetaError('%s already defined' % concept.name)
 
             globalmeta.add(concept)
             localmeta.add(concept)
@@ -305,23 +301,23 @@ class MetaSet(LangObject):
                     link_qname = localmeta.normalize_name(link_name, default=None)
                     if not link_qname:
                         # The link has not been defined globally.
-                        if not CaosName.is_qualified(link_name):
+                        if not caos.Name.is_qualified(link_name):
                             # If the name is not fully qualified, assume inline link definition.
                             # The only attribute that is used for global definition is the name.
-                            link_qname = CaosName(name=link_name, module=link.context.document.module.__name__)
+                            link_qname = caos.Name(name=link_name, module=link.context.document.module.__name__)
                             linkdef = meta.Link(name=link_qname)
                             linkdef.atom = globalmeta.get(link.target, type=meta.Atom, default=None) is not None
                             globalmeta.add(linkdef)
                             localmeta.add(linkdef)
                         else:
-                            link_qname = CaosName(link_name)
+                            link_qname = caos.Name(link_name)
 
                     # A new implicit subclass of the link is created for each (source, link_name, target)
                     # combination
                     link.base = {link_qname}
                     link.implicit_derivative = True
                     link_genname = meta.Link.gen_link_name(link.source, link.target, link_qname.name)
-                    link.name = CaosName(name=link_genname, module=link.context.document.module.__name__)
+                    link.name = caos.Name(name=link_genname, module=link.context.document.module.__name__)
                     globalmeta.add(link)
                     localmeta.add(link)
                     concept.add_link(link)
@@ -344,7 +340,7 @@ class MetaSet(LangObject):
 
                     if isinstance(link.target, meta.Atom):
                         if link_name in link_target_types and link_target_types[link_name] != 'atom':
-                            raise MetaError('%s link is already defined as a link to non-atom')
+                            raise caos.MetaError('%s link is already defined as a link to non-atom')
 
                         mods = getattr(link, 'mods', None)
                         if mods:
@@ -355,12 +351,13 @@ class MetaSet(LangObject):
                             link.target = atom
 
                         if link.mapping != '11':
-                            raise MetaError('%s: links to atoms can only have a "1 to 1" mapping' % link_name)
+                            raise caos.MetaError('%s: links to atoms can only have a "1 to 1" mapping'
+                                                 % link_name)
 
                         link_target_types[link_name] = 'atom'
                     else:
                         if link_name in link_target_types and link_target_types[link_name] == 'atom':
-                            raise MetaError('%s link is already defined as a link to atom')
+                            raise caos.MetaError('%s link is already defined as a link to atom')
 
                         link_target_types[link_name] = 'concept'
 
@@ -373,7 +370,7 @@ class MetaSet(LangObject):
 
     def genatom(self, host, base, default, link_name, mods):
         atom_name = '__' + host.name.name + '__' + link_name.name
-        atom = meta.Atom(name=CaosName(name=atom_name, module=host.name.module),
+        atom = meta.Atom(name=caos.Name(name=atom_name, module=host.name.module),
                          base=base,
                          default=default,
                          automatic=True,
@@ -387,10 +384,10 @@ class MetaSet(LangObject):
         return itertools.chain([('_index_', self.finalindex)], self.finalindex.index_by_name.items())
 
 
-class EntityShell(LangObject, concept.EntityShell):
+class EntityShell(LangObject, caos.concept.EntityShell):
     def __init__(self, data, context):
         super().__init__(data=data, context=context)
-        concept.EntityShell.__init__(self)
+        caos.concept.EntityShell.__init__(self)
 
     def construct(self):
         if isinstance(self.data, str):
