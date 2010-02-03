@@ -115,6 +115,7 @@ class debug(object):
 
         return new_func
 
+
 def highlight(code, lang=None):
     try:
         from pygments import highlight as h
@@ -124,3 +125,66 @@ def highlight(code, lang=None):
         return code
 
     return h(code, get_lexer_by_name(lang), TerminalFormatter(bg='dark', style='native'))
+
+
+def timeit(target):
+    """
+    Utility function to simplify writing performance benchmarks.
+
+    Usage:
+
+    from semantix.util.debug import timeit
+
+    1) in a "with" statement:
+        >>> with timeit('long list'):
+        ...     result = ''.join(str(i) for i in range(0, 10**5))
+        ...
+        long list, in 0.101 seconds
+
+    2) as a decorator with some message:
+        >>> @timeit('long list generator')
+        ... def test(length):
+        ...     return ''.join(str(i) for i in range(0, length))
+        ...
+        >>> list = test(10**5)
+        long list generator, in 0.099 seconds
+
+    3) as a simple decorator:
+        >>> @timeit
+        ... def test(length):
+        ...     return ''.join(str(i) for i in range(0, length))
+        ...
+        >>> list = test(10**5)
+        <function test at 0x71f978>, in 0.098 seconds
+    """
+
+    import time
+
+    class Timer:
+        def __init__(self, message):
+            self.message = message
+
+        def __enter__(self):
+            self.started = time.time()
+
+        def __exit__(self, exc_type, exc_value, tb):
+            print("%s, in %.3f seconds" % (self.message, time.time() - self.started))
+
+        def decorate(self, func):
+            def new_func(*args, **kwargs):
+                with self:
+                    return func(*args, **kwargs)
+            return new_func
+
+        def __call__(self, *args):
+            if len(args) == 1 and hasattr(args[0], '__call__'):
+                return self.decorate(args[0])
+            else:
+                raise Exception("Invalid arguments")
+
+    if target and isinstance(target, str):
+        return Timer(target)
+    elif target and hasattr(target, '__call__'):
+        return Timer(repr(target)).decorate(target)
+    else:
+        raise Exception("Invalid arguments")
