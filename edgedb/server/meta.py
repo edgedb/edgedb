@@ -2,6 +2,12 @@ import re
 import collections
 import hashlib
 import uuid
+import datetime
+
+try:
+    from dateutil import parser as dateutil_parser
+except ImportError:
+    dateutil_parser = None
 
 from semantix import caos
 from semantix.utils.datastructures import OrderedSet
@@ -16,6 +22,28 @@ class Bool(int):
         return 'True' if self else 'False'
 
     __str__ = __repr__
+
+
+class DateTime(datetime.datetime):
+    def __new__(cls, value=None):
+        if isinstance(value, datetime.datetime):
+            d = value
+        elif isinstance(value, str):
+            if dateutil_parser:
+                try:
+                    d = dateutil_parser.parse(value)
+                except ValueError as e:
+                    raise ValueError("invalid value for DateTime object: %s" % value) from e
+            else:
+                try:
+                    d = datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S")
+                except ValueError:
+                    d = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
+        else:
+            raise ValueError("invalid value for DateTime object: %s" % value)
+
+        return super(DateTime, cls).__new__(cls, d.year, d.month, d.day, d.hour, d.minute, d.second,
+                                            d.microsecond, d.tzinfo)
 
 
 class GraphObjectBackendData:
@@ -213,7 +241,8 @@ class BuiltinAtom(Atom):
                                 'int': int,
                                 'float': float,
                                 'bool': Bool,
-                                'uuid': uuid.UUID
+                                'uuid': uuid.UUID,
+                                'datetime': DateTime
                               }
 
     def get_class_mro(self, realm, clsbase):

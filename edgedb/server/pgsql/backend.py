@@ -75,10 +75,11 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
                         'integer': int,
                         'character': str,
                         'character varying': str,
-                        'boolean': bool,
+                        'boolean': metamod.Bool,
                         'numeric': int,
                         'double precision': float,
-                        'uuid': uuid.UUID
+                        'uuid': uuid.UUID,
+                        'timestamp': metamod.DateTime
                     }
 
     base_type_name_map = {
@@ -86,7 +87,8 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
                                 caos.Name('builtin.int'): 'numeric',
                                 caos.Name('builtin.bool'): 'boolean',
                                 caos.Name('builtin.float'): 'double precision',
-                                caos.Name('builtin.uuid'): 'uuid'
+                                caos.Name('builtin.uuid'): 'uuid',
+                                caos.Name('builtin.datetime'): 'timestamp'
                          }
 
     base_type_name_map_r = {
@@ -97,7 +99,8 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
                                 'boolean': caos.Name('builtin.bool'),
                                 'numeric': caos.Name('builtin.int'),
                                 'double precision': caos.Name('builtin.float'),
-                                'uuid': caos.Name('builtin.uuid')
+                                'uuid': caos.Name('builtin.uuid'),
+                                'timestamp': caos.Name('builtin.datetime')
                            }
 
 
