@@ -1,7 +1,8 @@
+import abc
 import bisect
 import collections
 
-class GenericWrapperMeta(type):
+class GenericWrapperMeta(abc.ABCMeta):
 
     def __init__(cls, name, bases, dict):
         super().__init__(name, bases, dict)
@@ -153,7 +154,7 @@ class OrderedSet(collections.MutableSet):
     def __init__(self, iterable=None):
         self.map = collections.OrderedDict()
         if iterable is not None:
-            self |= iterable
+            self.update(iterable)
 
     def __del__(self):
         self.clear()
@@ -161,6 +162,8 @@ class OrderedSet(collections.MutableSet):
     def add(self, key):
         if key not in self.map:
             self.map[key] = True
+
+    append = add
 
     def discard(self, key):
         if key in self.map:
@@ -170,11 +173,20 @@ class OrderedSet(collections.MutableSet):
         key, value = self.map.popitem(last)
         return key
 
+    update = collections.MutableSet.__ior__
+    difference_update = collections.MutableSet.__isub__
+    symmetric_difference_update = collections.MutableSet.__ixor__
+    intersection_update = collections.MutableSet.__iand__
+
     def __len__(self):
         return len(self.map)
 
     def __contains__(self, key):
         return key in self.map
+
+    def __getitem__(self, key):
+        # XXX
+        return list(self.map.keys())[key]
 
     def __iter__(self):
         return iter(list(self.map.keys()))
@@ -191,3 +203,7 @@ class OrderedSet(collections.MutableSet):
         if isinstance(other, OrderedSet):
             return len(self) == len(other) and list(self) == list(other)
         return not self.isdisjoint(other)
+
+
+class OrderedSetWrapper(OrderedSet, MutableSet, MutableSequence):
+    original_base = OrderedSet
