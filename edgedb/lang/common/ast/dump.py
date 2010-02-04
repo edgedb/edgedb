@@ -38,9 +38,9 @@ def dump(node, annotate_fields=True, include_attributes=False):
             return '[%s]' % ', '.join(_format(x) for x in node)
         return repr(node)
     if not isinstance(node, semantix.ast.base.AST):
-        raise TypeError('expected semantix.ast.base.AST, got %r' % node.__class__.__name__)
-
-    return _format(node)
+        return str(node)
+    else:
+        return _format(node)
 
 
 def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=None):
@@ -83,11 +83,13 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
                 return rv + ')'
             elif isinstance(node, list):
                 return '[%s]' % ', '.join(_format(x) for x in node)
+            elif isinstance(node, set):
+                return '{%s}' % ', '.join(_format(x) for x in node)
             return highlight('LITERAL', repr(node))
         if not isinstance(node, semantix.ast.base.AST):
-            raise TypeError('expected semantix.ast.base.AST, got %r' % node.__class__.__name__)
-
-        return _format(node)
+            return str(node)
+        else:
+            return _format(node)
 
     """
     returns: one line = True, multiline = False
