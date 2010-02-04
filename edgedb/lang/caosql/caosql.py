@@ -1,8 +1,8 @@
 import copy
+from semantix.caos import types as caos_types
 from semantix.caos.caosql import ast
 from semantix.caos.caosql.parser import nodes as qlast
 from semantix.caos.caosql import CaosQLError
-from semantix.caos.backends import objects
 
 
 class ParseContextLevel(object):
@@ -103,11 +103,17 @@ class CaosqlTreeTransformer(object):
         if where:
             expr = self._process_expr(context, where.expr)
             if isinstance(expr, ast.AtomicRef):
-                expr.ref().filters.append(expr.expr)
+                expr.ref().filter = self._and_binop(context, expr.ref().filter, expr.expr)
                 expr = None
             return expr
         else:
             return None
+
+    def _and_binop(self, context, left, right):
+        if not left:
+            return right
+        else:
+            return ast.BinOp(left=left, right=right, op='and')
 
     def _process_expr(self, context, expr):
         node = None
@@ -188,11 +194,11 @@ class CaosqlTreeTransformer(object):
         if left_t == ast.AtomicRef:
             if right_t == ast.Constant:
                 if context.current.location == 'generator':
-                    left.ref().filters.append(expr)
+                    left.ref().filter = self._and_binop(context, left.ref().filter, expr)
                     return None
             elif right_t == ast.Sequence and op == 'in':
                 if context.current.location == 'generator':
-                    left.ref().filters.append(expr)
+                    left.ref().filter = self._and_binop(context, left.ref().filter, expr)
                     return None
             else:
                 raise CaosQLError('invalid binary operator: %s %s %s'
@@ -201,7 +207,7 @@ class CaosqlTreeTransformer(object):
         if right_t == ast.AtomicRef:
             if left_t == ast.Constant:
                 if context.current.location == 'generator':
-                    right.ref().filters.append(expr)
+                    right.ref().filter = self._and_binop(context, right.ref().filter, expr)
                     return None
             elif left_t == ast.BinOp:
                 pass
@@ -259,13 +265,15 @@ class CaosqlTreeTransformer(object):
                 var = node.var
                 node = self._get_path_tip(node)
 
-                if i == pathlen - 1 and self._is_attr_ref(context, curstep, node):
+                if pathlen > 1 and i == pathlen - 1 and self._is_attr_ref(context, curstep, node):
                     step.atom = (node.namespace, node.expr)
-                    hint = str(curstep.concept) + '.' + node.expr
+                    concept = next(iter(curstep.concepts))
+                    hint = str(concept.name) + '.' + node.expr
                 else:
-                    step.concept = self._normalize_concept(context, node.expr, node.namespace)
-                    if step.concept:
-                        hint = step.concept.name
+                    concept = self._normalize_concept(context, node.expr, node.namespace)
+                    step.concepts = frozenset({concept})
+                    if concept:
+                        hint = concept.name
                     else:
                         hint = None
 
@@ -281,18 +289,20 @@ class CaosqlTreeTransformer(object):
                     curstep = refnode
                     continue
                 else:
-                    if i == pathlen - 1 and self._is_attr_ref(context, curstep, node):
+                    if pathlen > 1 and i == pathlen - 1 and self._is_attr_ref(context, curstep, node):
                         step.atom = (node.namespace, node.expr)
-                        hint = str(curstep.concept) + '.' + node.expr
+                        concept = next(iter(curstep.concepts))
+                        hint = str(concept.name) + '.' + node.expr
                     else:
-                        step.concept = self._normalize_concept(context, node.expr, node.namespace)
-                        if step.concept:
-                            hint = step.concept.name
+                        concept = self._normalize_concept(context, node.expr, node.namespace)
+                        step.concepts = frozenset({concept})
+                        if concept:
+                            hint = concept.name
                         else:
                             hint = None
 
                     if not step.id:
-                        step.id = str(step.concept.name) if step.concept is not None else '_entity'
+                        step.id = str(concept.name) if concept is not None else '_entity'
 
                     step.name = context.current.genalias(hint=hint)
 
@@ -338,7 +348,7 @@ class CaosqlTreeTransformer(object):
             return None
         else:
             concept = self.realm.meta.get(name=concept, module_aliases=context.current.namespaces,
-                                          type=objects.Node)
+                                          type=caos_types.ProtoNode)
             return concept
 
     def _parse_link_expr(self, context, expr):
@@ -352,7 +362,7 @@ class CaosqlTreeTransformer(object):
                 label = (expr.namespace, expr.name)
                 # Resolve all potential link globs into a list of specific link objects
                 labels = self.realm.meta.match(name=label, module_aliases=context.current.namespaces,
-                                               type=objects.Link)
+                                               type=caos_types.ProtoLink)
                 if not labels:
                     raise CaosQLError('could not find any links matching %s' % label)
 
@@ -381,8 +391,9 @@ class CaosqlTreeTransformer(object):
             return False
 
         atoms = []
-        if source.concept:
-            atoms += [n for n, v in source.concept.links.items() if v.atomic()]
+        if source.concepts:
+            concept = next(iter(source.concepts))
+            atoms += [n for n, v in concept.links.items() if v.atomic()]
 
         name = self.realm.meta.normalize_name(name=(target.namespace, target.expr),
                                               module_aliases=context.current.namespaces)

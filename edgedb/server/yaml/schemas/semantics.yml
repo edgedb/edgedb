@@ -189,6 +189,7 @@ mapping:
 
                     "properties":
                         type: map
+                        default: {}
                         mapping:
                             =:
                                 type: choice

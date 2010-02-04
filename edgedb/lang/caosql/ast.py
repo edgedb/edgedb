@@ -27,18 +27,43 @@ class Base(ast.AST):
         else:
             return list(self.refs)[slice_]
 
+    def replace_refs(self, old, new):
+        self.refs.discard(old)
+        self.refs.add(new)
+
+        for name in self._fields:
+            value = getattr(self, name)
+            if isinstance(value, Base):
+                value.replace_refs(old, new)
+
+
 class GraphExpr(ast.AST): __fields = ['*paths', '*generator', '*selector', '*sorter']
-class AtomicRef(Base): __fields = ['name', 'expr']
-class EntitySet(Base): __fields = ['id', 'name', 'concept', 'atom', '*filters', '*links', '*altlinks', '*rlinks', '*selrefs']
-class EntityLink(Base): __fields = ['filter', 'source', 'target']
+
+class AtomicRef(Base):
+    __fields = ['name', 'expr']
+
+class MetaRef(Base):
+    __fields = ['name']
+
+class EntitySet(Base):
+    __fields = ['id', 'name', '!concepts', 'atom', 'filter', '*links', '*altlinks', '*rlinks', '*selrefs']
+
+class EntityLink(Base):
+    __fields = ['filter', 'source', 'target']
+
 class EntityLinkSpec(ast.AST):
-        __fields = ['*labels', 'direction']
-        BACKWARD='<'
-        FORWARD='>'
-        BOTH='<>'
+    __fields = ['*labels', 'direction']
+    BACKWARD='<'
+    FORWARD='>'
+    BOTH='<>'
+
 class Constant(Base): __fields = ['value']
 class Sequence(Base): __fields = ['*elements']
-class BinOp(Base): __fields = ['left', 'op', 'right']
+class BinOp(Base):
+    __fields = ['left', 'op', 'right']
+    AND = 'and'
+    OR = 'or'
+class InlineFilter(Base): __fields  = ['expr']
 class ExistPred(Base): __fields = ['expr', 'outer']
 class AtomicExistPred(ExistPred): pass
 class SortExpr(Base): __fields = ['expr', 'direction']

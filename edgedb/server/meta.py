@@ -1,14 +1,10 @@
 import re
 import collections
-import keyword
 import hashlib
 import uuid
 
 from semantix import caos
 from semantix.utils.datastructures import OrderedSet
-
-from semantix.caos.backends import objects
-
 
 class MetaBackend(object):
     def getmeta(self):
@@ -22,13 +18,25 @@ class Bool(int):
     __str__ = __repr__
 
 
-class GraphObject(objects.MetaObject):
+class GraphObjectBackendData:
+    pass
+
+
+class GraphObjectBackendDataContainer:
+    def __getattr__(self, name):
+        result = GraphObjectBackendData()
+        setattr(self, name, result)
+        return result
+
+
+class GraphObject(caos.types.ProtoObject):
     def __init__(self, name, backend=None, base=None, title=None, description=None):
         self.name = name
         self.base = base
         self.title = title
         self.description = description
         self.backend = backend
+        self.backend_data = GraphObjectBackendDataContainer()
 
     def get_class_template(self, realm):
         """
@@ -37,19 +45,11 @@ class GraphObject(objects.MetaObject):
         """
         bases = self.get_class_base(realm)
 
-        reserved = set()
-        if bases:
-            for base in bases:
-                if hasattr(base, '_metadata') and isinstance(base._metadata, objects.GraphObjectMetaData):
-                    reserved.update(base._metadata.reserved_attrnames)
-                else:
-                    reserved.update(list(dir(base)) + keyword.kwlist)
-
-        metadata = objects.GraphObjectMetaData()
+        metadata = caos.types.GraphObjectMetaData()
         metadata.realm = realm
         metadata.name = self.name
         metadata.backend = self.backend
-        metadata.reserved_attrnames = reserved
+        metadata.prototype = self
         dct = {'_metadata': metadata, '__module__': self.name.module}
 
         name = self.get_class_name(realm)
@@ -64,7 +64,7 @@ class GraphObject(objects.MetaObject):
 
     def get_class_base(self, realm):
         if isinstance(self.base, caos.Name):
-            base = (realm.getfactory()(self.base),)
+            base = (realm.meta.get(self.base),)
         else:
             base = self.base
 
@@ -75,16 +75,16 @@ class GraphObject(objects.MetaObject):
 
     def merge(self, obj):
         if not isinstance(obj, self.__class__):
-            raise MetaMismatchError("cannot merge instances of %s and %s" % (obj.__class__.__name__, self.__class__.__name__))
+            raise caos.types.MetaMismatchError("cannot merge instances of %s and %s" % (obj.__class__.__name__, self.__class__.__name__))
 
 
-class AtomMod(objects.MetaObject):
+class AtomMod(caos.types.ProtoObject):
     def __init__(self, context):
         self.context = context
 
     def merge(self, mod):
         if not isinstance(mod, self.__class__):
-            raise MetaMismatchError("cannot merge instances of %s and %s" % (mod.__class__.__name__, self.__class__.__name__))
+            raise caos.types.MetaMismatchError("cannot merge instances of %s and %s" % (mod.__class__.__name__, self.__class__.__name__))
 
     def validate(self, value):
         pass
@@ -162,7 +162,7 @@ class AtomModRegExp(AtomMod):
         return '<%s: %s>' % (self.__class__.__name__, ', '.join(self.regexps.keys()))
 
 
-class Atom(GraphObject, objects.Atom):
+class Atom(GraphObject, caos.types.ProtoAtom):
     _type = 'atom'
 
     def __init__(self, name, backend=None, base=None, title=None, description=None,
@@ -183,11 +183,10 @@ class Atom(GraphObject, objects.Atom):
 
         base = bases[0] if bases else None
 
-        default = self.get_class_default(realm, base)
-
-        dct.update({'mods': self.mods, 'base': base, 'default': default})
+        dct.update({'mods': self.mods, 'base': base, 'default': self.default})
 
         bases = self.get_class_mro(realm, base)
+        metaclass = caos.atom.AtomMeta
         return (name, bases, dct, metaclass)
 
     def get_class_mro(self, realm, clsbase):
@@ -200,16 +199,12 @@ class Atom(GraphObject, objects.Atom):
                 base = self.base
 
             bases = base.get_class_mro(realm, clsbase)
-            if clsbase not in bases:
+            if clsbase not in set(bases):
                 bases = (clsbase,) + bases
         else:
             bases = (caos.atom.Atom,)
 
         return bases
-
-    def get_class_default(self, realm, base):
-        if self.default is not None:
-            return base(self.default)
 
 
 class BuiltinAtom(Atom):
@@ -227,7 +222,7 @@ class BuiltinAtom(Atom):
         return bases
 
 
-class Concept(GraphObject, objects.Concept):
+class Concept(GraphObject, caos.types.ProtoConcept):
     _type = 'concept'
 
     def __init__(self, name, backend=None, base=None, title=None, description=None):
@@ -256,23 +251,23 @@ class Concept(GraphObject, objects.Concept):
     def get_class_template(self, realm):
         name, bases, dct, metaclass = super().get_class_template(realm)
         dct['_metadata'].links = self.links
+        idlink = realm.meta.get(caos.Name('builtin.id'))
+        idlink = LinkSet(links=[idlink], name=caos.Name('builtin.id'), source=idlink.source)
+        dct['_metadata'].links[caos.Name('builtin.id')] = idlink
         dct['_metadata'].ownlinks = self.ownlinks
-        dct['_metadata'].slinks = {}
+        dct['_metadata'].link_map = {}
+        dct['_metadata'].link_rmap = {}
 
-        for link_name, links in self.ownlinks.items():
-            dct[str(link_name)] = links
-            dct[objects.get_safe_attrname(link_name.name, dct['_metadata'].reserved_attrnames)] = links
-
+        metaclass = caos.concept.ConceptMeta
         return (name, bases, dct, metaclass)
 
     def get_class_base(self, realm):
         bases = tuple()
-        factory = realm.getfactory()
         if self.base:
             for parent in self.base:
-                bases += (factory(parent),)
+                bases += (realm.meta.get(parent),)
         elif self.name != 'builtin.Object':
-            bases += (factory('builtin.Object'),)
+            bases += (realm.meta.get('builtin.Object'),)
 
         bases += (caos.concept.Concept,)
         return bases
@@ -287,6 +282,7 @@ class LinkSet(GraphObject):
         self.links = set(links)
         self.name = name
         self.source = source
+        self.ownlinks = {}
 
     def add(self, link):
         self.links.add(link)
@@ -304,8 +300,10 @@ class LinkSet(GraphObject):
     def get_class_template(self, realm):
         name, bases, dct, metaclass = super().get_class_template(realm)
 
-        dct['_metadata'].link_name = self.name
+        name += '_set'
+
         dct['_metadata'].links = self.links
+        dct['_metadata'].link_name = self.name
         dct['_metadata'].source = self.source
         metaclass = caos.link.LinkSetMeta
 
@@ -327,7 +325,7 @@ class LinkProperty(GraphObject):
         self.mods = {}
 
 
-class Link(GraphObject, objects.Link):
+class Link(GraphObject, caos.types.ProtoLink):
     _type = 'link'
 
     def __init__(self, name, backend=None, base=None, title=None, description=None,
@@ -349,7 +347,17 @@ class Link(GraphObject, objects.Link):
 
     def get_class_template(self, realm):
         name, bases, dct, metaclass = super().get_class_template(realm)
-        dct.update({'source': self.source, 'target': self.target, 'required': self.required})
+        dct.update({'required': self.required})
+
+        dct['_metadata'].link_name = self.name
+        dct['_metadata'].protosource = self.source
+        dct['_metadata'].prototarget = self.target
+        dct['_metadata'].required = self.required
+
+        if self.implicit_derivative:
+            dct['_metadata'].prototype = realm.meta.get(next(iter(self.base)))
+
+        metaclass = caos.link.LinkMeta
 
         if self.mapping:
             dct['mapping'] = self.mapping
@@ -426,6 +434,9 @@ class RealmMeta(object):
         self._init_builtin()
 
     def add(self, obj):
+        if obj.name in self.index_by_name:
+            raise caos.MetaError('object named "%s" is already present in the meta index' % obj.name)
+
         self.index.add(obj)
         type = obj._type
         self.index_by_type[type].add(obj)

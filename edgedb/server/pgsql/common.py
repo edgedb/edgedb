@@ -1,4 +1,7 @@
 import re
+import hashlib
+import base64
+
 import postgresql
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
@@ -32,6 +35,13 @@ def unpack_hstore(string):
         key, value = parts[i*3:i*3+2]
         result[_unquote(key)] = _unquote(value)
     return result
+
+
+def caos_name_to_pg_colname(name):
+    if len(name) > 63:
+        hash = base64.b64encode(hashlib.md5(name.encode()).digest()).decode().rstrip('=')
+        name = hash + ':' + name[-(63 - 1 - len(hash)):]
+    return name
 
 
 class DatabaseObject(object):
@@ -108,7 +118,7 @@ class AtomTable(DatabaseTable):
         """
         kwargs['title'] = pack_hstore(kwargs['title'])
         kwargs['description'] = pack_hstore(kwargs['description'])
-        super().insert(*dicts, **kwargs)
+        return super().insert(*dicts, **kwargs)[0][0]
 
 
 class ConceptTable(DatabaseTable):
@@ -130,7 +140,7 @@ class ConceptTable(DatabaseTable):
         """
         kwargs['title'] = pack_hstore(kwargs['title'])
         kwargs['description'] = pack_hstore(kwargs['description'])
-        super().insert(*dicts, **kwargs)
+        return super().insert(*dicts, **kwargs)[0][0]
 
 
 class LinkTable(DatabaseTable):
@@ -168,7 +178,7 @@ class LinkTable(DatabaseTable):
         """
         kwargs['title'] = pack_hstore(kwargs['title'])
         kwargs['description'] = pack_hstore(kwargs['description'])
-        super().insert(*dicts, **kwargs)
+        return super().insert(*dicts, **kwargs)[0][0]
 
 
 class EntityTable(DatabaseTable):

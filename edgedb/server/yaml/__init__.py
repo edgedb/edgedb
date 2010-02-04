@@ -8,14 +8,14 @@ from semantix.utils import graph
 from semantix.utils.nlang import morphology
 
 from semantix import caos, lang
-from semantix.caos.backends import meta, objects
+from semantix.caos.backends import meta
 
 
 class LangObject(lang.meta.Object):
     @classmethod
     def get_canonical_class(cls):
         for base in cls.__bases__:
-            if issubclass(base, objects.MetaObject):
+            if issubclass(base, caos.types.ProtoObject):
                 return base
 
         return cls
@@ -238,6 +238,10 @@ class MetaSet(LangObject):
 
             globalmeta.add(link)
             localmeta.add(link)
+
+        for link in localmeta('link'):
+            if link.base:
+                link.base = [localmeta.normalize_name(b) for b in link.base]
 
 
     def order_links(self, globalmeta):

@@ -12,12 +12,12 @@ class UnaryOpNode(ast.AST): __fields = ['op', 'operand']
 
 class PredicateNode(ast.AST): __fields = ['*expr']
 
-class SelectExprNode(ast.AST): __fields = ['expr', 'alias']
+class SelectExprNode(ast.AST): __fields = ['expr', 'alias', 'role']
 
 class FromExprNode(ast.AST): __fields = ['expr', 'alias']
 
-class TableNode(ast.AST):
-    __fields = ['name', 'schema', 'concept', 'alias', '#_bonds']
+class RelationNode(ast.AST):
+    __fields = ['!concepts', 'alias', '#_bonds']
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -43,17 +43,23 @@ class TableNode(ast.AST):
             else:
                 self._bonds[key].extend(values)
 
+class TableNode(RelationNode):
+    __fields = ['name', 'schema']
 
-class SelectQueryNode(TableNode):
+
+class SelectQueryNode(RelationNode):
     __fields = ['distinct', '*fromlist', '*targets', 'where', '*orderby', '*ctes',
                 '_source_graph', '#concept_node_map']
+
+class UnionNode(RelationNode):
+    __fields = ['*queries', 'distict']
 
 class CTENode(SelectQueryNode):
     __fields = ['*_referrers']
 
 class CTEAttrRefNode(ast.AST): __fields = ['cte', 'attr']
 
-class JoinNode(TableNode):
+class JoinNode(RelationNode):
     __fields = ['left', 'right', 'condition', 'type']
 
 class ExistsNode(ast.AST): __fields = ['expr']

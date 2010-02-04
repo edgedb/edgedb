@@ -11,7 +11,6 @@ from semantix.utils.debug import debug
 from semantix.utils.nlang import morphology
 
 from semantix import caos
-import semantix.caos.query
 
 from semantix.caos.backends import meta as metamod
 from semantix.caos.backends import data as datamod
@@ -135,6 +134,7 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
         self.path_cache_table = tables.PathCacheTable(self.connection)
         self.path_cache_table.create()
 
+        self.column_map = {}
 
     def getmeta(self):
         meta = metamod.RealmMeta()
@@ -172,7 +172,7 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
         result = ps.first()
 
         if result is not None:
-            return dict((k, result[k]) for k in result.keys() if k not in ('id', 'concept_id'))
+            return dict((self.column_map[k], result[k]) for k in result.keys() if k not in ('id', 'concept_id'))
         else:
             return None
 
@@ -187,7 +187,7 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
 
             attrs = {}
             for n, v in links.items():
-                if issubclass(getattr(entity.__class__, str(n)), caos.atom.Atom):
+                if issubclass(getattr(entity.__class__, str(n)), caos.atom.Atom) and n != 'builtin.id':
                     attrs[n] = v
 
             if id is not None:
@@ -199,12 +199,15 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
                         col_type = 'text::%s' % self.pg_type_from_atom_class(l)
                     else:
                         col_type = 'int'
-                    cols.append('%s = %%(%s)s::%s' % (postgresql.string.quote_ident(str(a)), str(a), col_type))
+                    column_name = self.caos_name_to_pg_column_name(a)
+                    column_name = postgresql.string.quote_ident(column_name)
+                    cols.append('%s = %%(%s)s::%s' % (column_name, str(a), col_type))
                 query += ','.join(cols)
                 query += ' WHERE id = %s RETURNING id' % postgresql.string.quote_literal(str(id))
             else:
                 if attrs:
-                    cols_names = ', ' + ', '.join(['"%s"' % a for a in attrs])
+                    cols_names = [postgresql.string.quote_ident(self.caos_name_to_pg_column_name(a)) for a in attrs]
+                    cols_names = ', ' + ', '.join(cols_names)
                     cols = []
                     for a in attrs:
                         if hasattr(entity.__class__, str(a)):
@@ -243,7 +246,7 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
             entity.markclean()
 
             for name, link in links.items():
-                if isinstance(link, caos.concept.BaseConceptCollection) and link.dirty:
+                if isinstance(link, caos.concept.LinkedSet) and link.dirty:
                     self.store_links(entity, link, name)
                     link.markclean()
 
@@ -341,11 +344,12 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
                     if row['column_name'] in ('source_id', 'target_id', 'link_type_id'):
                         continue
 
-                    atom = self.atom_from_pg_type(row['column_type'], t['schema'],
-                                                  row['column_default'], meta)
-                    meta.add(atom)
-
                     property_name = caos.Name(name=row['column_name'], module=t['schema'])
+                    derived_atom_name = '__' + name.name + '__' + property_name.name
+                    atom = self.atom_from_pg_type(row['column_type'], t['schema'],
+                                                  row['column_default'], meta,
+                                                  caos.Name(name=derived_atom_name, module=name.module))
+
                     property = metamod.LinkProperty(name=property_name, atom=atom)
                     properties[property_name] = property
             else:
@@ -370,7 +374,8 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
             if link.base:
                 g[link.name]['merge'].extend(link.base)
 
-            meta.add(link)
+            if link.name.module != 'builtin':
+                meta.add(link)
 
         graph.normalize(g, merger=metamod.Link.merge)
 
@@ -410,9 +415,11 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
                 if row['column_name'] in ('id', 'concept_id'):
                     continue
 
-                atom = self.atom_from_pg_type(row['column_type'], t['schema'], row['column_default'], meta)
+                atom_name = row['column_name']
 
-                meta.add(atom)
+                derived_atom_name = '__' + name.name + '__' + caos.Name(atom_name).name
+                atom = self.atom_from_pg_type(row['column_type'], t['schema'], row['column_default'], meta,
+                                              caos.Name(name=derived_atom_name, module=name.module))
 
             meta.add(concept)
 
@@ -550,6 +557,8 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
                 column = '"%s" %s' % (property_name, column_type)
                 columns.append(column)
 
+            columns.append('PRIMARY KEY (source_id, target_id, link_type_id)')
+
             qry += '(' +  ','.join(columns) + ')'
 
             if link.base:
@@ -570,10 +579,6 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
         if isinstance(obj, metamod.Concept) and obj.name == 'builtin.Object':
             return
 
-        title = obj.title.as_dict() if obj.title else None
-        description = obj.description.as_dict() if obj.description else None
-        self.concept_table.insert(name=str(obj.name), title=title, description=description)
-
         qry = 'CREATE TABLE %s' % self.concept_name_to_pg_table_name(obj.name)
 
         columns = []
@@ -581,9 +586,10 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
         for link_name in sorted(obj.links.keys()):
             links = obj.links[link_name]
             for link in links:
-                if isinstance(link.target, metamod.Atom):
+                if isinstance(link.target, metamod.Atom) and link_name != 'builtin.id':
                     column_type = self.pg_type_from_atom(link.target)
-                    column = '"%s" %s %s' % (link_name, column_type, 'NOT NULL' if link.required else '')
+                    column_name = self.caos_name_to_pg_column_name(link_name)
+                    column = '"%s" %s %s' % (column_name, column_type, 'NOT NULL' if link.required else '')
                     columns.append(column)
 
         columns.append('PRIMARY KEY(id)')
@@ -595,6 +601,10 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
             qry += ' INHERITS (%s) ' % 'caos.entity'
 
         self.connection.execute(qry)
+
+        title = obj.title.as_dict() if obj.title else None
+        description = obj.description.as_dict() if obj.description else None
+        self.concept_table.insert(name=str(obj.name), title=title, description=description)
 
 
     @debug
@@ -613,8 +623,14 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
                   )
             """
 
-            full_link_name = metamod.Link.gen_link_name(source._metadata.name, target._metadata.name,
-                                                        link_name)
+            if isinstance(targets._metadata.link, caos.types.Node):
+                full_link_name = targets._metadata.link._class_metadata.full_link_name
+            else:
+                for link, link_target_class in targets._metadata.link.links():
+                    if isinstance(target, link_target_class):
+                        full_link_name = link._metadata.name
+                        break
+
             lt = datasources.ConceptLink(self.connection).fetch(name=str(full_link_name))
 
             rows.append('(%s::uuid, %s::uuid, %s::int)')
@@ -786,6 +802,27 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
         return postgresql.string.qname('caos_' + name.module, name.name + '_domain')
 
 
+    def caos_name_to_pg_column_name(self, name):
+        """
+        Convert Caos name to a valid PostgresSQL column name
+
+        PostgreSQL has a limit of 63 characters for column names.
+
+        @param name: Caos name to convert
+        @return: PostgreSQL column name
+        """
+        mapped_name = self.column_map.get(name)
+        if mapped_name:
+            return mapped_name
+        name = str(name)
+
+        mapped_name = tables.caos_name_to_pg_colname(name)
+
+        self.column_map[mapped_name] = name
+        self.column_map[name] = mapped_name
+        return mapped_name
+
+
     def pg_domain_name_to_atom_name(self, name):
         name = name.split('.')[-1]
         if name.endswith('_domain'):
@@ -819,12 +856,15 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
         return column_type
 
 
-    def atom_from_pg_type(self, type_expr, atom_schema, atom_default, meta):
+    def atom_from_pg_type(self, type_expr, atom_schema, atom_default, meta, derived_name):
 
         atom_name = caos.Name(name=self.pg_domain_name_to_atom_name(type_expr),
                               module=self.pg_schema_name_to_module_name(atom_schema))
 
         atom = meta.get(atom_name, None)
+
+        if not atom:
+            atom = meta.get(derived_name, None)
 
         if not atom:
             m = self.typlen_re.match(type_expr)
@@ -839,7 +879,8 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
                 atom = meta.get(self.base_type_name_map_r[typname])
 
                 if typname in self.typmod_types and typmod is not None:
-                    atom = metamod.Atom(name=atom_name, base=atom.name, default=atom_default, automatic=True)
+                    atom = metamod.Atom(name=derived_name, base=atom.name, default=atom_default,
+                                        automatic=True)
                     atom.add_mod(metamod.AtomModMaxLength(typmod))
                     meta.add(atom)
 

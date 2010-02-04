@@ -71,13 +71,29 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.alias:
             self.write(' AS ' + postgresql.string.quote_ident(node.alias))
 
+    def visit_UnionNode(self, node):
+        self.write('(')
+        count = len(node.queries)
+        for i, query in enumerate(node.queries):
+            self.new_lines = 1
+            self.visit(query)
+            if i != count - 1:
+                self.write(' UNION ALL ')
+
+        self.write(')')
+        if node.alias:
+            self.write(' AS ' + postgresql.string.quote_ident(node.alias))
+
     def visit_SelectExprNode(self, node):
         self.visit(node.expr)
         if node.alias:
             self.write(' AS ' + postgresql.string.quote_ident(node.alias))
 
     def visit_FieldRefNode(self, node):
-        self.write(postgresql.string.qname(node.table.alias, node.field))
+        if node.field == '*':
+            self.write(postgresql.string.quote_ident(node.table.alias) + '.' + node.field)
+        else:
+            self.write(postgresql.string.qname(node.table.alias, node.field))
 
     def visit_FromExprNode(self, node):
         self.visit(node.expr)
@@ -110,6 +126,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_ConstantNode(self, node):
         if node.value is None:
             self.write('NULL')
+        elif isinstance(node.value, bool):
+            self.write(str(node.value))
         else:
             self.write(postgresql.string.quote_literal(str(node.value)))
 
