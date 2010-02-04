@@ -26,6 +26,21 @@ def delegate(*args, **kwargs):
 
     return decorate
 
+
+class hybridmethod(object):
+    def __init__(self, func):
+        self.func = func
+        self.__doc__ = func.__doc__
+        self.__name__ = func.__name__
+
+    def __get__(self, obj, cls=None):
+        scope = obj if obj else cls
+        result = lambda *args, **kwargs: self.func(scope, *args, **kwargs)
+        result.__name__ = self.func.__name__
+        result.__doc__ = self.func.__doc__
+        return result
+
+
 class memoized(object):
     """Decorator that caches a function's return value each time it is called.
     If called later with the same arguments, the cached value is returned, and
