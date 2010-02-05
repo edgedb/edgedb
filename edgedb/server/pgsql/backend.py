@@ -1,7 +1,6 @@
 import re
 import copy
 import importlib
-import uuid
 
 import postgresql.string
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
@@ -71,36 +70,25 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
                         'min-length': re.compile("length\(VALUE::text\) \s* >= \s* (?P<expr>\d+)$", re.X)
                       }
 
-    base_type_map = {
-                        'integer': int,
-                        'character': str,
-                        'character varying': str,
-                        'boolean': metamod.Bool,
-                        'numeric': int,
-                        'double precision': float,
-                        'uuid': uuid.UUID,
-                        'timestamp': metamod.DateTime
-                    }
-
     base_type_name_map = {
-                                caos.Name('builtin.str'): 'character varying',
-                                caos.Name('builtin.int'): 'numeric',
-                                caos.Name('builtin.bool'): 'boolean',
-                                caos.Name('builtin.float'): 'double precision',
-                                caos.Name('builtin.uuid'): 'uuid',
-                                caos.Name('builtin.datetime'): 'timestamp'
+                                caos.Name('semantix.caos.builtins.str'): 'character varying',
+                                caos.Name('semantix.caos.builtins.int'): 'numeric',
+                                caos.Name('semantix.caos.builtins.bool'): 'boolean',
+                                caos.Name('semantix.caos.builtins.float'): 'double precision',
+                                caos.Name('semantix.caos.builtins.uuid'): 'uuid',
+                                caos.Name('semantix.caos.builtins.datetime'): 'timestamp'
                          }
 
     base_type_name_map_r = {
-                                'character varying': caos.Name('builtin.str'),
-                                'character': caos.Name('builtin.str'),
-                                'text': caos.Name('builtin.str'),
-                                'integer': caos.Name('builtin.int'),
-                                'boolean': caos.Name('builtin.bool'),
-                                'numeric': caos.Name('builtin.int'),
-                                'double precision': caos.Name('builtin.float'),
-                                'uuid': caos.Name('builtin.uuid'),
-                                'timestamp': caos.Name('builtin.datetime')
+                                'character varying': caos.Name('semantix.caos.builtins.str'),
+                                'character': caos.Name('semantix.caos.builtins.str'),
+                                'text': caos.Name('semantix.caos.builtins.str'),
+                                'integer': caos.Name('semantix.caos.builtins.int'),
+                                'boolean': caos.Name('semantix.caos.builtins.bool'),
+                                'numeric': caos.Name('semantix.caos.builtins.int'),
+                                'double precision': caos.Name('semantix.caos.builtins.float'),
+                                'uuid': caos.Name('semantix.caos.builtins.uuid'),
+                                'timestamp': caos.Name('semantix.caos.builtins.datetime')
                            }
 
 
@@ -129,11 +117,6 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
         self.link_table = tables.LinkTable(self.connection)
         self.link_table.create()
 
-        self.entity_table = tables.EntityTable(self.connection)
-        self.entity_table.create()
-        self.entity_map_table = tables.EntityMapTable(self.connection)
-        self.entity_map_table.create()
-
         self.path_cache_table = tables.PathCacheTable(self.connection)
         self.path_cache_table.create()
 
@@ -160,7 +143,7 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
         query = """SELECT
                             c.name
                         FROM
-                            caos.entity e
+                            semantix.caos.builtins.Object e
                             INNER JOIN caos.concept c ON c.id = e.concept_id
                         WHERE
                             e.id = '%s'""" % id
@@ -190,7 +173,7 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
 
             attrs = {}
             for n, v in links.items():
-                if issubclass(getattr(entity.__class__, str(n)), caos.atom.Atom) and n != 'builtin.id':
+                if issubclass(getattr(entity.__class__, str(n)), caos.atom.Atom) and n != 'semantix.caos.builtins.id':
                     attrs[n] = v
 
             if id is not None:
@@ -203,13 +186,13 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
                     else:
                         col_type = 'int'
                     column_name = self.caos_name_to_pg_column_name(a)
-                    column_name = postgresql.string.quote_ident(column_name)
+                    column_name = tables.quote_ident(column_name)
                     cols.append('%s = %%(%s)s::%s' % (column_name, str(a), col_type))
                 query += ','.join(cols)
                 query += ' WHERE id = %s RETURNING id' % postgresql.string.quote_literal(str(id))
             else:
                 if attrs:
-                    cols_names = [postgresql.string.quote_ident(self.caos_name_to_pg_column_name(a)) for a in attrs]
+                    cols_names = [tables.quote_ident(self.caos_name_to_pg_column_name(a)) for a in attrs]
                     cols_names = ', ' + ', '.join(cols_names)
                     cols = []
                     for a in attrs:
@@ -334,8 +317,8 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
             properties = {}
 
             if not r['implicit'] and not r['atomic']:
-                table = tables.get(name)
-                if not table:
+                t = tables.get(name)
+                if not t:
                     raise caos.MetaError('internal inconsistency: record for link %s exists but the table is missing'
                                          % name)
 
@@ -370,20 +353,20 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
             link.implicit_derivative = r['implicit']
             link.properties = properties
 
-            if source:
+            if source and source.name.module != 'semantix.caos.builtins':
                 source.add_link(link)
 
             g[link.name] = {"item": link, "merge": [], "deps": []}
             if link.base:
                 g[link.name]['merge'].extend(link.base)
 
-            if link.name.module != 'builtin':
+            if link.name.module != 'semantix.caos.builtins':
                 meta.add(link)
 
         graph.normalize(g, merger=metamod.Link.merge)
 
         g = {}
-        for concept in meta(type='concept', include_automatic=True):
+        for concept in meta(type='concept', include_automatic=True, include_builtin=True):
             g[concept.name] = {"item": concept, "merge": [], "deps": []}
             if concept.base:
                 g[concept.name]["merge"].extend(concept.base)
@@ -406,6 +389,9 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
             name = self.pg_table_name_to_concept_name(t['name'])
             module = self.pg_schema_name_to_module_name(t['schema'])
             name = caos.Name(name=name, module=module)
+
+            if module == 'semantix.caos.builtins':
+                continue
 
             bases = self.pg_table_inheritance_to_bases(t['name'], t['schema'])
 
@@ -441,7 +427,7 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
 
 
     def create_primary_schema(self):
-        qry = 'CREATE SCHEMA %s' % postgresql.string.quote_ident('caos')
+        qry = 'CREATE SCHEMA %s' % tables.quote_ident('caos')
         self.connection.execute(qry)
         self.modules.add('caos')
 
@@ -467,7 +453,7 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
                                automatic=obj.automatic)
         self.domains.add(obj.name)
 
-        if isinstance(obj, metamod.BuiltinAtom):
+        if obj.name.module == 'semantix.caos.builtins':
             return
 
         qry = 'CREATE DOMAIN %s AS ' % self.atom_name_to_pg_domain_name(obj.name)
@@ -560,14 +546,17 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
                 column = '"%s" %s' % (property_name, column_type)
                 columns.append(column)
 
+            if link.name == 'semantix.caos.builtins.link':
+                columns.append('source_id uuid NOT NULL')
+                columns.append('target_id uuid NOT NULL')
+                columns.append('link_type_id integer NOT NULL')
+
             columns.append('PRIMARY KEY (source_id, target_id, link_type_id)')
 
             qry += '(' +  ','.join(columns) + ')'
 
             if link.base:
                 qry += ' INHERITS (' + ','.join([self.link_name_to_pg_table_name(p) for p in link.base]) + ')'
-            else:
-                qry += ' INHERITS (%s) ' % 'caos.entity_map'
 
             self.connection.execute(qry)
 
@@ -579,9 +568,6 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
 
 
     def create_concept(self, obj):
-        if isinstance(obj, metamod.Concept) and obj.name == 'builtin.Object':
-            return
-
         qry = 'CREATE TABLE %s' % self.concept_name_to_pg_table_name(obj.name)
 
         columns = []
@@ -589,19 +575,25 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
         for link_name in sorted(obj.links.keys()):
             links = obj.links[link_name]
             for link in links:
-                if isinstance(link.target, metamod.Atom) and link_name != 'builtin.id':
+                if isinstance(link.target, metamod.Atom):
                     column_type = self.pg_type_from_atom(link.target)
-                    column_name = self.caos_name_to_pg_column_name(link_name)
+
+                    if link_name.module == 'semantix.caos.builtins':
+                        column_name = link_name.name
+                    else:
+                        column_name = self.caos_name_to_pg_column_name(link_name)
+
                     column = '"%s" %s %s' % (column_name, column_type, 'NOT NULL' if link.required else '')
                     columns.append(column)
+
+        if obj.name == 'semantix.caos.builtins.Object':
+            columns.append('"concept_id" integer NOT NULL')
 
         columns.append('PRIMARY KEY(id)')
         qry += '(' +  ','.join(columns) + ')'
 
         if obj.base:
             qry += ' INHERITS (' + ','.join([self.concept_name_to_pg_table_name(p) for p in obj.base]) + ')'
-        else:
-            qry += ' INHERITS (%s) ' % 'caos.entity'
 
         self.connection.execute(qry)
 
@@ -764,14 +756,13 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
             for table in inheritance:
                 base_name = self.pg_table_name_to_concept_name(table[0])
                 base_module = self.pg_schema_name_to_module_name(table[1])
-                if base_module != 'caos':
-                    bases += (caos.Name(name=base_name, module=base_module),)
+                bases += (caos.Name(name=base_name, module=base_module),)
 
         return bases
 
 
     def module_name_to_pg_schema_name(self, module_name):
-        return postgresql.string.quote_ident('caos_' + module_name)
+        return tables.quote_ident('caos_' + module_name)
 
 
     def pg_schema_name_to_module_name(self, schema_name):
@@ -782,17 +773,16 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
 
 
     def concept_name_to_pg_table_name(self, name):
-        return postgresql.string.qname('caos_' + name.module, name.name + '_data')
-
+        return tables.qname('caos_' + name.module, name.name + '_data')
 
     def pg_table_name_to_concept_name(self, name):
-        if name.endswith('_data'):
+        if name.endswith('_data') or name.endswith('_link'):
             name = name[:-5]
         return name
 
 
     def link_name_to_pg_table_name(self, name):
-        return postgresql.string.qname('caos_' + name.module, name.name + '_link')
+        return tables.qname('caos_' + name.module, name.name + '_link')
 
 
     def pg_table_name_to_link_name(self, name):
@@ -802,7 +792,7 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
 
 
     def atom_name_to_pg_domain_name(self, name):
-        return postgresql.string.qname('caos_' + name.module, name.name + '_domain')
+        return tables.qname('caos_' + name.module, name.name + '_domain')
 
 
     def caos_name_to_pg_column_name(self, name):
@@ -834,7 +824,7 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
 
 
     def pg_type_from_atom_class(self, atom_obj):
-        if (atom_obj.base is not None and (atom_obj.base == str or (hasattr(atom_obj.base, 'name') and atom_obj.base.name == 'builtin.str'))
+        if (atom_obj.base is not None and (atom_obj.base == str or (hasattr(atom_obj.base, 'name') and atom_obj.base.name == 'semantix.caos.builtins.str'))
                 and len(atom_obj.mods) == 1 and issubclass(next(iter(atom_obj.mods.keys())), metamod.AtomModMaxLength)):
             column_type = 'varchar(%d)' % next(iter(atom_obj.mods.values())).value
         else:
@@ -846,7 +836,7 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
 
 
     def pg_type_from_atom(self, atom_obj):
-        if (atom_obj.base is not None and atom_obj.base == 'builtin.str'
+        if (atom_obj.base is not None and atom_obj.base == 'semantix.caos.builtins.str'
                 and len(atom_obj.mods) == 1 and issubclass(next(iter(atom_obj.mods.keys())), metamod.AtomModMaxLength)):
             column_type = 'varchar(%d)' % next(iter(atom_obj.mods.values())).value
         else:
@@ -892,7 +882,7 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
 
     def get_constraint_expr(self, type, expr):
         constr_name = '%s_%s' % (type, id(expr))
-        return ' CONSTRAINT %s CHECK ( %s )' % (postgresql.string.quote_ident(constr_name), expr)
+        return ' CONSTRAINT %s CHECK ( %s )' % (tables.quote_ident(constr_name), expr)
 
 
     def hstore_to_word_combination(self, hstore):

@@ -11,6 +11,19 @@ from semantix import caos, lang
 from semantix.caos.backends import meta
 
 
+class MetaError(caos.MetaError):
+    def __init__(self, error, context=None):
+        super().__init__(error)
+        self.context = context
+
+    def __str__(self):
+        result = super().__str__()
+        if self.context:
+            result += '\ncontext: %s, line %d, column %d' % \
+                        (self.context.name, self.context.start.line, self.context.start.column)
+        return result
+
+
 class LangObject(lang.meta.Object):
     @classmethod
     def get_canonical_class(cls):
@@ -126,49 +139,24 @@ class LinkList(LangObject, list):
                 self.append(link)
 
 
-class ImportContext(lang.ImportContext):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.metaindex = meta.RealmMeta()
-        self.metaindex.add_module(args[0], args[0])
-        self.toplevel = False
-
-    @classmethod
-    def from_parent(cls, name, parent):
-        result = cls(name)
-        if parent and isinstance(parent, ImportContext):
-            result.metaindex = parent.metaindex
-            result.metaindex.add_module(name, name)
-            result.toplevel = False
-        else:
-            result.toplevel = True
-        return result
-
-    @classmethod
-    def copy(cls, name, other):
-        result = cls(name)
-        if isinstance(other, ImportContext):
-            result.metaindex = other.metaindex
-            result.toplevel = other.toplevel
-        return result
-
-    @classmethod
-    def construct(cls, name, toplevel=True):
-        result = cls(name)
-        result.toplevel = toplevel
-        return result
-
-
 class MetaSet(LangObject):
     def construct(self):
         data = self.data
         context = self.context
-        self.finalindex = meta.RealmMeta()
+
+        if context.document.import_context.builtin:
+            self.include_builtin = True
+            realm_meta_class = meta.BuiltinRealmMeta
+        else:
+            self.include_builtin = False
+            realm_meta_class = meta.RealmMeta
+
+        self.finalindex = realm_meta_class()
 
         self.toplevel = context.document.import_context.toplevel
         globalindex = context.document.import_context.metaindex
 
-        localindex = meta.RealmMeta()
+        localindex = realm_meta_class()
         localindex.add_module(context.document.module.__name__, None)
 
         for alias, module in context.document.imports.items():
@@ -186,13 +174,16 @@ class MetaSet(LangObject):
             atoms = self.order_atoms(globalindex)
 
             for atom in atoms:
-                self.finalindex.add(atom)
+                if self.include_builtin or atom.name.module != 'semantix.caos.builtins':
+                    self.finalindex.add(atom)
 
             for link in links:
-                self.finalindex.add(link)
+                if self.include_builtin or link.name.module != 'semantix.caos.builtins':
+                    self.finalindex.add(link)
 
             for concept in concepts:
-                self.finalindex.add(concept)
+                if self.include_builtin or concept.name.module != 'semantix.caos.builtins':
+                    self.finalindex.add(concept)
 
 
     def read_atoms(self, data, globalmeta, localmeta):
@@ -204,22 +195,26 @@ class MetaSet(LangObject):
             globalmeta.add(atom)
             localmeta.add(atom)
 
-        for atom in localmeta('atom'):
+        for atom in localmeta('atom', include_builtin=self.include_builtin):
             if atom.base:
-                atom.base = localmeta.normalize_name(atom.base)
+                try:
+                    atom.base = localmeta.normalize_name(atom.base, include_pyobjects=True)
+                except caos.MetaError as e:
+                    raise MetaError(e, atom.context) from e
 
 
     def order_atoms(self, globalmeta):
         g = {}
 
-        for atom in globalmeta('atom', include_automatic=True):
+        for atom in globalmeta('atom', include_automatic=True, include_builtin=self.include_builtin):
             g[atom.name] = {"item": atom, "merge": [], "deps": []}
 
             if atom.base:
-                atom_base = globalmeta.get(atom.base)
-                atom.base = atom_base.name
-                if atom.base.module != 'builtin':
-                    g[atom.name]['deps'].append(atom.base)
+                atom_base = globalmeta.get(atom.base, include_pyobjects=True)
+                if isinstance(atom_base, meta.Atom):
+                    atom.base = atom_base.name
+                    if atom.base.module != 'semantix.caos.builtins':
+                        g[atom.name]['deps'].append(atom.base)
 
         return graph.normalize(g, merger=None)
 
@@ -239,15 +234,17 @@ class MetaSet(LangObject):
             globalmeta.add(link)
             localmeta.add(link)
 
-        for link in localmeta('link'):
+        for link in localmeta('link', include_builtin=self.include_builtin):
             if link.base:
                 link.base = [localmeta.normalize_name(b) for b in link.base]
+            elif link.name != 'semantix.caos.builtins.link':
+                link.base = [caos.Name('semantix.caos.builtins.link')]
 
 
     def order_links(self, globalmeta):
         g = {}
 
-        for link in globalmeta('link', include_automatic=True):
+        for link in globalmeta('link', include_automatic=True, include_builtin=True):
             for property_name, property in link.properties.items():
                 if not isinstance(property.atom, meta.GraphObject):
                     property.atom = globalmeta.get(property.atom)
@@ -293,9 +290,11 @@ class MetaSet(LangObject):
             globalmeta.add(concept)
             localmeta.add(concept)
 
-        for concept in localmeta('concept'):
+        for concept in localmeta('concept', include_builtin=self.include_builtin):
             if concept.base:
                 concept.base = [localmeta.normalize_name(b) for b in concept.base]
+            elif concept.name != 'semantix.caos.builtins.Object':
+                concept.base = [caos.Name('semantix.caos.builtins.Object')]
 
             for link_name, links in concept._links.items():
                 for link in links:
@@ -309,7 +308,7 @@ class MetaSet(LangObject):
                             # If the name is not fully qualified, assume inline link definition.
                             # The only attribute that is used for global definition is the name.
                             link_qname = caos.Name(name=link_name, module=link.context.document.module.__name__)
-                            linkdef = meta.Link(name=link_qname)
+                            linkdef = meta.Link(name=link_qname, base=[caos.Name('semantix.caos.builtins.link')])
                             linkdef.atom = globalmeta.get(link.target, type=meta.Atom, default=None) is not None
                             globalmeta.add(linkdef)
                             localmeta.add(linkdef)
@@ -330,7 +329,7 @@ class MetaSet(LangObject):
     def order_concepts(self, globalmeta):
         g = {}
 
-        for concept in globalmeta('concept'):
+        for concept in globalmeta('concept', include_builtin=True):
             links = {}
             link_target_types = {}
 
@@ -417,7 +416,7 @@ class Backend(meta.MetaBackend):
 
     def __init__(self, source_path):
         super().__init__()
-        self.metadata = importlib.import_module(ImportContext.construct(source_path))
+        self.metadata = importlib.import_module(meta.ImportContext(source_path, toplevel=True))
 
     def getmeta(self):
         return self.metadata._index_

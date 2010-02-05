@@ -1,49 +1,14 @@
 import re
 import collections
 import hashlib
-import uuid
-import datetime
+import importlib
 
-try:
-    from dateutil import parser as dateutil_parser
-except ImportError:
-    dateutil_parser = None
-
-from semantix import caos
+from semantix import caos, lang
 from semantix.utils.datastructures import OrderedSet
 
 class MetaBackend(object):
     def getmeta(self):
         pass
-
-
-class Bool(int):
-    def __repr__(self):
-        return 'True' if self else 'False'
-
-    __str__ = __repr__
-
-
-class DateTime(datetime.datetime):
-    def __new__(cls, value=None):
-        if isinstance(value, datetime.datetime):
-            d = value
-        elif isinstance(value, str):
-            if dateutil_parser:
-                try:
-                    d = dateutil_parser.parse(value)
-                except ValueError as e:
-                    raise ValueError("invalid value for DateTime object: %s" % value) from e
-            else:
-                try:
-                    d = datetime.datetime.strptime(value, "%Y-%m-%dT%H:%M:%S")
-                except ValueError:
-                    d = datetime.datetime.strptime(value, "%Y-%m-%d %H:%M:%S")
-        else:
-            raise ValueError("invalid value for DateTime object: %s" % value)
-
-        return super(DateTime, cls).__new__(cls, d.year, d.month, d.day, d.hour, d.minute, d.second,
-                                            d.microsecond, d.tzinfo)
 
 
 class GraphObjectBackendData:
@@ -100,6 +65,12 @@ class GraphObject(caos.types.ProtoObject):
 
     def get_class_name(self, realm):
         return '%s_%s' % (self.__class__.__name__, self.name.name)
+
+    def get_prototype(self, realm, name):
+        if isinstance(self.base, caos.Name):
+            return realm.meta.get(name, include_pyobjects=True)
+        else:
+            return name
 
     def merge(self, obj):
         if not isinstance(obj, self.__class__):
@@ -209,45 +180,26 @@ class Atom(GraphObject, caos.types.ProtoAtom):
     def get_class_template(self, realm):
         name, bases, dct, metaclass = super().get_class_template(realm)
 
-        base = bases[0] if bases else None
+        base = self.get_prototype(realm, self.base)
 
         dct.update({'mods': self.mods, 'base': base, 'default': self.default})
 
-        bases = self.get_class_mro(realm, base)
         metaclass = caos.atom.AtomMeta
         return (name, bases, dct, metaclass)
 
-    def get_class_mro(self, realm, clsbase):
+    def get_class_base(self, realm):
         bases = tuple()
 
         if self.base:
-            if isinstance(self.base, caos.Name):
-                base = realm.meta.get(self.base)
-            else:
-                base = self.base
+            base = self.get_prototype(realm, self.base)
 
-            bases = base.get_class_mro(realm, clsbase)
-            if clsbase not in set(bases):
-                bases = (clsbase,) + bases
+            if isinstance(base, Atom):
+                bases = (base,) + base.get_class_base(realm)
+            else:
+                bases = (caos.atom.Atom, base)
         else:
             bases = (caos.atom.Atom,)
 
-        return bases
-
-
-class BuiltinAtom(Atom):
-    base_atoms_to_class_map = {
-                                'str': str,
-                                'int': int,
-                                'float': float,
-                                'bool': Bool,
-                                'uuid': uuid.UUID,
-                                'datetime': DateTime
-                              }
-
-    def get_class_mro(self, realm, clsbase):
-        base = self.base_atoms_to_class_map[self.name.name]
-        bases = (caos.atom.Atom, base)
         return bases
 
 
@@ -280,9 +232,6 @@ class Concept(GraphObject, caos.types.ProtoConcept):
     def get_class_template(self, realm):
         name, bases, dct, metaclass = super().get_class_template(realm)
         dct['_metadata'].links = self.links
-        idlink = realm.meta.get(caos.Name('builtin.id'))
-        idlink = LinkSet(links=[idlink], name=caos.Name('builtin.id'), source=idlink.source)
-        dct['_metadata'].links[caos.Name('builtin.id')] = idlink
         dct['_metadata'].ownlinks = self.ownlinks
         dct['_metadata'].link_map = {}
         dct['_metadata'].link_rmap = {}
@@ -295,8 +244,6 @@ class Concept(GraphObject, caos.types.ProtoConcept):
         if self.base:
             for parent in self.base:
                 bases += (realm.meta.get(parent),)
-        elif self.name != 'builtin.Object':
-            bases += (realm.meta.get('builtin.Object'),)
 
         bases += (caos.concept.Concept,)
         return bases
@@ -417,6 +364,36 @@ class Link(GraphObject, caos.types.ProtoLink):
         return (self.target and isinstance(self.target, Atom)) or self.atom
 
 
+class ImportContext(lang.ImportContext):
+    def __new__(cls, name, *, metaindex=None, toplevel=False, builtin=False):
+        result = super(ImportContext, cls).__new__(cls, name)
+        result.metaindex = metaindex if metaindex else (BuiltinRealmMeta() if builtin else RealmMeta())
+        result.metaindex.add_module(name, name)
+        result.toplevel = toplevel
+        result.builtin = builtin
+        return result
+
+    def __init__(self, name, *, metaindex=None, toplevel=False, builtin=False):
+        pass
+
+    @classmethod
+    def from_parent(cls, name, parent):
+        if parent and isinstance(parent, ImportContext):
+            result = cls(name, metaindex=parent.metaindex, toplevel=False, builtin=parent.builtin)
+            result.metaindex.add_module(name, name)
+        else:
+            result = cls(name, toplevel=True)
+        return result
+
+    @classmethod
+    def copy(cls, name, other):
+        if isinstance(other, ImportContext):
+            result = cls(other, metaindex=other.metaindex, toplevel=other.toplevel, builtin=other.builtin)
+        else:
+            result = cls(other)
+        return result
+
+
 class RealmMetaIterator(object):
     def __init__(self, index, type, include_automatic=False, include_builtin=False):
         self.index = index
@@ -434,9 +411,9 @@ class RealmMetaIterator(object):
 
         filtered = sourceset
         if not include_builtin:
-            filtered -= index.index_builtin
+            filtered = filtered - index.index_builtin
         if not include_automatic:
-            filtered -= index.index_automatic
+            filtered = filtered - index.index_automatic
         self.iter = iter(filtered)
 
     def __iter__(self):
@@ -479,7 +456,7 @@ class RealmMeta(object):
         if obj.backend:
             self.index_by_backend[obj.backend] = obj
 
-        if obj.name.module == 'builtin':
+        if obj.name.module == 'semantix.caos.builtins':
             self.index_builtin.add(obj)
 
         if isinstance(obj, Atom):
@@ -494,8 +471,17 @@ class RealmMeta(object):
             self.modules[alias] = module
             self.rmodules.add(module)
 
-    def get(self, name, default=caos.MetaError, module_aliases=None, type=None):
+    def get(self, name, default=caos.MetaError, module_aliases=None, type=None, include_pyobjects=False):
         obj = self.lookup_name(name, module_aliases, default=None)
+
+        if not obj and include_pyobjects:
+            module_name, attrname = str(name).rpartition('.')[::2]
+            if module_name:
+                try:
+                    obj = getattr(importlib.import_module(module_name), attrname)
+                except (ImportError, AttributeError):
+                    pass
+
         if not obj:
             if default and issubclass(default, caos.MetaError):
                 raise default('reference to a non-existent semantic graph node: %s' % name)
@@ -545,7 +531,7 @@ class RealmMeta(object):
     def __contains__(self, obj):
         return obj in self.index
 
-    def normalize_name(self, name, module_aliases=None, default=caos.MetaError):
+    def normalize_name(self, name, module_aliases=None, default=caos.MetaError, include_pyobjects=False):
         name, module, nqname = self._split_name(name)
         norm_name = None
 
@@ -556,7 +542,7 @@ class RealmMeta(object):
             if default_module:
                 object = self.lookup_qname(caos.Name(name=nqname, module=default_module))
             if not object:
-                object = self.lookup_qname(caos.Name(name=nqname, module='builtin'))
+                object = self.lookup_qname(caos.Name(name=nqname, module='semantix.caos.builtins'))
             if object:
                 norm_name = object.name
         else:
@@ -572,6 +558,13 @@ class RealmMeta(object):
 
                 if fullmodule:
                     norm_name = caos.Name(name=nqname, module=fullmodule)
+
+        if not norm_name and include_pyobjects and module:
+            try:
+                getattr(importlib.import_module(module), nqname)
+                norm_name = name
+            except (ImportError, AttributeError):
+                pass
 
         if norm_name:
             return norm_name
@@ -599,19 +592,10 @@ class RealmMeta(object):
             return module.get(name.name)
 
     def _init_builtin(self):
-        self.add_module('builtin', 'builtin')
-
-        for clsname in BuiltinAtom.base_atoms_to_class_map:
-            atom = BuiltinAtom(name=caos.Name(name=clsname, module='builtin'))
-            self.add(atom)
-
-        base_object = Concept(name=caos.Name(name='Object', module='builtin'))
-        id = self.get(caos.Name(name='uuid', module='builtin'))
-        id_link = Link(name=caos.Name(name='id', module='builtin'), source=base_object, target=id,
-                                     mapping='11', required=True)
-        base_object.add_link(id_link)
-        self.add(id_link)
-        self.add(base_object)
+        module = ImportContext(name='semantix.caos.builtins', toplevel=True, builtin=True)
+        builtins = importlib.import_module(module)
+        for obj in builtins._index_.index:
+            self.add(obj)
 
     def _split_name(self, name):
         if isinstance(name, caos.Name):
@@ -630,3 +614,8 @@ class RealmMeta(object):
             nqname = name
 
         return name, module, nqname
+
+
+class BuiltinRealmMeta(RealmMeta):
+    def _init_builtin(self):
+        pass

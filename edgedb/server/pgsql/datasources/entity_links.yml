@@ -25,7 +25,7 @@ source: |
             l.name AS name,
             em.weight AS weight
         FROM
-            caos.entity_map em
+            "caos_semantix.caos.builtins"."link_link" em
             INNER JOIN caos.link l ON em.link_type_id = l.id
             INNER JOIN caos.concept sc ON sc.id = l.source_id
             INNER JOIN caos.concept tc ON tc.id = l.target_id

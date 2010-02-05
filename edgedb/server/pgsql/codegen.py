@@ -1,4 +1,5 @@
 import postgresql.string
+from semantix.caos.backends.pgsql import common
 from semantix.ast import codegen
 
 
@@ -69,7 +70,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
         if node.alias:
-            self.write(' AS ' + postgresql.string.quote_ident(node.alias))
+            self.write(' AS ' + common.quote_ident(node.alias))
 
     def visit_UnionNode(self, node):
         self.write('(')
@@ -82,23 +83,23 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
         self.write(')')
         if node.alias:
-            self.write(' AS ' + postgresql.string.quote_ident(node.alias))
+            self.write(' AS ' + common.quote_ident(node.alias))
 
     def visit_SelectExprNode(self, node):
         self.visit(node.expr)
         if node.alias:
-            self.write(' AS ' + postgresql.string.quote_ident(node.alias))
+            self.write(' AS ' + common.quote_ident(node.alias))
 
     def visit_FieldRefNode(self, node):
         if node.field == '*':
-            self.write(postgresql.string.quote_ident(node.table.alias) + '.' + node.field)
+            self.write(common.quote_ident(node.table.alias) + '.' + node.field)
         else:
-            self.write(postgresql.string.qname(node.table.alias, node.field))
+            self.write(common.qname(node.table.alias, node.field))
 
     def visit_FromExprNode(self, node):
         self.visit(node.expr)
         if node.alias:
-            self.write(' AS ' + postgresql.string.quote_ident(node.alias))
+            self.write(' AS ' + common.quote_ident(node.alias))
 
     def visit_JoinNode(self, node):
         self.visit(node.left)
@@ -109,9 +110,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.condition)
 
     def visit_TableNode(self, node):
-        self.write(postgresql.string.qname(node.schema, node.name))
+        self.write(common.qname(node.schema, node.name))
         if node.alias:
-            self.write(' AS ' + postgresql.string.quote_ident(node.alias))
+            self.write(' AS ' + common.quote_ident(node.alias))
 
     def visit_BinOpNode(self, node):
         self.write('(')

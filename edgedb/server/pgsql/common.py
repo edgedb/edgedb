@@ -7,6 +7,19 @@ from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
 from semantix import caos
 
+def quote_ident(text):
+    """
+    Quotes the identifier
+    """
+    result = postgresql.string.quote_ident(text)
+    if result[0] != '"':
+        return '"' + result + '"'
+    return result
+
+def qname(*parts):
+    return '.'.join([quote_ident(q) for q in parts])
+
+
 def pack_hstore(dct):
     if dct:
         result = []
@@ -181,37 +194,6 @@ class LinkTable(DatabaseTable):
         return super().insert(*dicts, **kwargs)[0][0]
 
 
-class EntityTable(DatabaseTable):
-    def create(self):
-        """
-            CREATE TABLE "caos"."entity"(
-                id uuid NOT NULL DEFAULT uuid_generate_v1mc(),
-                concept_id integer NOT NULL,
-
-                PRIMARY KEY (id),
-                FOREIGN KEY (concept_id) REFERENCES "caos"."concept"(id)
-            )
-        """
-        super().create()
-
-    def insert(self, *dicts, **kwargs):
-        raise caos.MetaError('direct inserts into entity table are not allowed')
-
-
-class EntityMapTable(DatabaseTable):
-    def create(self):
-        """
-            CREATE TABLE "caos"."entity_map"(
-                source_id uuid NOT NULL,
-                target_id uuid NOT NULL,
-                link_type_id integer NOT NULL,
-
-                PRIMARY KEY (source_id, target_id, link_type_id)
-            )
-        """
-        super().create()
-
-
 class PathCacheTable(DatabaseTable):
     def create(self):
         """
@@ -227,13 +209,7 @@ class PathCacheTable(DatabaseTable):
                 weight              integer,
 
                 PRIMARY KEY (id),
-                UNIQUE(entity_id, parent_entity_id),
-
-                FOREIGN KEY (entity_id) REFERENCES caos.entity(id)
-                    ON UPDATE CASCADE ON DELETE CASCADE,
-
-                FOREIGN KEY (parent_entity_id) REFERENCES caos.entity(id)
-                    ON UPDATE CASCADE ON DELETE CASCADE
+                UNIQUE(entity_id, parent_entity_id)
             )
         """
         super().create()

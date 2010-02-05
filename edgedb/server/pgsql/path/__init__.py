@@ -18,12 +18,6 @@ class PathCacheTable(DatabaseTable):
 
                 PRIMARY KEY (id),
                 UNIQUE(entity_id, parent_entity_id),
-
-                FOREIGN KEY (entity_id) REFERENCES caos.entity(id)
-                    ON UPDATE CASCADE ON DELETE CASCADE,
-
-                FOREIGN KEY (parent_entity_id) REFERENCES caos.entity(id)
-                    ON UPDATE CASCADE ON DELETE CASCADE
             )
         """
         super(PathCacheTable, self).create()

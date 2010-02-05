@@ -246,24 +246,6 @@ class CaosQLQueryAdapter(ast.visitor.NodeVisitor):
 
         return result
 
-    def _attr_in_table(self, context, table, attr):
-        if isinstance(table, pgsql.ast.TableNode):
-            """
-            It's either "entity_map" or one of the "*_data" tables.
-            Entity data table is guaranteed to have the attr here, but entity map
-            obviously can only yield ids.
-            """
-            return table.name == 'entity_map'
-        elif isinstance(table, pgsql.ast.SelectQueryNode):
-            """
-            For Select we check the aliases
-            """
-            for target in table.targets:
-                if target.alias == attr:
-                    return True
-
-        return False
-
     def _process_graph(self, context, cte, startnode):
         # Avoid processing the same subgraph more than once
         if startnode in context.current.ctemap:
@@ -288,6 +270,7 @@ class CaosQLQueryAdapter(ast.visitor.NodeVisitor):
         return join
 
     def _relation_from_concepts(self, context, concepts, alias_hint=None):
+        assert(concepts)
         if len(concepts) == 1:
             concept = next(iter(concepts))
             table_name, table_schema_name = self._caos_name_to_pg_table(concept.name)
@@ -295,11 +278,6 @@ class CaosQLQueryAdapter(ast.visitor.NodeVisitor):
                                                 schema=table_schema_name,
                                                 concepts=concepts,
                                                 alias=context.current.genalias(hint=table_name))
-        elif len(concepts) == 0:
-            concept_table = pgsql.ast.TableNode(name='entity',
-                                                schema='caos',
-                                                concepts=concepts,
-                                                alias=context.current.genalias(hint='entity'))
         else:
             ##
             # If several concepts are specified in the node, it is a so-called parallel path
@@ -383,8 +361,8 @@ class CaosQLQueryAdapter(ast.visitor.NodeVisitor):
             map_join_type = 'left' if len(labels) > 1 else 'inner'
             for label in labels:
                 if label is None:
-                    table_name = 'entity_map'
-                    table_schema = 'caos'
+                    table_name = 'link_link'
+                    table_schema = 'caos_semantix.caos.builtins'
                 else:
                     table_name = label.name.name + '_link'
                     table_schema = 'caos_' + label.name.module
