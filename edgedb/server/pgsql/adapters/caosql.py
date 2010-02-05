@@ -277,7 +277,9 @@ class CaosQLQueryAdapter(ast.visitor.NodeVisitor):
     def _simple_join(self, context, left, right, key, type='inner'):
         condition = left.bonds(key)[-1]
         if not isinstance(condition, pgsql.ast.BinOpNode):
-            condition = pgsql.ast.BinOpNode(op='=', left=left.bonds(key)[-1], right=right.bonds(key)[-1])
+            condition = right.bonds(key)[-1]
+            if not isinstance(condition, pgsql.ast.BinOpNode):
+                condition = pgsql.ast.BinOpNode(op='=', left=left.bonds(key)[-1], right=right.bonds(key)[-1])
         join = pgsql.ast.JoinNode(type=type, left=left, right=right, condition=condition)
 
         join.updatebonds(left)
@@ -368,50 +370,53 @@ class CaosQLQueryAdapter(ast.visitor.NodeVisitor):
             #
 
             if link.filter:
-                if link.filter.direction == link.filter.BACKWARD:
-                    source_fld = 'target_id'
-                    target_fld = 'source_id'
-                else:
-                    source_fld = 'source_id'
-                    target_fld = 'target_id'
-
                 join = joinpoint
 
                 target_bond_expr = None
 
-            if link.filter and link.filter.labels:
-                #
-                # If specific links are provided we LEFT JOIN all corresponding link tables and then
-                # filter out all empty rows in a single join condition
-                #
-                for label in link.filter.labels:
-                    map = pgsql.ast.TableNode(name=label.name.name + '_link',
-                                              schema='caos_' + label.name.module, concepts=step.concepts,
-                                              alias=context.current.genalias(hint='map'))
-                    map.addbond(link.source.concepts, pgsql.ast.FieldRefNode(table=map, field=source_fld))
-                    join = self._simple_join(context, joinpoint, map, link.source.concepts, type='left')
+            labels = link.filter.labels if link.filter and link.filter.labels else [None]
 
-                    cond_expr = pgsql.ast.BinOpNode(left=pgsql.ast.FieldRefNode(table=map, field=target_fld),
-                                                    op='=', right=target_id_field)
-
-                    if target_bond_expr:
-                        target_bond_expr = pgsql.ast.BinOpNode(left=target_bond_expr, op='or',
-                                                               right=cond_expr)
-                    else:
-                        target_bond_expr = cond_expr
-
-            else:
-                #
-                # Generic link existence check is the simplest case: just INNER JOIN the main
-                # map table.
-                #
-                map = pgsql.ast.TableNode(name='entity_map', schema='caos', concepts=step.concepts,
+            #
+            # If specific links are provided we LEFT JOIN all corresponding link tables and then
+            # INNER JOIN the concept table using an aggregated condition disjunction
+            #
+            map_join_type = 'left' if len(labels) > 1 else 'inner'
+            for label in labels:
+                if label is None:
+                    table_name = 'entity_map'
+                    table_schema = 'caos'
+                else:
+                    table_name = label.name.name + '_link'
+                    table_schema = 'caos_' + label.name.module
+                map = pgsql.ast.TableNode(name=table_name, schema=table_schema, concepts=step.concepts,
                                           alias=context.current.genalias(hint='map'))
 
-                map.addbond(link.source.concepts, pgsql.ast.FieldRefNode(table=map, field=source_fld))
-                join = self._simple_join(context, joinpoint, map, link.source.concepts)
+                source_ref = pgsql.ast.FieldRefNode(table=map, field='source_id')
+                target_ref = pgsql.ast.FieldRefNode(table=map, field='target_id')
+                valent_bond = joinpoint.bonds(link.source.concepts)[-1]
+                forward_bond = pgsql.ast.BinOpNode(left=valent_bond, right=source_ref, op='=')
+                backward_bond = pgsql.ast.BinOpNode(left=valent_bond, right=target_ref, op='=')
 
-                target_bond_expr = pgsql.ast.FieldRefNode(table=map, field=target_fld)
+                if link.filter.direction == link.filter.BOTH:
+                    map_join_cond = pgsql.ast.BinOpNode(left=forward_bond, op='or', right=backward_bond)
+                    left = pgsql.ast.BinOpNode(left=target_ref, op='=', right=target_id_field)
+                    right = pgsql.ast.BinOpNode(left=source_ref, op='=', right=target_id_field)
+                    cond_expr = pgsql.ast.BinOpNode(left=left, op='or', right=right)
+                elif link.filter.direction == link.filter.BACKWARD:
+                    map_join_cond = backward_bond
+                    cond_expr = pgsql.ast.BinOpNode(left=source_ref, op='=', right=target_id_field)
+                else:
+                    map_join_cond = forward_bond
+                    cond_expr = pgsql.ast.BinOpNode(left=target_ref, op='=', right=target_id_field)
+
+                map.addbond(link.source.concepts, map_join_cond)
+                join = self._simple_join(context, joinpoint, map, link.source.concepts, type=map_join_type)
+
+                if target_bond_expr:
+                    target_bond_expr = pgsql.ast.BinOpNode(left=target_bond_expr, op='or',
+                                                           right=cond_expr)
+                else:
+                    target_bond_expr = cond_expr
 
             join.addbond(step.concepts, target_bond_expr)
             join = self._simple_join(context, join, concept_table, step.concepts)
