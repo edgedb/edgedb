@@ -53,9 +53,6 @@ class EntityLink(Base):
 
 class EntityLinkSpec(ast.AST):
     __fields = ['*labels', 'direction']
-    BACKWARD='<'
-    FORWARD='>'
-    BOTH='<>'
 
 class Constant(Base): __fields = ['value']
 class Sequence(Base): __fields = ['*elements']

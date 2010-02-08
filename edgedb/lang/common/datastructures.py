@@ -2,6 +2,7 @@ import abc
 import bisect
 import collections
 
+
 class GenericWrapperMeta(abc.ABCMeta):
 
     def __init__(cls, name, bases, dict):

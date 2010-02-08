@@ -1,6 +1,7 @@
 import copy
 from semantix import ast
 from semantix.caos import caosql
+from semantix.caos import types as caos_types
 from semantix.caos.backends import pgsql
 from semantix.utils.debug import debug
 
@@ -375,12 +376,12 @@ class CaosQLQueryAdapter(ast.visitor.NodeVisitor):
                 forward_bond = pgsql.ast.BinOpNode(left=valent_bond, right=source_ref, op='=')
                 backward_bond = pgsql.ast.BinOpNode(left=valent_bond, right=target_ref, op='=')
 
-                if link.filter.direction == link.filter.BOTH:
+                if link.filter.direction == caos_types.Link.BIDIRECTIONAL:
                     map_join_cond = pgsql.ast.BinOpNode(left=forward_bond, op='or', right=backward_bond)
                     left = pgsql.ast.BinOpNode(left=target_ref, op='=', right=target_id_field)
                     right = pgsql.ast.BinOpNode(left=source_ref, op='=', right=target_id_field)
                     cond_expr = pgsql.ast.BinOpNode(left=left, op='or', right=right)
-                elif link.filter.direction == link.filter.BACKWARD:
+                elif link.filter.direction == caos_types.Link.INBOUND:
                     map_join_cond = backward_bond
                     cond_expr = pgsql.ast.BinOpNode(left=source_ref, op='=', right=target_id_field)
                 else:

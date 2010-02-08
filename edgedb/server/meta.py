@@ -346,10 +346,8 @@ class Link(GraphObject, caos.types.ProtoLink):
     def get_class_base(self, realm):
         bases = tuple()
         if self.base:
-            factory = realm.getfactory()
-
             for parent in self.base:
-                bases += (factory(parent),)
+                bases += (realm.meta.get(parent),)
 
         bases += (caos.link.Link,)
         return bases
