@@ -1,6 +1,10 @@
-# Portions Copyright 2009 Sprymix Inc.
-# Portions Copyright 2008 by Armin Ronacher.
-# License: PSFL
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
 
 from semantix.ast import dump
 import copy
@@ -114,10 +118,8 @@ def fix_parent_links(node):
 
 
 def iter_fields(node):
-    """
-    Yield a tuple of ``(fieldname, value)`` for each field in ``node._fields``
-    that is present on *node*.
-    """
-    for field in node._fields:
-        if hasattr(node, field):
-            yield field, getattr(node, field)
+    for f in node._fields:
+        try:
+            yield f, getattr(node, f)
+        except AttributeError:
+            pass

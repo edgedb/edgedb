@@ -1,3 +1,11 @@
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
 def colorize(string='', fg=None, bg=None, opts=()):
     color_table = {
         'black': 0,

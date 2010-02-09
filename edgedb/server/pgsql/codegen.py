@@ -1,3 +1,11 @@
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
 import postgresql.string
 from semantix.caos.backends.pgsql import common
 from semantix.ast import codegen

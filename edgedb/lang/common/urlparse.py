@@ -1,3 +1,11 @@
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
 from urllib.parse import urlsplit, urlunsplit, SplitResult
 
 protocol_map = {'pq': 'file'}

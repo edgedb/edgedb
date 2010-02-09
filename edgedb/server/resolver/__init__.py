@@ -1,3 +1,11 @@
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
 from semantix.utils import urlparse
 from semantix.caos.backends.resolver.error import BackendResolverError
 from semantix.caos.backends.yaml.resolver import BackendResolver as YamlBackendResolver

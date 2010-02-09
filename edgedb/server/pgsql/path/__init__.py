@@ -1,3 +1,11 @@
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
 from semantix.caos.backends.path import BasePathCacheBackend
 from semantix.caos.backends.pgsql.common import DatabaseConnection, DatabaseTable
 from semantix.caos.backends.pgsql.meta.datasources.meta.concept import ConceptLinks

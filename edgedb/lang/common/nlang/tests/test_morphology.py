@@ -1,3 +1,11 @@
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
 import py
 
 from semantix.utils.nlang.morphology import Singular, Plural, WordCombination

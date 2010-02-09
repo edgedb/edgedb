@@ -1,3 +1,11 @@
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
 def decorate(target_func, source_func):
     target_func.__name__ = source_func.__name__
     target_func.__doc__ = source_func.__doc__

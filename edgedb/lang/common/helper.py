@@ -1,3 +1,11 @@
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
 def dump(stuff):
     if (not (isinstance(stuff, str) or isinstance(stuff, int)
              or isinstance(stuff, list) or isinstance(stuff, dict)

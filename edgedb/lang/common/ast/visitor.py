@@ -1,6 +1,11 @@
-# Portions Copyright 2009 Sprymix Inc.
-# Portions Copyright 2008 by Armin Ronacher.
-# License: PSFL
+##
+# Portions Copyright (c) 2008-2010 Sprymix Inc.
+# Portions Copyright (c) 2008 Armin Ronacher.
+# All rights reserved.
+#
+# This code is licensed under the PSFL license.
+##
+
 
 from semantix.ast.base import *
 
