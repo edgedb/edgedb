@@ -27,18 +27,18 @@ from semantix.caos.backends.pgsql import common as tables
 from . import datasources
 from .datasources import introspection
 
-from .adapters.caosql import CaosQLQueryAdapter
+from .transformer import CaosTreeTransformer
 
 
 class CaosQLCursor(object):
     def __init__(self, connection):
         self.connection = connection
         self.cursor = CompatCursor(connection)
-        self.adapter = CaosQLQueryAdapter()
+        self.transformer = CaosTreeTransformer()
         self.current_portal = None
 
     def prepare_query(self, query, vars):
-        return self.adapter.adapt(query, vars)
+        return self.transformer.transform(query, vars)
 
     def execute_prepared(self, query):
         if query.vars is None:

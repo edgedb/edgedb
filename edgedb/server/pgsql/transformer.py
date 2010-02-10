@@ -32,7 +32,7 @@ class Alias(str):
     __iadd__ = __add__
 
 
-class ParseContextLevel(object):
+class TransformerContextLevel(object):
     def __init__(self, prevlevel=None):
         if prevlevel is not None:
             self.vars = prevlevel.vars.copy()
@@ -65,13 +65,13 @@ class ParseContextLevel(object):
 
         return Alias(alias)
 
-class ParseContext(object):
+class TransformerContext(object):
     def __init__(self):
         self.stack = []
         self.push()
 
     def push(self):
-        level = ParseContextLevel(prevlevel=self.current)
+        level = TransformerContextLevel(prevlevel=self.current)
         self.stack.append(level)
 
         return level
@@ -88,9 +88,9 @@ class ParseContext(object):
     current = property(_current)
 
 
-class CaosQLQueryAdapter(ast.visitor.NodeVisitor):
+class CaosTreeTransformer(ast.visitor.NodeVisitor):
     @debug
-    def adapt(self, query, vars=None):
+    def transform(self, query, vars=None):
         # Transform to sql tree
         qtree = self._transform_tree(query)
 
@@ -113,7 +113,7 @@ class CaosQLQueryAdapter(ast.visitor.NodeVisitor):
 
     def _transform_tree(self, tree):
 
-        context = ParseContext()
+        context = TransformerContext()
         context.current.query = pgsql.ast.SelectQueryNode()
 
         self._process_paths(context, tree.paths)
