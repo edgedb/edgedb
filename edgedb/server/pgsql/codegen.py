@@ -5,7 +5,7 @@
 # See LICENSE for details.
 ##
 
-
+import numbers
 import postgresql.string
 from semantix.caos.backends.pgsql import common
 from semantix.ast import codegen
@@ -135,7 +135,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_ConstantNode(self, node):
         if node.value is None:
             self.write('NULL')
-        elif isinstance(node.value, bool):
+        elif isinstance(node.value, (bool, numbers.Number)):
             self.write(str(node.value))
         else:
             self.write(postgresql.string.quote_literal(str(node.value)))
