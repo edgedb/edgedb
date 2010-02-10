@@ -125,7 +125,9 @@ class CaosQLQueryAdapter(ast.visitor.NodeVisitor):
 
     def _process_generator(self, context, generator):
         query = context.current.query
+        context.current.location = 'generator'
         query.where = self._process_expr(context, generator)
+        context.current.location = None
 
     def _process_selector(self, context, selector):
         query = context.current.query
@@ -180,54 +182,65 @@ class CaosQLQueryAdapter(ast.visitor.NodeVisitor):
             result = pgsql.ast.FunctionCallNode(name=expr.name, args=args)
 
         elif expr_t == caosql.ast.AtomicRef:
-            if isinstance(expr.ref(), caosql.ast.EntitySet):
-                fieldref = context.current.concept_node_map[expr.ref()]['id']
-            else:
-                fieldref = expr.ref()
-
-            datatable = None
-
-            if isinstance(fieldref, pgsql.ast.FieldRefNode):
-                if fieldref.field == expr.name:
-                    return fieldref
-                else:
-                    datatable = fieldref.table
-
-            if isinstance(fieldref, pgsql.ast.SelectExprNode):
-                fieldref_expr = fieldref.expr
-            else:
-                fieldref_expr = fieldref
-
             if expr.expr is not None:
+                ##
+                # Atom reference may be a complex expression involving several atoms.
+                #
                 return self._process_expr(context, expr.expr)
 
-            if context.current.location in ('selector', 'sorter'):
-                if expr.name == 'id':
-                    result = fieldref_expr
+            cte_refs = context.current.concept_node_map[expr.ref()]
+
+            if context.current.location in ('generator', 'nodefilter'):
+                ##
+                # In generator or node filter context check if the data table is available,
+                # if not, the only valid reference is the entity id.
+                #
+                if 'data' in cte_refs:
+                    result = pgsql.ast.FieldRefNode(table=cte_refs['data'], field=expr.name)
+                elif expr.name == 'id':
+                    result = cte_refs['id']
                 else:
-                    if not datatable:
-                        query = context.current.query
+                    assert False, "Unexpected reference to a sub-query attribute other than id"
 
+            elif context.current.location in ('selector', 'sorter'):
+                fieldref = cte_refs['id']
+                datatable = None
+
+                if expr.name == 'id':
+                    result = fieldref
+                else:
+                    ##
+                    # The atom references are translated into either a direct field reference node,
+                    # or into a select expression node, when potentially referencing entities from
+                    # sub-queries.  In the latter case we need to join the main concept table.
+                    #
+                    if isinstance(fieldref, pgsql.ast.FieldRefNode):
+                        datatable = fieldref.table
+                    elif isinstance(fieldref, pgsql.ast.SelectExprNode):
                         datatable = self._relation_from_concepts(context, expr.ref().concepts, expr.ref().id)
-                        #datatable = context.current.ctemap[expr.ref()]
 
+                        query = context.current.query
                         query.fromlist.append(datatable)
 
-                        left = fieldref_expr
+                        left = fieldref.expr
                         right = pgsql.ast.FieldRefNode(table=datatable, field='id')
                         whereexpr = pgsql.ast.BinOpNode(op='=', left=left, right=right)
                         if query.where is not None:
                             query.where = pgsql.ast.BinOpNode(op='and', left=query.where, right=whereexpr)
                         else:
                             query.where = whereexpr
+                    else:
+                        assert False, "Unexpected field reference expression"
 
                     result = pgsql.ast.FieldRefNode(table=datatable, field=expr.name)
-                    context.current.concept_node_map[expr.ref()]['id'] = result
             else:
-                if isinstance(expr.ref(), caosql.ast.EntitySet):
-                    result = fieldref_expr
-                else:
-                    result = pgsql.ast.FieldRefNode(table=fieldref, field=expr.name)
+                assert False, "Unexpected atom reference in %s context" % context.current.location
+
+            if isinstance(result, pgsql.ast.SelectExprNode):
+                ##
+                # Ensure that the result is always a FieldRefNode
+                #
+                result = result.expr
 
         elif expr_t == caosql.ast.MetaRef:
             if context.current.location not in ('selector', 'sorter'):
@@ -447,18 +460,16 @@ class CaosQLQueryAdapter(ast.visitor.NodeVisitor):
                                                   selectnode_class.role: selectnode_class}
 
         if step.filter:
-            def filter_atomic_refs(node):
-                return isinstance(node, caosql.ast.AtomicRef) # and node.refs[0] == step
-
-            # Fixup atomic refs sources
-            atrefs = self.find_children(step.filter, filter_atomic_refs)
-
-            if atrefs:
-                for atref in atrefs:
-                    atref.refs.pop()
-                    atref.refs.add(concept_table)
-
+            ##
+            # Switch context to node filter and make the concept table available for
+            # atoms in filter expression to reference.
+            #
+            context.push()
+            context.current.location = 'nodefilter'
+            context.current.concept_node_map[step] = {'data': concept_table}
             expr = pgsql.ast.PredicateNode(expr=self._process_expr(context, step.filter))
+            context.pop()
+
             if step_cte.where is not None:
                 step_cte.where = pgsql.ast.BinOpNode(op='and', left=step_cte.where, right=expr)
             else:
