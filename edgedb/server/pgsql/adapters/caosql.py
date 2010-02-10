@@ -6,7 +6,6 @@
 ##
 
 
-import copy
 from semantix import ast
 from semantix.caos import caosql
 from semantix.caos import types as caos_types
@@ -36,11 +35,11 @@ class Alias(str):
 class ParseContextLevel(object):
     def __init__(self, prevlevel=None):
         if prevlevel is not None:
-            self.vars = copy.deepcopy(prevlevel.vars)
-            self.ctes = copy.deepcopy(prevlevel.ctes)
-            self.aliascnt = copy.deepcopy(prevlevel.aliascnt)
-            self.ctemap = copy.deepcopy(prevlevel.ctemap)
-            self.concept_node_map = copy.deepcopy(prevlevel.concept_node_map)
+            self.vars = prevlevel.vars.copy()
+            self.ctes = prevlevel.ctes.copy()
+            self.aliascnt = prevlevel.aliascnt.copy()
+            self.ctemap = prevlevel.ctemap.copy()
+            self.concept_node_map = prevlevel.concept_node_map.copy()
             self.location = 'query'
         else:
             self.vars = {}
@@ -67,13 +66,12 @@ class ParseContextLevel(object):
         return Alias(alias)
 
 class ParseContext(object):
-    stack = []
-
     def __init__(self):
+        self.stack = []
         self.push()
 
     def push(self):
-        level = ParseContextLevel()
+        level = ParseContextLevel(prevlevel=self.current)
         self.stack.append(level)
 
         return level
