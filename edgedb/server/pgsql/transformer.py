@@ -143,7 +143,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
 
         for expr in sorter:
             sortexpr = pgsql.ast.SortExprNode(expr=self._process_expr(context, expr.expr),
-                                           direction=expr.direction)
+                                              direction=expr.direction)
             query.orderby.append(sortexpr)
 
     def _process_paths(self, context, paths):
