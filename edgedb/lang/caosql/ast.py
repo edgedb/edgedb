@@ -9,7 +9,7 @@
 from semantix import ast
 
 class Base(ast.AST):
-    __fields = ['!refs']
+    __fields = ['!!refs']
 
     def __init__(self, **kwargs):
         if 'refs' not in kwargs:
