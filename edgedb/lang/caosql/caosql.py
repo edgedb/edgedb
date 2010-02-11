@@ -414,8 +414,7 @@ class CaosqlTreeTransformer(object):
             name = self.realm.meta.normalize_name(name=step.atom, module_aliases=context.current.namespaces)
         result = ast.AtomicRef(refs={source}, name=str(name))
 
-        if context.current.location == 'selector':
-            source.selrefs.append(result)
+        source.atomrefs.add(result)
 
         return result
 

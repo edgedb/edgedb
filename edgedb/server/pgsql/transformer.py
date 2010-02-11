@@ -190,52 +190,14 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
 
             cte_refs = context.current.concept_node_map[expr.ref()]
 
-            if context.current.location in ('generator', 'nodefilter'):
-                ##
-                # In generator or node filter context check if the data table is available,
-                # if not, the only valid reference is the entity id.
-                #
-                if 'data' in cte_refs:
-                    result = pgsql.ast.FieldRefNode(table=cte_refs['data'], field=expr.name)
-                elif expr.name == 'id':
-                    result = cte_refs['id']
-                else:
-                    assert False, "Unexpected reference to a sub-query attribute other than id"
-
-            elif context.current.location in ('selector', 'sorter'):
-                fieldref = cte_refs['id']
-                datatable = None
-
-                if expr.name == 'id':
-                    result = fieldref
-                else:
-                    ##
-                    # The atom references are translated into either a direct field reference node,
-                    # or into a select expression node, when potentially referencing entities from
-                    # sub-queries.  In the latter case we need to join the main concept table.
-                    #
-                    if isinstance(fieldref, pgsql.ast.FieldRefNode):
-                        datatable = fieldref.table
-                    elif isinstance(fieldref, pgsql.ast.SelectExprNode):
-                        datatable = self._relation_from_concepts(context, expr.ref().concepts, expr.ref().id)
-
-                        query = context.current.query
-                        query.fromlist.append(datatable)
-
-                        left = fieldref.expr
-                        right = pgsql.ast.FieldRefNode(table=datatable, field='id')
-                        whereexpr = pgsql.ast.BinOpNode(op='=', left=left, right=right)
-                        if query.where is not None:
-                            query.where = pgsql.ast.BinOpNode(op='and', left=query.where, right=whereexpr)
-                        else:
-                            query.where = whereexpr
-                    else:
-                        assert False, "Unexpected field reference expression"
-
-                    result = pgsql.ast.FieldRefNode(table=datatable, field=expr.name)
+            data_table = cte_refs.get('data')
+            if data_table:
+                result = pgsql.ast.FieldRefNode(table=data_table, field=expr.name)
             else:
-                assert False, "Unexpected atom reference in %s context" % context.current.location
-
+                result = cte_refs.get(expr.name)
+                if not result:
+                    assert False, "Unexpected reference to an unaccessible sub-query attribute: %s" \
+                                                                                                % expr.name
             if isinstance(result, pgsql.ast.SelectExprNode):
                 ##
                 # Ensure that the result is always a FieldRefNode
@@ -246,7 +208,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             if context.current.location not in ('selector', 'sorter'):
                 raise caosql.CaosQLError('meta references are currently only supported in selectors and sorters')
 
-            fieldref = context.current.concept_node_map[expr.ref()]['class_id']
+            fieldref = context.current.concept_node_map[expr.ref()]['concept_id']
             query = context.current.query
             datatable = pgsql.ast.TableNode(name='metaobject',
                                             schema='caos',
@@ -426,38 +388,35 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             # them visible.
             #
             for concept_node, refs in context.current.concept_node_map.items():
-                for refrole, ref in refs.items():
+                for field, ref in refs.items():
                     if ref.alias in joinpoint.concept_node_map:
                         refexpr = pgsql.ast.FieldRefNode(table=joinpoint, field=ref.alias)
-                        fieldref = pgsql.ast.SelectExprNode(expr=refexpr, alias=ref.alias)
+                        fieldref = pgsql.ast.SelectExprNode(expr=refexpr, alias=ref.alias, field=field)
                         step_cte.targets.append(fieldref)
                         step_cte.concept_node_map[ref.alias] = fieldref
 
                         bondref = pgsql.ast.FieldRefNode(table=step_cte, field=ref.alias)
-                        step_cte.addbond(concept_node.concepts, bondref)
-                        context.current.concept_node_map[concept_node][refrole].expr.table = step_cte
+                        if field == 'id':
+                            step_cte.addbond(concept_node.concepts, bondref)
+                        context.current.concept_node_map[concept_node][field].expr.table = step_cte
 
         # Include target entity id and metaclass id in the Select expression list ...
+        atomrefs = {'id', 'concept_id'} | {f.name for f in step.atomrefs}
+
         fieldref = fromnode.expr.bonds(step.concepts)[-1]
-        selectnode = pgsql.ast.SelectExprNode(expr=fieldref, alias=step_cte.alias + '_entity_id', role='id')
-        step_cte.targets.append(selectnode)
+        context.current.concept_node_map[step] = {}
 
-        fieldref = pgsql.ast.FieldRefNode(table=fieldref.table, field='concept_id')
-        selectnode_class = pgsql.ast.SelectExprNode(expr=fieldref, alias=step_cte.alias + '_concept_id',
-                                                    role='class_id')
-        step_cte.targets.append(selectnode_class)
+        for field in atomrefs:
+            fieldref = pgsql.ast.FieldRefNode(table=concept_table, field=field)
+            selectnode = pgsql.ast.SelectExprNode(expr=fieldref, alias=step_cte.alias + ('_' + field),
+                                                  field=field)
+            step_cte.targets.append(selectnode)
+            step_cte.concept_node_map[selectnode.alias] = selectnode
 
-        step_cte.concept_node_map[selectnode.alias] = selectnode
-        step_cte.concept_node_map[selectnode_class.alias] = selectnode_class
-
-        # ... and record them in global map in case they have to be pulled up later
-        refexpr = pgsql.ast.FieldRefNode(table=step_cte, field=selectnode.alias)
-        selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias, role='id')
-        refexpr = pgsql.ast.FieldRefNode(table=step_cte, field=selectnode_class.alias)
-        selectnode_class = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode_class.alias,
-                                                    role='class_id')
-        context.current.concept_node_map[step] = {selectnode.role: selectnode,
-                                                  selectnode_class.role: selectnode_class}
+            # ... and record them in global map in case they have to be pulled up later
+            refexpr = pgsql.ast.FieldRefNode(table=step_cte, field=selectnode.alias)
+            selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias, field=field)
+            context.current.concept_node_map[step][field] = selectnode
 
         if step.filter:
             ##
@@ -478,7 +437,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         step_cte.fromlist.append(fromnode)
         step_cte._source_graph = step
 
-        bond = pgsql.ast.FieldRefNode(table=step_cte, field=step_cte.alias + '_entity_id')
+        bond = pgsql.ast.FieldRefNode(table=step_cte, field=step_cte.alias + '_id')
         step_cte.addbond(step.concepts, bond)
 
         return step_cte

@@ -20,7 +20,7 @@ class UnaryOpNode(ast.AST): __fields = ['op', 'operand']
 
 class PredicateNode(ast.AST): __fields = ['*expr']
 
-class SelectExprNode(ast.AST): __fields = ['expr', 'alias', 'role']
+class SelectExprNode(ast.AST): __fields = ['expr', 'alias', 'field']
 
 class FromExprNode(ast.AST): __fields = ['expr', 'alias']
 
@@ -56,8 +56,7 @@ class TableNode(RelationNode):
 
 
 class SelectQueryNode(RelationNode):
-    __fields = ['distinct', '*fromlist', '*targets', 'where', '*orderby', '*ctes',
-                '_source_graph', '#concept_node_map']
+    __fields = ['distinct', '*fromlist', '*targets', 'where', '*orderby', '*ctes', '#concept_node_map']
 
 class UnionNode(RelationNode):
     __fields = ['*queries', 'distict']

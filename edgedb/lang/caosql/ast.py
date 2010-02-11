@@ -54,7 +54,7 @@ class MetaRef(Base):
     __fields = ['name']
 
 class EntitySet(Base):
-    __fields = ['id', 'name', '!concepts', 'atom', 'filter', '*links', '*altlinks', '*rlinks', '*selrefs']
+    __fields = ['id', 'name', '!concepts', 'atom', 'filter', '*links', '*altlinks', '*rlinks', '!atomrefs']
 
 class EntityLink(Base):
     __fields = ['filter', 'source', 'target']
