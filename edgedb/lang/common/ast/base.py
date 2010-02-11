@@ -7,7 +7,7 @@
 
 
 from semantix.ast import dump
-import copy
+import weakref
 
 class ASTError(Exception):
     pass
@@ -41,6 +41,10 @@ class MetaAST(type):
                     field = field[1:]
                     code += '\tself.%s = dict()\n' % field
 
+                elif field.startswith('!!'):
+                    field = field[2:]
+                    code += '\tself.%s = weakref.WeakSet()\n' % field
+
                 elif field.startswith('!'):
                     field = field[1:]
                     code += '\tself.%s = set()\n' % field
@@ -50,7 +54,7 @@ class MetaAST(type):
 
                 _fields.append(field)
 
-        context = {}
+        context = {'weakref': weakref}
         exec(code, context)
         func = context['_init_fields']
 
