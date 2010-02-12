@@ -236,13 +236,13 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
             """
 
             id = id[0]
-            entity.setid(id)
-            entity.markclean()
+            entity.id = id
+            entity._instancedata.dirty = False
 
             for name, link in links.items():
-                if isinstance(link, caos.concept.LinkedSet) and link.dirty:
+                if isinstance(link, caos.concept.LinkedSet) and link._instancedata.dirty:
                     self.store_links(entity, link, name)
-                    link.markclean()
+                    link._instancedata.dirty = False
 
         return id
 
