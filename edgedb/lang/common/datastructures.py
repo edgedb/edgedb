@@ -45,13 +45,16 @@ class GenericWrapper(object, metaclass=GenericWrapperMeta):
 
             if hook:
                 for method in methods:
+                    setattr(cls, method + '_orig', getattr(cls, method, None))
                     setattr(cls, method, cls._gethook(hook, method))
 
     @classmethod
     def _gethook(cls, hook, method):
         def hookbody(self, *args, **kwargs):
+            original = getattr(cls, method + '_orig', None)
+            if not original:
+                raise NotImplementedError
             hook(self, method, *args, **kwargs)
-            original = getattr(cls.original_base, method)
             return original(self, *args, **kwargs)
 
         return hookbody
