@@ -106,6 +106,19 @@ class ASTBlockNode(AST):
             self.body.append(node)
 
 
+class ASTBinOpNode(AST):
+    __fields = ['left', 'right', 'operation']
+
+    LT = '<'
+    LE = '<='
+    EQ = '='
+    NE = '!='
+    GT = '>'
+    GE = '>='
+    AND = 'and'
+    OR = 'or'
+
+
 def fix_parent_links(node):
     for field, value in iter_fields(node):
         if isinstance(value, list):
