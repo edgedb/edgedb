@@ -14,7 +14,7 @@ class CallFunctionNode(ast.AST):  __fields = ['func', '*args']
 
 class VarNode(ast.AST): __fields = ['name']
 class PathVarNode(VarNode): pass
-class ConstantNode(ast.AST): __fields = ['value']
+class ConstantNode(ast.AST): __fields = ['value', 'index']
 
 class UnaryOpNode(ast.AST): __fields = ['op', 'operand']
 

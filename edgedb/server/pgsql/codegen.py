@@ -133,12 +133,15 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.expr)
 
     def visit_ConstantNode(self, node):
-        if node.value is None:
-            self.write('NULL')
-        elif isinstance(node.value, (bool, numbers.Number)):
-            self.write(str(node.value))
+        if node.index is not None:
+            self.write('$%d' % (node.index + 1))
         else:
-            self.write(postgresql.string.quote_literal(str(node.value)))
+            if node.value is None:
+                self.write('NULL')
+            elif isinstance(node.value, (bool, numbers.Number)):
+                self.write(str(node.value))
+            else:
+                self.write(postgresql.string.quote_literal(str(node.value)))
 
     def visit_SequenceNode(self, node):
         self.write('(')

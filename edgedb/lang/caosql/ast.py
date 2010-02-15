@@ -62,7 +62,7 @@ class EntityLink(Base):
 class EntityLinkSpec(ast.AST):
     __fields = ['*labels', 'direction']
 
-class Constant(Base): __fields = ['value']
+class Constant(Base): __fields = ['value', 'index']
 class Sequence(Base): __fields = ['*elements']
 class BinOp(Base):
     __fields = ['left', 'op', 'right']

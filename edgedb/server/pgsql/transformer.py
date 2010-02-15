@@ -171,7 +171,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             result = pgsql.ast.BinOpNode(op=expr.op, left=left, right=right)
 
         elif expr_t == caosql.ast.Constant:
-            result = pgsql.ast.ConstantNode(value=expr.value)
+            result = pgsql.ast.ConstantNode(value=expr.value, index=expr.index)
 
         elif expr_t == caosql.ast.Sequence:
             elements = [self._process_expr(context, e) for e in expr.elements]
