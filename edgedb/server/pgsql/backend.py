@@ -30,36 +30,45 @@ from .datasources import introspection
 from .transformer import CaosTreeTransformer
 
 
+class Query(object):
+    def __init__(self, text, statement=None, vars=None, context=None):
+        self.text = text
+        self.vars = vars
+        self.context = context
+        self.statement = statement
+
+    def __call__(self, *vars):
+        return self.statement(*vars)
+
+    def rows(self, *vars):
+        return self.statement.rows(*vars)
+
+    __iter__ = rows
+
+
 class CaosQLCursor(object):
+    cache = {}
+
     def __init__(self, connection):
         self.connection = connection
         self.cursor = CompatCursor(connection)
         self.transformer = CaosTreeTransformer()
         self.current_portal = None
 
-    def prepare_query(self, query, vars):
-        return self.transformer.transform(query, vars)
-
-    def execute_prepared(self, query):
-        if query.vars is None:
-            query.vars = []
-
-        sql, pxf, nparams = self.cursor._convert_query(query.text)
-        ps = self.connection.prepare(sql)
-        if query.vars:
-            self.current_portal = ps.rows(*pxf(query.vars))
+    def prepare(self, query):
+        result = self.cache.get(query)
+        if not result:
+            qtext = self.transformer.transform(query)
+            ps = self.connection.prepare(qtext)
+            self.cache[query] = (qtext, ps)
         else:
-            self.current_portal = ps.rows()
+            qtext, ps = result
+
+        return Query(text=qtext, statement=ps)
 
     def execute(self, query, vars=None):
-        native_query = self.prepare_query(query, vars)
-        return self.execute_prepared(native_query)
-
-    def fetchall(self):
-        return list(self.current_portal)
-
-    def fetchone(self):
-        return next(self.current_portal)
+        native_query = self.prepare_query(query)
+        return native_query.rows(*vars)
 
 
 class Backend(metamod.MetaBackend, datamod.DataBackend):

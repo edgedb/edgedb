@@ -12,12 +12,6 @@ from semantix.caos import types as caos_types
 from semantix.caos.backends import pgsql
 from semantix.utils.debug import debug
 
-class Query(object):
-    def __init__(self, text, vars=None, context=None):
-        self.text = text
-        self.vars = vars
-        self.context = context
-
 
 class Alias(str):
     def __new__(cls, value=''):
@@ -90,7 +84,7 @@ class TransformerContext(object):
 
 class CaosTreeTransformer(ast.visitor.NodeVisitor):
     @debug
-    def transform(self, query, vars=None):
+    def transform(self, query):
         # Transform to sql tree
         qtree = self._transform_tree(query)
 
@@ -106,7 +100,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         print(highlight(qtext, 'sql'))
         """
 
-        return Query(qtext, vars)
+        return qtext
 
     def _dump(self, tree):
         print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*)$'))
