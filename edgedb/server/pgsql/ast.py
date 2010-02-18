@@ -59,7 +59,7 @@ class SelectQueryNode(RelationNode):
     __fields = ['distinct', '*fromlist', '*targets', 'where', '*orderby', '*ctes', '#concept_node_map']
 
 class UnionNode(RelationNode):
-    __fields = ['*queries', 'distict']
+    __fields = ['*queries', 'distinct']
 
 class CTENode(SelectQueryNode):
     __fields = ['*_referrers']

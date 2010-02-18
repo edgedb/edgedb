@@ -43,7 +43,7 @@ class NodeVisitor(object):
             elif isinstance(value, AST):
                 self.visit(value)
 
-    def find_children(self, node, test_func):
+    def find_children(self, node, test_func, *args, **kwargs):
         visited = set()
 
         def _find_children(node, test_func):
@@ -57,7 +57,7 @@ class NodeVisitor(object):
             for field, value in iter_fields(node):
                 if isinstance(value, list):
                     for n in value:
-                        if test_func(n):
+                        if test_func(n, *args, **kwargs):
                             result.append(n)
 
                         _n = _find_children(n, test_func)
@@ -65,7 +65,7 @@ class NodeVisitor(object):
                             result.extend(_n)
 
                 elif isinstance(value, AST):
-                    if test_func(value):
+                    if test_func(value, *args, **kwargs):
                         result.append(value)
 
                     _n = _find_children(value, test_func)

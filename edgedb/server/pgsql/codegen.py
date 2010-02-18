@@ -87,7 +87,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.new_lines = 1
             self.visit(query)
             if i != count - 1:
-                self.write(' UNION ALL ')
+                self.write(' UNION ')
+                if not node.distinct:
+                    self.write(' ALL ')
 
         self.write(')')
         if node.alias:

@@ -257,13 +257,14 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         else:
             ##
             # If several concepts are specified in the node, it is a so-called parallel path
-            # and is translated into a UNION ALL of SELECTs from each of the specified
+            # and is translated into a UNION of SELECTs from each of the specified
             # concept tables.  Assuming that database planner does the right thing this
             # should be functionally equivalent to using a higher table with constraint
             # exclusions.
             #
             concept_table = pgsql.ast.UnionNode(concepts=concepts,
-                                                alias=context.current.genalias(hint=alias_hint))
+                                                alias=context.current.genalias(hint=alias_hint),
+                                                distinct=True)
 
             for concept in concepts:
                 table_name, table_schema_name = self._caos_name_to_pg_table(concept.name)
@@ -273,12 +274,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
                                             alias=context.current.genalias(hint=table_name))
 
                 fromexpr = pgsql.ast.FromExprNode(expr=table)
-                targets = []
-                fieldref = pgsql.ast.FieldRefNode(table=table, field='id')
-                targets.append(pgsql.ast.SelectExprNode(expr=fieldref))
-                fieldref = pgsql.ast.FieldRefNode(table=table, field='concept_id')
-                targets.append(pgsql.ast.SelectExprNode(expr=fieldref))
-                query = pgsql.ast.SelectQueryNode(targets=targets, fromlist=[fromexpr])
+                query = pgsql.ast.SelectQueryNode(fromlist=[fromexpr])
 
                 concept_table.queries.append(query)
 
@@ -301,14 +297,14 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         if step.name:
             cte_alias = context.current.genalias(alias=step.name)
         else:
-            cte_alias = context.current.genalias(hint=step.id)
+            cte_alias = context.current.genalias(hint=str(step.id))
 
         step_cte = pgsql.ast.SelectQueryNode(concepts=step.concepts, alias=cte_alias)
         context.current.ctemap[step] = step_cte
 
         fromnode = pgsql.ast.FromExprNode()
 
-        concept_table = self._relation_from_concepts(context, step.concepts, alias_hint=step.id)
+        concept_table = self._relation_from_concepts(context, step.concepts, alias_hint=str(step.id))
 
         field_name = 'id'
         bond = pgsql.ast.FieldRefNode(table=concept_table, field=field_name)
@@ -319,10 +315,9 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         else:
             target_id_field = pgsql.ast.FieldRefNode(table=concept_table, field='id')
 
+            ##
+            # Append the step to the join chain taking link filter into account.
             #
-            # Append the step to the join chain taking link filter into account
-            #
-
             if link.filter:
                 join = joinpoint
 
@@ -330,9 +325,9 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
 
             labels = link.filter.labels if link.filter and link.filter.labels else [None]
 
-            #
+            ##
             # If specific links are provided we LEFT JOIN all corresponding link tables and then
-            # INNER JOIN the concept table using an aggregated condition disjunction
+            # INNER JOIN the concept table using an aggregated condition disjunction.
             #
             map_join_type = 'left' if len(labels) > 1 else 'inner'
             for label in labels:
@@ -377,7 +372,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
 
             fromnode.expr = join
 
-            #
+            ##
             # Pull the references to fields inside the CTE one level up to keep
             # them visible.
             #
@@ -407,7 +402,19 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             step_cte.targets.append(selectnode)
             step_cte.concept_node_map[selectnode.alias] = selectnode
 
-            # ... and record them in global map in case they have to be pulled up later
+            if len(concept_table.concepts) > 1:
+                ##
+                # In cases when a path node references multiple concepts we actually have a UNION
+                # of SELECTs from those concepts' tables, thus, atom references must be pulled
+                # from each of those selects.
+                #
+                for query in concept_table.queries:
+                    fieldref = pgsql.ast.FieldRefNode(table=query.fromlist[0].expr, field=field)
+                    query.targets.append(pgsql.ast.SelectExprNode(expr=fieldref))
+
+            ##
+            # Record atom references them in global map in case they have to be pulled up later
+            #
             refexpr = pgsql.ast.FieldRefNode(table=step_cte, field=selectnode.alias)
             selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias, field=field)
             context.current.concept_node_map[step][field] = selectnode
@@ -420,13 +427,27 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             context.push()
             context.current.location = 'nodefilter'
             context.current.concept_node_map[step] = {'data': concept_table}
-            expr = pgsql.ast.PredicateNode(expr=self._process_expr(context, step.filter))
+
+            if len(concept_table.concepts) > 1:
+                ##
+                # For multi-concept nodes filters must be pushed into the UNION components
+                #
+                def replace_table_ref(node, orig_ref, replacement_ref):
+                    if isinstance(node, pgsql.ast.FieldRefNode) and node.table == orig_ref:
+                        node.table = replacement_ref
+                        return False
+                    return True
+
+                for query in concept_table.queries:
+                    expr = pgsql.ast.PredicateNode(expr=self._process_expr(context, step.filter))
+                    self.find_children(expr, replace_table_ref, concept_table, query.fromlist[0].expr)
+                    query.where = self.extend_predicate(query.where, expr)
+            else:
+                expr = pgsql.ast.PredicateNode(expr=self._process_expr(context, step.filter))
+                step_cte.where = self.extend_predicate(step_cte.where, expr)
+
             context.pop()
 
-            if step_cte.where is not None:
-                step_cte.where = pgsql.ast.BinOpNode(op='and', left=step_cte.where, right=expr)
-            else:
-                step_cte.where = expr
 
         step_cte.fromlist.append(fromnode)
         step_cte._source_graph = step
@@ -435,6 +456,12 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         step_cte.addbond(step.concepts, bond)
 
         return step_cte
+
+    def extend_predicate(self, predicate, expr, op='and'):
+        if predicate is not None:
+            return pgsql.ast.BinOpNode(op=op, left=predicate, right=expr)
+        else:
+            return expr
 
     def _caos_name_to_pg_table(self, name):
         # XXX: TODO: centralize this with pgsql backend
