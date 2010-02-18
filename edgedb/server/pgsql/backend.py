@@ -648,10 +648,17 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
             rows.append('(%s::uuid, %s::uuid, %s::int)')
             params += [source.id, target.id, lt[0]['id']]
 
+        params += params
+
         if len(rows) > 0:
             table = self.link_name_to_pg_table_name(link_name)
-            self.runquery("""INSERT INTO %s(source_id, target_id, link_type_id) (VALUES %s)""" %
-                          (table, ",".join(rows)), params)
+            self.runquery("""INSERT INTO %s(source_id, target_id, link_type_id)
+                             ((VALUES %s)
+                              EXCEPT
+                              (SELECT source_id, target_id, link_type_id
+                              FROM %s
+                              WHERE (source_id, target_id, link_type_id) in (VALUES %s)))""" %
+                             (table, ",".join(rows), table, ",".join(rows)), params)
 
 
     def load_links(self, this_concept, this_id, other_concepts=None, link_names=None, reverse=False):
