@@ -84,6 +84,9 @@ class GraphObject(caos.types.ProtoObject):
         if not isinstance(obj, self.__class__):
             raise caos.types.MetaMismatchError("cannot merge instances of %s and %s" % (obj.__class__.__name__, self.__class__.__name__))
 
+    def __repr__(self):
+        return '<CaosObjectPrototype %s>' % self.name
+
 
 class AtomMod(caos.types.ProtoObject):
     def __init__(self, context):
