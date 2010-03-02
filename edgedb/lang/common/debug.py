@@ -67,16 +67,17 @@ class debug(object):
 
         class Transformer(ast.NodeTransformer):
 
-            pattern = re.compile(r'''LOG
+            pattern = re.compile(r'''(?P<type>LOG|LINE)
                                      \s+ \[ \s* (?P<tags> [\w\.]+ (?:\s* , \s* [\w+\.]+)* ) \s* \]
                                      (?P<title>.*)
                                   ''', re.X)
 
             def visit_Expr(self, node):
                 if isinstance(node.value, ast.Str):
-                    if node.value.s.startswith('LOG'):
+                    if node.value.s.startswith('LOG') or node.value.s.startswith('LINE'):
                         m = Transformer.pattern.match(node.value.s)
                         if m:
+                            type = m.group('type').strip()
                             title = m.group('title').strip()
                             tags = {t.strip() for t in m.group('tags').split(',')}
 
@@ -91,19 +92,23 @@ class debug(object):
                                    '    pass\n' % tags
 
                             if title:
-                                text += '    print("\\n" + "="*80 + "\\n" + %r + "\\n" + "="*80)\n' % title
+                                if type == 'LOG':
+                                    text += '    print("\\n" + "="*80 + "\\n" + %r + "\\n" + "="*80)\n' % title
+                                else:
+                                    text += '    print(%r, %s)' % (title, ', '.join(comment[1:]))
 
                             code = ast.parse(text.rstrip(), filename=orig_file)
                             code = ast.fix_missing_locations(code)
                             _set_location(code, lineno)
 
-                            ctext = _indent_code('\n'.join(comment[1:]), absolute=0)
-                            ccode = ast.parse(ctext, filename=orig_file)
+                            if type == 'LOG' and len(comment) > 1:
+                                ctext = _indent_code('\n'.join(comment[1:]), absolute=0)
+                                ccode = ast.parse(ctext, filename=orig_file)
 
-                            ast.increment_lineno(ccode, lineno)
+                                ast.increment_lineno(ccode, lineno)
 
-                            # Prepend the custom code to the If block body
-                            code.body[1].body.extend(ccode.body)
+                                # Prepend the custom code to the If block body
+                                code.body[1].body.extend(ccode.body)
 
                             return code.body
                         else:
