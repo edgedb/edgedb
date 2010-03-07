@@ -8,7 +8,25 @@
 
 import py
 import re
+import logging
+
 from semantix.utils.debug import highlight
+from semantix.utils.io import terminal
+
+
+class LoggingPrintHandler(logging.Handler):
+    def __init__(self, colorize, *args, **kwargs):
+        self.colorize = colorize
+        super().__init__(*args, **kwargs)
+
+    def emit(self, record):
+        if self.colorize:
+            print(terminal.colorize('LOGGER', 'white', 'red'), record)
+        else:
+            print('LOGGER', record)
+
+        if record.exc_info:
+            raise record.exc_info[1]
 
 
 test_patterns = []
@@ -48,6 +66,9 @@ def pytest_configure(config):
 
     if config.option.colorize:
         PyTestColorizerPatcher.patch()
+        logging.getLogger("semantix").addHandler(LoggingPrintHandler(True))
+    else:
+        logging.getLogger("semantix").addHandler(LoggingPrintHandler(False))
 
     patterns = []
     tp = config.getvalue('test_patterns')
