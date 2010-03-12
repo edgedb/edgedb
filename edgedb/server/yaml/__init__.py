@@ -78,7 +78,7 @@ class Atom(LangObject, proto.Atom):
         data = self.data
         proto.Atom.__init__(self, name=None, backend=data.get('backend'), base=data['extends'],
                            default=data['default'], title=data['title'],
-                           description=data['description'])
+                           description=data['description'], is_abstract=data['abstract'])
         mods = data.get('mods')
         if mods:
             for mod in mods:
@@ -94,7 +94,8 @@ class Concept(LangObject, proto.Concept):
                 extends = [extends]
 
         proto.Concept.__init__(self, name=None, backend=data.get('backend'), base=extends,
-                              title=data.get('title'), description=data.get('description'))
+                              title=data.get('title'), description=data.get('description'),
+                              is_abstract=data.get('abstract'))
         self._links = data.get('links', {})
 
 
@@ -119,7 +120,7 @@ class LinkDef(LangObject, proto.Link):
                 extends = [extends]
 
         proto.Link.__init__(self, name=None, backend=data.get('backend'), base=extends, title=data['title'],
-                           description=data['description'])
+                            description=data['description'], is_abstract=data.get('abstract'))
         for property_name, property in data['properties'].items():
             property.name = property_name
             self.add_property(property)

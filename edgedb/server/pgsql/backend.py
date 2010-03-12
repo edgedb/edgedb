@@ -291,7 +291,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             atoms[name] = {'name': name,
                            'title': self.hstore_to_word_combination(row['title']),
                            'description': self.hstore_to_word_combination(row['description']),
-                           'automatic': row['automatic']}
+                           'automatic': row['automatic'],
+                           'abstract': row['abstract']}
 
         for name, domain_descr in domains.items():
 
@@ -302,7 +303,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                  module=self.pg_schema_name_to_module_name(domain_descr['basetype_schema']))
 
             atom = proto.Atom(name=name, base=bases, default=domain_descr['default'], title=atoms[name]['title'],
-                                description=atoms[name]['description'], automatic=atoms[name]['automatic'])
+                              description=atoms[name]['description'], automatic=atoms[name]['automatic'],
+                              is_abstract=atoms[name]['abstract'])
 
             if domain_descr['constraints'] is not None:
                 for constraint_type in domain_descr['constraints']:
@@ -368,7 +370,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             link = proto.Link(name=name, base=bases, source=source, target=target,
                                 mapping=r['mapping'], required=r['required'],
-                                title=title, description=description)
+                                title=title, description=description,
+                                is_abstract=r['abstract'])
             link.implicit_derivative = r['implicit']
             link.properties = properties
 
@@ -404,7 +407,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             name = caos.Name(row['name'])
             concepts[name] = {'name': name,
                               'title': self.hstore_to_word_combination(row['title']),
-                              'description': self.hstore_to_word_combination(row['description'])}
+                              'description': self.hstore_to_word_combination(row['description']),
+                              'abstract': row['abstract']}
 
         for t in tables:
             name = self.pg_table_name_to_concept_name(t['name'])
@@ -417,7 +421,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             bases = self.pg_table_inheritance_to_bases(t['name'], t['schema'])
 
             concept = proto.Concept(name=name, base=bases, title=concepts[name]['title'],
-                                      description=concepts[name]['description'])
+                                    description=concepts[name]['description'],
+                                    is_abstract=concepts[name]['abstract'])
 
             columns = introspection.table.TableColumns(self.connection).fetch(table_name=t['name'],
                                                                               schema_name=t['schema'])
@@ -471,7 +476,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         title = obj.title.as_dict() if obj.title else None
         description = obj.description.as_dict() if obj.description else None
         self.atom_table.insert(name=str(obj.name), title=title, description=description,
-                               automatic=obj.automatic)
+                               automatic=obj.automatic, abstract=obj.is_abstract)
         self.domains.add(obj.name)
 
         if obj.name.module == 'semantix.caos.builtins':
@@ -585,7 +590,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                     name=str(link.name), mapping=link.mapping,
                                     required=link.required, title=title, description=description,
                                     implicit=link.implicit_derivative,
-                                    atomic=link.atomic())
+                                    atomic=link.atomic(), abstract=link.is_abstract)
 
 
     def create_concept(self, obj):
@@ -616,7 +621,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         title = obj.title.as_dict() if obj.title else None
         description = obj.description.as_dict() if obj.description else None
-        self.concept_table.insert(name=str(obj.name), title=title, description=description)
+        self.concept_table.insert(name=str(obj.name), title=title, description=description,
+                                  abstract=obj.is_abstract)
 
 
     @debug

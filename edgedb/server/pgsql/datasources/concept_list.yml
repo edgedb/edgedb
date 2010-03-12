@@ -19,6 +19,7 @@ source: |
             c.id AS id,
             c.name AS name,
             c.title AS title,
-            c.description AS description
+            c.description AS description,
+            c.abstract AS abstract
         FROM
             caos.concept c

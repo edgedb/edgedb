@@ -77,6 +77,7 @@ class MetaObjectTable(DatabaseTable):
             CREATE TABLE "caos"."metaobject"(
                 id serial NOT NULL,
                 name text NOT NULL,
+                abstract boolean NOT NULL DEFAULT FALSE,
                 title hstore,
                 description hstore,
 
@@ -101,9 +102,9 @@ class AtomTable(DatabaseTable):
 
     def insert(self, *dicts, **kwargs):
         """
-            INSERT INTO "caos"."atom"(id, name, title, description, automatic)
+            INSERT INTO "caos"."atom"(id, name, title, description, automatic, abstract)
             VALUES (nextval('"caos"."metaobject_id_seq"'::regclass),
-                    %(name)s, %(title)s::hstore, %(description)s::hstore, %(automatic)s)
+                    %(name)s, %(title)s::hstore, %(description)s::hstore, %(automatic)s, %(abstract)s)
             RETURNING id
         """
         return super().insert(*dicts, **kwargs)[0][0]
@@ -121,9 +122,9 @@ class ConceptTable(DatabaseTable):
 
     def insert(self, *dicts, **kwargs):
         """
-            INSERT INTO "caos"."concept"(id, name, title, description)
+            INSERT INTO "caos"."concept"(id, name, title, description, abstract)
             VALUES (nextval('"caos"."metaobject_id_seq"'::regclass),
-                    %(name)s, %(title)s::hstore, %(description)s::hstore)
+                    %(name)s, %(title)s::hstore, %(description)s::hstore, %(abstract)s)
             RETURNING id
         """
         return super().insert(*dicts, **kwargs)[0][0]
@@ -148,7 +149,7 @@ class LinkTable(DatabaseTable):
     def insert(self, *dicts, **kwargs):
         """
             INSERT INTO "caos"."link"(id, source_id, target_id, name, mapping, required, title, description,
-                                                                                         implicit, atomic)
+                                                                               implicit, atomic, abstract)
                 VALUES (
                             nextval('"caos"."metaobject_id_seq"'::regclass),
                             (SELECT id FROM caos.metaobject WHERE name = %(source)s),
@@ -159,7 +160,8 @@ class LinkTable(DatabaseTable):
                             %(title)s::hstore,
                             %(description)s::hstore,
                             %(implicit)s,
-                            %(atomic)s
+                            %(atomic)s,
+                            %(abstract)s
                 ) RETURNING id
         """
         return super().insert(*dicts, **kwargs)[0][0]

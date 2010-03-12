@@ -20,6 +20,7 @@ source: |
             c.name AS name,
             c.title AS title,
             c.description AS description,
-            c.automatic AS automatic
+            c.automatic AS automatic,
+            c.abstract AS abstract
         FROM
             caos.atom c
