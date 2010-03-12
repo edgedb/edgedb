@@ -185,6 +185,10 @@ class OrderedSet(collections.MutableSet):
         key, value = self.map.popitem(last)
         return key
 
+    def index(self, key):
+        #XXX
+        return list(self.map.keys()).index(key)
+
     update = collections.MutableSet.__ior__
     difference_update = collections.MutableSet.__isub__
     symmetric_difference_update = collections.MutableSet.__ixor__
@@ -215,6 +219,9 @@ class OrderedSet(collections.MutableSet):
         if isinstance(other, OrderedSet):
             return len(self) == len(other) and list(self) == list(other)
         return not self.isdisjoint(other)
+
+    def copy(self):
+        return OrderedSet(self)
 
 
 class OrderedSetWrapper(OrderedSet, MutableSet, MutableSequence):
