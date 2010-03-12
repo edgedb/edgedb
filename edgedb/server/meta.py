@@ -76,17 +76,54 @@ class GraphObject(caos.types.ProtoObject):
         return '%s_%s' % (self.__class__.__name__, self.name.name)
 
     def get_prototype(self, realm, name):
-        if isinstance(self.base, caos.Name):
+        if isinstance(name, caos.Name):
             return realm.meta.get(name, include_pyobjects=True)
         else:
             return name
+
+    def _merge_mro(self, mros):
+        result = []
+
+        while True:
+            nonempty = [mro for mro in mros if mro]
+            if not nonempty:
+                return result
+
+            for mro in nonempty:
+                candidate = mro[0]
+                tails = [m for m in nonempty if candidate in m[1:]]
+                if not tails:
+                    break
+            else:
+                raise caos.types.MetaError("Could not find consistent MRO for %s" % self.name)
+
+            result.append(candidate)
+
+            for mro in nonempty:
+                if mro[0] == candidate:
+                    del mro[0]
+
+        return result
+
+    def get_mro(self, realm):
+        bases = self.get_class_base(realm)
+        mros = [[self]]
+        for base in bases:
+            mros.append(base.get_mro(realm))
+        return self._merge_mro(mros)
+
+    def issubclass(self, realm, parent):
+        if isinstance(parent, caos.types.ProtoObject):
+            return parent in self.get_mro(realm)
+        else:
+            return bool(set(parent) & set(self.get_mro(realm)))
 
     def merge(self, obj):
         if not isinstance(obj, self.__class__):
             raise caos.types.MetaMismatchError("cannot merge instances of %s and %s" % (obj.__class__.__name__, self.__class__.__name__))
 
     def __repr__(self):
-        return '<CaosObjectPrototype %s>' % self.name
+        return '<caos.%sPrototype %s>' % (self.__class__.__name__, self.name)
 
 
 class AtomMod(caos.types.ProtoObject):
