@@ -288,6 +288,41 @@ class Concept(GraphObject, caos.types.ProtoConcept):
         metaclass = caos.concept.ConceptMeta
         return (name, bases, dct, metaclass)
 
+    def get_attr(self, realm, name):
+
+        if not caos.Name.is_qualified(name):
+            qname = caos.Name(name=name, module=self.name.module)
+        else:
+            qname = name
+
+        attr = self.ownlinks.get(qname)
+        if not attr:
+            mro = self.get_mro(realm)
+
+            for base in mro[1:]:
+                attr = base.get_attr(realm, name)
+                if attr:
+                    break
+        return attr
+
+    def match_links(self, realm, links, direction=caos.types.OutboundDirection, skip_atomic=False):
+        outbound = set()
+        inbound = set()
+
+        if direction in (caos.types.OutboundDirection, caos.types.AnyDirection):
+            for linkset in self.links.values():
+                for link in linkset:
+                    if link.issubclass(realm, links) and (not skip_atomic or not link.atomic()):
+                        outbound.add(linkset)
+                        break
+
+        if direction in (caos.types.InboundDirection, caos.types.AnyDirection):
+            for link in self.rlinks:
+                if link.issubclass(realm, links) and (not skip_atomic or not link.atomic()):
+                    inbound.add(link)
+
+        return outbound, inbound
+
     def get_class_base(self, realm):
         bases = tuple()
         if self.base:
@@ -408,6 +443,8 @@ class Link(GraphObject, caos.types.ProtoLink):
     def atomic(self):
         return (self.target and isinstance(self.target, Atom)) or self.atom
 
+    def __iter__(self):
+        yield self
 
 class ImportContext(lang.ImportContext):
     def __new__(cls, name, *, metaindex=None, toplevel=False, builtin=False):
