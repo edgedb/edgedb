@@ -6,3 +6,10 @@
 ##
 
 
+class MetaBackend:
+    def getmeta(self):
+        pass
+
+
+class DataBackend:
+    pass

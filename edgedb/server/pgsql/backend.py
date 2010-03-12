@@ -21,8 +21,8 @@ from semantix.utils.nlang import morphology
 
 from semantix import caos
 
+from semantix.caos import backends
 from semantix.caos.backends import meta as metamod
-from semantix.caos.backends import data as datamod
 
 from semantix.caos.backends.pgsql import common as tables
 
@@ -80,7 +80,7 @@ class CaosQLCursor(object):
         return native_query.rows(*vars)
 
 
-class Backend(metamod.MetaBackend, datamod.DataBackend):
+class Backend(backends.MetaBackend, backends.DataBackend):
 
     typlen_re = re.compile(r"(?P<type>.*) \( (?P<length>\d+) (?:\s*,\s*(?P<precision>\d+))? \)$", re.X)
 

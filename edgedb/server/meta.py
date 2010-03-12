@@ -14,10 +14,6 @@ import importlib
 from semantix import caos, lang
 from semantix.utils.datastructures import OrderedSet
 
-class MetaBackend(object):
-    def getmeta(self):
-        pass
-
 
 class GraphObjectBackendData:
     pass

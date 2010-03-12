@@ -17,6 +17,7 @@ from semantix.utils.nlang import morphology
 
 from semantix import caos, lang
 from semantix.caos.backends import meta
+from semantix.caos import backends
 
 
 class MetaError(caos.MetaError):
@@ -422,7 +423,7 @@ class DataSet(LangObject):
             entity.materialize_links(entities)
 
 
-class Backend(meta.MetaBackend):
+class Backend(backends.MetaBackend):
 
     def __init__(self, source_path):
         super().__init__()
