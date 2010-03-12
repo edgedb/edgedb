@@ -6,8 +6,10 @@
 ##
 
 
+import collections
+
 from semantix import ast
-from semantix.caos import caosql
+from semantix.caos import caosql, tree
 from semantix.caos import types as caos_types
 from semantix.caos.backends import pgsql
 from semantix.utils.debug import debug
@@ -35,6 +37,8 @@ class TransformerContextLevel(object):
             self.ctemap = prevlevel.ctemap.copy()
             self.concept_node_map = prevlevel.concept_node_map.copy()
             self.location = 'query'
+            self.append_graphs = False
+            self.query = prevlevel.query
         else:
             self.vars = {}
             self.ctes = {}
@@ -42,6 +46,8 @@ class TransformerContextLevel(object):
             self.ctemap = {}
             self.concept_node_map = {}
             self.location = 'query'
+            self.append_graphs = False
+            self.query = pgsql.ast.SelectQueryNode()
 
     def genalias(self, alias=None, hint=None):
         if alias is None:
@@ -59,19 +65,31 @@ class TransformerContextLevel(object):
 
         return Alias(alias)
 
+
 class TransformerContext(object):
+    CURRENT, ALTERNATE, NEW = range(0, 3)
+
     def __init__(self):
         self.stack = []
         self.push()
 
-    def push(self):
-        level = TransformerContextLevel(prevlevel=self.current)
+    def push(self, mode=None):
+        level = TransformerContextLevel(self.current)
+
+        if mode == TransformerContext.ALTERNATE:
+            pass
+
         self.stack.append(level)
 
         return level
 
     def pop(self):
         self.stack.pop()
+
+    def __call__(self, mode=None):
+        if not mode:
+            mode = TransformerContext.CURRENT
+        return TransformerContextWrapper(self, mode)
 
     def _current(self):
         if len(self.stack) > 0:
@@ -80,6 +98,23 @@ class TransformerContext(object):
             return None
 
     current = property(_current)
+
+
+class TransformerContextWrapper(object):
+    def __init__(self, context, mode):
+        self.context = context
+        self.mode = mode
+
+    def __enter__(self):
+        if self.mode == TransformerContext.CURRENT:
+            return self.context
+        else:
+            self.context.push(self.mode)
+            return self.context
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        if self.mode == TransformerContext.ALTERNATE:
+            self.context.pop()
 
 
 class CaosTreeTransformer(ast.visitor.NodeVisitor):
@@ -103,25 +138,26 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         return qtext
 
     def _dump(self, tree):
-        print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*)$'))
+        print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*|caosnode)$'))
 
     def _transform_tree(self, tree):
 
         context = TransformerContext()
-        context.current.query = pgsql.ast.SelectQueryNode()
 
-        self._process_paths(context, tree.paths)
-        self._process_generator(context, tree.generator)
+        context.current.query.where = self._process_generator(context, tree.generator)
+
         self._process_selector(context, tree.selector)
         self._process_sorter(context, tree.sorter)
 
         return context.current.query
 
     def _process_generator(self, context, generator):
-        query = context.current.query
         context.current.location = 'generator'
-        query.where = self._process_expr(context, generator)
+        result = self._process_expr(context, generator)
+        if isinstance(result, pgsql.ast.IgnoreNode):
+            result = None
         context.current.location = None
+        return result
 
     def _process_selector(self, context, selector):
         query = context.current.query
@@ -140,85 +176,126 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
                                               direction=expr.direction)
             query.orderby.append(sortexpr)
 
-    def _process_paths(self, context, paths):
-        query = context.current.query
+    def get_caos_path_root(self, expr):
+        result = expr
+        while result.rlink:
+            result = result.rlink.source
+        return result
 
-        for path in paths:
-            expr = self._process_expr(context, path)
-            if expr:
-                query.fromlist.append(expr)
-
-    def _process_expr(self, context, expr):
+    def _process_expr(self, context, expr, cte=None):
         result = None
 
-        expr_t = type(expr)
+        if isinstance(expr, tree.ast.Disjunction):
+            #context.current.append_graphs = True
+            variants = [self._process_expr(context, path, cte) for path in expr.paths]
+            #context.current.append_graphs = False
 
-        if expr_t == caosql.ast.ExistPred:
-            result = self._process_expr(context, expr.expr)
+            variants = [v for v in variants if v and not isinstance(v, pgsql.ast.IgnoreNode)]
+            if variants:
+                if len(variants) == 1:
+                    result = variants[0]
+                else:
+                    result = pgsql.ast.FunctionCallNode(name='coalesce', args=variants)
+            else:
+                result = pgsql.ast.IgnoreNode()
 
-        elif expr_t == caosql.ast.EntitySet:
-            self._process_graph(context, context.current.query, expr)
+        elif isinstance(expr, tree.ast.Conjunction):
+            variants = [self._process_expr(context, path, cte) for path in expr.paths]
+            variants = [v for v in variants if v and not isinstance(v, pgsql.ast.IgnoreNode)]
+            if variants:
+                if len(variants) == 1:
+                    result = variants[0]
+                else:
+                    result = pgsql.ast.FunctionCallNode(name='coalesce', args=variants)
+            else:
+                result = pgsql.ast.IgnoreNode()
 
-        elif expr_t == caosql.ast.BinOp:
-            left = self._process_expr(context, expr.left)
-            right = self._process_expr(context, expr.right)
-            result = pgsql.ast.BinOpNode(op=expr.op, left=left, right=right)
+        elif isinstance(expr, tree.ast.InlineFilter):
+            self._process_expr(context, expr.ref, cte)
+            result = pgsql.ast.IgnoreNode()
 
-        elif expr_t == caosql.ast.Constant:
+        elif isinstance(expr, tree.ast.EntitySet):
+            root = self.get_caos_path_root(expr)
+
+            if next(iter(root.concepts)).name != 'semantix.caos.builtins.Object':
+                self._process_graph(context, cte or context.current.query, root)
+
+        elif isinstance(expr, tree.ast.BinOp):
+            left = self._process_expr(context, expr.left, cte)
+
+            if expr.op == ast.ops.OR:
+                context.current.append_graphs = True
+            right = self._process_expr(context, expr.right, cte)
+            context.current.append_graphs = False
+
+            if isinstance(left, pgsql.ast.IgnoreNode):
+                result = right
+            elif isinstance(right, pgsql.ast.IgnoreNode):
+                result = left
+            else:
+                result = pgsql.ast.BinOpNode(op=expr.op, left=left, right=right)
+
+        elif isinstance(expr, tree.ast.Constant):
             result = pgsql.ast.ConstantNode(value=expr.value, index=expr.index)
 
-        elif expr_t == caosql.ast.Sequence:
-            elements = [self._process_expr(context, e) for e in expr.elements]
+        elif isinstance(expr, tree.ast.Sequence):
+            elements = [self._process_expr(context, e, cte) for e in expr.elements]
             result = pgsql.ast.SequenceNode(elements=elements)
 
-        elif expr_t == caosql.ast.FunctionCall:
-            args = [self._process_expr(context, a) for a in expr.args]
+        elif isinstance(expr, tree.ast.FunctionCall):
+            args = [self._process_expr(context, a, cte) for a in expr.args]
             result = pgsql.ast.FunctionCallNode(name=expr.name, args=args)
 
-        elif expr_t == caosql.ast.AtomicRef:
-            if expr.expr is not None:
-                ##
-                # Atom reference may be a complex expression involving several atoms.
-                #
-                return self._process_expr(context, expr.expr)
+        elif isinstance(expr, tree.ast.AtomicRefExpr):
+            result = self._process_expr(context, expr.expr, cte)
 
-            cte_refs = context.current.concept_node_map[expr.ref()]
+        elif isinstance(expr, (tree.ast.AtomicRefSimple, tree.ast.MetaRef)):
+            self._process_expr(context, expr.ref, cte)
 
-            data_table = cte_refs.get('data')
-            if data_table:
-                result = pgsql.ast.FieldRefNode(table=data_table, field=expr.name)
+            ref = expr.ref
+            if isinstance(ref, tree.ast.Disjunction):
+                datarefs = ref.paths
             else:
-                result = cte_refs.get(expr.name)
-                if not result:
-                    assert False, "Unexpected reference to an unaccessible sub-query attribute: %s" \
-                                                                                                % expr.name
+                datarefs = [ref]
+
+            fieldrefs = []
+
+            for ref in datarefs:
+                cte_refs = context.current.concept_node_map[ref]
+
+                data_table = cte_refs.get('data')
+                if data_table:
+                    ref = pgsql.ast.FieldRefNode(table=data_table, field=expr.name, origin=data_table,
+                                                                                    origin_field=expr.name)
+                else:
+                    key = ('meta', expr.name) if isinstance(expr, tree.ast.MetaRef) else expr.name
+                    ref = cte_refs.get(key)
+                    assert ref, 'Reference to an inaccessible table node %s' % key
+
+                if isinstance(ref, pgsql.ast.SelectExprNode):
+                    ref = ref.expr
+
+                fieldrefs.append(ref)
+
+            if len(fieldrefs) > 1:
+                ##
+                # Values produced by a number of diverged paths need to be converged back.
+                #
+                result = pgsql.ast.FunctionCallNode(name='coalesce', args=fieldrefs)
+            else:
+                result = fieldrefs[0]
+
             if isinstance(result, pgsql.ast.SelectExprNode):
                 ##
                 # Ensure that the result is always a FieldRefNode
                 #
                 result = result.expr
 
-        elif expr_t == caosql.ast.MetaRef:
-            if context.current.location not in ('selector', 'sorter'):
-                raise caosql.CaosQLError('meta references are currently only supported in selectors and sorters')
+        elif isinstance(expr, tree.ast.ExistPred):
+            result = self._process_expr(context, expr.expr, cte)
 
-            fieldref = context.current.concept_node_map[expr.ref()]['concept_id']
-            query = context.current.query
-            datatable = pgsql.ast.TableNode(name='metaobject',
-                                            schema='caos',
-                                            concepts=None,
-                                            alias=context.current.genalias(hint='metaobject'))
-            query.fromlist.append(datatable)
-
-            left = fieldref.expr
-            right = pgsql.ast.FieldRefNode(table=datatable, field='id')
-            whereexpr = pgsql.ast.BinOpNode(op='=', left=left, right=right)
-            if query.where is not None:
-                query.where = pgsql.ast.BinOpNode(op='and', left=query.where, right=whereexpr)
-            else:
-                query.where = whereexpr
-
-            result = pgsql.ast.FieldRefNode(table=datatable, field=expr.name)
+        else:
+            assert False, "Unexpected expression: %s" % expr
 
         return result
 
@@ -227,17 +304,34 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         if startnode in context.current.ctemap:
             return
 
-        fromnode = pgsql.ast.FromExprNode()
-        cte.fromlist.append(fromnode)
+        sqlpath = self._process_path(context, cte, None, startnode)
 
-        fromnode.expr = self._process_path(context, cte, None, startnode)
+        if isinstance(sqlpath, pgsql.ast.CTENode):
+            cte.ctes.add(sqlpath)
+            sqlpath.referrers.add(cte)
+        elif isinstance(sqlpath, pgsql.ast.UnionNode):
+            for q in sqlpath.queries:
+                if isinstance(q, pgsql.ast.CTENode):
+                    cte.ctes.add(q)
+                    q.referrers.add(cte)
 
-    def _simple_join(self, context, left, right, key, type='inner'):
-        condition = left.bonds(key)[-1]
-        if not isinstance(condition, pgsql.ast.BinOpNode):
-            condition = right.bonds(key)[-1]
+        if not cte.fromlist or not context.current.append_graphs:
+            fromnode = pgsql.ast.FromExprNode()
+            cte.fromlist.append(fromnode)
+            fromnode.expr = sqlpath
+        else:
+            last = cte.fromlist.pop()
+            sql_paths = [last.expr, sqlpath]
+            union = self.unify_paths(context, sql_paths)
+            cte.fromlist.append(union)
+
+    def _simple_join(self, context, left, right, key, type='inner', condition=None):
+        if condition is None:
+            condition = left.bonds(key)[-1]
             if not isinstance(condition, pgsql.ast.BinOpNode):
-                condition = pgsql.ast.BinOpNode(op='=', left=left.bonds(key)[-1], right=right.bonds(key)[-1])
+                condition = right.bonds(key)[-1]
+                if not isinstance(condition, pgsql.ast.BinOpNode):
+                    condition = pgsql.ast.BinOpNode(op='=', left=left.bonds(key)[-1], right=right.bonds(key)[-1])
         join = pgsql.ast.JoinNode(type=type, left=left, right=right, condition=condition)
 
         join.updatebonds(left)
@@ -245,104 +339,112 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
 
         return join
 
-    def _relation_from_concepts(self, context, concepts, alias_hint=None):
-        assert(concepts)
-        if len(concepts) == 1:
-            concept = next(iter(concepts))
-            table_name, table_schema_name = self._caos_name_to_pg_table(concept.name)
-            concept_table = pgsql.ast.TableNode(name=table_name,
-                                                schema=table_schema_name,
-                                                concepts=concepts,
-                                                alias=context.current.genalias(hint=table_name))
-        else:
-            ##
-            # If several concepts are specified in the node, it is a so-called parallel path
-            # and is translated into a UNION of SELECTs from each of the specified
-            # concept tables.  Assuming that database planner does the right thing this
-            # should be functionally equivalent to using a higher table with constraint
-            # exclusions.
-            #
-            concept_table = pgsql.ast.UnionNode(concepts=concepts,
-                                                alias=context.current.genalias(hint=alias_hint),
-                                                distinct=True)
-
-            for concept in concepts:
-                table_name, table_schema_name = self._caos_name_to_pg_table(concept.name)
-                table = pgsql.ast.TableNode(name=table_name,
+    def _relation_from_concepts(self, context, node):
+        concept = next(iter(node.concepts))
+        table_name, table_schema_name = self._caos_name_to_pg_table(concept.name)
+        concept_table = pgsql.ast.TableNode(name=table_name,
                                             schema=table_schema_name,
-                                            concepts={concept},
-                                            alias=context.current.genalias(hint=table_name))
-
-                fromexpr = pgsql.ast.FromExprNode(expr=table)
-                query = pgsql.ast.SelectQueryNode(fromlist=[fromexpr])
-
-                concept_table.queries.append(query)
-
+                                            concepts=node.concepts,
+                                            alias=context.current.genalias(hint=table_name),
+                                            caosnode=node)
         return concept_table
 
-    def _get_step_cte(self, context, cte, step, joinpoint, link):
+    def caos_path_to_sql_path(self, context, step_cte, caos_path_tip, sql_path_tip, link, weak=False):
         """
         Generates a Common Table Expression for a given step in the path
 
         @param context: parse context
-        @param cte: parent CTE
-        @param step: CaosQL path step expression
-        @param joinpoint: current position in parent CTE join chain
+        @param step_cte: parent CTE
+        @param caos_path_tip: Caos path step node
+        @param sql_path_tip: current position in parent CTE join chain
+        @param link: Caos link node
+        @param weak:
         """
 
-        # Avoid processing the same step twice
-        if step in context.current.ctemap:
-            return context.current.ctemap[step]
+        # Avoid processing the same caos_path_tip twice
+        #if caos_path_tip in context.current.ctemap:
+        #    return context.current.ctemap[caos_path_tip]
 
-        if step.name:
-            cte_alias = context.current.genalias(alias=step.name)
-        else:
-            cte_alias = context.current.genalias(hint=str(step.id))
+        is_root = not step_cte
 
-        step_cte = pgsql.ast.SelectQueryNode(concepts=step.concepts, alias=cte_alias)
-        context.current.ctemap[step] = step_cte
+        if not step_cte:
+            if caos_path_tip.anchor:
+                # If the path caos_path_tip has been assigned a named pointer, re-use it in the
+                # CTE alias.
+                #
+                cte_alias = context.current.genalias(hint=caos_path_tip.anchor)
+            else:
+                cte_alias = context.current.genalias(hint=str(caos_path_tip.id))
 
-        fromnode = pgsql.ast.FromExprNode()
+            if caos_path_tip.filter or caos_path_tip.rlink:
+                step_cte = pgsql.ast.CTENode(concepts=caos_path_tip.concepts, alias=cte_alias,
+                                             caosnode=caos_path_tip)
+            else:
+                step_cte = pgsql.ast.SelectQueryNode(concepts=caos_path_tip.concepts, alias=cte_alias,
+                                                     caosnode=caos_path_tip)
 
-        concept_table = self._relation_from_concepts(context, step.concepts, alias_hint=str(step.id))
+        context.current.ctemap[caos_path_tip] = step_cte
 
-        field_name = 'id'
-        bond = pgsql.ast.FieldRefNode(table=concept_table, field=field_name)
-        concept_table.addbond(step.concepts, bond)
+        fromnode = step_cte.fromlist[0] if step_cte.fromlist else pgsql.ast.FromExprNode()
 
-        if joinpoint is None:
+        concept_table = self._relation_from_concepts(context, caos_path_tip)
+
+        field_name = 'semantix.caos.builtins.id'
+        bond = pgsql.ast.FieldRefNode(table=concept_table, field=field_name, origin=concept_table,
+                                                                             origin_field=field_name)
+        concept_table.addbond(caos_path_tip.concepts, bond)
+
+        if not sql_path_tip:
             fromnode.expr = concept_table
         else:
-            target_id_field = pgsql.ast.FieldRefNode(table=concept_table, field='id')
+            target_id_field = pgsql.ast.FieldRefNode(table=concept_table, field='semantix.caos.builtins.id',
+                                                     origin=concept_table,
+                                                     origin_field='semantix.caos.builtins.id')
 
-            ##
-            # Append the step to the join chain taking link filter into account.
-            #
-            if link.filter:
-                join = joinpoint
+            if isinstance(sql_path_tip, pgsql.ast.CTENode) and is_root:
+                sql_path_tip.referrers.add(step_cte)
+                step_cte.ctes.add(sql_path_tip)
 
-                target_bond_expr = None
+            if fromnode.expr:
+                join = fromnode.expr
+            else:
+                join = sql_path_tip
 
-            labels = link.filter.labels if link.filter and link.filter.labels else [None]
+            target_bond_expr = None
 
-            ##
             # If specific links are provided we LEFT JOIN all corresponding link tables and then
             # INNER JOIN the concept table using an aggregated condition disjunction.
             #
-            map_join_type = 'left' if len(labels) > 1 else 'inner'
-            for label in labels:
-                if label is None:
-                    table_name = 'link_link'
-                    table_schema = 'caos_semantix.caos.builtins'
-                else:
-                    table_name = label.name.name + '_link'
-                    table_schema = 'caos_' + label.name.module
-                map = pgsql.ast.TableNode(name=table_name, schema=table_schema, concepts=step.concepts,
-                                          alias=context.current.genalias(hint='map'))
+            labels = link.filter.labels if link.filter and link.filter.labels else [None]
+            map_join_type = 'left' if len(labels) > 1 or weak else 'inner'
 
-                source_ref = pgsql.ast.FieldRefNode(table=map, field='source_id')
-                target_ref = pgsql.ast.FieldRefNode(table=map, field='target_id')
-                valent_bond = joinpoint.bonds(link.source.concepts)[-1]
+            maps = {}
+            existing_link = step_cte.linkmap.get((link.filter, link.source))
+
+            for label in labels:
+                if existing_link:
+                    # The same link map must not be joined more than once,
+                    # otherwise the cardinality of the result set will be wrong.
+                    #
+                    map = existing_link[label]
+                else:
+                    if label is None:
+                        table_name = 'link_link'
+                        table_schema = 'caos_semantix.caos.builtins'
+                    else:
+                        table_name = label.name.name + '_link'
+                        table_schema = 'caos_' + label.name.module
+
+                    map = pgsql.ast.TableNode(name=table_name, schema=table_schema,
+                                              concepts=caos_path_tip.concepts,
+                                              alias=context.current.genalias(hint='map'))
+                    maps[label] = map
+
+                source_ref = pgsql.ast.FieldRefNode(table=map, field='source_id', origin=map,
+                                                                                  origin_field='source_id')
+                target_ref = pgsql.ast.FieldRefNode(table=map, field='target_id', origin=map,
+                                                                                  origin_field='target_id')
+                valent_bond = join.bonds(link.source.concepts)[-1]
                 forward_bond = pgsql.ast.BinOpNode(left=valent_bond, right=source_ref, op='=')
                 backward_bond = pgsql.ast.BinOpNode(left=valent_bond, right=target_ref, op='=')
 
@@ -351,113 +453,137 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
                     left = pgsql.ast.BinOpNode(left=target_ref, op='=', right=target_id_field)
                     right = pgsql.ast.BinOpNode(left=source_ref, op='=', right=target_id_field)
                     cond_expr = pgsql.ast.BinOpNode(left=left, op='or', right=right)
+
                 elif link.filter.direction == caos_types.Link.INBOUND:
                     map_join_cond = backward_bond
                     cond_expr = pgsql.ast.BinOpNode(left=source_ref, op='=', right=target_id_field)
+
                 else:
                     map_join_cond = forward_bond
                     cond_expr = pgsql.ast.BinOpNode(left=target_ref, op='=', right=target_id_field)
 
-                map.addbond(link.source.concepts, map_join_cond)
-                join = self._simple_join(context, joinpoint, map, link.source.concepts, type=map_join_type)
+                if not existing_link:
+                    join = self._simple_join(context, join, map, link.source.concepts, type=map_join_type,
+                                             condition=map_join_cond)
 
                 if target_bond_expr:
-                    target_bond_expr = pgsql.ast.BinOpNode(left=target_bond_expr, op='or',
-                                                           right=cond_expr)
+                    target_bond_expr = pgsql.ast.BinOpNode(left=target_bond_expr, op='or', right=cond_expr)
                 else:
                     target_bond_expr = cond_expr
 
-            join.addbond(step.concepts, target_bond_expr)
-            join = self._simple_join(context, join, concept_table, step.concepts)
+            if not existing_link:
+                step_cte.linkmap[(link.filter, link.source)] = maps
+
+            join.addbond(caos_path_tip.concepts, target_bond_expr)
+            join = self._simple_join(context, join, concept_table, caos_path_tip.concepts,
+                                     type='left' if weak else 'inner')
 
             fromnode.expr = join
 
-            ##
-            # Pull the references to fields inside the CTE one level up to keep
-            # them visible.
-            #
-            for concept_node, refs in context.current.concept_node_map.items():
-                for field, ref in refs.items():
-                    if ref.alias in joinpoint.concept_node_map:
-                        refexpr = pgsql.ast.FieldRefNode(table=joinpoint, field=ref.alias)
-                        fieldref = pgsql.ast.SelectExprNode(expr=refexpr, alias=ref.alias, field=field)
+            if is_root:
+                # If this is a new query, pull the references to fields inside the CTE one level up to keep
+                # them visible.
+                #
+                for caosnode, refs in sql_path_tip.concept_node_map.items():
+                    for field, ref in refs.items():
+                        refexpr = pgsql.ast.FieldRefNode(table=sql_path_tip, field=ref.alias, origin=ref.expr.origin,
+                                                                          origin_field=ref.expr.origin_field)
+                        fieldref = pgsql.ast.SelectExprNode(expr=refexpr, alias=ref.alias)
                         step_cte.targets.append(fieldref)
-                        step_cte.concept_node_map[ref.alias] = fieldref
 
-                        bondref = pgsql.ast.FieldRefNode(table=step_cte, field=ref.alias)
-                        if field == 'id':
-                            step_cte.addbond(concept_node.concepts, bondref)
-                        context.current.concept_node_map[concept_node][field].expr.table = step_cte
+                        mapslot = step_cte.concept_node_map.get(caosnode)
+                        if not mapslot:
+                            step_cte.concept_node_map[caosnode] = {field: fieldref}
+                        else:
+                            mapslot[field] = fieldref
 
-        # Include target entity id and metaclass id in the Select expression list ...
-        atomrefs = {'id', 'concept_id'} | {f.name for f in step.atomrefs}
+                        bondref = pgsql.ast.FieldRefNode(table=step_cte, field=ref.alias, origin=ref.expr.origin,
+                                                                          origin_field=ref.expr.origin_field)
+                        if field == 'semantix.caos.builtins.id':
+                            step_cte.addbond(caosnode.concepts, bondref)
+                        context.current.concept_node_map[caosnode][field].expr.table = step_cte
 
-        fieldref = fromnode.expr.bonds(step.concepts)[-1]
-        context.current.concept_node_map[step] = {}
+        # Include target entity id and concept class id in the Select expression list ...
+        atomrefs = {'semantix.caos.builtins.id', 'concept_id'} | {f.name for f in caos_path_tip.atomrefs}
+
+        fieldref = fromnode.expr.bonds(caos_path_tip.concepts)[-1]
+        context.current.concept_node_map[caos_path_tip] = {}
+        step_cte.concept_node_map[caos_path_tip] = {}
+        aliases ={}
 
         for field in atomrefs:
-            fieldref = pgsql.ast.FieldRefNode(table=concept_table, field=field)
-            selectnode = pgsql.ast.SelectExprNode(expr=fieldref, alias=step_cte.alias + ('_' + field),
-                                                  field=field)
+            fieldref = pgsql.ast.FieldRefNode(table=concept_table, field=field, origin=concept_table,
+                                                                                origin_field=field)
+            aliases[field] = step_cte.alias + ('_' + context.current.genalias(hint=str(field)))
+            selectnode = pgsql.ast.SelectExprNode(expr=fieldref, alias=aliases[field])
             step_cte.targets.append(selectnode)
-            step_cte.concept_node_map[selectnode.alias] = selectnode
 
-            if len(concept_table.concepts) > 1:
-                ##
-                # In cases when a path node references multiple concepts we actually have a UNION
-                # of SELECTs from those concepts' tables, thus, atom references must be pulled
-                # from each of those selects.
-                #
-                for query in concept_table.queries:
-                    fieldref = pgsql.ast.FieldRefNode(table=query.fromlist[0].expr, field=field)
-                    query.targets.append(pgsql.ast.SelectExprNode(expr=fieldref))
+            step_cte.concept_node_map[caos_path_tip][field] = selectnode
 
             ##
-            # Record atom references them in global map in case they have to be pulled up later
+            # Record atom references in the global map in case they have to be pulled up later
             #
-            refexpr = pgsql.ast.FieldRefNode(table=step_cte, field=selectnode.alias)
-            selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias, field=field)
-            context.current.concept_node_map[step][field] = selectnode
+            refexpr = pgsql.ast.FieldRefNode(table=step_cte, field=selectnode.alias, origin=concept_table,
+                                                                                     origin_field=field)
+            selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
+            context.current.concept_node_map[caos_path_tip][field] = selectnode
 
-        if step.filter:
+        if caos_path_tip.metarefs:
+            datatable = pgsql.ast.TableNode(name='metaobject',
+                                            schema='caos',
+                                            concepts=None,
+                                            alias=context.current.genalias(hint='metaobject'))
+
+            left = pgsql.ast.FieldRefNode(table=concept_table, field='concept_id')
+            right = pgsql.ast.FieldRefNode(table=datatable, field='id')
+            joincond = pgsql.ast.BinOpNode(op='=', left=left, right=right)
+
+            fromnode.expr = self._simple_join(context, fromnode.expr, datatable, key=None,
+                                              type='left' if weak else 'inner',
+                                              condition=joincond)
+
+            for metaref in caos_path_tip.metarefs:
+                fieldref = pgsql.ast.FieldRefNode(table=datatable, field=metaref.name, origin=datatable,
+                                                                                    origin_field=metaref.name)
+
+                alias = context.current.genalias(hint=metaref.name)
+                selectnode = pgsql.ast.SelectExprNode(expr=fieldref,
+                                                      alias=step_cte.alias + ('_meta_' + alias))
+                step_cte.targets.append(selectnode)
+                step_cte.concept_node_map[caos_path_tip][('meta', metaref.name)] = selectnode
+
+                ##
+                # Record meta references in the global map in case they have to be pulled up later
+                #
+                refexpr = pgsql.ast.FieldRefNode(table=step_cte, field=selectnode.alias, origin=datatable,
+                                                                                    origin_field=metaref.name)
+                selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
+                context.current.concept_node_map[caos_path_tip][('meta', metaref.name)] = selectnode
+
+        if caos_path_tip.filter:
             ##
             # Switch context to node filter and make the concept table available for
             # atoms in filter expression to reference.
             #
             context.push()
             context.current.location = 'nodefilter'
-            context.current.concept_node_map[step] = {'data': concept_table}
-
-            if len(concept_table.concepts) > 1:
-                ##
-                # For multi-concept nodes filters must be pushed into the UNION components
-                #
-                def replace_table_ref(node, orig_ref, replacement_ref):
-                    if isinstance(node, pgsql.ast.FieldRefNode) and node.table == orig_ref:
-                        node.table = replacement_ref
-                        return False
-                    return True
-
-                for query in concept_table.queries:
-                    expr = pgsql.ast.PredicateNode(expr=self._process_expr(context, step.filter))
-                    self.find_children(expr, replace_table_ref, concept_table, query.fromlist[0].expr)
-                    query.where = self.extend_predicate(query.where, expr)
-            else:
-                expr = pgsql.ast.PredicateNode(expr=self._process_expr(context, step.filter))
-                step_cte.where = self.extend_predicate(step_cte.where, expr)
+            context.current.concept_node_map[caos_path_tip] = {'data': concept_table}
+            expr = pgsql.ast.PredicateNode(expr=self._process_expr(context, caos_path_tip.filter))
+            step_cte.where = self.extend_predicate(step_cte.where, expr,
+                                                   ast.ops.OR if weak else ast.ops.AND)
 
             context.pop()
 
+        if is_root:
+            step_cte.fromlist.append(fromnode)
+        step_cte._source_graph = caos_path_tip
 
-        step_cte.fromlist.append(fromnode)
-        step_cte._source_graph = step
-
-        bond = pgsql.ast.FieldRefNode(table=step_cte, field=step_cte.alias + '_id')
-        step_cte.addbond(step.concepts, bond)
+        bond = pgsql.ast.FieldRefNode(table=step_cte, field=aliases['semantix.caos.builtins.id'])
+        step_cte.addbond(caos_path_tip.concepts, bond)
 
         return step_cte
 
-    def extend_predicate(self, predicate, expr, op='and'):
+    def extend_predicate(self, predicate, expr, op=ast.ops.AND):
         if predicate is not None:
             return pgsql.ast.BinOpNode(op=op, left=predicate, right=expr)
         else:
@@ -467,14 +593,226 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         # XXX: TODO: centralize this with pgsql backend
         return name.name + '_data', 'caos_' + name.module
 
-    def _process_path(self, context, cte, joinpoint, pathtip):
-        join = joinpoint
+    def _process_conjunction(self, context, cte, sql_path_tip, conjunction, parent_cte):
+        sql_path = sql_path_tip
 
-        if join is None:
-            join = self._get_step_cte(context, cte, pathtip, None, None)
+        for link in conjunction.paths:
+            if isinstance(link, tree.ast.EntityLink):
+                sql_path = self.caos_path_to_sql_path(context, parent_cte, link.target, sql_path, link)
+                sql_path = self._process_path(context, cte, sql_path, link.target)
+            else:
+                sql_path = self._process_path(context, cte, sql_path, link)
 
-        for link in pathtip.links:
-            join = self._get_step_cte(context, cte, link.target, join, link)
-            join = self._process_path(context, cte, join, link.target)
+        return sql_path
 
-        return join
+
+    def _process_path(self, context, cte, sql_path_tip, caos_path_tip):
+        sql_paths = []
+
+        if not sql_path_tip and isinstance(caos_path_tip, tree.ast.EntitySet):
+            sql_path_tip = self.caos_path_to_sql_path(context, None, caos_path_tip, None, None)
+
+        if isinstance(caos_path_tip, tree.ast.Disjunction):
+            disjunction = caos_path_tip
+            conjunction = None
+        elif isinstance(caos_path_tip, tree.ast.Conjunction):
+            disjunction = None
+            conjunction = caos_path_tip
+        else:
+            disjunction = caos_path_tip.disjunction
+            conjunction = caos_path_tip.conjunction
+
+        if conjunction and conjunction.paths:
+            sql_path_tip = self._process_conjunction(context, cte, sql_path_tip, conjunction, sql_path_tip)
+            if isinstance(caos_path_tip, tree.ast.EntitySet):
+                # Path conjunction works as a strong filter and, thus, the CTE corresponding
+                # to the given Caos node must only be referenced with those conjunctions
+                # included.
+                #
+                context.current.ctemap[caos_path_tip] = sql_path_tip
+
+
+        if disjunction and disjunction.paths:
+            if isinstance(caos_path_tip, tree.ast.EntitySet):
+                need_union = False
+                for link in disjunction.paths:
+                    if isinstance(link, tree.ast.EntityLink):
+                        sql_path = self.caos_path_to_sql_path(context, sql_path_tip, link.target, sql_path_tip,
+                                                              link, weak=True)
+                        sql_path = self._process_path(context, cte, sql_path, link.target)
+                        sql_paths.append(sql_path)
+                    elif isinstance(link, tree.ast.Conjunction):
+                        sql_path = self._process_conjunction(context, cte, sql_path_tip, link, None)
+                        sql_paths.append(sql_path)
+                        need_union = True
+                    else:
+                        assert False, 'unexpected expression type in disjunction path: %s' % link
+
+                if need_union:
+                    result = self.unify_paths(context, sql_paths)
+                else:
+                    result = sql_path_tip
+            else:
+                for link in disjunction.paths:
+                    if isinstance(link, (tree.ast.EntitySet, tree.ast.PathCombination)):
+                        sql_path = self._process_path(context, cte, None, link)
+                        sql_paths.append(sql_path)
+                    else:
+                        assert False, 'unexpected expression type in disjunction path: %s' % link
+                result = self.unify_paths(context, sql_paths)
+        else:
+            result = sql_path_tip
+
+        return result
+
+    def unify_paths(self, context, sql_paths, intersect=False):
+        if intersect:
+            result = pgsql.ast.IntersectNode(alias=context.current.genalias(hint='intersect'))
+        else:
+            result = pgsql.ast.UnionNode(alias=context.current.genalias(hint='union'))
+        union = []
+        commonctes = collections.OrderedDict()
+        fieldmap = collections.OrderedDict()
+
+        ##
+        # First, analyze the given sqlpaths
+        #
+        for sqlpath in sql_paths:
+            for caosnode, refs in sqlpath.concept_node_map.items():
+                ##
+                # Generate a natural union of all fields produced by given sqlpaths.
+                #
+
+                if caosnode not in fieldmap:
+                    fieldmap[caosnode] = collections.OrderedDict()
+                for field, ref in refs.items():
+                    fieldmap[caosnode][field] = ref
+
+            ##
+            # Enumerate and count references to the CTEs used in sqlpaths.  This is needed
+            # to pull up common CTEs.
+            #
+
+            ctes = ast.find_children(sqlpath, lambda n: isinstance(n, pgsql.ast.CTENode))
+            for cte in ctes:
+                counter = commonctes.get(cte)
+                if counter is not None:
+                    commonctes[cte] += 1
+                else:
+                    commonctes[cte] = 1
+
+            if isinstance(sqlpath, pgsql.ast.CTENode):
+                ##
+                # CTEs need to be linked explicitly for proper code generation.
+                #
+                result.ctes.add(sqlpath)
+                sqlpath.referrers.add(result)
+
+                counter = commonctes.get(sqlpath)
+                if counter is not None:
+                    commonctes[sqlpath] += 1
+                else:
+                    commonctes[sqlpath] = 1
+
+            result.concepts = result.concepts | sqlpath.concepts
+
+        ##
+        # Second, transform each sqlpath into a sub-query with a correct order of fields that
+        # can UNION properly.  Fields originated from the same Caos node are placed into the
+        # same column.  If an sqlpath does not include the needed Caos node, a NULL placeholder
+        # is used.  This effectively creates a natural outer join of fields produced by all
+        # provided sqlpaths which represents a sparse array of matched graph paths.
+        #
+
+        concepts = set()
+
+        for sqlpath in sql_paths:
+            query = pgsql.ast.SelectQueryNode()
+            query.fromlist.append(pgsql.ast.FromExprNode(expr=sqlpath))
+
+            joinmap = sqlpath.concept_node_map
+            for caosnode, fields in fieldmap.items():
+                for field, ref in fields.items():
+                    selexpr = None
+                    if caosnode in joinmap:
+                        fieldref = joinmap[caosnode].get(field)
+
+                        if fieldref:
+                            if isinstance(fieldref.expr, pgsql.ast.ConstantNode):
+                                selexpr = fieldref
+                            else:
+                                fieldref = pgsql.ast.FieldRefNode(table=sqlpath, field=fieldref.alias,
+                                                                  origin=fieldref.expr.origin,
+                                                                  origin_field=fieldref.expr.origin_field)
+                                selexpr = pgsql.ast.SelectExprNode(expr=fieldref, alias=fieldref.field)
+
+                    if not selexpr:
+                        placeholder = pgsql.ast.ConstantNode(value=None)
+                        selexpr = pgsql.ast.SelectExprNode(expr=placeholder, alias=ref.alias)
+
+                    query.targets.append(selexpr)
+                    if caosnode not in query.concept_node_map:
+                        query.concept_node_map[caosnode] = {}
+                    query.concept_node_map[caosnode][field] = selexpr
+
+                    fieldref = pgsql.ast.FieldRefNode(table=result, field=selexpr.alias)
+                    selexpr = pgsql.ast.SelectExprNode(expr=fieldref, alias=selexpr.alias)
+
+                    if caosnode not in result.concept_node_map:
+                        result.concept_node_map[caosnode] = {}
+                    result.concept_node_map[caosnode][field] = selexpr
+
+                    context.current.concept_node_map[caosnode][field] = selexpr
+
+
+            path_concepts = sqlpath.concepts.union(*[c.children for c in sqlpath.concepts])
+            if concepts is None:
+                concepts = path_concepts.copy()
+                concept_filter = None
+            else:
+                concept_filter = path_concepts - concepts
+                concepts |= path_concepts
+
+            if concept_filter is not None and not isinstance(sqlpath, pgsql.ast.UnionNode):
+                if len(concept_filter) == 0:
+                    pass
+                else:
+                    concept_name_ref = query.concept_node_map[sqlpath.caosnode].get(('meta', 'name'))
+                    if not concept_name_ref:
+                        datatable = pgsql.ast.TableNode(name='metaobject',
+                                                        schema='caos',
+                                                        concepts=None,
+                                                        alias=context.current.genalias(hint='metaobject'))
+                        query.fromlist.append(pgsql.ast.FromExprNode(expr=datatable))
+
+                        left = query.concept_node_map[sqlpath.caosnode]['concept_id']
+                        right = pgsql.ast.FieldRefNode(table=datatable, field='id')
+                        whereexpr = pgsql.ast.BinOpNode(op='=', left=left.expr, right=right)
+                        query.where = self.extend_predicate(query.where, whereexpr)
+                        concept_name_ref = pgsql.ast.FieldRefNode(table=datatable, field='name')
+                    else:
+                        concept_name_ref = concept_name_ref.expr
+
+                    left = concept_name_ref
+                    values = [pgsql.ast.ConstantNode(value=str(c.name)) for c in concept_filter]
+                    right = pgsql.ast.SequenceNode(elements=values)
+                    filterexpr = pgsql.ast.BinOpNode(left=left, op='in', right=right)
+                    query.where = self.extend_predicate(query.where, filterexpr)
+
+            union.append(query)
+
+        ##
+        # Pull up all CTEs that are used more than once in sub-queries.
+        #
+        """
+        commonctes = datastructures.OrderedSet(c for c, counter in commonctes.items() if counter > 1)
+        result.ctes = commonctes | result.ctes
+        for cte in commonctes:
+            for ref in cte.referrers:
+                if ref is not result:
+                    ref.ctes.discard(cte)
+                else:
+                    cte.referrers.add(result)
+        """
+        result.queries = union
+        return result

@@ -1,6 +1,8 @@
 code:
     import re
-    from semantix.caos.caosql.parser.nodes import *
+    from semantix import ast
+    from semantix.caos import types as caos_types
+    from semantix.caos.caosql.ast import *
     from semantix.caos.caosql.parser.errors import CaosQLSyntaxError
 
 
@@ -34,7 +36,7 @@ union_expr                      -> intersect_expr:
 intersect_expr                  -> additive_expr:
                                         return kids[0]
                                  | intersect_expr intersect_op additive_expr:
-                                        return BinOpNode(op=kids[1][0].lower(), left=kids[0], right=kids[2])
+                                        return BinOpNode(op=kids[1], left=kids[0], right=kids[2])
 ;
 
 intersect_op                    -> 'INTERSECT' | 'EXCEPT'
@@ -59,19 +61,27 @@ value_query                     -> '*' var
 additive_expr                   -> multiplicative_expr:
                                         return kids[0]
                                  | additive_expr add_op multiplicative_expr:
-                                        return BinOpNode(op=kids[1][0].lower(), left=kids[0], right=kids[2])
+                                        return BinOpNode(op=kids[1], left=kids[0], right=kids[2])
 ;
 
-add_op                          -> '+' | '-'
+add_op                          -> '+':
+                                        return ast.ops.ADD
+                                 | '-':
+                                        return ast.ops.SUB
 ;
 
 multiplicative_expr             -> primary_query:
                                         return kids[0]
                                  | multiplicative_expr mul_op primary_query:
-                                        return BinOpNode(op=kids[1][0].lower(), left=kids[0], right=kids[2])
+                                        return BinOpNode(op=kids[1], left=kids[0], right=kids[2])
 ;
 
-mul_op                          -> '*' | '/' | 'mod'
+mul_op                          -> '*':
+                                        return ast.ops.MUL
+                                 | '/':
+                                        return ast.ops.DIV
+                                 | 'mod':
+                                        return ast.ops.MOD
 ;
 
 arg_list                        -> query (',' query )* :
@@ -120,32 +130,33 @@ select_identifier               -> IDENTIFIER:
 ;
 
 predicate                       -> or_predicate:
-                                        if isinstance(kids[0], PredicateNode):
-                                            return kids[0]
-                                        else:
-                                            return PredicateNode(expr=kids[0])
+                                        return kids[0]
 ;
 
 or_predicate                    -> and_predicate:
                                         return kids[0]
                                  | or_predicate OR and_predicate:
-                                        return BinOpNode(op='or', left=kids[0], right=kids[2])
+                                        return BinOpNode(op=ast.ops.OR, left=kids[0], right=kids[2])
 ;
 
 and_predicate                   -> neg_predicate:
                                         return kids[0]
                                  | and_predicate AND neg_predicate:
-                                        return BinOpNode(op='and', left=kids[0], right=kids[2])
+                                        return BinOpNode(op=ast.ops.AND, left=kids[0], right=kids[2])
 ;
 
 neg_predicate                   -> simple_predicate:
                                         return kids[0]
                                  | NOT simple_predicate:
-                                        return UnaryOpNode(op='not', operand=kids[1])
+                                        return UnaryOpNode(op=ast.ops.NOT, operand=kids[1])
 ;
 
-simple_predicate                -> primary_query comp_op primary_query:
-                                        return BinOpNode(op=kids[1][0].lower(), left=kids[0], right=kids[2])
+simple_predicate                -> primary_query meta_op opt_fq_graph_name:
+                                        return BinOpNode(op=kids[1], left=kids[0], right=kids[2])
+                                 | primary_query meta_op quantifier opt_fq_graph_name_set:
+                                        return BinOpNode(op=kids[1], left=kids[0], right=kids[2])
+                                 | primary_query comp_op primary_query:
+                                        return BinOpNode(op=kids[1], left=kids[0], right=kids[2])
                                  | path_expr:
                                         return ExistsPredicateNode(expr=kids[0])
                                  | EXISTS '(' set_query ')':
@@ -167,7 +178,24 @@ safe_set_query                  -> sequence:
                                         return kids[0]
 ;
 
-comp_op                         -> '<' | '<=' | '=' | '!=' | '>=' | '>'
+meta_op                         -> IS:
+                                        return ast.ops.IS
+                                 | IS NOT:
+                                        return ast.ops.IS_NOT
+;
+
+comp_op                         -> '<':
+                                        return ast.ops.LT
+                                 | '<=':
+                                        return ast.ops.LE
+                                 | '!=':
+                                        return ast.ops.NE
+                                 | '=':
+                                        return ast.ops.EQ
+                                 | '>=':
+                                        return ast.ops.GE
+                                 | '>':
+                                        return ast.ops.GT
 ;
 
 quantifier                      -> SOME | ANY | ALL
@@ -259,58 +287,74 @@ gpe_path_step                   -> gpe_path_step_simple ('@' path_var)? ('{' var
 gpe_path_step_simple            -> gpe_subpath_with_parens (regexp_op)?:
                                         quantifier = kids[1][0][0] if kids[1] is not None else None
                                         return PathNode(steps=kids[0], quantifier=quantifier)
-                                 | link_expr label_expr:
-                                        return PathStepNode(expr=kids[1].expr, link_expr=kids[0])
+                                 | link_expr:
+                                        return kids[0]
 ;
 
-link_expr                       -> '.' '[' link_spec ']' '.':
-                                        return LinkExprNode(expr=kids[2])
-                                 | '.':
-                                        expr = LinkNode(name='%', direction='>')
-                                        return LinkExprNode(expr=expr)
+link_expr                       -> '.' link_spec:
+                                        return LinkExprNode(expr=kids[1])
 ;
 
-link_spec                       -> or_link_expr:
+link_spec                       -> '[' or_link_expr ']':
+                                        return kids[1]
+                                 | link_label_expr:
                                         return kids[0]
 ;
 
 or_link_expr                    -> and_link_expr:
                                         return kids[0]
                                  | or_link_expr OR and_link_expr:
-                                        return BinOpNode(op='or', left=kids[0], right=kids[2])
+                                        return BinOpNode(op=ast.ops.OR, left=kids[0], right=kids[2])
 ;
 
 and_link_expr                   -> neg_link_expr:
                                         return kids[0]
                                  | and_link_expr AND neg_link_expr:
-                                        return BinOpNode(op='and', left=kids[0], right=kids[2])
+                                        return BinOpNode(op=ast.ops.AND, left=kids[0], right=kids[2])
 ;
 
 neg_link_expr                   -> simple_link_expr:
                                         return kids[0]
                                  | NOT simple_link_expr:
-                                        return UnaryOpNode(op='not', operand=kids[1])
+                                        return UnaryOpNode(op=ast.ops.NOT, operand=kids[1])
 ;
 
-simple_link_expr                -> direction? label_expr:
-                                        return LinkNode(name=kids[1].expr, namespace=kids[1].namespace,
-                                                        direction=kids[0])
-                                 | '(' link_spec ')':
+simple_link_expr                -> link_label_expr:
+                                        return kids[0]
+                                 | '(' or_link_expr ')':
                                         return kids[1]
 ;
 
-graph_name                       -> LABEL_EXPR:
+opt_fq_graph_name_set           -> '(' opt_fq_graph_name (',' opt_fq_graph_name)* ')':
+                                        elements = [kids[1]] + [k[1] for k in kids[2]]
+                                        return SequenceNode(elements=elements)
+;
+
+opt_fq_graph_name               -> (nsname ':')? IDENTIFIER:
+                                        if kids[0]:
+                                            grname = GraphObjectRefNode(name=kids[1], module=kids[0][0])
+                                        else:
+                                            grname = GraphObjectRefNode(name=kids[1])
+                                        return grname
+;
+
+graph_name                      -> LABEL_EXPR:
                                         return kids[0]
                                  | IDENTIFIER:
                                         return kids[0]
 ;
 
 direction                       -> '<>':
-                                        return kids[0]
+                                        return caos_types.AnyDirection
                                  | '>':
-                                        return kids[0]
+                                        return caos_types.OutboundDirection
                                  | '<':
-                                        return kids[0]
+                                        return caos_types.InboundDirection
+;
+
+link_label_expr                 -> direction? label_expr:
+                                        return LinkNode(name=kids[1].expr, namespace=kids[1].namespace,
+                                                        direction=kids[0])
 ;
 
 label_expr                      -> '%':

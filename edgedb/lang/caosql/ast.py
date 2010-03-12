@@ -8,69 +8,43 @@
 
 from semantix import ast
 
-class Base(ast.AST):
-    __fields = ['!!refs']
+class RootNode(ast.AST): __fields = ['children']
 
-    def __init__(self, **kwargs):
-        if 'refs' not in kwargs:
-            kwargs['refs'] = set()
+class ArgListNode(ast.AST): __fields = ['name', ('args', list)]
+class BinOpNode(ast.AST):  __fields = ['left', 'op', 'right']
+class CallFunctionNode(ast.AST): __fields = ['func', ('args', list)]
 
-        for name, value in kwargs.items():
-            if isinstance(value, Base):
-                kwargs['refs'].update(value.refs)
+class VarNode(ast.AST): __fields = ['name']
+class PathVarNode(VarNode): pass
+class ConstantNode(ast.AST): __fields = ['value']
 
-        super().__init__(**kwargs)
+class UnaryOpNode(ast.AST): __fields = ['op', 'operand']
 
-    def __setattr__(self, name, value):
-        if name in self._fields and isinstance(value, Base):
-            self.refs.update(value.refs)
-        ast.AST.__setattr__(self, name, value)
+class PathNode(ast.AST): __fields = [('steps', list), 'quantifier', 'var']
 
-    def ref(self, slice_=None):
-        if slice_ is None:
-            if len(self.refs) > 0:
-                return list(self.refs)[0]
-            else:
-                return None
-        else:
-            return list(self.refs)[slice_]
+class PathDisjunctionNode(ast.AST): __fields = ['left', 'right']
 
-    def replace_refs(self, old, new):
-        self.refs.discard(old)
-        self.refs.add(new)
+class PathStepNode(ast.AST): __fields = ['namespace', 'expr', 'link_expr']
 
-        for name in self._fields:
-            value = getattr(self, name)
-            if isinstance(value, Base):
-                value.replace_refs(old, new)
+class LinkNode(ast.AST): __fields = ['name', 'namespace', 'direction']
 
+class LinkExprNode(ast.AST): __fields = ['expr']
 
-class GraphExpr(ast.AST): __fields = ['*paths', '*generator', '*selector', '*sorter']
+class SelectQueryNode(ast.AST): __fields = ['namespaces', 'distinct', ('targets', list), 'where',
+                                        ('orderby', list)]
 
-class AtomicRef(Base):
-    __fields = ['name', 'expr']
+class NamespaceDeclarationNode(ast.AST): __fields = ['namespace', 'alias']
 
-class MetaRef(Base):
-    __fields = ['name']
+class SortExprNode(ast.AST): __fields = ['path', 'direction']
 
-class EntitySet(Base):
-    __fields = ['id', 'name', '!concepts', 'atom', 'filter', '*links', '*altlinks', '*rlinks', '!atomrefs']
+class PredicateNode(ast.AST): __fields = ['expr']
 
-class EntityLink(Base):
-    __fields = ['filter', 'source', 'target']
+class ExistsPredicateNode(PredicateNode): pass
 
-class EntityLinkSpec(ast.AST):
-    __fields = ['*labels', 'direction']
+class SelectExprNode(ast.AST): __fields = ['expr', 'alias']
 
-class Constant(Base): __fields = ['value', 'index']
-class Sequence(Base): __fields = ['*elements']
-class BinOp(Base):
-    __fields = ['left', 'op', 'right']
-    AND = 'and'
-    OR = 'or'
-class InlineFilter(Base): __fields  = ['expr']
-class ExistPred(Base): __fields = ['expr', 'outer']
-class AtomicExistPred(ExistPred): pass
-class SortExpr(Base): __fields = ['expr', 'direction']
-class SelectorExpr(Base): __fields = ['expr', 'name']
-class FunctionCall(Base): __fields = ['name', '*args']
+class FromExprNode(ast.AST): __fields = ['expr', 'alias']
+
+class SequenceNode(ast.AST): __fields = [('elements', list)]
+
+class GraphObjectRefNode(ast.AST): __fields = ['name', 'module']

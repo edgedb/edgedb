@@ -17,10 +17,33 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def generic_visit(self, node):
         raise SQLSourceGeneratorError('No method to generate code for %s' % node.__class__.__name__)
 
-    def visit_SelectQueryNode(self, node):
+    def visit_CTENode(self, node):
+        self.write(common.quote_ident(node.alias))
+
+    def gen_ctes(self, ctes):
+        self.write('WITH')
+        count = len(ctes)
+        for i, cte in enumerate(ctes):
+            self.new_lines = 1
+            self.write(common.quote_ident(cte.alias))
+            self.write(' AS ')
+            self.indentation += 2
+            alias = cte.alias
+            self.visit_SelectQueryNode(cte, use_alias=False)
+            if i != count - 1:
+                self.write(',')
+            self.indentation -= 2
+
         self.new_lines = 1
 
-        self.write('(SELECT')
+    def visit_SelectQueryNode(self, node, use_alias=True):
+        self.new_lines = 1
+
+        self.write('(')
+        if node.ctes:
+            self.gen_ctes(node.ctes)
+
+        self.write('SELECT')
         if node.distinct is not None:
             self.write(' DISTINCT')
 
@@ -77,11 +100,14 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.new_lines = 1
         self.write(')')
 
-        if node.alias:
+        if node.alias and use_alias:
             self.write(' AS ' + common.quote_ident(node.alias))
 
     def visit_UnionNode(self, node):
         self.write('(')
+        if node.ctes:
+            self.gen_ctes(node.ctes)
+
         count = len(node.queries)
         for i, query in enumerate(node.queries):
             self.new_lines = 1
@@ -95,6 +121,22 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.alias:
             self.write(' AS ' + common.quote_ident(node.alias))
 
+    def visit_IntersectNode(self, node):
+        self.write('(')
+        if node.ctes:
+            self.gen_ctes(node.ctes)
+
+        count = len(node.queries)
+        for i, query in enumerate(node.queries):
+            self.new_lines = 1
+            self.visit(query)
+            if i != count - 1:
+                self.write(' INTERSECT ')
+
+        self.write(')')
+        if node.alias:
+            self.write(' AS ' + common.quote_ident(node.alias))
+
     def visit_SelectExprNode(self, node):
         self.visit(node.expr)
         if node.alias:
@@ -102,9 +144,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_FieldRefNode(self, node):
         if node.field == '*':
-            self.write(common.quote_ident(node.table.alias) + '.' + node.field)
+            self.write(common.quote_ident(node.table.alias) + '.' + str(node.field))
         else:
-            self.write(common.qname(node.table.alias, node.field))
+            self.write(common.qname(node.table.alias, str(node.field)))
 
     def visit_FromExprNode(self, node):
         self.visit(node.expr)
@@ -127,7 +169,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_BinOpNode(self, node):
         self.write('(')
         self.visit(node.left)
-        self.write(' ' + node.op.upper() + ' ')
+        self.write(' ' + str(node.op).upper() + ' ')
         self.visit(node.right)
         self.write(')')
 

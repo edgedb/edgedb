@@ -6,26 +6,46 @@
 ##
 
 
+import weakref
+
 from semantix import ast
+from semantix.utils import datastructures
 
-class ArgListNode(ast.AST): __fields = ['name', '*args']
-class BinOpNode(ast.AST):  __fields = ['left', 'op', 'right']
-class CallFunctionNode(ast.AST):  __fields = ['func', '*args']
+class Base(ast.AST):
+    pass
 
-class VarNode(ast.AST): __fields = ['name']
-class PathVarNode(VarNode): pass
-class ConstantNode(ast.AST): __fields = ['value', 'index']
+class ArgListNode(Base):
+    __fields = ['name', ('args', list)]
 
-class UnaryOpNode(ast.AST): __fields = ['op', 'operand']
+class BinOpNode(Base):
+    __fields = ['left', 'op', 'right']
 
-class PredicateNode(ast.AST): __fields = ['*expr']
+class CallFunctionNode(Base):
+    __fields = ['func', ('args', list)]
 
-class SelectExprNode(ast.AST): __fields = ['expr', 'alias', 'field']
+class VarNode(Base):
+    __fields = ['name']
 
-class FromExprNode(ast.AST): __fields = ['expr', 'alias']
+class PathVarNode(VarNode):
+    pass
 
-class RelationNode(ast.AST):
-    __fields = ['!concepts', 'alias', '#_bonds']
+class ConstantNode(Base):
+    __fields = ['value', 'index']
+
+class UnaryOpNode(Base):
+    __fields = ['op', 'operand']
+
+class PredicateNode(Base):
+    __fields = [('expr', Base, None)]
+
+class SelectExprNode(Base):
+    __fields = ['expr', 'alias']
+
+class FromExprNode(Base):
+    __fields = ['expr', 'alias']
+
+class RelationNode(Base):
+    __fields = [('concepts', frozenset), 'alias', ('_bonds', dict), 'caosnode']
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -56,25 +76,43 @@ class TableNode(RelationNode):
 
 
 class SelectQueryNode(RelationNode):
-    __fields = ['distinct', '*fromlist', '*targets', 'where', '*orderby', '*ctes', '#concept_node_map']
+    __fields = ['distinct', ('fromlist', list), ('targets', list), 'where',
+                ('orderby', list), ('ctes', datastructures.OrderedSet), ('concept_node_map', dict),
+                ('linkmap', dict)]
 
-class UnionNode(RelationNode):
-    __fields = ['*queries', 'distinct']
+class CompositeNode(RelationNode):
+    __fields = [('queries', list), ('ctes', datastructures.OrderedSet),
+                ('concept_node_map', dict)]
+
+class UnionNode(CompositeNode):
+    __fields = ['distinct']
+
+class IntersectNode(CompositeNode):
+    pass
 
 class CTENode(SelectQueryNode):
-    __fields = ['*_referrers']
+    __fields = [('referrers', weakref.WeakSet)]
 
-class CTEAttrRefNode(ast.AST): __fields = ['cte', 'attr']
+class CTEAttrRefNode(Base):
+    __fields = ['cte', 'attr']
 
 class JoinNode(RelationNode):
     __fields = ['left', 'right', 'condition', 'type']
 
-class ExistsNode(ast.AST): __fields = ['expr']
+class ExistsNode(Base):
+    __fields = ['expr']
 
-class FieldRefNode(ast.AST): __fields = ['table', 'field']
+class FieldRefNode(Base):
+    __fields = ['table', 'field', 'origin', 'origin_field']
 
-class SequenceNode(ast.AST): __fields = ['*elements']
+class SequenceNode(Base):
+    __fields = [('elements', list)]
 
-class SortExprNode(ast.AST): __fields = ['expr', 'direction']
+class SortExprNode(Base):
+    __fields = ['expr', 'direction']
 
-class FunctionCallNode(ast.AST): __fields = ['name', '*args']
+class FunctionCallNode(Base):
+    __fields = ['name', ('args', list)]
+
+class IgnoreNode(Base):
+    pass

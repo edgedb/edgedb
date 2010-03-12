@@ -43,6 +43,9 @@ class Query(object):
     def rows(self, *vars):
         return self.statement.rows(*vars)
 
+    def chunks(self, *vars):
+        return self.statement.chunks(*vars)
+
     __iter__ = rows
 
 
@@ -55,6 +58,7 @@ class CaosQLCursor(object):
         self.transformer = CaosTreeTransformer()
         self.current_portal = None
 
+    @debug
     def prepare(self, query):
         result = self.cache.get(query)
         if not result:
@@ -63,6 +67,9 @@ class CaosQLCursor(object):
             self.cache[query] = (qtext, ps)
         else:
             qtext, ps = result
+            """LOG [cache.caos.query] Cache Hit
+            print(qtext)
+            """
 
         return Query(text=qtext, statement=ps)
 
@@ -170,12 +177,12 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
 
 
     def load_entity(self, concept, id):
-        query = 'SELECT * FROM %s WHERE id = \'%s\'' % (self.concept_name_to_pg_table_name(concept), id)
+        query = 'SELECT * FROM %s WHERE "semantix.caos.builtins.id" = \'%s\'' % (self.concept_name_to_pg_table_name(concept), id)
         ps = self.connection.prepare(query)
         result = ps.first()
 
         if result is not None:
-            return dict((self.column_map[k], result[k]) for k in result.keys() if k not in ('id', 'concept_id'))
+            return dict((self.column_map[k], result[k]) for k in result.keys() if k not in ('semantix.caos.builtins.id', 'concept_id'))
         else:
             return None
 
@@ -206,7 +213,8 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
                     column_name = tables.quote_ident(column_name)
                     cols.append('%s = %%(%s)s::%s' % (column_name, str(a), col_type))
                 query += ','.join(cols)
-                query += ' WHERE id = %s RETURNING id' % postgresql.string.quote_literal(str(id))
+                query += ' WHERE "semantix.caos.builtins.id" = %s RETURNING "semantix.caos.builtins.id"' \
+                                                                % postgresql.string.quote_literal(str(id))
             else:
                 if attrs:
                     cols_names = [tables.quote_ident(self.caos_name_to_pg_column_name(a)) for a in attrs]
@@ -224,13 +232,14 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
                     cols_names = ''
                     cols_values = ''
 
-                query = 'INSERT INTO %s (id, concept_id%s)' % (self.concept_name_to_pg_table_name(concept),
-                                                                cols_names)
+                query = 'INSERT INTO %s ("semantix.caos.builtins.id", concept_id%s)' \
+                                                % (self.concept_name_to_pg_table_name(concept), cols_names)
 
                 query += '''VALUES(uuid_generate_v1mc(),
                                    (SELECT id FROM caos.concept WHERE name = %(concept)s) %(cols)s)
-                            RETURNING id''' % {'concept': postgresql.string.quote_literal(str(concept)),
-                                               'cols': cols_values}
+                            RETURNING "semantix.caos.builtins.id"''' \
+                                                % {'concept': postgresql.string.quote_literal(str(concept)),
+                                                   'cols': cols_values}
 
             data = dict((str(k), str(attrs[k]) if attrs[k] is not None else None) for k in attrs)
 
@@ -420,7 +429,7 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
             columns = introspection.table.TableColumns(self.connection).fetch(table_name=t['name'],
                                                                               schema_name=t['schema'])
             for row in columns:
-                if row['column_name'] in ('id', 'concept_id'):
+                if row['column_name'] in ('semantix.caos.builtins.id', 'concept_id'):
                     continue
 
                 atom_name = row['column_name']
@@ -596,11 +605,7 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
             for link in links:
                 if isinstance(link.target, metamod.Atom):
                     column_type = self.pg_type_from_atom(link.target)
-
-                    if link_name.module == 'semantix.caos.builtins':
-                        column_name = link_name.name
-                    else:
-                        column_name = self.caos_name_to_pg_column_name(link_name)
+                    column_name = self.caos_name_to_pg_column_name(link_name)
 
                     column = '"%s" %s %s' % (column_name, column_type, 'NOT NULL' if link.required else '')
                     columns.append(column)
@@ -608,7 +613,7 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
         if obj.name == 'semantix.caos.builtins.Object':
             columns.append('"concept_id" integer NOT NULL')
 
-        columns.append('PRIMARY KEY(id)')
+        columns.append('PRIMARY KEY("semantix.caos.builtins.id")')
         qry += '(' +  ','.join(columns) + ')'
 
         if obj.base:

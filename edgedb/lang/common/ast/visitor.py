@@ -9,6 +9,53 @@
 
 from semantix.ast.base import *
 
+def find_children(node, test_func, *args, **kwargs):
+    visited = set()
+
+    def _find_children(node, test_func):
+        result = []
+
+        if node in visited:
+            return result
+        else:
+            visited.add(node)
+
+        for field, value in iter_fields(node):
+            field_spec = node._fields[field]
+
+            if isinstance(value, (list, set)):
+                for n in value:
+                    if not isinstance(n, AST):
+                        continue
+
+                    if test_func(n, *args, **kwargs):
+                        result.append(n)
+
+                    if field_spec.traverse:
+                        _n = _find_children(n, test_func)
+                        if _n is not None:
+                            result.extend(_n)
+
+            elif isinstance(value, AST):
+                if test_func(value, *args, **kwargs):
+                    result.append(value)
+
+                if field_spec.traverse:
+                    _n = _find_children(value, test_func)
+                    if _n is not None:
+                        result.extend(_n)
+        return result
+
+    return _find_children(node, test_func)
+
+def find_parent(node, test_func):
+    if node.parent and test_func(node.parent):
+        return node.parent
+    elif not node.parent:
+        return None
+    return find_parent(node.parent, test_func)
+
+
 class NodeVisitor(object):
     """
     A node visitor base class that walks the abstract syntax tree and calls a
@@ -55,8 +102,11 @@ class NodeVisitor(object):
                 visited.add(node)
 
             for field, value in iter_fields(node):
-                if isinstance(value, list):
+                if isinstance(value, (list, set)):
                     for n in value:
+                        if not isinstance(n, AST):
+                            continue
+
                         if test_func(n, *args, **kwargs):
                             result.append(n)
 

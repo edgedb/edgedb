@@ -12,7 +12,7 @@ import pyggy
 import semantix.ast
 
 from .errors import CaosQLSyntaxError
-from . import nodes as caosast
+from semantix.caos.caosql import ast as qlast
 
 class CaosQLParser(object):
     def __init__(self):
@@ -41,9 +41,9 @@ class CaosQLParser(object):
 
         qtree = query
 
-        if nodetype != caosast.SelectQueryNode:
-            selnode = caosast.SelectQueryNode()
-            selnode.targets = [caosast.SelectExprNode(expr=qtree)]
+        if nodetype != qlast.SelectQueryNode:
+            selnode = qlast.SelectQueryNode()
+            selnode.targets = [qlast.SelectExprNode(expr=qtree)]
             qtree = selnode
 
         return qtree
@@ -51,7 +51,7 @@ class CaosQLParser(object):
     def parsepath(self, path):
         expr = self.parse(path)
 
-        if not isinstance(expr, caosast.PathNode):
+        if not isinstance(expr, qlast.PathNode):
             raise CaosQLSyntaxError(token=None, expr=path, lineno=0)
 
         return expr

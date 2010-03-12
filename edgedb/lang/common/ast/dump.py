@@ -88,7 +88,7 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
                 return rv + ')'
             elif isinstance(node, list):
                 return '[%s]' % ', '.join(_format(x) for x in node)
-            elif isinstance(node, set):
+            elif isinstance(node, (set, frozenset)):
                 return '{%s}' % ', '.join(_format(x) for x in node)
             return highlight('LITERAL', repr(node))
         if not isinstance(node, semantix.ast.base.AST):
@@ -117,7 +117,7 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
         pad = tab * identation
         pad_tab = pad + tab
 
-        result = '%s%s(\n' % (pad, highlight('NODE_NAME', node.__class__.__name__))
+        result = '%s%s(%x)(\n' % (pad, highlight('NODE_NAME', node.__class__.__name__), id(node))
 
         for field, value in semantix.ast.base.iter_fields(node):
             if mask_re is not None and mask_re.match(field):
@@ -132,7 +132,7 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
                 if not result.endswith('\n'):
                     result += '\n'
 
-            elif isinstance(value, list):
+            elif isinstance(value, (list, set, frozenset)):
                 cache = {}
                 multiline = False
                 tmp = ''
@@ -175,9 +175,12 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
 
 
 def _node_recursion_rep(node):
-    name = node.__class__.__name__
-    if hasattr(node, 'name'):
-        name += '(name=%r)' % node.name
+    name = '%s(%x)' % (node.__class__.__name__, id(node))
+    for attr_name in ('name', 'id'):
+        attr = getattr(node, attr_name, None)
+        if attr is not None:
+            name += '(%s=%r)' % (attr_name, attr)
+            break
     else:
         name += '()'
     return '<recursion: %s>' % name
