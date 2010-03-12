@@ -203,13 +203,7 @@ class Atom(GraphObject, caos.types.ProtoAtom):
 
         if self.base:
             base = self.get_prototype(realm, self.base)
-
-            if isinstance(base, Atom):
-                bases = (base,) + base.get_class_base(realm)
-            else:
-                bases = (caos.atom.Atom, base)
-        else:
-            bases = (caos.atom.Atom,)
+            bases = (base,)
 
         return bases
 
@@ -256,7 +250,6 @@ class Concept(GraphObject, caos.types.ProtoConcept):
             for parent in self.base:
                 bases += (realm.meta.get(parent),)
 
-        bases += (caos.concept.Concept,)
         return bases
 
     def __str__(self):
@@ -360,7 +353,6 @@ class Link(GraphObject, caos.types.ProtoLink):
             for parent in self.base:
                 bases += (realm.meta.get(parent),)
 
-        bases += (caos.link.Link,)
         return bases
 
     @classmethod
