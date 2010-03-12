@@ -16,7 +16,7 @@ from semantix.utils import graph
 from semantix.utils.nlang import morphology
 
 from semantix import caos, lang
-from semantix.caos.backends import meta
+from semantix.caos import proto
 from semantix.caos import backends
 
 
@@ -53,30 +53,30 @@ class WordCombination(LangObject, morphology.WordCombination):
             self.value = self.forms.get('singular', next(iter(self.forms.values())))
 
 
-class AtomModExpr(LangObject, meta.AtomModExpr):
+class AtomModExpr(LangObject, proto.AtomModExpr):
     def construct(self):
-        meta.AtomModExpr.__init__(self, self.data['expr'], context=self.context)
+        proto.AtomModExpr.__init__(self, self.data['expr'], context=self.context)
 
 
-class AtomModMinLength(LangObject, meta.AtomModMinLength):
+class AtomModMinLength(LangObject, proto.AtomModMinLength):
     def construct(self):
-        meta.AtomModMinLength.__init__(self, self.data['min-length'], context=self.context)
+        proto.AtomModMinLength.__init__(self, self.data['min-length'], context=self.context)
 
 
-class AtomModMaxLength(LangObject, meta.AtomModMaxLength):
+class AtomModMaxLength(LangObject, proto.AtomModMaxLength):
     def construct(self):
-        meta.AtomModMaxLength.__init__(self, self.data['max-length'], context=self.context)
+        proto.AtomModMaxLength.__init__(self, self.data['max-length'], context=self.context)
 
 
-class AtomModRegExp(LangObject, meta.AtomModRegExp):
+class AtomModRegExp(LangObject, proto.AtomModRegExp):
     def construct(self):
-        meta.AtomModRegExp.__init__(self, self.data['regexp'], context=self.context)
+        proto.AtomModRegExp.__init__(self, self.data['regexp'], context=self.context)
 
 
-class Atom(LangObject, meta.Atom):
+class Atom(LangObject, proto.Atom):
     def construct(self):
         data = self.data
-        meta.Atom.__init__(self, name=None, backend=data.get('backend'), base=data['extends'],
+        proto.Atom.__init__(self, name=None, backend=data.get('backend'), base=data['extends'],
                            default=data['default'], title=data['title'],
                            description=data['description'])
         mods = data.get('mods')
@@ -85,7 +85,7 @@ class Atom(LangObject, meta.Atom):
                 self.add_mod(mod)
 
 
-class Concept(LangObject, meta.Concept):
+class Concept(LangObject, proto.Concept):
     def construct(self):
         data = self.data
         extends = data.get('extends')
@@ -93,24 +93,24 @@ class Concept(LangObject, meta.Concept):
             if not isinstance(extends, list):
                 extends = [extends]
 
-        meta.Concept.__init__(self, name=None, backend=data.get('backend'), base=extends,
+        proto.Concept.__init__(self, name=None, backend=data.get('backend'), base=extends,
                               title=data.get('title'), description=data.get('description'))
         self._links = data.get('links', {})
 
 
-class LinkProperty(LangObject, meta.LinkProperty):
+class LinkProperty(LangObject, proto.LinkProperty):
     def construct(self):
         data = self.data
         if isinstance(data, str):
-            meta.LinkProperty.__init__(self, name=None, atom=data)
+            proto.LinkProperty.__init__(self, name=None, atom=data)
         else:
             atom_name, info = next(iter(data.items()))
-            meta.LinkProperty.__init__(self, name=None, atom=atom_name, title=info['title'],
+            proto.LinkProperty.__init__(self, name=None, atom=atom_name, title=info['title'],
                                        description=info['description'])
             self.mods = info.get('mods')
 
 
-class LinkDef(LangObject, meta.Link):
+class LinkDef(LangObject, proto.Link):
     def construct(self):
         data = self.data
         extends = data.get('extends')
@@ -118,7 +118,7 @@ class LinkDef(LangObject, meta.Link):
             if not isinstance(extends, list):
                 extends = [extends]
 
-        meta.Link.__init__(self, name=None, backend=data.get('backend'), base=extends, title=data['title'],
+        proto.Link.__init__(self, name=None, backend=data.get('backend'), base=extends, title=data['title'],
                            description=data['description'])
         for property_name, property in data['properties'].items():
             property.name = property_name
@@ -130,17 +130,17 @@ class LinkList(LangObject, list):
     def construct(self):
         data = self.data
         if isinstance(data, str):
-            link = meta.Link(source=None, target=data, name=None)
+            link = proto.Link(source=None, target=data, name=None)
             link.context = self.context
             self.append(link)
         elif isinstance(data, list):
             for target in data:
-                link = meta.Link(source=None, target=target, name=None)
+                link = proto.Link(source=None, target=target, name=None)
                 link.context = self.context
                 self.append(link)
         else:
             for target, info in data.items():
-                link = meta.Link(name=None, target=target, mapping=info['mapping'],
+                link = proto.Link(name=None, target=target, mapping=info['mapping'],
                                  required=info['required'], title=info['title'],
                                  description=info['description'])
                 link.mods = info.get('mods')
@@ -155,10 +155,10 @@ class MetaSet(LangObject):
 
         if context.document.import_context.builtin:
             self.include_builtin = True
-            realm_meta_class = meta.BuiltinRealmMeta
+            realm_meta_class = proto.BuiltinRealmMeta
         else:
             self.include_builtin = False
-            realm_meta_class = meta.RealmMeta
+            realm_meta_class = proto.RealmMeta
 
         self.finalindex = realm_meta_class()
 
@@ -220,7 +220,7 @@ class MetaSet(LangObject):
 
             if atom.base:
                 atom_base = globalmeta.get(atom.base, include_pyobjects=True)
-                if isinstance(atom_base, meta.Atom):
+                if isinstance(atom_base, proto.Atom):
                     atom.base = atom_base.name
                     if atom.base.module != 'semantix.caos.builtins':
                         g[atom.name]['deps'].append(atom.base)
@@ -255,7 +255,7 @@ class MetaSet(LangObject):
 
         for link in globalmeta('link', include_automatic=True, include_builtin=True):
             for property_name, property in link.properties.items():
-                if not isinstance(property.atom, meta.GraphObject):
+                if not isinstance(property.atom, proto.GraphObject):
                     property.atom = globalmeta.get(property.atom)
 
                     mods = getattr(property, 'mods', None)
@@ -266,10 +266,10 @@ class MetaSet(LangObject):
                         globalmeta.add(atom)
                         property.atom = atom
 
-            if link.source and not isinstance(link.source, meta.GraphObject):
+            if link.source and not isinstance(link.source, proto.GraphObject):
                 link.source = globalmeta.get(link.source)
 
-            if link.target and not isinstance(link.target, meta.GraphObject):
+            if link.target and not isinstance(link.target, proto.GraphObject):
                 link.target = globalmeta.get(link.target)
 
             g[link.name] = {"item": link, "merge": [], "deps": []}
@@ -283,7 +283,7 @@ class MetaSet(LangObject):
             if link.base:
                 g[link.name]['merge'].extend(link.base)
 
-        return graph.normalize(g, merger=meta.Link.merge)
+        return graph.normalize(g, merger=proto.Link.merge)
 
 
     def read_concepts(self, data, globalmeta, localmeta):
@@ -317,8 +317,8 @@ class MetaSet(LangObject):
                             # If the name is not fully qualified, assume inline link definition.
                             # The only attribute that is used for global definition is the name.
                             link_qname = caos.Name(name=link_name, module=link.context.document.module.__name__)
-                            linkdef = meta.Link(name=link_qname, base=[caos.Name('semantix.caos.builtins.link')])
-                            linkdef.atom = globalmeta.get(link.target, type=meta.Atom, default=None) is not None
+                            linkdef = proto.Link(name=link_qname, base=[caos.Name('semantix.caos.builtins.link')])
+                            linkdef.atom = globalmeta.get(link.target, type=proto.Atom, default=None) is not None
                             globalmeta.add(linkdef)
                             localmeta.add(linkdef)
                         else:
@@ -328,7 +328,7 @@ class MetaSet(LangObject):
                     # combination
                     link.base = {link_qname}
                     link.implicit_derivative = True
-                    link_genname = meta.Link.gen_link_name(link.source, link.target, link_qname.name)
+                    link_genname = proto.Link.gen_link_name(link.source, link.target, link_qname.name)
                     link.name = caos.Name(name=link_genname, module=link.context.document.module.__name__)
                     globalmeta.add(link)
                     localmeta.add(link)
@@ -344,15 +344,15 @@ class MetaSet(LangObject):
 
             for link_name, links in concept.links.items():
                 for link in links:
-                    if not isinstance(link.source, meta.GraphObject):
+                    if not isinstance(link.source, proto.GraphObject):
                         link.source = globalmeta.get(link.source)
 
-                    if not isinstance(link.target, meta.GraphObject):
+                    if not isinstance(link.target, proto.GraphObject):
                         link.target = globalmeta.get(link.target)
                         if isinstance(link.target, caos.types.ProtoConcept):
                             link.target.add_rlink(link)
 
-                    if isinstance(link.target, meta.Atom):
+                    if isinstance(link.target, proto.Atom):
                         if link_name in link_target_types and link_target_types[link_name] != 'atom':
                             raise caos.MetaError('%s link is already defined as a link to non-atom')
 
@@ -379,12 +379,12 @@ class MetaSet(LangObject):
             if concept.base:
                 g[concept.name]["merge"].extend(concept.base)
 
-        return graph.normalize(g, merger=meta.Concept.merge)
+        return graph.normalize(g, merger=proto.Concept.merge)
 
 
     def genatom(self, host, base, default, link_name, mods):
         atom_name = '__' + host.name.name + '__' + link_name.name
-        atom = meta.Atom(name=caos.Name(name=atom_name, module=host.name.module),
+        atom = proto.Atom(name=caos.Name(name=atom_name, module=host.name.module),
                          base=base,
                          default=default,
                          automatic=True,
@@ -427,7 +427,7 @@ class Backend(backends.MetaBackend):
 
     def __init__(self, source_path):
         super().__init__()
-        self.metadata = importlib.import_module(meta.ImportContext(source_path, toplevel=True))
+        self.metadata = importlib.import_module(proto.ImportContext(source_path, toplevel=True))
 
     def getmeta(self):
         return self.metadata._index_

@@ -22,7 +22,7 @@ from semantix.utils.nlang import morphology
 from semantix import caos
 
 from semantix.caos import backends
-from semantix.caos.backends import meta as metamod
+from semantix.caos import proto
 
 from semantix.caos.backends.pgsql import common as tables
 
@@ -154,7 +154,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.column_map = {}
 
     def getmeta(self):
-        meta = metamod.RealmMeta()
+        meta = proto.RealmMeta()
 
         self.read_atoms(meta)
         self.read_concepts(meta)
@@ -301,7 +301,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 bases = caos.Name(name=self.pg_domain_name_to_atom_name(domain_descr['basetype']),
                                  module=self.pg_schema_name_to_module_name(domain_descr['basetype_schema']))
 
-            atom = metamod.Atom(name=name, base=bases, default=domain_descr['default'], title=atoms[name]['title'],
+            atom = proto.Atom(name=name, base=bases, default=domain_descr['default'], title=atoms[name]['title'],
                                 description=atoms[name]['description'], automatic=atoms[name]['automatic'])
 
             if domain_descr['constraints'] is not None:
@@ -355,7 +355,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                                   row['column_default'], meta,
                                                   caos.Name(name=derived_atom_name, module=name.module))
 
-                    property = metamod.LinkProperty(name=property_name, atom=atom)
+                    property = proto.LinkProperty(name=property_name, atom=atom)
                     properties[property_name] = property
             else:
                 if r['implicit']:
@@ -366,7 +366,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             source = meta.get(r['source']) if r['source'] else None
             target = meta.get(r['target']) if r['target'] else None
 
-            link = metamod.Link(name=name, base=bases, source=source, target=target,
+            link = proto.Link(name=name, base=bases, source=source, target=target,
                                 mapping=r['mapping'], required=r['required'],
                                 title=title, description=description)
             link.implicit_derivative = r['implicit']
@@ -384,14 +384,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if link.name.module != 'semantix.caos.builtins':
                 meta.add(link)
 
-        graph.normalize(g, merger=metamod.Link.merge)
+        graph.normalize(g, merger=proto.Link.merge)
 
         g = {}
         for concept in meta(type='concept', include_automatic=True, include_builtin=True):
             g[concept.name] = {"item": concept, "merge": [], "deps": []}
             if concept.base:
                 g[concept.name]["merge"].extend(concept.base)
-        graph.normalize(g, merger=metamod.Concept.merge)
+        graph.normalize(g, merger=proto.Concept.merge)
 
 
     def read_concepts(self, meta):
@@ -416,7 +416,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             bases = self.pg_table_inheritance_to_bases(t['name'], t['schema'])
 
-            concept = metamod.Concept(name=name, base=bases, title=concepts[name]['title'],
+            concept = proto.Concept(name=name, base=bases, title=concepts[name]['title'],
                                       description=concepts[name]['description'])
 
             columns = introspection.table.TableColumns(self.connection).fetch(table_name=t['name'],
@@ -439,9 +439,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if obj.name.module not in self.modules:
                 self.create_module(obj.name.module)
 
-            if isinstance(obj, metamod.Atom):
+            if isinstance(obj, proto.Atom):
                 self.create_atom(obj, allow_existing)
-            elif isinstance(obj, metamod.Link):
+            elif isinstance(obj, proto.Link):
                 self.create_link(obj)
             else:
                 self.create_concept(obj)
@@ -491,7 +491,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         if base in self.typmod_types:
             for mod, modvalue in obj.mods.items():
-                if issubclass(mod, metamod.AtomModMaxLength):
+                if issubclass(mod, proto.AtomModMaxLength):
                     has_max_length = modvalue
                     break
 
@@ -506,7 +506,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             has_min_length = False
             if base in self.fixed_length_types:
                 for mod, modvalue in obj.mods.items():
-                    if issubclass(mod, metamod.AtomModMinLength):
+                    if issubclass(mod, proto.AtomModMinLength):
                         has_min_length = modvalue
                         break
 
@@ -522,19 +522,19 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         for constr_type, constr in obj.mods.items():
             canonical = constr_type.get_canonical_class()
             classtr = '%s.%s' % (canonical.__module__, canonical.__name__)
-            if issubclass(constr_type, metamod.AtomModRegExp):
+            if issubclass(constr_type, proto.AtomModRegExp):
                 for re in constr.regexps:
                     expr = 'VALUE ~ %s' % postgresql.string.quote_literal(re)
                     qry += self.get_constraint_expr(classtr, expr)
-            elif issubclass(constr_type, metamod.AtomModExpr):
+            elif issubclass(constr_type, proto.AtomModExpr):
                 # XXX: TODO: Generic expression support requires sophisticated expression translation
                 continue
                 for expr in constr.exprs:
                     qry += self.get_constraint_expr(classtr, expr)
-            elif issubclass(constr_type, metamod.AtomModMaxLength):
+            elif issubclass(constr_type, proto.AtomModMaxLength):
                 if basetype not in self.typmod_types:
                     qry += self.get_constraint_expr(classtr, 'length(VALUE::text) <= ' + str(constr.value))
-            elif issubclass(constr_type, metamod.AtomModMinLength):
+            elif issubclass(constr_type, proto.AtomModMinLength):
                 qry += self.get_constraint_expr(classtr, 'length(VALUE::text) >= ' + str(constr.value))
 
         self.connection.execute(qry)
@@ -596,7 +596,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         for link_name in sorted(obj.links.keys()):
             links = obj.links[link_name]
             for link in links:
-                if isinstance(link.target, metamod.Atom):
+                if isinstance(link.target, proto.Atom):
                     column_type = self.pg_type_from_atom(link.target)
                     column_name = self.caos_name_to_pg_column_name(link_name)
 
@@ -688,13 +688,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return links
 
     def mod_class_to_str(self, constr_class):
-        if issubclass(constr_class, metamod.AtomModExpr):
+        if issubclass(constr_class, proto.AtomModExpr):
             return 'expr'
-        elif issubclass(constr_class, metamod.AtomModRegExp):
+        elif issubclass(constr_class, proto.AtomModRegExp):
             return 'regexp'
-        elif issubclass(constr_class, metamod.AtomModMinLength):
+        elif issubclass(constr_class, proto.AtomModMinLength):
             return 'min-length'
-        elif issubclass(constr_class, metamod.AtomModMaxLength):
+        elif issubclass(constr_class, proto.AtomModMaxLength):
             return 'max-length'
 
     def normalize_domain_descr(self, d):
@@ -731,10 +731,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         raise caos.MetaError('could not parse domain constraint "%s": %s' %
                                              (constr_name, constr_expr))
 
-                if issubclass(constr_type, (metamod.AtomModMinLength, metamod.AtomModMaxLength)):
+                if issubclass(constr_type, (proto.AtomModMinLength, proto.AtomModMaxLength)):
                     constr_expr = int(constr_expr)
 
-                if issubclass(constr_type, metamod.AtomModExpr):
+                if issubclass(constr_type, proto.AtomModExpr):
                     # That's a very hacky way to remove casts from expressions added by Postgres
                     constr_expr = constr_expr.replace('::text', '')
 
@@ -748,10 +748,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         if d['basetype'] is not None:
             m = self.typlen_re.match(d['basetype_full'])
             if m:
-                if metamod.AtomModMaxLength not in d['constraints']:
-                    d['constraints'][metamod.AtomModMaxLength] = []
+                if proto.AtomModMaxLength not in d['constraints']:
+                    d['constraints'][proto.AtomModMaxLength] = []
 
-                d['constraints'][metamod.AtomModMaxLength].append(int(m.group('length')))
+                d['constraints'][proto.AtomModMaxLength].append(int(m.group('length')))
 
         if d['default'] is not None:
             # Strip casts from default expression
@@ -849,7 +849,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def pg_type_from_atom_class(self, atom_obj):
         if (atom_obj.base is not None and (atom_obj.base == str or (hasattr(atom_obj.base, 'name') and atom_obj.base.name == 'semantix.caos.builtins.str'))
-                and len(atom_obj.mods) == 1 and issubclass(next(iter(atom_obj.mods.keys())), metamod.AtomModMaxLength)):
+                and len(atom_obj.mods) == 1 and issubclass(next(iter(atom_obj.mods.keys())), proto.AtomModMaxLength)):
             column_type = 'varchar(%d)' % next(iter(atom_obj.mods.values())).value
         else:
             if atom_obj._metadata.name in self.base_type_name_map:
@@ -861,7 +861,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def pg_type_from_atom(self, atom_obj):
         if (atom_obj.base is not None and atom_obj.base == 'semantix.caos.builtins.str'
-                and len(atom_obj.mods) == 1 and issubclass(next(iter(atom_obj.mods.keys())), metamod.AtomModMaxLength)):
+                and len(atom_obj.mods) == 1 and issubclass(next(iter(atom_obj.mods.keys())), proto.AtomModMaxLength)):
             column_type = 'varchar(%d)' % next(iter(atom_obj.mods.values())).value
         else:
             if atom_obj.name in self.base_type_name_map:
@@ -896,9 +896,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 atom = meta.get(self.base_type_name_map_r[typname])
 
                 if typname in self.typmod_types and typmod is not None:
-                    atom = metamod.Atom(name=derived_name, base=atom.name, default=atom_default,
+                    atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,
                                         automatic=True)
-                    atom.add_mod(metamod.AtomModMaxLength(typmod))
+                    atom.add_mod(proto.AtomModMaxLength(typmod))
                     meta.add(atom)
 
         return atom
