@@ -213,7 +213,6 @@ class BinOp(Base):
 class InlineFilter(Base): __fields  = ['expr', 'ref']
 class ExistPred(Base): __fields = ['expr', 'outer']
 class AtomicExistPred(ExistPred): pass
-class AtomicExistPred(ExistPred): pass
 class SortExpr(Base): __fields = ['expr', 'direction']
 class SelectorExpr(Base): __fields = ['expr', 'name']
 class FunctionCall(Base): __fields = ['name', ('args', list)]

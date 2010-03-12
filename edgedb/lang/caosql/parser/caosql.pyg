@@ -55,7 +55,7 @@ value_query                     -> '*' var
                                         return kids[0]
                                  | 'pathof' '(' path_var ')'
                                  | function_name '(' arg_list ')':
-                                        return CallFunctionNode(func=kids[0], args=kids[2])
+                                        return FunctionCallNode(func=kids[0], args=kids[2])
 ;
 
 additive_expr                   -> multiplicative_expr:

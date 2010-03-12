@@ -12,7 +12,7 @@ class RootNode(ast.AST): __fields = ['children']
 
 class ArgListNode(ast.AST): __fields = ['name', ('args', list)]
 class BinOpNode(ast.AST):  __fields = ['left', 'op', 'right']
-class CallFunctionNode(ast.AST): __fields = ['func', ('args', list)]
+class FunctionCallNode(ast.AST): __fields = ['func', ('args', list)]
 
 class VarNode(ast.AST): __fields = ['name']
 class PathVarNode(VarNode): pass

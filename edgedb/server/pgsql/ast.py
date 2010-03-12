@@ -20,9 +20,6 @@ class ArgListNode(Base):
 class BinOpNode(Base):
     __fields = ['left', 'op', 'right']
 
-class CallFunctionNode(Base):
-    __fields = ['func', ('args', list)]
-
 class VarNode(Base):
     __fields = ['name']
 
