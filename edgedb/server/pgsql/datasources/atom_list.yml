@@ -6,7 +6,7 @@
 ##
 
 
-%SCHEMA semantix.datasources.schemas.Sql
+%SCHEMA semantix.caos.datasources.schemas.Sql
 %NAME AtomList
 ---
 params:
