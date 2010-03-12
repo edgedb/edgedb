@@ -38,6 +38,7 @@ class GraphObject(caos.types.ProtoObject):
         self.description = description
         self.backend = backend
         self.backend_data = GraphObjectBackendDataContainer()
+        self.children = set()
 
     def get_class_template(self, realm):
         """
@@ -216,11 +217,14 @@ class Concept(GraphObject, caos.types.ProtoConcept):
 
         self.ownlinks = {}
         self.links = {}
+        self.rlinks = set()
 
     def merge(self, other):
         super().merge(other)
 
+        other.children.update(self.children, {self})
         self.links.update(other.links)
+        self.rlinks.update(other.rlinks)
 
     def add_link(self, link):
         if link.implicit_derivative:
@@ -233,6 +237,9 @@ class Concept(GraphObject, caos.types.ProtoConcept):
         else:
             self.links[key] = LinkSet(links=[link], name=key, source=link.source)
             self.ownlinks[key] = self.links[key]
+
+    def add_rlink(self, link):
+        self.rlinks.add(link)
 
     def get_class_template(self, realm):
         name, bases, dct, metaclass = super().get_class_template(realm)

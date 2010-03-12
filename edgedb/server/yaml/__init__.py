@@ -348,6 +348,8 @@ class MetaSet(LangObject):
 
                     if not isinstance(link.target, meta.GraphObject):
                         link.target = globalmeta.get(link.target)
+                        if isinstance(link.target, caos.types.ProtoConcept):
+                            link.target.add_rlink(link)
 
                     if isinstance(link.target, meta.Atom):
                         if link_name in link_target_types and link_target_types[link_name] != 'atom':

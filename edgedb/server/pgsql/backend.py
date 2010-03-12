@@ -372,6 +372,8 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
 
             if source and source.name.module != 'semantix.caos.builtins':
                 source.add_link(link)
+                if isinstance(target, caos.types.ProtoConcept):
+                    target.add_rlink(link)
 
             g[link.name] = {"item": link, "merge": [], "deps": []}
             if link.base:
