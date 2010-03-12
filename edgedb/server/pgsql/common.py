@@ -200,36 +200,3 @@ class LinkTable(DatabaseTable):
         kwargs['title'] = pack_hstore(kwargs['title'])
         kwargs['description'] = pack_hstore(kwargs['description'])
         return super().insert(*dicts, **kwargs)[0][0]
-
-
-class PathCacheTable(DatabaseTable):
-    def create(self):
-        """
-            CREATE TABLE caos.path_cache (
-                id uuid NOT NULL DEFAULT uuid_generate_v1mc(),
-
-                entity_id           uuid NOT NULL,
-                parent_entity_id    uuid,
-
-                name_attribute      varchar(255),
-                concept_name        varchar(255) NOT NULL,
-
-                weight              integer,
-
-                PRIMARY KEY (id),
-                UNIQUE(entity_id, parent_entity_id)
-            )
-        """
-        super().create()
-
-    def insert(self, *dicts, **kwargs):
-        """
-            INSERT INTO
-                caos.path_cache
-                    (entity_id, parent_entity_id, name_attribute, concept_name, weight)
-
-                VALUES(%(entity_id)s, %(parent_entity_id)s,
-                       %(name_attribute)s, %(concept_name)s, %(weight)s)
-            RETURNING entity_id
-        """
-        return super().insert(*dicts, **kwargs)

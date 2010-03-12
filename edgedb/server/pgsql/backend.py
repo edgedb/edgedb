@@ -141,9 +141,6 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
         self.link_table = tables.LinkTable(self.connection)
         self.link_table.create()
 
-        self.path_cache_table = tables.PathCacheTable(self.connection)
-        self.path_cache_table.create()
-
         self.column_map = {}
 
     def getmeta(self):
@@ -267,20 +264,6 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
 
     def caosqlcursor(self):
         return CaosQLCursor(self.connection)
-
-
-    def store_path_cache_entry(self, entity, parent_entity_id, weight):
-        self.path_cache_table.insert(entity_id=entity.id,
-                                 parent_entity_id=parent_entity_id,
-                                 name_attribute=str(entity.attrs['name']) if 'name' in entity.attrs else None,
-                                 concept_name=entity.name,
-                                 weight=weight)
-
-
-    def clear_path_cache(self):
-        self.path_cache_table.create()
-        with self.connection as cursor:
-            cursor.execute('DELETE FROM caos.path_cache')
 
 
     def read_atoms(self, meta):
