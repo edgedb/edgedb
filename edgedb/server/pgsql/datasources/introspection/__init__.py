@@ -9,3 +9,4 @@
 from . import domains
 from . import table
 from .schemas_list import SchemasList
+from .types_list import TypesList

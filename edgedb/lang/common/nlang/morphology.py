@@ -102,7 +102,7 @@ class WordCombination(NaturalLanguageObject):
         return value
 
     def as_dict(self):
-        return self.forms
+        return {n: str(v) for n, v in self.forms.items()}
 
     @classmethod
     def from_dict(cls, dct):

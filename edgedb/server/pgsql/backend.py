@@ -12,6 +12,8 @@ import importlib
 
 import postgresql.string
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
+from postgresql.types import io as pgio
+from postgresql.types.io.contrib_hstore import hstore_factory
 
 from semantix.utils import graph
 from semantix.utils.debug import debug
@@ -124,6 +126,14 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
         super().__init__()
 
         self.connection = connection
+
+        types = introspection.TypesList(self.connection).fetch(schema_name='public', type_name='hstore')
+        types = {t['name']: t['oid'] for t in types}
+
+        if 'hstore' not in types:
+            raise caos.types.MetaError('required PostgreSQL hstore support is missing')
+
+        pgio.module_io[types['hstore']] = hstore_factory
 
         self.domains = set()
         schemas = introspection.SchemasList(self.connection).fetch(schema_name='caos%')
@@ -900,8 +910,7 @@ class Backend(metamod.MetaBackend, datamod.DataBackend):
 
 
     def hstore_to_word_combination(self, hstore):
-        dct = tables.unpack_hstore(hstore)
-        if dct:
-            return morphology.WordCombination.from_dict(dct)
+        if hstore:
+            return morphology.WordCombination.from_dict(hstore)
         else:
             return None

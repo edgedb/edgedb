@@ -27,37 +27,6 @@ def quote_ident(text):
 def qname(*parts):
     return '.'.join([quote_ident(q) for q in parts])
 
-
-def pack_hstore(dct):
-    if dct:
-        result = []
-        for key, value in dct.items():
-            result.append(postgresql.string.quote_ident(key) + '=>'
-                          + postgresql.string.quote_ident(str(value)))
-        return ', '.join(result)
-    else:
-        return None
-
-
-hstore_split_re = re.compile('("(?:[^"]|"")*")=>("(?:[^"]|"")*")')
-
-def unpack_hstore(string):
-    if not string:
-        return None
-
-    result = {}
-    parts = hstore_split_re.split(string)[1:-1]
-    count = (len(parts) + 1) // 3
-
-    def _unquote(var):
-        return var[1:-1].replace('""', '"')
-
-    for i in range(0, count):
-        key, value = parts[i*3:i*3+2]
-        result[_unquote(key)] = _unquote(value)
-    return result
-
-
 def caos_name_to_pg_colname(name):
     if len(name) > 63:
         hash = base64.b64encode(hashlib.md5(name.encode()).digest()).decode().rstrip('=')
@@ -134,11 +103,9 @@ class AtomTable(DatabaseTable):
         """
             INSERT INTO "caos"."atom"(id, name, title, description, automatic)
             VALUES (nextval('"caos"."metaobject_id_seq"'::regclass),
-                    %(name)s, %(title)s::text::hstore, %(description)s::text::hstore, %(automatic)s)
+                    %(name)s, %(title)s::hstore, %(description)s::hstore, %(automatic)s)
             RETURNING id
         """
-        kwargs['title'] = pack_hstore(kwargs['title'])
-        kwargs['description'] = pack_hstore(kwargs['description'])
         return super().insert(*dicts, **kwargs)[0][0]
 
 
@@ -156,11 +123,9 @@ class ConceptTable(DatabaseTable):
         """
             INSERT INTO "caos"."concept"(id, name, title, description)
             VALUES (nextval('"caos"."metaobject_id_seq"'::regclass),
-                    %(name)s, %(title)s::text::hstore, %(description)s::text::hstore)
+                    %(name)s, %(title)s::hstore, %(description)s::hstore)
             RETURNING id
         """
-        kwargs['title'] = pack_hstore(kwargs['title'])
-        kwargs['description'] = pack_hstore(kwargs['description'])
         return super().insert(*dicts, **kwargs)[0][0]
 
 
@@ -191,12 +156,10 @@ class LinkTable(DatabaseTable):
                             %(name)s,
                             %(mapping)s,
                             %(required)s,
-                            %(title)s::text::hstore,
-                            %(description)s::text::hstore,
+                            %(title)s::hstore,
+                            %(description)s::hstore,
                             %(implicit)s,
                             %(atomic)s
                 ) RETURNING id
         """
-        kwargs['title'] = pack_hstore(kwargs['title'])
-        kwargs['description'] = pack_hstore(kwargs['description'])
         return super().insert(*dicts, **kwargs)[0][0]
