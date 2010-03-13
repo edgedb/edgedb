@@ -301,10 +301,26 @@ class MetaSet(LangObject):
             localmeta.add(concept)
 
         for concept in localmeta('concept', include_builtin=self.include_builtin):
+            bases = []
+            custombases = []
+
             if concept.base:
-                concept.base = [localmeta.normalize_name(b) for b in concept.base]
-            elif concept.name != 'semantix.caos.builtins.Object':
-                concept.base = [caos.Name('semantix.caos.builtins.Object')]
+                for b in concept.base:
+                    base_name = localmeta.normalize_name(b, include_pyobjects=True)
+                    if proto.Concept.is_prototype(base_name):
+                        bases.append(base_name)
+                    else:
+                        cls = localmeta.get(base_name, include_pyobjects=True)
+                        if not issubclass(cls, caos.concept.Concept):
+                            raise caos.MetaError('custom concept base classes must inherit from '
+                                                 'caos.concept.Concept: %s' % base_name)
+                        custombases.append(base_name)
+
+            if not bases and concept.name != 'semantix.caos.builtins.Object':
+                bases.append(caos.Name('semantix.caos.builtins.Object'))
+
+            concept.base = bases
+            concept.custombases = custombases
 
             for link_name, links in concept._links.items():
                 for link in links:

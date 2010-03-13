@@ -114,6 +114,8 @@ class ConceptTable(DatabaseTable):
     def create(self):
         """
             CREATE TABLE "caos"."concept"(
+                custombases text[],
+
                 PRIMARY KEY (id),
                 UNIQUE (name)
             ) INHERITS ("caos"."metaobject")
@@ -122,9 +124,10 @@ class ConceptTable(DatabaseTable):
 
     def insert(self, *dicts, **kwargs):
         """
-            INSERT INTO "caos"."concept"(id, name, title, description, abstract)
+            INSERT INTO "caos"."concept"(id, name, title, description, abstract, custombases)
             VALUES (nextval('"caos"."metaobject_id_seq"'::regclass),
-                    %(name)s, %(title)s::hstore, %(description)s::hstore, %(abstract)s)
+                    %(name)s, %(title)s::hstore, %(description)s::hstore, %(abstract)s,
+                    %(custombases)s::text[])
             RETURNING id
         """
         return super().insert(*dicts, **kwargs)[0][0]

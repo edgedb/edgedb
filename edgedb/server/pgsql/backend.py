@@ -408,7 +408,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             concepts[name] = {'name': name,
                               'title': self.hstore_to_word_combination(row['title']),
                               'description': self.hstore_to_word_combination(row['description']),
-                              'abstract': row['abstract']}
+                              'abstract': row['abstract'], 'custombases': row['custombases']}
 
         for t in tables:
             name = self.pg_table_name_to_concept_name(t['name'])
@@ -422,7 +422,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             concept = proto.Concept(name=name, base=bases, title=concepts[name]['title'],
                                     description=concepts[name]['description'],
-                                    is_abstract=concepts[name]['abstract'])
+                                    is_abstract=concepts[name]['abstract'],
+                                    custombases=concepts[name]['custombases'])
 
             columns = introspection.table.TableColumns(self.connection).fetch(table_name=t['name'],
                                                                               schema_name=t['schema'])
@@ -615,14 +616,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         qry += '(' +  ','.join(columns) + ')'
 
         if obj.base:
-            qry += ' INHERITS (' + ','.join([self.concept_name_to_pg_table_name(p) for p in obj.base]) + ')'
+            bases = (self.concept_name_to_pg_table_name(p) for p in obj.base if proto.Concept.is_prototype(p))
+            qry += ' INHERITS (' + ','.join(bases) + ')'
 
         self.connection.execute(qry)
 
         title = obj.title.as_dict() if obj.title else None
         description = obj.description.as_dict() if obj.description else None
         self.concept_table.insert(name=str(obj.name), title=title, description=description,
-                                  abstract=obj.is_abstract)
+                                  abstract=obj.is_abstract,
+                                  custombases=[str(b) for b in obj.custombases] or None)
 
 
     @debug
