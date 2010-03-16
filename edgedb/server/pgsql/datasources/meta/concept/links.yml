@@ -48,3 +48,5 @@ source: |
             (%(source_concept)s::text IS NULL OR %(source_concept)s::text = sc.name)
             AND (%(target_concept)s::text IS NULL OR %(target_concept)s::text = tc.name)
             AND (%(name)s::text IS NULL OR %(name)s::text = l.name)
+        ORDER BY
+            l.id, l.target_id NULLS FIRST

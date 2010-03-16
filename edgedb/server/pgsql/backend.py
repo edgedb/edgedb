@@ -110,7 +110,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.column_map = {}
 
     def getmeta(self):
-        meta = proto.RealmMeta()
+        meta = proto.RealmMeta(load_builtins=False)
 
         if 'caos' in self.modules:
             self.read_atoms(meta)
@@ -250,16 +250,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                            'title': self.hstore_to_word_combination(row['title']),
                            'description': self.hstore_to_word_combination(row['description']),
                            'automatic': row['automatic'],
-                           'abstract': row['abstract']}
+                           'abstract': row['abstract'],
+                           'base': row['base']}
 
         for name, domain_descr in domains.items():
 
-            if domain_descr['basetype'] in sync.base_type_name_map_r:
-                bases = sync.base_type_name_map_r[domain_descr['basetype']]
-            else:
-                bases = caos.Name(name=common.domain_name_to_atom_name(domain_descr['basetype']),
-                                 module=common.schema_name_to_caos_module_name(domain_descr['basetype_schema']))
-
+            bases = caos.Name(atoms[name]['base'])
             atom = proto.Atom(name=name, base=bases, default=domain_descr['default'], title=atoms[name]['title'],
                               description=atoms[name]['description'], automatic=atoms[name]['automatic'],
                               is_abstract=atoms[name]['abstract'])
@@ -358,17 +354,17 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             link.implicit_derivative = r['implicit']
             link.properties = properties
 
-            if source and source.name.module != 'semantix.caos.builtins':
+            if source:
                 source.add_link(link)
-                if isinstance(target, caos.types.ProtoConcept):
+                if isinstance(target, caos.types.ProtoConcept) \
+                        and source.name.module != 'semantix.caos.builtins':
                     target.add_rlink(link)
 
             g[link.name] = {"item": link, "merge": [], "deps": []}
             if link.base:
                 g[link.name]['merge'].extend(link.base)
 
-            if link.name.module != 'semantix.caos.builtins':
-                meta.add(link)
+            meta.add(link)
 
         graph.normalize(g, merger=proto.Link.merge)
 
@@ -397,9 +393,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             name = common.table_name_to_concept_name(t['name'])
             module = common.schema_name_to_caos_module_name(t['schema'])
             name = caos.Name(name=name, module=module)
-
-            if module == 'semantix.caos.builtins':
-                continue
 
             bases = self.pg_table_inheritance_to_bases(t['name'], t['schema'])
 

@@ -65,7 +65,8 @@ class Atom(proto.Atom):
                                title=new.title.as_dict() if new.title else None,
                                description=new.description.as_dict() if new.description else None,
                                automatic=new.automatic,
-                               abstract=new.is_abstract)
+                               abstract=new.is_abstract,
+                               base=str(new.base))
 
             if not old:
                 plan.add(Insert(table=table, records=[rec]))
@@ -80,12 +81,8 @@ class Atom(proto.Atom):
 
                 plan.add(Update(table=table, fields=fields, rec=rec, condition=condition))
 
-            if new.name.module == 'semantix.caos.builtins':
-                return plan
-
         else:
-            if old.name.module != 'semantix.caos.builtins':
-                plan.add(DropDomain(name=old_domain_name))
+            plan.add(DropDomain(name=old_domain_name))
             plan.add(Delete(table=table, condition=[('name', old.name)]))
             return plan
 
@@ -95,9 +92,12 @@ class Atom(proto.Atom):
 
         new_domain_name = common.atom_name_to_domain_name(new.name)
 
-        base = base_type_name_map.get(new.base)
-        if not base:
-            base = common.atom_name_to_domain_name(new.base)
+        if cls.is_prototype(new.base):
+            base = base_type_name_map.get(new.base)
+            if not base:
+                base = common.atom_name_to_domain_name(new.base)
+        else:
+            base = base_type_name_map[new.name]
 
         has_max_length = has_min_length = False
 
@@ -679,6 +679,7 @@ class AtomTable(MetaObjectTable):
 
         self.__columns = datastructures.OrderedSet([
             Column(name='automatic', type='boolean', required=True, default=False),
+            Column(name='base', type='text', required=True),
         ])
 
         self.constraints = set([

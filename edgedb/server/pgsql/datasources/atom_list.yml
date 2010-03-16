@@ -21,6 +21,7 @@ source: |
             c.title AS title,
             c.description AS description,
             c.automatic AS automatic,
-            c.abstract AS abstract
+            c.abstract AS abstract,
+            c.base AS base
         FROM
             caos.atom c
