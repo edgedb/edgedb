@@ -161,33 +161,33 @@ class SortedList(list):
             super(SortedList, self).insert(i, x)
 
 
-class OrderedSet(collections.MutableSet):
+class BaseOrderedSet(collections.MutableSet):
 
     def __init__(self, iterable=None):
         self.map = collections.OrderedDict()
         if iterable is not None:
             self.update(iterable)
 
+    @staticmethod
+    def key(item):
+        return item
+
     def __del__(self):
         self.clear()
 
     def add(self, key):
-        if key not in self.map:
-            self.map[key] = True
-
-    append = add
+        k = self.key(key)
+        if k not in self.map:
+            self.map[k] = key
 
     def discard(self, key):
+        key = self.key(key)
         if key in self.map:
             self.map.pop(key)
 
     def popitem(self, last=True):
         key, value = self.map.popitem(last)
         return key
-
-    def index(self, key):
-        #XXX
-        return list(self.map.keys()).index(key)
 
     update = collections.MutableSet.__ior__
     difference_update = collections.MutableSet.__isub__
@@ -198,14 +198,11 @@ class OrderedSet(collections.MutableSet):
         return len(self.map)
 
     def __contains__(self, key):
+        key = self.key(key)
         return key in self.map
 
-    def __getitem__(self, key):
-        # XXX
-        return list(self.map.keys())[key]
-
     def __iter__(self):
-        return iter(list(self.map.keys()))
+        return iter(list(self.map.values()))
 
     def __reversed__(self):
         return reversed(self.map)
@@ -216,13 +213,63 @@ class OrderedSet(collections.MutableSet):
         return '%s(%r)' % (self.__class__.__name__, list(self))
 
     def __eq__(self, other):
-        if isinstance(other, OrderedSet):
+        if isinstance(other, self.__class__):
             return len(self) == len(other) and list(self) == list(other)
         return not self.isdisjoint(other)
 
     def copy(self):
-        return OrderedSet(self)
+        return self.__class__(self)
+
+
+class OrderedSet(BaseOrderedSet, collections.MutableSequence):
+
+    def __getitem__(self, key):
+        # XXX
+        return list(self.map.keys())[key]
+
+    def __setitem__(self, slice):
+        raise NotImplementedError
+
+    def __delitem__(self, slice):
+        raise NotImplementedError
+
+    append = BaseOrderedSet.add
+
+    def insert(self, pos, item):
+        raise NotImplementedError
+
+    def index(self, key):
+        #XXX
+        return list(self.map.keys()).index(key)
+
+    def count(self, key):
+        return int(key in self)
 
 
 class OrderedSetWrapper(OrderedSet, MutableSet, MutableSequence):
     original_base = OrderedSet
+
+
+class OrderedIndex(BaseOrderedSet, collections.MutableMapping):
+    def __init__(self, iterable=None, *, key=None):
+        super().__init__(iterable)
+        self.key = key or id
+
+    def __getitem__(self, key):
+        key = self.key(key)
+        return self.map[key]
+
+    def __setitem__(self, item):
+        key = self.key(item)
+        self.map[key] = item
+
+    def __delitem__(self, item):
+        key = self.key(item)
+        del self.map[key]
+
+
+class StrictOrderedIndex(OrderedIndex):
+    def __setitem__(self, item):
+        if item in self:
+            raise ValueError('item %s is already present in the index' % item)
+        super().__setitem__(item)
