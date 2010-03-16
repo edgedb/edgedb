@@ -273,3 +273,24 @@ class StrictOrderedIndex(OrderedIndex):
         if item in self:
             raise ValueError('item %s is already present in the index' % item)
         super().__setitem__(item)
+
+
+class Record(type):
+    def __new__(mcls, name, fields):
+        dct = {'fields': fields}
+        bases = (RecordBase,)
+        return super(Record, mcls).__new__(mcls, name, bases, dct)
+
+    def __init__(mcls, name, fields):
+        pass
+
+
+class RecordBase:
+    def __init__(self, **kwargs):
+        for k, v in kwargs.items():
+            if k not in self.__class__.fields:
+                raise TypeError('__init__() got an unexpected keyword argument %s' % k)
+            setattr(self, k, v)
+
+        for k in set(self.__class__.fields) - set(kwargs.keys()):
+            setattr(self, k, None)
