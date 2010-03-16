@@ -7,13 +7,10 @@
 
 
 import re
-import copy
 import importlib
 
 import postgresql.string
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
-from postgresql.types import io as pgio
-from postgresql.types.io.contrib_hstore import hstore_factory
 
 from semantix.utils import graph
 from semantix.utils.debug import debug
@@ -24,7 +21,9 @@ from semantix import caos
 from semantix.caos import backends
 from semantix.caos import proto
 
-from semantix.caos.backends.pgsql import common as tables
+from semantix.caos.backends import metadelta
+from semantix.caos.backends.pgsql import common
+from semantix.caos.backends.pgsql import sync
 
 from . import datasources
 from .datasources import introspection
@@ -86,40 +85,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     check_constraint_re = re.compile(r"CHECK \s* \( (?P<expr>.*) \)$", re.X)
 
-    constraint_type_re = re.compile(r"^(?P<type>[.\w-]+)_\d+$", re.X)
+    constraint_type_re = re.compile(r"^(?P<type>[.\w-]+)(?:_\d+)?$", re.X)
 
     cast_re = re.compile(r"(::(?P<type>(?:(?P<quote>\"?)[\w-]+(?P=quote)\.)?(?P<quote1>\"?)[\w-]+(?P=quote1)))+$", re.X)
 
     constr_expr_res = {
-                        'regexp': re.compile("VALUE::text \s* ~ \s* '(?P<expr>.*)'::text$", re.X),
+                        'regexp': re.compile("VALUE::text \s* ~ \s* '(?P<expr>[^']*)'::text", re.X),
                         'max-length': re.compile("length\(VALUE::text\) \s* <= \s* (?P<expr>\d+)$", re.X),
                         'min-length': re.compile("length\(VALUE::text\) \s* >= \s* (?P<expr>\d+)$", re.X)
                       }
-
-    base_type_name_map = {
-                                caos.Name('semantix.caos.builtins.str'): 'character varying',
-                                caos.Name('semantix.caos.builtins.int'): 'numeric',
-                                caos.Name('semantix.caos.builtins.bool'): 'boolean',
-                                caos.Name('semantix.caos.builtins.float'): 'double precision',
-                                caos.Name('semantix.caos.builtins.uuid'): 'uuid',
-                                caos.Name('semantix.caos.builtins.datetime'): 'timestamp'
-                         }
-
-    base_type_name_map_r = {
-                                'character varying': caos.Name('semantix.caos.builtins.str'),
-                                'character': caos.Name('semantix.caos.builtins.str'),
-                                'text': caos.Name('semantix.caos.builtins.str'),
-                                'integer': caos.Name('semantix.caos.builtins.int'),
-                                'boolean': caos.Name('semantix.caos.builtins.bool'),
-                                'numeric': caos.Name('semantix.caos.builtins.int'),
-                                'double precision': caos.Name('semantix.caos.builtins.float'),
-                                'uuid': caos.Name('semantix.caos.builtins.uuid'),
-                                'timestamp': caos.Name('semantix.caos.builtins.datetime')
-                           }
-
-
-    typmod_types = ('character', 'character varying', 'numeric')
-    fixed_length_types = {'character varying': 'character'}
 
 
     def __init__(self, connection):
@@ -127,64 +101,45 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         self.connection = connection
 
-        types = introspection.TypesList(self.connection).fetch(schema_name='public', type_name='hstore')
-        types = {t['name']: t['oid'] for t in types}
-
-        if 'hstore' not in types:
-            raise caos.types.MetaError('required PostgreSQL hstore support is missing')
-
-        pgio.module_io[types['hstore']] = hstore_factory
+        sync.SynchronizationPlan.init_hstore(connection)
 
         self.domains = set()
         schemas = introspection.SchemasList(self.connection).fetch(schema_name='caos%')
-        self.modules = {self.pg_schema_name_to_module_name(s['name']) for s in schemas}
-
-        if 'caos' not in self.modules:
-            self.create_primary_schema()
-
-        self.metaobject_table = tables.MetaObjectTable(self.connection)
-        self.metaobject_table.create()
-        self.atom_table = tables.AtomTable(self.connection)
-        self.atom_table.create()
-        self.concept_table = tables.ConceptTable(self.connection)
-        self.concept_table.create()
-        self.link_table = tables.LinkTable(self.connection)
-        self.link_table.create()
+        self.modules = {common.schema_name_to_caos_module_name(s['name']) for s in schemas}
 
         self.column_map = {}
 
     def getmeta(self):
         meta = proto.RealmMeta()
 
-        self.read_atoms(meta)
-        self.read_concepts(meta)
-        self.read_links(meta)
+        if 'caos' in self.modules:
+            self.read_atoms(meta)
+            self.read_concepts(meta)
+            self.read_links(meta)
 
         return meta
 
 
-    def synchronize(self, meta):
+    def get_synchronization_plan(self, meta):
+        oldmeta = self.getmeta()
+
+        delta = metadelta.metadelta(oldmeta, meta)
+        plan = sync.SynchronizationPlan.from_delta(delta)
+
+        return plan
+
+
+    def apply_synchronization_plan(self, plan):
         with self.connection.xact():
-            for type in ('atom', 'concept', 'link'):
-                for obj in meta(type, include_builtin=True, include_automatic=True):
-                    self.store(obj)
+            plan.execute(self.connection)
 
 
-    def get_concept_from_entity(self, id):
-        query = """SELECT
-                            c.name
-                        FROM
-                            semantix.caos.builtins.Object e
-                            INNER JOIN caos.concept c ON c.id = e.concept_id
-                        WHERE
-                            e.id = '%s'""" % id
-
-        ps = self.connection.prepare(query)
-        return ps.first()
+    def synchronize(self, meta):
+        self.apply_synchronization_plan(self.get_synchronization_plan(meta))
 
 
     def load_entity(self, concept, id):
-        query = 'SELECT * FROM %s WHERE "semantix.caos.builtins.id" = \'%s\'' % (self.concept_name_to_pg_table_name(concept), id)
+        query = 'SELECT * FROM %s WHERE "semantix.caos.builtins.id" = \'%s\'' % (common.concept_name_to_table_name(concept), id)
         ps = self.connection.prepare(query)
         result = ps.first()
 
@@ -208,29 +163,31 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     attrs[n] = v
 
             if id is not None:
-                query = 'UPDATE %s SET ' % self.concept_name_to_pg_table_name(concept)
+                query = 'UPDATE %s SET ' % common.concept_name_to_table_name(concept)
                 cols = []
                 for a in attrs:
                     if hasattr(entity.__class__, str(a)):
                         l = getattr(entity.__class__, str(a))
-                        col_type = 'text::%s' % self.pg_type_from_atom_class(l)
+                        col_type = 'text::%s' % \
+                                    sync.TableBasedObject.pg_type_from_atom(None, l._metadata.prototype)
                     else:
                         col_type = 'int'
                     column_name = self.caos_name_to_pg_column_name(a)
-                    column_name = tables.quote_ident(column_name)
+                    column_name = common.quote_ident(column_name)
                     cols.append('%s = %%(%s)s::%s' % (column_name, str(a), col_type))
                 query += ','.join(cols)
                 query += ' WHERE "semantix.caos.builtins.id" = %s RETURNING "semantix.caos.builtins.id"' \
                                                                 % postgresql.string.quote_literal(str(id))
             else:
                 if attrs:
-                    cols_names = [tables.quote_ident(self.caos_name_to_pg_column_name(a)) for a in attrs]
+                    cols_names = [common.quote_ident(self.caos_name_to_pg_column_name(a)) for a in attrs]
                     cols_names = ', ' + ', '.join(cols_names)
                     cols = []
                     for a in attrs:
                         if hasattr(entity.__class__, str(a)):
                             l = getattr(entity.__class__, str(a))
-                            col_type = 'text::%s' % self.pg_type_from_atom_class(l)
+                            col_type = 'text::%s' % \
+                                        sync.TableBasedObject.pg_type_from_atom(None, l._metadata.prototype)
                         else:
                             col_type = 'int'
                         cols.append('%%(%s)s::%s' % (a, col_type))
@@ -240,7 +197,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     cols_values = ''
 
                 query = 'INSERT INTO %s ("semantix.caos.builtins.id", concept_id%s)' \
-                                                % (self.concept_name_to_pg_table_name(concept), cols_names)
+                                                % (common.concept_name_to_table_name(concept), cols_names)
 
                 query += '''VALUES(uuid_generate_v1mc(),
                                    (SELECT id FROM caos.concept WHERE name = %(concept)s) %(cols)s)
@@ -277,9 +234,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def read_atoms(self, meta):
-        domains = introspection.domains.DomainsList(self.connection).fetch(schema_name='caos%')
-        domains = {caos.Name(name=self.pg_domain_name_to_atom_name(d['name']),
-                            module=self.pg_schema_name_to_module_name(d['schema'])):
+        domains = introspection.domains.DomainsList(self.connection).fetch(schema_name='caos%',
+                                                                           domain_name='%_domain')
+        domains = {caos.Name(name=common.domain_name_to_atom_name(d['name']),
+                             module=common.schema_name_to_caos_module_name(d['schema'])):
                    self.normalize_domain_descr(d) for d in domains}
         self.domains = set(domains.keys())
 
@@ -296,11 +254,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         for name, domain_descr in domains.items():
 
-            if domain_descr['basetype'] in self.base_type_name_map_r:
-                bases = self.base_type_name_map_r[domain_descr['basetype']]
+            if domain_descr['basetype'] in sync.base_type_name_map_r:
+                bases = sync.base_type_name_map_r[domain_descr['basetype']]
             else:
-                bases = caos.Name(name=self.pg_domain_name_to_atom_name(domain_descr['basetype']),
-                                 module=self.pg_schema_name_to_module_name(domain_descr['basetype_schema']))
+                bases = caos.Name(name=common.domain_name_to_atom_name(domain_descr['basetype']),
+                                 module=common.schema_name_to_caos_module_name(domain_descr['basetype_schema']))
 
             atom = proto.Atom(name=name, base=bases, default=domain_descr['default'], title=atoms[name]['title'],
                               description=atoms[name]['description'], automatic=atoms[name]['automatic'],
@@ -319,18 +277,22 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         link_tables = introspection.table.TableList(self.connection).fetch(schema_name='caos%',
                                                                            table_pattern='%_link')
 
-        tables = {}
+        ltables = {}
 
         for t in link_tables:
-            name = self.pg_table_name_to_link_name(t['name'])
-            module = self.pg_schema_name_to_module_name(t['schema'])
+            name = common.table_name_to_link_name(t['name'])
+            module = common.schema_name_to_caos_module_name(t['schema'])
             name = caos.Name(name=name, module=module)
 
-            tables[name] = t
+            ltables[name] = t
+
+        link_tables = ltables
 
         links_list = datasources.meta.concept.ConceptLinks(self.connection).fetch()
 
         g = {}
+
+        concept_columns = {}
 
         for r in links_list:
             name = caos.Name(r['name'])
@@ -338,7 +300,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             properties = {}
 
             if not r['implicit'] and not r['atomic']:
-                t = tables.get(name)
+                t = link_tables.get(name)
                 if not t:
                     raise caos.MetaError('internal inconsistency: record for link %s exists but the table is missing'
                                          % name)
@@ -367,6 +329,27 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             description = self.hstore_to_word_combination(r['description'])
             source = meta.get(r['source']) if r['source'] else None
             target = meta.get(r['target']) if r['target'] else None
+
+            if r['implicit'] and isinstance(target, proto.Atom):
+                cols = concept_columns.get(source.name)
+
+                concept_schema, concept_table = common.concept_name_to_table_name(source.name,
+                                                                                  catenate=False)
+                if not cols:
+                    cols = introspection.table.TableColumns(self.connection).fetch(table_name=concept_table,
+                                                                                   schema_name=concept_schema)
+                    cols = {col['column_name']: col for col in cols}
+                    concept_columns[source.name] = cols
+
+                base_link_name = bases[0]
+
+                col = cols[base_link_name]
+
+                derived_atom_name = '__' + source.name.name + '__' + base_link_name.name
+                target = self.atom_from_pg_type(col['column_type'], concept_schema,
+                                                col['column_default'], meta,
+                                                caos.Name(name=derived_atom_name, module=source.name.module))
+
 
             link = proto.Link(name=name, base=bases, source=source, target=target,
                                 mapping=r['mapping'], required=r['required'],
@@ -411,8 +394,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                               'abstract': row['abstract'], 'custombases': row['custombases']}
 
         for t in tables:
-            name = self.pg_table_name_to_concept_name(t['name'])
-            module = self.pg_schema_name_to_module_name(t['schema'])
+            name = common.table_name_to_concept_name(t['name'])
+            module = common.schema_name_to_caos_module_name(t['schema'])
             name = caos.Name(name=name, module=module)
 
             if module == 'semantix.caos.builtins':
@@ -433,199 +416,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                 atom_name = row['column_name']
 
+                """
                 derived_atom_name = '__' + name.name + '__' + caos.Name(atom_name).name
                 atom = self.atom_from_pg_type(row['column_type'], t['schema'], row['column_default'], meta,
                                               caos.Name(name=derived_atom_name, module=name.module))
+                """
 
             meta.add(concept)
-
-
-    def store(self, obj, allow_existing=False):
-        with self.connection.xact():
-            if obj.name.module not in self.modules:
-                self.create_module(obj.name.module)
-
-            if isinstance(obj, proto.Atom):
-                self.create_atom(obj, allow_existing)
-            elif isinstance(obj, proto.Link):
-                self.create_link(obj)
-            else:
-                self.create_concept(obj)
-
-
-    def create_primary_schema(self):
-        qry = 'CREATE SCHEMA %s' % tables.quote_ident('caos')
-        self.connection.execute(qry)
-        self.modules.add('caos')
-
-
-    def create_module(self, module_name):
-        qry = 'CREATE SCHEMA %s' % self.module_name_to_pg_schema_name(module_name)
-        self.connection.execute(qry)
-        self.modules.add(module_name)
-
-
-    def create_atom(self, obj, allow_existing):
-        if allow_existing:
-            if not self.domains:
-                domains = introspection.domains.DomainsList(self.connection).fetch(schema_name='caos')
-                self.domains = {d['name'] for d in domains}
-
-            if obj.name in self.domains:
-                return
-
-        title = obj.title.as_dict() if obj.title else None
-        description = obj.description.as_dict() if obj.description else None
-        self.atom_table.insert(name=str(obj.name), title=title, description=description,
-                               automatic=obj.automatic, abstract=obj.is_abstract)
-        self.domains.add(obj.name)
-
-        if obj.name.module == 'semantix.caos.builtins':
-            return
-
-        qry = 'CREATE DOMAIN %s AS ' % self.atom_name_to_pg_domain_name(obj.name)
-        base = obj.base
-
-        if base in self.base_type_name_map:
-            base = self.base_type_name_map[base]
-        else:
-            base = self.atom_name_to_pg_domain_name(base)
-
-        basetype = copy.copy(base)
-
-        has_max_length = False
-
-        if base in self.typmod_types:
-            for mod, modvalue in obj.mods.items():
-                if issubclass(mod, proto.AtomModMaxLength):
-                    has_max_length = modvalue
-                    break
-
-        if has_max_length:
-            #
-            # Convert basetype + max-length constraint into a postgres-native
-            # type with typmod, e.g str[max-length: 20] --> varchar(20)
-            #
-            # Handle the case when min-length == max-length and yield a fixed-size
-            # type correctly
-            #
-            has_min_length = False
-            if base in self.fixed_length_types:
-                for mod, modvalue in obj.mods.items():
-                    if issubclass(mod, proto.AtomModMinLength):
-                        has_min_length = modvalue
-                        break
-
-            if (has_min_length and has_min_length.value == has_max_length.value):
-                base = self.fixed_length_types[base]
-            base += '(' + str(has_max_length.value) + ')'
-
-        qry += base
-
-        if obj.default is not None:
-            qry += ' DEFAULT %s ' % postgresql.string.quote_literal(str(obj.default))
-
-        for constr_type, constr in obj.mods.items():
-            canonical = constr_type.get_canonical_class()
-            classtr = '%s.%s' % (canonical.__module__, canonical.__name__)
-            if issubclass(constr_type, proto.AtomModRegExp):
-                for re in constr.regexps:
-                    expr = 'VALUE ~ %s' % postgresql.string.quote_literal(re)
-                    qry += self.get_constraint_expr(classtr, expr)
-            elif issubclass(constr_type, proto.AtomModExpr):
-                # XXX: TODO: Generic expression support requires sophisticated expression translation
-                continue
-                for expr in constr.exprs:
-                    qry += self.get_constraint_expr(classtr, expr)
-            elif issubclass(constr_type, proto.AtomModMaxLength):
-                if basetype not in self.typmod_types:
-                    qry += self.get_constraint_expr(classtr, 'length(VALUE::text) <= ' + str(constr.value))
-            elif issubclass(constr_type, proto.AtomModMinLength):
-                qry += self.get_constraint_expr(classtr, 'length(VALUE::text) >= ' + str(constr.value))
-
-        self.connection.execute(qry)
-
-
-    def create_link(self, link):
-        title = link.title.as_dict() if link.title else None
-        description = link.description.as_dict() if link.description else None
-
-        source_name = str(link.source.name) if link.source else None
-        target_name = str(link.target.name) if link.target else None
-
-        #
-        # We do not want to create a separate table for atomic links since those
-        # are represented by table columns.  Implicit derivative links also do not get
-        # their own table since they're just a special case of the parent.
-        #
-        # On the other hand, much like with concepts we want all other links to be in
-        # separate tables even if they do not define additional properties.
-        # This is to allow for further schema evolution.
-        #
-        if not link.atomic() and not link.implicit_derivative:
-            table = self.link_name_to_pg_table_name(link.name)
-            qry = 'CREATE TABLE %s' % table
-
-            columns = []
-
-            for property_name, property in link.properties.items():
-                column_type = self.pg_type_from_atom(property.atom)
-                column = '"%s" %s' % (property_name, column_type)
-                columns.append(column)
-
-            if link.name == 'semantix.caos.builtins.link':
-                columns.append('source_id uuid NOT NULL')
-                columns.append('target_id uuid NOT NULL')
-                columns.append('link_type_id integer NOT NULL')
-
-            columns.append('PRIMARY KEY (source_id, target_id, link_type_id)')
-
-            qry += '(' +  ','.join(columns) + ')'
-
-            if link.base:
-                qry += ' INHERITS (' + ','.join([self.link_name_to_pg_table_name(p) for p in link.base]) + ')'
-
-            self.connection.execute(qry)
-
-        id = self.link_table.insert(source=source_name, target=target_name,
-                                    name=str(link.name), mapping=link.mapping,
-                                    required=link.required, title=title, description=description,
-                                    implicit=link.implicit_derivative,
-                                    atomic=link.atomic(), abstract=link.is_abstract)
-
-
-    def create_concept(self, obj):
-        qry = 'CREATE TABLE %s' % self.concept_name_to_pg_table_name(obj.name)
-
-        columns = []
-
-        for link_name in sorted(obj.links.keys()):
-            links = obj.links[link_name]
-            for link in links:
-                if isinstance(link.target, proto.Atom):
-                    column_type = self.pg_type_from_atom(link.target)
-                    column_name = self.caos_name_to_pg_column_name(link_name)
-
-                    column = '"%s" %s %s' % (column_name, column_type, 'NOT NULL' if link.required else '')
-                    columns.append(column)
-
-        if obj.name == 'semantix.caos.builtins.Object':
-            columns.append('"concept_id" integer NOT NULL')
-
-        columns.append('PRIMARY KEY("semantix.caos.builtins.id")')
-        qry += '(' +  ','.join(columns) + ')'
-
-        if obj.base:
-            bases = (self.concept_name_to_pg_table_name(p) for p in obj.base if proto.Concept.is_prototype(p))
-            qry += ' INHERITS (' + ','.join(bases) + ')'
-
-        self.connection.execute(qry)
-
-        title = obj.title.as_dict() if obj.title else None
-        description = obj.description.as_dict() if obj.description else None
-        self.concept_table.insert(name=str(obj.name), title=title, description=description,
-                                  abstract=obj.is_abstract,
-                                  custombases=[str(b) for b in obj.custombases] or None)
 
 
     @debug
@@ -660,7 +457,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         params += params
 
         if len(rows) > 0:
-            table = self.link_name_to_pg_table_name(link_name)
+            table = common.link_name_to_table_name(link_name)
             self.runquery("""INSERT INTO %s(source_id, target_id, link_type_id)
                              ((VALUES %s)
                               EXCEPT
@@ -733,15 +530,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 constr_type_str = self.mod_class_to_str(constr_type)
 
                 if constr_type_str in self.constr_expr_res:
-                    m = self.constr_expr_res[constr_type_str].match(constr_expr)
+                    m = self.constr_expr_res[constr_type_str].findall(constr_expr)
                     if m:
-                        constr_expr = m.group('expr')
+                        constr_expr = m
                     else:
                         raise caos.MetaError('could not parse domain constraint "%s": %s' %
                                              (constr_name, constr_expr))
 
                 if issubclass(constr_type, (proto.AtomModMinLength, proto.AtomModMaxLength)):
-                    constr_expr = int(constr_expr)
+                    constr_expr = [int(constr_expr[0])]
 
                 if issubclass(constr_type, proto.AtomModExpr):
                     # That's a very hacky way to remove casts from expressions added by Postgres
@@ -750,7 +547,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 if constr_type not in constraints:
                     constraints[constr_type] = []
 
-                constraints[constr_type].append(constr_expr)
+                constraints[constr_type].extend(constr_expr)
 
             d['constraints'] = constraints
 
@@ -787,45 +584,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         bases = tuple()
         if len(inheritance) > 0:
             for table in inheritance:
-                base_name = self.pg_table_name_to_concept_name(table[0])
-                base_module = self.pg_schema_name_to_module_name(table[1])
+                base_name = common.table_name_to_concept_name(table[0])
+                base_module = common.schema_name_to_caos_module_name(table[1])
                 bases += (caos.Name(name=base_name, module=base_module),)
 
         return bases
-
-
-    def module_name_to_pg_schema_name(self, module_name):
-        return tables.quote_ident('caos_' + module_name)
-
-
-    def pg_schema_name_to_module_name(self, schema_name):
-        if schema_name.startswith('caos_'):
-            return schema_name[5:]
-        else:
-            return schema_name
-
-
-    def concept_name_to_pg_table_name(self, name):
-        return tables.qname('caos_' + name.module, name.name + '_data')
-
-    def pg_table_name_to_concept_name(self, name):
-        if name.endswith('_data') or name.endswith('_link'):
-            name = name[:-5]
-        return name
-
-
-    def link_name_to_pg_table_name(self, name):
-        return tables.qname('caos_' + name.module, name.name + '_link')
-
-
-    def pg_table_name_to_link_name(self, name):
-        if name.endswith('_link'):
-            name = name[:-5]
-        return name
-
-
-    def atom_name_to_pg_domain_name(self, name):
-        return tables.qname('caos_' + name.module, name.name + '_domain')
 
 
     def caos_name_to_pg_column_name(self, name):
@@ -842,73 +605,39 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             return mapped_name
         name = str(name)
 
-        mapped_name = tables.caos_name_to_pg_colname(name)
+        mapped_name = common.caos_name_to_pg_colname(name)
 
         self.column_map[mapped_name] = name
         self.column_map[name] = mapped_name
         return mapped_name
 
 
-    def pg_domain_name_to_atom_name(self, name):
-        name = name.split('.')[-1]
-        if name.endswith('_domain'):
-            name = name[:-7]
-        return name
-
-
-    def pg_type_from_atom_class(self, atom_obj):
-        if (atom_obj.base is not None and (atom_obj.base == str or (hasattr(atom_obj.base, 'name') and atom_obj.base.name == 'semantix.caos.builtins.str'))
-                and len(atom_obj.mods) == 1 and issubclass(next(iter(atom_obj.mods.keys())), proto.AtomModMaxLength)):
-            column_type = 'varchar(%d)' % next(iter(atom_obj.mods.values())).value
-        else:
-            if atom_obj._metadata.name in self.base_type_name_map:
-                column_type = self.base_type_name_map[atom_obj._metadata.name]
-            else:
-                column_type = self.atom_name_to_pg_domain_name(atom_obj._metadata.name)
-        return column_type
-
-
-    def pg_type_from_atom(self, atom_obj):
-        if (atom_obj.base is not None and atom_obj.base == 'semantix.caos.builtins.str'
-                and len(atom_obj.mods) == 1 and issubclass(next(iter(atom_obj.mods.keys())), proto.AtomModMaxLength)):
-            column_type = 'varchar(%d)' % next(iter(atom_obj.mods.values())).value
-        else:
-            if atom_obj.name in self.base_type_name_map:
-                column_type = self.base_type_name_map[atom_obj.name]
-            else:
-                self.store(atom_obj, allow_existing=True)
-                column_type = self.atom_name_to_pg_domain_name(atom_obj.name)
-
-        return column_type
-
-
     def atom_from_pg_type(self, type_expr, atom_schema, atom_default, meta, derived_name):
 
-        atom_name = caos.Name(name=self.pg_domain_name_to_atom_name(type_expr),
-                              module=self.pg_schema_name_to_module_name(atom_schema))
+        atom_name = caos.Name(name=common.domain_name_to_atom_name(type_expr),
+                              module=common.schema_name_to_caos_module_name(atom_schema))
 
         atom = meta.get(atom_name, None)
 
         if not atom:
             atom = meta.get(derived_name, None)
 
-        if not atom:
-            m = self.typlen_re.match(type_expr)
-            if m:
-                typmod = int(m.group('length'))
-                typname = m.group('type').strip()
-            else:
-                typmod = None
-                typname = type_expr
+        m = self.typlen_re.match(type_expr)
+        if m:
+            typmod = int(m.group('length'))
+            typname = m.group('type').strip()
+        else:
+            typmod = None
+            typname = type_expr
 
-            if typname in self.base_type_name_map_r:
-                atom = meta.get(self.base_type_name_map_r[typname])
+        if typname in sync.base_type_name_map_r:
+            atom = meta.get(sync.base_type_name_map_r[typname])
 
-                if typname in self.typmod_types and typmod is not None:
-                    atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,
-                                        automatic=True)
-                    atom.add_mod(proto.AtomModMaxLength(typmod))
-                    meta.add(atom)
+            if typname in sync.typmod_types and typmod is not None:
+                atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,
+                                    automatic=True)
+                atom.add_mod(proto.AtomModMaxLength(typmod))
+                meta.add(atom)
 
         return atom
 

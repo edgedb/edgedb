@@ -14,6 +14,10 @@ params:
         type: str
         default: "public"
 
+    domain_name:
+        type: str
+        default: null
+
 filters:
     - format: dict
 
@@ -67,6 +71,9 @@ source: |
                 -- Limit the schema scope
                 --
                 ns.nspname LIKE %(schema_name)s
+
+                AND (%(domain_name)s::text IS NULL OR t.typname LIKE %(domain_name)s::text)
+
                 --
                 -- We're not interested in shell- or pseudotypes or arrays or table row types
                 --
