@@ -275,12 +275,12 @@ class StrictOrderedIndex(OrderedIndex):
 
 
 class Record(type):
-    def __new__(mcls, name, fields):
-        dct = {'fields': fields}
+    def __new__(mcls, name, fields, default=None):
+        dct = {'fields': fields, 'default': default}
         bases = (RecordBase,)
         return super(Record, mcls).__new__(mcls, name, bases, dct)
 
-    def __init__(mcls, name, fields):
+    def __init__(mcls, name, fields, default):
         pass
 
 
@@ -292,4 +292,4 @@ class RecordBase:
             setattr(self, k, v)
 
         for k in set(self.__class__.fields) - set(kwargs.keys()):
-            setattr(self, k, None)
+            setattr(self, k, self.__class__.default)
