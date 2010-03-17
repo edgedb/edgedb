@@ -255,6 +255,15 @@ class OrderedIndex(BaseOrderedSet, collections.MutableMapping):
         self.key = key or hash
         super().__init__(iterable)
 
+    def keys(self):
+        return self.map.keys()
+
+    def values(self):
+        return self.map.values()
+
+    def items(self):
+        return self.map.items()
+
     def __getitem__(self, key):
         return self.map.get(key, self.map[self.key(key)])
 
