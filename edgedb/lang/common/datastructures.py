@@ -252,12 +252,11 @@ class OrderedSetWrapper(OrderedSet, MutableSet, MutableSequence):
 
 class OrderedIndex(BaseOrderedSet, collections.MutableMapping):
     def __init__(self, iterable=None, *, key=None):
+        self.key = key or hash
         super().__init__(iterable)
-        self.key = key or id
 
     def __getitem__(self, key):
-        key = self.key(key)
-        return self.map[key]
+        return self.map.get(key, self.map[self.key(key)])
 
     def __setitem__(self, item):
         key = self.key(item)
