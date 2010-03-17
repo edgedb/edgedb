@@ -127,4 +127,4 @@ class WordCombination(NaturalLanguageObject):
             return False
 
     def __hash__(self):
-        return hash(self.forms)
+        return hash(frozenset(self.forms.values()))
