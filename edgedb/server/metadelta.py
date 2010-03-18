@@ -56,21 +56,24 @@ def concept_delta(old:proto.Concept, new:proto.Concept):
 
     result = []
 
-    for hash, link in new_links.items():
-        if link in old_links:
-            del old_links[link]
-        else:
-            similarity = [(link.compare(other), other, link) for other in old_links]
+    context = proto.ComparisonContext()
 
-            mod_candidates = list(filter(lambda item: item[0] > 0.6, similarity))
-
-            if mod_candidates:
-                result.append(mod_candidates[0][1:])
-                del old_links[mod_candidates[0][1]]
+    with context(old, new):
+        for hash, link in new_links.items():
+            if link in old_links:
+                del old_links[link]
             else:
-                result.append((None, link))
+                similarity = [(link.compare(other), other, link) for other in old_links]
 
-    for hash, link in old_links.items():
-        result.append((link, None))
+                mod_candidates = list(filter(lambda item: item[0] > 0.6, similarity))
+
+                if mod_candidates:
+                    result.append(mod_candidates[0][1:])
+                    del old_links[mod_candidates[0][1]]
+                else:
+                    result.append((None, link))
+
+        for hash, link in old_links.items():
+            result.append((link, None))
 
     return result

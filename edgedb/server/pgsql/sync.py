@@ -53,7 +53,7 @@ class Atom(proto.Atom):
     @classmethod
     def alter_object(cls, plan, old, new):
         if old:
-            old_domain_name = common.atom_name_to_domain_name(old.name)
+            old_domain_name = common.atom_name_to_domain_name(old.name, catenate=False)
         else:
             old_domain_name = None
 
@@ -85,11 +85,13 @@ class Atom(proto.Atom):
             plan.add(Delete(table=table, condition=[('name', str(old.name))]))
             return plan
 
+        new_domain_name = common.atom_name_to_domain_name(new.name, catenate=False)
 
         if old and old.name != new.name:
-            raise Exception('atom renaming is not supported yet')
-
-        new_domain_name = common.atom_name_to_domain_name(new.name)
+            plan.add(RenameDomain(name=old_domain_name, new_name=new_domain_name))
+            updaterec = table.record(name=str(new.name))
+            condition = [('name', str(old.name))]
+            plan.add(Update(table=table, record=updaterec, condition=condition))
 
         old_mods = set()
         new_mods = set()
@@ -100,7 +102,7 @@ class Atom(proto.Atom):
             old_base, old_min_length, old_max_length, old_mods = cls.get_atom_base_and_mods(old)
 
         if not old or (old and old_max_length and not old_mods and new_mods):
-            create_schema = CreateSchema(name=common.caos_module_name_to_schema_name(new.name.module))
+            create_schema = CreateSchema(name=new_domain_name[0])
             if create_schema not in plan:
                 plan.add(create_schema)
             plan.add(CreateDomain(name=new_domain_name, base=base))
@@ -194,6 +196,22 @@ class TableBasedObject:
 
         return column_type
 
+    @classmethod
+    def rename(cls, plan, metatable, old, new):
+        old_table_name = common.concept_name_to_table_name(old.name, catenate=False)
+        new_table_name = common.concept_name_to_table_name(new.name, catenate=False)
+
+        if old.name.module != new.name.module:
+            plan.add(AlterTableSetSchema(old_table_name, new_table_name[0]))
+            old_table_name = (new_table_name[0], old_table_name[1])
+
+        if old.name.name != new.name.name:
+            plan.add(AlterTableRenameTo(old_table_name, new_table_name[1]))
+
+        updaterec = metatable.record(name=str(new.name))
+        condition = [('name', str(old.name))]
+        plan.add(Update(table=metatable, record=updaterec, condition=condition))
+
 
 class Concept(proto.Concept, TableBasedObject):
     @classmethod
@@ -205,23 +223,19 @@ class Concept(proto.Concept, TableBasedObject):
             plan.add(Delete(table=table, condition=[('name', str(old.name))]))
             return plan
 
+        new_table_name = common.concept_name_to_table_name(new.name, catenate=False)
+
         if old:
-            old_table_name = common.concept_name_to_table_name(old.name)
-
             if old.name != new.name:
-                if old.name.module != new.name.module:
-                    plan.add(AlterTableSetSchema(old_table_name, new.name.module))
-
-                if old.name.name != new.name.name:
-                    plan.add(AlterTableRenameTo(old_table_name, new.name.name))
+                cls.rename(plan, table, old, new)
 
             delta = metadelta.concept_delta(old, new)
 
             if delta:
                 columns_to_add = []
                 columns_to_drop = []
-                table_name = common.concept_name_to_table_name(new.name)
-                alter = AlterTable(table_name)
+
+                alter = AlterTable(new_table_name)
 
                 for old_link, new_link in delta:
                     if not old_link:
@@ -243,7 +257,7 @@ class Concept(proto.Concept, TableBasedObject):
                     plan.add(alter)
 
         else:
-            create_schema = CreateSchema(name=common.caos_module_name_to_schema_name(new.name.module))
+            create_schema = CreateSchema(name=new_table_name[0])
             if create_schema not in plan:
                 plan.add(create_schema)
 
@@ -254,7 +268,7 @@ class Concept(proto.Concept, TableBasedObject):
 
     @classmethod
     def alter_columns(cls, plan, alter, obj, old_link, new_link):
-        table_name = common.concept_name_to_table_name(obj.name)
+        table_name = common.concept_name_to_table_name(obj.name, catenate=False)
         if old_link.atomic():
             old_link_obj = old_link.first
             new_link_obj = new_link.first
@@ -286,7 +300,7 @@ class Concept(proto.Concept, TableBasedObject):
     @classmethod
     def get_new_table(cls, plan, new):
 
-        new_table_name = common.concept_name_to_table_name(new.name)
+        new_table_name = common.concept_name_to_table_name(new.name, catenate=False)
 
         columns = []
         constraints = []
@@ -303,14 +317,15 @@ class Concept(proto.Concept, TableBasedObject):
         concept_table.add_columns(columns)
         concept_table.constraints = constraints
 
-        bases = (common.concept_name_to_table_name(p) for p in new.base if proto.Concept.is_prototype(p))
+        bases = (common.concept_name_to_table_name(p, catenate=False)
+                 for p in new.base if proto.Concept.is_prototype(p))
         concept_table.bases = list(bases)
 
         return concept_table
 
     @classmethod
     def drop_table(cls, plan, obj):
-        plan.add(DropTable(name=common.concept_name_to_table_name(obj.name)))
+        plan.add(DropTable(name=common.concept_name_to_table_name(obj.name, catenate=False)))
 
     @classmethod
     def record_metadata(cls, plan, old, new):
@@ -333,16 +348,13 @@ class Link(proto.Link, TableBasedObject):
             plan.add(Delete(table=table, condition=[('name', str(old.name))]))
             return plan
 
+        new_table_name = common.link_name_to_table_name(new.name, catenate=False)
+
         if old:
             if not old.atomic() and not old.implicit_derivative:
-                old_table_name = common.link_name_to_table_name(old.name)
-
                 if old.name != new.name:
-                    if old.name.module != new.name.module:
-                        plan.add(AlterTableSetSchema(old_table_name, new.name.module))
+                    cls.rename(plan, table, old, new)
 
-                    if old.name.name != new.name.name:
-                        plan.add(AlterTableRenameTo(old_table_name, new.name.name))
             elif old.atomic():
                 cls.record_metadata(plan, old, new)
 
@@ -356,7 +368,7 @@ class Link(proto.Link, TableBasedObject):
             # This is to allow for further schema evolution.
             #
             if not new.atomic() and not new.implicit_derivative:
-                create_schema = CreateSchema(name=common.caos_module_name_to_schema_name(new.name.module))
+                create_schema = CreateSchema(name=new_table_name[0])
                 if create_schema not in plan:
                     plan.add(create_schema)
 
@@ -368,7 +380,7 @@ class Link(proto.Link, TableBasedObject):
     @classmethod
     def get_new_table(cls, plan, new):
 
-        new_table_name = common.link_name_to_table_name(new.name)
+        new_table_name = common.link_name_to_table_name(new.name, catenate=False)
 
         columns = []
         constraints = []
@@ -389,7 +401,8 @@ class Link(proto.Link, TableBasedObject):
         table.constraints = constraints
 
         if new.base:
-            bases = (common.link_name_to_table_name(p) for p in new.base if proto.Concept.is_prototype(p))
+            bases = (common.link_name_to_table_name(p, catenate=False)
+                     for p in new.base if proto.Concept.is_prototype(p))
             table.bases = list(bases)
 
         return table
@@ -397,7 +410,7 @@ class Link(proto.Link, TableBasedObject):
     @classmethod
     def drop_table(cls, plan, obj):
         if not obj.atomic() and not obj.implicit_derivative:
-            plan.add(DropTable(name=common.link_name_to_table_name(obj.name)))
+            plan.add(DropTable(name=common.link_name_to_table_name(obj.name, catenate=False)))
 
     @classmethod
     def record_metadata(cls, plan, old, new):
@@ -509,9 +522,9 @@ class SynchronizationPlan:
         plan.add(CreateSchema(name='caos'),
                  level=-1)
         plan.add(EnableFeature(feature=UuidFeature(),
-                               neg_conditions=[FunctionExists(name='uuid_nil', schema='caos')]), level=-1)
+                               neg_conditions=[FunctionExists(('caos', 'uuid_nil'))]), level=-1)
         plan.add(EnableFeature(feature=HstoreFeature(),
-                               neg_conditions=[TypeExists(name='hstore', schema='caos')]), level=-1)
+                               neg_conditions=[TypeExists(('caos', 'hstore'))]), level=-1)
         metalogtable = MetaLogTable()
         plan.add(CreateTable(table=metalogtable, neg_conditions=[TableExists(name=metalogtable.name)]))
         metatable = MetaObjectTable()
@@ -621,7 +634,7 @@ class Insert(DMLOperation):
             placeholders.append('(%s)' % ','.join(placeholder_row))
 
         code = 'INSERT INTO %s (%s) VALUES %s' % \
-                (self.table.name,
+                (common.qname(*self.table.name),
                  ','.join(cols),
                  ','.join(placeholders))
 
@@ -666,7 +679,7 @@ class Update(DMLOperation):
         where = ' AND '.join('%s = $%d' % (e(c[0]), ci + i) for ci, c in enumerate(self.condition))
 
         code = 'UPDATE %s SET %s WHERE %s' % \
-                (self.table.name, ', '.join(placeholders), where)
+                (common.qname(*self.table.name), ', '.join(placeholders), where)
 
         vals += [c[1] for c in self.condition]
 
@@ -689,7 +702,7 @@ class Delete(DMLOperation):
         e = postgresql.string.quote_ident
         where = ' AND '.join('%s = $%d' % (e(c[0]), i + 1) for i, c in enumerate(self.condition))
 
-        code = 'DELETE FROM %s WHERE %s' % (self.table.name, where)
+        code = 'DELETE FROM %s WHERE %s' % (common.qname(*self.table.name), where)
 
         vals = [c[1] for c in self.condition]
 
@@ -772,7 +785,7 @@ class Table(DBObject):
 
 class MetaLogTable(Table):
     def __init__(self, name=None):
-        name = name or postgresql.string.qname('caos', 'metalog')
+        name = name or ('caos', 'metalog')
         super().__init__(name=name)
 
         self.__columns = datastructures.OrderedSet([
@@ -790,7 +803,7 @@ class MetaLogTable(Table):
 
 class MetaObjectTable(Table):
     def __init__(self, name=None):
-        name = name or postgresql.string.qname('caos', 'metaobject')
+        name = name or ('caos', 'metaobject')
         super().__init__(name=name)
 
         self.__columns = datastructures.OrderedSet([
@@ -809,9 +822,9 @@ class MetaObjectTable(Table):
 
 class AtomTable(MetaObjectTable):
     def __init__(self):
-        super().__init__(name=postgresql.string.qname('caos', 'atom'))
+        super().__init__(name=('caos', 'atom'))
 
-        self.bases = [postgresql.string.qname('caos', 'metaobject')]
+        self.bases = [('caos', 'metaobject')]
 
         self.__columns = datastructures.OrderedSet([
             Column(name='automatic', type='boolean', required=True, default=False),
@@ -826,9 +839,9 @@ class AtomTable(MetaObjectTable):
 
 class ConceptTable(MetaObjectTable):
     def __init__(self):
-        super().__init__(name=postgresql.string.qname('caos', 'concept'))
+        super().__init__(name=('caos', 'concept'))
 
-        self.bases = [postgresql.string.qname('caos', 'metaobject')]
+        self.bases = [('caos', 'metaobject')]
 
         self.__columns = datastructures.OrderedSet([
             Column(name='custombases', type='text[]'),
@@ -842,9 +855,9 @@ class ConceptTable(MetaObjectTable):
 
 class LinkTable(MetaObjectTable):
     def __init__(self):
-        super().__init__(name=postgresql.string.qname('caos', 'link'))
+        super().__init__(name=('caos', 'link'))
 
-        self.bases = [postgresql.string.qname('caos', 'metaobject')]
+        self.bases = [('caos', 'metaobject')]
 
         self.__columns = datastructures.OrderedSet([
             Column(name='source_id', type='integer'),
@@ -877,8 +890,7 @@ class Feature:
 
 
 class TypeExists(Condition):
-    def __init__(self, schema, name):
-        self.schema = schema
+    def __init__(self, name):
         self.name = name
 
     def code(self, db):
@@ -888,8 +900,8 @@ class TypeExists(Condition):
                         pg_catalog.pg_type t
                         INNER JOIN pg_catalog.pg_namespace ns ON t.typnamespace = ns.oid
                     WHERE
-                        t.typname = $1 and ns.nspname = $2'''
-        return code, [self.name, self.schema]
+                        t.typname = $2 and ns.nspname = $1'''
+        return code, self.name
 
 
 class UuidFeature(Feature):
@@ -937,7 +949,7 @@ class CreateSchema(DDLOperation):
         self.neg_conditions.add(SchemaExists(self.name))
 
     def code(self, db):
-        return 'CREATE SCHEMA %s' % postgresql.string.quote_ident(self.name)
+        return 'CREATE SCHEMA %s' % common.quote_ident(self.name)
 
     def __repr__(self):
         return '<caos.sync.%s %s>' % (self.__class__.__name__, self.name)
@@ -960,12 +972,33 @@ class CreateDomain(SchemaObjectOperation):
         self.base = base
 
     def code(self, db):
-        return 'CREATE DOMAIN %s AS %s' % (self.name, self.base)
+        return 'CREATE DOMAIN %s AS %s' % (common.qname(*self.name), self.base)
+
+
+class RenameDomain(SchemaObjectOperation):
+    def __init__(self, name, new_name):
+        super().__init__(name)
+        self.new_name = new_name
+
+    def code(self, db):
+        return '''UPDATE
+                        pg_catalog.pg_type AS t
+                    SET
+                        typname = $1,
+                        typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = $2)
+                    FROM
+                        pg_catalog.pg_namespace ns
+                    WHERE
+                        t.typname = $3
+                        AND t.typnamespace = ns.oid
+                        AND ns.nspname = $4
+                        AND t.typtype = 'd'
+               ''', [self.new_name[1], self.new_name[0], self.name[1], self.name[0]]
 
 
 class DropDomain(SchemaObjectOperation):
     def code(self, db):
-        return 'DROP DOMAIN %s' % self.name
+        return 'DROP DOMAIN %s' % common.qname(*self.name)
 
 
 class AlterDomain(DDLOperation):
@@ -976,7 +1009,7 @@ class AlterDomain(DDLOperation):
 
 
     def code(self, db):
-        return 'ALTER DOMAIN %s ' % self.name
+        return 'ALTER DOMAIN %s ' % common.qname(*self.name)
 
     def __repr__(self):
         return '<caos.sync.%s %s>' % (self.__class__.__name__, self.name)
@@ -1057,8 +1090,8 @@ class TableExists(Condition):
                     FROM
                         pg_catalog.pg_tables
                     WHERE
-                        quote_ident(schemaname) || '.' || quote_ident(tablename) = $1'''
-        return code, [self.name]
+                        schemaname = $1 AND tablename = $2'''
+        return code, self.name
 
 
 class CreateTable(SchemaObjectOperation):
@@ -1069,17 +1102,17 @@ class CreateTable(SchemaObjectOperation):
     def code(self, db):
         elems = [c.code(db) for c in self.table.columns(only_self=True)]
         elems += [c.code(db) for c in self.table.constraints]
-        code = 'CREATE TABLE %s (%s)' % (self.table.name, ', '.join(c for c in elems))
+        code = 'CREATE TABLE %s (%s)' % (common.qname(*self.table.name), ', '.join(c for c in elems))
 
         if self.table.bases:
-            code += ' INHERITS (' + ','.join(self.table.bases) + ')'
+            code += ' INHERITS (' + ','.join(common.qname(*b) for b in self.table.bases) + ')'
 
         return code
 
 
 class DropTable(SchemaObjectOperation):
     def code(self, db):
-        return 'DROP TABLE %s' % self.name
+        return 'DROP TABLE %s' % common.qname(*self.name)
 
 
 class AlterTableBase(DDLOperation):
@@ -1088,7 +1121,7 @@ class AlterTableBase(DDLOperation):
         self.name = name
 
     def code(self, db):
-        return 'ALTER TABLE %s' % self.name
+        return 'ALTER TABLE %s' % common.qname(*self.name)
 
     def __repr__(self):
         return '<caos.sync.%s %s>' % (self.__class__.__name__, self.name)
@@ -1142,7 +1175,7 @@ class AlterTableSetSchema(AlterTableBase):
 
     def code(self, db):
         code = super().code(db)
-        code += ' SET SCHEMA %s ' % postgresql.string.quote_ident(self.schema)
+        code += ' SET SCHEMA %s ' % self.quote_ident(self.new_name)
         return code
 
 
@@ -1153,7 +1186,7 @@ class AlterTableRenameTo(AlterTableBase):
 
     def code(self, db):
         code = super().code(db)
-        code += ' RENAME TO %s ' % postgresql.string.quote_ident(self.new_name)
+        code += ' RENAME TO %s ' % common.quote_ident(self.new_name)
         return code
 
 
@@ -1171,9 +1204,8 @@ class AlterTableRenameColumn(AlterTableBase):
 
 
 class FunctionExists(Condition):
-    def __init__(self, name, schema):
+    def __init__(self, name):
         self.name = name
-        self.schema = schema
 
     def code(self, db):
         code = '''SELECT
@@ -1182,6 +1214,6 @@ class FunctionExists(Condition):
                         pg_catalog.pg_proc p
                         INNER JOIN pg_catalog.pg_namespace ns ON (ns.oid = p.pronamespace)
                     WHERE
-                        p.proname = $1 and ns.nspname = $2'''
+                        p.proname = $2 and ns.nspname = $1'''
 
-        return code, [self.name, self.schema]
+        return code, self.name

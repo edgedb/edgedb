@@ -54,8 +54,18 @@ def caos_name_to_pg_colname(name):
     return name
 
 
-def atom_name_to_domain_name(name):
-    return qname(caos_module_name_to_schema_name(name.module), name.name + '_domain')
+def convert_name(name, suffix, catenate=True):
+    schema = caos_module_name_to_schema_name(name.module)
+    name = '%s_%s' % (name.name, suffix)
+
+    if catenate:
+        return qname(schema, name)
+    else:
+        return schema, name
+
+
+def atom_name_to_domain_name(name, catenate=True):
+    return convert_name(name, 'domain', catenate)
 
 
 def domain_name_to_atom_name(name):
@@ -66,13 +76,7 @@ def domain_name_to_atom_name(name):
 
 
 def concept_name_to_table_name(name, catenate=True):
-    schema = caos_module_name_to_schema_name(name.module)
-    table_name = name.name + '_data'
-
-    if catenate:
-        return qname(schema, table_name)
-    else:
-        return schema, table_name
+    return convert_name(name, 'data', catenate)
 
 
 def table_name_to_concept_name(name):
@@ -81,8 +85,8 @@ def table_name_to_concept_name(name):
     return name
 
 
-def link_name_to_table_name(name):
-    return qname(caos_module_name_to_schema_name(name.module), name.name + '_link')
+def link_name_to_table_name(name, catenate=True):
+    return convert_name(name, 'link', catenate)
 
 
 def table_name_to_link_name(name):
