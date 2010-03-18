@@ -444,7 +444,16 @@ class Backend(backends.MetaBackend):
 
     def __init__(self, source_path):
         super().__init__()
-        self.metadata = importlib.import_module(proto.ImportContext(source_path, toplevel=True))
+        parts = source_path.rsplit(':', 1)
+
+        if len(parts) > 1:
+            module, docno = parts
+        else:
+            module = parts[0]
+            docno = 0
+
+        self.metadata = importlib.import_module(proto.ImportContext(module, private=int(docno),
+                                                                    toplevel=True))
 
     def getmeta(self):
         return self.metadata._index_
