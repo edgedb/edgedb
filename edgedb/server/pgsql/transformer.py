@@ -593,20 +593,20 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         # XXX: TODO: centralize this with pgsql backend
         return name.name + '_data', 'caos_' + name.module
 
-    def _process_conjunction(self, context, cte, sql_path_tip, conjunction, parent_cte):
+    def _process_conjunction(self, context, cte, sql_path_tip, conjunction, parent_cte, weak=False):
         sql_path = sql_path_tip
 
         for link in conjunction.paths:
             if isinstance(link, tree.ast.EntityLink):
-                sql_path = self.caos_path_to_sql_path(context, parent_cte, link.target, sql_path, link)
-                sql_path = self._process_path(context, cte, sql_path, link.target)
+                sql_path = self.caos_path_to_sql_path(context, parent_cte, link.target, sql_path, link, weak)
+                sql_path = self._process_path(context, cte, sql_path, link.target, weak)
             else:
-                sql_path = self._process_path(context, cte, sql_path, link)
+                sql_path = self._process_path(context, cte, sql_path, link, weak)
 
         return sql_path
 
 
-    def _process_path(self, context, cte, sql_path_tip, caos_path_tip):
+    def _process_path(self, context, cte, sql_path_tip, caos_path_tip, weak=False):
         sql_paths = []
 
         if not sql_path_tip and isinstance(caos_path_tip, tree.ast.EntitySet):
@@ -623,7 +623,8 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             conjunction = caos_path_tip.conjunction
 
         if conjunction and conjunction.paths:
-            sql_path_tip = self._process_conjunction(context, cte, sql_path_tip, conjunction, sql_path_tip)
+            sql_path_tip = self._process_conjunction(context, cte, sql_path_tip, conjunction, sql_path_tip,
+                                                                                                      weak)
             if isinstance(caos_path_tip, tree.ast.EntitySet):
                 # Path conjunction works as a strong filter and, thus, the CTE corresponding
                 # to the given Caos node must only be referenced with those conjunctions
@@ -639,7 +640,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
                     if isinstance(link, tree.ast.EntityLink):
                         sql_path = self.caos_path_to_sql_path(context, sql_path_tip, link.target, sql_path_tip,
                                                               link, weak=True)
-                        sql_path = self._process_path(context, cte, sql_path, link.target)
+                        sql_path = self._process_path(context, cte, sql_path, link.target, weak=True)
                         sql_paths.append(sql_path)
                     elif isinstance(link, tree.ast.Conjunction):
                         sql_path = self._process_conjunction(context, cte, sql_path_tip, link, None)
