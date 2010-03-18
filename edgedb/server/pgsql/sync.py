@@ -187,7 +187,7 @@ class TableBasedObject:
             if atom_obj.name in base_type_name_map:
                 column_type = base_type_name_map[atom_obj.name]
             else:
-                if atom_obj.mods:
+                if atom_obj.automatic:
                     new_atom = True
                 column_type = common.atom_name_to_domain_name(atom_obj.name)
 
