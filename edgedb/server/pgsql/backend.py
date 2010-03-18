@@ -125,6 +125,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         delta = metadelta.metadelta(oldmeta, meta)
         plan = sync.SynchronizationPlan.from_delta(delta)
+        plan.add(sync.SynchronizationPlan.logsync(meta.get_checksum()))
 
         return plan
 
@@ -253,7 +254,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                            'abstract': row['abstract'],
                            'base': row['base']}
 
-        for name, domain_descr in domains.items():
+            domain_descr = domains[name]
 
             bases = caos.Name(atoms[name]['base'])
             atom = proto.Atom(name=name, base=bases, default=domain_descr['default'], title=atoms[name]['title'],
@@ -350,7 +351,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             link = proto.Link(name=name, base=bases, source=source, target=target,
                                 mapping=r['mapping'], required=r['required'],
                                 title=title, description=description,
-                                is_abstract=r['abstract'])
+                                is_abstract=r['abstract'],
+                                is_atom=r['atomic'])
             link.implicit_derivative = r['implicit']
             link.properties = properties
 
@@ -615,29 +617,25 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         if not atom:
             atom = meta.get(derived_name, None)
 
-        m = self.typlen_re.match(type_expr)
-        if m:
-            typmod = int(m.group('length'))
-            typname = m.group('type').strip()
-        else:
-            typmod = None
-            typname = type_expr
+        if not atom:
+            m = self.typlen_re.match(type_expr)
+            if m:
+                typmod = int(m.group('length'))
+                typname = m.group('type').strip()
+            else:
+                typmod = None
+                typname = type_expr
 
-        if typname in sync.base_type_name_map_r:
-            atom = meta.get(sync.base_type_name_map_r[typname])
+            if typname in sync.base_type_name_map_r:
+                atom = meta.get(sync.base_type_name_map_r[typname])
 
-            if typname in sync.typmod_types and typmod is not None:
-                atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,
-                                    automatic=True)
-                atom.add_mod(proto.AtomModMaxLength(typmod))
-                meta.add(atom)
+                if typname in sync.typmod_types and typmod is not None:
+                    atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,
+                                        automatic=True)
+                    atom.add_mod(proto.AtomModMaxLength(typmod))
+                    meta.add(atom)
 
         return atom
-
-
-    def get_constraint_expr(self, type, expr):
-        constr_name = '%s_%s' % (type, id(expr))
-        return ' CONSTRAINT %s CHECK ( %s )' % (tables.quote_ident(constr_name), expr)
 
 
     def hstore_to_word_combination(self, hstore):
