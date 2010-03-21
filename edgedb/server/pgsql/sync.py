@@ -108,7 +108,7 @@ class Atom(proto.Atom):
             plan.add(CreateDomain(name=new_domain_name, base=base))
             plan.add(Insert(table=table, records=[rec]))
 
-        if not old or old.default != new.default:
+        if (old and old.default != new.default) or new.default:
             plan.add(AlterDomainAlterDefault(name=new_domain_name, default=new.default))
 
         for mod in new_mods - old_mods:
