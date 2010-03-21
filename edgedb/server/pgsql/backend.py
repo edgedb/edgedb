@@ -87,7 +87,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     constraint_type_re = re.compile(r"^(?P<type>[.\w-]+)(?:_\d+)?$", re.X)
 
-    cast_re = re.compile(r"(::(?P<type>(?:(?P<quote>\"?)[\w-]+(?P=quote)\.)?(?P<quote1>\"?)[\w-]+(?P=quote1)))+$", re.X)
+    cast_re = re.compile(r"(::(?P<type>(?:(?P<quote>\"?)[\w -]+(?P=quote)\.)?(?P<quote1>\"?)[\w -]+(?P=quote1)))+$", re.X)
 
     constr_expr_res = {
                         'regexp': re.compile("VALUE::text \s* ~ \s* '(?P<expr>[^']*)'::text", re.X),
@@ -558,7 +558,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         if d['default'] is not None:
             # Strip casts from default expression
-            d['default'] = self.cast_re.sub('', d['default'])
+            d['default'] = self.cast_re.sub('', d['default']).strip("'")
 
         return d
 
