@@ -47,4 +47,4 @@ class FromExprNode(ast.AST): __fields = ['expr', 'alias']
 
 class SequenceNode(ast.AST): __fields = [('elements', list)]
 
-class GraphObjectRefNode(ast.AST): __fields = ['name', 'module']
+class PrototypeRefNode(ast.AST): __fields = ['name', 'module']

@@ -256,7 +256,7 @@ class MetaSet(LangObject):
 
         for link in globalmeta('link', include_automatic=True, include_builtin=True):
             for property_name, property in link.properties.items():
-                if not isinstance(property.atom, proto.GraphObject):
+                if not isinstance(property.atom, proto.Prototype):
                     property.atom = globalmeta.get(property.atom)
 
                     mods = getattr(property, 'mods', None)
@@ -267,10 +267,10 @@ class MetaSet(LangObject):
                         globalmeta.add(atom)
                         property.atom = atom
 
-            if link.source and not isinstance(link.source, proto.GraphObject):
+            if link.source and not isinstance(link.source, proto.Prototype):
                 link.source = globalmeta.get(link.source)
 
-            if link.target and not isinstance(link.target, proto.GraphObject):
+            if link.target and not isinstance(link.target, proto.Prototype):
                 link.target = globalmeta.get(link.target)
 
             g[link.name] = {"item": link, "merge": [], "deps": []}
@@ -361,10 +361,10 @@ class MetaSet(LangObject):
 
             for link_name, links in concept.links.items():
                 for link in links:
-                    if not isinstance(link.source, proto.GraphObject):
+                    if not isinstance(link.source, proto.Prototype):
                         link.source = globalmeta.get(link.source)
 
-                    if not isinstance(link.target, proto.GraphObject):
+                    if not isinstance(link.target, proto.Prototype):
                         link.target = globalmeta.get(link.target)
                         if isinstance(link.target, caos.types.ProtoConcept):
                             link.target.add_rlink(link)

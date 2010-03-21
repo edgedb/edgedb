@@ -116,7 +116,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             args = [self._process_expr(context, a) for a in expr.args]
             node = tree.ast.FunctionCall(name=expr.func, args=args)
 
-        elif isinstance(expr, qlast.GraphObjectRefNode):
+        elif isinstance(expr, qlast.PrototypeRefNode):
             if expr.module:
                 name = caos_name.Name(name=expr.name, module=expr.module)
             else:
