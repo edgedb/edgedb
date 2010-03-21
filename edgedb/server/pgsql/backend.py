@@ -109,6 +109,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         self.column_map = {}
 
+
     def getmeta(self):
         meta = proto.RealmMeta(load_builtins=False)
 
@@ -120,14 +121,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return meta
 
 
-    def get_synchronization_plan(self, meta):
+    def get_delta(self, meta):
         oldmeta = self.getmeta()
-
         delta = metadelta.metadelta(oldmeta, meta)
-        plan = sync.SynchronizationPlan.from_delta(delta)
-        plan.add(sync.SynchronizationPlan.logsync(meta.get_checksum()))
+        return delta
 
-        return plan
+
+    def get_synchronization_plan(self, delta):
+        return sync.SynchronizationPlan.from_delta(delta)
 
 
     def apply_synchronization_plan(self, plan):
@@ -136,7 +137,40 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def synchronize(self, meta):
-        self.apply_synchronization_plan(self.get_synchronization_plan(meta))
+        delta = self.get_delta(meta)
+        plan = self.get_synchronization_plan(delta)
+        if plan.is_material():
+            plan.add(sync.SynchronizationPlan.logsync(meta.get_checksum()), -1)
+        self.apply_synchronization_plan(plan)
+
+
+    def get_meta_log(self, limit=None):
+        table = sync.MetaLogTable()
+        condition = sync.TableExists(table.name)
+        record = table.record
+
+        have_metalog = condition.execute(self.connection)
+
+        result = []
+
+        if have_metalog:
+            query = 'SELECT * FROM %s ORDER BY mtime DESC' % common.qname(*table.name)
+            if limit:
+                query += ' LIMIT %d' % limit
+            ps = self.connection.prepare(query)
+
+            for row in ps:
+                result.append(record(**row))
+
+        return result
+
+
+    def is_synchronized(self, meta):
+        result = self.get_meta_log(1)
+        if result:
+            return int(result[0].checksum) == meta.get_checksum(), result[0]
+        else:
+            return False, None
 
 
     def load_entity(self, concept, id):

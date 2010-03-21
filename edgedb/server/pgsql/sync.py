@@ -603,7 +603,13 @@ class DMLOperation(SynchronizationOperation):
 
 
 class Condition:
-    pass
+    def execute(self, db):
+        code = self.code(db)
+        if isinstance(code, tuple):
+            code, vars = code
+        else:
+            vars = []
+        return db.prepare(code)(*vars)
 
 
 class Query:
