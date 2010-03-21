@@ -15,7 +15,8 @@ def test_algos_boolean_minimize():
 
     ones = boolean.ints_to_terms(0, 1, 2, 5, 6, 7)
     assert boolean.minimize(ones) in [{(None, 0, 0), (None, 1, 1), (0, 1, None)},
-                                      {(None, 1, 1), (0, None, 0), (1, 0, None)}]
+                                      {(None, 1, 1), (0, None, 0), (1, 0, None)},
+                                      {(None, 0, 0), (1, None, 1), (0, 1, None)}]
 
     ones = boolean.ints_to_terms(4, 8, 10, 11, 12, 15)
     dcs = boolean.ints_to_terms(9, 14)
