@@ -321,6 +321,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             else:
                 if r['implicit']:
                     bases = (meta.get(r['name'].rpartition('_')[0]).name,)
+                else:
+                    bases = (caos.Name('semantix.caos.builtins.link'),)
 
             title = self.hstore_to_word_combination(r['title'])
             description = self.hstore_to_word_combination(r['description'])
