@@ -6,6 +6,7 @@
 ##
 
 
+import collections
 import os
 import socket
 import re
@@ -453,7 +454,7 @@ class Link(proto.Link, TableBasedObject):
 
 class SynchronizationPlan:
     def __init__(self):
-        self.ops = {}
+        self.ops = collections.OrderedDict()
 
     def add(self, op, level=0):
         if level not in self.ops:
@@ -508,33 +509,43 @@ class SynchronizationPlan:
                     else:
                         db.execute(code)
 
-            if level == -1:
+            if level == -2:
                 self.__class__.init_hstore(db)
 
+    def is_material(self):
+        return len(self.ops) > 2 and self.ops[0]
 
     def __iter__(self):
         return iter(self.ops)
+
+    def __call__(self, level=0):
+        for l, ops in self.ops.items():
+            if l >= level:
+                for op in ops:
+                    yield op
 
     @classmethod
     def from_delta(cls, delta):
         plan = cls()
 
         plan.add(CreateSchema(name='caos'),
-                 level=-1)
+                 level=-2)
         plan.add(EnableFeature(feature=UuidFeature(),
-                               neg_conditions=[FunctionExists(('caos', 'uuid_nil'))]), level=-1)
+                               neg_conditions=[FunctionExists(('caos', 'uuid_nil'))]), level=-2)
         plan.add(EnableFeature(feature=HstoreFeature(),
-                               neg_conditions=[TypeExists(('caos', 'hstore'))]), level=-1)
+                               neg_conditions=[TypeExists(('caos', 'hstore'))]), level=-2)
         metalogtable = MetaLogTable()
-        plan.add(CreateTable(table=metalogtable, neg_conditions=[TableExists(name=metalogtable.name)]))
+        plan.add(CreateTable(table=metalogtable, neg_conditions=[TableExists(name=metalogtable.name)]),
+                level=-1)
         metatable = MetaObjectTable()
-        plan.add(CreateTable(table=metatable, neg_conditions=[TableExists(name=metatable.name)]))
+        plan.add(CreateTable(table=metatable, neg_conditions=[TableExists(name=metatable.name)]), level=-1)
         atomtable = AtomTable()
-        plan.add(CreateTable(table=atomtable, neg_conditions=[TableExists(name=atomtable.name)]))
+        plan.add(CreateTable(table=atomtable, neg_conditions=[TableExists(name=atomtable.name)]), level=-1)
         concepttable = ConceptTable()
-        plan.add(CreateTable(table=concepttable, neg_conditions=[TableExists(name=concepttable.name)]))
+        plan.add(CreateTable(table=concepttable, neg_conditions=[TableExists(name=concepttable.name)]),
+                 level=-1)
         linktable = LinkTable()
-        plan.add(CreateTable(table=linktable, neg_conditions=[TableExists(name=linktable.name)]))
+        plan.add(CreateTable(table=linktable, neg_conditions=[TableExists(name=linktable.name)]), level=-1)
 
         for old, new in delta:
             cls.alter_object(plan, old, new)
