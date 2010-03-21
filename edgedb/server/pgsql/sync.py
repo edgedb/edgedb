@@ -15,7 +15,6 @@ import postgresql
 
 from semantix import caos
 from semantix.caos import proto
-from semantix.caos.backends import metadelta
 
 from semantix.caos.backends.pgsql import common
 
@@ -230,7 +229,7 @@ class Concept(proto.Concept, TableBasedObject):
             if old.name != new.name:
                 cls.rename(plan, table, old, new)
 
-            delta = metadelta.concept_delta(old, new)
+            delta = new.delta(old)
 
             if delta:
                 columns_to_add = []

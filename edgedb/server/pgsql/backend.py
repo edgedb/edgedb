@@ -21,7 +21,6 @@ from semantix import caos
 from semantix.caos import backends
 from semantix.caos import proto
 
-from semantix.caos.backends import metadelta
 from semantix.caos.backends.pgsql import common
 from semantix.caos.backends.pgsql import sync
 
@@ -122,8 +121,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def get_delta(self, meta):
-        oldmeta = self.getmeta()
-        delta = metadelta.metadelta(oldmeta, meta)
+        delta = meta.delta(self.getmeta())
         return delta
 
 
