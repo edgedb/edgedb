@@ -6,5 +6,8 @@
 ##
 
 
-class BackendResolverError(Exception):
+from semantix.exceptions import SemantixError
+
+
+class BackendResolverError(SemantixError):
     pass
