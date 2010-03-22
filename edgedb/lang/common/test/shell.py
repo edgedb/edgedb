@@ -30,7 +30,7 @@ class TestCommand(shell.Command, expose=True):
     def __call__(self, args):
         test_args = []
 
-        test_args.extend(('-p', 'semantix'))
+        test_args.extend(('-p', 'semantix', '-s'))
 
         if args.debug:
             test_args.extend('--semantix-debug=%s' % d for d in args.debug)
