@@ -302,3 +302,9 @@ class RecordBase:
 
         for k in set(self.__class__.fields) - set(kwargs.keys()):
             setattr(self, k, self.__class__.default)
+
+
+    def __setattr__(self, name, value):
+        if name not in self.__class__.fields:
+            raise AttributeError('%s has no attribute %s' % (self.__class__.__name__, name))
+        super().__setattr__(name, value)
