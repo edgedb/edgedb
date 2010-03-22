@@ -6,6 +6,9 @@
 ##
 
 
+from semantix.utils.algos.persistent_hash import persistent_hash
+
+
 class NaturalLanguageObject(object):
     pass
 
@@ -62,6 +65,9 @@ class GrammaticalCategory(object, metaclass=GrammaticalCategoryMeta):
 
     def __hash__(self):
         return hash(self.__class__.name + ':' + self.value)
+
+    def persistent_hash(self):
+        return persistent_hash(self.__class__.name + ':' + self.value)
 
 
 class GrammaticalNumber(GrammaticalCategory):
@@ -128,3 +134,6 @@ class WordCombination(NaturalLanguageObject):
 
     def __hash__(self):
         return hash(frozenset(self.forms.values()))
+
+    def persistent_hash(self):
+        return persistent_hash(frozenset(self.forms.values()))
