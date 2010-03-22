@@ -7,6 +7,7 @@
 
 
 import collections
+import hashlib
 import os
 import socket
 import re
@@ -51,7 +52,9 @@ fixed_length_types = {'character varying': 'character'}
 
 class Atom(proto.Atom):
     @classmethod
-    def alter_object(cls, plan, old, new):
+    def alter_object(cls, plan, delta):
+        old, new = delta.old, delta.new
+
         if old:
             old_domain_name = common.atom_name_to_domain_name(old.name, catenate=False)
         else:
@@ -70,11 +73,11 @@ class Atom(proto.Atom):
             if old:
                 updaterec = None
 
-                for f in ('title', 'description', 'automatic', 'is_abstract'):
-                    if getattr(old, f) != getattr(new, f):
+                for d in delta.diff:
+                    if isinstance(d, proto.PrototypeFieldDelta) and d.name != 'default':
                         if not updaterec:
                             updaterec = table.record()
-                        setattr(updaterec, f, getattr(rec, f))
+                        setattr(updaterec, d.name, d.new)
 
                 if updaterec:
                     condition = [('name', str(new.name))]
@@ -171,8 +174,9 @@ class Atom(proto.Atom):
 
 class TableBasedObject:
     @classmethod
-    def pg_type_from_atom(cls, plan, atom_obj, old_atom_obj=None):
+    def pg_type_from_atom(cls, plan, delta):
         column_type = None
+        atom_obj = delta.new
         if atom_obj.base is not None and atom_obj.base == 'semantix.caos.builtins.str':
             if len(atom_obj.mods) == 1:
                 mod = next(iter(atom_obj.mods.values()))
@@ -191,8 +195,8 @@ class TableBasedObject:
                     new_atom = True
                 column_type = common.atom_name_to_domain_name(atom_obj.name)
 
-        if plan and (new_atom or old_atom_obj):
-            Atom.alter_object(plan, old_atom_obj, atom_obj)
+        if plan and (new_atom or delta.old):
+            Atom.alter_object(plan, delta)
 
         return column_type
 
@@ -215,7 +219,8 @@ class TableBasedObject:
 
 class Concept(proto.Concept, TableBasedObject):
     @classmethod
-    def alter_object(cls, plan, old, new):
+    def alter_object(cls, plan, delta):
+        old, new = delta.old, delta.new
         table = ConceptTable()
 
         if not new:
@@ -229,21 +234,27 @@ class Concept(proto.Concept, TableBasedObject):
             if old.name != new.name:
                 cls.rename(plan, table, old, new)
 
-            delta = new.delta(old)
-
-            if delta:
+            if delta.diff:
                 columns_to_add = []
                 columns_to_drop = []
 
                 alter = AlterTable(new_table_name)
 
-                for old_link, new_link in delta:
-                    if not old_link:
-                        columns_to_add.extend(cls.get_columns(plan, new, new_link.name))
-                    elif not new_link:
-                        columns_to_drop.extend(cls.get_columns(plan, old, old_link.name))
+                updaterec = None
+
+                for d in delta.diff:
+                    if isinstance(d, proto.PrototypeFieldDelta):
+                        if d.name != 'base':
+                            if not updaterec:
+                                updaterec = table.record()
+                            setattr(updaterec, d.name, d.new)
                     else:
-                        cls.alter_columns(plan, alter, new, old_link, new_link)
+                        if not d.old and d.new.atomic():
+                            columns_to_add.extend(cls.get_columns(plan, new, d.new.name))
+                        elif not d.new and d.old.atomic():
+                            columns_to_drop.extend(cls.get_columns(plan, old, d.old.name))
+                        elif d.old.atomic():
+                            cls.alter_columns(plan, alter, new, d)
 
                 if columns_to_add:
                     for col in columns_to_add:
@@ -253,6 +264,10 @@ class Concept(proto.Concept, TableBasedObject):
                     for col in columns_to_drop:
                         alter.add_operation(AlterTableDropColumn(col))
 
+                if updaterec:
+                    condition = [('name', str(new.name))]
+                    plan.add(Update(table=table, record=updaterec, condition=condition))
+
                 if alter.ops:
                     plan.add(alter)
 
@@ -261,28 +276,28 @@ class Concept(proto.Concept, TableBasedObject):
             if create_schema not in plan:
                 plan.add(create_schema)
 
+            cls.record_metadata(plan, old, new)
+
             table = cls.get_new_table(plan, new)
             plan.add(CreateTable(table=table))
 
-            cls.record_metadata(plan, old, new)
-
     @classmethod
-    def alter_columns(cls, plan, alter, obj, old_link, new_link):
+    def alter_columns(cls, plan, alter, obj, delta):
         table_name = common.concept_name_to_table_name(obj.name, catenate=False)
-        if old_link.atomic():
-            old_link_obj = old_link.first
-            new_link_obj = new_link.first
+        if delta.old.atomic():
+            old_link_obj = delta.old.first
+            new_link_obj = delta.new.first
 
-            if old_link.name != new_link.name:
-                rename = AlterTableRenameColumn(table_name, old_link.name, new_link.name)
+            if delta.old.name != delta.new.name:
+                rename = AlterTableRenameColumn(table_name, delta.old.name, delta.new.name)
                 plan.add(rename)
 
-            old_type = cls.pg_type_from_atom(None, old_link_obj.target)
-            new_type = cls.pg_type_from_atom(plan, new_link_obj.target, old_link_obj.target)
+            old_type = cls.pg_type_from_atom(None, old_link_obj.target.delta(None))
+            new_type = cls.pg_type_from_atom(plan, new_link_obj.target.delta(old_link_obj.target))
 
             if old_type != new_type:
-                alter.add_operation(AlterTableAlterColumnType(new_link.name, new_type))
-                Link.alter_object(plan, old_link_obj, new_link_obj)
+                alter.add_operation(AlterTableAlterColumnType(delta.new.name, new_type))
+                Link.alter_object(plan, list(delta.diff)[0])
 
     @classmethod
     def get_columns(cls, plan, obj, link_name):
@@ -291,7 +306,7 @@ class Concept(proto.Concept, TableBasedObject):
         links = obj.links[link_name]
         for link in links:
             if isinstance(link.target, proto.Atom):
-                column_type = cls.pg_type_from_atom(plan, link.target)
+                column_type = cls.pg_type_from_atom(plan, link.target.delta(None))
                 column_name = common.caos_name_to_pg_colname(link_name)
 
                 columns.append(Column(name=column_name, type=column_type, required=link.required))
@@ -340,7 +355,8 @@ class Concept(proto.Concept, TableBasedObject):
 
 class Link(proto.Link, TableBasedObject):
     @classmethod
-    def alter_object(cls, plan, old, new):
+    def alter_object(cls, plan, delta):
+        old, new = delta.old, delta.new
         table = LinkTable()
 
         if not new:
@@ -386,7 +402,7 @@ class Link(proto.Link, TableBasedObject):
         constraints = []
 
         for property_name, property in new.properties.items():
-            column_type = cls.pg_type_from_atom(plan, property.atom)
+            column_type = cls.pg_type_from_atom(plan, property.atom.delta(None))
             columns.append(Column(name=str(property_name), type=column_type))
 
         if new.name == 'semantix.caos.builtins.link':
@@ -417,15 +433,17 @@ class Link(proto.Link, TableBasedObject):
         if new:
             table = LinkTable()
             if new.source:
-                source_id = Query('(SELECT id FROM caos.metaobject WHERE name = $1)', [str(new.source.name)],
-                                  type='integer')
+                source_id = Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
+                                  [str(new.source.name)], type='integer')
             else:
                 source_id = None
 
             if new.target:
                 if isinstance(new.target, proto.Atom) and new.target.base:
-                    target_id = Query('''coalesce((SELECT id FROM caos.metaobject WHERE name = $1),
-                                                  (SELECT id FROM caos.metaobject WHERE name = $2))''',
+                    target_id = Query('''coalesce((SELECT id FROM caos.metaobject
+                                                             WHERE name = $1),
+                                                  (SELECT id FROM caos.metaobject
+                                                             WHERE name = $2))''',
                                       [str(new.target.name), str(new.target.base)],
                                       type='integer')
                 else:
@@ -546,27 +564,24 @@ class SynchronizationPlan:
         linktable = LinkTable()
         plan.add(CreateTable(table=linktable, neg_conditions=[TableExists(name=linktable.name)]), level=-1)
 
-        for old, new in delta:
-            cls.alter_object(plan, old, new)
+        for d in delta:
+            cls.alter_object(plan, d)
 
         return plan
 
     @classmethod
-    def alter_object(cls, plan, old, new):
-        obj = old or new
+    def alter_object(cls, plan, delta):
+        if isinstance(delta, proto.AtomDelta):
+            return Atom.alter_object(plan, delta)
 
-        if isinstance(obj, proto.Atom):
-            if not obj.automatic:
-                return Atom.alter_object(plan, old, new)
+        elif isinstance(delta, proto.ConceptDelta):
+            return Concept.alter_object(plan, delta)
 
-        elif isinstance(obj, proto.Concept):
-            return Concept.alter_object(plan, old, new)
-
-        elif isinstance(obj, proto.Link):
-            return Link.alter_object(plan, old, new)
+        elif isinstance(delta, proto.LinkDelta):
+            return Link.alter_object(plan, delta)
 
         else:
-            assert False, 'unexpected prototype %s' % obj
+            assert False, 'unexpected delta %s' % delta
 
     @classmethod
     def init_hstore(cls, db):
@@ -576,12 +591,17 @@ class SynchronizationPlan:
             pass
 
     @classmethod
-    def logsync(cls, checksum):
+    def logsync(cls, checksum, parent_id):
         table = MetaLogTable()
+
+        id = hashlib.sha1(('%s_%s' % (checksum, parent_id)).encode()).hexdigest()
+
         rec = table.record(
-                checksum=str('%x' % (checksum if checksum >= 0 else ~checksum)),
-                username=os.getenv('LOGNAME', '<unknown>'),
-                host=socket.getfqdn()
+                id=id,
+                parents=[str(parent_id)],
+                checksum=str('%x' % checksum),
+                committer=os.getenv('LOGNAME', '<unknown>'),
+                hostname=socket.getfqdn()
               )
         return Insert(table, records=[rec])
 
@@ -805,11 +825,14 @@ class MetaLogTable(Table):
         super().__init__(name=name)
 
         self.__columns = datastructures.OrderedSet([
-            Column(name='id', type='serial', required=True, readonly=True),
+            Column(name='id', type='char(40)', required=True),
+            Column(name='parents', type='char(40)[]', required=False),
             Column(name='checksum', type='char(40)', required=True),
-            Column(name='mtime', type='timestamp with time zone', required=True, default='CURRENT_TIMESTAMP'),
-            Column(name='username', type='text', required=True),
-            Column(name='host', type='text', required=True)
+            Column(name='commit_date', type='timestamp with time zone', required=True,
+                                                                        default='CURRENT_TIMESTAMP'),
+            Column(name='committer', type='text', required=True),
+            Column(name='hostname', type='text', required=True),
+            Column(name='comment', type='text', required=False)
         ])
 
         self.constraints = set([

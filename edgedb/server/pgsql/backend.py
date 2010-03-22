@@ -138,7 +138,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         delta = self.get_delta(meta)
         plan = self.get_synchronization_plan(delta)
         if plan.is_material():
-            plan.add(sync.SynchronizationPlan.logsync(meta.get_checksum()), -1)
+            parent = self.get_meta_log(1)
+            parent_id = parent[0].id if parent else 0
+            plan.add(sync.SynchronizationPlan.logsync(meta.get_checksum(), parent_id), -1)
         self.apply_synchronization_plan(plan)
 
 
@@ -152,7 +154,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         result = []
 
         if have_metalog:
-            query = 'SELECT * FROM %s ORDER BY mtime DESC' % common.qname(*table.name)
+            query = 'SELECT * FROM %s ORDER BY commit_date DESC' % common.qname(*table.name)
             if limit:
                 query += ' LIMIT %d' % limit
             ps = self.connection.prepare(query)
@@ -203,8 +205,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 for a in attrs:
                     if hasattr(entity.__class__, str(a)):
                         l = getattr(entity.__class__, str(a))
-                        col_type = 'text::%s' % \
-                                    sync.TableBasedObject.pg_type_from_atom(None, l._metadata.prototype)
+                        col_type = sync.TableBasedObject.pg_type_from_atom(None,
+                                                            l._metadata.prototype.delta(None))
+                        col_type = 'text::%s' % col_type
+
                     else:
                         col_type = 'int'
                     column_name = self.caos_name_to_pg_column_name(a)
@@ -221,8 +225,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     for a in attrs:
                         if hasattr(entity.__class__, str(a)):
                             l = getattr(entity.__class__, str(a))
-                            col_type = 'text::%s' % \
-                                        sync.TableBasedObject.pg_type_from_atom(None, l._metadata.prototype)
+                            col_type = sync.TableBasedObject.pg_type_from_atom(None,
+                                                            l._metadata.prototype.delta(None))
+                            col_type = 'text::%s' % col_type
+
                         else:
                             col_type = 'int'
                         cols.append('%%(%s)s::%s' % (a, col_type))
