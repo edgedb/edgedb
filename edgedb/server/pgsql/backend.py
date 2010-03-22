@@ -158,7 +158,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             ps = self.connection.prepare(query)
 
             for row in ps:
-                result.append(record(**row))
+                rec = record(**row)
+                rec.checksum = int(rec.checksum, base=16)
+                result.append(rec)
 
         return result
 
@@ -166,7 +168,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def is_synchronized(self, meta):
         result = self.get_meta_log(1)
         if result:
-            return int(result[0].checksum) == meta.get_checksum(), result[0]
+            return result[0].checksum == meta.get_checksum(), result[0]
         else:
             return False, None
 

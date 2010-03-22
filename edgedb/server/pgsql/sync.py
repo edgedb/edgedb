@@ -579,7 +579,7 @@ class SynchronizationPlan:
     def logsync(cls, checksum):
         table = MetaLogTable()
         rec = table.record(
-                checksum=str(checksum),
+                checksum=str('%x' % (checksum if checksum >= 0 else ~checksum)),
                 username=os.getenv('LOGNAME', '<unknown>'),
                 host=socket.getfqdn()
               )
