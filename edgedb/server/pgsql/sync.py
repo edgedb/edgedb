@@ -50,133 +50,133 @@ typmod_types = ('character', 'character varying', 'numeric')
 fixed_length_types = {'character varying': 'character'}
 
 
-class Prototype:
-    @classmethod
-    def fill_record(cls, rec, delta):
+class MetaCommand:
+    def __init__(self, delta):
+        self.delta = delta
+        self.ops = datastructures.OrderedSet()
+
+    def execute(self, db):
+        for op in self.ops:
+            op.execute(db)
+
+    def __str__(self):
+        result = ['<%s.%s object at 0x%x>' % (self.__class__.__module__, self.__class__.__name__,
+                                              id(self))]
+
+        for op in self.ops:
+            result.extend('  %s' % l for l in str(op).split('\n'))
+
+        return '\n'.join(result)
+
+
+class BaseCommand:
+    def get_code_and_vars(self, db):
+        code = self.code(db)
+        assert code
+        if isinstance(code, tuple):
+            code, vars = code
+        else:
+            vars = None
+
+        return code, vars
+
+    def execute(self, db):
+        code, vars = self.get_code_and_vars(db)
+        return db.prepare(code)(*vars)
+
+
+class Command(BaseCommand):
+    def __init__(self, *, conditions=None, neg_conditions=None):
+        self.opid = id(self)
+        self.conditions = conditions or set()
+        self.neg_conditions = neg_conditions or set()
+
+    @debug
+    def execute(self, db):
+        ok = self.check_conditions(db, self.conditions, True) and \
+             self.check_conditions(db, self.neg_conditions, False)
+
+        if ok:
+            code, vars = self.get_code_and_vars(db)
+
+            """LOG [caos.meta.sync.cmd] Sync command:
+            print(op)
+            """
+
+            """LOG [caos.meta.sync.sql] Sync command code:
+            print(code, vars)
+            """
+
+            if vars is not None:
+                db.prepare(code)(*vars)
+            else:
+                db.execute(code)
+
+    def check_conditions(self, db, conditions, positive):
+        result = True
+        if conditions:
+            for condition in conditions:
+                code, vars = condition.get_code_and_vars(db)
+                result = db.prepare(code)(*vars)
+
+                if bool(result) ^ positive:
+                    result = False
+                    break
+            else:
+                result = True
+
+        return result
+
+
+class PrototypeMetaCommand(MetaCommand):
+    def __init__(self, delta):
+        super().__init__(delta)
+        self.table = None
+
+    def fill_record(self, delta, rec=None):
         updates = {}
-        rec_updates = {}
+
+        myrec = self.table.record()
 
         for d in delta(proto.PrototypeFieldDelta):
             updates[d.name] = d
-            if hasattr(rec, d.name):
+            if hasattr(myrec, d.name):
+                if not rec:
+                    rec = self.table.record()
                 setattr(rec, d.name, d.new)
-                rec_updates[d.name] = d
 
-        rec.name = str(rec.name)
+        if rec:
+            rec.name = str(rec.name)
 
-        if rec.title:
-            rec.title = rec.title.as_dict()
+            if rec.title:
+                rec.title = rec.title.as_dict()
 
-        if rec.description:
-            rec.description = rec.description.as_dict()
+            if rec.description:
+                rec.description = rec.description.as_dict()
 
-        return updates, rec_updates
+        return rec, updates
 
+    def create_schema(self, name):
+        condition = SchemaExists(name=name[0])
+        self.ops.add(CreateSchema(name=name[0], neg_conditions={condition}))
 
-class Atom(Prototype, proto.Atom):
-    @classmethod
-    def alter_object(cls, plan, delta):
-        old_name, new_name = delta.old, delta.new
+    def create_object(self):
+        new_domain_name = common.atom_name_to_domain_name(self.delta.new, catenate=False)
+        rec, updates = self.fill_record(self.delta)
+        self.ops.add(Insert(table=self.table, records=[rec]))
 
-        if old_name:
-            old_domain_name = common.atom_name_to_domain_name(old_name, catenate=False)
-        else:
-            old_domain_name = None
+        self.create_schema(new_domain_name)
 
-        if new_name:
-            new_domain_name = common.atom_name_to_domain_name(new_name, catenate=False)
-        else:
-            new_domain_name = None
-
-        table = AtomTable()
-
-        if not new_name:
-            # Drop it
-            plan.add(DropDomain(name=old_domain_name))
-            plan.add(Delete(table=table, condition=[('name', str(old_name))]))
-            return plan
-
-        elif not old_name:
-            # Create it
-
-            rec = table.record(name=str(new_name))
-            updates, _ = cls.fill_record(rec, delta)
-
-            plan.add(Insert(table=table, records=[rec]))
-            create_schema = CreateSchema(name=new_domain_name[0])
-            if create_schema not in plan:
-                plan.add(create_schema)
-
-            mods = {d.new.__class__.get_canonical_class(): d.new for d in delta(proto.AtomModDelta)}
-            base, _, _, mods = cls.get_atom_base_and_mods(delta.new_context)
-
-            plan.add(CreateDomain(name=new_domain_name, base=base))
-
-            for mod in mods:
-                plan.add(AlterDomainAddConstraint(name=new_domain_name, constraint=mod))
-
-            default_delta = updates.get('default')
-
-            if default_delta and default_delta.new is not None:
-                plan.add(AlterDomainAlterDefault(name=new_domain_name, default=default_delta.new))
-
-        else:
-            # Alter it
-
-            updaterec = table.record()
-            updates, rec_updates = cls.fill_record(updaterec, delta)
-
-            if rec_updates:
-                condition = [('name', str(new_name))]
-                plan.add(Update(table=table, record=updaterec, condition=condition))
-
-            if old_name and old_name != new_name:
-                plan.add(RenameDomain(name=old_domain_name, new_name=new_domain_name))
-                updaterec = table.record(name=str(new_name))
-                condition = [('name', str(old_name))]
-                plan.add(Update(table=table, record=updaterec, condition=condition))
-
-            old_mods = {}
-            new_mods = {}
-
-            for d in delta.diff:
-                if isinstance(d, proto.AtomModDelta):
-                    if not d.new:
-                        old_mods[d.old.__class__.get_canonical_class()] = d.old
-                    else:
-                        new_mods[d.new.__class__.get_canonical_class()] = d.new
-
-            base = updates.get('base')
-            if base:
-                old_base, new_base = base.old, base.new
-            else:
-                old_base, new_base = delta.old_context.base, delta.new_context.base
-
-            base, _, old_max_length, old_mods = cls.get_atom_base_and_mods(delta.old_context)
-            base, _, _, new_mods = cls.get_atom_base_and_mods(delta.new_context)
-
-            if old_max_length and not old_mods and new_mods:
-                rec = table.record(name=str(new_name))
-                updates, _ = cls.fill_record(rec, delta.new_context.delta(None))
-                plan.add(Insert(table=table, records=[rec]))
-                plan.add(CreateDomain(name=new_domain_name, base=base))
+        return updates
 
 
-            default_delta = updates.get('default')
-            if default_delta:
-                plan.add(AlterDomainAlterDefault(name=new_domain_name, default=default_delta.new))
+class AtomMetaCommand(PrototypeMetaCommand):
+    def __init__(self, delta):
+        super().__init__(delta)
+        self.table = AtomTable()
 
-            for mod in new_mods - old_mods:
-                plan.add(AlterDomainAddConstraint(name=new_domain_name, constraint=mod))
-
-            for mod in old_mods - new_mods:
-                plan.add(AlterDomainDropConstraint(name=new_domain_name, constraint=mod))
-
-        return plan
-
-    @classmethod
-    def get_atom_base_and_mods(cls, atom):
-        if cls.is_prototype(atom.base):
+    def get_atom_base_and_mods(self, atom):
+        if proto.Atom.is_prototype(atom.base):
             base = base_type_name_map.get(atom.base)
             if not base:
                 base = common.atom_name_to_domain_name(atom.base)
@@ -223,17 +223,106 @@ class Atom(Prototype, proto.Atom):
 
         return base, has_min_length, has_max_length, mods
 
-    @classmethod
-    def fill_record(cls, rec, delta):
-        result = super(Atom, cls).fill_record(rec, delta)
-        if rec.base:
+    def fill_record(self, delta, rec=None):
+        rec, updates = super().fill_record(delta, rec)
+        if rec and rec.base:
             rec.base = str(rec.base)
-        return result
+        return rec, updates
 
 
-class TableBasedObject:
+class DeleteAtom(AtomMetaCommand):
+    def __init__(self, delta):
+        super().__init__(delta)
+
+        old_domain_name = common.atom_name_to_domain_name(delta.old, catenate=False)
+        self.ops.add(DropDomain(name=old_domain_name))
+        self.ops.add(Delete(table=AtomTable(), condition=[('name', str(old_domain_name))]))
+
+
+class CreateAtom(AtomMetaCommand):
+    def __init__(self, delta):
+        super().__init__(delta)
+
+        updates = self.create_object()
+
+        new_domain_name = common.atom_name_to_domain_name(delta.new, catenate=False)
+        mods = {d.new.__class__.get_canonical_class(): d.new for d in delta(proto.AtomModDelta)}
+        base, _, _, mods = self.get_atom_base_and_mods(delta.new_context)
+
+        self.ops.add(CreateDomain(name=new_domain_name, base=base))
+
+        for mod in mods:
+            self.ops.add(AlterDomainAddConstraint(name=new_domain_name, constraint=mod))
+
+        default_delta = updates.get('default')
+
+        if default_delta and default_delta.new is not None:
+            self.ops.add(AlterDomainAlterDefault(name=new_domain_name, default=default_delta.new))
+
+
+class AlterAtom(AtomMetaCommand):
+    def __init__(self, delta):
+        super().__init__(delta)
+
+        old_domain_name = common.atom_name_to_domain_name(delta.old, catenate=False)
+        new_domain_name = common.atom_name_to_domain_name(delta.new, catenate=False)
+
+        updaterec, updates = self.fill_record(delta)
+
+        if updaterec:
+            condition = [('name', str(delta.new))]
+            self.ops.add(Update(table=self.table, record=updaterec, condition=condition))
+
+        if delta.old != delta.new:
+            self.ops.add(RenameDomain(name=old_domain_name, new_name=new_domain_name))
+            updaterec = self.table.record(name=str(delta.new))
+            condition = [('name', str(delta.new))]
+            self.ops.add(Update(table=self.table, record=updaterec, condition=condition))
+
+        old_mods = {}
+        new_mods = {}
+
+        for d in delta.diff:
+            if isinstance(d, proto.AtomModDelta):
+                if not d.new:
+                    old_mods[d.old.__class__.get_canonical_class()] = d.old
+                else:
+                    new_mods[d.new.__class__.get_canonical_class()] = d.new
+
+        _, _, old_max_length, old_mods = self.get_atom_base_and_mods(delta.old_context)
+        base, _, _, new_mods = self.get_atom_base_and_mods(delta.new_context)
+
+        if old_max_length and not old_mods and new_mods:
+            rec = self.table.record(name=str(delta.new))
+            rec, _ = self.fill_record(delta.new_context.delta(None), rec)
+            self.ops.add(Insert(table=self.table, records=[rec]))
+            self.ops.add(CreateDomain(name=new_domain_name, base=base))
+
+        default_delta = updates.get('default')
+        if default_delta:
+            self.ops.add(AlterDomainAlterDefault(name=new_domain_name, default=default_delta.new))
+
+        for mod in new_mods - old_mods:
+            self.ops.add(AlterDomainAddConstraint(name=new_domain_name, constraint=mod))
+
+        for mod in old_mods - new_mods:
+            self.ops.add(AlterDomainDropConstraint(name=new_domain_name, constraint=mod))
+
+
+class AtomDeltaCommand(MetaCommand):
+    def __init__(self, delta):
+        super().__init__(delta)
+        if not delta.new:
+            self.ops.add(DeleteAtom(delta))
+        elif not delta.old:
+            self.ops.add(CreateAtom(delta))
+        else:
+            self.ops.add(AlterAtom(delta))
+
+
+class CompositePrototypeMetaCommand(PrototypeMetaCommand):
     @classmethod
-    def pg_type_from_atom(cls, plan, delta):
+    def _pg_type_from_atom(cls, delta):
         column_type = None
         atom_obj = delta.new_context
         if atom_obj.base is not None and atom_obj.base == 'semantix.caos.builtins.str':
@@ -244,137 +333,76 @@ class TableBasedObject:
             elif len(atom_obj.mods) == 0:
                 column_type = 'text'
 
-        new_atom = False
+        need_to_create = False
 
         if not column_type:
             if atom_obj.name in base_type_name_map:
                 column_type = base_type_name_map[atom_obj.name]
             else:
                 if atom_obj.automatic:
-                    new_atom = True
+                    need_to_create = True
                 column_type = common.atom_name_to_domain_name(atom_obj.name)
 
-        if plan and (new_atom or delta.old):
-            Atom.alter_object(plan, delta)
-
-        return column_type
+        return column_type, need_to_create
 
     @classmethod
-    def rename(cls, plan, metatable, old_name, new_name):
+    def pg_type_from_atom(cls, delta):
+        return cls._pg_type_from_atom(delta)[0]
+
+    def type_from_atom(self, delta, autocreate=True):
+        type, need_to_create = self.__class__._pg_type_from_atom(delta)
+        if (need_to_create or delta.old) and autocreate:
+            if delta.old:
+                self.ops.add(AlterAtom(delta))
+            else:
+                self.ops.add(CreateAtom(delta))
+        return type
+
+    def rename(self, old_name, new_name):
         old_table_name = common.concept_name_to_table_name(old_name, catenate=False)
         new_table_name = common.concept_name_to_table_name(new_name, catenate=False)
 
         if old_name.module != new_name.module:
-            plan.add(AlterTableSetSchema(old_table_name, new_table_name[0]))
+            self.ops.add(AlterTableSetSchema(old_table_name, new_table_name[0]))
             old_table_name = (new_table_name[0], old_table_name[1])
 
         if old_name.name != new_name.name:
-            plan.add(AlterTableRenameTo(old_table_name, new_table_name[1]))
+            self.ops.add(AlterTableRenameTo(old_table_name, new_table_name[1]))
 
-        updaterec = metatable.record(name=str(new_name))
+        updaterec = self.table.record(name=str(new_name))
         condition = [('name', str(old_name))]
-        plan.add(Update(table=metatable, record=updaterec, condition=condition))
+        self.ops.add(Update(table=self.table, record=updaterec, condition=condition))
 
 
-class Concept(proto.Concept, Prototype, TableBasedObject):
-    @classmethod
-    def alter_object(cls, plan, delta):
-        old_name, new_name = delta.old, delta.new
-        table = ConceptTable()
+class ConceptMetaCommand(CompositePrototypeMetaCommand):
+    def __init__(self, delta):
+        super().__init__(delta)
+        self.table = ConceptTable()
 
-        if new_name:
-            new_table_name = common.concept_name_to_table_name(new_name, catenate=False)
-
-        if not new_name:
-            # Drop it
-            cls.drop_table(plan, old_name)
-            plan.add(Delete(table=table, condition=[('name', str(old_name))]))
-            return plan
-
-        elif not old_name:
-            # Create it
-            create_schema = CreateSchema(name=new_table_name[0])
-            if create_schema not in plan:
-                plan.add(create_schema)
-
-            record = cls.record_metadata(plan, delta)
-            table = cls.get_new_table(plan, delta, record)
-            plan.add(CreateTable(table=table))
-
-        else:
-            # Alter it
-
-            if old_name != new_name:
-                cls.rename(plan, table, old_name, new_name)
-
-            if delta.diff:
-                alter = AlterTable(new_table_name)
-
-                updaterec = table.record()
-
-                updates, rec_updates = cls.fill_record(updaterec, delta)
-
-                for d in delta(proto.LinkSetDelta):
-                    if (d.old_context or d.new_context).atomic():
-                        cls.alter_columns(plan, alter, new_name, d)
-
-                if rec_updates:
-                    condition = [('name', str(new_name))]
-                    plan.add(Update(table=table, record=updaterec, condition=condition))
-
-                if alter.ops:
-                    plan.add(alter)
-
-    @classmethod
-    def alter_columns(cls, plan, alter, obj_name, delta):
-        table_name = common.concept_name_to_table_name(obj_name, catenate=False)
-
-        if not delta.new:
-            # Drop
-            column_name = common.caos_name_to_pg_colname(delta.old)
-            # We don't really care about the type -- we're dropping the thing
-            column_type = 'text'
-            col = AlterTableDropColumn(Column(name=column_name, type=column_type))
-            alter.add_operation(col)
-
-        elif not delta.old:
-            # Create
-            cols = cls.get_columns(plan, delta)
-            for col in cols:
-                alter.add_operation(AlterTableAddColumn(col))
-
-        else:
-            # Alter
-
-            old_link_obj = delta.old_context.first
-            new_link_obj = delta.new_context.first
-
-            if delta.old != delta.new:
-                rename = AlterTableRenameColumn(table_name, delta.old, delta.new)
-                plan.add(rename)
-
-            old_type = cls.pg_type_from_atom(None, old_link_obj.target.delta(None))
-            new_type = cls.pg_type_from_atom(plan, new_link_obj.target.delta(old_link_obj.target))
-
-            if old_type != new_type:
-                alter.add_operation(AlterTableAlterColumnType(delta.new, new_type))
-                Link.alter_object(plan, list(delta.diff)[0])
-
-    @classmethod
-    def get_columns(cls, plan, linkset_delta):
+    def get_columns(self, linkset_delta):
         columns = []
 
         for link_delta in linkset_delta(proto.LinkDelta):
             if isinstance(link_delta.new_context.target, proto.Atom):
-                column_type = cls.pg_type_from_atom(plan, link_delta.new_context.target.delta(None))
+                column_type = self.type_from_atom(link_delta.new_context.target.delta(None))
                 column_name = common.caos_name_to_pg_colname(linkset_delta.new)
 
                 columns.append(Column(name=column_name, type=column_type,
                                       required=link_delta.new_context.required))
         return columns
 
-    @classmethod
-    def get_new_table(cls, plan, delta, fields):
+    def fill_record(self, delta, rec=None):
+        rec, updates = super().fill_record(delta, rec)
+        if rec and rec.custombases:
+            rec.custombases=[str(b) for b in rec.custombases]
+        return rec, updates
+
+
+class CreateConcept(ConceptMetaCommand):
+    def __init__(self, delta):
+        super().__init__(delta)
+
+        fields = self.create_object()
 
         new_table_name = common.concept_name_to_table_name(delta.new, catenate=False)
 
@@ -382,7 +410,7 @@ class Concept(proto.Concept, Prototype, TableBasedObject):
         constraints = []
 
         for linkset_delta in delta(proto.LinkSetDelta):
-            columns.extend(cls.get_columns(plan, linkset_delta))
+            columns.extend(self.get_columns(linkset_delta))
 
         if delta.new == 'semantix.caos.builtins.Object':
             columns.append(Column(name='concept_id', type='integer', required=True))
@@ -397,110 +425,97 @@ class Concept(proto.Concept, Prototype, TableBasedObject):
                  for p in fields['base'].new if proto.Concept.is_prototype(p))
         concept_table.bases = list(bases)
 
-        return concept_table
-
-    @classmethod
-    def drop_table(cls, plan, obj_name):
-        plan.add(DropTable(name=common.concept_name_to_table_name(obj_name, catenate=False)))
-
-    @classmethod
-    def fill_record(cls, rec, delta):
-        result = super(Concept, cls).fill_record(rec, delta)
-        if rec.custombases:
-            rec.custombases=[str(b) for b in rec.custombases]
-        return result
-
-    @classmethod
-    def record_metadata(cls, plan, delta):
-        table = ConceptTable()
-
-        rec = table.record(name=str(delta.new))
-        updates, rec_updates = cls.fill_record(rec, delta)
-        plan.add(Insert(table=table, records=[rec]))
-
-        return updates
+        self.ops.add(CreateTable(table=concept_table))
 
 
-class Link(proto.Link, Prototype, TableBasedObject):
-    @classmethod
-    def alter_object(cls, plan, delta):
-        old_name, new_name = delta.old, delta.new
-        table = LinkTable()
+class DeleteConcept(ConceptMetaCommand):
+    def __init__(self, delta):
+        super().__init__(delta)
 
-        if new_name:
-            new_table_name = common.link_name_to_table_name(new_name, catenate=False)
+        self.ops.add(DropTable(name=common.concept_name_to_table_name(delta.old, catenate=False)))
+        self.ops.add(Delete(table=self.table, condition=[('name', str(delta.old))]))
 
-        if not new_name:
-            # Drop it
-            if not delta.old_context.atomic() and not delta.old_context.implicit_derivative:
-                cls.drop_table(plan, old_name)
-            plan.add(Delete(table=table, condition=[('name', str(old_name))]))
-            return plan
 
-        elif not old_name:
-            # We do not want to create a separate table for atomic links since those
-            # are represented by table columns.  Implicit derivative links also do not get
-            # their own table since they're just a special case of the parent.
-            #
-            # On the other hand, much like with concepts we want all other links to be in
-            # separate tables even if they do not define additional properties.
-            # This is to allow for further schema evolution.
-            #
-            if not delta.new_context.atomic() and not delta.new_context.implicit_derivative:
-                create_schema = CreateSchema(name=new_table_name[0])
-                if create_schema not in plan:
-                    plan.add(create_schema)
+class AlterConcept(ConceptMetaCommand):
+    def __init__(self, delta):
+        super().__init__(delta)
 
-                plan.add(CreateTable(table=cls.get_new_table(plan, delta.new_context)))
+        new_table_name = common.concept_name_to_table_name(delta.new, catenate=False)
 
-            cls.record_metadata(plan, delta)
+        if delta.old != delta.new:
+            self.rename(delta.old, delta.new)
+
+        if delta.diff:
+            alter = AlterTable(new_table_name)
+
+            for d in delta(proto.LinkSetDelta):
+                if (d.old_context or d.new_context).atomic():
+                    self.alter_columns(alter, delta.new, d)
+
+
+            updaterec, _ = self.fill_record(delta)
+
+            if updaterec:
+                condition = [('name', str(delta.new))]
+                self.ops.add(Update(table=self.table, record=updaterec, condition=condition))
+
+            if alter.ops:
+                self.ops.add(alter)
+
+
+    def alter_columns(self, alter, obj_name, delta):
+        table_name = common.concept_name_to_table_name(obj_name, catenate=False)
+
+        if not delta.new:
+            # Drop
+            column_name = common.caos_name_to_pg_colname(delta.old)
+            # We don't really care about the type -- we're dropping the thing
+            column_type = 'text'
+            col = AlterTableDropColumn(Column(name=column_name, type=column_type))
+            alter.add_operation(col)
+
+        elif not delta.old:
+            # Create
+            cols = self.get_columns(delta)
+            for col in cols:
+                alter.add_operation(AlterTableAddColumn(col))
 
         else:
-            if not delta.old_context.atomic() and not delta.old_context.implicit_derivative:
-                if old_name != new_name:
-                    cls.rename(plan, table, old_name, new_name)
+            # Alter
 
-            elif delta.old_context.atomic():
-                cls.record_metadata(plan, delta)
+            old_link_obj = delta.old_context.first
+            new_link_obj = delta.new_context.first
 
-    @classmethod
-    def get_new_table(cls, plan, new):
+            if delta.old != delta.new:
+                rename = AlterTableRenameColumn(table_name, delta.old, delta.new)
+                self.ops.add(rename)
 
-        new_table_name = common.link_name_to_table_name(new.name, catenate=False)
+            old_type = self.type_from_atom(old_link_obj.target.delta(None), autocreate=False)
+            new_type = self.type_from_atom(new_link_obj.target.delta(old_link_obj.target))
 
-        columns = []
-        constraints = []
+            if old_type != new_type:
+                alter.add_operation(AlterTableAlterColumnType(delta.new, new_type))
+                self.ops.add(AlterLink(list(delta.diff)[0]))
 
-        for property_name, property in new.properties.items():
-            column_type = cls.pg_type_from_atom(plan, property.atom.delta(None))
-            columns.append(Column(name=str(property_name), type=column_type))
 
-        if new.name == 'semantix.caos.builtins.link':
-            columns.append(Column(name='source_id', type='uuid', required=True))
-            columns.append(Column(name='target_id', type='uuid', required=True))
-            columns.append(Column(name='link_type_id', type='integer', required=True))
+class ConceptDeltaCommand(MetaCommand):
+    def __init__(self, delta):
+        super().__init__(delta)
+        if not delta.new:
+            self.ops.add(DeleteConcept(delta))
+        elif not delta.old:
+            self.ops.add(CreateConcept(delta))
+        else:
+            self.ops.add(AlterConcept(delta))
 
-        constraints.append(PrimaryKey(columns=['source_id', 'target_id', 'link_type_id']))
 
-        table = Table(name=new_table_name)
-        table.add_columns(columns)
-        table.constraints = constraints
+class LinkMetaCommand(CompositePrototypeMetaCommand):
+    def __init__(self, delta):
+        super().__init__(delta)
+        self.table = LinkTable()
 
-        if new.base:
-            bases = (common.link_name_to_table_name(p, catenate=False)
-                     for p in new.base if proto.Concept.is_prototype(p))
-            table.bases = list(bases)
-
-        return table
-
-    @classmethod
-    def drop_table(cls, plan, obj_name):
-        plan.add(DropTable(name=common.link_name_to_table_name(obj_name, catenate=False)))
-
-    @classmethod
-    def record_metadata(cls, plan, delta):
+    def record_metadata(self, delta):
         if delta.new:
-            table = LinkTable()
             if delta.new_context.source:
                 source_id = Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
                                   [str(delta.new_context.source.name)], type='integer')
@@ -524,71 +539,147 @@ class Link(proto.Link, Prototype, TableBasedObject):
             else:
                 target_id = None
 
-            rec = table.record(name=str(delta.new), source_id=source_id, target_id=target_id)
-            cls.fill_record(rec, delta)
+            rec = self.table.record(name=str(delta.new), source_id=source_id, target_id=target_id)
+            rec, _ = self.fill_record(delta, rec)
 
             if not delta.old:
-                plan.add(Insert(table=table, records=[rec]))
+                self.ops.add(Insert(table=self.table, records=[rec]))
             else:
-                plan.add(Update(table=table, record=rec, condition=[('name', str(delta.old))]))
+                self.ops.add(Update(table=self.table, record=rec,
+                                    condition=[('name', str(delta.old))]))
 
 
-class SynchronizationPlan:
-    def __init__(self):
+class CreateLink(LinkMetaCommand):
+    def __init__(self, delta):
+        super().__init__(delta)
+
+        new_table_name = common.link_name_to_table_name(delta.new, catenate=False)
+
+        # We do not want to create a separate table for atomic links since those
+        # are represented by table columns.  Implicit derivative links also do not get
+        # their own table since they're just a special case of the parent.
+        #
+        # On the other hand, much like with concepts we want all other links to be in
+        # separate tables even if they do not define additional properties.
+        # This is to allow for further schema evolution.
+        #
+        if not delta.new_context.atomic() and not delta.new_context.implicit_derivative:
+            self.create_schema(new_table_name)
+
+            columns = []
+            constraints = []
+
+            for property_name, property in delta.new_context.properties.items():
+                column_type = self.type_from_atom(property.atom.delta(None))
+                columns.append(Column(name=str(property_name), type=column_type))
+
+            if delta.new == 'semantix.caos.builtins.link':
+                columns.append(Column(name='source_id', type='uuid', required=True))
+                columns.append(Column(name='target_id', type='uuid', required=True))
+                columns.append(Column(name='link_type_id', type='integer', required=True))
+
+            constraints.append(PrimaryKey(columns=['source_id', 'target_id', 'link_type_id']))
+
+            table = Table(name=new_table_name)
+            table.add_columns(columns)
+            table.constraints = constraints
+
+            if delta.new_context.base:
+                bases = (common.link_name_to_table_name(p, catenate=False)
+                         for p in delta.new_context.base if proto.Concept.is_prototype(p))
+                table.bases = list(bases)
+
+            self.ops.add(CreateTable(table=table))
+
+        self.record_metadata(delta)
+
+
+class DeleteLink(LinkMetaCommand):
+    def __init__(self, delta):
+        super().__init__(delta)
+
+        if not delta.old_context.atomic() and not delta.old_context.implicit_derivative:
+            self.ops.add(DropTable(name=common.link_name_to_table_name(delta.old, catenate=False)))
+        self.ops.add(Delete(table=self.table, condition=[('name', str(delta.old))]))
+
+
+class AlterLink(LinkMetaCommand):
+    def __init__(self, delta):
+        super().__init__(delta)
+
+        if not delta.old_context.atomic() and not delta.old_context.implicit_derivative:
+            if delta.old != delta.new:
+                self.rename(delta.old, delta.new)
+
+        elif delta.old_context.atomic():
+            self.record_metadata(delta)
+
+
+class LinkDeltaCommand(MetaCommand):
+    def __init__(self, delta):
+        super().__init__(delta)
+        if not delta.new:
+            self.ops.add(DeleteLink(delta))
+        elif not delta.old:
+            self.ops.add(CreateLink(delta))
+        else:
+            self.ops.add(AlterLink(delta))
+
+
+class AlterRealm(MetaCommand):
+    def __init__(self, delta):
         self.ops = collections.OrderedDict()
+
+        self.add(CreateSchema(name='caos'), level=-2)
+
+        self.add(EnableFeature(feature=UuidFeature(),
+                               neg_conditions=[FunctionExists(('caos', 'uuid_nil'))]), level=-2)
+
+        self.add(EnableFeature(feature=HstoreFeature(),
+                               neg_conditions=[TypeExists(('caos', 'hstore'))]), level=-2)
+
+        metalogtable = MetaLogTable()
+        self.add(CreateTable(table=metalogtable,
+                             neg_conditions=[TableExists(name=metalogtable.name)]), level=-1)
+
+        metatable = MetaObjectTable()
+        self.add(CreateTable(table=metatable,
+                             neg_conditions=[TableExists(name=metatable.name)]), level=-1)
+
+        atomtable = AtomTable()
+        self.add(CreateTable(table=atomtable,
+                             neg_conditions=[TableExists(name=atomtable.name)]), level=-1)
+
+        concepttable = ConceptTable()
+        self.add(CreateTable(table=concepttable,
+                             neg_conditions=[TableExists(name=concepttable.name)]), level=-1)
+
+        linktable = LinkTable()
+        self.add(CreateTable(table=linktable,
+                             neg_conditions=[TableExists(name=linktable.name)]), level=-1)
+
+        for d in delta:
+            if isinstance(d, proto.AtomDelta):
+                self.add(AtomDeltaCommand(d))
+
+            elif isinstance(d, proto.ConceptDelta):
+                self.add(ConceptDeltaCommand(d))
+
+            elif isinstance(d, proto.LinkDelta):
+                self.add(LinkDeltaCommand(d))
+
+            else:
+                assert False, 'unexpected delta %s' % d
 
     def add(self, op, level=0):
         if level not in self.ops:
-            self.ops[level] = datastructures.StrictOrderedIndex(key=lambda i: (i.__class__, i.opid))
+            self.ops[level] = datastructures.OrderedSet()
         self.ops[level].add(op)
 
-    def get_code_and_vars(self, op, db):
-        code = op.code(db)
-        assert code
-        if isinstance(code, tuple):
-            code, vars = code
-        else:
-            vars = tuple()
-
-        return code, vars
-
-    def check_conditions(self, db, conditions, positive):
-        result = True
-        if conditions:
-            for condition in conditions:
-                code, vars = self.get_code_and_vars(condition, db)
-                result = db.prepare(code)(*vars)
-
-                if bool(result) ^ positive:
-                    result = False
-                    break
-            else:
-                result = True
-
-        return result
-
-    @debug
     def execute(self, db):
         for level, ops in sorted(self.ops.items(), key=lambda i: i[0]):
             for op in ops:
-                ok = self.check_conditions(db, op.conditions, True) and \
-                     self.check_conditions(db, op.neg_conditions, False)
-
-                if ok:
-                    code, vars = self.get_code_and_vars(op, db)
-
-                    """LOG [caos.meta.sync.cmd] Sync command:
-                    print(op)
-                    """
-
-                    """LOG [caos.meta.sync.sql] Sync command code:
-                    print(code, vars)
-                    """
-
-                    if vars:
-                        db.prepare(code)(*vars)
-                    else:
-                        db.execute(code)
+                op.execute(db)
 
             if level == -2:
                 self.__class__.init_hstore(db)
@@ -604,48 +695,6 @@ class SynchronizationPlan:
             if l >= level:
                 for op in ops:
                     yield op
-
-    @classmethod
-    def from_delta(cls, delta):
-        plan = cls()
-
-        plan.add(CreateSchema(name='caos'),
-                 level=-2)
-        plan.add(EnableFeature(feature=UuidFeature(),
-                               neg_conditions=[FunctionExists(('caos', 'uuid_nil'))]), level=-2)
-        plan.add(EnableFeature(feature=HstoreFeature(),
-                               neg_conditions=[TypeExists(('caos', 'hstore'))]), level=-2)
-        metalogtable = MetaLogTable()
-        plan.add(CreateTable(table=metalogtable, neg_conditions=[TableExists(name=metalogtable.name)]),
-                level=-1)
-        metatable = MetaObjectTable()
-        plan.add(CreateTable(table=metatable, neg_conditions=[TableExists(name=metatable.name)]), level=-1)
-        atomtable = AtomTable()
-        plan.add(CreateTable(table=atomtable, neg_conditions=[TableExists(name=atomtable.name)]), level=-1)
-        concepttable = ConceptTable()
-        plan.add(CreateTable(table=concepttable, neg_conditions=[TableExists(name=concepttable.name)]),
-                 level=-1)
-        linktable = LinkTable()
-        plan.add(CreateTable(table=linktable, neg_conditions=[TableExists(name=linktable.name)]), level=-1)
-
-        for d in delta:
-            cls.alter_object(plan, d)
-
-        return plan
-
-    @classmethod
-    def alter_object(cls, plan, delta):
-        if isinstance(delta, proto.AtomDelta):
-            return Atom.alter_object(plan, delta)
-
-        elif isinstance(delta, proto.ConceptDelta):
-            return Concept.alter_object(plan, delta)
-
-        elif isinstance(delta, proto.LinkDelta):
-            return Link.alter_object(plan, delta)
-
-        else:
-            assert False, 'unexpected delta %s' % delta
 
     @classmethod
     def init_hstore(cls, db):
@@ -670,29 +719,21 @@ class SynchronizationPlan:
         return Insert(table, records=[rec])
 
 
-class SynchronizationOperation:
-    def __init__(self, *, conditions=None, neg_conditions=None):
-        self.opid = id(self)
-        self.conditions = conditions or set()
-        self.neg_conditions = neg_conditions or set()
 
+#
+# Primitive commands follow
+#
 
-class DDLOperation(SynchronizationOperation):
+class DDLOperation(Command):
     pass
 
 
-class DMLOperation(SynchronizationOperation):
+class DMLOperation(Command):
     pass
 
 
-class Condition:
-    def execute(self, db):
-        code = self.code(db)
-        if isinstance(code, tuple):
-            code, vars = code
-        else:
-            vars = []
-        return db.prepare(code)(*vars)
+class Condition(BaseCommand):
+    pass
 
 
 class Query:
@@ -741,8 +782,7 @@ class Insert(DMLOperation):
         return (code, vals)
 
     def __repr__(self):
-        cols = self.table.record().fields
-        vals = (('(%s)' % ', '.join(str(getattr(row, col, None)) for col in cols)) for row in self.records)
+        vals = (('(%s)' % ', '.join(str(v) for col, v in row)) for row in self.records)
         return '<caos.sync.%s %s (%s)>' % (self.__class__.__name__, self.table.name, ', '.join(vals))
 
 
@@ -1051,8 +1091,8 @@ class SchemaExists(Condition):
 
 
 class CreateSchema(DDLOperation):
-    def __init__(self, name):
-        super().__init__()
+    def __init__(self, name, *, conditions=None, neg_conditions=None):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions)
 
         self.name = name
         self.opid = name

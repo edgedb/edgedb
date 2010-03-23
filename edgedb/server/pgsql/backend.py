@@ -100,7 +100,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         self.connection = connection
 
-        sync.SynchronizationPlan.init_hstore(connection)
+        sync.AlterRealm.init_hstore(connection)
 
         self.domains = set()
         schemas = introspection.SchemasList(self.connection).fetch(schema_name='caos%')
@@ -126,7 +126,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def get_synchronization_plan(self, delta):
-        return sync.SynchronizationPlan.from_delta(delta)
+        return sync.AlterRealm(delta)
 
 
     def apply_synchronization_plan(self, plan):
@@ -140,7 +140,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         if plan.is_material():
             parent = self.get_meta_log(1)
             parent_id = parent[0].id if parent else 0
-            plan.add(sync.SynchronizationPlan.logsync(meta.get_checksum(), parent_id), -1)
+            plan.add(sync.AlterRealm.logsync(meta.get_checksum(), parent_id), -1)
         self.apply_synchronization_plan(plan)
 
 
@@ -205,7 +205,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 for a in attrs:
                     if hasattr(entity.__class__, str(a)):
                         l = getattr(entity.__class__, str(a))
-                        col_type = sync.TableBasedObject.pg_type_from_atom(None,
+                        col_type = sync.CompositePrototypeMetaCommand.pg_type_from_atom(
                                                             l._metadata.prototype.delta(None))
                         col_type = 'text::%s' % col_type
 
@@ -225,7 +225,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     for a in attrs:
                         if hasattr(entity.__class__, str(a)):
                             l = getattr(entity.__class__, str(a))
-                            col_type = sync.TableBasedObject.pg_type_from_atom(None,
+                            col_type = sync.CompositePrototypeMetaCommand.pg_type_from_atom(
                                                             l._metadata.prototype.delta(None))
                             col_type = 'text::%s' % col_type
 
