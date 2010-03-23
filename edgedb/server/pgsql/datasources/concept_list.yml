@@ -20,7 +20,7 @@ source: |
             c.name AS name,
             c.title AS title,
             c.description AS description,
-            c.abstract AS abstract,
+            c.is_abstract AS is_abstract,
             c.custombases AS custombases
         FROM
             caos.concept c

@@ -37,9 +37,9 @@ source: |
             l.required,
             l.title,
             l.description,
-            l.implicit,
-            l.atomic,
-            l.abstract
+            l.implicit_derivative,
+            l.is_atom,
+            l.is_abstract
         FROM
             caos.link l
             LEFT JOIN caos.metaobject sc ON l.source_id = sc.id

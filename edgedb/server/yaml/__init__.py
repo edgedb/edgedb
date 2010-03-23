@@ -277,7 +277,7 @@ class MetaSet(LangObject):
 
             if link.implicit_derivative and not link.atomic():
                 base = globalmeta.get(next(iter(link.base)))
-                if base.atom:
+                if base.is_atom:
                     raise caos.MetaError('implicitly defined atomic link % used to link to concept' %
                                          link.name)
 
@@ -335,7 +335,7 @@ class MetaSet(LangObject):
                             # The only attribute that is used for global definition is the name.
                             link_qname = caos.Name(name=link_name, module=link.context.document.module.__name__)
                             linkdef = proto.Link(name=link_qname, base=[caos.Name('semantix.caos.builtins.link')])
-                            linkdef.atom = globalmeta.get(link.target, type=proto.Atom, default=None) is not None
+                            linkdef.is_atom = globalmeta.get(link.target, type=proto.Atom, default=None) is not None
                             globalmeta.add(linkdef)
                             localmeta.add(linkdef)
                         else:

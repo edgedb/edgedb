@@ -89,10 +89,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     cast_re = re.compile(r"(::(?P<type>(?:(?P<quote>\"?)[\w -]+(?P=quote)\.)?(?P<quote1>\"?)[\w -]+(?P=quote1)))+$", re.X)
 
     constr_expr_res = {
-                        'regexp': re.compile("VALUE::text \s* ~ \s* '(?P<expr>[^']*)'::text", re.X),
-                        'max-length': re.compile("length\(VALUE::text\) \s* <= \s* (?P<expr>\d+)$", re.X),
-                        'min-length': re.compile("length\(VALUE::text\) \s* >= \s* (?P<expr>\d+)$", re.X)
-                      }
+        'regexp': re.compile("VALUE::text \s* ~ \s* '(?P<expr>[^']*)'::text", re.X),
+        'max-length': re.compile("length\(VALUE::text\) \s* <= \s* (?P<expr>\d+)$",re.X),
+        'min-length': re.compile("length\(VALUE::text\) \s* >= \s* (?P<expr>\d+)$", re.X)
+    }
 
 
     def __init__(self, connection):
@@ -291,7 +291,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                            'title': self.hstore_to_word_combination(row['title']),
                            'description': self.hstore_to_word_combination(row['description']),
                            'automatic': row['automatic'],
-                           'abstract': row['abstract'],
+                           'is_abstract': row['is_abstract'],
                            'base': row['base']}
 
             domain_descr = domains[name]
@@ -299,7 +299,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             bases = caos.Name(atoms[name]['base'])
             atom = proto.Atom(name=name, base=bases, default=domain_descr['default'], title=atoms[name]['title'],
                               description=atoms[name]['description'], automatic=atoms[name]['automatic'],
-                              is_abstract=atoms[name]['abstract'])
+                              is_abstract=atoms[name]['is_abstract'])
 
             if domain_descr['constraints'] is not None:
                 for constraint_type in domain_descr['constraints']:
@@ -336,7 +336,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             bases = tuple()
             properties = {}
 
-            if not r['implicit'] and not r['atomic']:
+            if not r['implicit_derivative'] and not r['is_atom']:
                 t = link_tables.get(name)
                 if not t:
                     raise caos.MetaError('internal inconsistency: record for link %s exists but the table is missing'
@@ -359,7 +359,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     property = proto.LinkProperty(name=property_name, atom=atom)
                     properties[property_name] = property
             else:
-                if r['implicit']:
+                if r['implicit_derivative']:
                     bases = (meta.get(r['name'].rpartition('_')[0]).name,)
                 else:
                     bases = (caos.Name('semantix.caos.builtins.link'),)
@@ -369,7 +369,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             source = meta.get(r['source']) if r['source'] else None
             target = meta.get(r['target']) if r['target'] else None
 
-            if r['implicit'] and isinstance(target, proto.Atom):
+            if r['implicit_derivative'] and isinstance(target, proto.Atom):
                 cols = concept_columns.get(source.name)
 
                 concept_schema, concept_table = common.concept_name_to_table_name(source.name,
@@ -387,15 +387,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 derived_atom_name = '__' + source.name.name + '__' + base_link_name.name
                 target = self.atom_from_pg_type(col['column_type'], concept_schema,
                                                 col['column_default'], meta,
-                                                caos.Name(name=derived_atom_name, module=source.name.module))
+                                                caos.Name(name=derived_atom_name,
+                                                          module=source.name.module))
 
 
             link = proto.Link(name=name, base=bases, source=source, target=target,
                                 mapping=r['mapping'], required=r['required'],
                                 title=title, description=description,
-                                is_abstract=r['abstract'],
-                                is_atom=r['atomic'])
-            link.implicit_derivative = r['implicit']
+                                is_abstract=r['is_abstract'],
+                                is_atom=r['is_atom'])
+            link.implicit_derivative = r['implicit_derivative']
             link.properties = properties
 
             if source:
@@ -431,7 +432,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             concepts[name] = {'name': name,
                               'title': self.hstore_to_word_combination(row['title']),
                               'description': self.hstore_to_word_combination(row['description']),
-                              'abstract': row['abstract'], 'custombases': row['custombases']}
+                              'is_abstract': row['is_abstract'], 'custombases': row['custombases']}
 
         for t in tables:
             name = common.table_name_to_concept_name(t['name'])
@@ -442,7 +443,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             concept = proto.Concept(name=name, base=bases, title=concepts[name]['title'],
                                     description=concepts[name]['description'],
-                                    is_abstract=concepts[name]['abstract'],
+                                    is_abstract=concepts[name]['is_abstract'],
                                     custombases=concepts[name]['custombases'])
 
             columns = introspection.table.TableColumns(self.connection).fetch(table_name=t['name'],
@@ -677,6 +678,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     atom.add_mod(proto.AtomModMaxLength(typmod))
                     meta.add(atom)
 
+        assert atom
         return atom
 
 
