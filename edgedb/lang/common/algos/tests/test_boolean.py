@@ -34,8 +34,10 @@ def test_algos_boolean_minimize():
 
     ones = boolean.ints_to_terms(9, 25, 13, 29, 15, 31, 3, 11, 10, 26)
     dcs = boolean.ints_to_terms(8, 24, 12, 7, 5, 4, 17, 19)
-    assert boolean.minimize(ones, dcs) == {(0, None, 0, 1, None), (1, None, 1, 1, None),
-                                           (None, 0, 0, 1, None), (1, 1, None, None, 0)}
+    assert boolean.minimize(ones, dcs) in [{(0, None, 0, 1, None), (1, None, 1, 1, None),
+                                            (1, 1, None, None, 0), (1, 0, None, 1, None)},
+                                           {(0, None, 0, 1, None), (1, None, 1, 1, None),
+                                            (None, 0, 0, 1, None), (1, 1, None, None, 0)}]
 
     ones = boolean.ints_to_terms(*range(40))
     assert boolean.minimize(ones) == {(None, None, None, 0, 0, None), (None, None, None, None, None, 0)}
