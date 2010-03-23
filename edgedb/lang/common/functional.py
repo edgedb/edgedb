@@ -49,6 +49,19 @@ class hybridmethod(object):
         return result
 
 
+class cachedproperty:
+    def __init__(self, method):
+        self.func = method
+        self.__doc__ = method.__doc__
+        self.__name__ = method.__name__
+
+    def __get__(self, obj, cls=None):
+        assert obj
+        value = self.func(obj)
+        obj.__dict__[self.__name__] = value
+        return value
+
+
 class memoized(object):
     """Decorator that caches a function's return value each time it is called.
     If called later with the same arguments, the cached value is returned, and
