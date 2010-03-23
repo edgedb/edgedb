@@ -285,7 +285,7 @@ class StrictOrderedIndex(OrderedIndex):
 
 class Record(type):
     def __new__(mcls, name, fields, default=None):
-        dct = {'fields': fields, 'default': default}
+        dct = {'_fields___': fields, '_default___': default}
         bases = (RecordBase,)
         return super(Record, mcls).__new__(mcls, name, bases, dct)
 
@@ -296,15 +296,19 @@ class Record(type):
 class RecordBase:
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
-            if k not in self.__class__.fields:
+            if k not in self.__class__._fields___:
                 raise TypeError('__init__() got an unexpected keyword argument %s' % k)
             setattr(self, k, v)
 
-        for k in set(self.__class__.fields) - set(kwargs.keys()):
-            setattr(self, k, self.__class__.default)
+        for k in set(self.__class__._fields___) - set(kwargs.keys()):
+            setattr(self, k, self.__class__._default___)
 
 
     def __setattr__(self, name, value):
-        if name not in self.__class__.fields:
+        if name not in self.__class__._fields___:
             raise AttributeError('%s has no attribute %s' % (self.__class__.__name__, name))
         super().__setattr__(name, value)
+
+    def __iter__(self):
+        for name in self.__class__._fields___:
+            yield name, getattr(self, name)
