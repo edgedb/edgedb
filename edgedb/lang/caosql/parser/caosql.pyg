@@ -332,9 +332,9 @@ opt_fq_graph_name_set           -> '(' opt_fq_graph_name (',' opt_fq_graph_name)
 
 opt_fq_graph_name               -> (nsname ':')? IDENTIFIER:
                                         if kids[0]:
-                                            grname = GraphObjectRefNode(name=kids[1], module=kids[0][0])
+                                            grname = PrototypeRefNode(name=kids[1], module=kids[0][0])
                                         else:
-                                            grname = GraphObjectRefNode(name=kids[1])
+                                            grname = PrototypeRefNode(name=kids[1])
                                         return grname
 ;
 
