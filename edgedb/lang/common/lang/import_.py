@@ -68,12 +68,15 @@ class Importer(abc.Finder, abc.Loader):
         with open(filename) as stream:
             try:
                 attributes = language.load_dict(stream, context=context)
-            except Exception as error:
-                raise ImportError('unable to import "%s" (%s)' % (fullname, error))
 
-            for attribute_name, attribute_value in attributes:
-                attribute_name = str(attribute_name)
-                new_mod.__odict__[attribute_name] = attribute_value
-                setattr(new_mod, attribute_name, attribute_value)
+                for attribute_name, attribute_value in attributes:
+                    attribute_name = str(attribute_name)
+                    new_mod.__odict__[attribute_name] = attribute_value
+                    setattr(new_mod, attribute_name, attribute_value)
+
+            except Exception as error:
+                del sys.modules[fullname]
+                raise ImportError('unable to import "%s" (%s: %s)' \
+                                  % (fullname, type(error).__name__, error)) from error
 
         return new_mod
