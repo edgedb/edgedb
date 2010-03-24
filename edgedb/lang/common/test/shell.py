@@ -22,6 +22,7 @@ class TestCommand(shell.Command, expose=True):
         parser.add_argument('--keep-going', action='store_true', default=False)
         parser.add_argument('--color', action='store_true', default=True)
         parser.add_argument('--no-color', dest='color', action='store_false')
+        parser.add_argument('--no-magic', dest='magic', action='store_false', default=True)
         parser.add_argument('-d', '--debug', dest='debug', action='append')
         parser.add_argument('tests', nargs='*')
 
@@ -42,6 +43,9 @@ class TestCommand(shell.Command, expose=True):
 
         if args.color:
             test_args.append('--colorize')
+
+        if not args.magic:
+            test_args.append('--nomagic')
 
         if not args.keep_going:
             test_args.append('-x')
