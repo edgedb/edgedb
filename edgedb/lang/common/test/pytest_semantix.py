@@ -14,19 +14,28 @@ from semantix.utils.debug import highlight
 from semantix.utils.io import terminal
 
 
+setattr(logging, '_semantix_logging_running', True)
+
+def _logging_on():
+    setattr(logging, '_semantix_logging_running', True)
+def _logging_off():
+    setattr(logging, '_semantix_logging_running', False)
+
+setattr(logging, '_logging_on', _logging_on)
+setattr(logging, '_logging_off', _logging_off)
+
+
 class LoggingPrintHandler(logging.Handler):
     def __init__(self, colorize, *args, **kwargs):
         self.colorize = colorize
         super().__init__(*args, **kwargs)
 
     def emit(self, record):
-        if self.colorize:
-            print(terminal.colorize('LOGGER', 'white', 'red'), record)
-        else:
-            print('LOGGER', record)
-
-        if record.exc_info:
-            raise record.exc_info[1]
+        if getattr(logging, '_semantix_logging_running'):
+            if self.colorize:
+                print(terminal.colorize('LOGGER', 'white', 'red'), record)
+            else:
+                print('LOGGER', record)
 
 
 test_patterns = []
