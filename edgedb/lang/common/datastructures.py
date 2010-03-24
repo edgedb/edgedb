@@ -215,7 +215,10 @@ class BaseOrderedSet(collections.MutableSet):
     def __eq__(self, other):
         if isinstance(other, self.__class__):
             return len(self) == len(other) and list(self) == list(other)
-        return not self.isdisjoint(other)
+        elif other is None:
+            return False
+        else:
+            return not self.isdisjoint(other)
 
     def copy(self):
         return self.__class__(self)
