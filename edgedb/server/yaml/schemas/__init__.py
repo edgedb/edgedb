@@ -7,7 +7,7 @@
 
 
 from semantix.caos.proto import ImportContext
-from semantix.lang.yaml.loader import AttributeMappingNode
+from semantix.utils.lang.yaml.loader import AttributeMappingNode
 from .semantics import Semantics
 from .data import Data
 

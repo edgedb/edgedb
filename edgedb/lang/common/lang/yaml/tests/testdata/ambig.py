@@ -1,0 +1,2 @@
+class test:
+    aaa = 'ccc'

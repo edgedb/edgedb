@@ -1,0 +1,38 @@
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+type: map
+mapping:
+    int: { type: int }
+    float: { type: float }
+    number: { type: number }
+    text: { type: text }
+    any: { type: any }
+    str: { type: str }
+    bool: { type: bool }
+    dict:
+        type: map
+        mapping:
+            test1:
+                type: int
+                default: 3
+            test2:
+                type: str
+                default: "a"
+
+    fdict:
+        type: map
+        min-length: 2
+        max-length: 3
+        mapping:
+            =:
+                type: str
+
+    minmax:
+        type: int
+        range: {min: 3, max-ex: 20}

@@ -6,7 +6,7 @@
 ##
 
 
-%SCHEMA semantix.lang.yaml.schema.Schema
+%SCHEMA semantix.utils.lang.yaml.schema.Schema
 %NAME Data
 ---
 type: map

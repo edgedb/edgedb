@@ -1,0 +1,39 @@
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+type: map
+mapping:
+    test1:
+        type: map
+        object: semantix.utils.lang.yaml.validator.tests.test_object.A
+        mapping:
+            name:
+                type: str
+                required: yes
+            description:
+                type: str
+                default: "<empty>"
+
+    fail:
+        type: map
+        object: semantix.utils.lang.yaml.validator.tests.test_object.Bad
+        mapping:
+            name:
+                type: str
+                required: yes
+
+    customvalidation:
+        type: map
+        object: semantix.utils.lang.yaml.validator.tests.test_object.CustomValidator
+        mapping:
+            name:
+                type: str
+                required: yes
+            description:
+                type: str
+                default: "<empty>"

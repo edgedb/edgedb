@@ -1,0 +1,15 @@
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%SCHEMA semantix.utils.lang.yaml.schema.Schema
+%NAME AmbigSchema
+---
+type: map
+mapping:
+    =:
+        type: str

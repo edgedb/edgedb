@@ -12,10 +12,10 @@ import importlib
 import collections
 import itertools
 
-from semantix.utils import graph
+from semantix.utils import graph, lang
 from semantix.utils.nlang import morphology
 
-from semantix import caos, lang
+from semantix import caos
 from semantix.caos import proto
 from semantix.caos import backends
 
