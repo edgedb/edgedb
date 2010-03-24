@@ -1030,7 +1030,9 @@ class Feature:
         self.schema = schema
 
     def code(self, db):
-        source = self.source % {'version': '%s.%s' % db.version_info[:2]}
+        pgpath = os.getenv('SEMANTIX_PGPATH', '/usr/share/postgresql-%(version)s')
+        source = self.source % {'pgpath': pgpath}
+        source = source % {'version': '%s.%s' % db.version_info[:2]}
 
         with open(source, 'r') as f:
             code = re.sub(r'SET\s+search_path\s*=\s*[^;]+;',
@@ -1055,14 +1057,14 @@ class TypeExists(Condition):
 
 
 class UuidFeature(Feature):
-    source = '/usr/share/postgresql-%(version)s/contrib/uuid-ossp.sql'
+    source = '%(pgpath)s/contrib/uuid-ossp.sql'
 
     def __init__(self, schema='caos'):
         super().__init__(name='uuid', schema=schema)
 
 
 class HstoreFeature(Feature):
-    source = '/usr/share/postgresql-%(version)s/contrib/hstore.sql'
+    source = '%(pgpath)s/contrib/hstore.sql'
 
     def __init__(self, schema='caos'):
         super().__init__(name='hstore', schema=schema)
