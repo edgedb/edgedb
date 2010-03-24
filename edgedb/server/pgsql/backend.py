@@ -80,13 +80,15 @@ class CaosQLCursor(object):
 
 class Backend(backends.MetaBackend, backends.DataBackend):
 
-    typlen_re = re.compile(r"(?P<type>.*) \( (?P<length>\d+) (?:\s*,\s*(?P<precision>\d+))? \)$", re.X)
+    typlen_re = re.compile(r"(?P<type>.*) \( (?P<length>\d+) (?:\s*,\s*(?P<precision>\d+))? \)$",
+                           re.X)
 
     check_constraint_re = re.compile(r"CHECK \s* \( (?P<expr>.*) \)$", re.X)
 
     constraint_type_re = re.compile(r"^(?P<type>[.\w-]+)(?:_\d+)?$", re.X)
 
-    cast_re = re.compile(r"(::(?P<type>(?:(?P<quote>\"?)[\w -]+(?P=quote)\.)?(?P<quote1>\"?)[\w -]+(?P=quote1)))+$", re.X)
+    cast_re = re.compile(r"""(::(?P<type>(?:(?P<quote>\"?)[\w -]+(?P=quote)\.)?
+                                (?P<quote1>\"?)[\w -]+(?P=quote1)))+$""", re.X)
 
     constr_expr_res = {
         'regexp': re.compile("VALUE::text \s* ~ \s* '(?P<expr>[^']*)'::text", re.X),
@@ -176,19 +178,23 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def load_entity(self, concept, id):
-        query = 'SELECT * FROM %s WHERE "semantix.caos.builtins.id" = \'%s\'' % (common.concept_name_to_table_name(concept), id)
+        query = 'SELECT * FROM %s WHERE "semantix.caos.builtins.id" = \'%s\'' % \
+                                                (common.concept_name_to_table_name(concept), id)
         ps = self.connection.prepare(query)
         result = ps.first()
 
         if result is not None:
-            return dict((self.column_map[k], result[k]) for k in result.keys() if k not in ('semantix.caos.builtins.id', 'concept_id'))
+            return dict((self.column_map[k], result[k])
+                        for k in result.keys()
+                        if k not in ('semantix.caos.builtins.id', 'concept_id'))
         else:
             return None
 
 
     @debug
     def store_entity(self, entity):
-        concept = entity.__class__._metadata.name
+        cls = entity.__class__
+        concept = cls._metadata.name
         id = entity.id
         links = entity._instancedata.links
 
@@ -196,15 +202,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             attrs = {}
             for n, v in links.items():
-                if issubclass(getattr(entity.__class__, str(n)), caos.atom.Atom) and n != 'semantix.caos.builtins.id':
+                if issubclass(getattr(cls, str(n)), caos.atom.Atom) and \
+                                                            n != 'semantix.caos.builtins.id':
                     attrs[n] = v
 
             if id is not None:
                 query = 'UPDATE %s SET ' % common.concept_name_to_table_name(concept)
                 cols = []
                 for a in attrs:
-                    if hasattr(entity.__class__, str(a)):
-                        l = getattr(entity.__class__, str(a))
+                    l = getattr(cls, str(a), None)
+                    if l:
                         col_type = sync.CompositePrototypeMetaCommand.pg_type_from_atom(
                                                             l._metadata.prototype.delta(None))
                         col_type = 'text::%s' % col_type
@@ -215,16 +222,18 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     column_name = common.quote_ident(column_name)
                     cols.append('%s = %%(%s)s::%s' % (column_name, str(a), col_type))
                 query += ','.join(cols)
-                query += ' WHERE "semantix.caos.builtins.id" = %s RETURNING "semantix.caos.builtins.id"' \
-                                                                % postgresql.string.quote_literal(str(id))
+                query += ''' WHERE "semantix.caos.builtins.id" = %s
+                             RETURNING "semantix.caos.builtins.id"''' \
+                                                        % postgresql.string.quote_literal(str(id))
             else:
                 if attrs:
-                    cols_names = [common.quote_ident(self.caos_name_to_pg_column_name(a)) for a in attrs]
+                    cols_names = [common.quote_ident(self.caos_name_to_pg_column_name(a))
+                                  for a in attrs]
                     cols_names = ', ' + ', '.join(cols_names)
                     cols = []
                     for a in attrs:
-                        if hasattr(entity.__class__, str(a)):
-                            l = getattr(entity.__class__, str(a))
+                        if hasattr(cls, str(a)):
+                            l = getattr(cls, str(a))
                             col_type = sync.CompositePrototypeMetaCommand.pg_type_from_atom(
                                                             l._metadata.prototype.delta(None))
                             col_type = 'text::%s' % col_type
@@ -238,13 +247,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     cols_values = ''
 
                 query = 'INSERT INTO %s ("semantix.caos.builtins.id", concept_id%s)' \
-                                                % (common.concept_name_to_table_name(concept), cols_names)
+                                        % (common.concept_name_to_table_name(concept), cols_names)
 
                 query += '''VALUES(uuid_generate_v1mc(),
                                    (SELECT id FROM caos.concept WHERE name = %(concept)s) %(cols)s)
                             RETURNING "semantix.caos.builtins.id"''' \
-                                                % {'concept': postgresql.string.quote_literal(str(concept)),
-                                                   'cols': cols_values}
+                            % {'concept': postgresql.string.quote_literal(str(concept)),
+                               'cols': cols_values}
 
             data = dict((str(k), str(attrs[k]) if attrs[k] is not None else None) for k in attrs)
 
@@ -297,8 +306,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             domain_descr = domains[name]
 
             bases = caos.Name(atoms[name]['base'])
-            atom = proto.Atom(name=name, base=bases, default=domain_descr['default'], title=atoms[name]['title'],
-                              description=atoms[name]['description'], automatic=atoms[name]['automatic'],
+            atom = proto.Atom(name=name, base=bases, default=domain_descr['default'],
+                              title=atoms[name]['title'], description=atoms[name]['description'],
+                              automatic=atoms[name]['automatic'],
                               is_abstract=atoms[name]['is_abstract'])
 
             if domain_descr['constraints'] is not None:
@@ -339,13 +349,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if not r['implicit_derivative'] and not r['is_atom']:
                 t = link_tables.get(name)
                 if not t:
-                    raise caos.MetaError('internal inconsistency: record for link %s exists but the table is missing'
-                                         % name)
+                    raise caos.MetaError(('internal inconsistency: record for link %s exists but '
+                                          'the table is missing') % name)
 
                 bases = self.pg_table_inheritance_to_bases(t['name'], t['schema'])
 
-                columns = introspection.table.TableColumns(self.connection).fetch(table_name=t['name'],
-                                                                                  schema_name=t['schema'])
+                columns = introspection.table.TableColumns(self.connection)
+                columns = columns.fetch(table_name=t['name'], schema_name=t['schema'])
                 for row in columns:
                     if row['column_name'] in ('source_id', 'target_id', 'link_type_id'):
                         continue
@@ -354,7 +364,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     derived_atom_name = '__' + name.name + '__' + property_name.name
                     atom = self.atom_from_pg_type(row['column_type'], t['schema'],
                                                   row['column_default'], meta,
-                                                  caos.Name(name=derived_atom_name, module=name.module))
+                                                  caos.Name(name=derived_atom_name,
+                                                            module=name.module))
 
                     property = proto.LinkProperty(name=property_name, atom=atom)
                     properties[property_name] = property
@@ -375,8 +386,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 concept_schema, concept_table = common.concept_name_to_table_name(source.name,
                                                                                   catenate=False)
                 if not cols:
-                    cols = introspection.table.TableColumns(self.connection).fetch(table_name=concept_table,
-                                                                                   schema_name=concept_schema)
+                    cols = introspection.table.TableColumns(self.connection)
+                    cols = cols.fetch(table_name=concept_table, schema_name=concept_schema)
                     cols = {col['column_name']: col for col in cols}
                     concept_columns[source.name] = cols
 
@@ -446,20 +457,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                     is_abstract=concepts[name]['is_abstract'],
                                     custombases=concepts[name]['custombases'])
 
-            columns = introspection.table.TableColumns(self.connection).fetch(table_name=t['name'],
-                                                                              schema_name=t['schema'])
-            for row in columns:
-                if row['column_name'] in ('semantix.caos.builtins.id', 'concept_id'):
-                    continue
-
-                atom_name = row['column_name']
-
-                """
-                derived_atom_name = '__' + name.name + '__' + caos.Name(atom_name).name
-                atom = self.atom_from_pg_type(row['column_type'], t['schema'], row['column_default'], meta,
-                                              caos.Name(name=derived_atom_name, module=name.module))
-                """
-
+            columns = introspection.table.TableColumns(self.connection)
+            columns = columns.fetch(table_name=t['name'], schema_name=t['schema'])
             meta.add(concept)
 
 
@@ -505,7 +504,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                              (table, ",".join(rows), table, ",".join(rows)), params)
 
 
-    def load_links(self, this_concept, this_id, other_concepts=None, link_names=None, reverse=False):
+    def load_links(self, this_concept, this_id, other_concepts=None, link_names=None,
+                                                                     reverse=False):
 
         if link_names is not None and not isinstance(link_names, list):
             link_names = [link_names]
@@ -526,7 +526,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         links = datasources.EntityLinks(self.connection).fetch(
                                         source_id=source_id, target_id=target_id,
-                                        target_concepts=target_concepts, source_concepts=source_concepts,
+                                        target_concepts=target_concepts,
+                                        source_concepts=source_concepts,
                                         link_names=link_names)
 
         return links
@@ -555,7 +556,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                 if constr_expr.startswith('CHECK'):
                     # Strip `CHECK()`
-                    constr_expr = self.check_constraint_re.match(constr_expr).group('expr').replace("''", "'")
+                    constr_expr = self.check_constraint_re.match(constr_expr).group('expr')
+                    constr_expr.replace("''", "'")
                 else:
                     raise caos.MetaError('could not parse domain constraint "%s": %s' %
                                          (constr_name, constr_expr))
@@ -615,8 +617,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def pg_table_inheritance_to_bases(self, table_name, schema_name):
-        inheritance = introspection.table.TableInheritance(self.connection).fetch(table_name=table_name,
-                                                                                  schema_name=schema_name)
+        inheritance = introspection.table.TableInheritance(self.connection)
+        inheritance = inheritance.fetch(table_name=table_name, schema_name=schema_name)
         inheritance = [i[:2] for i in inheritance[1:]]
 
         bases = tuple()
