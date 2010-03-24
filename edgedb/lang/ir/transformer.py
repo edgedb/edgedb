@@ -8,12 +8,11 @@
 
 import itertools
 
-from semantix import ast
 from semantix.caos import name as caos_name
 from semantix.caos.tree import ast as caos_ast
 
 from semantix.utils.algos import boolean
-from semantix.utils import datastructures
+from semantix.utils import datastructures, ast
 
 
 class LinearPath(list):

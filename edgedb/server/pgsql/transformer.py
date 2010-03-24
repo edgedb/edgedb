@@ -8,7 +8,7 @@
 
 import collections
 
-from semantix import ast
+from semantix.utils import ast
 from semantix.caos import caosql, tree
 from semantix.caos import types as caos_types
 from semantix.caos.backends import pgsql

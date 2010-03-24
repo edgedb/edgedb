@@ -9,7 +9,7 @@
 import os
 import pyggy
 
-import semantix.ast
+import semantix.utils.ast
 
 from .errors import CaosQLSyntaxError
 from semantix.caos.caosql import ast as qlast
@@ -32,7 +32,7 @@ class CaosQLParser(object):
 
         raw_ast = pyggy.proctree(tree, self.ptab)
 
-        ast = semantix.ast.fix_parent_links(raw_ast)
+        ast = semantix.utils.ast.fix_parent_links(raw_ast)
 
         return ast
 

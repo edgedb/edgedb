@@ -8,8 +8,8 @@
 
 import weakref
 
-from semantix import ast
-from semantix.utils import datastructures
+from semantix.utils import datastructures, ast
+
 
 class Base(ast.AST):
     pass

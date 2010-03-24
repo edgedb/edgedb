@@ -7,8 +7,8 @@
 ##
 
 
-from semantix.ast.base import *
-from semantix.ast.visitor import *
+from .base import *
+from .visitor import *
 
 class NodeTransformer(NodeVisitor):
     """

@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.ast import dump
+from . import dump
 
 
 class ASTError(Exception):

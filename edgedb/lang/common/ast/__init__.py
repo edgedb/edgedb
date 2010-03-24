@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.ast import ops
-from semantix.ast.base import *
-from semantix.ast.visitor import *
-from semantix.ast.transformer import *
-from semantix.ast.codegen import *
+from . import ops
+from .base import *
+from .visitor import *
+from .transformer import *
+from .codegen import *

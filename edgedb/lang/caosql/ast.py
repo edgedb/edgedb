@@ -6,7 +6,8 @@
 ##
 
 
-from semantix import ast
+from semantix.utils import ast
+
 
 class RootNode(ast.AST): __fields = ['children']
 

@@ -7,7 +7,7 @@
 ##
 
 
-from semantix.ast.base import *
+from .base import *
 
 def find_children(node, test_func, *args, **kwargs):
     visited = set()

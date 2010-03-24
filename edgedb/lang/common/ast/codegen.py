@@ -7,7 +7,7 @@
 ##
 
 
-from semantix.ast.visitor import NodeVisitor
+from .visitor import NodeVisitor
 
 class SourceGenerator(NodeVisitor):
     """This visitor is able to transform a well formed syntax tree into python

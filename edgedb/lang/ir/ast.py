@@ -8,7 +8,7 @@
 
 import weakref
 
-from semantix import ast
+from semantix.utils import ast
 from semantix.caos import name as caos_name
 
 

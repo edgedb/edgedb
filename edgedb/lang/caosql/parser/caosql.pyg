@@ -1,6 +1,6 @@
 code:
     import re
-    from semantix import ast
+    from semantix.utils import ast
     from semantix.caos import types as caos_types
     from semantix.caos.caosql.ast import *
     from semantix.caos.caosql.parser.errors import CaosQLSyntaxError

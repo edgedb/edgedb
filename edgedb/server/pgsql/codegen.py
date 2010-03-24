@@ -8,7 +8,7 @@
 import numbers
 import postgresql.string
 from semantix.caos.backends.pgsql import common
-from semantix.ast import codegen
+from semantix.utils.ast import codegen
 
 
 class SQLSourceGeneratorError(Exception): pass
