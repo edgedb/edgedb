@@ -457,3 +457,8 @@ class Backend(backends.MetaBackend):
 
     def getmeta(self):
         return self.metadata._index_
+
+    def get_delta(self, meta):
+        mymeta = self.getmeta()
+        delta = mymeta.delta(meta)
+        return delta

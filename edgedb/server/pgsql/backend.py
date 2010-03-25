@@ -101,7 +101,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         super().__init__()
 
         self.connection = connection
-
         sync.AlterRealm.init_hstore(connection)
 
         self.domains = set()
@@ -136,13 +135,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             plan.execute(self.connection)
 
 
-    def synchronize(self, meta):
-        delta = self.get_delta(meta)
+    def apply_delta(self, delta):
         plan = self.get_synchronization_plan(delta)
-        if plan.is_material():
-            parent = self.get_meta_log(1)
-            parent_id = parent[0].id if parent else 0
-            plan.add(sync.AlterRealm.logsync(meta.get_checksum(), parent_id), -1)
         self.apply_synchronization_plan(plan)
 
 

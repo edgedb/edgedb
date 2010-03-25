@@ -16,6 +16,7 @@ import postgresql
 
 from semantix import caos
 from semantix.caos import proto
+from semantix.caos import delta as delta_cmds
 
 from semantix.caos.backends.pgsql import common
 
@@ -138,12 +139,12 @@ class PrototypeMetaCommand(MetaCommand):
 
         myrec = self.table.record()
 
-        for d in delta(proto.PrototypeFieldDelta):
-            updates[d.name] = d
-            if hasattr(myrec, d.name):
+        for d in delta(delta_cmds.AlterPrototypeProperty):
+            updates[d.property] = d
+            if hasattr(myrec, d.property):
                 if not rec:
                     rec = self.table.record()
-                setattr(rec, d.name, d.new)
+                setattr(rec, d.property, d.new_value)
 
         if rec:
             rec.name = str(rec.name)
@@ -161,7 +162,8 @@ class PrototypeMetaCommand(MetaCommand):
         self.ops.add(CreateSchema(name=name[0], neg_conditions={condition}))
 
     def create_object(self):
-        new_domain_name = common.atom_name_to_domain_name(self.delta.new, catenate=False)
+        new_domain_name = common.atom_name_to_domain_name(self.delta.new_prototype.name,
+                                                          catenate=False)
         rec, updates = self.fill_record(self.delta)
         self.ops.add(Insert(table=self.table, records=[rec]))
 
@@ -234,7 +236,7 @@ class DeleteAtom(AtomMetaCommand):
     def __init__(self, delta):
         super().__init__(delta)
 
-        old_domain_name = common.atom_name_to_domain_name(delta.old, catenate=False)
+        old_domain_name = common.atom_name_to_domain_name(delta.prototype.name, catenate=False)
         self.ops.add(DropDomain(name=old_domain_name))
         self.ops.add(Delete(table=AtomTable(), condition=[('name', str(old_domain_name))]))
 
@@ -245,9 +247,8 @@ class CreateAtom(AtomMetaCommand):
 
         updates = self.create_object()
 
-        new_domain_name = common.atom_name_to_domain_name(delta.new, catenate=False)
-        mods = {d.new.__class__.get_canonical_class(): d.new for d in delta(proto.AtomModDelta)}
-        base, _, _, mods = self.get_atom_base_and_mods(delta.new_context)
+        new_domain_name = common.atom_name_to_domain_name(delta.prototype.name, catenate=False)
+        base, _, _, mods = self.get_atom_base_and_mods(delta.prototype)
 
         self.ops.add(CreateDomain(name=new_domain_name, base=base))
 
@@ -256,75 +257,67 @@ class CreateAtom(AtomMetaCommand):
 
         default_delta = updates.get('default')
 
-        if default_delta and default_delta.new is not None:
-            self.ops.add(AlterDomainAlterDefault(name=new_domain_name, default=default_delta.new))
+        if default_delta and default_delta.new_value is not None:
+            self.ops.add(AlterDomainAlterDefault(name=new_domain_name,
+                                                 default=default_delta.new_value))
 
 
 class AlterAtom(AtomMetaCommand):
     def __init__(self, delta):
         super().__init__(delta)
 
-        old_domain_name = common.atom_name_to_domain_name(delta.old, catenate=False)
-        new_domain_name = common.atom_name_to_domain_name(delta.new, catenate=False)
+        domain_name = common.atom_name_to_domain_name(delta.old_prototype.name, catenate=False)
+
+        rename = list(delta(delta_cmds.RenamePrototype))
+
+        if rename:
+            new_name = rename[0].new_name
+            new_domain_name = common.atom_name_to_domain_name(new_name, catenate=False)
+
+            self.ops.add(RenameDomain(name=domain_name, new_name=new_domain_name))
+            updaterec = self.table.record(name=str(new_name))
+            condition = [('name', str(delta.prototype.name))]
+            self.ops.add(Update(table=self.table, record=updaterec, condition=condition))
+
+            domain_name = new_domain_name
 
         updaterec, updates = self.fill_record(delta)
 
         if updaterec:
-            condition = [('name', str(delta.new))]
+            condition = [('name', str(domain_name))]
             self.ops.add(Update(table=self.table, record=updaterec, condition=condition))
 
-        if delta.old != delta.new:
-            self.ops.add(RenameDomain(name=old_domain_name, new_name=new_domain_name))
-            updaterec = self.table.record(name=str(delta.new))
-            condition = [('name', str(delta.new))]
-            self.ops.add(Update(table=self.table, record=updaterec, condition=condition))
+        new_mods = {d.mod.__class__.get_canonical_class(): d.mod
+                    for d in delta(delta_cmds.CreateAtomMod)}
 
-        old_mods = {}
-        new_mods = {}
+        old_mods = {d.mod.__class__.get_canonical_class(): d.mod
+                    for d in delta(delta_cmds.DeleteAtomMod)}
 
-        for d in delta.diff:
-            if isinstance(d, proto.AtomModDelta):
-                if not d.new:
-                    old_mods[d.old.__class__.get_canonical_class()] = d.old
-                else:
-                    new_mods[d.new.__class__.get_canonical_class()] = d.new
-
-        _, _, old_max_length, old_mods = self.get_atom_base_and_mods(delta.old_context)
-        base, _, _, new_mods = self.get_atom_base_and_mods(delta.new_context)
+        _, _, old_max_length, old_mods = self.get_atom_base_and_mods(delta.old_prototype)
+        base, _, _, new_mods = self.get_atom_base_and_mods(delta.new_prototype)
 
         if old_max_length and not old_mods and new_mods:
-            rec = self.table.record(name=str(delta.new))
-            rec, _ = self.fill_record(delta.new_context.delta(None), rec)
+            rec = self.table.record(name=str(domain_name))
+            rec, _ = self.fill_record(delta.new_prototype.delta(None), rec)
             self.ops.add(Insert(table=self.table, records=[rec]))
-            self.ops.add(CreateDomain(name=new_domain_name, base=base))
+            self.ops.add(CreateDomain(name=domain_name, base=base))
 
         default_delta = updates.get('default')
         if default_delta:
-            self.ops.add(AlterDomainAlterDefault(name=new_domain_name, default=default_delta.new))
+            self.ops.add(AlterDomainAlterDefault(name=domain_name, default=default_delta.new_value))
 
         for mod in new_mods - old_mods:
-            self.ops.add(AlterDomainAddConstraint(name=new_domain_name, constraint=mod))
+            self.ops.add(AlterDomainAddConstraint(name=domain_name, constraint=mod))
 
         for mod in old_mods - new_mods:
-            self.ops.add(AlterDomainDropConstraint(name=new_domain_name, constraint=mod))
-
-
-class AtomDeltaCommand(MetaCommand):
-    def __init__(self, delta):
-        super().__init__(delta)
-        if not delta.new:
-            self.ops.add(DeleteAtom(delta))
-        elif not delta.old:
-            self.ops.add(CreateAtom(delta))
-        else:
-            self.ops.add(AlterAtom(delta))
+            self.ops.add(AlterDomainDropConstraint(name=domain_name, constraint=mod))
 
 
 class CompositePrototypeMetaCommand(PrototypeMetaCommand):
     @classmethod
     def _pg_type_from_atom(cls, delta):
         column_type = None
-        atom_obj = delta.new_context
+        atom_obj = delta.new_prototype
         if atom_obj.base is not None and atom_obj.base == 'semantix.caos.builtins.str':
             if len(atom_obj.mods) == 1:
                 mod = next(iter(atom_obj.mods.values()))
@@ -351,8 +344,8 @@ class CompositePrototypeMetaCommand(PrototypeMetaCommand):
 
     def type_from_atom(self, delta, autocreate=True):
         type, need_to_create = self.__class__._pg_type_from_atom(delta)
-        if (need_to_create or delta.old) and autocreate:
-            if delta.old:
+        if (need_to_create or delta.old_prototype) and autocreate:
+            if delta.old_prototype:
                 self.ops.add(AlterAtom(delta))
             else:
                 self.ops.add(CreateAtom(delta))
@@ -382,13 +375,13 @@ class ConceptMetaCommand(CompositePrototypeMetaCommand):
     def get_columns(self, linkset_delta):
         columns = []
 
-        for link_delta in linkset_delta(proto.LinkDelta):
-            if isinstance(link_delta.new_context.target, proto.Atom):
-                column_type = self.type_from_atom(link_delta.new_context.target.delta(None))
-                column_name = common.caos_name_to_pg_colname(linkset_delta.new)
+        for link_delta in linkset_delta(delta_cmds.CreateLink):
+            if isinstance(link_delta.new_prototype.target, proto.Atom):
+                column_type = self.type_from_atom(link_delta.new_prototype.target.delta(None))
+                column_name = common.caos_name_to_pg_colname(linkset_delta.new_prototype.name)
 
                 columns.append(Column(name=column_name, type=column_type,
-                                      required=link_delta.new_context.required))
+                                      required=link_delta.new_prototype.required))
         return columns
 
     def fill_record(self, delta, rec=None):
@@ -404,15 +397,15 @@ class CreateConcept(ConceptMetaCommand):
 
         fields = self.create_object()
 
-        new_table_name = common.concept_name_to_table_name(delta.new, catenate=False)
+        new_table_name = common.concept_name_to_table_name(delta.prototype.name, catenate=False)
 
         columns = []
         constraints = []
 
-        for linkset_delta in delta(proto.LinkSetDelta):
+        for linkset_delta in delta(delta_cmds.CreateLinkSet):
             columns.extend(self.get_columns(linkset_delta))
 
-        if delta.new == 'semantix.caos.builtins.Object':
+        if delta.new_prototype.name == 'semantix.caos.builtins.Object':
             columns.append(Column(name='concept_id', type='integer', required=True))
 
         constraints.append(PrimaryKey(columns=['semantix.caos.builtins.id']))
@@ -422,7 +415,7 @@ class CreateConcept(ConceptMetaCommand):
         concept_table.constraints = constraints
 
         bases = (common.concept_name_to_table_name(p, catenate=False)
-                 for p in fields['base'].new if proto.Concept.is_prototype(p))
+                 for p in fields['base'].new_value if proto.Concept.is_prototype(p))
         concept_table.bases = list(bases)
 
         self.ops.add(CreateTable(table=concept_table))
@@ -432,31 +425,38 @@ class DeleteConcept(ConceptMetaCommand):
     def __init__(self, delta):
         super().__init__(delta)
 
-        self.ops.add(DropTable(name=common.concept_name_to_table_name(delta.old, catenate=False)))
-        self.ops.add(Delete(table=self.table, condition=[('name', str(delta.old))]))
+        old_table_name = common.concept_name_to_table_name(delta.prototype.name, catenate=False)
+        self.ops.add(DropTable(name=old_table_name))
+        self.ops.add(Delete(table=self.table, condition=[('name', str(delta.prototype.name))]))
 
 
 class AlterConcept(ConceptMetaCommand):
     def __init__(self, delta):
         super().__init__(delta)
 
-        new_table_name = common.concept_name_to_table_name(delta.new, catenate=False)
+        name = delta.old_prototype.name
+        table_name = common.concept_name_to_table_name(delta.old_prototype.name, catenate=False)
 
-        if delta.old != delta.new:
-            self.rename(delta.old, delta.new)
+        rename = list(delta(delta_cmds.RenamePrototype))
 
-        if delta.diff:
-            alter = AlterTable(new_table_name)
+        if rename:
+            new_name = rename[0].new_name
+            self.rename(delta.old_prototype.name, new_name)
+            table_name = common.concept_name_to_table_name(new_name, catenate=False)
+            name = new_name
 
-            for d in delta(proto.LinkSetDelta):
-                if (d.old_context or d.new_context).atomic():
-                    self.alter_columns(alter, delta.new, d)
+        if delta.ops:
+            alter = AlterTable(table_name)
+
+            for d in delta(delta_cmds.LinkSetCommand):
+                if (d.old_prototype or d.new_prototype).atomic():
+                    self.alter_columns(alter, name, d)
 
 
             updaterec, _ = self.fill_record(delta)
 
             if updaterec:
-                condition = [('name', str(delta.new))]
+                condition = [('name', str(delta.old_prototype.name))]
                 self.ops.add(Update(table=self.table, record=updaterec, condition=condition))
 
             if alter.ops:
@@ -466,15 +466,15 @@ class AlterConcept(ConceptMetaCommand):
     def alter_columns(self, alter, obj_name, delta):
         table_name = common.concept_name_to_table_name(obj_name, catenate=False)
 
-        if not delta.new:
+        if not delta.new_prototype:
             # Drop
-            column_name = common.caos_name_to_pg_colname(delta.old)
+            column_name = common.caos_name_to_pg_colname(delta.old_prototype.name)
             # We don't really care about the type -- we're dropping the thing
             column_type = 'text'
             col = AlterTableDropColumn(Column(name=column_name, type=column_type))
             alter.add_operation(col)
 
-        elif not delta.old:
+        elif not delta.old_prototype:
             # Create
             cols = self.get_columns(delta)
             for col in cols:
@@ -483,30 +483,25 @@ class AlterConcept(ConceptMetaCommand):
         else:
             # Alter
 
-            old_link_obj = delta.old_context.first
-            new_link_obj = delta.new_context.first
+            old_link_obj = delta.old_prototype.first
+            new_link_obj = delta.new_prototype.first
 
-            if delta.old != delta.new:
-                rename = AlterTableRenameColumn(table_name, delta.old, delta.new)
+            name = delta.old_prototype.name
+
+            rename = list(delta(delta_cmds.RenamePrototype))
+
+            if rename:
+                new_name = rename[0].new_name
+                rename = AlterTableRenameColumn(table_name, delta.old_prototype.name, new_name)
                 self.ops.add(rename)
+                name = new_name
 
             old_type = self.type_from_atom(old_link_obj.target.delta(None), autocreate=False)
             new_type = self.type_from_atom(new_link_obj.target.delta(old_link_obj.target))
 
             if old_type != new_type:
-                alter.add_operation(AlterTableAlterColumnType(delta.new, new_type))
-                self.ops.add(AlterLink(list(delta.diff)[0]))
-
-
-class ConceptDeltaCommand(MetaCommand):
-    def __init__(self, delta):
-        super().__init__(delta)
-        if not delta.new:
-            self.ops.add(DeleteConcept(delta))
-        elif not delta.old:
-            self.ops.add(CreateConcept(delta))
-        else:
-            self.ops.add(AlterConcept(delta))
+                alter.add_operation(AlterTableAlterColumnType(name, new_type))
+                self.ops.add(AlterLink(list(delta.ops)[0]))
 
 
 class LinkMetaCommand(CompositePrototypeMetaCommand):
@@ -515,45 +510,46 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
         self.table = LinkTable()
 
     def record_metadata(self, delta):
-        if delta.new:
-            if delta.new_context.source:
+        if delta.new_prototype:
+            if delta.new_prototype.source:
                 source_id = Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
-                                  [str(delta.new_context.source.name)], type='integer')
+                                  [str(delta.new_prototype.source.name)], type='integer')
             else:
                 source_id = None
 
-            if delta.new_context.target:
-                if isinstance(delta.new_context.target, proto.Atom) and \
-                                                        delta.new_context.target.base:
+            if delta.new_prototype.target:
+                if isinstance(delta.new_prototype.target, proto.Atom) and \
+                                                        delta.new_prototype.target.base:
                     target_id = Query('''coalesce((SELECT id FROM caos.metaobject
                                                              WHERE name = $1),
                                                   (SELECT id FROM caos.metaobject
                                                              WHERE name = $2))''',
-                                      [str(delta.new_context.target.name),
-                                       str(delta.new_context.target.base)],
+                                      [str(delta.new_prototype.target.name),
+                                       str(delta.new_prototype.target.base)],
                                       type='integer')
                 else:
                     target_id = Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
-                                      [str(delta.new_context.target.name)],
+                                      [str(delta.new_prototype.target.name)],
                                       type='integer')
             else:
                 target_id = None
 
-            rec = self.table.record(name=str(delta.new), source_id=source_id, target_id=target_id)
+            rec = self.table.record(name=str(delta.new_prototype.name),
+                                    source_id=source_id, target_id=target_id)
             rec, _ = self.fill_record(delta, rec)
 
-            if not delta.old:
+            if not delta.old_prototype:
                 self.ops.add(Insert(table=self.table, records=[rec]))
             else:
                 self.ops.add(Update(table=self.table, record=rec,
-                                    condition=[('name', str(delta.old))]))
+                                    condition=[('name', str(delta.old_prototype.name))]))
 
 
 class CreateLink(LinkMetaCommand):
     def __init__(self, delta):
         super().__init__(delta)
 
-        new_table_name = common.link_name_to_table_name(delta.new, catenate=False)
+        new_table_name = common.link_name_to_table_name(delta.new_prototype.name, catenate=False)
 
         # We do not want to create a separate table for atomic links since those
         # are represented by table columns.  Implicit derivative links also do not get
@@ -563,17 +559,17 @@ class CreateLink(LinkMetaCommand):
         # separate tables even if they do not define additional properties.
         # This is to allow for further schema evolution.
         #
-        if not delta.new_context.atomic() and not delta.new_context.implicit_derivative:
+        if not delta.new_prototype.atomic() and not delta.new_prototype.implicit_derivative:
             self.create_schema(new_table_name)
 
             columns = []
             constraints = []
 
-            for property_name, property in delta.new_context.properties.items():
+            for property_name, property in delta.new_prototype.properties.items():
                 column_type = self.type_from_atom(property.atom.delta(None))
                 columns.append(Column(name=str(property_name), type=column_type))
 
-            if delta.new == 'semantix.caos.builtins.link':
+            if delta.new_prototype.name == 'semantix.caos.builtins.link':
                 columns.append(Column(name='source_id', type='uuid', required=True))
                 columns.append(Column(name='target_id', type='uuid', required=True))
                 columns.append(Column(name='link_type_id', type='integer', required=True))
@@ -584,9 +580,9 @@ class CreateLink(LinkMetaCommand):
             table.add_columns(columns)
             table.constraints = constraints
 
-            if delta.new_context.base:
+            if delta.new_prototype.base:
                 bases = (common.link_name_to_table_name(p, catenate=False)
-                         for p in delta.new_context.base if proto.Concept.is_prototype(p))
+                         for p in delta.new_prototype.base if proto.Concept.is_prototype(p))
                 table.bases = list(bases)
 
             self.ops.add(CreateTable(table=table))
@@ -598,32 +594,26 @@ class DeleteLink(LinkMetaCommand):
     def __init__(self, delta):
         super().__init__(delta)
 
-        if not delta.old_context.atomic() and not delta.old_context.implicit_derivative:
-            self.ops.add(DropTable(name=common.link_name_to_table_name(delta.old, catenate=False)))
-        self.ops.add(Delete(table=self.table, condition=[('name', str(delta.old))]))
+        if not delta.old_prototype.atomic() and not delta.old_prototype.implicit_derivative:
+            old_table_name = common.link_name_to_table_name(delta.old_prototype.name,
+                                                            catenate=False)
+            self.ops.add(DropTable(name=old_table_name))
+        self.ops.add(Delete(table=self.table, condition=[('name', str(delta.old_prototype.name))]))
 
 
 class AlterLink(LinkMetaCommand):
     def __init__(self, delta):
         super().__init__(delta)
 
-        if not delta.old_context.atomic() and not delta.old_context.implicit_derivative:
-            if delta.old != delta.new:
-                self.rename(delta.old, delta.new)
+        if not delta.old_prototype.atomic() and not delta.old_prototype.implicit_derivative:
+            rename = list(delta(delta_cmds.RenamePrototype))
 
-        elif delta.old_context.atomic():
+            if rename:
+                new_name = rename[0].new_name
+                self.rename(delta.old_prototype.name, new_name)
+
+        elif delta.old_prototype.atomic():
             self.record_metadata(delta)
-
-
-class LinkDeltaCommand(MetaCommand):
-    def __init__(self, delta):
-        super().__init__(delta)
-        if not delta.new:
-            self.ops.add(DeleteLink(delta))
-        elif not delta.old:
-            self.ops.add(CreateLink(delta))
-        else:
-            self.ops.add(AlterLink(delta))
 
 
 class AlterRealm(MetaCommand):
@@ -659,14 +649,26 @@ class AlterRealm(MetaCommand):
                              neg_conditions=[TableExists(name=linktable.name)]), level=-1)
 
         for d in delta:
-            if isinstance(d, proto.AtomDelta):
-                self.add(AtomDeltaCommand(d))
+            if isinstance(d, delta_cmds.CreateAtom):
+                self.add(CreateAtom(d))
+            elif isinstance(d, delta_cmds.AlterAtom):
+                self.add(AlterAtom(d))
+            elif isinstance(d, delta_cmds.DeleteAtom):
+                self.add(DeleteAtom(d))
 
-            elif isinstance(d, proto.ConceptDelta):
-                self.add(ConceptDeltaCommand(d))
+            elif isinstance(d, delta_cmds.CreateConcept):
+                self.add(CreateConcept(d))
+            elif isinstance(d, delta_cmds.AlterConcept):
+                self.add(AlterConcept(d))
+            elif isinstance(d, delta_cmds.DeleteConcept):
+                self.add(DeleteConcept(d))
 
-            elif isinstance(d, proto.LinkDelta):
-                self.add(LinkDeltaCommand(d))
+            elif isinstance(d, delta_cmds.CreateLink):
+                self.add(CreateLink(d))
+            elif isinstance(d, delta_cmds.AlterLink):
+                self.add(AlterLink(d))
+            elif isinstance(d, delta_cmds.DeleteLink):
+                self.add(DeleteLink(d))
 
             else:
                 assert False, 'unexpected delta %s' % d
