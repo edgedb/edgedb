@@ -12,6 +12,7 @@ import ast
 
 from semantix.utils.functional import decorate
 
+
 enabled = False
 channels = set()
 

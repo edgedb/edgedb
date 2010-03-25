@@ -13,7 +13,6 @@ import functools
 import copy
 
 import semantix.utils.lang.meta
-from semantix.utils.type_utils import ClassFactory
 
 
 class AttributeMappingNode(yaml.nodes.MappingNode):
@@ -230,7 +229,7 @@ class Constructor(yaml.constructor.Constructor):
     def construct_python_class(self, parent, node):
         cls = self._get_class_from_tag(parent, node, 'class')
         name = getattr(node, 'document_name', cls.__name__ + '_' + str(id(node)))
-        result = ClassFactory(name, (cls,), {})
+        result = type(name, (cls,), {})
         result.__module__ = cls.__module__
 
         nodecopy = copy.copy(node)

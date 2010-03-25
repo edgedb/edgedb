@@ -11,7 +11,7 @@ import os
 from semantix.utils import lang
 from semantix.utils.lang import meta
 from semantix.utils.lang.yaml import loader
-from semantix.utils.type_utils import ClassFactory
+from semantix.utils.functional import decorate
 
 
 def raises(ex_cls, ex_msg):
@@ -30,9 +30,7 @@ def raises(ex_cls, ex_msg):
             else:
                 assert False, 'expected error "%s" got None instead' % ex_msg
 
-        new.__name__ = func.__name__
-        new.__doc__ = func.__doc__
-        new.__dict__.update(func.__dict__)
+        decorate(new, func)
         return new
     return dec
 
@@ -57,9 +55,7 @@ def result(expected_result=None, key=None, value=None):
                     assert result[key] == value, \
                            'unexpected validation result %r, expected %r' % (result[key], value)
 
-        new.__name__ = func.__name__
-        new.__doc__ = func.__doc__
-        new.__dict__.update(func.__dict__)
+        decorate(new, func)
         return new
     return dec
 
@@ -70,7 +66,7 @@ class SchemaTest(object):
 
     @staticmethod
     def get_schema(file):
-        schema = ClassFactory(file, (lang.yaml.validator.Schema,), {})
+        schema = type(file, (lang.yaml.validator.Schema,), {})
         schema_data = lang.load(os.path.join(os.path.dirname(__file__), file))
         schema.init_class(next(schema_data))
         return schema()
