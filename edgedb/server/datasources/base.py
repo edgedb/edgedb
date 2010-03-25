@@ -6,11 +6,37 @@
 ##
 
 
-from semantix.utils import type_utils
+def check_type(variable, type):
+    if not isinstance(type, str):
+        raise Exception('check_type: type parameter must be string')
+
+    if variable is None:
+        return True
+
+    if type == 'str':
+        return isinstance(variable, str)
+
+    if type == 'int':
+        return isinstance(variable, int)
+
+    if type == 'float':
+        return isinstance(variable, float)
+
+    if type == 'bool':
+        return isinstance(variable, bool)
+
+    if type == 'list':
+        return isinstance(variable, list)
+
+    if type == 'none':
+        return variable is None
+
+    raise Exception('check_type: checking on unknown type: %s' % type)
 
 
 class DatasourceError(Exception):
     pass
+
 
 class Datasource(object):
     @classmethod
@@ -33,7 +59,7 @@ class Datasource(object):
 
             if name in params:
                 value = params[name]
-                if not type_utils.check(value, config['type']):
+                if not check_type(value, config['type']):
                     raise DatasourceError('datatype check failed, param: @name=%s, @value=%s, expected type: %s' %
                                           (name, value, config['type']))
             else:
