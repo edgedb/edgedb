@@ -12,6 +12,7 @@ from semantix.caos.backends.yaml.resolver import BackendResolver as YamlBackendR
 from semantix.caos.backends.pgsql.resolver import BackendResolver as PgsqlBackendResolver
 from semantix.caos.backends.dummy.resolver import BackendResolver as DummyBackendResolver
 from semantix.caos.backends.resolver.pymod import PyModResolver
+from semantix.caos.backends.resolver.data import DataResolver
 
 
 class BackendResolver(object):
@@ -35,6 +36,8 @@ class BackendResolver(object):
             resolver = DummyBackendResolver()
         elif parsed_url[0] == 'pymod':
             resolver = PyModResolver()
+        elif parsed_url[0] == 'data':
+            resolver = DataResolver()
         else:
             raise BackendResolverError('unsupported source protocol: %s' % parsed_url[0])
 

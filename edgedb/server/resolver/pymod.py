@@ -9,18 +9,19 @@
 import importlib
 
 from semantix.caos import proto
-from semantix.caos.backends.resolver.shell import BackendShell, BackendResolverHelper
-from semantix.caos.backends.yaml import Backend as YamlBackend
-
-from semantix.utils.lang import yaml
+from . import shell
+from . import error
 
 
-class PyModResolver(BackendResolverHelper):
+class PyModResolver(shell.BackendResolverHelper):
     def resolve(self, url):
         import_context = proto.ImportContext(url.path, toplevel=True)
         mod = importlib.import_module(import_context)
 
-        if mod._language_ is yaml.Language:
-            return BackendShell(backend_class=YamlBackend, module=mod)
+        handler = shell.BackendResolverHelperMeta.get('languages', mod._language_)
+
+        if handler:
+            return handler().resolve_module(mod)
         else:
-            raise BackendResolverHelper('unsupported Caos module language: %s' % mod._language_)
+            err = 'unsupported Caos module language: %s' % mod._language_
+            raise error.BackendResolverError(err)

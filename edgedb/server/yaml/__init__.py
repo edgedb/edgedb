@@ -7,6 +7,7 @@
 
 
 import copy
+import io
 
 import importlib
 import collections
@@ -568,11 +569,26 @@ class CaosName(LangObject, wraps=caos.Name):
         return dumper.represent_scalar('tag:yaml.org,2002:str', str(self))
 
 
+class ModuleFromData:
+    def __init__(self, name):
+        self.__name__ = name
+
+
 class Backend(backends.MetaBackend):
 
-    def __init__(self, module):
+    def __init__(self, module=None, data=None):
         super().__init__()
-        self.metadata = module
+
+        if module:
+            self.metadata = module
+        else:
+            import_context = proto.ImportContext('<string>', toplevel=True)
+            module = ModuleFromData('<string>')
+            context = lang.meta.DocumentContext(module=module, import_context=import_context)
+            for k, v in lang.yaml.Language.load_dict(io.StringIO(data), context):
+                setattr(module, str(k), v)
+            self.metadata = module
+
 
     def getmeta(self):
         return self.metadata._index_

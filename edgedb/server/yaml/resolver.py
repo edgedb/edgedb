@@ -6,9 +6,17 @@
 ##
 
 
-from semantix.caos.backends.resolver.shell import BackendShell, BackendResolverHelper
+from semantix.utils import lang
+from semantix.caos.backends.resolver import shell
 from semantix.caos.backends.yaml import Backend
 
-class BackendResolver(BackendResolverHelper):
-    def resolve(self, url):
-        return BackendShell(backend_class=Backend, source_path=url.netloc)
+
+class BackendResolver(shell.BackendResolverDataHelper, shell.BackendResolverModuleHelper):
+    data_mime_types = ('application/x-yaml',)
+    languages = (lang.yaml.Language,)
+
+    def resolve_module(self, module):
+        return shell.BackendShell(backend_class=Backend, module=module)
+
+    def resolve_data(self, data):
+        return shell.BackendShell(backend_class=Backend, data=data)
