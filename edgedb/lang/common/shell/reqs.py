@@ -6,7 +6,7 @@
 ##
 
 
-from semantix import SemantixError
+from semantix import app, SemantixError
 
 
 class UnsatisfiedRequirementError(SemantixError):
@@ -15,3 +15,9 @@ class UnsatisfiedRequirementError(SemantixError):
 
 class CommandRequirement:
     pass
+
+
+class ValidApplication(CommandRequirement):
+    def __init__(self):
+        if not app.Application.active:
+            raise UnsatisfiedRequirementError('need active Application')
