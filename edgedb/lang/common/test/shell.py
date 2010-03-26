@@ -13,9 +13,7 @@ import py
 from semantix.utils import shell
 
 
-class TestCommand(shell.Command, expose=True):
-    name = 'test'
-
+class TestCommand(shell.Command, name='test', expose=True):
     def get_parser(self, subparsers):
         parser = super().get_parser(subparsers)
 

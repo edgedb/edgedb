@@ -8,20 +8,117 @@
 
 import argparse
 import os
+import sys
 
-from semantix.utils.shell.base import CommandMeta, Command, CommandGroup
+from semantix import SemantixError
+
+from semantix.utils import datastructures
+from semantix.utils.io import terminal
+
+from . import reqs
 
 
-def main(argv):
-    parser = argparse.ArgumentParser(prog=os.path.basename(argv[0]))
-    subparsers = parser.add_subparsers(dest='main_subcommand', title='subcommands')
-    submap = {}
+class CommandMeta(type):
+    main_command = None
 
-    for cmdgroup in CommandMeta.exposed:
-        c = cmdgroup(subparsers)
-        submap[c.name] = c
+    def __new__(cls, clsname, bases, dct, *, name, commands=None, expose=False, requires=None):
+        return super().__new__(cls, clsname, bases, dct)
 
-    args = parser.parse_args(argv[1:])
-    submap[args.main_subcommand](args)
+    def __init__(cls, clsname, bases, dct, *, name, commands=None, expose=False, requires=None):
+        super().__init__(clsname, bases, dct)
 
-    return 0
+        if name == '__main__':
+            if CommandMeta.main_command:
+                if issubclass(cls, CommandMeta.main_command):
+                    CommandMeta.main_command = cls
+                elif not issubclass(CommandMeta.main_command, cls):
+                    raise SemantixError(('Main command is already defined by %s which %s does not'
+                                         ' subclass from') % (CommandMeta.main_command, cls))
+            else:
+                CommandMeta.main_command = cls
+
+        cls._command_name = name
+        if hasattr(cls, '_commands'):
+            if commands:
+                cls._commands = cls._commands.copy()
+                cls._commands.update(commands)
+        else:
+            cls._commands = datastructures.OrderedIndex(commands, key=lambda i: i._command_name)
+        cls._command_requirements = requires
+
+        if expose and not issubclass(cls, CommandMeta.main_command):
+            CommandMeta.main_command._commands.add(cls)
+
+
+class CommandBase(metaclass=CommandMeta, name=None):
+    def check_requirements(self):
+        if self.__class__._command_requirements:
+            try:
+                for requirement in self.__class__._command_requirements:
+                    requirement()
+            except reqs.UnsatisfiedRequirementError as e:
+                err = '%s: %s' % (self.__class__._command_name, e)
+                raise reqs.UnsatisfiedRequirementError(err) from e
+
+
+class CommandGroup(CommandBase, name=None):
+    def __init__(self, subparsers):
+        parser = self.get_parser(subparsers)
+        self._command_submap = {}
+
+        for cmdcls in self:
+            cmd = cmdcls(parser)
+            self._command_submap[cmd._command_name] = cmd
+
+    def get_parser(self, subparsers):
+        parser = self.create_parser(subparsers)
+        return parser.add_subparsers(dest=self.__class__._command_name + '_subcommand')
+
+    def create_parser(self, subparsers):
+        return subparsers.add_parser(self.__class__._command_name)
+
+    def __call__(self, args):
+        self.check_requirements()
+        self._command_submap[getattr(args, self.__class__._command_name + '_subcommand')](args)
+
+    def __iter__(self):
+        for cmd in self.__class__._commands:
+            yield cmd
+
+
+class Command(CommandBase, name=None):
+    def __init__(self, subparsers):
+        self.get_parser(subparsers)
+
+    def get_parser(self, subparsers):
+        parser = subparsers.add_parser(self.__class__._command_name)
+        return parser
+
+    def __call__(self, args):
+        raise NotImplementedError
+
+
+class MainCommand(CommandGroup, name='__main__'):
+    def create_parser(self, parser):
+        parser.add_argument('--color', choices=('auto', 'yes', 'no'), default='auto')
+        return parser
+
+    def __call__(self, args):
+        term = terminal.Terminal(sys.stdout.fileno())
+        args.color = term.has_colors() if args.color == 'auto' else args.color == 'yes'
+
+        try:
+            super().__call__(args)
+        except SemantixError as e:
+            print(term.colorstr('ERROR: %s' % e, 'red'))
+            return 1
+
+        return 0
+
+    @classmethod
+    def main(cls, argv):
+        parser = argparse.ArgumentParser(prog=os.path.basename(argv[0]))
+
+        cmd = cls(parser)
+        args = parser.parse_args(argv[1:])
+        return cmd(args)
