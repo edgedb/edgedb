@@ -169,6 +169,12 @@ class Composer(yaml.composer.Composer):
             node = schema().check(node)
             node.import_context = schema().get_import_context_class()
 
+            if node.import_context and \
+                    not isinstance(self.document_context.import_context, node.import_context):
+                self.document_context.import_context = \
+                            node.import_context.from_parent(module.__name__,
+                                                            self.document_context.import_context)
+
         node.document_name = getattr(start_document, 'document_name', None)
         node.imports = getattr(start_document, 'imports', None)
 
