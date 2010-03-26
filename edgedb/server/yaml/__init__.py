@@ -13,6 +13,7 @@ import collections
 import itertools
 
 from semantix.utils import graph, lang
+from semantix.utils.lang import yaml
 from semantix.utils.nlang import morphology
 
 from semantix import caos
@@ -33,7 +34,7 @@ class MetaError(caos.MetaError):
         return result
 
 
-class LangObject(lang.meta.Object):
+class LangObject(yaml.Object):
     @classmethod
     def get_canonical_class(cls):
         for base in cls.__bases__:
@@ -43,7 +44,7 @@ class LangObject(lang.meta.Object):
         return cls
 
 
-class WordCombination(LangObject, morphology.WordCombination):
+class WordCombination(LangObject, wraps=morphology.WordCombination):
     def construct(self):
         if isinstance(self.data, str):
             morphology.WordCombination.__init__(self, self.data)
@@ -52,28 +53,47 @@ class WordCombination(LangObject, morphology.WordCombination):
             self.forms = word.forms
             self.value = self.forms.get('singular', next(iter(self.forms.values())))
 
+    def represent(self, dumper):
+        return dumper.represent_mapping('tag:yaml.org,2002:map', self.as_dict())
 
-class AtomModExpr(LangObject, proto.AtomModExpr):
+
+class AtomModExpr(LangObject, wraps=proto.AtomModExpr):
     def construct(self):
         proto.AtomModExpr.__init__(self, self.data['expr'], context=self.context)
 
+    def represent(self, dumper):
+        result = {'expr': next(iter(self.exprs[0]))}
+        return dumper.represent_mapping('tag:yaml.org,2002:map', result)
 
-class AtomModMinLength(LangObject, proto.AtomModMinLength):
+
+class AtomModMinLength(LangObject, wraps=proto.AtomModMinLength):
     def construct(self):
         proto.AtomModMinLength.__init__(self, self.data['min-length'], context=self.context)
 
+    def represent(self, dumper):
+        result = {'min-length': self.value}
+        return dumper.represent_mapping('tag:yaml.org,2002:map', result)
 
-class AtomModMaxLength(LangObject, proto.AtomModMaxLength):
+
+class AtomModMaxLength(LangObject, wraps=proto.AtomModMaxLength):
     def construct(self):
         proto.AtomModMaxLength.__init__(self, self.data['max-length'], context=self.context)
 
+    def represent(self, dumper):
+        result = {'max-length': self.value}
+        return dumper.represent_mapping('tag:yaml.org,2002:map', result)
 
-class AtomModRegExp(LangObject, proto.AtomModRegExp):
+
+class AtomModRegExp(LangObject, wraps=proto.AtomModRegExp):
     def construct(self):
         proto.AtomModRegExp.__init__(self, self.data['regexp'], context=self.context)
 
+    def represent(self, dumper):
+        result = {'regexp': next(iter(self.regexps[0]))}
+        return dumper.represent_mapping('tag:yaml.org,2002:map', result)
 
-class Atom(LangObject, proto.Atom):
+
+class Atom(LangObject, wraps=proto.Atom):
     def construct(self):
         data = self.data
         proto.Atom.__init__(self, name=None, backend=data.get('backend'), base=data['extends'],
@@ -84,8 +104,33 @@ class Atom(LangObject, proto.Atom):
             for mod in mods:
                 self.add_mod(mod)
 
+    def represent(self, dumper):
+        result = {
+            'extends': str(self.base)
+        }
 
-class Concept(LangObject, proto.Concept):
+        if self.base:
+            result['extends'] = self.base
+
+        if self.default is not None:
+            result['default'] = self.default
+
+        if self.title:
+            result['title'] = self.title
+
+        if self.description:
+            result['description'] = self.description
+
+        if self.is_abstract:
+            result['abstract'] = self.is_abstract
+
+        if self.mods:
+            result['mods'] = list(itertools.chain.from_iterable(self.mods.values()))
+
+        return dumper.represent_mapping('tag:yaml.org,2002:map', result)
+
+
+class Concept(LangObject, wraps=proto.Concept):
     def construct(self):
         data = self.data
         extends = data.get('extends')
@@ -98,8 +143,27 @@ class Concept(LangObject, proto.Concept):
                               is_abstract=data.get('abstract'))
         self._links = data.get('links', {})
 
+    def represent(self, dumper):
+        result = {
+            'extends': [str(i) for i in itertools.chain(self.base, self.custombases)]
+        }
 
-class LinkProperty(LangObject, proto.LinkProperty):
+        if self.title:
+            result['title'] = self.title
+
+        if self.description:
+            result['description'] = self.description
+
+        if self.is_abstract:
+            result['abstract'] = self.is_abstract
+
+        if self.ownlinks:
+            result['links'] = {str(k): v for k, v in self.ownlinks.items()}
+
+        return dumper.represent_mapping('tag:yaml.org,2002:map', result)
+
+
+class LinkProperty(LangObject, wraps=proto.LinkProperty):
     def construct(self):
         data = self.data
         if isinstance(data, str):
@@ -111,7 +175,7 @@ class LinkProperty(LangObject, proto.LinkProperty):
             self.mods = info.get('mods')
 
 
-class LinkDef(LangObject, proto.Link):
+class LinkDef(LangObject, wraps=proto.Link):
     def construct(self):
         data = self.data
         extends = data.get('extends')
@@ -119,11 +183,53 @@ class LinkDef(LangObject, proto.Link):
             if not isinstance(extends, list):
                 extends = [extends]
 
-        proto.Link.__init__(self, name=None, backend=data.get('backend'), base=extends, title=data['title'],
-                            description=data['description'], is_abstract=data.get('abstract'))
+        proto.Link.__init__(self, name=None, backend=data.get('backend'), base=extends,
+                            title=data['title'], description=data['description'],
+                            is_abstract=data.get('abstract'))
         for property_name, property in data['properties'].items():
             property.name = property_name
             self.add_property(property)
+
+    def represent(self, dumper):
+        result = {}
+
+        if not self.implicit_derivative:
+            if self.base:
+                result['extends'] = [str(i) for i in self.base]
+
+        if self.title:
+            result['title'] = self.title
+
+        if self.description:
+            result['description'] = self.description
+
+        if self.is_abstract:
+            result['abstract'] = self.is_abstract
+
+        if self.mapping:
+            result['mapping'] = self.mapping
+
+        if isinstance(self.target, proto.Atom) and self.target.automatic:
+            result['mods'] = list(itertools.chain.from_iterable(self.target.mods.values()))
+
+        if self.source:
+            result['required'] = self.required
+
+        return dumper.represent_mapping('tag:yaml.org,2002:map', result)
+
+
+class LinkSet(LangObject, wraps=proto.LinkSet):
+    def represent(self, dumper):
+        result = {}
+
+        for l in self.links:
+            if isinstance(l.target, proto.Atom) and l.target.automatic:
+                key = l.target.base
+            else:
+                key = l.target.name
+            result[str(key)] = l
+
+        return dumper.represent_mapping('tag:yaml.org,2002:map', result)
 
 
 class LinkList(LangObject, list):
@@ -346,7 +452,7 @@ class MetaSet(LangObject):
                     link.base = {link_qname}
                     link.implicit_derivative = True
                     link_genname = proto.Link.gen_link_name(link.source, link.target, link_qname.name)
-                    link.name = caos.Name(name=link_genname, module=link.context.document.module.__name__)
+                    link.name = caos.Name(name=link_genname, module=link_qname.module)
                     globalmeta.add(link)
                     localmeta.add(link)
                     concept.add_link(link)
@@ -415,7 +521,7 @@ class MetaSet(LangObject):
         return itertools.chain([('_index_', self.finalindex)], self.finalindex.index_by_name.items())
 
 
-class EntityShell(LangObject, caos.concept.EntityShell):
+class EntityShell(LangObject, wraps=caos.concept.EntityShell):
     def __init__(self, data, context):
         super().__init__(data=data, context=context)
         caos.concept.EntityShell.__init__(self)
@@ -432,12 +538,31 @@ class EntityShell(LangObject, caos.concept.EntityShell):
             self.context.document.entities.append(self.entity)
 
 
+class RealmMeta(LangObject, wraps=proto.RealmMeta):
+    def represent(self, dumper):
+        result = {'atoms': {}, 'links': {}, 'concepts': {}}
+
+        for type in ('atom', 'link', 'concept'):
+            for obj in self(type=type, include_builtin=False, include_automatic=False):
+                # XXX
+                if type == 'link' and obj.implicit_derivative:
+                    continue
+                result[type + 's'][str(obj.name)] = obj
+
+        return dumper.represent_mapping('tag:yaml.org,2002:map', result)
+
+
 class DataSet(LangObject):
     def construct(self):
 
         entities = {id: [shell.entity for shell in shells] for id, shells in self.data.items()}
         for entity in self.context.document.entities:
             entity.materialize_links(entities)
+
+
+class CaosName(LangObject, wraps=caos.Name):
+    def represent(self, dumper):
+        return dumper.represent_scalar('tag:yaml.org,2002:str', str(self))
 
 
 class Backend(backends.MetaBackend):
@@ -457,6 +582,10 @@ class Backend(backends.MetaBackend):
 
     def getmeta(self):
         return self.metadata._index_
+
+    def dump_meta(self, meta):
+        prologue = '%SCHEMA semantix.caos.backends.yaml.schemas.Semantics\n---\n'
+        return prologue + yaml.Language.dump(meta)
 
     def get_delta(self, meta):
         mymeta = self.getmeta()
