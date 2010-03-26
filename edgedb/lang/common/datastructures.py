@@ -268,7 +268,10 @@ class OrderedIndex(BaseOrderedSet, collections.MutableMapping):
         return self.map.items()
 
     def __getitem__(self, key):
-        return self.map.get(key, self.map[self.key(key)])
+        try:
+            return self.map[key]
+        except KeyError:
+            return self.map[self.key(key)]
 
     def __setitem__(self, item):
         key = self.key(item)
