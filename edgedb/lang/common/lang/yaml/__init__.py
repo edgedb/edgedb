@@ -35,6 +35,9 @@ class Language(meta.Language):
         while ldr.check_data():
             yield ldr.get_data()
 
+    @classmethod
+    def dump(cls, data):
+        return yaml.dump(data)
 
     @classmethod
     def load_dict(cls, stream, context=None):
