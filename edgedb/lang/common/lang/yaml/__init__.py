@@ -49,3 +49,28 @@ class Language(meta.Language):
         ldr = loader.Loader(stream, context)
         for d in ldr.get_dict(document_number):
             yield d
+
+
+class ObjectMeta(type):
+    def __new__(metacls, name, bases, clsdict, *, wraps=None):
+        if wraps:
+            bases = bases + (wraps,)
+
+        result = super(ObjectMeta, metacls).__new__(metacls, name, bases, clsdict)
+        result._wraps = wraps
+
+        return result
+
+    def __init__(cls, name, bases, clsdict, *, wraps=None):
+        super(ObjectMeta, cls).__init__(name, bases, clsdict)
+
+        if hasattr(cls, 'represent'):
+            if cls._wraps:
+                yaml.add_multi_representer(cls._wraps, lambda dumper, data: cls.represent(data, dumper))
+            else:
+                yaml.add_multi_representer(cls, lambda dumper, data: cls.represent(data, dumper))
+
+
+
+class Object(meta.Object, metaclass=ObjectMeta):
+    pass
