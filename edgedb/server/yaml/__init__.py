@@ -273,7 +273,10 @@ class MetaSet(LangObject):
         globalindex = context.document.import_context.metaindex
 
         localindex = realm_meta_class()
-        localindex.add_module(context.document.module.__name__, None)
+        self.module = data.get('module', None)
+        if not self.module:
+            self.module = context.document.module.__name__
+        localindex.add_module(self.module, None)
 
         for alias, module in context.document.imports.items():
             localindex.add_module(module.__name__, alias)
@@ -306,7 +309,7 @@ class MetaSet(LangObject):
         backend = data.get('backend')
 
         for atom_name, atom in data['atoms'].items():
-            atom.name = caos.Name(name=atom_name, module=atom.context.document.module.__name__)
+            atom.name = caos.Name(name=atom_name, module=self.module)
             atom.backend = backend
             globalmeta.add(atom)
             localmeta.add(atom)
@@ -337,7 +340,7 @@ class MetaSet(LangObject):
 
     def read_links(self, data, globalmeta, localmeta):
         for link_name, link in data['links'].items():
-            module = link.context.document.module.__name__
+            module = self.module
             link.name = caos.Name(name=link_name, module=module)
 
             properties = {}
@@ -397,7 +400,7 @@ class MetaSet(LangObject):
         backend = data.get('backend')
 
         for concept_name, concept in data['concepts'].items():
-            concept.name = caos.Name(name=concept_name, module=concept.context.document.module.__name__)
+            concept.name = caos.Name(name=concept_name, module=self.module)
             concept.backend = backend
 
             if globalmeta.get(concept.name, None):
@@ -439,7 +442,7 @@ class MetaSet(LangObject):
                         if not caos.Name.is_qualified(link_name):
                             # If the name is not fully qualified, assume inline link definition.
                             # The only attribute that is used for global definition is the name.
-                            link_qname = caos.Name(name=link_name, module=link.context.document.module.__name__)
+                            link_qname = caos.Name(name=link_name, module=self.module)
                             linkdef = proto.Link(name=link_qname, base=[caos.Name('semantix.caos.builtins.link')])
                             linkdef.is_atom = globalmeta.get(link.target, type=proto.Atom, default=None) is not None
                             globalmeta.add(linkdef)
@@ -567,18 +570,9 @@ class CaosName(LangObject, wraps=caos.Name):
 
 class Backend(backends.MetaBackend):
 
-    def __init__(self, source_path):
+    def __init__(self, module):
         super().__init__()
-        parts = source_path.rsplit(':', 1)
-
-        if len(parts) > 1:
-            module, docno = parts
-        else:
-            module = parts[0]
-            docno = 0
-
-        self.metadata = importlib.import_module(proto.ImportContext(module, private=int(docno),
-                                                                    toplevel=True))
+        self.metadata = module
 
     def getmeta(self):
         return self.metadata._index_

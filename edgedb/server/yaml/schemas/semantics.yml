@@ -12,6 +12,10 @@
 type: map
 object: semantix.caos.backends.yaml.MetaSet
 mapping:
+    "module":
+        type: str
+        required: no
+
     "backend":
         type: str
         required: no

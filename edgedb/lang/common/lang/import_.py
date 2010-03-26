@@ -37,6 +37,9 @@ class Importer(abc.Finder, abc.Loader):
     def _locate_module_file(self, fullname, path):
         basename = fullname.rpartition('.')[2]
 
+        if not isinstance(path, list):
+            path = [path]
+
         for p in path:
             test = os.path.join(p, basename)
             result = LanguageMeta.recognize_file(test, True)
@@ -60,6 +63,7 @@ class Importer(abc.Finder, abc.Loader):
         setattr(new_mod, '__file__', filename)
         setattr(new_mod, '__path__', os.path.dirname(filename))
         setattr(new_mod, '__odict__', collections.OrderedDict())
+        setattr(new_mod, '_language_', language)
 
         sys.modules[fullname] = new_mod
 
