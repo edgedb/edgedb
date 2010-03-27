@@ -65,12 +65,24 @@ class ObjectMeta(type):
         super(ObjectMeta, cls).__init__(name, bases, clsdict)
 
         if hasattr(cls, 'represent'):
-            if cls._wraps:
-                yaml.add_multi_representer(cls._wraps, lambda dumper, data: cls.represent(data, dumper))
-            else:
-                yaml.add_multi_representer(cls, lambda dumper, data: cls.represent(data, dumper))
+            representer = lambda dumper, data: cls.represent_wrapper(data, dumper)
 
+            if cls._wraps:
+                yaml.add_multi_representer(cls._wraps, representer)
+            else:
+                yaml.add_multi_representer(cls, representer)
 
 
 class Object(meta.Object, metaclass=ObjectMeta):
-    pass
+    @classmethod
+    def represent_wrapper(cls, data, dumper):
+        result = cls.represent(data)
+
+        if isinstance(result, dict):
+            return dumper.represent_mapping('tag:yaml.org,2002:map', result)
+        elif isinstance(result, list):
+            return dumper.represent_sequence('tag:yaml.org,2002:seq', result)
+        elif isinstance(result, str):
+            return dumper.represent_scalar('tag:yaml.org,2002:str', result)
+        else:
+            assert False, 'unhandled representer result type: %s' % result
