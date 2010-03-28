@@ -54,40 +54,45 @@ class WordCombination(LangObject, wraps=morphology.WordCombination):
             self.forms = word.forms
             self.value = self.forms.get('singular', next(iter(self.forms.values())))
 
-    def represent(self):
-        return self.as_dict()
+    @classmethod
+    def represent(cls, data):
+        return data.as_dict()
 
 
 class AtomModExpr(LangObject, wraps=proto.AtomModExpr):
     def construct(self):
         proto.AtomModExpr.__init__(self, self.data['expr'], context=self.context)
 
-    def represent(self):
-        return {'expr': next(iter(self.exprs[0]))}
+    @classmethod
+    def represent(cls, data):
+        return {'expr': next(iter(data.exprs[0]))}
 
 
 class AtomModMinLength(LangObject, wraps=proto.AtomModMinLength):
     def construct(self):
         proto.AtomModMinLength.__init__(self, self.data['min-length'], context=self.context)
 
-    def represent(self):
-        return {'min-length': self.value}
+    @classmethod
+    def represent(cls, data):
+        return {'min-length': data.value}
 
 
 class AtomModMaxLength(LangObject, wraps=proto.AtomModMaxLength):
     def construct(self):
         proto.AtomModMaxLength.__init__(self, self.data['max-length'], context=self.context)
 
-    def represent(self):
-        return {'max-length': self.value}
+    @classmethod
+    def represent(cls, data):
+        return {'max-length': data.value}
 
 
 class AtomModRegExp(LangObject, wraps=proto.AtomModRegExp):
     def construct(self):
         proto.AtomModRegExp.__init__(self, self.data['regexp'], context=self.context)
 
-    def represent(self):
-        return {'regexp': next(iter(self.regexps[0]))}
+    @classmethod
+    def represent(self, data):
+        return {'regexp': next(iter(data.regexps[0]))}
 
 
 class Atom(LangObject, wraps=proto.Atom):
@@ -101,28 +106,29 @@ class Atom(LangObject, wraps=proto.Atom):
             for mod in mods:
                 self.add_mod(mod)
 
-    def represent(self):
+    @classmethod
+    def represent(cls, data):
         result = {
-            'extends': str(self.base)
+            'extends': data.base
         }
 
-        if self.base:
-            result['extends'] = self.base
+        if data.base:
+            result['extends'] = data.base
 
-        if self.default is not None:
-            result['default'] = self.default
+        if data.default is not None:
+            result['default'] = data.default
 
-        if self.title:
-            result['title'] = self.title
+        if data.title:
+            result['title'] = data.title
 
-        if self.description:
-            result['description'] = self.description
+        if data.description:
+            result['description'] = data.description
 
-        if self.is_abstract:
-            result['abstract'] = self.is_abstract
+        if data.is_abstract:
+            result['abstract'] = data.is_abstract
 
-        if self.mods:
-            result['mods'] = list(itertools.chain.from_iterable(self.mods.values()))
+        if data.mods:
+            result['mods'] = list(itertools.chain.from_iterable(data.mods.values()))
 
         return result
 
@@ -140,22 +146,23 @@ class Concept(LangObject, wraps=proto.Concept):
                               is_abstract=data.get('abstract'))
         self._links = data.get('links', {})
 
-    def represent(self):
+    @classmethod
+    def represent(cls, data):
         result = {
-            'extends': [str(i) for i in itertools.chain(self.base, self.custombases)]
+            'extends': list(itertools.chain(data.base, data.custombases))
         }
 
-        if self.title:
-            result['title'] = self.title
+        if data.title:
+            result['title'] = data.title
 
-        if self.description:
-            result['description'] = self.description
+        if data.description:
+            result['description'] = data.description
 
-        if self.is_abstract:
-            result['abstract'] = self.is_abstract
+        if data.is_abstract:
+            result['abstract'] = data.is_abstract
 
-        if self.ownlinks:
-            result['links'] = {str(k): v for k, v in self.ownlinks.items()}
+        if data.ownlinks:
+            result['links'] = dict(data.ownlinks)
 
         return result
 
@@ -187,39 +194,41 @@ class LinkDef(LangObject, wraps=proto.Link):
             property.name = property_name
             self.add_property(property)
 
-    def represent(self):
+    @classmethod
+    def represent(cls, data):
         result = {}
 
-        if not self.implicit_derivative:
-            if self.base:
-                result['extends'] = [str(i) for i in self.base]
+        if not data.implicit_derivative:
+            if data.base:
+                result['extends'] = list(data.base)
 
-        if self.title:
-            result['title'] = self.title
+        if data.title:
+            result['title'] = data.title
 
-        if self.description:
-            result['description'] = self.description
+        if data.description:
+            result['description'] = data.description
 
-        if self.is_abstract:
-            result['abstract'] = self.is_abstract
+        if data.is_abstract:
+            result['abstract'] = data.is_abstract
 
-        if self.mapping:
-            result['mapping'] = self.mapping
+        if data.mapping:
+            result['mapping'] = data.mapping
 
-        if isinstance(self.target, proto.Atom) and self.target.automatic:
-            result['mods'] = list(itertools.chain.from_iterable(self.target.mods.values()))
+        if isinstance(data.target, proto.Atom) and data.target.automatic:
+            result['mods'] = list(itertools.chain.from_iterable(data.target.mods.values()))
 
-        if self.source:
-            result['required'] = self.required
+        if data.source:
+            result['required'] = data.required
 
         return result
 
 
 class LinkSet(LangObject, wraps=proto.LinkSet):
-    def represent(self):
+    @classmethod
+    def represent(cls, data):
         result = {}
 
-        for l in self.links:
+        for l in data.links:
             if isinstance(l.target, proto.Atom) and l.target.automatic:
                 key = l.target.base
             else:
@@ -539,11 +548,12 @@ class EntityShell(LangObject, wraps=caos.concept.EntityShell):
 
 
 class RealmMeta(LangObject, wraps=proto.RealmMeta):
-    def represent(self):
+    @classmethod
+    def represent(cls, data):
         result = {'atoms': {}, 'links': {}, 'concepts': {}}
 
         for type in ('atom', 'link', 'concept'):
-            for obj in self(type=type, include_builtin=False, include_automatic=False):
+            for obj in data(type=type, include_builtin=False, include_automatic=False):
                 # XXX
                 if type == 'link' and obj.implicit_derivative:
                     continue
@@ -560,9 +570,10 @@ class DataSet(LangObject):
             entity.materialize_links(entities)
 
 
-class CaosName(LangObject, wraps=caos.Name):
-    def represent(self):
-        return str(self)
+class CaosName(LangObject, wraps=caos.Name, ignore_aliases=True):
+    @classmethod
+    def represent(cls, data):
+        return str(data)
 
 
 class ModuleFromData:
