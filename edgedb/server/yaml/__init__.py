@@ -521,10 +521,7 @@ class MetaSet(LangObject):
     def genatom(self, host, base, default, link_name, mods):
         atom_name = '__' + host.name.name + '__' + link_name.name
         atom = proto.Atom(name=caos.Name(name=atom_name, module=host.name.module),
-                         base=base,
-                         default=default,
-                         automatic=True,
-                         backend=host.backend)
+                          base=base, default=default, automatic=True, backend=host.backend)
         for mod in mods:
             atom.add_mod(mod)
         return atom
