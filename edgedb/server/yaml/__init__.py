@@ -612,3 +612,6 @@ class Backend(backends.MetaBackend):
         mymeta = self.getmeta()
         delta = mymeta.delta(meta)
         return delta
+
+    def dump_delta(self, delta):
+        return yaml.Language.dump(delta)
