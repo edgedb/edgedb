@@ -92,7 +92,7 @@ class AtomModRegExp(LangObject, wraps=proto.AtomModRegExp):
 
     @classmethod
     def represent(self, data):
-        return {'regexp': next(iter(data.regexps[0]))}
+        return {'regexp': next(iter(data.regexps))[0]}
 
 
 class Atom(LangObject, wraps=proto.Atom):
@@ -141,9 +141,10 @@ class Concept(LangObject, wraps=proto.Concept):
             if not isinstance(extends, list):
                 extends = [extends]
 
-        proto.Concept.__init__(self, name=None, backend=data.get('backend'), base=extends,
-                              title=data.get('title'), description=data.get('description'),
-                              is_abstract=data.get('abstract'))
+        proto.Concept.__init__(self, name=None, backend=data.get('backend'),
+                               base=tuple(extends) if extends else tuple(),
+                               title=data.get('title'), description=data.get('description'),
+                               is_abstract=data.get('abstract'))
         self._links = data.get('links', {})
 
     @classmethod
@@ -187,7 +188,8 @@ class LinkDef(LangObject, wraps=proto.Link):
             if not isinstance(extends, list):
                 extends = [extends]
 
-        proto.Link.__init__(self, name=None, backend=data.get('backend'), base=extends,
+        proto.Link.__init__(self, name=None, backend=data.get('backend'),
+                            base=tuple(extends) if extends else tuple(),
                             title=data['title'], description=data['description'],
                             is_abstract=data.get('abstract'))
         for property_name, property in data['properties'].items():
@@ -331,7 +333,8 @@ class MetaSet(LangObject):
     def order_atoms(self, globalmeta):
         g = {}
 
-        for atom in globalmeta('atom', include_automatic=True, include_builtin=self.include_builtin):
+        for atom in globalmeta('atom', include_automatic=True,
+                                       include_builtin=self.include_builtin):
             g[atom.name] = {"item": atom, "merge": [], "deps": []}
 
             if atom.base:
@@ -361,9 +364,9 @@ class MetaSet(LangObject):
 
         for link in localmeta('link', include_builtin=self.include_builtin):
             if link.base:
-                link.base = [localmeta.normalize_name(b) for b in link.base]
+                link.base = tuple(localmeta.normalize_name(b) for b in link.base)
             elif link.name != 'semantix.caos.builtins.link':
-                link.base = [caos.Name('semantix.caos.builtins.link')]
+                link.base = (caos.Name('semantix.caos.builtins.link'),)
 
 
     def order_links(self, globalmeta):
@@ -393,8 +396,8 @@ class MetaSet(LangObject):
             if link.implicit_derivative and not link.atomic():
                 base = globalmeta.get(next(iter(link.base)))
                 if base.is_atom:
-                    raise caos.MetaError('implicitly defined atomic link % used to link to concept' %
-                                         link.name)
+                    raise caos.MetaError('implicitly defined atomic link % used to link to concept'
+                                          % link.name)
 
             if link.base:
                 g[link.name]['merge'].extend(link.base)
@@ -434,7 +437,7 @@ class MetaSet(LangObject):
             if not bases and concept.name != 'semantix.caos.builtins.Object':
                 bases.append(caos.Name('semantix.caos.builtins.Object'))
 
-            concept.base = bases
+            concept.base = tuple(bases)
             concept.custombases = custombases
 
             for link_name, links in concept._links.items():
@@ -449,7 +452,8 @@ class MetaSet(LangObject):
                             # If the name is not fully qualified, assume inline link definition.
                             # The only attribute that is used for global definition is the name.
                             link_qname = caos.Name(name=link_name, module=self.module)
-                            linkdef = proto.Link(name=link_qname, base=[caos.Name('semantix.caos.builtins.link')])
+                            linkdef = proto.Link(name=link_qname,
+                                                 base=(caos.Name('semantix.caos.builtins.link'),))
                             linkdef.is_atom = globalmeta.get(link.target, type=proto.Atom, default=None) is not None
                             globalmeta.add(linkdef)
                             localmeta.add(linkdef)
@@ -458,7 +462,7 @@ class MetaSet(LangObject):
 
                     # A new implicit subclass of the link is created for each (source, link_name, target)
                     # combination
-                    link.base = {link_qname}
+                    link.base = (link_qname,)
                     link.implicit_derivative = True
                     link_genname = proto.Link.gen_link_name(link.source, link.target, link_qname.name)
                     link.name = caos.Name(name=link_genname, module=link_qname.module)

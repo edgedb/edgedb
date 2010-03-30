@@ -61,8 +61,7 @@ class MetaCommand:
             op.execute(db)
 
     def __str__(self):
-        result = ['<%s.%s object at 0x%x>' % (self.__class__.__module__, self.__class__.__name__,
-                                              id(self))]
+        result = [repr(self)]
 
         for op in self.ops:
             result.extend('  %s' % l for l in str(op).split('\n'))
@@ -306,11 +305,11 @@ class AlterAtom(AtomMetaCommand):
         if default_delta:
             self.ops.add(AlterDomainAlterDefault(name=domain_name, default=default_delta.new_value))
 
-        for mod in new_mods - old_mods:
-            self.ops.add(AlterDomainAddConstraint(name=domain_name, constraint=mod))
-
         for mod in old_mods - new_mods:
             self.ops.add(AlterDomainDropConstraint(name=domain_name, constraint=mod))
+
+        for mod in new_mods - old_mods:
+            self.ops.add(AlterDomainAddConstraint(name=domain_name, constraint=mod))
 
 
 class CompositePrototypeMetaCommand(PrototypeMetaCommand):
