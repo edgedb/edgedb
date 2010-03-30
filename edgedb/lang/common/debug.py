@@ -13,7 +13,7 @@ import ast
 from semantix.utils.functional import decorate
 
 
-enabled = False
+enabled = __debug__
 channels = set()
 
 class DebugDecoratorParseError(Exception): pass
@@ -128,6 +128,23 @@ class debug(object):
         decorate(new_func, func)
 
         return new_func
+
+
+def debug_channels(*channels):
+    class DebugContext:
+        def __init__(self, *channels):
+            self.channels = set(channels)
+
+        def __enter__(self):
+            global channels
+            self.change = self.channels - channels
+            channels.update(self.change)
+
+        def __exit__(self, exc_type, exc_value, tb):
+            global channels
+            channels -= self.change
+
+    return DebugContext(*channels)
 
 
 def highlight(code, lang=None):
