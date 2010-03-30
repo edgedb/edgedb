@@ -12,7 +12,7 @@ import sys
 
 from semantix.exceptions import SemantixError
 
-from semantix.utils.io.terminal.color import colorize, colorstr
+from semantix.utils.io.terminal.color import colorize, colorstr, dummycolorstr
 
 
 def isatty(file):
@@ -24,17 +24,24 @@ class TerminalError(SemantixError):
 
 
 class Terminal:
-    def __init__(self, fd=None):
+    def __init__(self, fd=None, *, colors=None):
         self.fd = fd or sys.stdout.fileno()
-        if not os.isatty(self.fd):
-            raise TerminalError('%d is not a TTY' % self.fd)
-        if self.has_colors():
+
+        self.colors = self.supports_colors() if colors is None else colors
+
+        if self.colors:
             self.colorstr = colorstr
         else:
-            self.colorstr = str
+            self.colorstr = dummycolorstr
 
     def has_colors(self):
-        return os.getenv('TERM', None) != 'dumb'
+        return self.colors
+
+    def supports_colors(self):
+        return self.isatty() and os.getenv('TERM', None) != 'dumb'
+
+    def isatty(self):
+        return os.isatty(self.fd)
 
     @property
     def size(self):

@@ -100,12 +100,13 @@ class Command(CommandBase, name=None):
 
 class MainCommand(CommandGroup, name='__main__'):
     def create_parser(self, parser):
-        parser.add_argument('--color', choices=('auto', 'yes', 'no'), default='auto')
+        parser.add_argument('--color', choices=('auto', 'always', 'never'), default='auto')
         return parser
 
     def __call__(self, args):
-        term = terminal.Terminal(sys.stdout.fileno())
-        args.color = term.has_colors() if args.color == 'auto' else args.color == 'yes'
+        color = None if args.color == 'auto' else args.color == 'always'
+        term = terminal.Terminal(sys.stdout.fileno(), colors=color)
+        args.color = term.has_colors()
 
         try:
             super().__call__(args)

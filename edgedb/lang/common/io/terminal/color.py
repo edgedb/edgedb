@@ -46,7 +46,7 @@ def colorize(string='', fg=None, bg=None, opts=()):
 
 class colorstr(str):
     def __new__(cls, string, color=None, opts=None):
-        result = super(colorstr, cls).__new__(cls, string)
+        result = super().__new__(cls, string)
         result.color = color or 'white'
         result.opts = opts or ()
         return result
@@ -60,3 +60,11 @@ class colorstr(str):
     def __format__(self, spec):
         result = super().__format__(spec)
         return result.replace(self, colorize(self, fg=self.color, opts=self.opts))
+
+
+class dummycolorstr(str):
+    def __new__(cls, string, color=None, opts=None):
+        return super().__new__(cls, string)
+
+    def __init__(self, string, color=None, opts=None):
+        pass
