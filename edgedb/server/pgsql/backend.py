@@ -135,8 +135,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             plan.execute(self.connection)
 
 
+    @debug
     def apply_delta(self, delta):
+        """LOG [caos.meta.pgsql.delta.plan] Delta
+        print(delta)
+        """
         plan = self.get_synchronization_plan(delta)
+        """LOG [caos.meta.pgsql.delta.plan] Delta Plan
+        print(plan)
+        """
         self.apply_synchronization_plan(plan)
 
 
@@ -389,7 +396,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                 col = cols[base_link_name]
 
-                derived_atom_name = '__' + source.name.name + '__' + base_link_name.name
+                derived_atom_name = proto.Atom.gen_atom_name(source, base_link_name)
                 target = self.atom_from_pg_type(col['column_type'], concept_schema,
                                                 col['column_default'], meta,
                                                 caos.Name(name=derived_atom_name,

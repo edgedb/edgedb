@@ -275,7 +275,7 @@ class AlterAtom(AtomMetaCommand):
 
             self.ops.add(RenameDomain(name=domain_name, new_name=new_domain_name))
             updaterec = self.table.record(name=str(new_name))
-            condition = [('name', str(delta.prototype.name))]
+            condition = [('name', str(delta.old_prototype.name))]
             self.ops.add(Update(table=self.table, record=updaterec, condition=condition))
 
             domain_name = new_domain_name
@@ -500,7 +500,8 @@ class AlterConcept(ConceptMetaCommand):
 
             if old_type != new_type:
                 alter.add_operation(AlterTableAlterColumnType(name, new_type))
-                self.ops.add(AlterLink(list(delta.ops)[0]))
+                link_op = list(delta.ops)[0]
+                self.ops.add(AlterLink(link_op))
 
 
 class LinkMetaCommand(CompositePrototypeMetaCommand):
@@ -671,6 +672,15 @@ class AlterRealm(MetaCommand):
 
             else:
                 assert False, 'unexpected delta %s' % d
+
+    def __str__(self):
+        result = [repr(self)]
+
+        for level, ops in self.ops.items():
+            for op in ops:
+                result.extend('  %s' % l for l in str(op).split('\n'))
+
+        return '\n'.join(result)
 
     def add(self, op, level=0):
         if level not in self.ops:
