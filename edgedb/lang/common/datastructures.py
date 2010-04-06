@@ -10,6 +10,8 @@ import abc
 import bisect
 import collections
 
+from semantix.utils.functional import hybridmethod
+
 
 class GenericWrapperMeta(abc.ABCMeta):
 
@@ -318,3 +320,84 @@ class RecordBase:
     def __iter__(self):
         for name in self.__class__._fields___:
             yield name, getattr(self, name)
+
+
+class NoDefault:
+    pass
+
+
+class Field:
+    def __init__(self, type, default=NoDefault):
+        if not isinstance(type, tuple):
+            type = (type,)
+        self.type = type
+        self.default = default
+
+
+class StructMeta(type):
+    def __init__(cls, name, bases, clsdict):
+        super().__init__(name, bases, clsdict)
+
+        fields = {}
+
+        for parent in reversed(cls.mro()):
+            if parent is cls:
+                fields.update({k: v for k, v in clsdict.items() if isinstance(v, Field)})
+            elif isinstance(parent, StructMeta):
+                fields.update(parent._fields)
+
+        cls._fields = fields
+
+
+class Struct(metaclass=StructMeta):
+    def __init__(self, **kwargs):
+        self._init_fields(kwargs)
+
+    # XXX: the following is a CC from AST, consider consolidation
+    def _init_fields(self, values):
+        for field_name, field  in self.__class__._fields.items():
+            if field_name in values:
+                value = values[field_name]
+            elif field.default is not None:
+                if field.default in field.type:
+                    value = field.default()
+                elif field.default is NoDefault:
+                    raise TypeError('%s.%s.%s is required' % (self.__class__.__module__,
+                                                              self.__class__.__name__,
+                                                              field_name))
+                else:
+                    value = field.default
+            else:
+                value = None
+
+            if __debug__:
+                self.check_field_type(field, field_name, value)
+
+            # Bypass overloaded setattr
+            object.__setattr__(self, field_name, value)
+
+    if __debug__:
+        def __setattr__(self, name, value):
+            super().__setattr__(name, value)
+            field = self._fields.get(name)
+            if field:
+                self.check_field_type(field, name, value)
+
+    def check_field_type(self, field, name, value):
+        if field.type and value is not None and not isinstance(value, field.type):
+            raise TypeError('%s.%s.%s: expected %s but got %s'
+                            % (self.__class__.__module__,
+                               self.__class__.__name__,
+                               name, ' or '.join(t.__name__ for t in field.type),
+                               value.__class__.__name__))
+
+    @hybridmethod
+    def copy(scope, obj=None):
+        if isinstance(scope, Struct):
+            obj = scope
+            cls = obj.__class__
+        else:
+            cls = scope
+
+        args = {f: getattr(obj, f) for f in cls._fields.keys()}
+        return cls(**args)
