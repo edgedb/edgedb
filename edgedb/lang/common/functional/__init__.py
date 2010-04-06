@@ -7,4 +7,5 @@
 
 
 from .base import BaseDecorator, Decorator, decorate, cachedproperty, hybridmethod
+from .adapter import Adapter, AdapterError
 from .types import checktypes
