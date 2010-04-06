@@ -35,7 +35,11 @@ class MetaError(caos.MetaError):
         return result
 
 
-class LangObject(yaml.Object):
+class LangObjectMeta(type(yaml.Object), type(proto.Prototype)):
+    pass
+
+
+class LangObject(yaml.Object, metaclass=LangObjectMeta):
     @classmethod
     def get_canonical_class(cls):
         for base in cls.__bases__:
@@ -45,7 +49,7 @@ class LangObject(yaml.Object):
         return cls
 
 
-class WordCombination(LangObject, wraps=morphology.WordCombination):
+class WordCombination(LangObject, adapts=morphology.WordCombination):
     def construct(self):
         if isinstance(self.data, str):
             morphology.WordCombination.__init__(self, self.data)
@@ -59,7 +63,11 @@ class WordCombination(LangObject, wraps=morphology.WordCombination):
         return data.as_dict()
 
 
-class AtomModExpr(LangObject, wraps=proto.AtomModExpr):
+class AtomMod(LangObject, ignore_aliases=True):
+    pass
+
+
+class AtomModExpr(AtomMod, adapts=proto.AtomModExpr):
     def construct(self):
         proto.AtomModExpr.__init__(self, self.data['expr'], context=self.context)
 
@@ -68,7 +76,7 @@ class AtomModExpr(LangObject, wraps=proto.AtomModExpr):
         return {'expr': next(iter(data.exprs[0]))}
 
 
-class AtomModMinLength(LangObject, wraps=proto.AtomModMinLength):
+class AtomModMinLength(AtomMod, adapts=proto.AtomModMinLength):
     def construct(self):
         proto.AtomModMinLength.__init__(self, self.data['min-length'], context=self.context)
 
@@ -77,7 +85,7 @@ class AtomModMinLength(LangObject, wraps=proto.AtomModMinLength):
         return {'min-length': data.value}
 
 
-class AtomModMaxLength(LangObject, wraps=proto.AtomModMaxLength):
+class AtomModMaxLength(AtomMod, adapts=proto.AtomModMaxLength):
     def construct(self):
         proto.AtomModMaxLength.__init__(self, self.data['max-length'], context=self.context)
 
@@ -86,7 +94,7 @@ class AtomModMaxLength(LangObject, wraps=proto.AtomModMaxLength):
         return {'max-length': data.value}
 
 
-class AtomModRegExp(LangObject, wraps=proto.AtomModRegExp):
+class AtomModRegExp(AtomMod, adapts=proto.AtomModRegExp):
     def construct(self):
         proto.AtomModRegExp.__init__(self, self.data['regexp'], context=self.context)
 
@@ -95,7 +103,7 @@ class AtomModRegExp(LangObject, wraps=proto.AtomModRegExp):
         return {'regexp': next(iter(data.regexps))[0]}
 
 
-class Atom(LangObject, wraps=proto.Atom):
+class Atom(LangObject, adapts=proto.Atom):
     def construct(self):
         data = self.data
         proto.Atom.__init__(self, name=None, backend=data.get('backend'), base=data['extends'],
@@ -133,7 +141,7 @@ class Atom(LangObject, wraps=proto.Atom):
         return result
 
 
-class Concept(LangObject, wraps=proto.Concept):
+class Concept(LangObject, adapts=proto.Concept):
     def construct(self):
         data = self.data
         extends = data.get('extends')
@@ -168,7 +176,7 @@ class Concept(LangObject, wraps=proto.Concept):
         return result
 
 
-class LinkProperty(LangObject, wraps=proto.LinkProperty):
+class LinkProperty(LangObject, adapts=proto.LinkProperty, ignore_aliases=True):
     def construct(self):
         data = self.data
         if isinstance(data, str):
@@ -179,8 +187,26 @@ class LinkProperty(LangObject, wraps=proto.LinkProperty):
                                        description=info['description'])
             self.mods = info.get('mods')
 
+    @classmethod
+    def represent(cls, data):
+        result = {}
 
-class LinkDef(LangObject, wraps=proto.Link):
+        if data.atom.mods and data.atom.automatic:
+            result['mods'] = list(itertools.chain.from_iterable(data.atom.mods.values()))
+
+        if data.title:
+            result['title'] = data.title
+
+        if data.description:
+            result['description'] = data.description
+
+        if result:
+            return {data.atom.name: result}
+        else:
+            return str(data.atom.name)
+
+
+class LinkDef(LangObject, adapts=proto.Link):
     def construct(self):
         data = self.data
         extends = data.get('extends')
@@ -222,10 +248,13 @@ class LinkDef(LangObject, wraps=proto.Link):
         if data.source:
             result['required'] = data.required
 
+        if data.properties:
+            result['properties'] = data.properties
+
         return result
 
 
-class LinkSet(LangObject, wraps=proto.LinkSet):
+class LinkSet(LangObject, adapts=proto.LinkSet):
     @classmethod
     def represent(cls, data):
         result = {}
@@ -438,7 +467,7 @@ class MetaSet(LangObject):
                 bases.append(caos.Name('semantix.caos.builtins.Object'))
 
             concept.base = tuple(bases)
-            concept.custombases = custombases
+            concept.custombases = tuple(custombases)
 
             for link_name, links in concept._links.items():
                 for link in links:
@@ -489,6 +518,8 @@ class MetaSet(LangObject):
                             link.target.add_rlink(link)
 
                     if isinstance(link.target, proto.Atom):
+                        link.is_atom = True
+
                         if link_name in link_target_types and link_target_types[link_name] != 'atom':
                             raise caos.MetaError('%s link is already defined as a link to non-atom')
 
@@ -531,7 +562,7 @@ class MetaSet(LangObject):
         return itertools.chain([('_index_', self.finalindex)], self.finalindex.index_by_name.items())
 
 
-class EntityShell(LangObject, wraps=caos.concept.EntityShell):
+class EntityShell(LangObject, adapts=caos.concept.EntityShell):
     def __init__(self, data, context):
         super().__init__(data=data, context=context)
         caos.concept.EntityShell.__init__(self)
@@ -548,7 +579,7 @@ class EntityShell(LangObject, wraps=caos.concept.EntityShell):
             self.context.document.entities.append(self.entity)
 
 
-class RealmMeta(LangObject, wraps=proto.RealmMeta):
+class RealmMeta(LangObject, adapts=proto.RealmMeta):
     @classmethod
     def represent(cls, data):
         result = {'atoms': {}, 'links': {}, 'concepts': {}}
@@ -571,7 +602,7 @@ class DataSet(LangObject):
             entity.materialize_links(entities)
 
 
-class CaosName(LangObject, wraps=caos.Name, ignore_aliases=True):
+class CaosName(LangObject, adapts=caos.Name, ignore_aliases=True):
     @classmethod
     def represent(cls, data):
         return str(data)

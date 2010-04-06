@@ -101,7 +101,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         super().__init__()
 
         self.connection = connection
-        sync.AlterRealm.init_hstore(connection)
+        sync.EnableHstoreFeature.init_hstore(connection)
 
         self.domains = set()
         schemas = introspection.SchemasList(self.connection).fetch(schema_name='caos%')
@@ -126,8 +126,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return delta
 
 
+    def adapt_delta(self, delta):
+        return sync.CommandMeta.adapt(delta)
+
+
     def get_synchronization_plan(self, delta):
-        return sync.AlterRealm(delta)
+        meta = self.getmeta()
+        delta.apply(meta)
+        return delta
 
 
     def apply_synchronization_plan(self, plan):
@@ -137,10 +143,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     @debug
     def apply_delta(self, delta):
-        """LOG [caos.meta.pgsql.delta.plan] Delta
-        print(delta)
-        """
-        plan = self.get_synchronization_plan(delta)
+        plan = self.get_synchronization_plan(self.adapt_delta(delta))
         """LOG [caos.meta.pgsql.delta.plan] Delta Plan
         print(plan)
         """
@@ -214,7 +217,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     l = getattr(cls, str(a), None)
                     if l:
                         col_type = sync.CompositePrototypeMetaCommand.pg_type_from_atom(
-                                                            l._metadata.prototype.delta(None))
+                                                            l._metadata.prototype)
                         col_type = 'text::%s' % col_type
 
                     else:
@@ -236,7 +239,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         if hasattr(cls, str(a)):
                             l = getattr(cls, str(a))
                             col_type = sync.CompositePrototypeMetaCommand.pg_type_from_atom(
-                                                            l._metadata.prototype.delta(None))
+                                                                        l._metadata.prototype)
                             col_type = 'text::%s' % col_type
 
                         else:
@@ -297,6 +300,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         atoms = {}
         for row in atom_list:
             name = caos.Name(row['name'])
+
+            if name not in domains:
+                continue
+
             atoms[name] = {'name': name,
                            'title': self.hstore_to_word_combination(row['title']),
                            'description': self.hstore_to_word_combination(row['description']),
@@ -372,16 +379,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     properties[property_name] = property
             else:
                 if r['implicit_derivative']:
-                    bases = (meta.get(r['name'].rpartition('_')[0]).name,)
+                    bases = (proto.Link.normalize_link_name(name),)
                 else:
                     bases = (caos.Name('semantix.caos.builtins.link'),)
 
             title = self.hstore_to_word_combination(r['title'])
             description = self.hstore_to_word_combination(r['description'])
             source = meta.get(r['source']) if r['source'] else None
-            target = meta.get(r['target']) if r['target'] else None
 
-            if r['implicit_derivative'] and isinstance(target, proto.Atom):
+            if r['implicit_derivative'] and r['is_atom']:
                 cols = concept_columns.get(source.name)
 
                 concept_schema, concept_table = common.concept_name_to_table_name(source.name,
@@ -401,6 +407,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                                 col['column_default'], meta,
                                                 caos.Name(name=derived_atom_name,
                                                           module=source.name.module))
+            else:
+                target = meta.get(r['target']) if r['target'] else None
 
 
             link = proto.Link(name=name, base=bases, source=source, target=target,
@@ -456,7 +464,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             concept = proto.Concept(name=name, base=bases, title=concepts[name]['title'],
                                     description=concepts[name]['description'],
                                     is_abstract=concepts[name]['is_abstract'],
-                                    custombases=concepts[name]['custombases'])
+                                    custombases=tuple(concepts[name]['custombases']))
 
             columns = introspection.table.TableColumns(self.connection)
             columns = columns.fetch(table_name=t['name'], schema_name=t['schema'])

@@ -13,7 +13,8 @@ class Representer(yaml.representer.Representer):
     _ignore_aliases = set()
 
     def ignore_aliases(self, data):
-        return super().ignore_aliases(data) or data.__class__ in self.__class__._ignore_aliases
+        return super().ignore_aliases(data) or \
+               isinstance(data, tuple(self.__class__._ignore_aliases))
 
     @classmethod
     def add_ignore_aliases(cls, type):

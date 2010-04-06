@@ -10,6 +10,7 @@ import os
 import yaml
 from semantix.utils.lang import meta
 from semantix.utils.lang.yaml import loader, dumper
+from semantix.utils.functional import Adapter
 
 
 class YamlImportError(Exception):
@@ -51,27 +52,24 @@ class Language(meta.Language):
             yield d
 
 
-class ObjectMeta(type):
-    def __new__(metacls, name, bases, clsdict, *, wraps=None, ignore_aliases=False):
-        if wraps:
-            bases = bases + (wraps,)
-
-        result = super(ObjectMeta, metacls).__new__(metacls, name, bases, clsdict)
-        result._wraps = wraps
+class ObjectMeta(Adapter):
+    def __new__(metacls, name, bases, clsdict, *, adapts=None, ignore_aliases=False):
+        result = super(ObjectMeta, metacls).__new__(metacls, name, bases, clsdict, adapts=adapts)
+        result._adapts = adapts
 
         if ignore_aliases:
-            dumper.Dumper.add_ignore_aliases(wraps or result)
+            dumper.Dumper.add_ignore_aliases(adapts or result)
 
         return result
 
-    def __init__(cls, name, bases, clsdict, *, wraps=None, ignore_aliases=False):
-        super(ObjectMeta, cls).__init__(name, bases, clsdict)
+    def __init__(cls, name, bases, clsdict, *, adapts=None, ignore_aliases=False):
+        super(ObjectMeta, cls).__init__(name, bases, clsdict, adapts=adapts)
 
         if hasattr(cls, 'represent'):
             representer = lambda dumper, data: cls.represent_wrapper(data, dumper)
 
-            if cls._wraps:
-                yaml.add_multi_representer(cls._wraps, representer, Dumper=dumper.Dumper)
+            if cls._adapts:
+                yaml.add_multi_representer(cls._adapts, representer, Dumper=dumper.Dumper)
             else:
                 yaml.add_multi_representer(cls, representer, Dumper=dumper.Dumper)
 
