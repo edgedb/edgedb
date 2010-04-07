@@ -9,6 +9,7 @@
 import yaml
 
 from semantix.utils.lang.meta import Object, ObjectError
+from semantix.utils.lang.yaml import validator
 from semantix.utils.lang.yaml.validator.tests.base import SchemaTest, result, raises
 
 
@@ -24,6 +25,10 @@ class A(Object):
     def construct(self):
         self.name = self.data['name']
         self.description = self.data['description']
+
+    @classmethod
+    def get_yaml_validator_config(cls):
+        return {'customfield': {'type': 'int', 'range': {'min': 3, 'max-ex': 20}}}
 
 
 class Bad(object):
@@ -68,4 +73,23 @@ class TestObject(SchemaTest):
         customvalidation:
             name: custom
             description: validation
+        """
+
+    @result(key='classtype', value=A(name='a', description='b'))
+    def test_validator_object_class_type(self):
+        """
+        classtype:
+            semantix.utils.lang.yaml.validator.tests.test_object.A:
+                name: a
+                description: b
+        """
+
+    @raises(validator.SchemaValidationError, 'range-max-ex validation failed')
+    def test_validator_object_class_type_validation(self):
+        """
+        classtype:
+            semantix.utils.lang.yaml.validator.tests.test_object.A:
+                name: a
+                description: b
+                customfield: 21
         """

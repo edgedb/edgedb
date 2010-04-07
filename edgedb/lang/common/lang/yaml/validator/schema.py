@@ -46,6 +46,8 @@ class Schema(object):
             tp = types.BoolType(self)
         elif dct_type == 'scalar':
             tp = types.ScalarType(self)
+        elif dct_type == 'class':
+            tp = types.ClassType(self)
         else:
             raise error.SchemaError('unknown type: ' + dct_type)
 

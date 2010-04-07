@@ -22,12 +22,8 @@ class MappingType(CompositeType):
         self.unique_base = {}
         self.unique = None
 
-    def load(self, dct):
-        super(MappingType, self).load(dct)
-
-        self._init_constrainrs(('max-length', 'min-length'), dct)
-
-        for key, value in dct['mapping'].items():
+    def load_keys(self, keys):
+        for key, value in keys.items():
             self.keys[key] = {}
 
             self.keys[key]['required'] = 'required' in value and value['required']
@@ -40,6 +36,12 @@ class MappingType(CompositeType):
                 self.keys[key]['default'] = value['default']
 
             self.keys[key]['type'] = self.schema._build(value)
+
+    def load(self, dct):
+        super(MappingType, self).load(dct)
+
+        self._init_constrainrs(('max-length', 'min-length'), dct)
+        self.load_keys(dct['mapping'])
 
     def begin_checks(self):
         super(MappingType, self).begin_checks()

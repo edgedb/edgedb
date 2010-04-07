@@ -11,6 +11,7 @@ from .any import AnyType
 from .choice import ChoiceType
 from .map import MappingType
 from .seq import SequenceType
+from .cls import ClassType
 
 from .scalars.base import ScalarType
 from .scalars.bool import BoolType

@@ -49,3 +49,12 @@ class SchemaType(object):
 
     def check_tag(self, node, tag):
         return node.tag == tag or hasattr(node, 'tags') and tag in node.tags
+
+    def push_tag(self, node, tag):
+        if not hasattr(node, 'tags'):
+            node.tags = [node.tag]
+        else:
+            node.tags.add(node.tag)
+        node.tag = tag
+
+        return tag

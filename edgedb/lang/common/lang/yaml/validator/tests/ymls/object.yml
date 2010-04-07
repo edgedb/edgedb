@@ -37,3 +37,13 @@ mapping:
             description:
                 type: str
                 default: "<empty>"
+
+    classtype:
+        type: class
+        fields:
+            name:
+                type: str
+                required: yes
+            description:
+                type: str
+                default: "<empty>"
