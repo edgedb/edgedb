@@ -6,7 +6,6 @@
 ##
 
 
-import copy
 import io
 
 import importlib
@@ -16,10 +15,15 @@ import itertools
 from semantix.utils import graph, lang
 from semantix.utils.lang import yaml
 from semantix.utils.nlang import morphology
+from semantix.utils.algos.persistent_hash import persistent_hash
 
 from semantix import caos
 from semantix.caos import proto
 from semantix.caos import backends
+from semantix.caos import delta as base_delta
+
+from . import delta
+from .common import StructMeta
 
 
 class MetaError(caos.MetaError):
@@ -36,7 +40,10 @@ class MetaError(caos.MetaError):
 
 
 class LangObjectMeta(type(yaml.Object), type(proto.Prototype)):
-    pass
+    def __init__(cls, name, bases, dct, *, adapts=None, ignore_aliases=False):
+        type(yaml.Object).__init__(cls, name, bases, dct, adapts=adapts,
+                                                          ignore_aliases=ignore_aliases)
+        type(proto.Prototype).__init__(cls, name, bases, dct)
 
 
 class LangObject(yaml.Object, metaclass=LangObjectMeta):
@@ -62,6 +69,18 @@ class WordCombination(LangObject, adapts=morphology.WordCombination):
     def represent(cls, data):
         return data.as_dict()
 
+    @classmethod
+    def adapt(cls, obj):
+        return cls.from_dict(obj)
+
+
+class PrototypeMeta(LangObjectMeta, StructMeta):
+    pass
+
+
+class Prototype(LangObject, adapts=proto.Prototype, metaclass=PrototypeMeta):
+    pass
+
 
 class AtomMod(LangObject, ignore_aliases=True):
     pass
@@ -69,11 +88,11 @@ class AtomMod(LangObject, ignore_aliases=True):
 
 class AtomModExpr(AtomMod, adapts=proto.AtomModExpr):
     def construct(self):
-        proto.AtomModExpr.__init__(self, self.data['expr'], context=self.context)
+        proto.AtomModExpr.__init__(self, [self.data['expr'].strip(' \n')], context=self.context)
 
     @classmethod
     def represent(cls, data):
-        return {'expr': next(iter(data.exprs[0]))}
+        return {'expr': next(iter(data.values))}
 
 
 class AtomModMinLength(AtomMod, adapts=proto.AtomModMinLength):
@@ -96,19 +115,19 @@ class AtomModMaxLength(AtomMod, adapts=proto.AtomModMaxLength):
 
 class AtomModRegExp(AtomMod, adapts=proto.AtomModRegExp):
     def construct(self):
-        proto.AtomModRegExp.__init__(self, self.data['regexp'], context=self.context)
+        proto.AtomModRegExp.__init__(self, [self.data['regexp']], context=self.context)
 
     @classmethod
     def represent(self, data):
-        return {'regexp': next(iter(data.regexps))[0]}
+        return {'regexp': next(iter(data.values))}
 
 
-class Atom(LangObject, adapts=proto.Atom):
+class Atom(Prototype, adapts=proto.Atom):
     def construct(self):
         data = self.data
-        proto.Atom.__init__(self, name=None, backend=data.get('backend'), base=data['extends'],
-                           default=data['default'], title=data['title'],
-                           description=data['description'], is_abstract=data['abstract'])
+        proto.Atom.__init__(self, name=None, backend=None, base=data['extends'],
+                            default=data['default'], title=data['title'],
+                            description=data['description'], is_abstract=data['abstract'])
         mods = data.get('mods')
         if mods:
             for mod in mods:
@@ -141,7 +160,7 @@ class Atom(LangObject, adapts=proto.Atom):
         return result
 
 
-class Concept(LangObject, adapts=proto.Concept):
+class Concept(Prototype, adapts=proto.Concept):
     def construct(self):
         data = self.data
         extends = data.get('extends')
@@ -149,7 +168,7 @@ class Concept(LangObject, adapts=proto.Concept):
             if not isinstance(extends, list):
                 extends = [extends]
 
-        proto.Concept.__init__(self, name=None, backend=data.get('backend'),
+        proto.Concept.__init__(self, name=None, backend=None,
                                base=tuple(extends) if extends else tuple(),
                                title=data.get('title'), description=data.get('description'),
                                is_abstract=data.get('abstract'))
@@ -176,7 +195,7 @@ class Concept(LangObject, adapts=proto.Concept):
         return result
 
 
-class LinkProperty(LangObject, adapts=proto.LinkProperty, ignore_aliases=True):
+class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
     def construct(self):
         data = self.data
         if isinstance(data, str):
@@ -206,7 +225,7 @@ class LinkProperty(LangObject, adapts=proto.LinkProperty, ignore_aliases=True):
             return str(data.atom.name)
 
 
-class LinkDef(LangObject, adapts=proto.Link):
+class LinkDef(Prototype, adapts=proto.Link):
     def construct(self):
         data = self.data
         extends = data.get('extends')
@@ -214,7 +233,7 @@ class LinkDef(LangObject, adapts=proto.Link):
             if not isinstance(extends, list):
                 extends = [extends]
 
-        proto.Link.__init__(self, name=None, backend=data.get('backend'),
+        proto.Link.__init__(self, name=None, backend=None,
                             base=tuple(extends) if extends else tuple(),
                             title=data['title'], description=data['description'],
                             is_abstract=data.get('abstract'))
@@ -254,7 +273,7 @@ class LinkDef(LangObject, adapts=proto.Link):
         return result
 
 
-class LinkSet(LangObject, adapts=proto.LinkSet):
+class LinkSet(Prototype, adapts=proto.LinkSet):
     @classmethod
     def represent(cls, data):
         result = {}
@@ -343,7 +362,7 @@ class MetaSet(LangObject):
 
 
     def read_atoms(self, data, globalmeta, localmeta):
-        backend = data.get('backend')
+        backend = None
 
         for atom_name, atom in data['atoms'].items():
             atom.name = caos.Name(name=atom_name, module=self.module)
@@ -435,7 +454,7 @@ class MetaSet(LangObject):
 
 
     def read_concepts(self, data, globalmeta, localmeta):
-        backend = data.get('backend')
+        backend = None
 
         for concept_name, concept in data['concepts'].items():
             concept.name = caos.Name(name=concept_name, module=self.module)
@@ -552,14 +571,15 @@ class MetaSet(LangObject):
     def genatom(self, host, base, default, link_name, mods):
         atom_name = Atom.gen_atom_name(host, link_name)
         atom = proto.Atom(name=caos.Name(name=atom_name, module=host.name.module),
-                          base=base, default=default, automatic=True, backend=host.backend)
+                          base=base, default=default, automatic=True, backend=None)
         for mod in mods:
             atom.add_mod(mod)
         return atom
 
 
     def items(self):
-        return itertools.chain([('_index_', self.finalindex)], self.finalindex.index_by_name.items())
+        return itertools.chain([('_index_', self.finalindex), ('_module_', self.module)],
+                               self.finalindex.index_by_name.items())
 
 
 class EntityShell(LangObject, adapts=caos.concept.EntityShell):
@@ -607,6 +627,9 @@ class CaosName(LangObject, adapts=caos.Name, ignore_aliases=True):
     def represent(cls, data):
         return str(data)
 
+    def construct(self):
+        caos.Name.__init__(self, self.data)
+
 
 class ModuleFromData:
     def __init__(self, name):
@@ -615,19 +638,25 @@ class ModuleFromData:
 
 class Backend(backends.MetaBackend):
 
-    def __init__(self, module=None, data=None):
-        super().__init__()
-
+    def __init__(self, deltarepo, module=None, data=None):
         if module:
             self.metadata = module
         else:
-            import_context = proto.ImportContext('<string>', toplevel=True)
-            module = ModuleFromData('<string>')
-            context = lang.meta.DocumentContext(module=module, import_context=import_context)
-            for k, v in lang.yaml.Language.load_dict(io.StringIO(data), context):
-                setattr(module, str(k), v)
-            self.metadata = module
+            self.metadata = self.load_from_string(data)
 
+        modhash = persistent_hash(self.metadata._module_)
+
+        repo = deltarepo(module=self.metadata._module_, id=modhash)
+        super().__init__(repo)
+
+    def load_from_string(self, data):
+        import_context = proto.ImportContext('<string>', toplevel=True)
+        module = ModuleFromData('<string>')
+        context = lang.meta.DocumentContext(module=module, import_context=import_context)
+        for k, v in lang.yaml.Language.load_dict(io.StringIO(data), context):
+            setattr(module, str(k), v)
+
+        return module
 
     def getmeta(self):
         return self.metadata._index_
@@ -635,11 +664,3 @@ class Backend(backends.MetaBackend):
     def dump_meta(self, meta):
         prologue = '%SCHEMA semantix.caos.backends.yaml.schemas.Semantics\n---\n'
         return prologue + yaml.Language.dump(meta)
-
-    def get_delta(self, meta):
-        mymeta = self.getmeta()
-        delta = mymeta.delta(meta)
-        return delta
-
-    def dump_delta(self, delta):
-        return yaml.Language.dump(delta)

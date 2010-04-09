@@ -7,9 +7,7 @@
 
 
 import itertools
-import hashlib
 import os
-import socket
 import re
 
 import postgresql
@@ -22,6 +20,7 @@ from semantix.caos.backends.pgsql import common
 
 from semantix.utils import datastructures
 from semantix.utils.debug import debug
+from semantix.utils.lang import yaml
 
 
 base_type_name_map = {
@@ -97,6 +96,7 @@ class Command(BaseCommand):
         ok = self.check_conditions(db, self.conditions, True) and \
              self.check_conditions(db, self.neg_conditions, False)
 
+        result = None
         if ok:
             code, vars = self.get_code_and_vars(db)
 
@@ -109,9 +109,10 @@ class Command(BaseCommand):
             """
 
             if vars is not None:
-                db.prepare(code)(*vars)
+                result = db.prepare(code)(*vars)
             else:
-                db.execute(code)
+                result = db.execute(code)
+        return result
 
     def check_conditions(self, db, conditions, positive):
         result = True
@@ -129,24 +130,24 @@ class Command(BaseCommand):
         return result
 
 
-class PrototypeMetaCommand(MetaCommand):
+class PrototypeMetaCommand(MetaCommand, delta_cmds.PrototypeCommand):
     def fill_record(self, rec=None, obj=None):
         updates = {}
 
         myrec = self.table.record()
 
         if not obj:
-            for d in self(delta_cmds.AlterPrototypeProperty):
-                updates[d.property] = d
-                if hasattr(myrec, d.property):
+            for name, value in itertools.chain(self.get_struct_properties().items(),
+                                               self.get_properties(('source', 'target')).items()):
+                updates[name] = value
+                if hasattr(myrec, name):
                     if not rec:
                         rec = self.table.record()
-                    setattr(rec, d.property, d.new_value)
+                    setattr(rec, name, value)
         else:
             for field in obj.__class__._fields:
                 value = getattr(obj, field)
-                updates[field] = delta_cmds.AlterPrototypeProperty(property=field, old_value=None,
-                                                                   new_value=value)
+                updates[field] = value
                 if hasattr(myrec, field):
                     if not rec:
                         rec = self.table.record()
@@ -201,7 +202,8 @@ class AtomMetaCommand(PrototypeMetaCommand):
         super().__init__(**kwargs)
         self.table = AtomTable()
 
-    def get_atom_base_and_mods(self, atom):
+    @classmethod
+    def get_atom_base_and_mods(cls, atom):
         if proto.Atom.is_prototype(atom.base):
             base = base_type_name_map.get(atom.base)
             if not base:
@@ -239,20 +241,31 @@ class AtomMetaCommand(PrototypeMetaCommand):
             base += '(' + str(has_max_length.value) + ')'
 
         mods = set()
+        extramods = set()
+
+        directly_supported_mods = (proto.AtomModMaxLength, proto.AtomModMinLength,
+                                   proto.AtomModRegExp)
 
         for mod in atom.mods.values():
             if ((has_max_length and isinstance(mod, proto.AtomModMaxLength))
-                    or (has_min_length and isinstance(mod, proto.AtomModMinLength))
-                    or isinstance(mod, proto.AtomModExpr)):
+                    or (has_min_length and isinstance(mod, proto.AtomModMinLength))):
                 continue
-            mods.add(mod)
+            elif isinstance(mod, directly_supported_mods):
+                mods.add(mod)
+            else:
+                extramods.add(mod)
 
-        return base, has_min_length, has_max_length, mods
+        return base, has_min_length, has_max_length, mods, extramods
 
     def fill_record(self, rec=None, obj=None):
         rec, updates = super().fill_record(rec, obj)
-        if rec and rec.base:
-            rec.base = str(rec.base)
+        if rec:
+            if rec.base:
+                rec.base = str(rec.base)
+
+            if rec.default not in (None, Default):
+                rec.default = yaml.Language.dump(rec.default)
+
         return rec, updates
 
 
@@ -261,10 +274,10 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
         atom = delta_cmds.CreateAtom.apply(self, meta, context)
         AtomMetaCommand.apply(self, meta, context)
 
-        updates = self.create_object(atom)
-
         new_domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
-        base, _, _, mods = self.get_atom_base_and_mods(atom)
+        base, _, _, mods, extramods = self.get_atom_base_and_mods(atom)
+
+        updates = self.create_object(atom)
 
         if not atom.automatic or mods:
             self.pgops.add(CreateDomain(name=new_domain_name, base=base))
@@ -272,11 +285,23 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
             for mod in mods:
                 self.pgops.add(AlterDomainAddConstraint(name=new_domain_name, constraint=mod))
 
-            default_delta = updates.get('default')
+            default = updates.get('default')
 
-            if default_delta and default_delta.new_value is not None:
-                self.pgops.add(AlterDomainAlterDefault(name=new_domain_name,
-                                                       default=default_delta.new_value))
+            if default is not None:
+                self.pgops.add(AlterDomainAlterDefault(name=new_domain_name, default=default))
+
+        if extramods:
+            values = {}
+
+            for mod in extramods:
+                cls = mod.__class__.get_canonical_class()
+                key = '%s.%s' % (cls.__module__, cls.__name__)
+                values[key] = yaml.Language.dump(mod.get_value())
+
+            rec = self.table.record()
+            rec.mods = values
+            condition = [('name', str(atom.name))]
+            self.pgops.add(Update(table=self.table, record=rec, condition=condition))
 
         return atom
 
@@ -308,11 +333,11 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
         updaterec, updates = self.fill_record()
 
         if updaterec:
-            condition = [('name', str(domain_name))]
+            condition = [('name', str(old_atom.name))]
             self.pgops.add(Update(table=self.table, record=updaterec, condition=condition))
 
-        old_base, _, old_max_length, old_mods = self.get_atom_base_and_mods(old_atom)
-        base, _, _, new_mods = self.get_atom_base_and_mods(new_atom)
+        old_base, _, old_max_length, old_mods, _ = self.get_atom_base_and_mods(old_atom)
+        base, _, _, new_mods, _ = self.get_atom_base_and_mods(new_atom)
 
         new_type = None
 
@@ -338,7 +363,7 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
         default_delta = updates.get('default')
         if default_delta:
             self.pgops.add(AlterDomainAlterDefault(name=domain_name,
-                                                   default=default_delta.new_value))
+                                                   default=default_delta))
 
         for mod in old_mods - new_mods:
             self.pgops.add(AlterDomainDropConstraint(name=domain_name, constraint=mod))
@@ -361,7 +386,6 @@ class DeleteAtom(AtomMetaCommand, adapts=delta_cmds.DeleteAtom):
         ops = link.op.pgops if link else self.pgops
 
         old_domain_name = common.atom_name_to_domain_name(self.prototype_name, catenate=False)
-        _, _, _, mods = self.get_atom_base_and_mods(atom)
 
         # Domain dropping gets low priority since other things may depend on it
         cond = DomainExists(old_domain_name)
@@ -378,29 +402,17 @@ class CompositePrototypeMetaCommand(PrototypeMetaCommand):
 
     @classmethod
     def _pg_type_from_atom(cls, atom_obj):
-        column_type = None
-        if atom_obj.base is not None and atom_obj.base == 'semantix.caos.builtins.str':
-            max_length = atom_obj.mods.get(proto.AtomModMaxLength)
-
-            if max_length:
-                min_length = atom_obj.mods.get(proto.AtomModMinLength)
-
-                if min_length and len(atom_obj.mods) == 2:
-                    column_type = 'char(%d)' % min_length.value
-                elif len(atom_obj.mods) == 1:
-                    column_type = 'varchar(%d)' % max_length.value
-            elif len(atom_obj.mods) == 0:
-                column_type = 'text'
+        base, _, _, mods, _ = AtomMetaCommand.get_atom_base_and_mods(atom_obj)
 
         need_to_create = False
 
-        if not column_type:
-            if atom_obj.name in base_type_name_map:
-                column_type = base_type_name_map[atom_obj.name]
-            else:
-                if atom_obj.automatic:
-                    need_to_create = True
+        if not atom_obj.automatic or mods:
+            column_type = base_type_name_map.get(atom_obj.name)
+            if not column_type:
                 column_type = common.atom_name_to_domain_name(atom_obj.name)
+                need_to_create = bool(mods)
+        else:
+            column_type = base
 
         return column_type, need_to_create
 
@@ -449,9 +461,6 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
 
         fields = self.create_object(concept)
 
-        columns = []
-        constraints = []
-
         if concept.name == 'semantix.caos.builtins.Object':
             col = Column(name='concept_id', type='integer', required=True)
             self.alter_table.add_operation(AlterTableAddColumn(col))
@@ -460,7 +469,7 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
         self.alter_table.add_operation(AlterTableAddConstraint(constraint))
 
         bases = (common.concept_name_to_table_name(p, catenate=False)
-                 for p in fields['base'].new_value if proto.Concept.is_prototype(p))
+                 for p in fields['base'] if proto.Concept.is_prototype(p))
         concept_table.bases = list(bases)
 
         if self.alter_table.ops:
@@ -533,7 +542,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
 
             source = updates.get('source')
             if source:
-                source = source.new_value
+                source = source
             elif concept:
                 source = concept.proto.name
 
@@ -544,7 +553,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
             target = updates.get('target')
             if target:
                 rec.target_id = Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
-                                      [str(target.new_value)],
+                                      [str(target)],
                                       type='integer')
 
         return rec
@@ -648,6 +657,11 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
 
         if self.alter_table and self.alter_table.ops:
             self.pgops.add(self.alter_table)
+
+        rec = self.table.record()
+        rec.name = str(self.new_name)
+        self.pgops.add(Update(table=self.table, record=rec,
+                              condition=[('name', str(self.old_name))], priority=1))
 
         return result
 
@@ -769,7 +783,25 @@ class AlterLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.AlterLinkProp
 
 
 class DeleteLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.DeleteLinkProperty):
-    pass
+    def apply(self, meta, context=None):
+        property = delta_cmds.DeleteLinkProperty.apply(self, meta, context)
+        LinkPropertyMetaCommand.apply(self, meta, context)
+
+        link = context.get(delta_cmds.LinkCommandContext)
+        assert link, "Link property command must be run in Link command context"
+
+        link_table_name = common.link_name_to_table_name(link.proto.name, catenate=False)
+        if not link.op.alter_table:
+            link.op.alter_table = AlterTable(link_table_name)
+
+        column_name = common.caos_name_to_pg_colname(property.name)
+        # We don't really care about the type -- we're dropping the thing
+        column_type = 'text'
+
+        col = AlterTableDropColumn(Column(name=column_name, type=column_type))
+        link.op.alter_table.add_operation(col)
+
+        return property
 
 
 class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
@@ -784,9 +816,14 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
                                            neg_conditions=[TypeExists(('caos', 'hstore'))],
                                            priority=-2))
 
-        metalogtable = MetaLogTable()
-        self.pgops.add(CreateTable(table=metalogtable,
-                                   neg_conditions=[TableExists(name=metalogtable.name)],
+        deltalogtable = DeltaLogTable()
+        self.pgops.add(CreateTable(table=deltalogtable,
+                                   neg_conditions=[TableExists(name=deltalogtable.name)],
+                                   priority=-1))
+
+        deltareftable = DeltaRefTable()
+        self.pgops.add(CreateTable(table=deltareftable,
+                                   neg_conditions=[TableExists(name=deltareftable.name)],
                                    priority=-1))
 
         metatable = MetaObjectTable()
@@ -814,21 +851,6 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
 
     def is_material(self):
         return True
-
-    @classmethod
-    def logsync(cls, checksum, parent_id):
-        table = MetaLogTable()
-
-        id = hashlib.sha1(('%s_%s' % (checksum, parent_id)).encode()).hexdigest()
-
-        rec = table.record(
-                id=id,
-                parents=[str(parent_id)],
-                checksum=str('%x' % checksum),
-                committer=os.getenv('LOGNAME', '<unknown>'),
-                hostname=socket.getfqdn()
-              )
-        return Insert(table, records=[rec])
 
     def execute(self, db):
         for op in self.serialize_ops():
@@ -907,7 +929,7 @@ class Insert(DMLOperation):
 
         code = 'INSERT INTO %s (%s) VALUES %s' % \
                 (common.qname(*self.table.name),
-                 ','.join(cols),
+                 ','.join(common.quote_ident(c) for c in cols),
                  ','.join(placeholders))
 
         return (code, vals)
@@ -927,7 +949,7 @@ class Update(DMLOperation):
         self.condition = condition
 
     def code(self, db):
-        e = postgresql.string.quote_ident
+        e = common.quote_ident
 
         placeholders = []
         vals = []
@@ -965,6 +987,23 @@ class Update(DMLOperation):
         return '<caos.sync.%s %s %s (%s)>' % (self.__class__.__name__, self.table.name, expr, where)
 
 
+class Merge(Update):
+    def code(self, db):
+        code = super().code(db)
+        cols = (common.quote_ident(c[0]) for c in self.condition)
+        result = (code[0] + ' RETURNING %s' % (','.join(cols)), code[1])
+        return result
+
+    def execute(self, db):
+        result = super().execute(db)
+
+        if not result:
+            op = Insert(self.table, records=[self.record])
+            result = op.execute(db)
+
+        return result
+
+
 class Delete(DMLOperation):
     def __init__(self, table, condition, *, priority=0):
         super().__init__(priority=priority)
@@ -973,7 +1012,7 @@ class Delete(DMLOperation):
         self.condition = condition
 
     def code(self, db):
-        e = postgresql.string.quote_ident
+        e = common.quote_ident
         where = ' AND '.join('%s = $%d' % (e(c[0]), i + 1) for i, c in enumerate(self.condition))
 
         code = 'DELETE FROM %s WHERE %s' % (common.qname(*self.table.name), where)
@@ -996,7 +1035,7 @@ class PrimaryKey(DBObject):
         self.columns = columns
 
     def code(self, db):
-        code = 'PRIMARY KEY (%s)' % ', '.join(postgresql.string.quote_ident(c) for c in self.columns)
+        code = 'PRIMARY KEY (%s)' % ', '.join(common.quote_ident(c) for c in self.columns)
         return code
 
 class UniqueConstraint(DBObject):
@@ -1004,7 +1043,7 @@ class UniqueConstraint(DBObject):
         self.columns = columns
 
     def code(self, db):
-        code = 'UNIQUE (%s)' % ', '.join(postgresql.string.quote_ident(c) for c in self.columns)
+        code = 'UNIQUE (%s)' % ', '.join(common.quote_ident(c) for c in self.columns)
         return code
 
 
@@ -1017,8 +1056,8 @@ class Column(DBObject):
         self.readonly = readonly
 
     def code(self, db):
-        e = postgresql.string.quote_ident
-        return '%s %s %s %s' % (e(self.name), self.type,
+        e = common.quote_ident
+        return '%s %s %s %s' % (common.quote_ident(self.name), self.type,
                                 'NOT NULL' if self.required else '',
                                 ('DEFAULT %s' % self.default) if self.default is not None else '')
 
@@ -1064,9 +1103,24 @@ class Table(DBObject):
         self.__columns.update(iterable)
 
 
-class MetaLogTable(Table):
+class DeltaRefTable(Table):
     def __init__(self, name=None):
-        name = name or ('caos', 'metalog')
+        name = name or ('caos', 'deltaref')
+        super().__init__(name=name)
+
+        self.__columns = datastructures.OrderedSet([
+            Column(name='id', type='char(40)', required=True),
+            Column(name='ref', type='text', required=True)
+        ])
+
+        self.constraints = set([
+            PrimaryKey(columns=('ref',))
+        ])
+
+
+class DeltaLogTable(Table):
+    def __init__(self, name=None):
+        name = name or ('caos', 'deltalog')
         super().__init__(name=name)
 
         self.__columns = datastructures.OrderedSet([
@@ -1076,7 +1130,6 @@ class MetaLogTable(Table):
             Column(name='commit_date', type='timestamp with time zone', required=True,
                                                                         default='CURRENT_TIMESTAMP'),
             Column(name='committer', type='text', required=True),
-            Column(name='hostname', type='text', required=True),
             Column(name='comment', type='text', required=False)
         ])
 
@@ -1113,6 +1166,8 @@ class AtomTable(MetaObjectTable):
         self.__columns = datastructures.OrderedSet([
             Column(name='automatic', type='boolean', required=True, default=False),
             Column(name='base', type='text', required=True),
+            Column(name='mods', type='caos.hstore'),
+            Column(name='default', type='text')
         ])
 
         self.constraints = set([
@@ -1170,7 +1225,7 @@ class Feature:
 
         with open(source, 'r') as f:
             code = re.sub(r'SET\s+search_path\s*=\s*[^;]+;',
-                          'SET search_path = %s;' % postgresql.string.quote_ident(self.schema),
+                          'SET search_path = %s;' % common.quote_ident(self.schema),
                           f.read())
         return code
 
@@ -1364,11 +1419,11 @@ class AlterDomainAlterConstraint(AlterDomain):
 
     def constraint_name(self, constraint):
         canonical = constraint.__class__.get_canonical_class()
-        return postgresql.string.quote_ident('%s.%s' % (canonical.__module__, canonical.__name__))
+        return common.quote_ident('%s.%s' % (canonical.__module__, canonical.__name__))
 
     def constraint_code(self, constraint):
         if isinstance(constraint, proto.AtomModRegExp):
-            expr = ['VALUE ~ %s' % postgresql.string.quote_literal(re) for re in constraint.regexps]
+            expr = ['VALUE ~ %s' % postgresql.string.quote_literal(re) for re in constraint.values]
             expr = ' AND '.join(expr)
         elif isinstance(constraint, proto.AtomModMaxLength):
             expr = 'length(VALUE::text) <= ' + str(constraint.value)
@@ -1469,7 +1524,7 @@ class AlterTableDropColumn(DDLOperation):
         self.column = column
 
     def code(self, db):
-        return 'DROP COLUMN %s' % postgresql.string.quote_ident(self.column.name)
+        return 'DROP COLUMN %s' % common.quote_ident(self.column.name)
 
 
 class AlterTableAlterColumnType(DDLOperation):
@@ -1479,7 +1534,7 @@ class AlterTableAlterColumnType(DDLOperation):
 
     def code(self, db):
         return 'ALTER COLUMN %s SET DATA TYPE %s' % \
-                (postgresql.string.quote_ident(str(self.column_name)), self.new_type)
+                (common.quote_ident(str(self.column_name)), self.new_type)
 
 
 class AlterTableAddConstraint(DDLOperation):
@@ -1520,8 +1575,8 @@ class AlterTableRenameColumn(AlterTableBase):
 
     def code(self, db):
         code = super().code(db)
-        code += ' RENAME COLUMN %s TO %s ' % (postgresql.string.quote_ident(self.old_col_name),
-                                              postgresql.string.quote_ident(self.new_col_name))
+        code += ' RENAME COLUMN %s TO %s ' % (common.quote_ident(self.old_col_name),
+                                              common.quote_ident(self.new_col_name))
         return code
 
 

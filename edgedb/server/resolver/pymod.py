@@ -19,9 +19,10 @@ class PyModResolver(shell.BackendResolverHelper):
         mod = importlib.import_module(import_context)
 
         handler = shell.BackendResolverHelperMeta.get('languages', mod._language_)
+        deltarepo = self.get_delta_repo(url)
 
         if handler:
-            return handler().resolve_module(mod)
+            return handler().resolve_module(mod, deltarepo)
         else:
             err = 'unsupported Caos module language: %s' % mod._language_
             raise error.BackendResolverError(err)

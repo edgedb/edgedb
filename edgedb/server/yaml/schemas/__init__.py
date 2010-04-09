@@ -10,6 +10,7 @@ from semantix.caos.proto import ImportContext
 from semantix.utils.lang.yaml.loader import AttributeMappingNode
 from .semantics import Semantics
 from .data import Data
+from .delta import Delta
 
 
 class Semantics(Semantics):
@@ -19,3 +20,9 @@ class Semantics(Semantics):
 
     def get_import_context_class(self):
         return ImportContext
+
+
+class Delta(Delta):
+    def check(self, node):
+        node = super().check(node)
+        return AttributeMappingNode.from_map_node(node)

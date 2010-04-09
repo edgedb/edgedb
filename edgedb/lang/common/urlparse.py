@@ -6,24 +6,36 @@
 ##
 
 
-from urllib.parse import urlsplit, urlunsplit, SplitResult
+from urllib.parse import urlsplit, urlunsplit, SplitResult, parse_qs
 
-protocol_map = {'pq': 'file'}
+
+protocol_map = {'pymod': 'http'}
 
 def urlparse(url):
     result = urlsplit(url)
     if '+' in result.scheme:
         protocol, transport = result.scheme.split('+')
-
-        if transport in protocol_map:
-            scheme = protocol_map[transport]
-        else:
-            scheme = transport
-
-        result = SplitResult(scheme, result.netloc, result.path, result.query, result.fragment)
-        result = urlsplit(urlunsplit(result))
-        result = (protocol, result)
     else:
-        result = (result.scheme, result)
+        protocol = transport = result.scheme
+
+    if transport in protocol_map:
+        scheme = protocol_map[transport]
+    else:
+        scheme = transport
+
+    result = SplitResult(scheme, result.netloc, result.path, result.query, result.fragment)
+    result = urlsplit(urlunsplit(result))
+
+    scheme, netloc, path, query, fragment = result
+
+    if protocol == 'pymod':
+        path = result.path.lstrip('/')
+
+    if query:
+        query = parse_qs(query)
+
+    result = SplitResult(protocol, netloc, path, query, fragment)
+
+    result = (protocol, result)
 
     return result

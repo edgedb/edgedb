@@ -10,6 +10,16 @@ from .error import BackendResolverError
 
 
 class BackendResolverHelper:
+    def get_delta_repo(self, url):
+        if url.query:
+            deltarepo = url.query.get('deltarepo')
+            if deltarepo:
+                deltarepo = deltarepo[0]
+        else:
+            deltarepo = None
+
+        return deltarepo
+
     def resolve(self, url):
         pass
 
@@ -66,9 +76,10 @@ class BackendResolverDataHelper(metaclass=BackendResolverDataHelperMeta):
 
 
 class BackendShell(object):
-    def __init__(self, backend_class, **kwargs):
+    def __init__(self, backend_class, delta_repo_class, **kwargs):
         self.backend_class = backend_class
+        self.delta_repo_class = delta_repo_class
         self.args = kwargs
 
     def instantiate(self):
-        return self.backend_class(**self.args)
+        return self.backend_class(deltarepo=self.delta_repo_class, **self.args)

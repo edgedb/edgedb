@@ -15,6 +15,9 @@ params:
     schema_name:
         type: str
         default: "public"
+    max_depth:
+        type: int
+        default: null
 
 source: |
         SELECT
@@ -25,7 +28,7 @@ source: |
                                 c.oid,
                                 c.relname,
                                 ns.nspname,
-                                1,
+                                0,
                                 ARRAY[c.relname]
                             FROM
                                 pg_class c
@@ -49,7 +52,8 @@ source: |
                                 i.oid = pgi.inhrelid
                                 AND c.oid = pgi.inhparent
                                 AND ns.oid = c.relnamespace
+                                AND (%(max_depth)s::int IS NULL OR i.depth < %(max_depth)s::int)
                 )
-                SELECT DISTINCT ON (name) name, ns, depth FROM inheritance) q
+                SELECT DISTINCT ON (name, ns) name, ns, depth FROM inheritance) q
             ORDER BY
                 depth

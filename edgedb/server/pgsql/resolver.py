@@ -13,6 +13,9 @@ from semantix.caos.backends.resolver.shell import BackendShell, BackendResolverH
 from semantix.caos.backends.resolver.error import BackendResolverError
 from semantix.caos.backends.pgsql.backend import Backend
 
+from .deltarepo import MetaDeltaRepository
+
+
 class BackendResolver(BackendResolverHelper):
     def resolve(self, url):
         url = urllib.parse.urlunsplit(url)
@@ -24,4 +27,5 @@ class BackendResolver(BackendResolverHelper):
                                             'that the database exists and is accessible ',
                                        details=str(e)) from e
 
-        return BackendShell(backend_class=Backend, connection=connection)
+        return BackendShell(backend_class=Backend, delta_repo_class=MetaDeltaRepository,
+                            connection=connection)

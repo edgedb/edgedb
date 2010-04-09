@@ -6,20 +6,23 @@
 ##
 
 
+import os
 import re
 import importlib
 
 import postgresql.string
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
-from semantix.utils import graph
+from semantix.utils import graph, helper
 from semantix.utils.debug import debug
+from semantix.utils.lang import yaml
 from semantix.utils.nlang import morphology
 
 from semantix import caos
 
 from semantix.caos import backends
 from semantix.caos import proto
+from semantix.caos import delta as base_delta
 
 from semantix.caos.backends.pgsql import common
 from semantix.caos.backends.pgsql import sync
@@ -97,88 +100,94 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     }
 
 
-    def __init__(self, connection):
-        super().__init__()
-
+    def __init__(self, deltarepo, connection):
         self.connection = connection
         sync.EnableHstoreFeature.init_hstore(connection)
 
         self.domains = set()
-        schemas = introspection.SchemasList(self.connection).fetch(schema_name='caos%')
-        self.modules = {common.schema_name_to_caos_module_name(s['name']) for s in schemas}
+        self.modules = self.read_modules()
 
         self.column_map = {}
 
+        self.meta = proto.RealmMeta(load_builtins=False)
+
+        repo = deltarepo(connection)
+        super().__init__(repo)
+
 
     def getmeta(self):
-        meta = proto.RealmMeta(load_builtins=False)
+        if not self.meta.index:
+            if 'caos' in self.modules:
+                self.read_atoms(self.meta)
+                self.read_concepts(self.meta)
+                self.read_links(self.meta)
 
-        if 'caos' in self.modules:
-            self.read_atoms(meta)
-            self.read_concepts(meta)
-            self.read_links(meta)
-
-        return meta
-
-
-    def get_delta(self, meta):
-        delta = meta.delta(self.getmeta())
-        return delta
+        return self.meta
 
 
     def adapt_delta(self, delta):
         return sync.CommandMeta.adapt(delta)
 
 
-    def get_synchronization_plan(self, delta):
-        meta = self.getmeta()
+    def get_synchronization_plan(self, delta, meta):
+        delta = self.adapt_delta(delta)
         delta.apply(meta)
         return delta
 
 
-    def apply_synchronization_plan(self, plan):
+    def apply_synchronization_plan(self, plans):
         with self.connection.xact():
-            plan.execute(self.connection)
+            for plan in plans:
+                plan.execute(self.connection)
 
 
     @debug
     def apply_delta(self, delta):
-        plan = self.get_synchronization_plan(self.adapt_delta(delta))
-        """LOG [caos.meta.pgsql.delta.plan] Delta Plan
-        print(plan)
-        """
-        self.apply_synchronization_plan(plan)
-
-
-    def get_meta_log(self, limit=None):
-        table = sync.MetaLogTable()
-        condition = sync.TableExists(table.name)
-        record = table.record
-
-        have_metalog = condition.execute(self.connection)
-
-        result = []
-
-        if have_metalog:
-            query = 'SELECT * FROM %s ORDER BY commit_date DESC' % common.qname(*table.name)
-            if limit:
-                query += ' LIMIT %d' % limit
-            ps = self.connection.prepare(query)
-
-            for row in ps:
-                rec = record(**row)
-                rec.checksum = int(rec.checksum, base=16)
-                result.append(rec)
-
-        return result
-
-
-    def is_synchronized(self, meta):
-        result = self.get_meta_log(1)
-        if result:
-            return result[0].checksum == meta.get_checksum(), result[0]
+        if isinstance(delta, base_delta.DeltaSet):
+            deltas = list(delta)
         else:
-            return False, None
+            deltas = [delta]
+
+        plans = []
+
+        meta = self.getmeta()
+
+        for d in deltas:
+            plan = self.get_synchronization_plan(d.deltas[0], meta)
+            """LOG [caos.meta.pgsql.delta.plan] Delta Plan
+            print(plan)
+            """
+            plans.append(plan)
+
+        table = sync.DeltaLogTable()
+        records = []
+        for d in deltas:
+            rec = table.record(
+                    id='%x' % d.id,
+                    parents=['%x' % d.parent_id] if d.parent_id else None,
+                    checksum='%x' % d.checksum,
+                    committer=os.getenv('LOGNAME', '<unknown>')
+                  )
+            records.append(rec)
+
+        plans.append(sync.Insert(table, records=records))
+
+        table = sync.DeltaRefTable()
+        rec = table.record(
+                id='%x' % d.id,
+                ref='HEAD'
+              )
+        condition = [('ref', str('HEAD'))]
+        plans.append(sync.Merge(table, record=rec, condition=condition))
+
+        self.apply_synchronization_plan(plans)
+
+        self.invalidate_meta_cache()
+
+
+    def invalidate_meta_cache(self):
+        self.meta = proto.RealmMeta(load_builtins=False)
+        self.modules = self.read_modules()
 
 
     def load_entity(self, concept, id):
@@ -287,6 +296,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return CaosQLCursor(self.connection)
 
 
+    def read_modules(self):
+        schemas = introspection.SchemasList(self.connection).fetch(schema_name='caos%')
+        return {common.schema_name_to_caos_module_name(s['name']) for s in schemas}
+
+
     def read_atoms(self, meta):
         domains = introspection.domains.DomainsList(self.connection).fetch(schema_name='caos%',
                                                                            domain_name='%_domain')
@@ -297,32 +311,42 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         atom_list = datasources.AtomList(self.connection).fetch()
 
-        atoms = {}
         for row in atom_list:
             name = caos.Name(row['name'])
 
             if name not in domains:
                 continue
 
-            atoms[name] = {'name': name,
-                           'title': self.hstore_to_word_combination(row['title']),
-                           'description': self.hstore_to_word_combination(row['description']),
-                           'automatic': row['automatic'],
-                           'is_abstract': row['is_abstract'],
-                           'base': row['base']}
+            atom_data = {'name': name,
+                         'title': self.hstore_to_word_combination(row['title']),
+                         'description': self.hstore_to_word_combination(row['description']),
+                         'automatic': row['automatic'],
+                         'is_abstract': row['is_abstract'],
+                         'base': row['base'],
+                         'mods': row['mods'],
+                         'default': row['default']
+                         }
+
+            if atom_data['default']:
+                atom_data['default'] = next(iter(yaml.Language.load(row['default'])))
 
             domain_descr = domains[name]
 
-            bases = caos.Name(atoms[name]['base'])
-            atom = proto.Atom(name=name, base=bases, default=domain_descr['default'],
-                              title=atoms[name]['title'], description=atoms[name]['description'],
-                              automatic=atoms[name]['automatic'],
-                              is_abstract=atoms[name]['is_abstract'])
+            bases = caos.Name(atom_data['base'])
+            atom = proto.Atom(name=name, base=bases, default=atom_data['default'],
+                              title=atom_data['title'], description=atom_data['description'],
+                              automatic=atom_data['automatic'],
+                              is_abstract=atom_data['is_abstract'])
 
             if domain_descr['constraints'] is not None:
                 for constraint_type in domain_descr['constraints']:
                     for constraint_expr in domain_descr['constraints'][constraint_type]:
                         atom.add_mod(constraint_type(constraint_expr))
+
+            if row['mods']:
+                for cls, val in row['mods'].items():
+                    mod = helper.get_object(cls)(next(iter(yaml.Language.load(val))))
+                    atom.add_mod(mod)
 
             meta.add(atom)
 
@@ -627,7 +651,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def pg_table_inheritance_to_bases(self, table_name, schema_name):
         inheritance = introspection.table.TableInheritance(self.connection)
-        inheritance = inheritance.fetch(table_name=table_name, schema_name=schema_name)
+        inheritance = inheritance.fetch(table_name=table_name, schema_name=schema_name, max_depth=1)
         inheritance = [i[:2] for i in inheritance[1:]]
 
         bases = tuple()
@@ -685,8 +709,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                 if typname in sync.typmod_types and typmod is not None:
                     atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,
-                                        automatic=True)
+                                      automatic=True)
                     atom.add_mod(proto.AtomModMaxLength(typmod))
+                    if typname in sync.fixed_length_types.values():
+                        atom.add_mod(proto.AtomModMinLength(typmod))
                     meta.add(atom)
 
         assert atom

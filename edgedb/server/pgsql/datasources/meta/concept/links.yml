@@ -9,8 +9,6 @@
 %SCHEMA semantix.caos.datasources.schemas.Sql
 %NAME ConceptLinks
 ---
-cache: memory
-
 params:
     source_concept:
         type: str

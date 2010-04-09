@@ -1,0 +1,58 @@
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%SCHEMA semantix.utils.lang.yaml.schema.Schema
+%NAME Delta
+---
+type: map
+object: semantix.caos.backends.yaml.delta.DeltaSet
+required: true
+mapping:
+    '=':
+        type: map
+        required: true
+        object: semantix.caos.backends.yaml.delta.Delta
+        mapping:
+            "id":
+                type: str
+                required: yes
+
+            "parent_id":
+                type: str
+                required: yes
+
+            "checksum":
+                type: str
+                required: yes
+
+            "comment":
+                type: str
+
+            "deltas":
+                type: seq
+                required: yes
+                sequence:
+                    - &DELTA
+                      type: class
+                      fields:
+                        "ops":
+                            type: seq
+                            sequence:
+                                - *DELTA
+
+                        "properties":
+                            type: seq
+                            sequence:
+                                - type: map
+                                  mapping:
+                                    =:
+                                        type: seq
+                                        max-length: 2
+                                        min-length: 2
+                                        sequence:
+                                            - type: any
