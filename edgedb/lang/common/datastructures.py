@@ -327,11 +327,12 @@ class NoDefault:
 
 
 class Field:
-    def __init__(self, type, default=NoDefault):
+    def __init__(self, type, default=NoDefault, *, str_formatter=str, repr_formatter=repr):
         if not isinstance(type, tuple):
             type = (type,)
         self.type = type
         self.default = default
+        self.formatters = {'str': str_formatter, 'repr': repr_formatter}
 
     def adapt(self, value):
         if not isinstance(value, self.type):
@@ -418,3 +419,15 @@ class Struct(metaclass=StructMeta):
 
         args = {f: getattr(obj, f) for f in cls._fields.keys()}
         return cls(**args)
+
+    def formatfields(self, context='str'):
+        for name, field in self.__class__._fields.items():
+            formatter = field.formatters.get(context)
+            if formatter:
+                yield (name, formatter(getattr(self, name)))
+
+    def __str__(self):
+        return ', '.join('%s=%s' % (name, value) for name, value in self.formatfields('str'))
+
+    def __repr__(self):
+        return ', '.join('%s=%s' % (name, value) for name, value in self.formatfields('repr'))
