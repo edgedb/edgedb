@@ -47,8 +47,9 @@ class SchemaType(object):
         else:
             return yaml.nodes.ScalarNode(value=value, tag='tag:yaml.org,2002:str')
 
-    def check_tag(self, node, tag):
-        return node.tag == tag or hasattr(node, 'tags') and tag in node.tags
+    def check_tag(self, node, tag, allow_null=True):
+        return node.tag == tag or hasattr(node, 'tags') and tag in node.tags \
+                               or allow_null and node.tag == 'tag:yaml.org,2002:null'
 
     def push_tag(self, node, tag):
         if not hasattr(node, 'tags'):
