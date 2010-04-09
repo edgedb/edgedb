@@ -47,6 +47,8 @@ class Datasource(object):
     def __init__(self):
         self.params = self.descriptor.get('params', None)
 
+    def describe_output(self):
+        raise NotImplementedError
 
     def _filter_params(self, params):
         if self.params is None:
@@ -72,6 +74,5 @@ class Datasource(object):
 
         return filtered
 
-
     def fetch(self, **params):
-        raise NotImplemented
+        raise NotImplementedError

@@ -59,6 +59,9 @@ class Query:
 
         return result
 
+    def describe_output(self):
+        return dict(zip(self.statement.column_names, self.statement.column_types))
+
     __iter__ = rows
 
 
