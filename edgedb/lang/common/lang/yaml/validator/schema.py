@@ -65,3 +65,12 @@ class Schema(object):
         self.root.end_checks()
 
         return result
+
+    def push_tag(self, node, tag):
+        if not hasattr(node, 'tags'):
+            node.tags = [node.tag]
+        else:
+            node.tags.add(node.tag)
+        node.tag = tag
+
+        return tag

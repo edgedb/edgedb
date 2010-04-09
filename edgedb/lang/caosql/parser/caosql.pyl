@@ -42,6 +42,7 @@ INITIAL:
     "#"                 : return "#"
     "\?"                : return "?"
     "\*"                : return "*"
+    "\$"                : return "$"
     "[Aa][Nn][Dd]"      : return "AND"
     "[Oo][Rr]"          : return "OR"
     "[Nn][Oo][Tt]"      : return "NOT"

@@ -106,7 +106,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             node = self._process_path(context, expr)
 
         elif isinstance(expr, qlast.ConstantNode):
-            node = tree.ast.Constant(value=expr.value)
+            node = tree.ast.Constant(value=expr.value, index=expr.index)
 
         elif isinstance(expr, qlast.SequenceNode):
             elements=[self._process_expr(context, e) for e in expr.elements]

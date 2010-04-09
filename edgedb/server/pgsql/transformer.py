@@ -13,6 +13,7 @@ from semantix.caos import caosql, tree
 from semantix.caos import types as caos_types
 from semantix.caos.backends import pgsql
 from semantix.utils.debug import debug
+from semantix.utils.datastructures import OrderedSet
 
 
 class Alias(str):
@@ -36,6 +37,7 @@ class TransformerContextLevel(object):
             self.aliascnt = prevlevel.aliascnt.copy()
             self.ctemap = prevlevel.ctemap.copy()
             self.concept_node_map = prevlevel.concept_node_map.copy()
+            self.argmap = prevlevel.argmap
             self.location = 'query'
             self.append_graphs = False
             self.query = prevlevel.query
@@ -45,6 +47,7 @@ class TransformerContextLevel(object):
             self.aliascnt = {}
             self.ctemap = {}
             self.concept_node_map = {}
+            self.argmap = OrderedSet()
             self.location = 'query'
             self.append_graphs = False
             self.query = pgsql.ast.SelectQueryNode()
@@ -121,7 +124,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
     @debug
     def transform(self, query):
         # Transform to sql tree
-        qtree = self._transform_tree(query)
+        qtree, argmap = self._transform_tree(query)
 
         """LOG [caos.query] SQL Tree
         self._dump(qtree)
@@ -135,7 +138,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         print(highlight(qtext, 'sql'))
         """
 
-        return qtext
+        return qtext, argmap
 
     def _dump(self, tree):
         print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*|caosnode)$'))
@@ -149,7 +152,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         self._process_selector(context, tree.selector)
         self._process_sorter(context, tree.sorter)
 
-        return context.current.query
+        return context.current.query, context.current.argmap
 
     def _process_generator(self, context, generator):
         context.current.location = 'generator'
@@ -236,7 +239,15 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
                 result = pgsql.ast.BinOpNode(op=expr.op, left=left, right=right)
 
         elif isinstance(expr, tree.ast.Constant):
-            result = pgsql.ast.ConstantNode(value=expr.value, index=expr.index)
+            if expr.index is not None and not isinstance(expr.index, int):
+                if expr.index in context.current.argmap:
+                    index = context.current.argmap.index(expr.index)
+                else:
+                    context.current.argmap.add(expr.index)
+                    index = len(context.current.argmap) - 1
+            else:
+                index = expr.index
+            result = pgsql.ast.ConstantNode(value=expr.value, index=index)
 
         elif isinstance(expr, tree.ast.Sequence):
             elements = [self._process_expr(context, e, cte) for e in expr.elements]
@@ -265,8 +276,8 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
 
                 data_table = cte_refs.get('data')
                 if data_table:
-                    ref = pgsql.ast.FieldRefNode(table=data_table, field=expr.name, origin=data_table,
-                                                                                    origin_field=expr.name)
+                    ref = pgsql.ast.FieldRefNode(table=data_table, field=expr.name,
+                                                 origin=data_table, origin_field=expr.name)
                 else:
                     key = ('meta', expr.name) if isinstance(expr, tree.ast.MetaRef) else expr.name
                     ref = cte_refs.get(key)

@@ -33,26 +33,36 @@ from .datasources import introspection
 from .transformer import CaosTreeTransformer
 
 
-class Query(object):
-    def __init__(self, text, statement=None, vars=None, context=None):
+class Query:
+    def __init__(self, text, statement, argmap, context=None):
         self.text = text
-        self.vars = vars
+        self.argmap = argmap
         self.context = context
         self.statement = statement
 
-    def __call__(self, *vars):
+    def __call__(self, *args, **kwargs):
+        vars = self.convert_args(args, kwargs)
         return self.statement(*vars)
 
-    def rows(self, *vars):
-        return self.statement.rows(*vars)
+    def rows(self, *args, **kwargs):
+        vars = self.convert_args(args, kwargs)
+        return self.statement.rows(vars)
 
-    def chunks(self, *vars):
+    def chunks(self, *args, **kwargs):
+        vars = self.convert_args(args, kwargs)
         return self.statement.chunks(*vars)
+
+    def convert_args(self, args, kwargs):
+        result = args or []
+        for k in self.argmap:
+            result.append(kwargs[k])
+
+        return result
 
     __iter__ = rows
 
 
-class CaosQLCursor(object):
+class CaosQLCursor:
     cache = {}
 
     def __init__(self, connection):
@@ -65,20 +75,16 @@ class CaosQLCursor(object):
     def prepare(self, query):
         result = self.cache.get(query)
         if not result:
-            qtext = self.transformer.transform(query)
+            qtext, argmap = self.transformer.transform(query)
             ps = self.connection.prepare(qtext)
-            self.cache[query] = (qtext, ps)
+            self.cache[query] = (qtext, ps, argmap)
         else:
-            qtext, ps = result
+            qtext, ps, argmap = result
             """LOG [cache.caos.query] Cache Hit
             print(qtext)
             """
 
-        return Query(text=qtext, statement=ps)
-
-    def execute(self, query, vars=None):
-        native_query = self.prepare_query(query)
-        return native_query.rows(*vars)
+        return Query(text=qtext, statement=ps, argmap=argmap)
 
 
 class Backend(backends.MetaBackend, backends.DataBackend):

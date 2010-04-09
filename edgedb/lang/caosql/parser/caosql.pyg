@@ -213,6 +213,10 @@ constant                        -> NULL:
                                         return ConstantNode(value=kids[0].strip('"\''))
                                  | boolean_constant:
                                         return kids[0]
+                                 | '$' NUMBER:
+                                        return ConstantNode(value=None, index=int(kids[1]))
+                                 | '$' IDENTIFIER:
+                                        return ConstantNode(value=None, index=str(kids[1]))
 ;
 
 boolean_constant                -> TRUE:
