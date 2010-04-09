@@ -14,8 +14,14 @@ class MetaDeltaRepository:
     def load_delta(self, id):
         raise NotImplementedError
 
-    def resolve_delta_ref(self, ref):
+    def delta_ref_to_id(self, ref):
         raise NotImplementedError
+
+    def resolve_delta_ref(self, ref):
+        ref = delta.DeltaRef.parse(ref)
+        if not ref:
+            raise delta.DeltaRefError('unknown revision: %s' % ref)
+        return self.delta_ref_to_id(ref)
 
     def update_delta_ref(self, ref, id):
         raise NotImplementedError
@@ -44,26 +50,55 @@ class MetaDeltaRepository:
             yield delta
             current_rev = delta.parent_id
 
-    def calculate_delta(self, current_meta, comment=None):
-        head = self.get_delta()
+    def get_meta(self, delta_obj):
+        deltas = self.get_deltas(None, delta_obj.id)
+        meta = proto.RealmMeta(load_builtins=False)
+        deltas.apply(meta)
+        return meta
 
-        meta_snapshot = proto.RealmMeta(load_builtins=False)
+    def _cumulative_delta(self, ref1, ref2):
+        delta = None
+        v1 = self.load_delta(ref1) if ref1 else None
 
-        if head:
-            if head.checksum == current_meta.get_checksum():
-                return
-            else:
-                deltas = self.get_deltas(None, head.id)
-                deltas.apply(meta_snapshot)
+        if isinstance(ref2, proto.RealmMeta):
+            v2 = None
+            v2_meta = ref2
+        else:
+            v2 = self.load_delta(ref2)
+            v2_meta = self.get_meta(v2)
 
-        d = current_meta.delta(meta_snapshot)
-        parent_id = head.id if head else None
-        checksum = current_meta.get_checksum()
+        if v1 and v1.checksum == v2_meta.get_checksum():
+            return None
 
-        delta_obj = delta.Delta(parent_id=parent_id, checksum=checksum,
-                                comment=comment, deltas=[d])
+        if v1:
+            v1_meta = self.get_meta(v1)
+        else:
+            v1_meta = proto.RealmMeta(load_builtins=False)
 
-        return delta_obj
+        delta = v2_meta.delta(v1_meta)
+
+        return v1, v1_meta, v2, v2_meta, delta
+
+    def cumulative_delta(self, ref1, ref2):
+        cdelta = self._cumulative_delta(ref1, ref2)
+        if cdelta:
+            return cdelta[4]
+        else:
+            return None
+
+    def calculate_delta(self, ref1, ref2, comment=None):
+        cdelta = self._cumulative_delta(ref1, ref2)
+
+        if cdelta:
+            v1, v1_meta, v2, v2_meta, d = cdelta
+
+            parent_id = v1.id if v1 else None
+            checksum = v2_meta.get_checksum()
+
+            return delta.Delta(parent_id=parent_id, checksum=checksum,
+                               comment=comment, deltas=[d])
+        else:
+            return None
 
 
 class MetaBackend:
@@ -82,7 +117,8 @@ class MetaBackend:
             return True
 
     def record_delta(self, comment=None):
-        delta_obj = self.deltarepo.calculate_delta(self.getmeta(), comment)
+        ref1 = self.deltarepo.resolve_delta_ref('HEAD')
+        delta_obj = self.deltarepo.calculate_delta(ref1, self.getmeta(), comment)
         if delta_obj:
             self.deltarepo.write_delta(delta_obj)
             self.deltarepo.update_delta_ref('HEAD', delta_obj.id)

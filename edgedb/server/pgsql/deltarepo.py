@@ -8,16 +8,19 @@
 
 from semantix.caos import backends
 
+from semantix.caos import delta as base_delta
+
 from . import common
 from . import delta
 
+from .datasources.deltalog import DeltaLog
 
 
 class MetaDeltaRepository(backends.MetaDeltaRepository):
     def __init__(self, connection):
         self.connection = connection
 
-    def resolve_delta_ref(self, ref):
+    def delta_ref_to_id(self, ref):
         table = delta.DeltaRefTable()
         condition = delta.TableExists(table.name)
         have_deltaref = condition.execute(self.connection)
@@ -29,12 +32,20 @@ class MetaDeltaRepository(backends.MetaDeltaRepository):
 
             ps = self.connection.prepare(query)
 
-            result = ps.first(ref) or ref
+            result = ps.first(ref.ref) or ref.ref
 
             try:
                 result = int(result, 16)
             except ValueError:
                 result = None
+
+            if ref.offset:
+                rev_id = '%x' % result
+                result = DeltaLog(self.connection).fetch(rev_id=rev_id, offset=ref.offset)
+
+                if not result:
+                    raise base_delta.DeltaRefError('unknown revision: %s' % ref)
+                result = int(result[0][0], 16)
 
             return result
         else:

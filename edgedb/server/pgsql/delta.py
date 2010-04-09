@@ -1109,7 +1109,7 @@ class DeltaRefTable(Table):
         super().__init__(name=name)
 
         self.__columns = datastructures.OrderedSet([
-            Column(name='id', type='char(40)', required=True),
+            Column(name='id', type='varchar', required=True),
             Column(name='ref', type='text', required=True)
         ])
 
@@ -1124,9 +1124,9 @@ class DeltaLogTable(Table):
         super().__init__(name=name)
 
         self.__columns = datastructures.OrderedSet([
-            Column(name='id', type='char(40)', required=True),
-            Column(name='parents', type='char(40)[]', required=False),
-            Column(name='checksum', type='char(40)', required=True),
+            Column(name='id', type='varchar', required=True),
+            Column(name='parents', type='varchar[]', required=False),
+            Column(name='checksum', type='varchar', required=True),
             Column(name='commit_date', type='timestamp with time zone', required=True,
                                                                         default='CURRENT_TIMESTAMP'),
             Column(name='committer', type='text', required=True),

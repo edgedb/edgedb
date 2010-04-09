@@ -154,7 +154,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         for d in deltas:
             plan = self.get_synchronization_plan(d.deltas[0], meta)
             """LOG [caos.meta.pgsql.delta.plan] Delta Plan
-            print(plan)
+            print(plan.dump())
             """
             plans.append(plan)
 

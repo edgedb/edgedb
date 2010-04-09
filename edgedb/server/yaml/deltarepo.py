@@ -35,20 +35,32 @@ class MetaDeltaRepository(backends.MetaDeltaRepository):
         with open(path, 'w') as f:
             f.write(self.dump_delta_set(delta_set))
 
-    def resolve_delta_ref(self, ref):
+    def delta_ref_to_id(self, ref):
         id = None
 
-        if ref:
-            refpath = self.get_ref_file_path(ref)
-            if os.path.exists(refpath):
-                with open(refpath, 'r') as f:
-                    id = int(f.read(40), 16)
-            else:
-                if len(ref) == 40:
-                    try:
-                        id = int(ref, 16)
-                    except ValueError:
-                        pass
+        refpath = self.get_ref_file_path(ref.ref)
+        if os.path.exists(refpath):
+            with open(refpath, 'r') as f:
+                id = int(f.read(40), 16)
+        else:
+            try:
+                delta_id = int(ref.ref, 16)
+                deltapath = self.get_delta_file_path(delta_id)
+                if os.path.exists(deltapath):
+                    id = delta_id
+            except ValueError:
+                pass
+
+        if id and ref.offset:
+            for _ in range(ref.offset):
+                delta = self.load_delta(id)
+                if not delta:
+                    id = None
+                    break
+                id = delta.parent_id
+                if not id:
+                    raise base_delta.DeltaRefError('unknown revision: %s' % ref)
+
         return id
 
     def update_delta_ref(self, ref, id):

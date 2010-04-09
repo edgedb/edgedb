@@ -9,6 +9,8 @@
 from semantix.caos import backends
 from semantix.utils.datastructures import OrderedIndex
 
+from semantix.caos import delta as delta_cmds
+
 
 class MetaDeltaRepository(backends.MetaDeltaRepository):
     def __init__(self):
@@ -21,8 +23,16 @@ class MetaDeltaRepository(backends.MetaDeltaRepository):
     def load_delta(self, delta_id):
         return self.deltas[delta_id]
 
-    def resolve_delta_ref(self, ref):
-        return self.refs.get(ref)
+    def delta_ref_to_id(self, ref):
+        if not ref.offset:
+            return self.refs.get(ref.ref)
+        else:
+            deltas = list(self.deltas.keys())
+
+            try:
+                return deltas[deltas.index(ref.ref) - ref.offset]
+            except IndexError:
+                raise delta_cmds.DeltaRefError('unknown revision: %s' % ref)
 
     def update_delta_ref(self, ref, id):
         self.refs[ref] = id

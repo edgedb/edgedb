@@ -1,0 +1,46 @@
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%SCHEMA semantix.caos.datasources.schemas.Sql
+%NAME DeltaLog
+---
+params:
+    rev_id:
+        type: str
+    offset:
+        type: int
+        default: 0
+
+source: |
+        SELECT
+                *
+            FROM
+                (WITH RECURSIVE deltalog("id", "offset", "parents") AS (
+                        SELECT
+                                log.id      AS "id",
+                                0           AS "offset",
+                                log.parents AS "parents"
+                            FROM
+                                caos.deltalog log
+                            WHERE
+                                log.id = %(rev_id)s
+                      UNION ALL
+                        SELECT
+                                log.id            AS "id",
+                                l."offset" + 1    AS "offset",
+                                log.parents AS "parents"
+                            FROM
+                                caos.deltalog log,
+                                deltalog l
+                            WHERE
+                                log.id = any(l.parents)
+                                AND l."offset" < %(offset)s::int
+                )
+                SELECT "id", "offset" FROM deltalog) q
+            WHERE
+                "offset" = %(offset)s::int
