@@ -323,8 +323,6 @@ class MetaSet(LangObject):
             self.include_builtin = False
             realm_meta_class = proto.RealmMeta
 
-        self.finalindex = realm_meta_class()
-
         self.toplevel = context.document.import_context.toplevel
         globalindex = context.document.import_context.metaindex
 
@@ -333,6 +331,12 @@ class MetaSet(LangObject):
         if not self.module:
             self.module = context.document.module.__name__
         localindex.add_module(self.module, None)
+
+        if self.toplevel and self.module and caos.Name.is_qualified(self.module):
+            main_module = caos.Name(self.module)
+        else:
+            main_module = None
+        self.finalindex = realm_meta_class(main_module=main_module)
 
         for alias, module in context.document.imports.items():
             localindex.add_module(module.__name__, alias)
