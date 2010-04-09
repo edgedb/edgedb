@@ -6,6 +6,11 @@
 ##
 
 
+import importlib
+
+from semantix import SemantixError
+
+
 def dump(stuff):
     if (not (isinstance(stuff, str) or isinstance(stuff, int)
              or isinstance(stuff, list) or isinstance(stuff, dict)
@@ -56,3 +61,15 @@ def dump_code_context(filename, lineno, dump_range=4):
         source_snippet += line
 
     return source_snippet
+
+
+class ObjectImportError(SemantixError):
+    pass
+
+
+def get_object(cls):
+    try:
+        mod, _, name = cls.rpartition('.')
+        return getattr(importlib.import_module(mod), name)
+    except (ImportError, AttributeError) as e:
+        raise ObjectImportError('could not load object %s' % cls) from e
