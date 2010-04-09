@@ -13,6 +13,7 @@ import sys
 from semantix import SemantixError
 
 from semantix.utils import datastructures
+from semantix.utils import debug
 from semantix.utils.io import terminal
 
 from . import reqs
@@ -101,12 +102,16 @@ class Command(CommandBase, name=None):
 class MainCommand(CommandGroup, name='__main__'):
     def create_parser(self, parser):
         parser.add_argument('--color', choices=('auto', 'always', 'never'), default='auto')
+        parser.add_argument('-d', '--debug', dest='debug', action='append')
         return parser
 
     def __call__(self, args):
         color = None if args.color == 'auto' else args.color == 'always'
         term = terminal.Terminal(sys.stdout.fileno(), colors=color)
         args.color = term.has_colors()
+
+        if args.debug:
+            debug.channels.update(args.debug)
 
         try:
             super().__call__(args)

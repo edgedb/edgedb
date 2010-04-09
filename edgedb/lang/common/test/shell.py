@@ -21,7 +21,6 @@ class TestCommand(shell.Command, name='test', expose=True):
         parser.add_argument('--color', action='store_true', default=True)
         parser.add_argument('--no-color', dest='color', action='store_false')
         parser.add_argument('--no-magic', dest='magic', action='store_false', default=True)
-        parser.add_argument('-d', '--debug', dest='debug', action='append')
         parser.add_argument('tests', nargs='*')
 
         return parser
