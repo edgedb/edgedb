@@ -333,6 +333,18 @@ class Field:
         self.type = type
         self.default = default
 
+    def adapt(self, value):
+        if not isinstance(value, self.type):
+            for t in self.type:
+                try:
+                    value = t(value)
+                except TypeError:
+                    pass
+                else:
+                    break
+
+        return value
+
 
 class StructMeta(type):
     def __init__(cls, name, bases, clsdict):
