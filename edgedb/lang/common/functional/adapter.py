@@ -34,16 +34,29 @@ class Adapter(type):
         super().__init__(name, bases, clsdict)
 
     @classmethod
+    def get_adapter(mcls, cls):
+        for mc in [mcls] + mcls.__subclasses__(mcls):
+            adapters = Adapter.adapters.get(mc)
+
+            if adapters:
+                for adaptee, adapter in adapters.items():
+                    for c in cls.mro():
+                        if issubclass(c, adapter):
+                            return c
+                        elif issubclass(c, adaptee):
+                            return adapter
+            else:
+                adapter = mc.get_adapter(cls)
+                if adapter:
+                    return adapter
+
+    @classmethod
     def adapt(mcls, obj):
-        adapters = Adapter.adapters.get(mcls)
-
-        if adapters:
-            for adaptee, adapter in adapters.items():
-                for cls in obj.__class__.mro():
-                    if issubclass(cls, adapter):
-                        return obj
-                    elif issubclass(cls, adaptee):
-                        return adapter.adapt(obj)
-
-        raise AdapterError('could not find %s.%s adapter for %s' % \
-                             (mcls.__module__, mcls.__name__, obj.__class__.__name__))
+        adapter = mcls.get_adapter(obj.__class__)
+        if adapter is None:
+            raise AdapterError('could not find %s.%s adapter for %s' % \
+                               (mcls.__module__, mcls.__name__, obj.__class__.__name__))
+        elif adapter is not obj.__class__:
+            return adapter.adapt(obj)
+        else:
+            return obj
