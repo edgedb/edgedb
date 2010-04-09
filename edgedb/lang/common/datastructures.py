@@ -351,14 +351,19 @@ class StructMeta(type):
         super().__init__(name, bases, clsdict)
 
         fields = {}
+        myfields = {k: v for k, v in clsdict.items() if isinstance(v, Field)}
 
         for parent in reversed(cls.mro()):
             if parent is cls:
-                fields.update({k: v for k, v in clsdict.items() if isinstance(v, Field)})
+                fields.update(myfields)
             elif isinstance(parent, StructMeta):
-                fields.update(parent._fields)
+                fields.update(parent.get_ownfields())
 
         cls._fields = fields
+        setattr(cls, '%s.%s_fields' % (cls.__module__, cls.__name__), myfields)
+
+    def get_ownfields(cls):
+        return getattr(cls, '%s.%s_fields' % (cls.__module__, cls.__name__))
 
 
 class Struct(metaclass=StructMeta):
