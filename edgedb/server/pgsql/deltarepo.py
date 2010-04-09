@@ -9,7 +9,7 @@
 from semantix.caos import backends
 
 from . import common
-from . import sync
+from . import delta
 
 
 
@@ -18,8 +18,8 @@ class MetaDeltaRepository(backends.MetaDeltaRepository):
         self.connection = connection
 
     def resolve_delta_ref(self, ref):
-        table = sync.DeltaRefTable()
-        condition = sync.TableExists(table.name)
+        table = delta.DeltaRefTable()
+        condition = delta.TableExists(table.name)
         have_deltaref = condition.execute(self.connection)
 
         result = []

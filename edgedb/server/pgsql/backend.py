@@ -25,7 +25,7 @@ from semantix.caos import proto
 from semantix.caos import delta as base_delta
 
 from semantix.caos.backends.pgsql import common
-from semantix.caos.backends.pgsql import sync
+from semantix.caos.backends.pgsql import delta as delta_cmds
 
 from . import datasources
 from .datasources import introspection
@@ -102,7 +102,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def __init__(self, deltarepo, connection):
         self.connection = connection
-        sync.EnableHstoreFeature.init_hstore(connection)
+        delta_cmds.EnableHstoreFeature.init_hstore(connection)
 
         self.domains = set()
         self.modules = self.read_modules()
@@ -126,7 +126,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def adapt_delta(self, delta):
-        return sync.CommandMeta.adapt(delta)
+        return delta_cmds.CommandMeta.adapt(delta)
 
 
     def get_synchronization_plan(self, delta, meta):
@@ -159,7 +159,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             """
             plans.append(plan)
 
-        table = sync.DeltaLogTable()
+        table = delta_cmds.DeltaLogTable()
         records = []
         for d in deltas:
             rec = table.record(
@@ -170,15 +170,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                   )
             records.append(rec)
 
-        plans.append(sync.Insert(table, records=records))
+        plans.append(delta_cmds.Insert(table, records=records))
 
-        table = sync.DeltaRefTable()
+        table = delta_cmds.DeltaRefTable()
         rec = table.record(
                 id='%x' % d.id,
                 ref='HEAD'
               )
         condition = [('ref', str('HEAD'))]
-        plans.append(sync.Merge(table, record=rec, condition=condition))
+        plans.append(delta_cmds.Merge(table, record=rec, condition=condition))
 
         self.apply_synchronization_plan(plans)
 
@@ -225,7 +225,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 for a in attrs:
                     l = getattr(cls, str(a), None)
                     if l:
-                        col_type = sync.CompositePrototypeMetaCommand.pg_type_from_atom(
+                        col_type = delta_cmds.CompositePrototypeMetaCommand.pg_type_from_atom(
                                                             l._metadata.prototype)
                         col_type = 'text::%s' % col_type
 
@@ -247,7 +247,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     for a in attrs:
                         if hasattr(cls, str(a)):
                             l = getattr(cls, str(a))
-                            col_type = sync.CompositePrototypeMetaCommand.pg_type_from_atom(
+                            col_type = delta_cmds.CompositePrototypeMetaCommand.pg_type_from_atom(
                                                                         l._metadata.prototype)
                             col_type = 'text::%s' % col_type
 
@@ -704,14 +704,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 typmod = None
                 typname = type_expr
 
-            if typname in sync.base_type_name_map_r:
-                atom = meta.get(sync.base_type_name_map_r[typname])
+            if typname in delta_cmds.base_type_name_map_r:
+                atom = meta.get(delta_cmds.base_type_name_map_r[typname])
 
-                if typname in sync.typmod_types and typmod is not None:
+                if typname in delta_cmds.typmod_types and typmod is not None:
                     atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,
                                       automatic=True)
                     atom.add_mod(proto.AtomModMaxLength(typmod))
-                    if typname in sync.fixed_length_types.values():
+                    if typname in delta_cmds.fixed_length_types.values():
                         atom.add_mod(proto.AtomModMinLength(typmod))
                     meta.add(atom)
 
