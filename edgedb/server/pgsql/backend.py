@@ -136,9 +136,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def apply_synchronization_plan(self, plans):
-        with self.connection.xact():
-            for plan in plans:
-                plan.execute(self.connection)
+        for plan in plans:
+            plan.execute(self.connection)
 
 
     @debug
@@ -180,9 +179,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         condition = [('ref', str('HEAD'))]
         plans.append(delta_cmds.Merge(table, record=rec, condition=condition))
 
-        self.apply_synchronization_plan(plans)
-
-        self.invalidate_meta_cache()
+        with self.connection.xact():
+            self.apply_synchronization_plan(plans)
+            self.invalidate_meta_cache()
+            meta = self.getmeta()
+            if meta.get_checksum() != d.checksum:
+                raise base_delta.DeltaChecksumError('could not apply delta correctly: '
+                                                    'checksums do not match')
 
 
     def invalidate_meta_cache(self):
