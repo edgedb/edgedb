@@ -84,8 +84,6 @@ class MetaDeltaRepository(backends.MetaDeltaRepository):
         paths = module.split('.')
 
         while paths:
-            paths.pop()
-
             try:
                 mod = importlib.import_module('.'.join(paths + ['deltas']))
                 mod.caos_deltas
@@ -93,6 +91,7 @@ class MetaDeltaRepository(backends.MetaDeltaRepository):
                 pass
             else:
                 break
+            paths.pop()
 
         if paths:
             return mod
