@@ -6,6 +6,14 @@
 ##
 
 
+from semantix import SemantixError
+
 from . import ast
 
-class CaosQLError(Exception): pass
+
+class CaosQLError(SemantixError):
+    pass
+
+
+class CaosQLQueryError(CaosQLError):
+    pass

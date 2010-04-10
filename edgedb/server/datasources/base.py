@@ -50,7 +50,7 @@ class Datasource(object):
     def describe_output(self):
         raise NotImplementedError
 
-    def _filter_params(self, params):
+    def _filter_params(self, params, filters=None):
         if self.params is None:
             return {}
 
@@ -72,7 +72,11 @@ class Datasource(object):
 
             filtered[name] = value
 
+        if filters:
+            for name, value in filters.items():
+                filtered['__filter%s' % name] = value
+
         return filtered
 
-    def fetch(self, **params):
+    def fetch(self, *, _filters=None, _sort=None, **params):
         raise NotImplementedError

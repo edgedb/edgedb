@@ -9,10 +9,11 @@
 import os
 import pyggy
 
-import semantix.utils.ast
+from semantix.utils import ast
 
 from .errors import CaosQLSyntaxError
-from semantix.caos.caosql import ast as qlast
+from semantix.caos.caosql import ast as qlast, CaosQLQueryError
+
 
 class CaosQLParser(object):
     def __init__(self):
@@ -31,12 +32,9 @@ class CaosQLParser(object):
             raise CaosQLSyntaxError(token=e.tok, expr=e.str, lineno=self.lexer.lineno)
 
         raw_ast = pyggy.proctree(tree, self.ptab)
+        return ast.fix_parent_links(raw_ast)
 
-        ast = semantix.utils.ast.fix_parent_links(raw_ast)
-
-        return ast
-
-    def normalize_select_query(self, query):
+    def normalize_select_query(self, query, filters, sort):
         nodetype = type(query)
 
         qtree = query
@@ -45,6 +43,35 @@ class CaosQLParser(object):
             selnode = qlast.SelectQueryNode()
             selnode.targets = [qlast.SelectExprNode(expr=qtree)]
             qtree = selnode
+
+        if filters:
+            targets = {t.alias: t.expr for t in qtree.targets}
+
+            for name, value in filters.items():
+                target = targets.get(name)
+                if not target:
+                    err = 'filters reference column %s which is not in query targets' % name
+                    raise CaosQLQueryError(err)
+
+                if qtree.where:
+                    const = qlast.ConstantNode(value=None, index='__filter%s' % name)
+                    left = qtree.where
+                    right = qlast.BinOpNode(left=target, right=const, op=ast.ops.EQ)
+                    qtree.where = qlast.BinOpNode(left=left, right=right, op=ast.ops.AND)
+
+        if sort:
+            targets = {t.alias: t.expr for t in qtree.targets}
+            newsort = []
+
+            for name, direction in sort:
+                target = targets.get(name)
+                if not target:
+                    err = 'sort reference column %s which is not in query targets' % name
+                    raise CaosQLQueryError(err)
+
+                newsort.append(qlast.SortExprNode(path=target, direction=direction))
+
+            qtree.orderby = newsort
 
         return qtree
 

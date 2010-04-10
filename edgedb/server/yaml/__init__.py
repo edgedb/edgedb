@@ -448,7 +448,7 @@ class MetaSet(LangObject):
             if link.implicit_derivative and not link.atomic():
                 base = globalmeta.get(next(iter(link.base)))
                 if base.is_atom:
-                    raise caos.MetaError('implicitly defined atomic link % used to link to concept'
+                    raise caos.MetaError('implicitly defined atomic link %s used to link to concept'
                                           % link.name)
 
             if link.base:

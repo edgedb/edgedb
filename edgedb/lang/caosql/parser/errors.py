@@ -6,7 +6,11 @@
 ##
 
 
-class CaosQLSyntaxError(Exception):
+from semantix import SemantixError
+from semantix.caos.caosql import CaosQLError
+
+
+class CaosQLSyntaxError(CaosQLError):
     def __init__(self, token, lineno, expr=None):
         self.token = token
         self.expr = expr
