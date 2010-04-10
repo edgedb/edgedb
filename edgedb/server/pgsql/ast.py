@@ -74,8 +74,8 @@ class TableNode(RelationNode):
 
 class SelectQueryNode(RelationNode):
     __fields = ['distinct', ('fromlist', list), ('targets', list), 'where',
-                ('orderby', list), ('ctes', datastructures.OrderedSet), ('concept_node_map', dict),
-                ('linkmap', dict)]
+                ('orderby', list), 'offset', 'limit',
+                ('ctes', datastructures.OrderedSet), ('concept_node_map', dict), ('linkmap', dict)]
 
 class CompositeNode(RelationNode):
     __fields = [('queries', list), ('ctes', datastructures.OrderedSet),

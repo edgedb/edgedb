@@ -90,7 +90,10 @@ arg_list                        -> query (',' query )* :
 
 select_query                    -> (USING select_nsdecl (',' select_nsdecl)*)?
                                    SELECT (DISTINCT)? select_expr (',' select_expr)*
-                                   (WHERE predicate)? (ORDER BY orderby_expr (',' orderby_expr)*)?:
+                                   (WHERE predicate)?
+                                   (ORDER BY orderby_expr (',' orderby_expr)*)?
+                                   (OFFSET number_constant)?
+                                   (LIMIT number_constant)?:
 
                                         node = SelectQueryNode()
 
@@ -105,6 +108,12 @@ select_query                    -> (USING select_nsdecl (',' select_nsdecl)*)?
 
                                         if kids[6] is not None:
                                             node.orderby = [kids[6][2]] + [k[1] for k in kids[6][3]]
+
+                                        if kids[7] is not None:
+                                            node.offset = kids[7][1]
+
+                                        if kids[8] is not None:
+                                            node.limit = kids[8][1]
 
                                         return node
 ;
@@ -201,7 +210,7 @@ comp_op                         -> '<':
 quantifier                      -> SOME | ANY | ALL
 ;
 
-constant                        -> NULL:
+number_constant                 -> NULL:
                                         return ConstantNode(value=None)
                                  | NUMBER:
                                         if '.' in kids[0]:
@@ -209,14 +218,18 @@ constant                        -> NULL:
                                         else:
                                             value = int(kids[0])
                                         return ConstantNode(value=value)
-                                 | LITERAL:
-                                        return ConstantNode(value=kids[0].strip('"\''))
-                                 | boolean_constant:
-                                        return kids[0]
                                  | '$' NUMBER:
                                         return ConstantNode(value=None, index=int(kids[1]))
                                  | '$' IDENTIFIER:
                                         return ConstantNode(value=None, index=str(kids[1]))
+;
+
+constant                        -> number_constant:
+                                        return kids[0]
+                                 | LITERAL:
+                                        return ConstantNode(value=kids[0].strip('"\''))
+                                 | boolean_constant:
+                                        return kids[0]
 ;
 
 boolean_constant                -> TRUE:

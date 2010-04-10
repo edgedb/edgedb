@@ -152,6 +152,12 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         self._process_selector(context, tree.selector)
         self._process_sorter(context, tree.sorter)
 
+        if tree.offset:
+            context.current.query.offset = self._process_constant(context, tree.offset)
+
+        if tree.limit:
+            context.current.query.limit = self._process_constant(context, tree.limit)
+
         return context.current.query, context.current.argmap
 
     def _process_generator(self, context, generator):
@@ -183,6 +189,18 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         result = expr
         while result.rlink:
             result = result.rlink.source
+        return result
+
+    def _process_constant(self, context, expr):
+        if expr.index is not None and not isinstance(expr.index, int):
+            if expr.index in context.current.argmap:
+                index = context.current.argmap.index(expr.index)
+            else:
+                context.current.argmap.add(expr.index)
+                index = len(context.current.argmap) - 1
+        else:
+            index = expr.index
+        result = pgsql.ast.ConstantNode(value=expr.value, index=index)
         return result
 
     def _process_expr(self, context, expr, cte=None):
@@ -239,15 +257,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
                 result = pgsql.ast.BinOpNode(op=expr.op, left=left, right=right)
 
         elif isinstance(expr, tree.ast.Constant):
-            if expr.index is not None and not isinstance(expr.index, int):
-                if expr.index in context.current.argmap:
-                    index = context.current.argmap.index(expr.index)
-                else:
-                    context.current.argmap.add(expr.index)
-                    index = len(context.current.argmap) - 1
-            else:
-                index = expr.index
-            result = pgsql.ast.ConstantNode(value=expr.value, index=index)
+            result = self._process_constant(context, expr)
 
         elif isinstance(expr, tree.ast.Sequence):
             elements = [self._process_expr(context, e, cte) for e in expr.elements]

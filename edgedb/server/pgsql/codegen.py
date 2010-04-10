@@ -97,6 +97,20 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                     self.write(',')
             self.indentation -= 2
 
+        if node.offset:
+            self.indentation += 1
+            self.new_lines = 1
+            self.write('OFFSET ')
+            self.visit(node.offset)
+            self.indentation -= 1
+
+        if node.limit:
+            self.indentation += 1
+            self.new_lines = 1
+            self.write('LIMIT ')
+            self.visit(node.limit)
+            self.indentation -= 1
+
         self.new_lines = 1
         self.write(')')
 

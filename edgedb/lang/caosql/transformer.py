@@ -75,6 +75,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         graph.generator = self._process_select_where(context, caosql_tree.where)
         graph.selector = self._process_select_targets(context, caosql_tree.targets)
         graph.sorter = self._process_sorter(context, caosql_tree.orderby)
+        graph.offset = caosql_tree.offset
+        graph.limit = caosql_tree.limit
 
         paths = [graph.generator] + [s.expr for s in graph.selector] + [s.expr for s in graph.sorter]
 

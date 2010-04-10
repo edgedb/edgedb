@@ -83,7 +83,7 @@ class Base(ast.AST):
                 setattr(self, name, frozenset(newset))
 
 class GraphExpr(ast.AST):
-    __fields = ['generator', ('selector', list), ('sorter', list)]
+    __fields = ['generator', ('selector', list), ('sorter', list), 'offset', 'limit']
 
 
 class AtomicRef(Base):

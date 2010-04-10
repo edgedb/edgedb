@@ -54,6 +54,8 @@ INITIAL:
     "[Ii][Ss]"          : return "IS"
     "[Ee][Xx][Ii][Ss][Tt][Ss]" : return "EXISTS"
     "[Mm][Oo][Dd]"      : return "mod"
+    "[Oo][Ff][Ff][Ss][Ee][Tt]" : return "OFFSET"
+    "[Ll][Ii][Mm][Ii][Tt]"     : return "LIMIT"
     "/"                 : return "/"
     "-"                 : return "-"
     "\+"                : return "+"
