@@ -19,7 +19,9 @@ class YamlImportError(Exception):
 
 class Language(meta.Language):
     @classmethod
-    def recognize_file(cls, filename, try_append_extension=False):
+    def recognize_file(cls, filename, try_append_extension=False, is_package=False):
+        if is_package:
+            filename = os.path.join(filename, '__init__')
         if try_append_extension and os.path.exists(filename + '.yml'):
             if os.path.exists(filename + '.py'):
                 raise YamlImportError('ambiguous yaml module name')

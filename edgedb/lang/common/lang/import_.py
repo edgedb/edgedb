@@ -37,14 +37,12 @@ class Importer(abc.Finder, abc.Loader):
     def _locate_module_file(self, fullname, path):
         basename = fullname.rpartition('.')[2]
 
-        if not isinstance(path, list):
-            path = [path]
-
         for p in path:
             test = os.path.join(p, basename)
-            result = LanguageMeta.recognize_file(test, True)
+            is_package = os.path.isdir(test)
+            result = LanguageMeta.recognize_file(test, True, is_package)
             if result:
-                return result
+                return result + (is_package,)
 
     def find_module(self, fullname, path=None):
         if path:
@@ -57,13 +55,15 @@ class Importer(abc.Finder, abc.Loader):
         if fullname in sys.modules:
             return sys.modules[fullname]
 
-        language, filename = self.module_file_map[fullname]
+        language, filename, is_package = self.module_file_map[fullname]
 
         new_mod = imp.new_module(fullname)
-        setattr(new_mod, '__file__', filename)
-        setattr(new_mod, '__path__', os.path.dirname(filename))
-        setattr(new_mod, '__odict__', collections.OrderedDict())
-        setattr(new_mod, '_language_', language)
+        new_mod.__file__ = filename
+        if is_package:
+            new_mod.__path__ = [os.path.dirname(filename)]
+        new_mod.__odict__ = collections.OrderedDict()
+        new_mod.__loader__ = self
+        new_mod._language_ = language
 
         sys.modules[fullname] = new_mod
 

@@ -16,9 +16,9 @@ class LanguageMeta(type):
         return lang
 
     @staticmethod
-    def recognize_file(filename, try_append_extension=False):
+    def recognize_file(filename, try_append_extension=False, is_package=False):
         for lang in LanguageMeta.languages:
-            myfile = lang.recognize_file(filename, try_append_extension)
+            myfile = lang.recognize_file(filename, try_append_extension, is_package)
             if myfile:
                 return (lang, myfile)
         return None
