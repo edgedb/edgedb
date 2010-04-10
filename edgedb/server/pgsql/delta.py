@@ -452,6 +452,8 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
     def apply(self, meta, context=None):
         new_table_name = common.concept_name_to_table_name(self.prototype_name, catenate=False)
         concept_table = Table(name=new_table_name)
+        schema_name = common.caos_module_name_to_schema_name(self.prototype_name.module)
+        self.create_schema(schema_name)
         self.pgops.add(CreateTable(table=concept_table))
 
         self.alter_table = AlterTable(new_table_name)
