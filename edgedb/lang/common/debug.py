@@ -88,7 +88,7 @@ class debug(object):
                             # We want to use the first.
                             lineno = node.lineno - len(comment) + 1
 
-                            text = 'import semantix.utils.debug\n' \
+                            text = 'import semantix.utils.debug, os\n' \
                                    'if semantix.utils.debug.channels & %r:\n' \
                                    '    pass\n' % tags
 
@@ -96,7 +96,7 @@ class debug(object):
                                 if type == 'LOG':
                                     text += '    print("\\n" + "="*80 + "\\n" + %r + "\\n" + "="*80)\n' % title
                                 else:
-                                    text += '    print(%r, %s)' % (title, ', '.join(comment[1:]))
+                                    text += '    print(os.getpid(), %r, %s)' % (title, ', '.join(comment[1:]))
 
                             code = ast.parse(text.rstrip(), filename=orig_file)
                             code = ast.fix_missing_locations(code)
