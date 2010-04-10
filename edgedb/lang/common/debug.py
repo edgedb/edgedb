@@ -9,6 +9,7 @@
 import inspect
 import re
 import ast
+import contextlib
 
 from semantix.utils.functional import decorate
 
@@ -156,6 +157,16 @@ def highlight(code, lang=None):
         return code
 
     return h(code, get_lexer_by_name(lang), TerminalFormatter(bg='dark', style='native'))
+
+
+@contextlib.contextmanager
+def assert_raises(exception_cls):
+    try:
+        yield
+    except exception_cls:
+        pass
+    else:
+        assert False, '%s was expected to be raised' % exception_cls.__name__
 
 
 def timeit(target):
