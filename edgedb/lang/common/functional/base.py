@@ -7,6 +7,11 @@
 
 import abc
 import types
+import functools
+import threading
+
+
+_lock = threading.Lock()
 
 
 def decorate(wrapper, wrapped):
@@ -33,21 +38,50 @@ class Decorator(BaseDecorator, metaclass=abc.ABCMeta):
 
     def __get__(self, obj, cls=None):
         if obj:
-            _id = id(obj)
-            if _id not in self._instance_caller:
-                self._instance_caller[_id] = lambda *args, **kwargs: \
-                                                    self.instance_call(obj, *args, **kwargs)
+            try:
+                return obj._decorator_cache_[self][obj][self.__name__]
 
-                decorate(self._instance_caller[_id], self._func_)
-            return self._instance_caller[_id]
+            except (KeyError, AttributeError):
+                with _lock:
+                    if not hasattr(obj, '_decorator_cache_'):
+                        setattr(obj, '_decorator_cache_', {self: {obj: {}}})
+
+                    elif self not in obj._decorator_cache_:
+                        obj._decorator_cache_[self] = {obj: {}}
+
+                    elif obj not in obj._decorator_cache_[self]:
+                        obj._decorator_cache_[self][obj] = {}
+
+                    if not self.__name__ in obj._decorator_cache_[self][obj]:
+                        wrapper = functools.partial(self.instance_call, obj)
+                        decorate(wrapper, self._func_)
+
+                        obj._decorator_cache_[self][obj][self.__name__] = wrapper
+
+                    return obj._decorator_cache_[self][obj][self.__name__]
 
         else:
-            _id = id(cls)
-            if _id not in self._class_caller:
-                self._class_caller[_id] = lambda *args, **kwargs: \
-                                                 self.class_call(cls, *args, **kwargs)
-                decorate(self._class_caller[_id], self._func_)
-            return self._class_caller[_id]
+            try:
+                return cls._decorator_cache_[self][cls][self.__name__]
+
+            except (KeyError, AttributeError):
+                with _lock:
+                    if not hasattr(cls, '_decorator_cache_'):
+                        setattr(cls, '_decorator_cache_', {self: {cls: {}}})
+
+                    elif self not in cls._decorator_cache_:
+                        cls._decorator_cache_[self] = {cls: {}}
+
+                    elif cls not in cls._decorator_cache_[self]:
+                        cls._decorator_cache_[self][cls] = {}
+
+                    if not self.__name__ in cls._decorator_cache_[self][cls]:
+                        wrapper = functools.partial(self.class_call, cls)
+                        decorate(wrapper, self._func_)
+
+                        cls._decorator_cache_[self][cls][self.__name__] = wrapper
+
+                    return cls._decorator_cache_[self][cls][self.__name__]
 
     @abc.abstractmethod
     def __call__(self, *args, **kwargs):

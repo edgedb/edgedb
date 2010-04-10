@@ -41,6 +41,8 @@ class TestUtilsFunctional(object):
 
         t1 = Test1(200)
         assert t1.test(2) == 203
+        assert t1.test(2) == 203
+        assert t1.test(2) == 203
         assert Test1.test2(3) == 104
 
         assert hasattr(t1.test, '__name__') and t1.test.__name__ == 'test'
