@@ -277,7 +277,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
     def _normalize_concept(self, context, concept, namespace):
         if concept == '%':
-            concept = self.realm.meta.get(name='semantix.caos.builtins.Object')
+            concept = self.realm.meta.get(name='semantix.caos.builtins.BaseObject')
         else:
             concept = self.realm.meta.get(name=concept, module_aliases=context.current.namespaces,
                                           type=caos_types.ProtoNode)

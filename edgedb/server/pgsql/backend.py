@@ -231,9 +231,17 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                                             n != 'semantix.caos.builtins.id':
                     attrs[n] = v
 
+            returning = ['"semantix.caos.builtins.id"']
+            if issubclass(cls, cls._metadata.realm.root.semantix.caos.builtins.Object):
+                returning.extend(('"semantix.caos.builtins.ctime"',
+                                  '"semantix.caos.builtins.mtime"'))
+
             if id is not None:
                 query = 'UPDATE %s SET ' % common.concept_name_to_table_name(concept)
                 cols = []
+                if issubclass(cls, cls._metadata.realm.root.semantix.caos.builtins.Object):
+                    attrs['semantix.caos.builtins.mtime'] = 'NOW'
+
                 for a in attrs:
                     l = getattr(cls, str(a), None)
                     if l:
@@ -247,10 +255,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     column_name = common.quote_ident(column_name)
                     cols.append('%s = %%(%s)s::%s' % (column_name, str(a), col_type))
                 query += ','.join(cols)
-                query += ''' WHERE "semantix.caos.builtins.id" = %s
-                             RETURNING "semantix.caos.builtins.id"''' \
+                query += ' WHERE "semantix.caos.builtins.id" = %s '  \
                                                         % postgresql.string.quote_literal(str(id))
+                query += 'RETURNING %s' % ','.join(returning)
             else:
+                if issubclass(cls, cls._metadata.realm.root.semantix.caos.builtins.Object):
+                    attrs['semantix.caos.builtins.ctime'] = 'NOW'
+
                 if attrs:
                     cols_names = [common.quote_ident(self.caos_name_to_pg_column_name(a))
                                   for a in attrs]
@@ -276,9 +287,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                 query += '''VALUES(uuid_generate_v1mc(),
                                    (SELECT id FROM caos.concept WHERE name = %(concept)s) %(cols)s)
-                            RETURNING "semantix.caos.builtins.id"''' \
+                         ''' \
                             % {'concept': postgresql.string.quote_literal(str(concept)),
                                'cols': cols_values}
+
+                query += 'RETURNING %s' % ','.join(returning)
 
             data = dict((str(k), str(attrs[k]) if attrs[k] is not None else None) for k in attrs)
 
@@ -292,7 +305,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     (concept, id[0], (data['name'] if 'name' in data else '')))
             """
 
-            id = id[0]
+            if issubclass(cls, cls._metadata.realm.root.semantix.caos.builtins.Object):
+                id, ctime, mtime = id
+                entity.ctime = ctime
+                entity.mtime = mtime
+            else:
+                id = id[0]
             entity.id = id
             entity._instancedata.dirty = False
 

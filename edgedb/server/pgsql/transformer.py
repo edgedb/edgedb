@@ -238,7 +238,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         elif isinstance(expr, tree.ast.EntitySet):
             root = self.get_caos_path_root(expr)
 
-            if next(iter(root.concepts)).name != 'semantix.caos.builtins.Object':
+            if next(iter(root.concepts)).name != 'semantix.caos.builtins.BaseObject':
                 self._process_graph(context, cte or context.current.query, root)
 
         elif isinstance(expr, tree.ast.BinOp):

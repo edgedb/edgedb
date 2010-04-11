@@ -463,7 +463,7 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
 
         fields = self.create_object(concept)
 
-        if concept.name == 'semantix.caos.builtins.Object':
+        if concept.name == 'semantix.caos.builtins.BaseObject':
             col = Column(name='concept_id', type='integer', required=True)
             self.alter_table.add_operation(AlterTableAddColumn(col))
 

@@ -486,7 +486,7 @@ class MetaSet(LangObject):
                                                  'caos.concept.Concept: %s' % base_name)
                         custombases.append(base_name)
 
-            if not bases and concept.name != 'semantix.caos.builtins.Object':
+            if not bases and concept.name != 'semantix.caos.builtins.BaseObject':
                 bases.append(caos.Name('semantix.caos.builtins.Object'))
 
             concept.base = tuple(bases)
