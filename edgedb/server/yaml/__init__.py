@@ -12,10 +12,11 @@ import importlib
 import collections
 import itertools
 
-from semantix.utils import graph, lang
+from semantix.utils import lang
 from semantix.utils.lang import yaml
 from semantix.utils.nlang import morphology
 from semantix.utils.algos.persistent_hash import persistent_hash
+from semantix.utils.algos import topological
 
 from semantix import caos
 from semantix.caos import proto
@@ -396,7 +397,7 @@ class MetaSet(LangObject):
                     if atom.base.module != 'semantix.caos.builtins':
                         g[atom.name]['deps'].append(atom.base)
 
-        return graph.normalize(g, merger=None)
+        return topological.normalize(g, merger=None)
 
 
     def read_links(self, data, globalmeta, localmeta):
@@ -454,7 +455,7 @@ class MetaSet(LangObject):
             if link.base:
                 g[link.name]['merge'].extend(link.base)
 
-        return graph.normalize(g, merger=proto.Link.merge)
+        return topological.normalize(g, merger=proto.Link.merge)
 
 
     def read_concepts(self, data, globalmeta, localmeta):
@@ -569,7 +570,7 @@ class MetaSet(LangObject):
             if concept.base:
                 g[concept.name]["merge"].extend(concept.base)
 
-        return graph.normalize(g, merger=proto.Concept.merge)
+        return topological.normalize(g, merger=proto.Concept.merge)
 
 
     def genatom(self, host, base, default, link_name, mods):

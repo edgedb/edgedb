@@ -13,7 +13,8 @@ import importlib
 import postgresql.string
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
-from semantix.utils import graph, helper
+from semantix.utils import helper
+from semantix.utils.algos import topological
 from semantix.utils.debug import debug
 from semantix.utils.lang import yaml
 from semantix.utils.nlang import morphology
@@ -485,14 +486,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             meta.add(link)
 
-        graph.normalize(g, merger=proto.Link.merge)
+        topological.normalize(g, merger=proto.Link.merge)
 
         g = {}
         for concept in meta(type='concept', include_automatic=True, include_builtin=True):
             g[concept.name] = {"item": concept, "merge": [], "deps": []}
             if concept.base:
                 g[concept.name]["merge"].extend(concept.base)
-        graph.normalize(g, merger=proto.Concept.merge)
+        topological.normalize(g, merger=proto.Concept.merge)
 
 
     def read_concepts(self, meta):
