@@ -9,7 +9,7 @@
 import sys
 import os
 import imp
-from importlib import abc
+import importlib.abc
 import collections
 
 from .meta import LanguageMeta, DocumentContext
@@ -29,7 +29,7 @@ class ImportContext(str):
         return cls(name)
 
 
-class Importer(abc.Finder, abc.Loader):
+class Importer(importlib.abc.Finder, importlib.abc.Loader):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.module_file_map = dict()
@@ -61,6 +61,9 @@ class Importer(abc.Finder, abc.Loader):
         new_mod.__file__ = filename
         if is_package:
             new_mod.__path__ = [os.path.dirname(filename)]
+            new_mod.__package__ = new_mod.__name__
+        else:
+            new_mod.__package__ = new_mod.__name__.rpartition('.')[0]
         new_mod.__odict__ = collections.OrderedDict()
         new_mod.__loader__ = self
         new_mod._language_ = language
