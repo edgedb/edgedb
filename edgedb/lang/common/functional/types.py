@@ -9,16 +9,17 @@
 import inspect
 import warnings
 import itertools
-import functools
 
-from .base import BaseDecorator
-
-
+from .base import BaseDecorator, decorate
 from semantix.exceptions import SemantixError
 import semantix.utils.functional
 
 
 __all__ = ['checktypes']
+
+
+class ChecktypeExempt:
+    __slots__ = ()
 
 
 class CheckerError(SemantixError):
@@ -38,10 +39,18 @@ class MetaChecker(type):
         if 'can_handle' in dct:
             MetaChecker.registry.append(cls)
 
+        if '__slots__' not in dct:
+            raise CheckerError('Invalid type checker %s: missing __slots__' % name)
+
+        if not isinstance(dct['__slots__'], tuple):
+            raise CheckerError('Invalid type checker %s: __slots__ must be a tuple' % name)
+
         return cls
 
 
 class Checker(metaclass=MetaChecker):
+    __slots__ = ('target',)
+
     def __init__(self, target=None):
         self.target = target
 
@@ -57,13 +66,39 @@ class Checker(metaclass=MetaChecker):
         raise CheckerError('Unable to find proper checker for %r' % target)
 
 
+class LambdaChecker(Checker):
+    __slots__ = ()
+
+    def check(self, value, func, arg_name):
+        if not self.target(value):
+            raise TypeError('Invalid function %s argument %s' % \
+                            (getattr(func, '__name__', func), arg_name))
+
+    @classmethod
+    def can_handle(cls, target):
+        return inspect.isfunction(target) and target.__name__ == '<lambda>'
+
+
 class TupleChecker(Checker):
+    __slots__ = ('checkers',)
+
     def __init__(self, targets):
         super().__init__(targets)
         self.checkers = [Checker.get(target) for target in targets]
 
-    def check(self, value):
-        return any(checker.check(value) for checker in self.checkers)
+    def check(self, value, func, arg_name):
+        for checker in self.checkers:
+            try:
+                checker.check(value, func, arg_name)
+
+            except TypeError:
+                pass
+
+            else:
+                return
+
+        raise TypeError('Invalid function %s argument %s' % \
+                        (getattr(func, '__name__', func), arg_name))
 
     @classmethod
     def can_handle(cls, target):
@@ -71,8 +106,13 @@ class TupleChecker(Checker):
 
 
 class TypeChecker(Checker):
-    def check(self, value):
-        return isinstance(value, self.target)
+    __slots__ = ()
+
+    def check(self, value, func, arg_name):
+        if not isinstance(value, self.target):
+            raise TypeError('Unexpected type of function %s argument %s: expected %s, got %s' % \
+                            (getattr(func, '__name__', func), arg_name,
+                             self.target.__name__, type(value).__name__))
 
     @classmethod
     def can_handle(cls, target):
@@ -91,11 +131,19 @@ class FunctionValidator:
 
     @classmethod
     def get_argsspec(cls, func):
-        return inspect.getfullargspec(func)
+        try:
+            return getattr(func, '_args_spec_')
+        except AttributeError:
+            return inspect.getfullargspec(func)
 
     @classmethod
     def get_checkers(cls, func, args_spec):
         return {arg: Checker.get(target) for arg, target in args_spec.annotations.items()}
+
+    @classmethod
+    def check_value(cls, checker, value, func, arg_name):
+        if value is not None and not isinstance(value, ChecktypeExempt):
+            checker.check(value, func, arg_name)
 
     @classmethod
     def check_defaults(cls, func, args_spec, checkers):
@@ -107,37 +155,31 @@ class FunctionValidator:
 
         if defaults_checks:
             for arg_name, arg_default in itertools.chain(*defaults_checks):
-                if arg_default is not None and arg_name in checkers \
-                                                    and not checkers[arg_name].check(arg_default):
-                    raise TypeError('Default value for "%s" argument of "%s()" ' \
-                                    'function has an invalid value %s' % \
-                                    (arg_name, func.__name__, cls.repr(arg_default)))
+                if arg_name in checkers:
+                    cls.check_value(checkers[arg_name], arg_default, func, arg_name)
 
     @classmethod
-    def check_args(cls, func, args, kwargs, args_spec, checkers):
+    def validate_kwonly(cls, func, args, args_spec):
         if len(args) > len(args_spec):
             raise TypeError('%s() takes exactly %d positional argument(s) (%d given)' % \
                                             (func.__name__, len(args_spec.args), len(args)))
 
-        for arg_name, arg_value in itertools.chain(zip(args_spec.args, args), kwargs.items()):
-            if arg_value is None:
-                continue
+    @classmethod
+    def check_args(cls, func, args, kwargs, args_spec, checkers):
+        cls.validate_kwonly(func, args, args_spec)
 
-            if arg_name in checkers and not checkers[arg_name].check(arg_value):
-                raise TypeError('"%s" argument of "%s()" function has an invalid value %s' % \
-                                                    (arg_name, func.__name__, cls.repr(arg_value)))
+        for arg_name, arg_value in itertools.chain(zip(args_spec.args, args), kwargs.items()):
+            if arg_name in checkers:
+                cls.check_value(checkers[arg_name], arg_value, func, arg_name)
 
     @classmethod
     def check_result(cls, func, result, checkers):
-        if result is not None and 'return' in checkers:
-            if not checkers['return'].check(result):
-                raise TypeError('Function "%s()" returned an invalid value %s' % \
-                                                                (func.__name__, cls.repr(result)))
+        if 'return' in checkers:
+            cls.check_value(checkers['return'], result, func, 'return')
 
     @classmethod
     def try_apply_decorator(cls, func):
-        if hasattr(func, '__call__') and hasattr(func, '__annotations__') \
-                            and func.__annotations__ and not isinstance(func, BaseDecorator):
+        if inspect.isfunction(func):
             return cls.checktypes_function(func)
 
         if inspect.isclass(func):
@@ -163,20 +205,21 @@ class FunctionValidator:
     def checktypes_function(cls, func):
         assert inspect.isfunction(func)
 
-        if not func.__annotations__:
+        args_spec = cls.get_argsspec(func)
+
+        if not args_spec.annotations:
             return func
 
-        args_spec = cls.get_argsspec(func)
         checkers = cls.get_checkers(func, args_spec)
         cls.check_defaults(func, args_spec, checkers)
 
-        @functools.wraps(func)
         def wrapper(*args, **kwargs):
             cls.check_args(func, args, kwargs, args_spec, checkers)
             result = func(*args, **kwargs)
             cls.check_result(func, result, checkers)
             return result
 
+        decorate(wrapper, func)
         return wrapper
 
     @classmethod
@@ -197,7 +240,8 @@ class checktypes:
             return func
 
         if inspect.isfunction(func):
-            if not func.__annotations__:
+            args_spec = FunctionValidator.get_argsspec(func)
+            if not args_spec.annotations:
                 warnings.warn('No annotation for function %s while using @checktypes on it' % \
                                                                                     func.__name__)
                 return func

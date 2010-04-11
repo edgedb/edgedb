@@ -43,6 +43,9 @@ class SourceContext(object):
         self.end = end
         self.document = document
 
+    def __str__(self):
+        return '%s line:%d col:%d' % (self.name, self.start.line, self.start.column)
+
 
 class ObjectError(Exception):
     def __init__(self, msg, context=None, code=None, note=None):

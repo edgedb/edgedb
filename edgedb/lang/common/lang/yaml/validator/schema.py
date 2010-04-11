@@ -18,6 +18,10 @@ class Schema(object):
         self.root = None
 
     def _build(self, dct):
+        if isinstance(dct, type) and issubclass(dct, Schema):
+            # This happens when top-level anchor is assigned to the schema
+            dct = dct.__dct
+
         dct_id = id(dct)
         dct_type = dct['type']
 

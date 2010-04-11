@@ -7,6 +7,7 @@
 
 import abc
 import types
+import inspect
 import functools
 import threading
 
@@ -15,12 +16,19 @@ _lock = threading.Lock()
 
 
 def decorate(wrapper, wrapped):
-    for attr in ('__module__', '__name__', '__doc__', '__annotations__'):
+    for attr in ('__module__', '__name__', '__doc__'):
         if hasattr(wrapped, attr):
             setattr(wrapper, attr, getattr(wrapped, attr))
 
-    if isinstance(wrapped, types.FunctionType) and wrapped.__dict__:
-        wrapper.__dict__.update(wrapped.__dict__)
+    if isinstance(wrapped, types.FunctionType):
+        if wrapped.__dict__:
+            wrapper.__dict__.update(wrapped.__dict__)
+
+        if hasattr(wrapped, '_args_spec_'):
+            setattr(wrapper, '_args_spec_', getattr(wrapped, '_args_spec_'))
+
+        else:
+            setattr(wrapper, '_args_spec_', inspect.getfullargspec(wrapped))
 
 
 class BaseDecorator:

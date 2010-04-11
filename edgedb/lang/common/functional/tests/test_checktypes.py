@@ -21,13 +21,9 @@ class TestUtilsFunctionalChecktypes:
     def test_utils_functional_checktypes_checker_get(self):
         checker = types.Checker.get(int)
         assert isinstance(checker, types.TypeChecker)
-        assert checker.check(10)
-        assert not checker.get(int).check(10.1)
 
         checker = types.Checker.get((str, bytes))
         assert isinstance(checker, types.TupleChecker)
-        assert checker.check('123') and checker.check(b'123')
-        assert not checker.check(123)
 
 
     def test_utils_functional_checktypes_warning(self):
@@ -43,12 +39,15 @@ class TestUtilsFunctionalChecktypes:
 
     def test_utils_functional_checktypes_custom_checker(self):
         class DictChecker(types.Checker):
+            __slots__ = ('key',)
+
             def __init__(self, key):
                 super().__init__()
                 self.key = key
 
-            def check(self, value):
-                return isinstance(value, dict) and self.key in value
+            def check(self, value, func, arg_name):
+                if not isinstance(value, dict) or self.key not in value:
+                    raise TypeError()
 
         @functional.checktypes
         def tmp(a:DictChecker('foo')):
@@ -162,6 +161,14 @@ class TestUtilsFunctionalChecktypes:
         assert T.tmp6(a=10) == 1241
         assert t1.tmp5(a=b'') == 134
 
+    def test_utils_functional_checktypes_lambda(self):
+        @functional.checktypes
+        def tmp1(a:lambda arg: arg > 0 and isinstance(arg, int)):
+            return a**a
+
+        py.test.raises(TypeError, tmp1, -1)
+        py.test.raises(TypeError, tmp1, 0.1)
+        assert tmp1(3) == 27
 
     def test_utils_functional_checktypes_validation(self):
         @functional.checktypes
