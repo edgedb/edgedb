@@ -6,6 +6,7 @@
 ##
 
 
+import functools
 import itertools
 import inspect
 
@@ -104,7 +105,9 @@ def configurable(obj, *, basename=None, bind_to=None):
     obj_name = basename or (obj.__module__ + '.' + obj.__name__)
     bind_to = bind_to or obj
 
-    if inspect.isfunction(obj):
+    def decorate_function(obj):
+        assert inspect.isfunction(obj)
+
         args_spec = FunctionValidator.get_argsspec(obj)
         checkers = FunctionValidator.get_checkers(obj, args_spec)
 
@@ -117,7 +120,7 @@ def configurable(obj, *, basename=None, bind_to=None):
 
         for arg_name, arg_default in itertools.chain(*defaults):
             if isinstance(arg_default, cvalue) and not arg_default.bound_to:
-                arg_default.name = obj_name + '.' + arg_name
+                arg_default._set_name(obj_name + '.' + arg_name)
                 arg_default._bind(bind_to)
 
                 if not arg_default._validator and arg_name in checkers:
@@ -138,26 +141,34 @@ def configurable(obj, *, basename=None, bind_to=None):
             j = 0
             for i, arg_name in enumerate(args_spec.args):
                 if i >= len(args):
-                    if isinstance(args_spec.defaults[j], cvalue):
-                        args.append(args_spec.defaults[j]._get_value())
-                    else:
-                        args.append(args_spec.defaults[j])
+                    default = args_spec.defaults[j]
+                    if isinstance(default, cvalue):
+                        while isinstance(default, cvalue):
+                            default = default._get_value()
+                    args.append(default)
                     j += 1
 
             if args_spec.kwonlydefaults:
                 for def_name, def_value in args_spec.kwonlydefaults.items():
                     if not def_name in kwargs and isinstance(def_value, cvalue):
-                        kwargs[def_name] = def_value._get_value()
+                        while isinstance(def_value, cvalue):
+                            def_value = def_value._get_value()
+                        kwargs[def_name] = def_value
 
             return obj(*args, **kwargs)
 
         decorate(wrapper, obj)
         return wrapper
 
-    elif inspect.isclass(obj):
+    def decorate_class(obj):
+        assert inspect.isclass(obj)
+
+        def _decorate(wrapped):
+            return configurable(wrapped, basename=obj_name + '.' + wrapped.__name__, bind_to=obj)
+
         for attr_name, attr_value in obj.__dict__.items():
             if isinstance(attr_value, cvalue) and not attr_value.bound_to:
-                attr_value.name = obj_name + '.' + attr_name
+                attr_value._set_name(obj_name + '.' + attr_name)
                 attr_value._bind(bind_to)
 
                 if attr_value.type and isinstance(attr_value.type, type):
@@ -165,34 +176,14 @@ def configurable(obj, *, basename=None, bind_to=None):
 
                 attr_value._validate()
 
-            elif inspect.isfunction(attr_value):
-                setattr(obj, attr_name, configurable(attr_value, \
-                                                     basename=obj_name + '.' + attr_value.__name__,
-                                                     bind_to=obj))
+            else:
+                patched = FunctionValidator.try_apply_decorator(attr_value, _decorate, _decorate)
 
-            elif isinstance(attr_value, classmethod):
-                setattr(obj, attr_name, classmethod(configurable(attr_value.__func__, \
-                                           basename=obj_name + '.' + attr_value.__func__.__name__,
-                                           bind_to=obj)))
-
-            elif isinstance(attr_value, staticmethod):
-                setattr(obj, attr_name, staticmethod(configurable(attr_value.__func__, \
-                                           basename=obj_name + '.' + attr_value.__func__.__name__,
-                                           bind_to=obj)))
-
-            elif isinstance(attr_value, BaseDecorator):
-                func = attr_value
-                while isinstance(func, BaseDecorator):
-                    host = func
-                    func = attr_value._func_
-                host._func_ = configurable(func, \
-                                           basename=obj_name + '.' + func.__name__,
-                                           bind_to=obj)
-
+                if patched is not attr_value:
+                    setattr(obj, attr_name, patched)
         return obj
 
-    else:
-        raise ConfigError('@configurable: only classes and functions are supported')
+    return FunctionValidator.try_apply_decorator(obj, decorate_function, decorate_class)
 
 
 class cvalue(ChecktypeExempt):
@@ -257,8 +248,6 @@ class cvalue(ChecktypeExempt):
         if name[-1] in node._loaded_values:
             self._set_value(*node._loaded_values[name[-1]])
             del node._loaded_values[name[-1]]
-
-    name = property(lambda self: self._name, _set_name)
 
     @checktypes
     def _set_validator(self, validator:Checker):

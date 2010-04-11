@@ -63,6 +63,41 @@ class TestUtilsConfig(object):
 
         test0()
 
+    def test_utils_config_func_cvalue_defs(self):
+        CHK = 0
+
+        @configurable
+        def test_def1(test=cvalue(42)):
+            nonlocal CHK
+            assert CHK == test
+
+        @configurable
+        def test_def2(test=cvalue(config.semantix.utils.config.tests.test_config.test_def1.test)):
+            nonlocal CHK
+            assert CHK == test
+
+        CHK = 42
+        test_def1()
+        test_def2()
+
+        CHK = 3.14
+        config.set_value('semantix.utils.config.tests.test_config.test_def1.test', CHK)
+        test_def1()
+
+        with assert_raises(AssertionError):
+            test_def2()
+
+        @configurable
+        def test_def3(test=cvalue(config.cvalue('semantix.utils.config.tests.test_config.test_def1.test'))):
+            nonlocal CHK
+            assert CHK == test
+
+        test_def3()
+
+        CHK = 2.17
+        config.set_value('semantix.utils.config.tests.test_config.test_def1.test', CHK)
+        test_def3()
+
     def test_utils_config_func_cargs_kwargs(self):
         CHK = 0
 
@@ -260,6 +295,32 @@ class TestUtilsConfig(object):
 
         with assert_raises(TypeError):
            HTM1.tm('1')
+
+    def test_utils_config_class_methods_property(self):
+        @configurable
+        class PTM1:
+            foo = cvalue(1100, type=int)
+
+            def __init__(self):
+                self.attr = 0
+
+            @property
+            def tm(self, tmp=cvalue(1)):
+                return self.foo + tmp + self.attr
+
+            @tm.setter
+            def tm(self, val):
+                self.attr = val
+
+
+        t = PTM1()
+        assert t.tm == 1101
+
+        config.set_value('semantix.utils.config.tests.test_config.PTM1.tm.tmp', 4)
+        assert t.tm == 1104
+
+        t.tm = 100
+        assert t.tm == 1204
 
     def test_utils_config_class_properties(self):
         @configurable
