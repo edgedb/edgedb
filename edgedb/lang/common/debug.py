@@ -160,11 +160,12 @@ def highlight(code, lang=None):
 
 
 @contextlib.contextmanager
-def assert_raises(exception_cls):
+def assert_raises(exception_cls, *, error_substring=None):
     try:
         yield
-    except exception_cls:
-        pass
+    except exception_cls as ex:
+        if error_substring is not None:
+            assert error_substring in ex.args[0]
     else:
         assert False, '%s was expected to be raised' % exception_cls.__name__
 
