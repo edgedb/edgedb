@@ -6,6 +6,7 @@
 ##
 
 
+import re
 import functools
 import itertools
 import inspect
@@ -188,7 +189,10 @@ def configurable(obj, *, basename=None, bind_to=None):
 
 class cvalue(ChecktypeExempt):
     __slots__ = ('_name', '_default', '_value', '_value_context', '_doc', '_validator', '_type',
-                 '_bound_to')
+                 '_bound_to', '_inter_cache')
+
+    _inter_re = re.compile(r'''(?P<text>[^$]+) |
+                               (?P<ref>\${    (?P<to>[^}]+)   })''', re.M | re.X)
 
     def __init__(self, default=None, *, doc=None, validator=None, type=None):
         self._name = None
@@ -197,6 +201,7 @@ class cvalue(ChecktypeExempt):
         self._doc = doc
         self._type = type
         self._bound_to = None
+        self._inter_cache = None
 
         self._validator = None
         if validator:
@@ -218,11 +223,31 @@ class cvalue(ChecktypeExempt):
     type = property(lambda self: self._type, _set_type)
 
     def _get_value(self):
+        if isinstance(self._value, str) and '$' in self._value:
+            if not self._inter_cache:
+                matches = cvalue._inter_re.findall(self._value)
+                check = ''.join(m[0]+m[1] for m in matches)
+
+                if check != self._value:
+                    raise ConfigError('Malformed substitution syntax: "%s"%s' % \
+                                      (self._value, self._value_context if self._value_context \
+                                                                                           else ''))
+                self._inter_cache = []
+                for match in matches:
+                    if match[0]:
+                        self._inter_cache.append(match[0])
+                    else:
+                        self._inter_cache.append(config.cvalue(match[2]))
+
+            return ''.join(item._get_value() if isinstance(item, cvalue) else item\
+                                                                    for item in self._inter_cache)
+
         return self._value
 
     def _set_value(self, value, context=None):
         self._value = value
         self._value_context = context
+        self._inter_cache = None
         self._validate()
 
     @checktypes
