@@ -10,7 +10,8 @@ import itertools
 import inspect
 
 from semantix.utils.functional import decorate, BaseDecorator
-from semantix.utils.functional.types import Checker, FunctionValidator, checktypes, ChecktypeExempt
+from semantix.utils.functional.types import Checker, FunctionValidator, checktypes, \
+                                            ChecktypeExempt, TypeChecker
 from semantix.exceptions import SemantixError
 from semantix.utils.lang import yaml
 from semantix.utils.config.schema import Schema
@@ -29,11 +30,10 @@ class _Config:
         if name not in ('_name', '_loaded_values') \
                             and not isinstance(value, _Config) and not isinstance(value, cvalue):
             raise ConfigError('%s.%s is a read-only config property' % (self._name, name))
-
-        super().__setattr__(name, value)
+        object.__setattr__(self, name, value)
 
     def __getattribute__(self, name):
-        if name in ('__dict__', '__bases__', '_name', '_set_value'):
+        if name in ('__dict__', '__bases__', '_name'):
             return object.__getattribute__(self, name)
 
         return_cvalue = False
@@ -49,10 +49,14 @@ class _Config:
 
         return object.__getattribute__(self, name)
 
-    def _set_value(self, name, value, context=None):
-        """
-        XXX: call only on the top-level config object
-        """
+
+class _RootConfig(_Config):
+    def __getattribute__(self, name):
+        if name in ('__dict__', '__bases__', '_name', 'set_value', 'cvalue'):
+            return object.__getattribute__(self, name)
+        return _Config.__getattribute__(self, name)
+
+    def set_value(self, name, value, context=None):
         assert not isinstance(value, cvalue)
 
         name = name.split('.')
@@ -72,18 +76,33 @@ class _Config:
                 getattr(node, '~' + name[-1])._set_value(value, context)
 
             else:
-                print('>>>', node._name, getattr(node, '~' + name[-1]), getattr(node, '~' + name[-1])._name)
                 raise ConfigError('Overlapping configs: %s.%s' % (node._name, name[-1]))
 
         else:
             node._loaded_values[name[-1]] = (value, context)
 
-config = _Config('config')
+    def cvalue(self, name):
+        name = name.split('.')
+        node = self
+
+        for part in name[:-1]:
+            if not hasattr(node, part):
+                raise ConfigError('Unable to get %s cvalue due to the incorrect path' % \
+                                                                                    '.'.join(name))
+            node = getattr(node, part)
+
+        assert isinstance(getattr(node, '~' + name[-1]), cvalue)
+        return getattr(node, '~' + name[-1])
+
+config = _RootConfig('config')
 
 
-def configurable(obj, *, _basename=None, _bind_to=None):
-    obj_name = _basename or (obj.__module__ + '.' + obj.__name__)
-    bind_to = _bind_to or obj
+def configurable(obj, *, basename=None, bind_to=None):
+    if basename is None and obj.__module__ == '__main__':
+        raise ConfigError('Unable to determine module\'s path')
+
+    obj_name = basename or (obj.__module__ + '.' + obj.__name__)
+    bind_to = bind_to or obj
 
     if inspect.isfunction(obj):
         args_spec = FunctionValidator.get_argsspec(obj)
@@ -97,12 +116,16 @@ def configurable(obj, *, _basename=None, _bind_to=None):
             defaults.append(args_spec.kwonlydefaults.items())
 
         for arg_name, arg_default in itertools.chain(*defaults):
-            if isinstance(arg_default, carg) and not arg_default.bound_to:
-                arg_default._set_name(obj_name + '.' + arg_name)
+            if isinstance(arg_default, cvalue) and not arg_default.bound_to:
+                arg_default.name = obj_name + '.' + arg_name
                 arg_default._bind(bind_to)
 
-                if not arg_default.validator and arg_name in checkers:
-                    arg_default._set_validator(checkers[arg_name])
+                if not arg_default._validator and arg_name in checkers:
+                    checker = checkers[arg_name]
+                    arg_default._set_validator(checker)
+
+                    if isinstance(checker, TypeChecker):
+                        arg_default.type = checker.target
 
                 arg_default._validate()
 
@@ -115,13 +138,15 @@ def configurable(obj, *, _basename=None, _bind_to=None):
             j = 0
             for i, arg_name in enumerate(args_spec.args):
                 if i >= len(args):
-                    if isinstance(args_spec.defaults[j], carg):
+                    if isinstance(args_spec.defaults[j], cvalue):
                         args.append(args_spec.defaults[j]._get_value())
+                    else:
+                        args.append(args_spec.defaults[j])
                     j += 1
 
             if args_spec.kwonlydefaults:
                 for def_name, def_value in args_spec.kwonlydefaults.items():
-                    if not def_name in kwargs and isinstance(def_value, carg):
+                    if not def_name in kwargs and isinstance(def_value, cvalue):
                         kwargs[def_name] = def_value._get_value()
 
             return obj(*args, **kwargs)
@@ -131,25 +156,29 @@ def configurable(obj, *, _basename=None, _bind_to=None):
 
     elif inspect.isclass(obj):
         for attr_name, attr_value in obj.__dict__.items():
-            if isinstance(attr_value, cvar) and not attr_value.bound_to:
-                attr_value._set_name(obj_name + '.' + attr_name)
+            if isinstance(attr_value, cvalue) and not attr_value.bound_to:
+                attr_value.name = obj_name + '.' + attr_name
                 attr_value._bind(bind_to)
+
+                if attr_value.type and isinstance(attr_value.type, type):
+                    attr_value._validator = Checker.get(attr_value.type)
+
                 attr_value._validate()
 
             elif inspect.isfunction(attr_value):
                 setattr(obj, attr_name, configurable(attr_value, \
-                                                     _basename=obj_name + '.' + attr_value.__name__,
-                                                     _bind_to=obj))
+                                                     basename=obj_name + '.' + attr_value.__name__,
+                                                     bind_to=obj))
 
             elif isinstance(attr_value, classmethod):
                 setattr(obj, attr_name, classmethod(configurable(attr_value.__func__, \
-                                           _basename=obj_name + '.' + attr_value.__func__.__name__,
-                                           _bind_to=obj)))
+                                           basename=obj_name + '.' + attr_value.__func__.__name__,
+                                           bind_to=obj)))
 
             elif isinstance(attr_value, staticmethod):
                 setattr(obj, attr_name, staticmethod(configurable(attr_value.__func__, \
-                                           _basename=obj_name + '.' + attr_value.__func__.__name__,
-                                           _bind_to=obj)))
+                                           basename=obj_name + '.' + attr_value.__func__.__name__,
+                                           bind_to=obj)))
 
             elif isinstance(attr_value, BaseDecorator):
                 func = attr_value
@@ -157,8 +186,8 @@ def configurable(obj, *, _basename=None, _bind_to=None):
                     host = func
                     func = attr_value._func_
                 host._func_ = configurable(func, \
-                                           _basename=obj_name + '.' + func.__name__,
-                                           _bind_to=obj)
+                                           basename=obj_name + '.' + func.__name__,
+                                           bind_to=obj)
 
         return obj
 
@@ -167,37 +196,47 @@ def configurable(obj, *, _basename=None, _bind_to=None):
 
 
 class cvalue(ChecktypeExempt):
-    __slots__ = ('name', 'value', 'value_context', 'doc', 'validator', 'type', 'bound_to')
+    __slots__ = ('_name', '_default', '_value', '_value_context', '_doc', '_validator', '_type',
+                 '_bound_to')
 
     def __init__(self, default=None, *, doc=None, validator=None, type=None):
-        self.name = None
-        self.value = default
-        self.value_context = None
-        self.doc = doc
-        self.type = type
-        self.bound_to = None
+        self._name = None
+        self._value = self._default = default
+        self._value_context = None
+        self._doc = doc
+        self._type = type
+        self._bound_to = None
 
-        self.validator = None
+        self._validator = None
         if validator:
             if isinstance(validator, Checker):
                 self._set_validator(validator)
             else:
                 self._set_validator(Checker.get(validator))
 
+    doc = property(lambda self: self._doc)
+    bound_to = property(lambda self: self._bound_to)
+
     def _bind(self, owner):
-        self.bound_to = owner
+        self._bound_to = owner
+
+    def _set_type(self, type_):
+        assert isinstance(type_, type)
+        self._type = type_
+
+    type = property(lambda self: self._type, _set_type)
 
     def _get_value(self):
-        return self.value
+        return self._value
 
     def _set_value(self, value, context=None):
-        self.value = value
-        self.value_context = context
+        self._value = value
+        self._value_context = context
         self._validate()
 
     @checktypes
     def _set_name(self, name:str):
-        self.name = name
+        self._name = name
 
         node = config
         name = name.split('.')
@@ -211,7 +250,7 @@ class cvalue(ChecktypeExempt):
             node = getattr(node, part)
 
         if hasattr(node, name[-1]) and isinstance(getattr(node, '~' + name[-1]), cvalue):
-            raise ConfigError('Overlapping configs: %s' % self.name)
+            raise ConfigError('Overlapping configs: %s' % self._name)
 
         setattr(node, name[-1], self)
 
@@ -219,37 +258,31 @@ class cvalue(ChecktypeExempt):
             self._set_value(*node._loaded_values[name[-1]])
             del node._loaded_values[name[-1]]
 
+    name = property(lambda self: self._name, _set_name)
+
     @checktypes
     def _set_validator(self, validator:Checker):
-        self.validator = validator
+        self._validator = validator
 
     def _validate(self):
-        if self.validator:
+        if self._validator:
             try:
-                FunctionValidator.check_value(self.validator, self.value,
-                                              self.name, 'default config value')
+                FunctionValidator.check_value(self._validator, self._value,
+                                              self._name, 'default config value')
             except TypeError as ex:
                 raise TypeError('Invalid value %r for "%s" config option%s' % \
-                                (self.value, self.name,
-                                 ' in "%s"' % self.value_context if self.value_context else '')) \
+                                (self._value, self._name,
+                                 ' in "%s"' % self._value_context if self._value_context else '')) \
                                                                                             from ex
-
-
-class carg(cvalue):
-    __slots__ = ()
-
-
-class cvar(cvalue):
-    __slots__ = ()
 
     def __get__(self, instance, owner):
         return self._get_value()
 
     def __set__(self, instance, value):
-        raise TypeError('%s is a read-only config property' % self.name)
+        raise TypeError('%s is a read-only config property' % self._name)
 
     def __delete__(self, instance):
-        raise TypeError('%s is a read-only config property' % self.name)
+        raise TypeError('%s is a read-only config property' % self._name)
 
 
 class _Loader(yaml.Object):
@@ -260,7 +293,7 @@ class _Loader(yaml.Object):
                 for key in obj.data:
                     _Loader.traverse(obj.data[key], (name + '.' + key) if name else key)
             else:
-                config._set_value(name, obj.data, str(obj.context))
+                config.set_value(name, obj.data, str(obj.context))
 
     def construct(self):
         self.traverse(self)

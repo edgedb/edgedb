@@ -18,10 +18,10 @@ class TestUtilsConfig(object):
         CHK = 0
 
         @configurable
-        def test(test=carg(0.0, doc="Test Config",
-                           validator=lambda arg: isinstance(arg, float) and arg >= 0.0),
+        def test(test=cvalue(0.0, doc="Test Config",
+                             validator=lambda arg: isinstance(arg, float) and arg >= 0.0),
 
-                 flag:bool=carg(True)):
+                 flag:bool=cvalue(True)):
 
             nonlocal CHK
 
@@ -32,8 +32,12 @@ class TestUtilsConfig(object):
         test()
 
         CHK = 1.0
-        config._set_value('semantix.utils.config.tests.test_config.test.test', CHK)
+        config.set_value('semantix.utils.config.tests.test_config.test.test', CHK)
         test()
+
+        assert config.cvalue('semantix.utils.config.tests.test_config.test.test').doc == "Test Config"
+        assert config.cvalue('semantix.utils.config.tests.test_config.test.flag').type is bool
+        assert config.cvalue('semantix.utils.config.tests.test_config.test.flag').bound_to.__name__ == 'test'
 
         CHK = 10.0
         test(10.0)
@@ -41,15 +45,33 @@ class TestUtilsConfig(object):
         assert test.__name__ == 'test'
         assert config.semantix.utils.config.tests.test_config.test.flag is True
 
+        #########
+
+        CHK = 0.0
+
+        @configurable
+        def test0(test=cvalue(0.0, doc="Test Config",
+                              validator=lambda arg: isinstance(arg, float) and arg >= 0.0),
+                  test2=0,
+                  flag:bool=cvalue(True)):
+
+            nonlocal CHK
+
+            assert test == CHK
+            assert test2 == 0
+            assert flag is True
+
+        test0()
+
     def test_utils_config_func_cargs_kwargs(self):
         CHK = 0
 
         @configurable
         def test2(foo, *,
-                 test=carg(0.0, doc="Test Config",
-                           validator=lambda arg: isinstance(arg, float) and arg >= 0.0),
+                 test=cvalue(0.0, doc="Test Config",
+                             validator=lambda arg: isinstance(arg, float) and arg >= 0.0),
 
-                 flag:bool=carg(True)):
+                 flag:bool=cvalue(True)):
 
             nonlocal CHK
 
@@ -60,7 +82,7 @@ class TestUtilsConfig(object):
         test2(1)
 
         CHK = 1.0
-        config._set_value('semantix.utils.config.tests.test_config.test2.test', CHK)
+        config.set_value('semantix.utils.config.tests.test_config.test2.test', CHK)
         test2(1)
 
         CHK = 10.0
@@ -72,16 +94,16 @@ class TestUtilsConfig(object):
     def test_utils_config_overlapping(self):
         with assert_raises(ConfigError):
             @configurable
-            def test3(test=carg(1.0)):
+            def test3(test=cvalue(1.0)):
                 pass
 
             @configurable
-            def test3(test=carg(1.0)):
+            def test3(test=cvalue(1.0)):
                 pass
 
     def test_utils_config_readonlyness(self):
         @configurable
-        def test4(test=carg(1.0)):
+        def test4(test=cvalue(1.0)):
             pass
 
         with assert_raises(ConfigError):
@@ -89,7 +111,7 @@ class TestUtilsConfig(object):
 
     def test_utils_config_not_exist_value(self):
         @configurable
-        def test5(test=carg(1.0)):
+        def test5(test=cvalue(1.0)):
             pass
 
         with assert_raises(ConfigError):
@@ -97,10 +119,10 @@ class TestUtilsConfig(object):
 
     def test_utils_config_reuse(self):
         @configurable
-        def test6(test=carg(0.0, doc="Test Config",
+        def test6(test=cvalue(0.0, doc="Test Config",
                            validator=lambda arg: isinstance(arg, float) and arg >= 0.0),
 
-                 flag:bool=carg(True)):
+                 flag:bool=cvalue(True)):
             pass
 
         @configurable
@@ -115,13 +137,13 @@ class TestUtilsConfig(object):
     def test_utils_config_defaults_validation(self):
         with assert_raises(TypeError):
             @configurable
-            def test1000(test:int=carg(0.0)):
+            def test1000(test:int=cvalue(0.0)):
                 pass
 
     def test_utils_config_class_methods_base(self):
         @configurable
         class TM:
-            def tm(self, a, foo=carg(10)):
+            def tm(self, a, foo=cvalue(10)):
                 assert isinstance(self, TM)
                 assert a == foo
 
@@ -135,12 +157,12 @@ class TestUtilsConfig(object):
         @configurable
         class TM2:
             @classmethod
-            def tm(cls, a, foo=carg(10)):
+            def tm(cls, a, foo=cvalue(10)):
                 assert cls is TM2
                 assert a == foo
 
             @staticmethod
-            def tm2(a, foo=carg(11)):
+            def tm2(a, foo=cvalue(11)):
                 assert a == foo
 
         TM2.tm(10)
@@ -149,7 +171,7 @@ class TestUtilsConfig(object):
         assert config.semantix.utils.config.tests.test_config.TM2.tm.foo == 10
         assert config.semantix.utils.config.tests.test_config.TM2.tm2.foo == 11
 
-        config._set_value('semantix.utils.config.tests.test_config.TM2.tm2.foo', 4)
+        config.set_value('semantix.utils.config.tests.test_config.TM2.tm2.foo', 4)
         TM2.tm(10)
         TM2.tm2(4)
 
@@ -157,12 +179,12 @@ class TestUtilsConfig(object):
         @configurable
         @checktypes
         class CTM1:
-            def tm(self, a:int, foo=carg(10)):
+            def tm(self, a:int, foo=cvalue(10)):
                 assert isinstance(self, CTM1)
                 assert a == foo
 
             @classmethod
-            def tm2(cls, a:int, foo=carg(10)):
+            def tm2(cls, a:int, foo=cvalue(10)):
                 assert cls is CTM1
                 assert a == foo
 
@@ -185,7 +207,7 @@ class TestUtilsConfig(object):
         @checktypes
         @configurable
         class CTM2:
-            def tm(self, a:int, foo=carg(10)):
+            def tm(self, a:int, foo=cvalue(10)):
                 assert isinstance(self, CTM2)
                 assert a == foo
 
@@ -198,7 +220,7 @@ class TestUtilsConfig(object):
     def test_utils_config_func_checktypes(self):
         @configurable
         @checktypes
-        def test_chk1(foo:int, *, bar:str=carg('')):
+        def test_chk1(foo:int, *, bar:str=cvalue('')):
             assert foo == 123
             assert bar == ''
 
@@ -211,7 +233,7 @@ class TestUtilsConfig(object):
 
         @checktypes
         @configurable
-        def test_chk2(foo:int, *, bar:str=carg('')):
+        def test_chk2(foo:int, *, bar:str=cvalue('')):
             assert foo == 123
             assert bar == ''
 
@@ -225,7 +247,7 @@ class TestUtilsConfig(object):
         @checktypes
         class HTM1:
             @hybridmethod
-            def tm(smth, a:int, foo=carg(10)):
+            def tm(smth, a:int, foo=cvalue(10)):
                 assert a == foo
 
         c = HTM1()
@@ -242,7 +264,7 @@ class TestUtilsConfig(object):
     def test_utils_config_class_properties(self):
         @configurable
         class TMP:
-            param = cvar('a', type=str)
+            param = cvalue('a', type=str)
 
             def test(self):
                 assert self.param == 'a'
@@ -255,23 +277,29 @@ class TestUtilsConfig(object):
         class TMP2:
             __slots__ = ()
             tmp = 1
-            tmp2 = cvar(333)
+            tmp2 = cvalue(333)
             tmp3 = config.semantix.utils.config.tests.test_config.TMP.param
 
         assert TMP2.tmp is 1
         assert TMP2.tmp2 == 333
 
-        config._set_value('semantix.utils.config.tests.test_config.TMP2.tmp2', 4)
+        config.set_value('semantix.utils.config.tests.test_config.TMP2.tmp2', 4)
         assert TMP2.tmp2 == 4
 
         assert TMP2.tmp3 == TMP.param == 'a'
 
+        assert config.cvalue('semantix.utils.config.tests.test_config.TMP2.tmp2').bound_to is TMP2
+        assert config.cvalue('semantix.utils.config.tests.test_config.TMP.param').bound_to is TMP
+        assert config.cvalue('semantix.utils.config.tests.test_config.TMP.param').type is str
+
+        with assert_raises(TypeError):
+            config.set_value('semantix.utils.config.tests.test_config.TMP.param', 10)
 
     def test_utils_config_yaml(self):
         from semantix.utils.config.tests import app
 
         @configurable
-        def test_yaml1(foo=carg(1), bar:str=carg('')):
+        def test_yaml1(foo=cvalue(1), bar:str=cvalue('')):
             assert foo == 123
             assert bar == 'zzz'
 
@@ -279,23 +307,23 @@ class TestUtilsConfig(object):
 
         with assert_raises(TypeError):
             @configurable
-            def test_yaml2(*, a:int=carg(0)):
+            def test_yaml2(*, a:int=cvalue(0)):
                 pass
 
     def test_utils_config_loadflow(self):
-        config._set_value('semantix.utils.config.tests.test_config.YML.foo', 33)
+        config.set_value('semantix.utils.config.tests.test_config.YML.foo', 33)
 
         with assert_raises(ConfigError):
             config.semantix.utils.config.tests.test_config.YML.foo
 
         @configurable
         class YML:
-            foo = cvar(-1, type=int)
+            foo = cvalue(-1, type=int)
 
         assert YML.foo == 33
         assert config.semantix.utils.config.tests.test_config.YML.foo == 33
 
-        config._set_value('semantix.utils.config.tests.test_config.YML.foo', 133)
+        config.set_value('semantix.utils.config.tests.test_config.YML.foo', 133)
 
         assert YML.foo == 133
         assert config.semantix.utils.config.tests.test_config.YML.foo == 133
