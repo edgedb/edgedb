@@ -45,26 +45,27 @@ def colorize(string='', fg=None, bg=None, opts=()):
 
 
 class colorstr(str):
-    def __new__(cls, string, color=None, opts=None):
+    def __new__(cls, string, color=None, bgcolor=None, opts=None):
         result = super().__new__(cls, string)
         result.color = color or 'white'
+        result.bgcolor = bgcolor
         result.opts = opts or ()
         return result
 
-    def __init__(self, string, color=None, opts=None):
+    def __init__(self, string, color=None, bgcolor=None, opts=None):
         pass
 
     def __str__(self):
-        return colorize(self, fg=self.color, opts=self.opts)
+        return colorize(self, fg=self.color, bg=self.bgcolor, opts=self.opts)
 
     def __format__(self, spec):
         result = super().__format__(spec)
-        return result.replace(self, colorize(self, fg=self.color, opts=self.opts))
+        return result.replace(self, colorize(self, fg=self.color, bg=self.bgcolor, opts=self.opts))
 
 
 class dummycolorstr(str):
-    def __new__(cls, string, color=None, opts=None):
+    def __new__(cls, string, color=None, bgcolor=None, opts=None):
         return super().__new__(cls, string)
 
-    def __init__(self, string, color=None, opts=None):
+    def __init__(self, string, color=None, bgcolor=None, opts=None):
         pass
