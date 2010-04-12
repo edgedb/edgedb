@@ -19,10 +19,13 @@ from semantix.utils.lang import yaml
 from semantix.utils.config.schema import Schema
 
 
-__all__ = ['ConfigError', 'config', 'configurable', 'cvalue']
+__all__ = ['ConfigError', 'ConfigRequiredValueError', 'config', 'configurable', 'cvalue']
 
 
 class ConfigError(SemantixError):
+    pass
+
+class ConfigRequiredValueError(ConfigError):
     pass
 
 
@@ -90,7 +93,7 @@ class _RootConfig(_Config):
 
             node = getattr(node, part)
 
-        if hasattr(node, name[-1]):
+        if hasattr(node, '~' + name[-1]):
             if isinstance(getattr(node, '~' + name[-1]), cvalue):
                 getattr(node, '~' + name[-1])._set_value(value, context)
 
@@ -135,6 +138,7 @@ def configurable(obj, *, basename=None, bind_to=None):
 
     def decorate_function(obj):
         assert inspect.isfunction(obj)
+        todecorate = False
 
         args_spec = FunctionValidator.get_argsspec(obj)
         checkers = FunctionValidator.get_checkers(obj, args_spec)
@@ -148,6 +152,8 @@ def configurable(obj, *, basename=None, bind_to=None):
 
         for arg_name, arg_default in itertools.chain(*defaults):
             if isinstance(arg_default, cvalue) and not arg_default.bound_to:
+                todecorate = True
+
                 arg_default._set_name(obj_name + '.' + arg_name)
                 arg_default._bind(bind_to)
                 arg_default._owner = obj
@@ -161,24 +167,28 @@ def configurable(obj, *, basename=None, bind_to=None):
 
                 arg_default._validate()
 
-        _conf = config._conf(obj_name)
-        if _conf:
-            _conf._bound_to = obj
+        if todecorate:
+            _conf = config._conf(obj_name)
+            if _conf:
+                _conf._bound_to = obj
+        else:
+            return obj
 
         def wrapper(*args, **kwargs):
             FunctionValidator.validate_kwonly(obj, args, args_spec)
 
             args = list(args)
 
-            j = 0
-            for i, arg_name in enumerate(args_spec.args):
-                if i >= len(args):
-                    default = args_spec.defaults[j]
-                    if isinstance(default, cvalue):
-                        while isinstance(default, cvalue):
-                            default = default._get_value()
-                    args.append(default)
-                    j += 1
+            if args_spec.defaults:
+                j = 0
+                for i, arg_name in enumerate(args_spec.args):
+                    if i >= len(args):
+                        default = args_spec.defaults[j]
+                        if isinstance(default, cvalue):
+                            while isinstance(default, cvalue):
+                                default = default._get_value()
+                        args.append(default)
+                        j += 1
 
             if args_spec.kwonlydefaults:
                 for def_name, def_value in args_spec.kwonlydefaults.items():
@@ -194,6 +204,7 @@ def configurable(obj, *, basename=None, bind_to=None):
 
     def decorate_class(obj):
         assert inspect.isclass(obj)
+        todecorate = False
 
         def _decorate(wrapped):
             return configurable(wrapped, basename=obj_name + '.' + wrapped.__name__, bind_to=obj)
@@ -208,30 +219,38 @@ def configurable(obj, *, basename=None, bind_to=None):
                     attr_value._validator = Checker.get(attr_value.type)
 
                 attr_value._validate()
+                todecorate = True
 
             else:
                 patched = FunctionValidator.try_apply_decorator(attr_value, _decorate, _decorate)
 
                 if patched is not attr_value:
+                    todecorate = True
                     setattr(obj, attr_name, patched)
 
-        _conf = config._conf(obj_name)
-        if _conf:
-            _conf._bound_to = obj
+        if todecorate:
+            _conf = config._conf(obj_name)
+            if _conf:
+                _conf._bound_to = obj
 
         return obj
 
     return FunctionValidator.try_apply_decorator(obj, decorate_function, decorate_class)
 
 
+class _NoDefault:
+    pass
+NoDefault = _NoDefault()
+
+
 class cvalue(ChecktypeExempt):
     __slots__ = ('_name', '_default', '_value', '_value_context', '_doc', '_validator', '_type',
-                 '_bound_to', '_inter_cache', '_owner')
+                 '_bound_to', '_inter_cache', '_owner', '_required')
 
     _inter_re = re.compile(r'''(?P<text>[^$]+) |
                                (?P<ref>\${    (?P<to>[^}]+)   })''', re.M | re.X)
 
-    def __init__(self, default=None, *, doc=None, validator=None, type=None):
+    def __init__(self, default=NoDefault, *, doc=None, validator=None, type=None):
         self._name = None
         self._value = self._default = default
         self._value_context = None
@@ -251,6 +270,7 @@ class cvalue(ChecktypeExempt):
     doc = property(lambda self: self._doc)
     bound_to = property(lambda self: self._bound_to)
     default = property(lambda self: self._default)
+    required = property(lambda self: self._default is NoDefault)
 
     def _bind(self, owner):
         self._bound_to = owner
@@ -262,6 +282,9 @@ class cvalue(ChecktypeExempt):
     type = property(lambda self: self._type, _set_type)
 
     def _get_value(self):
+        if self._value is NoDefault:
+            raise ConfigRequiredValueError('%s is a required config setting' % self._name)
+
         if isinstance(self._value, str) and '$' in self._value:
             if not self._inter_cache:
                 matches = cvalue._inter_re.findall(self._value)
@@ -318,7 +341,7 @@ class cvalue(ChecktypeExempt):
         self._validator = validator
 
     def _validate(self):
-        if self._validator:
+        if self._validator and self._value is not NoDefault:
             try:
                 FunctionValidator.check_value(self._validator, self._value,
                                               self._name, 'default config value')

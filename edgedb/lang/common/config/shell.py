@@ -10,7 +10,8 @@ import types
 
 from semantix.utils import shell
 from semantix.utils.io.terminal import Terminal
-from semantix.utils.config import config, _Config, cvalue, ConfigError
+from semantix.utils.config import config, _Config, cvalue, ConfigError, \
+                                  ConfigRequiredValueError, NoDefault
 
 
 class _Renderer:
@@ -19,7 +20,11 @@ class _Renderer:
 
     @classmethod
     def hl(cls, str, style):
-        if style == 'value':
+        if style == 'key':
+            return str
+        elif style == 'unbound_key':
+            return cls.term.colorstr(str, color='red')
+        elif style == 'value':
             return cls.term.colorstr(str, color='cyan', opts=('bold',))
         if style == 'default_value':
             return str
@@ -60,6 +65,9 @@ class _Renderer:
 
         try:
             val = value._get_value()
+        except ConfigRequiredValueError:
+            print(cls.hl(' -> ', 'sep'), end='')
+            print(cls.hl('<required, but not set>', 'error'), end='')
         except (TypeError, ConfigError):
             print(end=' ')
             print(cls.hl('ERROR DURING VALUE CALCULATION', 'error'), end='')
@@ -67,7 +75,8 @@ class _Renderer:
             if val != value.default:
                 print(cls.hl(' -> ', 'sep'), end='')
                 print(cls.hl(repr(val), 'value'), end='')
-                print(' (default: %r)' % value.default, end='')
+                if value.default is not NoDefault:
+                    print(' (default: %r)' % value.default, end='')
 
             else:
                 print(cls.hl(' -> ', 'sep'), end='')
@@ -108,7 +117,7 @@ class _Renderer:
                                 print(cls.tab * level, end='')
                                 if verbose:
                                     print(cls.hl('class ', 'keyword'), end='')
-                                print(key + ':')
+                                print(cls.hl(key + ':', 'key'))
 
                             elif isinstance(item, cvalue):
                                 cls._render_cvalue(key, item, level=level, verbose=verbose)
@@ -118,20 +127,19 @@ class _Renderer:
                                 print(cls.tab * level, end='')
                                 if verbose:
                                     print(cls.hl('function ', 'keyword'), end='')
-                                print(key + ':')
+                                print(cls.hl(key + ':', 'key'))
 
                             elif isinstance(item, cvalue):
                                 cls._render_cvalue(key, item, level=level, verbose=verbose)
 
                     else:
-                        print(cls.tab * level, end='')
-                        print(cls.hl(key, 'error'), end='')
-                        print(cls.hl(':', 'sep'))
+                        print(key + ':')
 
                 else:
                     print(cls.tab * level, end='')
                     print(cls.hl('unbound ', 'keyword'), end='')
-                    print('%s: %r' % (key, item[0]))
+                    print(cls.hl(key + ':', 'unbound_key'), end=' ')
+                    print(repr(item[0]))
 
                     print(cls.tab * level, end='')
                     print('        ', end='')

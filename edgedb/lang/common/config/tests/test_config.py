@@ -252,6 +252,27 @@ class TestUtilsConfig(object):
         with assert_raises(TypeError):
             c.tm('2')
 
+    def test_utils_config_decorator_no_cvalue(self):
+        def test(foo:int, *, bar):
+            pass
+
+        tmp = test
+        assert configurable(test) is tmp
+
+    def test_utils_config_nodefault(self):
+        @configurable
+        def test_nd1(foo:int, *, bar:str=cvalue()):
+            assert foo == int(bar)
+
+        with assert_raises(ConfigRequiredValueError):
+            test_nd1()
+
+        with assert_raises(TypeError, error_substring='Invalid value'):
+            config.set_value('semantix.utils.config.tests.test_config.test_nd1.bar', 142)
+
+        config.set_value('semantix.utils.config.tests.test_config.test_nd1.bar', '142')
+        test_nd1(142)
+
     def test_utils_config_func_checktypes(self):
         @configurable
         @checktypes
