@@ -47,7 +47,6 @@ base_type_name_map_r = {
 
 
 typmod_types = ('character', 'character varying', 'numeric')
-fixed_length_types = {'character varying': 'character'}
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -214,7 +213,7 @@ class AtomMetaCommand(PrototypeMetaCommand):
             # Base is a Python type, must correspond to PostgreSQL type
             base = base_type_name_map[atom.name]
 
-        has_max_length = has_min_length = None
+        has_max_length = None
 
         if base in typmod_types:
             for mod, modvalue in atom.mods.items():
@@ -226,21 +225,6 @@ class AtomMetaCommand(PrototypeMetaCommand):
             #
             # Convert basetype + max-length constraint into a postgres-native
             # type with typmod, e.g str[max-length: 20] --> varchar(20)
-            #
-            # Handle the case when min-length == max-length and yield a fixed-size
-            # type correctly
-            #
-            has_min_length = False
-            if base in fixed_length_types:
-                for mod, modvalue in atom.mods.items():
-                    if issubclass(mod, proto.AtomModMinLength):
-                        has_min_length = modvalue
-                        break
-
-            if (has_min_length and has_min_length.value == has_max_length.value):
-                base = fixed_length_types[base]
-            else:
-                has_min_length = False
             base += '(' + str(has_max_length.value) + ')'
 
         mods = set()
@@ -250,15 +234,14 @@ class AtomMetaCommand(PrototypeMetaCommand):
                                    proto.AtomModRegExp)
 
         for mod in atom.mods.values():
-            if ((has_max_length and isinstance(mod, proto.AtomModMaxLength))
-                    or (has_min_length and isinstance(mod, proto.AtomModMinLength))):
+            if has_max_length and isinstance(mod, proto.AtomModMaxLength):
                 continue
             elif isinstance(mod, directly_supported_mods):
                 mods.add(mod)
             else:
                 extramods.add(mod)
 
-        return base, has_min_length, has_max_length, mods, extramods
+        return base, has_max_length, mods, extramods
 
     def fill_record(self, rec=None, obj=None):
         rec, updates = super().fill_record(rec, obj)
@@ -278,7 +261,7 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
         AtomMetaCommand.apply(self, meta, context)
 
         new_domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
-        base, _, _, mods, extramods = self.get_atom_base_and_mods(atom)
+        base, _, mods, extramods = self.get_atom_base_and_mods(atom)
 
         updates = self.create_object(atom)
 
@@ -339,8 +322,8 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
             condition = [('name', str(old_atom.name))]
             self.pgops.add(Update(table=self.table, record=updaterec, condition=condition))
 
-        old_base, old_min_lenth, old_max_length, old_mods, _ = self.get_atom_base_and_mods(old_atom)
-        base, min_length, max_length, new_mods, _ = self.get_atom_base_and_mods(new_atom)
+        old_base, old_max_length, old_mods, _ = self.get_atom_base_and_mods(old_atom)
+        base, max_length, new_mods, _ = self.get_atom_base_and_mods(new_atom)
 
         new_type = None
         type_intent = 'alter'
@@ -409,7 +392,7 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
 
         domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
 
-        base, min_length, max_length, new_mods, _ = self.get_atom_base_and_mods(atom)
+        base, max_length, new_mods, _ = self.get_atom_base_and_mods(atom)
 
         target_type = new_type
 
@@ -479,7 +462,7 @@ class CompositePrototypeMetaCommand(PrototypeMetaCommand):
 
     @classmethod
     def _pg_type_from_atom(cls, atom_obj):
-        base, _, _, mods, _ = AtomMetaCommand.get_atom_base_and_mods(atom_obj)
+        base, _, mods, _ = AtomMetaCommand.get_atom_base_and_mods(atom_obj)
 
         need_to_create = False
 

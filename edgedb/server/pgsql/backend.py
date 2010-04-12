@@ -742,8 +742,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,
                                       automatic=True)
                     atom.add_mod(proto.AtomModMaxLength(typmod))
-                    if typname in delta_cmds.fixed_length_types.values():
-                        atom.add_mod(proto.AtomModMinLength(typmod))
                     meta.add(atom)
 
         assert atom
