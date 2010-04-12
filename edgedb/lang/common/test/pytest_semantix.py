@@ -39,6 +39,7 @@ class LoggingPrintHandler(logging.Handler):
 
 
 test_patterns = []
+test_skipped_patterns = []
 
 class PyTestColorizerPatcher:
     target = None
@@ -65,13 +66,14 @@ class PyTestColorizerPatcher:
 def pytest_addoption(parser):
     parser.addoption("--semantix-debug", dest="semantix_debug", action="append")
     parser.addoption("--tests", dest="test_patterns", action="append")
+    parser.addoption("--skip-tests", dest="test_skipped_patterns", action="append")
 
     group = parser.getgroup("terminal reporting")
     group._addoption('--colorize', default=False, action='store_true', dest='colorize')
 
 
 def pytest_configure(config):
-    global test_patterns, semantix_debug
+    global test_patterns, test_skipped_patterns, semantix_debug
 
     if config.option.colorize:
         PyTestColorizerPatcher.patch()
@@ -84,8 +86,14 @@ def pytest_configure(config):
     if tp:
         for t in tp:
             patterns.extend(t.split(","))
-
         test_patterns = [re.compile(p) for p in patterns]
+
+    patterns = []
+    tp = config.getvalue('test_skipped_patterns')
+    if tp:
+        for t in tp:
+            patterns.extend(t.split(","))
+        test_skipped_patterns = [re.compile(p) for p in patterns]
 
     sd = config.getvalue('semantix_debug')
     if sd:
@@ -109,17 +117,27 @@ def pytest_pycollect_makeitem(__multicall__, collector, name, obj):
     result = item
 
     if isinstance(item, py.test.collect.Function):
+        func = item.obj
+        name = func.__name__
+
+        if name.startswith('test_'):
+            name = name[5:]
+
         if test_patterns:
-            func = item.obj
-
-            name = func.__name__
-            if name.startswith('test_'):
-                name = name[5:]
-
             for p in test_patterns:
+                if test_skipped_patterns:
+                    for ip in test_skipped_patterns:
+                        if ip.match(name):
+                            return
+
                 if p.match(name):
                     func = getattr(func, '__func__', func)
                     setattr(func, 'testmask', py.test.mark.Marker('testmask'))
                     break
+
+        elif test_skipped_patterns:
+            for p in test_skipped_patterns:
+                if p.match(name):
+                    return
 
     return result

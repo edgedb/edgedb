@@ -21,6 +21,7 @@ class TestCommand(shell.Command, name='test', expose=True):
         parser.add_argument('--color', action='store_true', default=True)
         parser.add_argument('--no-color', dest='color', action='store_false')
         parser.add_argument('--no-magic', dest='magic', action='store_false', default=True)
+        parser.add_argument('--skip', dest='skipped', action='append')
         parser.add_argument('tests', nargs='*')
 
         return parser
@@ -37,6 +38,9 @@ class TestCommand(shell.Command, name='test', expose=True):
         if args.tests:
             test_args.extend('--tests=%s' % t for t in args.tests)
             test_args.extend(('-k', 'testmask'))
+
+        if args.skipped:
+            test_args.extend('--skip-tests=%s' % i for i in args.skipped)
 
         if args.color:
             test_args.append('--colorize')
