@@ -11,6 +11,8 @@ import base64
 
 import postgresql
 
+from semantix.caos import proto
+
 
 def quote_ident(text):
     """
@@ -93,3 +95,12 @@ def table_name_to_link_name(name):
     if name.endswith('_link'):
         name = name[:-5]
     return name
+
+
+def get_table_name(obj, catenate=True):
+    if isinstance(obj, proto.Concept):
+        return concept_name_to_table_name(obj.name, catenate)
+    elif isinstance(obj, proto.Link):
+        return link_name_to_table_name(obj.name, catenate)
+    else:
+        assert False

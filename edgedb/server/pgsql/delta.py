@@ -205,10 +205,13 @@ class AtomMetaCommand(PrototypeMetaCommand):
     @classmethod
     def get_atom_base_and_mods(cls, atom):
         if proto.Atom.is_prototype(atom.base):
+            # Base is another atom prototype, check if it is fundamental,
+            # if not, then it is another domain
             base = base_type_name_map.get(atom.base)
             if not base:
                 base = common.atom_name_to_domain_name(atom.base)
         else:
+            # Base is a Python type, must correspond to PostgreSQL type
             base = base_type_name_map[atom.name]
 
         has_max_length = has_min_length = None
@@ -336,42 +339,116 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
             condition = [('name', str(old_atom.name))]
             self.pgops.add(Update(table=self.table, record=updaterec, condition=condition))
 
-        old_base, _, old_max_length, old_mods, _ = self.get_atom_base_and_mods(old_atom)
-        base, _, _, new_mods, _ = self.get_atom_base_and_mods(new_atom)
+        old_base, old_min_lenth, old_max_length, old_mods, _ = self.get_atom_base_and_mods(old_atom)
+        base, min_length, max_length, new_mods, _ = self.get_atom_base_and_mods(new_atom)
 
         new_type = None
+        type_intent = 'alter'
 
-        if old_max_length and not old_mods and new_mods:
-            rec = self.table.record(name=str(domain_name))
-            rec, _ = self.fill_record(rec, obj=new_atom)
-            self.pgops.add(CreateDomain(name=domain_name, base=base))
+        if new_atom.automatic:
+            if old_max_length and not old_mods and new_mods:
+                new_type = common.qname(*domain_name)
+                type_intent = 'create'
+            elif old_max_length and old_mods and not new_mods:
+                new_type = base
+                type_intent = 'drop'
 
-            new_type = common.qname(*domain_name)
-        elif old_base != base:
+        if not new_type and old_base != base:
             new_type = base
 
-        if context and new_type:
+        if context:
             concept = context.get(delta_cmds.ConceptCommandContext)
             link = context.get(delta_cmds.LinkCommandContext)
+        else:
+            concept = link = None
+
+        if new_type:
+            # The change of the underlying data type for domains is a complex problem.
+            # There is no direct way in PostgreSQL to change the base type of a domain.
+            # Instead, a new domain must be created, all users of the old domain altered
+            # to use the new one, and then the old domain dropped.  Obviously this
+            # recurses down to every child domain.
+            #
 
             if concept and link:
-                name = link.proto.base[0] if link.proto.implicit_derivative else link.proto.name
-                column_name = common.caos_name_to_pg_colname(name)
-                alter_type = AlterTableAlterColumnType(column_name, new_type)
-                concept.op.alter_table.add_operation(alter_type)
+                host, pointer = concept.proto, link.proto
+            elif link:
+                property = context.get(delta_cmds.LinkPropertyCommandContext)
+                host, pointer = link.proto, property.proto
+            else:
+                host = pointer = None
 
-        default_delta = updates.get('default')
-        if default_delta:
-            self.pgops.add(AlterDomainAlterDefault(name=domain_name,
-                                                   default=default_delta))
+            self.alter_atom_type(meta, new_atom, host, pointer, new_type,
+                                 intent=type_intent)
 
-        for mod in old_mods - new_mods:
-            self.pgops.add(AlterDomainDropConstraint(name=domain_name, constraint=mod))
+        if type_intent != 'drop':
+            default_delta = updates.get('default')
+            if default_delta:
+                self.pgops.add(AlterDomainAlterDefault(name=domain_name,
+                                                       default=default_delta))
 
-        for mod in new_mods - old_mods:
-            self.pgops.add(AlterDomainAddConstraint(name=domain_name, constraint=mod))
+            for mod in old_mods - new_mods:
+                self.pgops.add(AlterDomainDropConstraint(name=domain_name, constraint=mod))
+
+            for mod in new_mods - old_mods:
+                self.pgops.add(AlterDomainAddConstraint(name=domain_name, constraint=mod))
 
         return new_atom
+
+    def alter_atom_type(self, meta, atom, host, pointer, new_type, intent):
+
+        users = []
+
+        if host:
+            # Automatic atom type change.  There is only one user: host concept table
+            users.append((host, pointer))
+        else:
+            for link in meta(type='link'):
+                if link.target and link.target.name == atom.name:
+                    users.append((link.source, link))
+
+        domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
+
+        base, min_length, max_length, new_mods, _ = self.get_atom_base_and_mods(atom)
+
+        target_type = new_type
+
+        if intent == 'alter':
+            simple_alter = atom.automatic and not new_mods
+            if not simple_alter:
+                new_name = domain_name[0], domain_name[1] + '_tmp'
+                self.pgops.add(RenameDomain(domain_name, new_name))
+                target_type = common.qname(*domain_name)
+
+                self.pgops.add(CreateDomain(name=domain_name, base=new_type))
+                for mod in new_mods:
+                    self.pgops.add(AlterDomainAddConstraint(name=domain_name, constraint=mod))
+
+                domain_name = new_name
+        elif intent == 'create':
+            self.pgops.add(CreateDomain(name=domain_name, base=base))
+
+        for host_proto, item_proto in users:
+            if isinstance(item_proto, proto.Link):
+                name = item_proto.base[0] if item_proto.implicit_derivative else item_proto.name
+            else:
+                name = item_proto.name
+
+            table_name = common.get_table_name(host_proto, catenate=False)
+            column_name = common.caos_name_to_pg_colname(name)
+
+            alter_type = AlterTableAlterColumnType(column_name, target_type)
+            alter_table = AlterTable(table_name)
+            alter_table.add_operation(alter_type)
+            self.pgops.add(alter_table)
+
+        if not host:
+            for child_atom in meta(type='atom', include_automatic=True):
+                if child_atom.base == atom.name:
+                    self.alter_atom_type(meta, child_atom, None, None, target_type, 'alter')
+
+        if intent == 'drop' or (intent == 'alter' and not simple_alter):
+            self.pgops.add(DropDomain(domain_name))
 
 
 class DeleteAtom(AtomMetaCommand, adapts=delta_cmds.DeleteAtom):
@@ -650,10 +727,14 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
 
         if context:
             concept = context.get(delta_cmds.ConceptCommandContext)
-            if concept and result.atomic():
+            old_name = proto.Link.normalize_link_name(self.old_name)
+            new_name = proto.Link.normalize_link_name(self.new_name)
+            if concept and result.atomic() and old_name != new_name:
                 table_name = common.concept_name_to_table_name(concept.proto.name, catenate=False)
-                old_name = common.caos_name_to_pg_colname(self.old_name)
-                new_name = common.caos_name_to_pg_colname(self.new_name)
+
+                old_name = common.caos_name_to_pg_colname(old_name)
+                new_name = common.caos_name_to_pg_colname(new_name)
+
                 rename = AlterTableRenameColumn(table_name, old_name, new_name)
                 self.pgops.add(rename)
 
