@@ -19,6 +19,9 @@ from semantix.utils.lang import yaml
 from semantix.utils.config.schema import Schema
 
 
+__all__ = ['ConfigError', 'config', 'configurable', 'cvalue']
+
+
 class ConfigError(SemantixError):
     pass
 
@@ -27,15 +30,16 @@ class _Config:
     def __init__(self, name):
         self._name = name
         self._loaded_values = {}
+        self._bound_to = None
 
     def __setattr__(self, name, value):
-        if name not in ('_name', '_loaded_values') \
+        if name not in ('_name', '_loaded_values', '_bound_to') \
                             and not isinstance(value, _Config) and not isinstance(value, cvalue):
             raise ConfigError('%s.%s is a read-only config property' % (self._name, name))
         object.__setattr__(self, name, value)
 
     def __getattribute__(self, name):
-        if name in ('__dict__', '__bases__', '_name'):
+        if name in ('__dict__', '__bases__', '_name', '_bound_to'):
             return object.__getattribute__(self, name)
 
         return_cvalue = False
@@ -51,10 +55,23 @@ class _Config:
 
         return object.__getattribute__(self, name)
 
+    def __iter__(self):
+        result = []
+
+        for name in self.__dict__:
+            if name not in ('_name', '_loaded_values', '_bound_to'):
+                if hasattr(self, '~' + name):
+                    result.append((name, getattr(self, '~' + name)))
+                else:
+                    result.appned((name, getattr(self, name)))
+
+        result.extend(self._loaded_values.items())
+        return iter(sorted(result, key=lambda item: item[0]))
+
 
 class _RootConfig(_Config):
     def __getattribute__(self, name):
-        if name in ('__dict__', '__bases__', '_name', 'set_value', 'cvalue'):
+        if name in ('__dict__', '__bases__', '_name', 'set_value', 'cvalue', '_conf', '_bound_to'):
             return object.__getattribute__(self, name)
         return _Config.__getattribute__(self, name)
 
@@ -82,6 +99,16 @@ class _RootConfig(_Config):
 
         else:
             node._loaded_values[name[-1]] = (value, context)
+
+    def _conf(self, name):
+        name = name.split('.')
+        node = self
+        for part in name:
+            if not hasattr(node, part):
+                return
+            node = getattr(node, part)
+            assert not isinstance(node, cvalue)
+        return node
 
     def cvalue(self, name):
         name = name.split('.')
@@ -123,6 +150,7 @@ def configurable(obj, *, basename=None, bind_to=None):
             if isinstance(arg_default, cvalue) and not arg_default.bound_to:
                 arg_default._set_name(obj_name + '.' + arg_name)
                 arg_default._bind(bind_to)
+                arg_default._owner = obj
 
                 if not arg_default._validator and arg_name in checkers:
                     checker = checkers[arg_name]
@@ -133,6 +161,9 @@ def configurable(obj, *, basename=None, bind_to=None):
 
                 arg_default._validate()
 
+        _conf = config._conf(obj_name)
+        if _conf:
+            _conf._bound_to = obj
 
         def wrapper(*args, **kwargs):
             FunctionValidator.validate_kwonly(obj, args, args_spec)
@@ -171,6 +202,7 @@ def configurable(obj, *, basename=None, bind_to=None):
             if isinstance(attr_value, cvalue) and not attr_value.bound_to:
                 attr_value._set_name(obj_name + '.' + attr_name)
                 attr_value._bind(bind_to)
+                attr_value._owner = obj
 
                 if attr_value.type and isinstance(attr_value.type, type):
                     attr_value._validator = Checker.get(attr_value.type)
@@ -182,6 +214,11 @@ def configurable(obj, *, basename=None, bind_to=None):
 
                 if patched is not attr_value:
                     setattr(obj, attr_name, patched)
+
+        _conf = config._conf(obj_name)
+        if _conf:
+            _conf._bound_to = obj
+
         return obj
 
     return FunctionValidator.try_apply_decorator(obj, decorate_function, decorate_class)
@@ -189,7 +226,7 @@ def configurable(obj, *, basename=None, bind_to=None):
 
 class cvalue(ChecktypeExempt):
     __slots__ = ('_name', '_default', '_value', '_value_context', '_doc', '_validator', '_type',
-                 '_bound_to', '_inter_cache')
+                 '_bound_to', '_inter_cache', '_owner')
 
     _inter_re = re.compile(r'''(?P<text>[^$]+) |
                                (?P<ref>\${    (?P<to>[^}]+)   })''', re.M | re.X)
@@ -201,6 +238,7 @@ class cvalue(ChecktypeExempt):
         self._doc = doc
         self._type = type
         self._bound_to = None
+        self._owner = None
         self._inter_cache = None
 
         self._validator = None
@@ -212,6 +250,7 @@ class cvalue(ChecktypeExempt):
 
     doc = property(lambda self: self._doc)
     bound_to = property(lambda self: self._bound_to)
+    default = property(lambda self: self._default)
 
     def _bind(self, owner):
         self._bound_to = owner

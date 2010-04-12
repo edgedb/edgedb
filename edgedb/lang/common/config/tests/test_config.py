@@ -325,7 +325,7 @@ class TestUtilsConfig(object):
     def test_utils_config_class_properties(self):
         @configurable
         class TMP:
-            param = cvalue('a', type=str)
+            param = cvalue('a', type=str, doc='''Lorem Ipsum''')
 
             def test(self):
                 assert self.param == 'a'
