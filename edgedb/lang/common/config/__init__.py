@@ -29,6 +29,7 @@ class ConfigRequiredValueError(ConfigError):
     pass
 
 
+_Config_fields = ('_name', '_loaded_values', '_bound_to')
 class _Config:
     def __init__(self, name):
         self._name = name
@@ -36,13 +37,13 @@ class _Config:
         self._bound_to = None
 
     def __setattr__(self, name, value):
-        if name not in ('_name', '_loaded_values', '_bound_to') \
+        if name not in _Config_fields \
                             and not isinstance(value, _Config) and not isinstance(value, cvalue):
             raise ConfigError('%s.%s is a read-only config property' % (self._name, name))
         object.__setattr__(self, name, value)
 
     def __getattribute__(self, name):
-        if name in ('__dict__', '__bases__', '_name', '_bound_to'):
+        if name in ('__dict__', '__bases__') or name in _Config_fields:
             return object.__getattribute__(self, name)
 
         return_cvalue = False
@@ -62,7 +63,7 @@ class _Config:
         result = []
 
         for name in self.__dict__:
-            if name not in ('_name', '_loaded_values', '_bound_to'):
+            if name not in _Config_fields:
                 if hasattr(self, '~' + name):
                     result.append((name, getattr(self, '~' + name)))
                 else:
@@ -73,60 +74,60 @@ class _Config:
 
 
 class _RootConfig(_Config):
-    def __getattribute__(self, name):
-        if name in ('__dict__', '__bases__', '_name', 'set_value', 'cvalue', '_conf', '_bound_to'):
-            return object.__getattribute__(self, name)
-        return _Config.__getattribute__(self, name)
-
-    def set_value(self, name, value, context=None):
-        assert not isinstance(value, cvalue)
-
-        name = name.split('.')
-        node = self
-
-        for part in name[:-1]:
-            if hasattr(node, part) and isinstance(getattr(node, part), cvalue):
-                raise ConfigError('Overlapping configs: %s.%s' % (node._name, part))
-
-            if not hasattr(node, part):
-                setattr(node, part, _Config(node._name + '.' + part))
-
-            node = getattr(node, part)
-
-        if hasattr(node, '~' + name[-1]):
-            if isinstance(getattr(node, '~' + name[-1]), cvalue):
-                getattr(node, '~' + name[-1])._set_value(value, context)
-
-            else:
-                raise ConfigError('Overlapping configs: %s.%s' % (node._name, name[-1]))
-
-        else:
-            node._loaded_values[name[-1]] = (value, context)
-
-    def _conf(self, name):
-        name = name.split('.')
-        node = self
-        for part in name:
-            if not hasattr(node, part):
-                return
-            node = getattr(node, part)
-            assert not isinstance(node, cvalue)
-        return node
-
-    def cvalue(self, name):
-        name = name.split('.')
-        node = self
-
-        for part in name[:-1]:
-            if not hasattr(node, part):
-                raise ConfigError('Unable to get %s cvalue due to the incorrect path' % \
-                                                                                    '.'.join(name))
-            node = getattr(node, part)
-
-        assert isinstance(getattr(node, '~' + name[-1]), cvalue)
-        return getattr(node, '~' + name[-1])
+    pass
 
 config = _RootConfig('config')
+
+
+def set_value(name, value, context=None):
+    assert not isinstance(value, cvalue)
+
+    name = name.split('.')
+    node = config
+
+    for part in name[:-1]:
+        if hasattr(node, part) and isinstance(getattr(node, part), cvalue):
+            raise ConfigError('Overlapping configs: %s.%s' % (node._name, part))
+
+        if not hasattr(node, part):
+            setattr(node, part, _Config(node._name + '.' + part))
+
+        node = getattr(node, part)
+
+    if hasattr(node, '~' + name[-1]):
+        if isinstance(getattr(node, '~' + name[-1]), cvalue):
+            getattr(node, '~' + name[-1])._set_value(value, context)
+
+        else:
+            raise ConfigError('Overlapping configs: %s.%s' % (node._name, name[-1]))
+
+    else:
+        node._loaded_values[name[-1]] = (value, context)
+
+
+def get_cvalue(name):
+    name = name.split('.')
+    node = config
+
+    for part in name[:-1]:
+        if not hasattr(node, part):
+            raise ConfigError('Unable to get %s cvalue due to the incorrect path' % \
+                                                                                '.'.join(name))
+        node = getattr(node, part)
+
+    assert isinstance(getattr(node, '~' + name[-1]), cvalue)
+    return getattr(node, '~' + name[-1])
+
+
+def _get_conf(config, name):
+    name = name.split('.')
+    node = config
+    for part in name:
+        if not hasattr(node, part):
+            return
+        node = getattr(node, part)
+        assert not isinstance(node, cvalue)
+    return node
 
 
 def configurable(obj, *, basename=None, bind_to=None):
@@ -168,7 +169,7 @@ def configurable(obj, *, basename=None, bind_to=None):
                 arg_default._validate()
 
         if todecorate:
-            _conf = config._conf(obj_name)
+            _conf = _get_conf(config, obj_name)
             if _conf:
                 _conf._bound_to = obj
         else:
@@ -229,7 +230,7 @@ def configurable(obj, *, basename=None, bind_to=None):
                     setattr(obj, attr_name, patched)
 
         if todecorate:
-            _conf = config._conf(obj_name)
+            _conf = _get_conf(config, obj_name)
             if _conf:
                 _conf._bound_to = obj
 
@@ -299,7 +300,7 @@ class cvalue(ChecktypeExempt):
                     if match[0]:
                         self._inter_cache.append(match[0])
                     else:
-                        self._inter_cache.append(config.cvalue(match[2]))
+                        self._inter_cache.append(get_cvalue(match[2]))
 
             return ''.join(item._get_value() if isinstance(item, cvalue) else item\
                                                                     for item in self._inter_cache)
@@ -318,6 +319,13 @@ class cvalue(ChecktypeExempt):
 
         node = config
         name = name.split('.')
+
+        for part in name:
+            if part in _Config_fields:
+                raise ConfigError('Unable to apply @configurable, invalid name: "%s", contains "%s"'
+                                  ' (which is in conflict with internal config implementation)' % \
+                                  ('.'.join(name), part))
+
         for part in name[:-1]:
             if hasattr(node, part) and isinstance(getattr(node, '~' + part), cvalue):
                 raise ConfigError('Overlapping configs: %s' % node._name)
@@ -369,7 +377,7 @@ class _Loader(yaml.Object):
                 for key in obj.data:
                     _Loader.traverse(obj.data[key], (name + '.' + key) if name else key)
             else:
-                config.set_value(name, obj.data, str(obj.context))
+                set_value(name, obj.data, str(obj.context))
 
     def construct(self):
         self.traverse(self)

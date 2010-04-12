@@ -133,6 +133,7 @@ class _Renderer:
                                 cls._render_cvalue(key, item, level=level, verbose=verbose)
 
                     else:
+                        print(cls.tab * level, end='')
                         print(key + ':')
 
                 else:

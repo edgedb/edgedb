@@ -10,6 +10,7 @@ import types
 
 from semantix.utils.debug import assert_raises
 from semantix.utils.config import *
+from semantix.utils.config import set_value, get_cvalue
 from semantix.utils.functional import checktypes, hybridmethod
 
 
@@ -32,12 +33,12 @@ class TestUtilsConfig(object):
         test()
 
         CHK = 1.0
-        config.set_value('semantix.utils.config.tests.test_config.test.test', CHK)
+        set_value('semantix.utils.config.tests.test_config.test.test', CHK)
         test()
 
-        assert config.cvalue('semantix.utils.config.tests.test_config.test.test').doc == "Test Config"
-        assert config.cvalue('semantix.utils.config.tests.test_config.test.flag').type is bool
-        assert config.cvalue('semantix.utils.config.tests.test_config.test.flag').bound_to.__name__ == 'test'
+        assert get_cvalue('semantix.utils.config.tests.test_config.test.test').doc == "Test Config"
+        assert get_cvalue('semantix.utils.config.tests.test_config.test.flag').type is bool
+        assert get_cvalue('semantix.utils.config.tests.test_config.test.flag').bound_to.__name__ == 'test'
 
         CHK = 10.0
         test(10.0)
@@ -81,21 +82,21 @@ class TestUtilsConfig(object):
         test_def2()
 
         CHK = 3.14
-        config.set_value('semantix.utils.config.tests.test_config.test_def1.test', CHK)
+        set_value('semantix.utils.config.tests.test_config.test_def1.test', CHK)
         test_def1()
 
         with assert_raises(AssertionError):
             test_def2()
 
         @configurable
-        def test_def3(test=cvalue(config.cvalue('semantix.utils.config.tests.test_config.test_def1.test'))):
+        def test_def3(test=cvalue(get_cvalue('semantix.utils.config.tests.test_config.test_def1.test'))):
             nonlocal CHK
             assert CHK == test
 
         test_def3()
 
         CHK = 2.17
-        config.set_value('semantix.utils.config.tests.test_config.test_def1.test', CHK)
+        set_value('semantix.utils.config.tests.test_config.test_def1.test', CHK)
         test_def3()
 
     def test_utils_config_func_cargs_kwargs(self):
@@ -117,7 +118,7 @@ class TestUtilsConfig(object):
         test2(1)
 
         CHK = 1.0
-        config.set_value('semantix.utils.config.tests.test_config.test2.test', CHK)
+        set_value('semantix.utils.config.tests.test_config.test2.test', CHK)
         test2(1)
 
         CHK = 10.0
@@ -206,7 +207,7 @@ class TestUtilsConfig(object):
         assert config.semantix.utils.config.tests.test_config.TM2.tm.foo == 10
         assert config.semantix.utils.config.tests.test_config.TM2.tm2.foo == 11
 
-        config.set_value('semantix.utils.config.tests.test_config.TM2.tm2.foo', 4)
+        set_value('semantix.utils.config.tests.test_config.TM2.tm2.foo', 4)
         TM2.tm(10)
         TM2.tm2(4)
 
@@ -268,9 +269,9 @@ class TestUtilsConfig(object):
             test_nd1()
 
         with assert_raises(TypeError, error_substring='Invalid value'):
-            config.set_value('semantix.utils.config.tests.test_config.test_nd1.bar', 142)
+            set_value('semantix.utils.config.tests.test_config.test_nd1.bar', 142)
 
-        config.set_value('semantix.utils.config.tests.test_config.test_nd1.bar', '142')
+        set_value('semantix.utils.config.tests.test_config.test_nd1.bar', '142')
         test_nd1(142)
 
     def test_utils_config_func_checktypes(self):
@@ -337,7 +338,7 @@ class TestUtilsConfig(object):
         t = PTM1()
         assert t.tm == 1101
 
-        config.set_value('semantix.utils.config.tests.test_config.PTM1.tm.tmp', 4)
+        set_value('semantix.utils.config.tests.test_config.PTM1.tm.tmp', 4)
         assert t.tm == 1104
 
         t.tm = 100
@@ -365,17 +366,23 @@ class TestUtilsConfig(object):
         assert TMP2.tmp is 1
         assert TMP2.tmp2 == 333
 
-        config.set_value('semantix.utils.config.tests.test_config.TMP2.tmp2', 4)
+        set_value('semantix.utils.config.tests.test_config.TMP2.tmp2', 4)
         assert TMP2.tmp2 == 4
 
         assert TMP2.tmp3 == TMP.param == 'a'
 
-        assert config.cvalue('semantix.utils.config.tests.test_config.TMP2.tmp2').bound_to is TMP2
-        assert config.cvalue('semantix.utils.config.tests.test_config.TMP.param').bound_to is TMP
-        assert config.cvalue('semantix.utils.config.tests.test_config.TMP.param').type is str
+        assert get_cvalue('semantix.utils.config.tests.test_config.TMP2.tmp2').bound_to is TMP2
+        assert get_cvalue('semantix.utils.config.tests.test_config.TMP.param').bound_to is TMP
+        assert get_cvalue('semantix.utils.config.tests.test_config.TMP.param').type is str
 
         with assert_raises(TypeError):
-            config.set_value('semantix.utils.config.tests.test_config.TMP.param', 10)
+            set_value('semantix.utils.config.tests.test_config.TMP.param', 10)
+
+    def test_utils_config_invalid_name(self):
+        with assert_raises(ConfigError, error_substring='Unable to apply'):
+            @configurable
+            def _name(test=cvalue('root')):
+                return test
 
     def test_utils_config_interpolation(self):
         @configurable
@@ -395,7 +402,7 @@ class TestUtilsConfig(object):
         with assert_raises(ConfigError, error_substring='Malformed substitution syntax'):
             inter_test3()
 
-        config.set_value('semantix.utils.config.tests.test_config.inter_test1.test', '33')
+        set_value('semantix.utils.config.tests.test_config.inter_test1.test', '33')
         assert inter_test2() == 'smth/33/'
 
     def test_utils_config_yaml(self):
@@ -414,7 +421,7 @@ class TestUtilsConfig(object):
                 pass
 
     def test_utils_config_loadflow(self):
-        config.set_value('semantix.utils.config.tests.test_config.YML.foo', 33)
+        set_value('semantix.utils.config.tests.test_config.YML.foo', 33)
 
         with assert_raises(ConfigError):
             config.semantix.utils.config.tests.test_config.YML.foo
@@ -426,7 +433,7 @@ class TestUtilsConfig(object):
         assert YML.foo == 33
         assert config.semantix.utils.config.tests.test_config.YML.foo == 33
 
-        config.set_value('semantix.utils.config.tests.test_config.YML.foo', 133)
+        set_value('semantix.utils.config.tests.test_config.YML.foo', 133)
 
         assert YML.foo == 133
         assert config.semantix.utils.config.tests.test_config.YML.foo == 133
