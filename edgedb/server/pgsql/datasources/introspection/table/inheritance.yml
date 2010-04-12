@@ -23,11 +23,12 @@ source: |
         SELECT
                 *
             FROM
-                (WITH RECURSIVE inheritance(oid, name, ns, depth, path) AS (
+                (WITH RECURSIVE inheritance(oid, name, ns, depth, pos, path) AS (
                         SELECT
                                 c.oid,
                                 c.relname,
                                 ns.nspname,
+                                0,
                                 0,
                                 ARRAY[c.relname]
                             FROM
@@ -42,6 +43,7 @@ source: |
                                 c.relname,
                                 ns.nspname,
                                 i.depth + 1,
+                                pgi.inhseqno AS pos,
                                 i.path || c.relname
                             FROM
                                 pg_class c,
@@ -54,6 +56,6 @@ source: |
                                 AND ns.oid = c.relnamespace
                                 AND (%(max_depth)s::int IS NULL OR i.depth < %(max_depth)s::int)
                 )
-                SELECT DISTINCT ON (name, ns) name, ns, depth FROM inheritance) q
+                SELECT DISTINCT ON (name, ns) name, ns, depth, pos FROM inheritance) q
             ORDER BY
-                depth
+                depth, pos
