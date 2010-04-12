@@ -174,9 +174,6 @@ class BaseOrderedSet(collections.MutableSet):
     def key(item):
         return item
 
-    def __del__(self):
-        self.clear()
-
     def add(self, key):
         k = self.key(key)
         if k not in self.map:
