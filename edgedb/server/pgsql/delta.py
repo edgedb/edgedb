@@ -16,7 +16,7 @@ from semantix import caos
 from semantix.caos import proto
 from semantix.caos import delta as delta_cmds
 
-from semantix.caos.backends.pgsql import common
+from semantix.caos.backends.pgsql import common, Config
 
 from semantix.utils import datastructures
 from semantix.utils.debug import debug
@@ -1221,7 +1221,7 @@ class Feature:
         self.schema = schema
 
     def code(self, db):
-        pgpath = os.getenv('SEMANTIX_PGPATH', '/usr/share/postgresql-%(version)s')
+        pgpath = Config.pg_install_path
         source = self.source % {'pgpath': pgpath}
         source = source % {'version': '%s.%s' % db.version_info[:2]}
 
