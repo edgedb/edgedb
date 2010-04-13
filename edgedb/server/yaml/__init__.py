@@ -625,7 +625,7 @@ class DataSet(LangObject):
 
         entities = {id: [shell.entity for shell in shells] for id, shells in self.data.items()}
         for entity in self.context.document.entities:
-            entity.materialize_links(entities)
+            entity.__class__.materialize_links(entity, entities)
 
 
 class CaosName(LangObject, adapts=caos.Name, ignore_aliases=True):
