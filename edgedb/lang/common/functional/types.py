@@ -10,9 +10,9 @@ import inspect
 import warnings
 import itertools
 
-from .base import BaseDecorator, decorate
 from semantix.exceptions import SemantixError
 import semantix.utils.functional
+from . import tools
 
 
 __all__ = ['checktypes']
@@ -130,13 +130,6 @@ class FunctionValidator:
         return string
 
     @classmethod
-    def get_argsspec(cls, func):
-        try:
-            return getattr(func, '_args_spec_')
-        except AttributeError:
-            return inspect.getfullargspec(func)
-
-    @classmethod
     def get_checkers(cls, func, args_spec):
         return {arg: Checker.get(target) for arg, target in args_spec.annotations.items()}
 
@@ -178,45 +171,10 @@ class FunctionValidator:
             cls.check_value(checkers['return'], result, func, 'return')
 
     @classmethod
-    def try_apply_decorator(cls, func, decorate_function=None, decorate_class=None):
-        if inspect.isfunction(func) and decorate_function:
-            return decorate_function(func)
-
-        if inspect.isclass(func) and decorate_class:
-            return decorate_class(func)
-
-        if isinstance(func, classmethod):
-            return classmethod(cls.try_apply_decorator(func.__func__,
-                                                       decorate_function, decorate_class))
-
-        if isinstance(func, staticmethod):
-            return staticmethod(cls.try_apply_decorator(func.__func__,
-                                                        decorate_function, decorate_class))
-
-        if isinstance(func, property):
-            funcs = []
-            for name in 'fget', 'fset', 'fdel':
-                f = getattr(func, name, None)
-                if f:
-                    f = cls.try_apply_decorator(f, decorate_function, decorate_class)
-                funcs.append(f)
-            return property(*funcs)
-
-        if isinstance(func, BaseDecorator):
-            top = func
-            while isinstance(func, BaseDecorator):
-                host = func
-                func = func._func_
-            host._func_ = cls.try_apply_decorator(host._func_, decorate_function, decorate_class)
-            return top
-
-        return func
-
-    @classmethod
     def checktypes_function(cls, func):
         assert inspect.isfunction(func)
 
-        args_spec = cls.get_argsspec(func)
+        args_spec = tools.get_argsspec(func)
 
         if not args_spec.annotations:
             return func
@@ -230,7 +188,7 @@ class FunctionValidator:
             cls.check_result(func, result, checkers)
             return result
 
-        decorate(wrapper, func)
+        tools.decorate(wrapper, func)
         return wrapper
 
     @classmethod
@@ -238,7 +196,8 @@ class FunctionValidator:
         assert inspect.isclass(target_cls)
 
         for name, object in target_cls.__dict__.items():
-            patched = cls.try_apply_decorator(object, cls.checktypes_function, cls.checktypes_class)
+            patched = tools.apply_decorator(object, decorate_function=cls.checktypes_function,
+                                            decorate_class=cls.checktypes_class)
             if patched is not object:
                 setattr(target_cls, name, patched)
 
@@ -251,11 +210,11 @@ class checktypes:
             return func
 
         if inspect.isfunction(func):
-            args_spec = FunctionValidator.get_argsspec(func)
+            args_spec = tools.get_argsspec(func)
             if not args_spec.annotations:
                 warnings.warn('No annotation for function %s while using @checktypes on it' % \
                                                                                     func.__name__)
                 return func
 
-        return FunctionValidator.try_apply_decorator(func, FunctionValidator.checktypes_function,
-                                                     FunctionValidator.checktypes_class)
+        return tools.apply_decorator(func, decorate_function=FunctionValidator.checktypes_function,
+                                     decorate_class=FunctionValidator.checktypes_class)

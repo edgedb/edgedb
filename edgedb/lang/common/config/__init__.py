@@ -11,7 +11,7 @@ import functools
 import itertools
 import inspect
 
-from semantix.utils.functional import decorate, BaseDecorator
+from semantix.utils.functional import decorate, apply_decorator, get_argsspec
 from semantix.utils.functional.types import Checker, FunctionValidator, checktypes, \
                                             ChecktypeExempt, TypeChecker
 from semantix.exceptions import SemantixError
@@ -141,7 +141,7 @@ def configurable(obj, *, basename=None, bind_to=None):
         assert inspect.isfunction(obj)
         todecorate = False
 
-        args_spec = FunctionValidator.get_argsspec(obj)
+        args_spec = get_argsspec(obj)
         checkers = FunctionValidator.get_checkers(obj, args_spec)
 
         defaults = []
@@ -223,7 +223,8 @@ def configurable(obj, *, basename=None, bind_to=None):
                 todecorate = True
 
             else:
-                patched = FunctionValidator.try_apply_decorator(attr_value, _decorate, _decorate)
+                patched = apply_decorator(attr_value, decorate_function=_decorate,
+                                          decorate_class=_decorate)
 
                 if patched is not attr_value:
                     todecorate = True
@@ -236,7 +237,7 @@ def configurable(obj, *, basename=None, bind_to=None):
 
         return obj
 
-    return FunctionValidator.try_apply_decorator(obj, decorate_function, decorate_class)
+    return apply_decorator(obj, decorate_function=decorate_function, decorate_class=decorate_class)
 
 
 class _NoDefault:

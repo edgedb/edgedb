@@ -5,6 +5,7 @@
 # See LICENSE for details.
 ##
 
+
 import abc
 import types
 import inspect
@@ -12,7 +13,7 @@ import functools
 import threading
 
 
-_lock = threading.Lock()
+__all__ = ['get_argsspec', 'apply_decorator', 'decorate', 'Decorator', 'BaseDecorator']
 
 
 def decorate(wrapper, wrapped):
@@ -30,12 +31,15 @@ def decorate(wrapper, wrapped):
         else:
             setattr(wrapper, '_args_spec_', inspect.getfullargspec(wrapped))
 
+        setattr(wrapper, '_func_', wrapped)
+
 
 class BaseDecorator:
     def __init__(self, func):
         self._func_ = func
 
 
+_lock = threading.Lock()
 class Decorator(BaseDecorator, metaclass=abc.ABCMeta):
     def __init__(self, func):
         self._func_ = func
@@ -102,18 +106,51 @@ class Decorator(BaseDecorator, metaclass=abc.ABCMeta):
         return self(cls, *args, **kwargs)
 
 
-class hybridmethod(Decorator):
-    def __call__(self, *args, **kwargs):
-        return self._func_(*args, **kwargs)
+def get_argsspec(func):
+    try:
+        return getattr(func, '_args_spec_')
+    except AttributeError:
+        return inspect.getfullargspec(func)
 
 
-class cachedproperty(BaseDecorator):
-    def __init__(self, func):
-        super().__init__(func)
-        self.__name__ = func.__name__
+def apply_decorator(func, *, decorate_function=None, decorate_class=None):
+    if inspect.isfunction(func):
+        if decorate_function:
+            return decorate_function(func)
+        else:
+            raise TypeError('Unable to decorate function %s' % func.__name__)
 
-    def __get__(self, obj, cls=None):
-        assert obj
-        value = self._func_(obj)
-        obj.__dict__[self.__name__] = value
-        return value
+    if inspect.isclass(func):
+        if decorate_class:
+            return decorate_class(func)
+        else:
+            raise TypeError('Unable to decorate class %s' % func.__name__)
+
+    if isinstance(func, classmethod):
+        return classmethod(apply_decorator(func.__func__, decorate_function=decorate_function,
+                                           decorate_class=decorate_class))
+
+    if isinstance(func, staticmethod):
+        return staticmethod(apply_decorator(func.__func__, decorate_function=decorate_function,
+                                            decorate_class=decorate_class))
+
+    if isinstance(func, property):
+        funcs = []
+        for name in 'fget', 'fset', 'fdel':
+            f = getattr(func, name, None)
+            if f:
+                f = apply_decorator(f, decorate_function=decorate_function,
+                                    decorate_class=decorate_class)
+            funcs.append(f)
+        return property(*funcs)
+
+    if isinstance(func, BaseDecorator):
+        top = func
+        while isinstance(func, BaseDecorator):
+            host = func
+            func = func._func_
+        host._func_ = apply_decorator(host._func_, decorate_function=decorate_function,
+                                      decorate_class=decorate_class)
+        return top
+
+    return func
