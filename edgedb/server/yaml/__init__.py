@@ -597,7 +597,8 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
             self.id = self.data
         else:
             aliases = {alias: mod.__name__ for alias, mod in self.context.document.imports.items()}
-            factory = self.context.document.realm.getfactory(module_aliases=aliases)
+            session = self.context.document.session
+            factory = session.realm.getfactory(module_aliases=aliases, session=session)
 
             concept, data = next(iter(self.data.items()))
             self.entity = factory(concept)(**data)

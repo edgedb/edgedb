@@ -21,6 +21,7 @@ from semantix.utils.nlang import morphology
 
 from semantix import caos
 
+from semantix.caos import session
 from semantix.caos import backends
 from semantix.caos import proto
 from semantix.caos import delta as base_delta
@@ -32,6 +33,36 @@ from . import datasources
 from .datasources import introspection
 
 from .transformer import CaosTreeTransformer
+
+
+class Session(session.Session):
+    def __init__(self, realm, connection, entity_cache):
+        super().__init__(realm, entity_cache=entity_cache)
+        self.connection = connection
+        self.xact = []
+
+    def _new_transaction(self):
+        xact = self.connection.xact()
+        xact.begin()
+        return xact
+
+    def in_transaction(self):
+        return bool(self.xact)
+
+    def begin(self):
+        self.xact.append(self._new_transaction())
+
+    def commit(self):
+        if not self.in_transaction():
+            raise session.SessionError('commit() called but no transaction is running')
+        xact = self.xact.pop()
+        xact.commit()
+
+    def rollback(self):
+        if not self.in_transaction():
+            raise session.SessionError('rollback() called but no transaction is running')
+        xact = self.xact.pop()
+        xact.rollback()
 
 
 class Query:
@@ -125,6 +156,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         super().__init__(repo)
 
 
+    def session(self, realm, entity_cache):
+        return Session(realm, connection=self.connection.clone(), entity_cache=entity_cache)
+
+
     def getmeta(self):
         if not self.meta.index:
             if 'caos' in self.modules:
@@ -203,10 +238,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.modules = self.read_modules()
 
 
-    def load_entity(self, concept, id):
+    def load_entity(self, concept, id, session):
         query = 'SELECT * FROM %s WHERE "semantix.caos.builtins.id" = \'%s\'' % \
                                                 (common.concept_name_to_table_name(concept), id)
-        ps = self.connection.prepare(query)
+        ps = session.connection.prepare(query)
         result = ps.first()
 
         if result is not None:
@@ -218,13 +253,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     @debug
-    def store_entity(self, entity):
+    def store_entity(self, entity, session=None):
         cls = entity.__class__
         concept = cls._metadata.name
         id = entity.id
         links = entity._instancedata.links
 
-        with self.connection.xact():
+        connection = session.connection if session else self.connection
+
+        with connection.xact():
 
             attrs = {}
             for n, v in links.items():
@@ -233,14 +270,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     attrs[n] = v
 
             returning = ['"semantix.caos.builtins.id"']
-            if issubclass(cls, cls._metadata.realm.root.semantix.caos.builtins.Object):
+            if issubclass(cls, cls._metadata.realm.schema.semantix.caos.builtins.Object):
                 returning.extend(('"semantix.caos.builtins.ctime"',
                                   '"semantix.caos.builtins.mtime"'))
 
             if id is not None:
                 query = 'UPDATE %s SET ' % common.concept_name_to_table_name(concept)
                 cols = []
-                if issubclass(cls, cls._metadata.realm.root.semantix.caos.builtins.Object):
+                if issubclass(cls, cls._metadata.realm.schema.semantix.caos.builtins.Object):
                     attrs['semantix.caos.builtins.mtime'] = 'NOW'
 
                 for a in attrs:
@@ -260,7 +297,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                                         % postgresql.string.quote_literal(str(id))
                 query += 'RETURNING %s' % ','.join(returning)
             else:
-                if issubclass(cls, cls._metadata.realm.root.semantix.caos.builtins.Object):
+                if issubclass(cls, cls._metadata.realm.schema.semantix.caos.builtins.Object):
                     attrs['semantix.caos.builtins.ctime'] = 'NOW'
 
                 if attrs:
@@ -286,7 +323,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 query = 'INSERT INTO %s ("semantix.caos.builtins.id", concept_id%s)' \
                                         % (common.concept_name_to_table_name(concept), cols_names)
 
-                query += '''VALUES(uuid_generate_v1mc(),
+                query += '''VALUES(caos.uuid_generate_v1mc(),
                                    (SELECT id FROM caos.concept WHERE name = %(concept)s) %(cols)s)
                          ''' \
                             % {'concept': postgresql.string.quote_literal(str(concept)),
@@ -296,7 +333,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             data = dict((str(k), str(attrs[k]) if attrs[k] is not None else None) for k in attrs)
 
-            rows = self.runquery(query, data)
+            rows = self.runquery(query, data, connection=connection)
             id = next(rows)
             if id is None:
                 raise Exception('failed to store entity')
@@ -306,7 +343,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     (concept, id[0], (data['name'] if 'name' in data else '')))
             """
 
-            if issubclass(cls, cls._metadata.realm.root.semantix.caos.builtins.Object):
+            if issubclass(cls, cls._metadata.realm.schema.semantix.caos.builtins.Object):
                 id, ctime, mtime = id
                 entity.ctime = ctime
                 entity.mtime = mtime
@@ -317,14 +354,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             for name, link in links.items():
                 if isinstance(link, caos.concept.LinkedSet) and link._instancedata.dirty:
-                    self.store_links(entity, link, name)
+                    self.store_links(entity, link, name, connection)
                     link._instancedata.dirty = False
 
         return id
 
 
-    def caosqlcursor(self):
-        return CaosQLCursor(self.connection)
+    def caosqlcursor(self, session):
+        return CaosQLCursor(session.connection)
 
 
     def read_modules(self):
@@ -527,7 +564,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     @debug
-    def store_links(self, source, targets, link_name):
+    def store_links(self, source, targets, link_name, connection):
         rows = []
 
         params = []
@@ -536,9 +573,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             """LOG [caos.sync]
             print('Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
-                  (source.concept, source.id, (source.name if hasattr(source, 'name') else ''),
-                   link_name,
-                   target.concept, target.id, (target.name if hasattr(target, 'name') else ''))
+                  (source.__class__._metadata.name, source.id,
+                   (source.name if hasattr(source, 'name') else ''), link_name,
+                   target.__class__._metadata.name,
+                   target.id, (target.name if hasattr(target, 'name') else ''))
                   )
             """
 
@@ -565,7 +603,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                               (SELECT source_id, target_id, link_type_id
                               FROM %s
                               WHERE (source_id, target_id, link_type_id) in (VALUES %s)))""" %
-                             (table, ",".join(rows), table, ",".join(rows)), params)
+                             (table, ",".join(rows), table, ",".join(rows)), params,
+                             connection=connection)
 
 
     def load_links(self, this_concept, this_id, other_concepts=None, link_names=None,
@@ -670,10 +709,17 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return d
 
 
-    def runquery(self, query, params=None):
+    @debug
+    def runquery(self, query, params=None, connection=None):
         cursor = CompatCursor(self.connection)
         query, pxf, nparams = cursor._convert_query(query)
-        ps = self.connection.prepare(query)
+        connection = connection or self.connection
+        ps = connection.prepare(query)
+
+        """LOG [caos.sql] Issued SQL
+        print(query)
+        """
+
         if params:
             return ps.rows(*pxf(params))
         else:

@@ -9,6 +9,30 @@
 from semantix.caos.backends import MetaBackend
 from semantix.caos.proto import RealmMeta
 from semantix.caos.delta import DeltaSet
+from semantix.caos import session
+
+
+class Session(session.Session):
+    def __init__(self, realm, entity_cache):
+        super().__init__(realm, entity_cache)
+        self.xact = []
+
+    def in_transaction(self):
+        return bool(self.xact)
+
+    def begin(self):
+        self.xact.append(True)
+
+    def commit(self):
+        if not self.in_transaction():
+            raise session.SessionError('commit() called but no transaction is running')
+        self.xact.pop()
+
+    def rollback(self):
+        if not self.in_transaction():
+            raise session.SessionError('rollback() called but no transaction is running')
+        self.xact.pop()
+
 
 
 class Backend(MetaBackend):
@@ -29,3 +53,6 @@ class Backend(MetaBackend):
 
     def getmeta(self):
         return self.meta
+
+    def session(self, realm, entity_cache):
+        return Session(realm, entity_cache=entity_cache)
