@@ -279,7 +279,7 @@ class Constructor(yaml.constructor.Constructor):
                 self.documents_emitted += 1
 
         # Construct and return the next document.
-        if self.check_node():
+        while self.check_node():
             node = self.get_node()
             data = self.construct_document(node)
             self.documents_emitted += 1
