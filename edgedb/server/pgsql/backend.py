@@ -580,7 +580,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                   )
             """
 
-            if isinstance(targets._metadata.link, caos.types.Node):
+            if isinstance(targets._metadata.link, caos.types.NodeClass):
                 full_link_name = targets._metadata.link._class_metadata.full_link_name
             else:
                 for link, link_target_class in targets._metadata.link.links():
