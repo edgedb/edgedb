@@ -6,4 +6,6 @@
 ##
 
 
-from . import concept
+from . import atoms
+from . import concepts
+from . import links

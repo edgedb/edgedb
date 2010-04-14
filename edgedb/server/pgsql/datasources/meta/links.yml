@@ -7,6 +7,34 @@
 
 
 %SCHEMA semantix.caos.datasources.schemas.Sql
+%NAME ConceptLink
+---
+params:
+    name:
+        type: str
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+            l.id,
+            l.source_id,
+            sc.name AS source,
+            l.target_id,
+            tc.name AS target,
+            l.name AS name,
+            l.mapping
+        FROM
+            caos.link l
+            INNER JOIN caos.concept sc ON l.source_id = sc.id
+            INNER JOIN caos.concept tc ON l.target_id = tc.id
+        WHERE
+            %(name)s = l.name
+
+...
+
+%SCHEMA semantix.caos.datasources.schemas.Sql
 %NAME ConceptLinks
 ---
 params:

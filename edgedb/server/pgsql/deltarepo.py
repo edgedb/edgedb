@@ -13,7 +13,7 @@ from semantix.caos import delta as base_delta
 from . import common
 from . import delta
 
-from .datasources.deltalog import DeltaLog
+from .datasources import deltalog
 
 
 class MetaDeltaRepository(backends.MetaDeltaRepository):
@@ -41,7 +41,7 @@ class MetaDeltaRepository(backends.MetaDeltaRepository):
 
             if ref.offset:
                 rev_id = '%x' % result
-                result = DeltaLog(self.connection).fetch(rev_id=rev_id, offset=ref.offset)
+                result = deltalog.DeltaLog(self.connection).fetch(rev_id=rev_id, offset=ref.offset)
 
                 if not result:
                     raise base_delta.DeltaRefError('unknown revision: %s' % ref)

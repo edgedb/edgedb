@@ -365,7 +365,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def read_modules(self):
-        schemas = introspection.SchemasList(self.connection).fetch(schema_name='caos%')
+        schemas = introspection.schemas.SchemasList(self.connection).fetch(schema_name='caos%')
         return {common.schema_name_to_caos_module_name(s['name']) for s in schemas}
 
 
@@ -377,7 +377,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                    self.normalize_domain_descr(d) for d in domains}
         self.domains = set(domains.keys())
 
-        atom_list = datasources.AtomList(self.connection).fetch()
+        atom_list = datasources.meta.atoms.AtomList(self.connection).fetch()
 
         for row in atom_list:
             name = caos.Name(row['name'])
@@ -421,8 +421,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def read_links(self, meta):
 
-        link_tables = introspection.table.TableList(self.connection).fetch(schema_name='caos%',
-                                                                           table_pattern='%_link')
+        link_tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
+                                                                            table_pattern='%_link')
 
         ltables = {}
 
@@ -435,7 +435,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         link_tables = ltables
 
-        links_list = datasources.meta.concept.ConceptLinks(self.connection).fetch()
+        links_list = datasources.meta.links.ConceptLinks(self.connection).fetch()
 
         g = {}
 
@@ -454,7 +454,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                 bases = self.pg_table_inheritance_to_bases(t['name'], t['schema'])
 
-                columns = introspection.table.TableColumns(self.connection)
+                columns = introspection.tables.TableColumns(self.connection)
                 columns = columns.fetch(table_name=t['name'], schema_name=t['schema'])
                 for row in columns:
                     if row['column_name'] in ('source_id', 'target_id', 'link_type_id'):
@@ -485,7 +485,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 concept_schema, concept_table = common.concept_name_to_table_name(source.name,
                                                                                   catenate=False)
                 if not cols:
-                    cols = introspection.table.TableColumns(self.connection)
+                    cols = introspection.tables.TableColumns(self.connection)
                     cols = cols.fetch(table_name=concept_table, schema_name=concept_schema)
                     cols = {col['column_name']: col for col in cols}
                     concept_columns[source.name] = cols
@@ -534,9 +534,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def read_concepts(self, meta):
-        tables = introspection.table.TableList(self.connection).fetch(schema_name='caos%',
+        tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
                                                                       table_pattern='%_data')
-        concept_list = datasources.ConceptList(self.connection).fetch()
+        concept_list = datasources.meta.concepts.ConceptList(self.connection).fetch()
 
         concepts = {}
         for row in concept_list:
@@ -558,7 +558,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                     is_abstract=concepts[name]['is_abstract'],
                                     custombases=tuple(concepts[name]['custombases']))
 
-            columns = introspection.table.TableColumns(self.connection)
+            columns = introspection.tables.TableColumns(self.connection)
             columns = columns.fetch(table_name=t['name'], schema_name=t['schema'])
             meta.add(concept)
 
@@ -588,7 +588,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         full_link_name = link._metadata.name
                         break
 
-            lt = datasources.ConceptLink(self.connection).fetch(name=str(full_link_name))
+            lt = datasources.meta.links.ConceptLink(self.connection).fetch(name=str(full_link_name))
 
             rows.append('(%s::uuid, %s::uuid, %s::int)')
             params += [source.id, target.id, lt[0]['id']]
@@ -627,7 +627,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             target_concepts = [this_concept]
             source_concepts = other_concepts
 
-        links = datasources.EntityLinks(self.connection).fetch(
+        links = datasources.entities.EntityLinks(self.connection).fetch(
                                         source_id=source_id, target_id=target_id,
                                         target_concepts=target_concepts,
                                         source_concepts=source_concepts,
@@ -727,7 +727,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def pg_table_inheritance_to_bases(self, table_name, schema_name):
-        inheritance = introspection.table.TableInheritance(self.connection)
+        inheritance = introspection.tables.TableInheritance(self.connection)
         inheritance = inheritance.fetch(table_name=table_name, schema_name=schema_name, max_depth=1)
         inheritance = [i[:2] for i in inheritance[1:]]
 
