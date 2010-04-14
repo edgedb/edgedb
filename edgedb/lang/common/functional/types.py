@@ -71,7 +71,7 @@ class LambdaChecker(Checker):
 
     def check(self, value, func, arg_name):
         if not self.target(value):
-            raise TypeError('Invalid function %s argument %s' % \
+            raise TypeError('%s(): unexpected value for \'%s\' argument' % \
                             (getattr(func, '__name__', func), arg_name))
 
     @classmethod
@@ -97,8 +97,9 @@ class TupleChecker(Checker):
             else:
                 return
 
-        raise TypeError('Invalid function %s argument %s' % \
-                        (getattr(func, '__name__', func), arg_name))
+        raise TypeError('%s(): unexpected value for \'%s\' argument: expected one of %s, got %s' % \
+                        (getattr(func, '__name__', func), arg_name,
+                        tuple(t.__name__ for t in self.target), type(value).__name__))
 
     @classmethod
     def can_handle(cls, target):
@@ -110,7 +111,7 @@ class TypeChecker(Checker):
 
     def check(self, value, func, arg_name):
         if not isinstance(value, self.target):
-            raise TypeError('Unexpected type of function %s argument %s: expected %s, got %s' % \
+            raise TypeError('%s(): unexpected value for \'%s\' argument: expected %s, got %s' % \
                             (getattr(func, '__name__', func), arg_name,
                              self.target.__name__, type(value).__name__))
 
