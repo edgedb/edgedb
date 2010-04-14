@@ -25,7 +25,7 @@ class LanguageMeta(type):
 
 
 class Language(object, metaclass=LanguageMeta):
-    pass
+    lazyload = False
 
 
 class SourcePoint(object):

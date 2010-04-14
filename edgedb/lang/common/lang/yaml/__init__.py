@@ -18,6 +18,8 @@ class YamlImportError(Exception):
 
 
 class Language(meta.Language):
+    lazyload = False
+
     @classmethod
     def recognize_file(cls, filename, try_append_extension=False, is_package=False):
         if is_package:

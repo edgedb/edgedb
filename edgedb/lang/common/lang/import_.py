@@ -11,6 +11,7 @@ import os
 import imp
 import importlib.abc
 import collections
+import types
 
 from .meta import LanguageMeta, DocumentContext
 
@@ -27,6 +28,18 @@ class ImportContext(str):
     @classmethod
     def from_parent(cls, name, parent):
         return cls(name)
+
+
+class Module(types.ModuleType):
+    pass
+
+
+class LazyModule(types.ModuleType):
+    def __getattribute__(self, name):
+        self.__class__ = Module
+        # Reload the module
+        self.__loader__.load_module(self.__name__)
+        return getattr(self, name)
 
 
 class Importer(importlib.abc.Finder, importlib.abc.Loader):
@@ -52,38 +65,49 @@ class Importer(importlib.abc.Finder, importlib.abc.Loader):
                 return self
 
     def load_module(self, fullname):
-        if fullname in sys.modules:
-            return sys.modules[fullname]
-
         language, filename, is_package = self.module_file_map[fullname]
 
-        new_mod = imp.new_module(fullname)
+        new_mod = sys.modules.get(fullname)
+        lazy = False
+        reload = new_mod is not None
+
+        if not reload:
+            if language.lazyload:
+                new_mod = LazyModule(fullname)
+                lazy = True
+            else:
+                new_mod = imp.new_module(fullname)
+
+            sys.modules[fullname] = new_mod
+
         new_mod.__file__ = filename
         if is_package:
             new_mod.__path__ = [os.path.dirname(filename)]
-            new_mod.__package__ = new_mod.__name__
+            new_mod.__package__ = fullname
         else:
-            new_mod.__package__ = new_mod.__name__.rpartition('.')[0]
+            new_mod.__path__ = None
+            new_mod.__package__ = fullname.rpartition('.')[0]
+
         new_mod.__odict__ = collections.OrderedDict()
         new_mod.__loader__ = self
         new_mod._language_ = language
 
-        sys.modules[fullname] = new_mod
+        if not lazy:
+            context = DocumentContext(module=new_mod, import_context=fullname)
 
-        context = DocumentContext(module=new_mod, import_context=fullname)
+            with open(filename) as stream:
+                try:
+                    attributes = language.load_dict(stream, context=context)
 
-        with open(filename) as stream:
-            try:
-                attributes = language.load_dict(stream, context=context)
+                    for attribute_name, attribute_value in attributes:
+                        attribute_name = str(attribute_name)
+                        new_mod.__odict__[attribute_name] = attribute_value
+                        setattr(new_mod, attribute_name, attribute_value)
 
-                for attribute_name, attribute_value in attributes:
-                    attribute_name = str(attribute_name)
-                    new_mod.__odict__[attribute_name] = attribute_value
-                    setattr(new_mod, attribute_name, attribute_value)
-
-            except Exception as error:
-                del sys.modules[fullname]
-                raise ImportError('unable to import "%s" (%s: %s)' \
-                                  % (fullname, type(error).__name__, error)) from error
+                except Exception as error:
+                    if not reload:
+                        del sys.modules[fullname]
+                    raise ImportError('unable to import "%s" (%s: %s)' \
+                                      % (fullname, type(error).__name__, error)) from error
 
         return new_mod
