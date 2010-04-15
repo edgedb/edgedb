@@ -344,13 +344,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             """
 
             if issubclass(cls, cls._metadata.realm.schema.semantix.caos.builtins.Object):
-                id, ctime, mtime = id
-                entity.ctime = ctime
-                entity.mtime = mtime
+                updates = {'id': id[0], 'ctime': id[1], 'mtime': id[2]}
             else:
-                id = id[0]
-            entity.id = id
-            entity._instancedata.dirty = False
+                updates = {'id': id[0]}
+            entity._instancedata.update(entity, updates, register_changes=False)
 
             for name, link in links.items():
                 if isinstance(link, caos.concept.LinkedSet) and link._instancedata.dirty:
@@ -359,6 +356,19 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         return id
 
+    @debug
+    def delete_entity(self, entity, session):
+        concept = entity.__class__._metadata.name
+        table = common.concept_name_to_table_name(concept)
+        query = '''DELETE FROM %s WHERE "semantix.caos.builtins.id" = $1
+                   RETURNING "semantix.caos.builtins.id"''' % table
+
+        """LOG [caos.sync]
+        print('Removing entity %s[%s]' % (concept, entity.id))
+        """
+
+        result = self.runquery(query, [entity.id], session.connection, compat=False)
+        return result
 
     def caosqlcursor(self, session):
         return CaosQLCursor(session.connection)
@@ -710,9 +720,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     @debug
-    def runquery(self, query, params=None, connection=None):
-        cursor = CompatCursor(self.connection)
-        query, pxf, nparams = cursor._convert_query(query)
+    def runquery(self, query, params=None, connection=None, compat=True):
+        if compat:
+            cursor = CompatCursor(self.connection)
+            query, pxf, nparams = cursor._convert_query(query)
+            params = pxf(params)
+
         connection = connection or self.connection
         ps = connection.prepare(query)
 
@@ -721,7 +734,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         """
 
         if params:
-            return ps.rows(*pxf(params))
+            return ps.rows(*params)
         else:
             return ps.rows()
 
