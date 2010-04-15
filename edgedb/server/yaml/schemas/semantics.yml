@@ -80,6 +80,9 @@ mapping:
                                               "required":
                                                   type: bool
                                                   default: False
+                                              "readonly":
+                                                  type: bool
+                                                  default: None
                                               "mapping":
                                                   type: str
                                                   enum: ["1*", "11", "**", "*1"]
@@ -204,6 +207,10 @@ mapping:
                     "abstract":
                         type: bool
                         default: False
+
+                    "readonly":
+                        type: bool
+                        default: None
 
                     "mapping":
                         type: str

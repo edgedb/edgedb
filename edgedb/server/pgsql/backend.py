@@ -347,7 +347,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 updates = {'id': id[0], 'ctime': id[1], 'mtime': id[2]}
             else:
                 updates = {'id': id[0]}
-            entity._instancedata.update(entity, updates, register_changes=False)
+            entity._instancedata.update(entity, updates, register_changes=False, allow_ro=True)
             session.add_entity(entity)
 
             for name, link in links.items():
@@ -518,7 +518,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                 mapping=r['mapping'], required=r['required'],
                                 title=title, description=description,
                                 is_abstract=r['is_abstract'],
-                                is_atom=r['is_atom'])
+                                is_atom=r['is_atom'],
+                                readonly=r['readonly'])
             link.implicit_derivative = r['implicit_derivative']
             link.properties = properties
 

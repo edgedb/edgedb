@@ -237,7 +237,8 @@ class LinkDef(Prototype, adapts=proto.Link):
         proto.Link.__init__(self, name=None, backend=None,
                             base=tuple(extends) if extends else tuple(),
                             title=data['title'], description=data['description'],
-                            is_abstract=data.get('abstract'))
+                            is_abstract=data.get('abstract'),
+                            readonly=data.get('readonly'))
         for property_name, property in data['properties'].items():
             property.name = property_name
             self.add_property(property)
@@ -258,6 +259,9 @@ class LinkDef(Prototype, adapts=proto.Link):
 
         if data.is_abstract:
             result['abstract'] = data.is_abstract
+
+        if data.readonly:
+            result['readonly'] = data.readonly
 
         if data.mapping:
             result['mapping'] = data.mapping
@@ -305,8 +309,8 @@ class LinkList(LangObject, list):
         else:
             for target, info in data.items():
                 link = proto.Link(name=None, target=target, mapping=info['mapping'],
-                                 required=info['required'], title=info['title'],
-                                 description=info['description'])
+                                  required=info['required'], title=info['title'],
+                                  description=info['description'], readonly=info['readonly'])
                 link.mods = info.get('mods')
                 link.context = self.context
                 self.append(link)

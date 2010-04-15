@@ -1271,6 +1271,7 @@ class LinkTable(MetaObjectTable):
             Column(name='required', type='boolean', required=True, default=False),
             Column(name='implicit_derivative', type='boolean', required=True, default=False),
             Column(name='is_atom', type='boolean', required=True, default=False),
+            Column(name='readonly', type='boolean', required=True, default=False),
         ])
 
         self.constraints = set([
