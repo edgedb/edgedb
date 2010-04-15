@@ -78,8 +78,17 @@ class BaseCommand:
 
         return code, vars
 
+    @debug
     def execute(self, db):
         code, vars = self.get_code_and_vars(db)
+        """LOG [caos.meta.sync.cmd] Sync command:
+        print(self)
+        """
+
+        """LOG [caos.sql] Sync command code:
+        print(code, vars)
+        """
+
         return db.prepare(code)(*vars)
 
 
@@ -103,7 +112,7 @@ class Command(BaseCommand):
             print(self)
             """
 
-            """LOG [caos.meta.sync.sql] Sync command code:
+            """LOG [caos.sql] Sync command code:
             print(code, vars)
             """
 
@@ -690,9 +699,13 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
             assert concept, "Link command must be run in Concept command context"
 
             cols = self.get_columns(link, meta)
+            table_name = common.get_table_name(concept.proto, catenate=False)
 
             for col in cols:
-                concept.op.alter_table.add_operation(AlterTableAddColumn(col))
+                # The column may already exist as inherited from parent table
+                cond = ColumnExists(table_name=table_name, column_name=col.name)
+                cmd = AlterTableAddColumn(col)
+                concept.op.alter_table.add_operation((cmd, None, (cond,)))
 
         if self.alter_table and self.alter_table.ops:
             self.pgops.add(self.alter_table)
@@ -1574,8 +1587,35 @@ class AlterTable(AlterTableBase):
     def code(self, db):
         if self.ops:
             code = super().code(db)
-            code += ' ' + ', '.join(op.code(db) for op in self.ops)
+            ops = []
+            for op in self.ops:
+                if isinstance(op, tuple):
+                    cond = True
+                    if op[1]:
+                        cond = cond and self.check_conditions(db, op[1], True)
+                    if op[2]:
+                        cond = cond and self.check_conditions(db, op[2], False)
+                    if cond:
+                        ops.append(op[0].code(db))
+                else:
+                    ops.append(op.code(db))
+            code += ' ' + ', '.join(ops)
             return code
+
+
+class ColumnExists(Condition):
+    def __init__(self, table_name, column_name):
+        self.table_name = table_name
+        self.column_name = column_name
+
+    def code(self, db):
+        code = '''SELECT
+                        column_name
+                    FROM
+                        information_schema.columns
+                    WHERE
+                        table_schema = $1 AND table_name = $2 AND column_name = $3'''
+        return code, self.table_name + (self.column_name,)
 
 
 class AlterTableAddColumn(DDLOperation):
