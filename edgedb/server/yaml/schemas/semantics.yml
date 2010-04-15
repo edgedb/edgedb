@@ -20,13 +20,15 @@ mapping:
         type: str
         required: no
         default: "data"
-    "concepts":
+
+    "atoms":
         type: map
         default: {}
         mapping:
-            =:
+            =: # name of an atom
                 type: map
-                object: semantix.caos.backends.yaml.Concept
+                object: semantix.caos.backends.yaml.Atom
+                required: yes
                 mapping:
                     "title": &TEXT_WITH_GRAM_CATEGORIES
                         type: choice
@@ -37,6 +39,126 @@ mapping:
                               mapping:
                                 =:
                                     type: str
+
+                    "description":
+                        type: str
+
+                    "extends":
+                        type: choice
+                        required: yes
+                        choice:
+                            - type: str
+                            - type: seq
+                              sequence:
+                                - type: str
+
+                    "abstract":
+                        type: bool
+                        default: False
+
+                    "default":
+                        type: any
+                        default:
+
+                    "mods": &ATOM_MODS
+                        type: seq
+                        sequence:
+                          - type: choice
+                            choice:
+                                - type: map
+                                  object: semantix.caos.backends.yaml.AtomModMaxLength
+                                  mapping:
+                                    "max-length":
+                                        type: int
+                                - type: map
+                                  object: semantix.caos.backends.yaml.AtomModMinLength
+                                  mapping:
+                                    "min-length":
+                                        type: int
+                                - type: map
+                                  object: semantix.caos.backends.yaml.AtomModRegExp
+                                  mapping:
+                                    "regexp":
+                                        type: str
+                                - type: map
+                                  object: semantix.caos.backends.yaml.AtomModExpr
+                                  mapping:
+                                    "expr":
+                                        type: str
+
+    "links":
+        type: map
+        default: {}
+        mapping:
+            =: # name of a link
+                type: map
+                object: semantix.caos.backends.yaml.LinkDef
+                required: yes
+                mapping:
+                    "title": *TEXT_WITH_GRAM_CATEGORIES
+
+                    "description":
+                        type: str
+
+                    "extends":
+                        type: choice
+                        default:
+                        choice:
+                            - type: str
+                            - type: seq
+                              sequence:
+                                - type: str
+
+                    "abstract":
+                        type: bool
+                        default: False
+
+                    "readonly":
+                        type: bool
+                        default: None
+
+                    "mapping":
+                        type: str
+                        enum: ["1*", "11", "**", "*1"]
+                        required: yes
+                        default: "11"
+
+                    "properties":
+                        type: map
+                        default: {}
+                        mapping:
+                            =:
+                                type: choice
+                                object: semantix.caos.backends.yaml.LinkProperty
+                                choice:
+                                    - type: str
+                                    - type: map
+                                      mapping:
+                                        =:
+                                            type: map
+                                            max-length: 1
+                                            min-length: 1
+                                            mapping:
+                                                "title":
+                                                    *TEXT_WITH_GRAM_CATEGORIES
+                                                "description":
+                                                    type: str
+                                                "required":
+                                                    type: bool
+                                                    default: False
+                                                "mods": *ATOM_MODS
+
+
+    "concepts":
+        type: map
+        default: {}
+        mapping:
+            =:
+                type: map
+                object: semantix.caos.backends.yaml.Concept
+                mapping:
+                    "title":
+                        *TEXT_WITH_GRAM_CATEGORIES
 
                     "abstract":
                         type: bool
@@ -90,32 +212,8 @@ mapping:
                                                   enum: ["1*", "11", "**", "*1"]
                                                   required: yes
                                                   default: "11"
-
-                                              "mods": &ATOM_MODS
-                                                  type: seq
-                                                  sequence:
-                                                      - type: choice
-                                                        choice:
-                                                            - type: map
-                                                              object: semantix.caos.backends.yaml.AtomModMaxLength
-                                                              mapping:
-                                                                "max-length":
-                                                                    type: int
-                                                            - type: map
-                                                              object: semantix.caos.backends.yaml.AtomModMinLength
-                                                              mapping:
-                                                                "min-length":
-                                                                    type: int
-                                                            - type: map
-                                                              object: semantix.caos.backends.yaml.AtomModRegExp
-                                                              mapping:
-                                                                "regexp":
-                                                                    type: str
-                                                            - type: map
-                                                              object: semantix.caos.backends.yaml.AtomModExpr
-                                                              mapping:
-                                                                "expr":
-                                                                    type: str
+                                              "mods":
+                                                  *ATOM_MODS
                                               "comparison":
                                                   type: str
                                                   enum: [cidirect, fuzzy]
@@ -126,7 +224,6 @@ mapping:
                                                   mapping:
                                                     =:
                                                         type: any
-
 
                     "heuristics":
                         type: map
@@ -147,100 +244,3 @@ mapping:
                                                 type: float
                                                 range: {min: 0.0, max: 1.0}
                                                 required: yes
-
-    "atoms":
-        type: map
-        default: {}
-        mapping:
-            =: # name of an atom
-                type: map
-                object: semantix.caos.backends.yaml.Atom
-                required: yes
-                mapping:
-                    "title":
-                        *TEXT_WITH_GRAM_CATEGORIES
-
-                    "description":
-                        type: str
-
-                    "extends":
-                        type: choice
-                        required: yes
-                        choice:
-                            - type: str
-                            - type: seq
-                              sequence:
-                                - type: str
-
-                    "abstract":
-                        type: bool
-                        default: False
-
-                    "default":
-                        type: any
-                        default:
-
-                    "mods": *ATOM_MODS
-
-    "links":
-        type: map
-        default: {}
-        mapping:
-            =: # name of a link
-                type: map
-                object: semantix.caos.backends.yaml.LinkDef
-                required: yes
-                mapping:
-                    "title":
-                        *TEXT_WITH_GRAM_CATEGORIES
-
-                    "description":
-                        type: str
-
-                    "extends":
-                        type: choice
-                        default:
-                        choice:
-                            - type: str
-                            - type: seq
-                              sequence:
-                                - type: str
-
-                    "abstract":
-                        type: bool
-                        default: False
-
-                    "readonly":
-                        type: bool
-                        default: None
-
-                    "mapping":
-                        type: str
-                        enum: ["1*", "11", "**", "*1"]
-                        required: yes
-                        default: "11"
-
-                    "properties":
-                        type: map
-                        default: {}
-                        mapping:
-                            =:
-                                type: choice
-                                object: semantix.caos.backends.yaml.LinkProperty
-                                choice:
-                                    - type: str
-                                    - type: map
-                                      mapping:
-                                        =:
-                                            type: map
-                                            max-length: 1
-                                            min-length: 1
-                                            mapping:
-                                                "title":
-                                                    *TEXT_WITH_GRAM_CATEGORIES
-                                                "description":
-                                                    type: str
-                                                "required":
-                                                    type: bool
-                                                    default: False
-                                                "mods": *ATOM_MODS
