@@ -348,6 +348,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             else:
                 updates = {'id': id[0]}
             entity._instancedata.update(entity, updates, register_changes=False)
+            session.add_entity(entity)
 
             for name, link in links.items():
                 if isinstance(link, caos.concept.LinkedSet) and link._instancedata.dirty:
