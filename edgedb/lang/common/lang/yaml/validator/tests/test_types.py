@@ -163,6 +163,14 @@ class TestTypes(SchemaTest):
             A: "2"
         """
 
+    @result(key='fdict', value={'a': "1", ('b', 'c'): "2"})
+    def test_validator_types_map_nonscalar_key(self):
+        """
+        fdict:
+            a: "1"
+            [b, c]: "2"
+        """
+
     @result(key='minmax', value=3)
     def test_validator_types_int_minmax(self):
         """

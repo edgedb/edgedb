@@ -81,10 +81,13 @@ class MappingType(CompositeType):
         keys = set()
 
         for i, (key, value) in enumerate(node.value):
+            if isinstance(key.value, list):
+                key.tag = 'tag:yaml.org,2002:python/tuple'
+                key.value = tuple(key.value)
+
             if key.value in keys:
                 raise SchemaValidationError('duplicate mapping key "%s"' % key.value, node)
 
-            # TODO: support non-scalar keys
             conf_key = key.value
             if key.value in self.keys:
                 conf = self.keys[key.value]
