@@ -121,6 +121,20 @@ class ListWrapper(list, MutableSequence):
     original_base = list
 
 
+class SetView(collections.Set):
+    def __init__(self, set):
+        self._set = set
+
+    def __contains__(self, item):
+        return item in self._set
+
+    def __iter__(self):
+        return iter(self._set)
+
+    def __len__(self):
+        return len(self._set)
+
+
 class SortedList(list):
     """
     A list that maintains it's order by a given criteria
