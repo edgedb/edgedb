@@ -69,6 +69,8 @@ mapping:
                                     sequence:
                                         - type: str
                                   - type: map
+                                    max-length: 1
+                                    min-length: 1
                                     mapping:
                                         =:
                                             type: map

@@ -308,12 +308,16 @@ class LinkList(LangObject, list):
                 self.append(link)
         else:
             for target, info in data.items():
-                link = proto.Link(name=None, target=target, mapping=info['mapping'],
-                                  required=info['required'], title=info['title'],
-                                  description=info['description'], readonly=info['readonly'])
-                link.mods = info.get('mods')
-                link.context = self.context
-                self.append(link)
+                if not isinstance(target, tuple):
+                    target = (target,)
+
+                for t in target:
+                    link = proto.Link(name=None, target=t, mapping=info['mapping'],
+                                      required=info['required'], title=info['title'],
+                                      description=info['description'], readonly=info['readonly'])
+                    link.mods = info.get('mods')
+                    link.context = self.context
+                    self.append(link)
 
 
 class MetaSet(LangObject):
