@@ -6,8 +6,6 @@
 ##
 
 
-import copy
-import yaml
 import importlib
 
 from .map import MappingType

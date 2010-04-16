@@ -7,8 +7,8 @@
 
 
 import re
-import yaml
 
+from semantix.utils.lang.yaml import loader as yaml
 from ..base import SchemaType
 from ...error import SchemaValidationError
 
@@ -58,7 +58,7 @@ class SchemaScalarType(SchemaType):
     def get_constructor(cls):
         constructor = getattr(cls, 'constructor', None)
         if not constructor:
-            cls.constructor = yaml.constructor.Constructor()
+            cls.constructor = yaml.Constructor()
         return cls.constructor
 
     def check(self, node):
