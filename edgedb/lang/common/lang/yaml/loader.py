@@ -267,7 +267,13 @@ class Constructor(yaml.constructor.Constructor):
 
         yield result
 
-        result.construct()
+        try:
+            constructor = result.construct
+        except AttributeError:
+            pass
+        else:
+            constructor()
+
 
     def get_dict(self, document_offset=None):
         if document_offset is not None and document_offset > self.documents_emitted:
