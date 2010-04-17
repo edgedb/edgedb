@@ -71,10 +71,30 @@ mapping:
                                     "max-length":
                                         type: int
                                 - type: map
+                                  object: semantix.caos.backends.yaml.AtomModMaxValue
+                                  mapping:
+                                    "max-value":
+                                        type: any
+                                - type: map
+                                  object: semantix.caos.backends.yaml.AtomModMaxExValue
+                                  mapping:
+                                    "max-value-ex":
+                                        type: any
+                                - type: map
                                   object: semantix.caos.backends.yaml.AtomModMinLength
                                   mapping:
                                     "min-length":
                                         type: int
+                                - type: map
+                                  object: semantix.caos.backends.yaml.AtomModMinValue
+                                  mapping:
+                                    "min-value":
+                                        type: any
+                                - type: map
+                                  object: semantix.caos.backends.yaml.AtomModMinExValue
+                                  mapping:
+                                    "min-value-ex":
+                                        type: any
                                 - type: map
                                   object: semantix.caos.backends.yaml.AtomModRegExp
                                   mapping:

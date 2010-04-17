@@ -87,15 +87,6 @@ class AtomMod(LangObject, ignore_aliases=True):
     pass
 
 
-class AtomModExpr(AtomMod, adapts=proto.AtomModExpr):
-    def construct(self):
-        proto.AtomModExpr.__init__(self, [self.data['expr'].strip(' \n')], context=self.context)
-
-    @classmethod
-    def represent(cls, data):
-        return {'expr': next(iter(data.values))}
-
-
 class AtomModMinLength(AtomMod, adapts=proto.AtomModMinLength):
     def construct(self):
         proto.AtomModMinLength.__init__(self, self.data['min-length'], context=self.context)
@@ -105,6 +96,24 @@ class AtomModMinLength(AtomMod, adapts=proto.AtomModMinLength):
         return {'min-length': data.value}
 
 
+class AtomModMinValue(AtomMod, adapts=proto.AtomModMinValue):
+    def construct(self):
+        proto.AtomModMinValue.__init__(self, self.data['min-value'], context=self.context)
+
+    @classmethod
+    def represent(cls, data):
+        return {'min-value': data.value}
+
+
+class AtomModMinExValue(AtomMod, adapts=proto.AtomModMinExValue):
+    def construct(self):
+        proto.AtomModMinExValue.__init__(self, self.data['min-value-ex'], context=self.context)
+
+    @classmethod
+    def represent(cls, data):
+        return {'min-value-ex': data.value}
+
+
 class AtomModMaxLength(AtomMod, adapts=proto.AtomModMaxLength):
     def construct(self):
         proto.AtomModMaxLength.__init__(self, self.data['max-length'], context=self.context)
@@ -112,6 +121,33 @@ class AtomModMaxLength(AtomMod, adapts=proto.AtomModMaxLength):
     @classmethod
     def represent(cls, data):
         return {'max-length': data.value}
+
+
+class AtomModMaxValue(AtomMod, adapts=proto.AtomModMaxValue):
+    def construct(self):
+        proto.AtomModMaxValue.__init__(self, self.data['max-value'], context=self.context)
+
+    @classmethod
+    def represent(cls, data):
+        return {'max-value': data.value}
+
+
+class AtomModMaxExValue(AtomMod, adapts=proto.AtomModMaxExValue):
+    def construct(self):
+        proto.AtomModMaxValue.__init__(self, self.data['max-value-ex'], context=self.context)
+
+    @classmethod
+    def represent(cls, data):
+        return {'max-value-ex': data.value}
+
+
+class AtomModExpr(AtomMod, adapts=proto.AtomModExpr):
+    def construct(self):
+        proto.AtomModExpr.__init__(self, [self.data['expr'].strip(' \n')], context=self.context)
+
+    @classmethod
+    def represent(cls, data):
+        return {'expr': next(iter(data.values))}
 
 
 class AtomModRegExp(AtomMod, adapts=proto.AtomModRegExp):
