@@ -6,7 +6,9 @@
 ##
 
 
+import collections
 import itertools
+import math
 import os
 import re
 
@@ -23,9 +25,85 @@ from semantix.utils.debug import debug
 from semantix.utils.lang import yaml
 
 
+numeric_spec = collections.OrderedDict((
+                    #(((-32768, 32767), 0), 'smallint'),
+                    #(((-2147483648, 2147483647), 0), 'int'),
+                    (((-9223372036854775808, 9223372036854775807), 0), 'bigint'),
+                    (None, 'numeric')
+               ))
+
+def numeric_to_pg(atom, mods):
+    max_length_mod = mods.get(proto.AtomModMaxLength)
+    min_value = mods.get(proto.AtomModMinValue)
+    min_value_ex = mods.get(proto.AtomModMinExValue)
+    max_value = mods.get(proto.AtomModMaxValue)
+    max_value_ex = mods.get(proto.AtomModMaxExValue)
+
+    max_length = upper = lower = None
+
+    if max_length_mod:
+        max_length = 10 ** max_length_mod.value - 1
+
+    if min_value and min_value_ex:
+        lower = max(min_value.value, min_value_ex.value)
+    elif min_value:
+        lower = min_value.value
+    elif min_value_ex:
+        lower = min_value_ex.value
+
+    if max_value and max_value_ex:
+        upper = max(max_value.value, max_value_ex.value)
+    elif max_value:
+        upper = max_value.value
+    elif max_value_ex:
+        upper = max_value_ex.value
+
+    if max_length is not None:
+        if upper is not None:
+            upper = min(max_length, upper)
+        if lower is not None:
+            lower = max(-max_length, lower)
+
+    type = None
+    mod_used = ()
+
+    for spec, type in numeric_spec.items():
+        if spec is None:
+            break
+        else:
+            length, scale = spec
+            if length is not None:
+                spec_lower, spec_upper = length
+                within_bounds = spec_lower is None or (lower is not None and lower > spec_lower)\
+                                and spec_upper is None or (upper is not None and upper < spec_upper)
+                if within_bounds:
+                    break
+    else:
+        type = None
+
+    if type is 'numeric':
+        if upper:
+            len = math.ceil(math.log(upper, 10))
+            if max_length_mod and max_length_mod.value == len:
+                mod_used = (max_length_mod,)
+
+            type = 'numeric(%d)' % len
+
+    return type, mod_used
+
+
+def str_to_pg(atom, mods):
+    max_length_mod = mods.get(proto.AtomModMaxLength)
+
+    if max_length_mod:
+        return 'character varying (%d)' % max_length_mod.value, (max_length_mod,)
+    else:
+        return 'text', ()
+
+
 base_type_name_map = {
-    caos.Name('semantix.caos.builtins.str'): 'character varying',
-    caos.Name('semantix.caos.builtins.int'): 'numeric',
+    caos.Name('semantix.caos.builtins.str'): str_to_pg,
+    caos.Name('semantix.caos.builtins.int'): numeric_to_pg,
     caos.Name('semantix.caos.builtins.bool'): 'boolean',
     caos.Name('semantix.caos.builtins.float'): 'double precision',
     caos.Name('semantix.caos.builtins.uuid'): 'uuid',
@@ -34,21 +112,40 @@ base_type_name_map = {
 }
 
 
+def str_from_pg(type, typmod):
+    name = caos.Name('semantix.caos.builtins.str')
+    mods = []
+
+    if typmod:
+        mods.append(proto.AtomModMaxLength(int(typmod)))
+
+    return name, mods
+
+
+def numeric_from_pg(type, typmod):
+    name = caos.Name('semantix.caos.builtins.int')
+    mods = []
+
+    if typmod:
+        mods.append(proto.AtomModMaxLength(int(typmod)))
+
+    return name, mods
+
+
 base_type_name_map_r = {
-    'character varying': caos.Name('semantix.caos.builtins.str'),
-    'character': caos.Name('semantix.caos.builtins.str'),
-    'text': caos.Name('semantix.caos.builtins.str'),
-    'integer': caos.Name('semantix.caos.builtins.int'),
+    'character varying': str_from_pg,
+    'character': str_from_pg,
+    'text': str_from_pg,
+    'numeric': numeric_from_pg,
+    'integer': numeric_from_pg,
+    'bigint': numeric_from_pg,
+    'smallint': numeric_from_pg,
     'boolean': caos.Name('semantix.caos.builtins.bool'),
-    'numeric': caos.Name('semantix.caos.builtins.int'),
     'double precision': caos.Name('semantix.caos.builtins.float'),
     'uuid': caos.Name('semantix.caos.builtins.uuid'),
     'timestamp with time zone': caos.Name('semantix.caos.builtins.datetime'),
     'interval': caos.Name('semantix.caos.builtins.timedelta')
 }
-
-
-typmod_types = ('character', 'character varying', 'numeric')
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -213,46 +310,38 @@ class AtomMetaCommand(PrototypeMetaCommand):
         self.table = AtomTable()
 
     @classmethod
-    def get_atom_base_and_mods(cls, atom):
+    def get_atom_base_and_mods(cls, meta, atom):
+        mods = set()
+        extramods = set()
+        mods_encoded = ()
+
         if proto.Atom.is_prototype(atom.base):
             # Base is another atom prototype, check if it is fundamental,
             # if not, then it is another domain
             base = base_type_name_map.get(atom.base)
-            if not base:
+            if base:
+                if not isinstance(base, str):
+                    base, mods_encoded = base(meta.get(atom.base), atom.mods)
+            else:
                 base = common.atom_name_to_domain_name(atom.base)
         else:
             # Base is a Python type, must correspond to PostgreSQL type
             base = base_type_name_map[atom.name]
-
-        has_max_length = None
-
-        if base in typmod_types:
-            for mod, modvalue in atom.mods.items():
-                if issubclass(mod, proto.AtomModMaxLength):
-                    has_max_length = modvalue
-                    break
-
-        if has_max_length:
-            #
-            # Convert basetype + max-length constraint into a postgres-native
-            # type with typmod, e.g str[max-length: 20] --> varchar(20)
-            base += '(' + str(has_max_length.value) + ')'
-
-        mods = set()
-        extramods = set()
+            if not isinstance(base, str):
+                base, mods_encoded = base(meta.get(atom.name), atom.mods)
 
         directly_supported_mods = (proto.AtomModMaxLength, proto.AtomModMinLength,
                                    proto.AtomModRegExp)
 
         for mod in atom.mods.values():
-            if has_max_length and isinstance(mod, proto.AtomModMaxLength):
+            if mod in mods_encoded:
                 continue
             elif isinstance(mod, directly_supported_mods):
                 mods.add(mod)
             else:
                 extramods.add(mod)
 
-        return base, has_max_length, mods, extramods
+        return base, mods_encoded, mods, extramods
 
     def fill_record(self, rec=None, obj=None):
         rec, updates = super().fill_record(rec, obj)
@@ -272,7 +361,7 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
         AtomMetaCommand.apply(self, meta, context)
 
         new_domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
-        base, _, mods, extramods = self.get_atom_base_and_mods(atom)
+        base, _, mods, extramods = self.get_atom_base_and_mods(meta, atom)
 
         updates = self.create_object(atom)
 
@@ -333,17 +422,17 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
             condition = [('name', str(old_atom.name))]
             self.pgops.add(Update(table=self.table, record=updaterec, condition=condition))
 
-        old_base, old_max_length, old_mods, _ = self.get_atom_base_and_mods(old_atom)
-        base, max_length, new_mods, _ = self.get_atom_base_and_mods(new_atom)
+        old_base, old_mods_encoded, old_mods, _ = self.get_atom_base_and_mods(meta, old_atom)
+        base, mods_encoded, new_mods, _ = self.get_atom_base_and_mods(meta, new_atom)
 
         new_type = None
         type_intent = 'alter'
 
         if new_atom.automatic:
-            if old_max_length and not old_mods and new_mods:
+            if old_mods_encoded and not old_mods and new_mods:
                 new_type = common.qname(*domain_name)
                 type_intent = 'create'
-            elif old_max_length and old_mods and not new_mods:
+            elif old_mods_encoded and old_mods and not new_mods:
                 new_type = base
                 type_intent = 'drop'
 
@@ -403,7 +492,7 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
 
         domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
 
-        base, max_length, new_mods, _ = self.get_atom_base_and_mods(atom)
+        base, mods_encoded, new_mods, _ = self.get_atom_base_and_mods(meta, atom)
 
         target_type = new_type
 
@@ -472,14 +561,16 @@ class CompositePrototypeMetaCommand(PrototypeMetaCommand):
         self.alter_table = None
 
     @classmethod
-    def _pg_type_from_atom(cls, atom_obj):
-        base, _, mods, _ = AtomMetaCommand.get_atom_base_and_mods(atom_obj)
+    def _pg_type_from_atom(cls, meta, atom_obj):
+        base, _, mods, _ = AtomMetaCommand.get_atom_base_and_mods(meta, atom_obj)
 
         need_to_create = False
 
         if not atom_obj.automatic or mods:
             column_type = base_type_name_map.get(atom_obj.name)
-            if not column_type:
+            if column_type:
+                column_type = base
+            else:
                 column_type = common.atom_name_to_domain_name(atom_obj.name)
                 need_to_create = bool(mods)
         else:
@@ -488,8 +579,8 @@ class CompositePrototypeMetaCommand(PrototypeMetaCommand):
         return column_type, need_to_create
 
     @classmethod
-    def pg_type_from_atom(cls, atom):
-        return cls._pg_type_from_atom(atom)[0]
+    def pg_type_from_atom(cls, meta, atom):
+        return cls._pg_type_from_atom(meta, atom)[0]
 
     def rename(self, old_name, new_name):
         old_table_name = common.concept_name_to_table_name(old_name, catenate=False)
@@ -638,7 +729,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
             if not isinstance(link.target, proto.Atom):
                 link.target = meta.get(link.target)
 
-            column_type = self.pg_type_from_atom(link.target)
+            column_type = self.pg_type_from_atom(meta, link.target)
 
             name = link.base[0] if link.implicit_derivative else link.name
             column_name = common.caos_name_to_pg_colname(name)
@@ -824,7 +915,7 @@ class LinkPropertyMetaCommand(CompositePrototypeMetaCommand):
         if not isinstance(property.atom, proto.Atom):
             property.atom = meta.get(property.atom)
 
-        column_type = self.pg_type_from_atom(property.atom)
+        column_type = self.pg_type_from_atom(meta, property.atom)
 
         name = property.name
         column_name = common.caos_name_to_pg_colname(name)

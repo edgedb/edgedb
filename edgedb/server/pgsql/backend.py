@@ -138,9 +138,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                 (?P<quote1>\"?)[\w -]+(?P=quote1)))+$""", re.X)
 
     constr_expr_res = {
-        'regexp': re.compile("VALUE::text \s* ~ \s* '(?P<expr>[^']*)'::text", re.X),
-        'max-length': re.compile("length\(VALUE::text\) \s* <= \s* (?P<expr>\d+)$",re.X),
-        'min-length': re.compile("length\(VALUE::text\) \s* >= \s* (?P<expr>\d+)$", re.X)
+        'regexp': re.compile("VALUE(?:::\w+)? \s* ~ \s* '(?P<expr>[^']*)'::text", re.X),
+        'max-length': re.compile("length\(VALUE(?:::\w+)?\) \s* <= \s* (?P<expr>\d+)$",re.X),
+        'min-length': re.compile("length\(VALUE(?:::\w+)?\) \s* >= \s* (?P<expr>\d+)$", re.X)
     }
 
 
@@ -261,6 +261,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         concept = cls._metadata.name
         id = entity.id
         links = entity._instancedata.links
+        realm = cls._metadata.realm
 
         connection = session.connection if session else self.connection
 
@@ -287,7 +288,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     l = getattr(cls, str(a), None)
                     if l:
                         col_type = delta_cmds.CompositePrototypeMetaCommand.pg_type_from_atom(
-                                                            l._metadata.prototype)
+                                                        realm.meta, l._metadata.prototype)
                         col_type = 'text::%s' % col_type
 
                     else:
@@ -312,7 +313,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         if hasattr(cls, str(a)):
                             l = getattr(cls, str(a))
                             col_type = delta_cmds.CompositePrototypeMetaCommand.pg_type_from_atom(
-                                                                        l._metadata.prototype)
+                                                        realm.meta, l._metadata.prototype)
                             col_type = 'text::%s' % col_type
 
                         else:
@@ -799,13 +800,20 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 typmod = None
                 typname = type_expr
 
-            if typname in delta_cmds.base_type_name_map_r:
-                atom = meta.get(delta_cmds.base_type_name_map_r[typname])
+            typeconv = delta_cmds.base_type_name_map_r.get(typname)
+            if typeconv:
+                if isinstance(typeconv, caos.Name):
+                    atom = meta.get(typeconv)
+                    mods = ()
+                else:
+                    name, mods = typeconv(typname, typmod)
+                    atom = meta.get(name)
 
-                if typname in delta_cmds.typmod_types and typmod is not None:
+                if mods:
                     atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,
                                       automatic=True)
-                    atom.add_mod(proto.AtomModMaxLength(typmod))
+                    for mod in mods:
+                        atom.add_mod(mod)
                     meta.add(atom)
 
         assert atom
