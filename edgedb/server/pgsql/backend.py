@@ -50,17 +50,20 @@ class Session(session.Session):
         return bool(self.xact)
 
     def begin(self):
+        super().begin()
         self.xact.append(self._new_transaction())
 
     def commit(self):
         if not self.in_transaction():
             raise session.SessionError('commit() called but no transaction is running')
+        super().commit()
         xact = self.xact.pop()
         xact.commit()
 
     def rollback(self):
         if not self.in_transaction():
             raise session.SessionError('rollback() called but no transaction is running')
+        super().rollback()
         xact = self.xact.pop()
         xact.rollback()
 
