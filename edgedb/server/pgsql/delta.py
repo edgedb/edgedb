@@ -29,7 +29,8 @@ base_type_name_map = {
     caos.Name('semantix.caos.builtins.bool'): 'boolean',
     caos.Name('semantix.caos.builtins.float'): 'double precision',
     caos.Name('semantix.caos.builtins.uuid'): 'uuid',
-    caos.Name('semantix.caos.builtins.datetime'): 'timestamp with time zone'
+    caos.Name('semantix.caos.builtins.datetime'): 'timestamp with time zone',
+    caos.Name('semantix.caos.builtins.timedelta'): 'interval'
 }
 
 
@@ -42,7 +43,8 @@ base_type_name_map_r = {
     'numeric': caos.Name('semantix.caos.builtins.int'),
     'double precision': caos.Name('semantix.caos.builtins.float'),
     'uuid': caos.Name('semantix.caos.builtins.uuid'),
-    'timestamp with time zone': caos.Name('semantix.caos.builtins.datetime')
+    'timestamp with time zone': caos.Name('semantix.caos.builtins.datetime'),
+    'interval': caos.Name('semantix.caos.builtins.timedelta')
 }
 
 

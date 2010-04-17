@@ -15,12 +15,14 @@ from semantix.caos.backends.pgsql.backend import Backend
 
 from .deltarepo import MetaDeltaRepository
 
+from . import driver
+
 
 class BackendResolver(BackendResolverHelper):
     def resolve(self, url):
         url = urllib.parse.urlunsplit(url)
         try:
-            connection = postgresql.open(url)
+            connection = driver.connect(url)
         except postgresql.exceptions.ClientCannotConnectError as e:
             raise BackendResolverError(msg='could not connect to caos backend at %s' % url,
                                        hint='check that the database server is running, is accessible and '\
