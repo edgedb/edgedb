@@ -127,7 +127,7 @@ class CaosQLCursor:
 
 class Backend(backends.MetaBackend, backends.DataBackend):
 
-    typlen_re = re.compile(r"(?P<type>.*) \( (?P<length>\d+) (?:\s*,\s*(?P<precision>\d+))? \)$",
+    typlen_re = re.compile(r"(?P<type>.*) \( (?P<length>\d+ (?:\s*,\s*(\d+))*) \)$",
                            re.X)
 
     check_constraint_re = re.compile(r"CHECK \s* \( (?P<expr>.*) \)$", re.X)
@@ -138,9 +138,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                 (?P<quote1>\"?)[\w -]+(?P=quote1)))+$""", re.X)
 
     constr_expr_res = {
-        'regexp': re.compile("VALUE(?:::\w+)? \s* ~ \s* '(?P<expr>[^']*)'::text", re.X),
-        'max-length': re.compile("length\(VALUE(?:::\w+)?\) \s* <= \s* (?P<expr>\d+)$",re.X),
-        'min-length': re.compile("length\(VALUE(?:::\w+)?\) \s* >= \s* (?P<expr>\d+)$", re.X)
+        'AtomModRegExp': re.compile(r"VALUE(?:::\w+)? \s* ~ \s* '(?P<expr>[^']*)'::text", re.X),
+        'AtomModMaxLength': re.compile(r"length\(VALUE(?:::\w+)?\) \s* <= \s* (?P<expr>\d+)$",re.X),
+        'AtomModMinLength': re.compile(r"length\(VALUE(?:::\w+)?\) \s* >= \s* (?P<expr>\d+)$", re.X),
+        'AtomModMinValue': re.compile(r"VALUE(?:::\w+)? \s* >= \s* (?P<expr>.+)$",re.X),
+        'AtomModMinExValue': re.compile(r"VALUE(?:::\w+)? \s* > \s* (?P<expr>.+)$",re.X),
+        'AtomModMaxValue': re.compile(r"VALUE(?:::\w+)? \s* <= \s* (?P<expr>.+)$",re.X),
+        'AtomModMaxExValue': re.compile(r"VALUE(?:::\w+)? \s* < \s* (?P<expr>.+)$",re.X),
     }
 
 
@@ -423,8 +427,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             if domain_descr['constraints'] is not None:
                 for constraint_type in domain_descr['constraints']:
-                    for constraint_expr in domain_descr['constraints'][constraint_type]:
-                        atom.add_mod(constraint_type(constraint_expr))
+                    for constraint in domain_descr['constraints'][constraint_type]:
+                        atom.add_mod(constraint)
 
             if row['mods']:
                 for cls, val in row['mods'].items():
@@ -651,16 +655,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         return links
 
-    def mod_class_to_str(self, constr_class):
-        if issubclass(constr_class, proto.AtomModExpr):
-            return 'expr'
-        elif issubclass(constr_class, proto.AtomModRegExp):
-            return 'regexp'
-        elif issubclass(constr_class, proto.AtomModMinLength):
-            return 'min-length'
-        elif issubclass(constr_class, proto.AtomModMaxLength):
-            return 'max-length'
-
     def normalize_domain_descr(self, d):
         if d['constraint_names'] is not None:
             constraints = {}
@@ -686,37 +680,44 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 constr_mod = importlib.import_module(constr_mod)
                 constr_type = getattr(constr_mod, constr_class)
 
-                constr_type_str = self.mod_class_to_str(constr_type)
-
-                if constr_type_str in self.constr_expr_res:
-                    m = self.constr_expr_res[constr_type_str].findall(constr_expr)
-                    if m:
-                        constr_expr = m
-                    else:
-                        raise caos.MetaError('could not parse domain constraint "%s": %s' %
-                                             (constr_name, constr_expr))
+                m = self.constr_expr_res[constr_type.mod_name].findall(constr_expr)
+                if not m:
+                    raise caos.MetaError('could not parse domain constraint "%s": %s' %
+                                         (constr_name, constr_expr))
 
                 if issubclass(constr_type, (proto.AtomModMinLength, proto.AtomModMaxLength)):
-                    constr_expr = [int(constr_expr[0])]
-
-                if issubclass(constr_type, proto.AtomModExpr):
+                    constr_expr = [int(m[0])]
+                else:
                     # That's a very hacky way to remove casts from expressions added by Postgres
-                    constr_expr = constr_expr.replace('::text', '')
+                    constr_expr = []
+                    for val in m:
+                        cast = self.cast_re.search(val)
+                        if cast:
+                            val = self.cast_re.sub('', val).strip("'")
+                            atom = self.pg_type_to_atom_name_and_mods(cast.group('type'))
+                            if atom:
+                                atom_name = atom[0]
+                                if atom_name == 'semantix.caos.builtins.int':
+                                    val = int(val)
+                        constr_expr.append(val)
 
                 if constr_type not in constraints:
                     constraints[constr_type] = []
 
-                constraints[constr_type].extend(constr_expr)
+                constraints[constr_type].extend((constr_type(e) for e in constr_expr))
 
             d['constraints'] = constraints
 
         if d['basetype'] is not None:
-            m = self.typlen_re.match(d['basetype_full'])
-            if m:
-                if proto.AtomModMaxLength not in d['constraints']:
-                    d['constraints'][proto.AtomModMaxLength] = []
+            result = self.pg_type_to_atom_name_and_mods(d['basetype_full'])
+            if result:
+                base, mods = result
+                for mod in mods:
+                    if mod.__class__ not in constraints:
+                        constraints[mod.__class__] = []
 
-                d['constraints'][proto.AtomModMaxLength].append(int(m.group('length')))
+                    constraints[mod.__class__].append(mod)
+
 
         if d['default'] is not None:
             # Strip casts from default expression
@@ -781,6 +782,26 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return mapped_name
 
 
+    def pg_type_to_atom_name_and_mods(self, type_expr):
+        m = self.typlen_re.match(type_expr)
+        if m:
+            typmod = m.group('length').split(',')
+            typname = m.group('type').strip()
+        else:
+            typmod = None
+            typname = type_expr
+
+        typeconv = delta_cmds.base_type_name_map_r.get(typname)
+        if typeconv:
+            if isinstance(typeconv, caos.Name):
+                name = typeconv
+                mods = ()
+            else:
+                name, mods = typeconv(typname, typmod)
+            return name, mods
+        return None
+
+
     def atom_from_pg_type(self, type_expr, atom_schema, atom_default, meta, derived_name):
 
         atom_name = caos.Name(name=common.domain_name_to_atom_name(type_expr),
@@ -792,22 +813,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             atom = meta.get(derived_name, None)
 
         if not atom:
-            m = self.typlen_re.match(type_expr)
-            if m:
-                typmod = int(m.group('length'))
-                typname = m.group('type').strip()
-            else:
-                typmod = None
-                typname = type_expr
 
-            typeconv = delta_cmds.base_type_name_map_r.get(typname)
+            typeconv = self.pg_type_to_atom_name_and_mods(type_expr)
             if typeconv:
-                if isinstance(typeconv, caos.Name):
-                    atom = meta.get(typeconv)
-                    mods = ()
-                else:
-                    name, mods = typeconv(typname, typmod)
-                    atom = meta.get(name)
+                name, mods = typeconv
+                atom = meta.get(name)
 
                 if mods:
                     atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,

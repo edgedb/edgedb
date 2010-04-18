@@ -116,18 +116,20 @@ def str_from_pg(type, typmod):
     name = caos.Name('semantix.caos.builtins.str')
     mods = []
 
+    assert typmod is None or len(typmod) == 1
+
     if typmod:
-        mods.append(proto.AtomModMaxLength(int(typmod)))
+        mods.append(proto.AtomModMaxLength(int(typmod[0])))
 
     return name, mods
 
 
 def numeric_from_pg(type, typmod):
     name = caos.Name('semantix.caos.builtins.int')
-    mods = []
-
     if typmod:
-        mods.append(proto.AtomModMaxLength(int(typmod)))
+        mods = [proto.AtomModPrecision((int(typmod[0])))]
+    else:
+        mods = ()
 
     return name, mods
 
@@ -331,7 +333,9 @@ class AtomMetaCommand(PrototypeMetaCommand):
                 base, mods_encoded = base(meta.get(atom.name), atom.mods)
 
         directly_supported_mods = (proto.AtomModMaxLength, proto.AtomModMinLength,
-                                   proto.AtomModRegExp)
+                                   proto.AtomModRegExp, proto.AtomModMaxValue,
+                                   proto.AtomModMaxExValue, proto.AtomModMinValue,
+                                   proto.AtomModMinExValue)
 
         for mod in atom.mods.values():
             if mod in mods_encoded:
@@ -1602,6 +1606,14 @@ class AlterDomainAlterConstraint(AlterDomain):
             expr = 'length(VALUE::text) <= ' + str(constraint.value)
         elif isinstance(constraint, proto.AtomModMinLength):
             expr = 'length(VALUE::text) >= ' + str(constraint.value)
+        elif isinstance(constraint, proto.AtomModMaxValue):
+            expr = 'VALUE <= ' + postgresql.string.quote_literal(str(constraint.value))
+        elif isinstance(constraint, proto.AtomModMaxExValue):
+            expr = 'VALUE < ' + postgresql.string.quote_literal(str(constraint.value))
+        elif isinstance(constraint, proto.AtomModMinValue):
+            expr = 'VALUE >= ' + postgresql.string.quote_literal(str(constraint.value))
+        elif isinstance(constraint, proto.AtomModMinExValue):
+            expr = 'VALUE > ' + postgresql.string.quote_literal(str(constraint.value))
 
         return 'CHECK (%s)' % expr
 
