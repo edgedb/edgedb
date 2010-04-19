@@ -105,6 +105,25 @@ mapping:
                                   mapping:
                                     "expr":
                                         type: str
+                                - type: map
+                                  object: semantix.caos.backends.yaml.AtomModPrecision
+                                  mapping:
+                                    "precision":
+                                        type: choice
+                                        choice:
+                                            - type: seq
+                                              max-length: 2
+                                              min-length: 2
+                                              sequence:
+                                                - type: int
+                                            - type: int
+                                - type: map
+                                  object: semantix.caos.backends.yaml.AtomModRounding
+                                  mapping:
+                                    "rounding":
+                                        type: str
+                                        enum: [ceiling, down, floor, half-down,
+                                               half-even, half-up, up, 05up]
 
     "links":
         type: map

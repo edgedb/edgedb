@@ -11,6 +11,7 @@ import io
 import importlib
 import collections
 import itertools
+import decimal
 
 from semantix.utils import lang
 from semantix.utils.lang import yaml
@@ -139,6 +140,50 @@ class AtomModMaxExValue(AtomMod, adapts=proto.AtomModMaxExValue):
     @classmethod
     def represent(cls, data):
         return {'max-value-ex': data.value}
+
+
+class AtomModPrecision(AtomMod, adapts=proto.AtomModPrecision):
+    def construct(self):
+        if isinstance(self.data['precision'], int):
+            precision = (int(self.data['precision']), 0)
+        else:
+            precision = int(self.data['precision'][0])
+            scale = int(self.data['precision'][1])
+
+            if scale >= precision:
+                raise ValueError('Scale must be strictly less than total numeric precision')
+
+            precision = (precision, scale)
+        proto.AtomModPrecision.__init__(self, precision, context=self.context)
+
+    @classmethod
+    def represent(cls, data):
+        if data.value[1] is None:
+            return {'precision': data.value[0]}
+        else:
+            return {'precision': list(data.value)}
+
+
+class AtomModRounding(AtomMod, adapts=proto.AtomModRounding):
+    map = {
+        'ceiling': decimal.ROUND_CEILING,
+        'down': decimal.ROUND_DOWN,
+        'floor': decimal.ROUND_FLOOR,
+        'half-down': decimal.ROUND_HALF_DOWN,
+        'half-even': decimal.ROUND_HALF_EVEN,
+        'half-up': decimal.ROUND_HALF_UP,
+        'up': decimal.ROUND_UP,
+        '05up': decimal.ROUND_05UP
+    }
+
+    rmap = dict(zip(map.values(), map.keys()))
+
+    def construct(self):
+        proto.AtomModRounding.__init__(self, self.map[self.data['rounding']], context=self.context)
+
+    @classmethod
+    def represent(cls, data):
+        return {'rounding': cls.rmap[data.value]}
 
 
 class AtomModExpr(AtomMod, adapts=proto.AtomModExpr):

@@ -32,17 +32,22 @@ numeric_spec = collections.OrderedDict((
                     (None, 'numeric')
                ))
 
-def numeric_to_pg(atom, mods):
-    max_length_mod = mods.get(proto.AtomModMaxLength)
+def numeric_to_pg(atom, mods, force_numeric=False):
     min_value = mods.get(proto.AtomModMinValue)
     min_value_ex = mods.get(proto.AtomModMinExValue)
     max_value = mods.get(proto.AtomModMaxValue)
     max_value_ex = mods.get(proto.AtomModMaxExValue)
+    precision_mod = mods.get(proto.AtomModPrecision)
 
-    max_length = upper = lower = None
+    int_precision = precision = max_length = upper = lower = None
 
-    if max_length_mod:
-        max_length = 10 ** max_length_mod.value - 1
+    if precision_mod:
+        precision = precision_mod.value
+        if precision[1]:
+            int_precision = precision[0] - precision[1]
+        else:
+            int_precision = precision[0]
+        max_length = 10 ** int_precision - 1
 
     if min_value and min_value_ex:
         lower = max(min_value.value, min_value_ex.value)
@@ -59,37 +64,58 @@ def numeric_to_pg(atom, mods):
         upper = max_value_ex.value
 
     if max_length is not None:
-        if upper is not None:
-            upper = min(max_length, upper)
-        if lower is not None:
-            lower = max(-max_length, lower)
+        upper = min(max_length, upper) if upper is not None else max_length
+        lower = max(-max_length, lower) if lower is not None else -max_length
 
-    type = None
-    mod_used = ()
 
-    for spec, type in numeric_spec.items():
-        if spec is None:
-            break
-        else:
-            length, scale = spec
-            if length is not None:
-                spec_lower, spec_upper = length
-                within_bounds = spec_lower is None or (lower is not None and lower > spec_lower)\
-                                and spec_upper is None or (upper is not None and upper < spec_upper)
-                if within_bounds:
-                    break
+    mod_used = set()
+
+    if force_numeric:
+        type = 'numeric'
     else:
         type = None
+        for spec, type in numeric_spec.items():
+            if spec is None:
+                break
+            else:
+                length, spec_precision = spec
+                within_bounds = True
+                if length is not None:
+                    spec_lower, spec_upper = length
+                    within_bounds = (spec_lower is None or \
+                                         (lower is not None and lower > spec_lower)) \
+                                    and (spec_upper is None or \
+                                         (upper is not None and upper < spec_upper))
 
-    if type is 'numeric':
+                within_bounds = within_bounds and \
+                                (spec_precision is None \
+                                 or (precision is None or precision[1] <= spec_precision))
+
+                if within_bounds:
+                    break
+        else:
+            type = None
+
+    if type == 'numeric':
         if upper:
             len = math.ceil(math.log(upper, 10))
-            if max_length_mod and max_length_mod.value == len:
-                mod_used = (max_length_mod,)
+            if precision:
+                if len == int_precision:
+                    mod_used.add(precision_mod)
 
-            type = 'numeric(%d)' % len
+                scale = precision[1] or 0
+                type = 'numeric(%d,%d)' % (len + scale, scale)
+            else:
+                type = 'numeric(%d)' % len
+        # if there is no upper limit on length, we cannot use any modifiers
+        # on the numeric type, including precision, even if it is specified,
+        # and need to use unlimited version instead
 
     return type, mod_used
+
+
+def decimal_to_pg(atom, mods):
+    return numeric_to_pg(atom, mods, force_numeric=True)
 
 
 def str_to_pg(atom, mods):
@@ -104,6 +130,7 @@ def str_to_pg(atom, mods):
 base_type_name_map = {
     caos.Name('semantix.caos.builtins.str'): str_to_pg,
     caos.Name('semantix.caos.builtins.int'): numeric_to_pg,
+    caos.Name('semantix.caos.builtins.decimal'): decimal_to_pg,
     caos.Name('semantix.caos.builtins.bool'): 'boolean',
     caos.Name('semantix.caos.builtins.float'): 'double precision',
     caos.Name('semantix.caos.builtins.uuid'): 'uuid',
@@ -125,11 +152,15 @@ def str_from_pg(type, typmod):
 
 
 def numeric_from_pg(type, typmod):
-    name = caos.Name('semantix.caos.builtins.int')
-    if typmod:
-        mods = [proto.AtomModPrecision((int(typmod[0])))]
+    if typmod and len(typmod) == 2:
+        name = caos.Name('semantix.caos.builtins.decimal')
+        mods = [proto.AtomModPrecision((int(typmod[0]), int(typmod[1])))]
     else:
-        mods = ()
+        name = caos.Name('semantix.caos.builtins.int')
+        if typmod:
+            mods = [proto.AtomModPrecision((int(typmod[0])))]
+        else:
+            mods = ()
 
     return name, mods
 
