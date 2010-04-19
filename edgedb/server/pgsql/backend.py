@@ -514,7 +514,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 col = cols[base_link_name]
 
                 derived_atom_name = proto.Atom.gen_atom_name(source, base_link_name)
-                target = self.atom_from_pg_type(col['column_type'], concept_schema,
+                if col['column_type_schema'] == 'pg_catalog':
+                    col_type_schema = 'caos_semantix.caos.builtins'
+                else:
+                    col_type_schema = col['column_type_schema']
+                target = self.atom_from_pg_type(col['column_type'], col_type_schema,
                                                 col['column_default'], meta,
                                                 caos.Name(name=derived_atom_name,
                                                           module=source.name.module))

@@ -23,6 +23,7 @@ source: |
         SELECT
                 a.attname                               AS column_name,
                 format_type(t.oid, a.atttypmod)         AS column_type,
+                tns.nspname                             AS column_type_schema,
                 t.oid                                   AS column_type_oid,
                 a.attnotnull                            AS column_required,
                 pg_get_expr(def.adbin, c.oid, true)     AS column_default
