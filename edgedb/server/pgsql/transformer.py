@@ -149,7 +149,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
 
         context.current.query.where = self._process_generator(context, tree.generator)
 
-        self._process_selector(context, tree.selector)
+        self._process_selector(context, tree.selector, context.current.query)
         self._process_sorter(context, tree.sorter)
 
         if tree.offset:
@@ -158,7 +158,34 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         if tree.limit:
             context.current.query.limit = self._process_constant(context, tree.limit)
 
-        return context.current.query, context.current.argmap
+        if tree.op in ('update', 'delete'):
+            if tree.op == 'delete':
+                query = pgsql.ast.DeleteQueryNode()
+            else:
+                query = pgsql.ast.UpdateQueryNode()
+
+            # Standard entity set processing produces a whole CTE, while for UPDATE and DELETE
+            # we need just the origin table.  Thus, use a dummy CTE here and repace the op's
+            # fromexpr with a direct reference to a table
+            #
+            query.fromexpr = self._relation_from_concepts(context, tree.optarget)
+            context.current.concept_node_map[tree.optarget] = {'data': query.fromexpr}
+
+            idref = pgsql.ast.FieldRefNode(table=query.fromexpr, field='semantix.caos.builtins.id',
+                                           origin=query.fromexpr,
+                                           origin_field='semantix.caos.builtins.id')
+            query.where = pgsql.ast.BinOpNode(left=idref, op='IN', right=context.current.query)
+            self._process_selector(context, tree.opselector, query)
+
+            if tree.op == 'update':
+                for expr in tree.opvalues:
+                    field = self._process_expr(context, expr.expr)
+                    value = self._process_expr(context, expr.value)
+                    query.values.append(pgsql.ast.UpdateExprNode(expr=field, value=value))
+        else:
+            query = context.current.query
+
+        return query, context.current.argmap
 
     def _process_generator(self, context, generator):
         context.current.location = 'generator'
@@ -168,12 +195,11 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         context.current.location = None
         return result
 
-    def _process_selector(self, context, selector):
-        query = context.current.query
-
+    def _process_selector(self, context, selector, query):
         context.current.location = 'selector'
         for expr in selector:
-            target = pgsql.ast.SelectExprNode(expr=self._process_expr(context, expr.expr), alias=expr.name)
+            target = pgsql.ast.SelectExprNode(expr=self._process_expr(context, expr.expr),
+                                              alias=expr.name)
             query.targets.append(target)
 
     def _process_sorter(self, context, sorter):
@@ -528,8 +554,8 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         atomrefs = {'semantix.caos.builtins.id', 'concept_id'} | {f.name for f in caos_path_tip.atomrefs}
 
         fieldref = fromnode.expr.bonds(caos_path_tip.concepts)[-1]
-        context.current.concept_node_map[caos_path_tip] = {}
-        step_cte.concept_node_map[caos_path_tip] = {}
+        context.current.concept_node_map.setdefault(caos_path_tip, {})
+        step_cte.concept_node_map.setdefault(caos_path_tip, {})
         aliases ={}
 
         for field in atomrefs:

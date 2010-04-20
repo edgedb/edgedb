@@ -151,10 +151,80 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.alias:
             self.write(' AS ' + common.quote_ident(node.alias))
 
+    def visit_UpdateQueryNode(self, node):
+        self.write('UPDATE ')
+        self.new_lines = 1
+        self.indentation += 1
+        self.visit(node.fromexpr)
+        self.indentation -= 1
+        self.new_lines = 1
+        self.write('SET')
+
+        self.indentation += 1
+        count = len(node.values)
+        for i, expr in enumerate(node.values):
+            self.new_lines = 1
+            self.visit(expr)
+            if i != count - 1:
+                self.write(',')
+        self.indentation -= 1
+
+        self.new_lines = 1
+        self.write('WHERE')
+        self.new_lines = 1
+        self.indentation += 1
+        self.visit(node.where)
+        self.new_lines = 1
+        self.indentation -= 1
+        self.write('RETURNING')
+        self.new_lines = 1
+        self.indentation += 1
+
+        count = len(node.targets)
+        for i, expr in enumerate(node.targets):
+            self.new_lines = 1
+            self.visit(expr)
+            if i != count - 1:
+                self.write(',')
+        self.indentation -= 1
+
+    def visit_DeleteQueryNode(self, node):
+        self.write('DELETE FROM ')
+        self.new_lines = 1
+        self.indentation += 1
+        self.visit(node.fromexpr)
+        self.indentation -= 1
+        self.new_lines = 1
+        self.write('WHERE')
+        self.new_lines = 1
+        self.indentation += 1
+        self.visit(node.where)
+        self.new_lines = 1
+        self.indentation -= 1
+        self.write('RETURNING')
+        self.new_lines = 1
+        self.indentation += 1
+
+        count = len(node.targets)
+        for i, expr in enumerate(node.targets):
+            self.new_lines = 1
+            self.visit(expr)
+            if i != count - 1:
+                self.write(',')
+        self.indentation -= 1
+
     def visit_SelectExprNode(self, node):
         self.visit(node.expr)
         if node.alias:
             self.write(' AS ' + common.quote_ident(node.alias))
+
+    def visit_UpdateExprNode(self, node):
+        # Do no call visit_FieldRefNode here, since fields in UPDATE clause
+        # must not have table qualifiers
+        #
+        self.write(common.qname(str(node.expr.field)))
+        self.write(' = ')
+        self.visit(node.value)
 
     def visit_FieldRefNode(self, node):
         if node.field == '*':

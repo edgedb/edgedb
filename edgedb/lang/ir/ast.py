@@ -83,7 +83,8 @@ class Base(ast.AST):
                 setattr(self, name, frozenset(newset))
 
 class GraphExpr(ast.AST):
-    __fields = ['generator', ('selector', list), ('sorter', list), 'offset', 'limit']
+    __fields = ['generator', ('selector', list), ('sorter', list), 'offset', 'limit',
+                ('opselector', list), 'optarget', 'opvalues', 'op']
 
 
 class AtomicRef(Base):
@@ -215,4 +216,5 @@ class ExistPred(Base): __fields = ['expr', 'outer']
 class AtomicExistPred(ExistPred): pass
 class SortExpr(Base): __fields = ['expr', 'direction']
 class SelectorExpr(Base): __fields = ['expr', 'name']
+class UpdateExpr(Base): __fields = ['expr', 'value']
 class FunctionCall(Base): __fields = ['name', ('args', list)]

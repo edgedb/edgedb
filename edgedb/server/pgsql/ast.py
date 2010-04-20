@@ -77,6 +77,15 @@ class SelectQueryNode(RelationNode):
                 ('orderby', list), 'offset', 'limit',
                 ('ctes', datastructures.OrderedSet), ('concept_node_map', dict), ('linkmap', dict)]
 
+class UpdateQueryNode(Base):
+    __fields = ['fromexpr', ('values', list), 'where', ('targets', list)]
+
+class UpdateExprNode(Base):
+    __fields = ['expr', 'value']
+
+class DeleteQueryNode(Base):
+    __fields = ['fromexpr', 'where', ('targets', list)]
+
 class CompositeNode(RelationNode):
     __fields = [('queries', list), ('ctes', datastructures.OrderedSet),
                 ('concept_node_map', dict)]
