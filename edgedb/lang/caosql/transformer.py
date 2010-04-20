@@ -200,7 +200,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     link_protos = self._normalize_link(context, link_expr.name, module)
 
                     seen_concepts = seen_atoms = False
-                    all_links = link_expr.name == '%'
+                    all_links = link_protos[0].name == 'semantix.caos.builtins.link'
 
                     outbound, inbound = concept.match_links(self.realm, link_protos, direction,
                                                             skip_atomic=all_links)

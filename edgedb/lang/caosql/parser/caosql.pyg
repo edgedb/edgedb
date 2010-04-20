@@ -125,6 +125,7 @@ select_nsdecl                   -> nsname (AS select_identifier)?:
                                             node.alias = kids[1][1]
                                         return node
 ;
+
 nsname                          -> IDENTIFIER ('.' IDENTIFIER)*:
                                         return '.'.join([kids[0]] + [k[1] for k in kids[1]])
 ;
@@ -278,7 +279,7 @@ gpe_subpath_with_parens         -> '(' gpe_subpath_no_parens ')':
                                         return kids[1]
 ;
 
-path_start                      -> label_expr ('@' path_var)? ('{' var '}')?:
+path_start                      -> path_start_label_expr ('@' path_var)? ('{' var '}')?:
                                         if kids[2] is not None:
                                             path = PathNode(steps=[kids[0]])
                                             path.var = kids[2][1]
@@ -336,7 +337,7 @@ neg_link_expr                   -> simple_link_expr:
                                         return UnaryOpNode(op=ast.ops.NOT, operand=kids[1])
 ;
 
-simple_link_expr                -> link_label_expr:
+simple_link_expr                -> opt_fq_link_label_expr:
                                         return kids[0]
                                  | '(' or_link_expr ')':
                                         return kids[1]
@@ -347,12 +348,10 @@ opt_fq_graph_name_set           -> '(' opt_fq_graph_name (',' opt_fq_graph_name)
                                         return SequenceNode(elements=elements)
 ;
 
-opt_fq_graph_name               -> (nsname ':')? IDENTIFIER:
-                                        if kids[0]:
-                                            grname = PrototypeRefNode(name=kids[1], module=kids[0][0])
-                                        else:
-                                            grname = PrototypeRefNode(name=kids[1])
-                                        return grname
+opt_fq_graph_name               -> nsname '.' graph_name:
+                                        return PrototypeRefNode(name=kids[2], module=kids[0])
+                                 | graph_name:
+                                        return PrototypeRefNode(name=kids[0])
 ;
 
 graph_name                      -> LABEL_EXPR:
@@ -369,18 +368,21 @@ direction                       -> '<>':
                                         return caos_types.InboundDirection
 ;
 
-link_label_expr                 -> direction? label_expr:
-                                        return LinkNode(name=kids[1].expr, namespace=kids[1].namespace,
+opt_fq_link_label_expr          -> direction? opt_fq_graph_name:
+                                        return LinkNode(name=kids[1].name,
+                                                        namespace=kids[1].module,
                                                         direction=kids[0])
 ;
 
-label_expr                      -> '%':
-                                        return PathStepNode(expr='%')
-                                 | (nsname ':')? graph_name:
-                                        node = PathStepNode(expr=kids[1])
-                                        if kids[0]:
-                                            node.namespace = kids[0][0]
-                                        return node
+link_label_expr                 -> direction? graph_name:
+                                        return LinkNode(name=kids[1], direction=kids[0])
+;
+
+path_start_label_expr           -> '[' opt_fq_graph_name ']':
+                                        return PathStepNode(expr=kids[1].name,
+                                                            namespace=kids[1].module)
+                                 | graph_name:
+                                        return PathStepNode(expr=kids[0])
 ;
 
 regexp_op                       -> '*' | '+' | '?'
