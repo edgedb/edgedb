@@ -19,6 +19,15 @@ mapping:
                 type: str
                 default: "<empty>"
 
+    properdefault:
+        type: map
+        object: semantix.utils.lang.yaml.validator.tests.test_object.ScalarContainer
+        mapping:
+            scalar:
+                type: str
+                object: semantix.utils.lang.yaml.validator.tests.test_object.Scalar
+                default: 'default scalar'
+
     fail:
         type: map
         object: semantix.utils.lang.yaml.validator.tests.test_object.Bad

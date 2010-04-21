@@ -88,7 +88,7 @@ class SchemaTextType(SchemaScalarType):
         self._init_constrainrs(('pattern', 'length'), dct)
 
     def check(self, node):
-        super(SchemaTextType, self).check(node)
+        super().check(node)
 
         if 'pattern' in self.constraints:
             if re.match(self.constraints['pattern'], str(node.value)) is None:

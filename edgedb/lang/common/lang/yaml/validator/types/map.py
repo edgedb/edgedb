@@ -16,11 +16,14 @@ class MappingType(CompositeType):
     __slots__ = ['keys', 'unique_base', 'unique']
 
     def __init__(self, schema):
-        super(MappingType, self).__init__(schema)
+        super().__init__(schema)
         self.keys = {}
 
         self.unique_base = {}
         self.unique = None
+
+    def default_node_type(self):
+        return yaml.nodes.MappingNode
 
     def load_keys(self, keys):
         for key, value in keys.items():
@@ -62,7 +65,8 @@ class MappingType(CompositeType):
         """
 
         if node.tag == 'tag:yaml.org,2002:null':
-            node = yaml.nodes.MappingNode(tag='tag:yaml.org,2002:map', value=[])
+            node = yaml.nodes.MappingNode(tag='tag:yaml.org,2002:map', value=[],
+                                          start_mark=node.start_mark, end_mark=node.end_mark)
         elif not isinstance(node, yaml.nodes.MappingNode):
             raise SchemaValidationError('mapping expected', node)
 
@@ -122,8 +126,9 @@ class MappingType(CompositeType):
 
             if key not in value:
                 if 'default' in conf:
-                    node.value.append((yaml.nodes.ScalarNode(value=key, tag='tag:yaml.org,2002:str'),
-                                       self.coerse_value(conf['type'], conf['default'], node)))
+                    key = yaml.nodes.ScalarNode(value=key, tag='tag:yaml.org,2002:str')
+                    default = self.coerse_value(conf['type'], conf['default'], node)
+                    node.value.append((key, default))
 
                 else:
                     if conf['required']:

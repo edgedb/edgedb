@@ -35,6 +35,24 @@ class Bad(object):
     pass
 
 
+class ScalarContainer(Object):
+    def __init__(self, *, scalar=None, context=None, data=None):
+        super().__init__(context, data)
+        self.scalar = scalar
+
+    def __eq__(self, other):
+        return isinstance(other, ScalarContainer) and other.scalar == self.scalar \
+               and isinstance(self.scalar, Scalar) and isinstance(other.scalar, Scalar)
+
+    def construct(self):
+        self.scalar = self.data['scalar']
+
+
+class Scalar(Object, str):
+    def __new__(cls, context, data):
+        return str.__new__(cls, data)
+
+
 class CustomValidator(Object):
     def construct(self):
         name = self.data['name']
@@ -92,4 +110,10 @@ class TestObject(SchemaTest):
                 name: a
                 description: b
                 customfield: 21
+        """
+
+    @result(key='properdefault', value=ScalarContainer(scalar=Scalar(None, 'default scalar')))
+    def test_validator_object_default(self):
+        """
+        properdefault: {}
         """

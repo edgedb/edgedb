@@ -18,6 +18,9 @@ class SequenceType(CompositeType):
         super(SequenceType, self).__init__(schema)
         self.sequence_type = None
 
+    def default_node_type(self):
+        return yaml.nodes.SequenceNode
+
     def load(self, dct):
         super(SequenceType, self).load(dct)
 
