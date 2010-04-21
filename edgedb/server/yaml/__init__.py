@@ -506,18 +506,16 @@ class MetaSet(LangObject):
     def order_atoms(self, globalmeta):
         g = {}
 
-        for atom in globalmeta('atom', include_automatic=True,
-                                       include_builtin=self.include_builtin):
+        for atom in globalmeta('atom', include_automatic=True, include_builtin=True):
             g[atom.name] = {"item": atom, "merge": [], "deps": []}
 
             if atom.base:
                 atom_base = globalmeta.get(atom.base, include_pyobjects=True)
                 if isinstance(atom_base, proto.Atom):
                     atom.base = atom_base.name
-                    if atom.base.module != 'semantix.caos.builtins':
-                        g[atom.name]['deps'].append(atom.base)
+                    g[atom.name]['merge'].append(atom.base)
 
-        return topological.normalize(g, merger=None)
+        return topological.normalize(g, merger=proto.Atom.merge)
 
 
     def read_links(self, data, globalmeta, localmeta):
