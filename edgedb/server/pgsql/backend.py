@@ -527,7 +527,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
             link = proto.Link(name=name, base=bases, source=source, target=target,
-                                mapping=r['mapping'], required=r['required'],
+                                mapping=caos.types.LinkMapping(r['mapping']),
+                                required=r['required'],
                                 title=title, description=description,
                                 is_abstract=r['is_abstract'],
                                 is_atom=r['is_atom'],

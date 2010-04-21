@@ -174,10 +174,11 @@ mapping:
 
                     "readonly":
                         type: bool
-                        default: None
+                        default: null
 
-                    "mapping":
+                    "mapping": &LINK_MAPPING
                         type: str
+                        object: semantix.caos.backends.yaml.LinkMapping
                         enum: ["1*", "11", "**", "*1"]
                         required: yes
                         default: "11"
@@ -265,12 +266,9 @@ mapping:
                                                   default: False
                                               "readonly":
                                                   type: bool
-                                                  default: None
+                                                  default: null
                                               "mapping":
-                                                  type: str
-                                                  enum: ["1*", "11", "**", "*1"]
-                                                  required: yes
-                                                  default: "11"
+                                                  *LINK_MAPPING
                                               "mods":
                                                   *ATOM_MODS
                                               "comparison":

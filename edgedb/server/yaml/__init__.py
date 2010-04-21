@@ -35,7 +35,7 @@ class MetaError(caos.MetaError):
 
     def __str__(self):
         result = super().__str__()
-        if self.context:
+        if self.context and self.context.start:
             result += '\ncontext: %s, line %d, column %d' % \
                         (self.context.name, self.context.start.line, self.context.start.column)
         return result
@@ -74,6 +74,15 @@ class WordCombination(LangObject, adapts=morphology.WordCombination):
     @classmethod
     def adapt(cls, obj):
         return cls.from_dict(obj)
+
+
+class LinkMapping(LangObject, adapts=caos.types.LinkMapping, ignore_aliases=True):
+    def __new__(cls, context, data):
+        return caos.types.LinkMapping.__new__(cls, data)
+
+    @classmethod
+    def represent(cls, data):
+        return str(data)
 
 
 class PrototypeMeta(LangObjectMeta, StructMeta):
@@ -667,7 +676,7 @@ class MetaSet(LangObject):
                             globalmeta.add(atom)
                             link.target = atom
 
-                        if link.mapping != '11':
+                        if link.mapping != caos.types.OneToOne:
                             raise caos.MetaError('%s: links to atoms can only have a "1 to 1" mapping'
                                                  % link_name)
 

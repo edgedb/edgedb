@@ -79,7 +79,9 @@ class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
             adapter = yaml.ObjectMeta.get_adapter(field.type[0])
             if adapter:
                 value = adapter(None, value)
-                value.construct()
+                constructor = getattr(value, 'construct', None)
+                if constructor:
+                    constructor()
             else:
                 value = field.adapt(value)
         return value
