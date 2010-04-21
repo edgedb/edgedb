@@ -66,7 +66,8 @@ source: |
             l.implicit_derivative,
             l.is_atom,
             l.is_abstract,
-            l.readonly
+            l.readonly,
+            l.constraints
         FROM
             caos.link l
             LEFT JOIN caos.metaobject sc ON l.source_id = sc.id

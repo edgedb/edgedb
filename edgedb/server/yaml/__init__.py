@@ -52,7 +52,7 @@ class LangObject(yaml.Object, metaclass=LangObjectMeta):
     @classmethod
     def get_canonical_class(cls):
         for base in cls.__bases__:
-            if issubclass(base, caos.types.ProtoObject):
+            if issubclass(base, caos.types.ProtoObject) and not issubclass(base, LangObject):
                 return base
 
         return cls
@@ -356,6 +356,10 @@ class LinkDef(Prototype, adapts=proto.Link):
         if data.properties:
             result['properties'] = data.properties
 
+        if data.constraints:
+            constraints = itertools.chain.from_iterable(data.constraints.values())
+            result['constraints'] = list(constraints)
+
         return result
 
 
@@ -372,6 +376,18 @@ class LinkSet(Prototype, adapts=proto.LinkSet):
             result[str(key)] = l
 
         return result
+
+
+class LinkConstraint(Prototype, adapts=proto.LinkConstraint, ignore_aliases=True):
+    @classmethod
+    def represent(cls, data):
+        return {cls.constraint_name: next(iter(data.values))}
+
+
+class LinkConstraintUnique(LinkConstraint, adapts=proto.LinkConstraintUnique):
+    def construct(self):
+        values = {self.data[self.__class__.constraint_name]}
+        proto.LinkConstraintUnique.__init__(self, values, context=self.context)
 
 
 class LinkList(LangObject, list):
@@ -398,6 +414,12 @@ class LinkList(LangObject, list):
                                       description=info['description'], readonly=info['readonly'])
                     link.mods = info.get('mods')
                     link.context = self.context
+
+                    constraints = info.get('constraints')
+                    if constraints:
+                        for constraint in constraints:
+                            link.add_constraint(constraint)
+
                     self.append(link)
 
 
@@ -596,14 +618,15 @@ class MetaSet(LangObject):
                             link_qname = caos.Name(name=link_name, module=self.module)
                             linkdef = proto.Link(name=link_qname,
                                                  base=(caos.Name('semantix.caos.builtins.link'),))
-                            linkdef.is_atom = globalmeta.get(link.target, type=proto.Atom, default=None) is not None
+                            target_atom = globalmeta.get(link.target, type=proto.Atom, default=None)
+                            linkdef.is_atom = target_atom is not None
                             globalmeta.add(linkdef)
                             localmeta.add(linkdef)
                         else:
                             link_qname = caos.Name(link_name)
 
-                    # A new implicit subclass of the link is created for each (source, link_name, target)
-                    # combination
+                    # A new implicit subclass of the link is created for each
+                    # (source, link_name, target) combination
                     link.base = (link_qname,)
                     link.implicit_derivative = True
                     link_genname = proto.Link.gen_link_name(link.source, link.target, link_qname.name)

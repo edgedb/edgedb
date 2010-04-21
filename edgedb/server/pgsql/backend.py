@@ -535,6 +535,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             link.implicit_derivative = r['implicit_derivative']
             link.properties = properties
 
+            if r['constraints']:
+                for cls, val in r['constraints'].items():
+                    constraint = helper.get_object(cls)(next(iter(yaml.Language.load(val))))
+                    link.add_constraint(constraint)
+
             if source:
                 source.add_link(link)
                 if isinstance(target, caos.types.ProtoConcept) \

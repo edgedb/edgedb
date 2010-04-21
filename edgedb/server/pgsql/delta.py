@@ -733,7 +733,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
         super().__init__(**kwargs)
         self.table = LinkTable()
 
-    def record_metadata(self, link, meta, context):
+    def record_metadata(self, link, old_link, meta, context):
         rec, updates = self.fill_record()
 
         if rec:
@@ -754,6 +754,18 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
                 rec.target_id = Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
                                       [str(target)],
                                       type='integer')
+
+        if not old_link or old_link.constraints != link.constraints:
+            if not rec:
+                rec = self.table.record()
+
+            constraints = {}
+            for constraint in link.constraints.values():
+                cls = constraint.__class__.get_canonical_class()
+                key = '%s.%s' % (cls.__module__, cls.__name__)
+                constraints[key] = yaml.Language.dump(constraint.values)
+
+            rec.constraints = constraints
 
         return rec
 
@@ -838,7 +850,7 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
         if self.alter_table and self.alter_table.ops:
             self.pgops.add(self.alter_table)
 
-        rec = self.record_metadata(link, meta, context)
+        rec = self.record_metadata(link, None, meta, context)
         self.pgops.add(Insert(table=self.table, records=[rec], priority=1))
 
         return link
@@ -875,19 +887,20 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
 
 class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
     def apply(self, meta, context=None):
-        result = delta_cmds.AlterLink.apply(self, meta, context)
+        old_link = meta.get(self.prototype_name).copy()
+        link = delta_cmds.AlterLink.apply(self, meta, context)
         LinkMetaCommand.apply(self, meta, context)
 
-        rec = self.record_metadata(result, meta, context)
+        rec = self.record_metadata(link, old_link, meta, context)
 
         if rec:
             self.pgops.add(Update(table=self.table, record=rec,
-                                  condition=[('name', str(result.name))], priority=1))
+                                  condition=[('name', str(link.name))], priority=1))
 
         if self.alter_table and self.alter_table.ops:
             self.pgops.add(self.alter_table)
 
-        return result
+        return link
 
 
 class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
@@ -905,9 +918,8 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
 
             col = AlterTableDropColumn(Column(name=column_name, type=column_type))
             concept.op.alter_table.add_operation(col)
-        elif not result.atomic():
-            old_table_name = common.link_name_to_table_name(result.name,
-                                                            catenate=False)
+        elif not result.atomic() and not result.implicit_derivative:
+            old_table_name = common.link_name_to_table_name(result.name, catenate=False)
             self.pgops.add(DropTable(name=old_table_name))
 
         self.pgops.add(Delete(table=self.table, condition=[('name', str(result.name))]))
@@ -941,6 +953,24 @@ class DeleteLinkSet(MetaCommand, adapts=delta_cmds.DeleteLinkSet):
         result = delta_cmds.DeleteLinkSet.apply(self, meta, context)
         MetaCommand.apply(self, meta, context)
         return result
+
+
+class LinkConstraintMetaCommand(MetaCommand):
+    pass
+
+
+class CreateLinkConstraint(LinkConstraintMetaCommand, adapts=delta_cmds.CreateLinkConstraint):
+    def apply(self, meta, context=None):
+        constraint = delta_cmds.CreateLinkConstraint.apply(self, meta, context)
+        LinkConstraintMetaCommand.apply(self, meta, context)
+        return constraint
+
+
+class DeleteLinkConstraint(LinkConstraintMetaCommand, adapts=delta_cmds.DeleteLinkConstraint):
+    def apply(self, meta, context=None):
+        constraint = delta_cmds.DeleteLinkConstraint.apply(self, meta, context)
+        LinkConstraintMetaCommand.apply(self, meta, context)
+        return constraint
 
 
 class LinkPropertyMetaCommand(CompositePrototypeMetaCommand):
@@ -1413,6 +1443,7 @@ class LinkTable(MetaObjectTable):
             Column(name='implicit_derivative', type='boolean', required=True, default=False),
             Column(name='is_atom', type='boolean', required=True, default=False),
             Column(name='readonly', type='boolean', required=True, default=False),
+            Column(name='constraints', type='caos.hstore')
         ])
 
         self.constraints = set([

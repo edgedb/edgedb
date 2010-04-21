@@ -206,6 +206,20 @@ class AtomModCommand(Command, adapts=delta.AtomModCommand):
         super().construct()
 
 
+class LinkConstraintCommand(Command, adapts=delta.LinkConstraintCommand):
+    @classmethod
+    def represent_command(cls, data):
+        result = super().represent_command(data)
+        result['constraint_class'] = '%s.%s' % (data.constraint_class.__module__,
+                                                data.constraint_class.__name__)
+        return result
+
+    def construct(self):
+        module, _, name = self.data['constraint_class'].rpartition('.')
+        self.data['constraint_class'] = getattr(importlib.import_module(module), name)
+        super().construct()
+
+
 class CreateAtom(CreatePrototype, adapts=delta.CreateAtom):
     pass
 
@@ -281,6 +295,18 @@ class AlterLink(AlterPrototype, adapts=delta.AlterLink):
 
 
 class DeleteLink(DeletePrototype, adapts=delta.DeleteLink):
+    pass
+
+
+class CreateLinkConstraint(LinkConstraintCommand, adapts=delta.CreateLinkConstraint):
+    @classmethod
+    def represent_command(cls, data):
+        result = super().represent_command(data)
+        result['constraint_data'] = data.constraint_data
+        return result
+
+
+class DeleteLinkConstraint(LinkConstraintCommand, adapts=delta.DeleteLinkConstraint):
     pass
 
 
