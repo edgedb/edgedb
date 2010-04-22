@@ -384,33 +384,21 @@ class Struct(metaclass=StructMeta):
 
     # XXX: the following is a CC from AST, consider consolidation
     def _init_fields(self, values):
+        setdefaults = values.get('_setdefaults_', True)
         for field_name, field  in self.__class__._fields.items():
-            if field_name in values:
-                value = values[field_name]
-            elif field.default is not None:
-                if field.default in field.type:
-                    value = field.default()
-                elif field.default is NoDefault:
-                    raise TypeError('%s.%s.%s is required' % (self.__class__.__module__,
-                                                              self.__class__.__name__,
-                                                              field_name))
-                else:
-                    value = field.default
-            else:
-                value = None
+            value = values.get(field_name)
 
-            if __debug__:
-                self.check_field_type(field, field_name, value)
+            if value is None and field.default is not None and setdefaults:
+                value = self._getdefault(field_name, field)
 
-            # Bypass overloaded setattr
-            object.__setattr__(self, field_name, value)
+            setattr(self, field_name, value)
 
     if __debug__:
         def __setattr__(self, name, value):
-            super().__setattr__(name, value)
             field = self._fields.get(name)
             if field:
                 self.check_field_type(field, name, value)
+            super().__setattr__(name, value)
 
     def check_field_type(self, field, name, value):
         if field.type and value is not None and not isinstance(value, field.type):
@@ -419,6 +407,24 @@ class Struct(metaclass=StructMeta):
                                self.__class__.__name__,
                                name, ' or '.join(t.__name__ for t in field.type),
                                value.__class__.__name__))
+
+    def _getdefault(self, field_name, field):
+        if field.default in field.type:
+            value = field.default()
+        elif field.default is NoDefault:
+            raise TypeError('%s.%s.%s is required' % (self.__class__.__module__,
+                                                      self.__class__.__name__,
+                                                      field_name))
+        else:
+            value = field.default
+        return value
+
+    def setdefaults(self):
+        for field_name, field  in self.__class__._fields.items():
+            value = getattr(self, field_name)
+            if value is None and field.default is not None:
+                value = self._getdefault(field_name, field)
+                setattr(self, field_name, value)
 
     @hybridmethod
     def copy(scope, obj=None):

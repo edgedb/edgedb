@@ -212,11 +212,12 @@ class AtomModRegExp(AtomMod, adapts=proto.AtomModRegExp):
     def represent(self, data):
         return {'regexp': next(iter(data.values))}
 
+default_name = caos.Name('!unknown.name')
 
 class Atom(Prototype, adapts=proto.Atom):
     def construct(self):
         data = self.data
-        proto.Atom.__init__(self, name=None, backend=None, base=data['extends'],
+        proto.Atom.__init__(self, name=default_name, backend=None, base=data['extends'],
                             default=data['default'], title=data['title'],
                             description=data['description'], is_abstract=data['abstract'])
         mods = data.get('mods')
@@ -259,7 +260,7 @@ class Concept(Prototype, adapts=proto.Concept):
             if not isinstance(extends, list):
                 extends = [extends]
 
-        proto.Concept.__init__(self, name=None, backend=None,
+        proto.Concept.__init__(self, name=default_name, backend=None,
                                base=tuple(extends) if extends else tuple(),
                                title=data.get('title'), description=data.get('description'),
                                is_abstract=data.get('abstract'))
@@ -290,10 +291,10 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
     def construct(self):
         data = self.data
         if isinstance(data, str):
-            proto.LinkProperty.__init__(self, name=None, atom=data)
+            proto.LinkProperty.__init__(self, name=default_name, atom=data)
         else:
             atom_name, info = next(iter(data.items()))
-            proto.LinkProperty.__init__(self, name=None, atom=atom_name, title=info['title'],
+            proto.LinkProperty.__init__(self, name=default_name, atom=atom_name, title=info['title'],
                                        description=info['description'])
             self.mods = info.get('mods')
 
@@ -324,7 +325,7 @@ class LinkDef(Prototype, adapts=proto.Link):
             if not isinstance(extends, list):
                 extends = [extends]
 
-        proto.Link.__init__(self, name=None, backend=None,
+        proto.Link.__init__(self, name=default_name, backend=None,
                             base=tuple(extends) if extends else tuple(),
                             title=data['title'], description=data['description'],
                             is_abstract=data.get('abstract'),
@@ -404,12 +405,12 @@ class LinkList(LangObject, list):
     def construct(self):
         data = self.data
         if isinstance(data, str):
-            link = proto.Link(source=None, target=data, name=None)
+            link = proto.Link(source=None, target=data, name=default_name)
             link.context = self.context
             self.append(link)
         elif isinstance(data, list):
             for target in data:
-                link = proto.Link(source=None, target=target, name=None)
+                link = proto.Link(source=None, target=target, name=default_name)
                 link.context = self.context
                 self.append(link)
         else:
@@ -418,7 +419,7 @@ class LinkList(LangObject, list):
                     target = (target,)
 
                 for t in target:
-                    link = proto.Link(name=None, target=t, mapping=info['mapping'],
+                    link = proto.Link(name=default_name, target=t, mapping=info['mapping'],
                                       required=info['required'], title=info['title'],
                                       description=info['description'], readonly=info['readonly'])
                     link.mods = info.get('mods')
