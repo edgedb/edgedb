@@ -54,7 +54,7 @@ mapping:
 
                     "abstract":
                         type: bool
-                        default: False
+                        default: null
 
                     "default":
                         type: any
@@ -170,18 +170,18 @@ mapping:
 
                     "abstract":
                         type: bool
-                        default: False
 
                     "readonly":
                         type: bool
-                        default: null
+
+                    "required":
+                        type: bool
 
                     "mapping": &LINK_MAPPING
                         type: str
                         object: semantix.caos.backends.yaml.LinkMapping
                         enum: ["1*", "11", "**", "*1"]
-                        required: yes
-                        default: "11"
+                        default: null
 
                     "properties":
                         type: map
@@ -222,7 +222,7 @@ mapping:
 
                     "abstract":
                         type: bool
-                        default: False
+                        default: null
 
                     "description":
                         type: str
@@ -263,7 +263,7 @@ mapping:
                                                   type: str
                                               "required":
                                                   type: bool
-                                                  default: False
+                                                  default: null
                                               "readonly":
                                                   type: bool
                                                   default: null

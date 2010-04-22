@@ -525,7 +525,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             else:
                 target = meta.get(r['target']) if r['target'] else None
 
-
             link = proto.Link(name=name, base=bases, source=source, target=target,
                                 mapping=caos.types.LinkMapping(r['mapping']),
                                 required=r['required'],

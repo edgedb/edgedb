@@ -219,7 +219,8 @@ class Atom(Prototype, adapts=proto.Atom):
         data = self.data
         proto.Atom.__init__(self, name=default_name, backend=None, base=data['extends'],
                             default=data['default'], title=data['title'],
-                            description=data['description'], is_abstract=data['abstract'])
+                            description=data['description'], is_abstract=data['abstract'],
+                            _setdefaults_=False)
         mods = data.get('mods')
         if mods:
             for mod in mods:
@@ -263,7 +264,8 @@ class Concept(Prototype, adapts=proto.Concept):
         proto.Concept.__init__(self, name=default_name, backend=None,
                                base=tuple(extends) if extends else tuple(),
                                title=data.get('title'), description=data.get('description'),
-                               is_abstract=data.get('abstract'))
+                               is_abstract=data.get('abstract'),
+                               _setdefaults_=False)
         self._links = data.get('links', {})
 
     @classmethod
@@ -329,7 +331,8 @@ class LinkDef(Prototype, adapts=proto.Link):
                             base=tuple(extends) if extends else tuple(),
                             title=data['title'], description=data['description'],
                             is_abstract=data.get('abstract'),
-                            readonly=data.get('readonly'))
+                            readonly=data.get('readonly'),
+                            _setdefaults_=False)
         for property_name, property in data['properties'].items():
             property.name = property_name
             self.add_property(property)
@@ -360,7 +363,7 @@ class LinkDef(Prototype, adapts=proto.Link):
         if isinstance(data.target, proto.Atom) and data.target.automatic:
             result['mods'] = list(itertools.chain.from_iterable(data.target.mods.values()))
 
-        if data.source:
+        if data.required:
             result['required'] = data.required
 
         if data.properties:
@@ -405,12 +408,12 @@ class LinkList(LangObject, list):
     def construct(self):
         data = self.data
         if isinstance(data, str):
-            link = proto.Link(source=None, target=data, name=default_name)
+            link = proto.Link(source=None, target=data, name=default_name, _setdefaults_=False)
             link.context = self.context
             self.append(link)
         elif isinstance(data, list):
             for target in data:
-                link = proto.Link(source=None, target=target, name=default_name)
+                link = proto.Link(source=None, target=target, name=default_name, _setdefaults_=False)
                 link.context = self.context
                 self.append(link)
         else:
@@ -421,7 +424,8 @@ class LinkList(LangObject, list):
                 for t in target:
                     link = proto.Link(name=default_name, target=t, mapping=info['mapping'],
                                       required=info['required'], title=info['title'],
-                                      description=info['description'], readonly=info['readonly'])
+                                      description=info['description'], readonly=info['readonly'],
+                                      _setdefaults_=False)
                     link.mods = info.get('mods')
                     link.context = self.context
 
@@ -476,14 +480,17 @@ class MetaSet(LangObject):
 
             for atom in atoms:
                 if self.include_builtin or atom.name.module != 'semantix.caos.builtins':
+                    atom.setdefaults()
                     self.finalindex.add(atom)
 
             for link in links:
                 if self.include_builtin or link.name.module != 'semantix.caos.builtins':
+                    link.setdefaults()
                     self.finalindex.add(link)
 
             for concept in concepts:
                 if self.include_builtin or concept.name.module != 'semantix.caos.builtins':
+                    concept.setdefaults()
                     self.finalindex.add(concept)
 
 
@@ -675,7 +682,7 @@ class MetaSet(LangObject):
                             globalmeta.add(atom)
                             link.target = atom
 
-                        if link.mapping != caos.types.OneToOne:
+                        if link.mapping and link.mapping != caos.types.OneToOne:
                             raise caos.MetaError('%s: links to atoms can only have a "1 to 1" mapping'
                                                  % link_name)
 
