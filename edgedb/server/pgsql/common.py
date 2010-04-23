@@ -101,6 +101,6 @@ def get_table_name(obj, catenate=True):
     if isinstance(obj, proto.Concept):
         return concept_name_to_table_name(obj.name, catenate)
     elif isinstance(obj, proto.Link):
-        return link_name_to_table_name(obj.name, catenate)
+        return link_name_to_table_name(obj.normal_name(), catenate)
     else:
         assert False

@@ -23,7 +23,7 @@ class MetaDeltaRepository(backends.MetaDeltaRepository):
     def delta_ref_to_id(self, ref):
         table = delta.DeltaRefTable()
         condition = delta.TableExists(table.name)
-        have_deltaref = condition.execute(self.connection)
+        have_deltaref = condition.execute(delta.CommandContext(self.connection))
 
         result = []
 

@@ -56,6 +56,10 @@ class MetaDeltaRepository:
         deltas.apply(meta)
         return meta
 
+    def get_meta_at(self, ref):
+        delta = self.load_delta(ref)
+        return self.get_meta(delta)
+
     def _cumulative_delta(self, ref1, ref2):
         delta = None
         v1 = self.load_delta(ref1) if ref1 else None
@@ -122,6 +126,10 @@ class MetaBackend:
         if delta_obj:
             self.deltarepo.write_delta(delta_obj)
             self.deltarepo.update_delta_ref('HEAD', delta_obj.id)
+
+    def process_delta(self, delta, meta):
+        delta.apply(meta)
+        return delta
 
 
 class DataBackend:

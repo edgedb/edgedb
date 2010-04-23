@@ -40,13 +40,16 @@ source: |
 params:
     source_concept:
         type: str
-        default: !!null
+        default: null
     target_concept:
         type: str
-        default: !!null
+        default: null
     name:
         type: str
-        default: !!null
+        default: null
+    include_derivatives:
+        type: bool
+        default: True
 
 filters:
     - format: dict
@@ -76,5 +79,6 @@ source: |
             (%(source_concept)s::text IS NULL OR %(source_concept)s::text = sc.name)
             AND (%(target_concept)s::text IS NULL OR %(target_concept)s::text = tc.name)
             AND (%(name)s::text IS NULL OR %(name)s::text = l.name)
+            AND (%(include_derivatives)s::bool OR NOT l.implicit_derivative)
         ORDER BY
             l.id, l.target_id NULLS FIRST

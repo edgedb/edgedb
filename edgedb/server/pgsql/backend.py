@@ -181,18 +181,22 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return delta_cmds.CommandMeta.adapt(delta)
 
 
-    def get_synchronization_plan(self, delta, meta):
+    def process_delta(self, delta, meta):
         delta = self.adapt_delta(delta)
-        delta.apply(meta)
+        context = delta_cmds.CommandContext(self.connection)
+        delta.apply(meta, context)
         return delta
 
-
-    def apply_synchronization_plan(self, plans):
-        for plan in plans:
-            plan.execute(self.connection)
-
-
     @debug
+    def apply_synchronization_plan(self, plans):
+        """LOG [caos.delta.plan] PgSQL Delta Plan
+        for plan in plans:
+            print(plan.dump())
+        """
+        for plan in plans:
+            plan.execute(delta_cmds.CommandContext(self.connection))
+
+
     def apply_delta(self, delta):
         if isinstance(delta, base_delta.DeltaSet):
             deltas = list(delta)
@@ -204,10 +208,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         meta = self.getmeta()
 
         for d in deltas:
-            plan = self.get_synchronization_plan(d.deltas[0], meta)
-            """LOG [caos.meta.pgsql.delta.plan] Delta Plan
-            print(plan.dump())
-            """
+            plan = self.process_delta(d.deltas[0], meta)
             plans.append(plan)
 
         table = delta_cmds.DeltaLogTable()

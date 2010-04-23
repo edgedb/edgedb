@@ -23,6 +23,9 @@ from semantix.caos.backends.pgsql import common, Config
 from semantix.utils import datastructures
 from semantix.utils.debug import debug
 from semantix.utils.lang import yaml
+from semantix.utils.algos.persistent_hash import persistent_hash
+
+from . import datasources
 
 
 numeric_spec = collections.OrderedDict((
@@ -194,14 +197,22 @@ class MetaCommand(delta_cmds.Command, metaclass=CommandMeta):
         for op in self.ops:
             self.pgops.add(op)
 
-    def execute(self, db):
+    def execute(self, context):
         for op in sorted(self.pgops, key=lambda i: i.priority, reverse=True):
-            op.execute(db)
+            op.execute(context)
+
+    def dump(self):
+        result = [repr(self)]
+
+        for op in self.pgops:
+            result.extend('  %s' % l for l in op.dump().split('\n'))
+
+        return '\n'.join(result)
 
 
 class BaseCommand:
-    def get_code_and_vars(self, db):
-        code = self.code(db)
+    def get_code_and_vars(self, context):
+        code = self.code(context)
         assert code
         if isinstance(code, tuple):
             code, vars = code
@@ -211,8 +222,8 @@ class BaseCommand:
         return code, vars
 
     @debug
-    def execute(self, db):
-        code, vars = self.get_code_and_vars(db)
+    def execute(self, context):
+        code, vars = self.get_code_and_vars(context)
         """LOG [caos.meta.sync.cmd] Sync command:
         print(self)
         """
@@ -221,7 +232,10 @@ class BaseCommand:
         print(code, vars)
         """
 
-        return db.prepare(code)(*vars)
+        return context.db.prepare(code)(*vars)
+
+    def dump(self):
+        return str(self)
 
 
 class Command(BaseCommand):
@@ -232,13 +246,13 @@ class Command(BaseCommand):
         self.priority = priority
 
     @debug
-    def execute(self, db):
-        ok = self.check_conditions(db, self.conditions, True) and \
-             self.check_conditions(db, self.neg_conditions, False)
+    def execute(self, context):
+        ok = self.check_conditions(context, self.conditions, True) and \
+             self.check_conditions(context, self.neg_conditions, False)
 
         result = None
         if ok:
-            code, vars = self.get_code_and_vars(db)
+            code, vars = self.get_code_and_vars(context)
 
             """LOG [caos.meta.sync.cmd] Sync command:
             print(self)
@@ -249,17 +263,17 @@ class Command(BaseCommand):
             """
 
             if vars is not None:
-                result = db.prepare(code)(*vars)
+                result = context.db.prepare(code)(*vars)
             else:
-                result = db.execute(code)
+                result = context.db.execute(code)
         return result
 
-    def check_conditions(self, db, conditions, positive):
+    def check_conditions(self, context, conditions, positive):
         result = True
         if conditions:
             for condition in conditions:
-                code, vars = condition.get_code_and_vars(db)
-                result = db.prepare(code)(*vars)
+                code, vars = condition.get_code_and_vars(context)
+                result = context.db.prepare(code)(*vars)
 
                 if bool(result) ^ positive:
                     result = False
@@ -728,6 +742,14 @@ class DeleteConcept(ConceptMetaCommand, adapts=delta_cmds.DeleteConcept):
         return concept
 
 
+class ScheduleLinkMappingUpdate(MetaCommand):
+    pass
+
+
+class CancelLinkMappingUpdate(MetaCommand):
+    pass
+
+
 class LinkMetaCommand(CompositePrototypeMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -786,7 +808,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
 
         return columns
 
-    def create_table(self, link, meta, conditional=False):
+    def create_table(self, link, meta, context, conditional=False):
         new_table_name = common.link_name_to_table_name(link.name, catenate=False)
         self.create_schema(new_table_name[0])
 
@@ -815,6 +837,25 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
             c = CreateTable(table=table)
         self.pgops.add(c)
 
+    def has_table(self, link, meta, context):
+        return (not link.atomic() or link.properties) and not link.implicit_derivative
+
+    def schedule_mapping_update(self, link, meta, context):
+        if (not link.atomic() or link.properties):
+            mapping_indexes = context.get(delta_cmds.RealmCommandContext).op.update_mapping_indexes
+            link_name = link.normal_name()
+            ops = mapping_indexes.links.get(link_name)
+            if not ops:
+                mapping_indexes.links[link_name] = ops = []
+            ops.append((self, link))
+            self.pgops.add(ScheduleLinkMappingUpdate())
+
+    def cancel_mapping_update(self, link, meta, context):
+        name = link.normal_name()
+        mapping_indexes = context.get(delta_cmds.RealmCommandContext).op.update_mapping_indexes
+        mapping_indexes.links.pop(name, None)
+        self.pgops.add(CancelLinkMappingUpdate())
+
 
 class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
     def apply(self, meta, context=None):
@@ -831,8 +872,8 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
         # separate tables even if they do not define additional properties.
         # This is to allow for further schema evolution.
         #
-        if (not link.atomic() or link.properties) and not link.implicit_derivative:
-            self.create_table(link, meta, conditional=True)
+        if self.has_table(link, meta, context):
+            self.create_table(link, meta, context, conditional=True)
 
         if link.atomic() and link.implicit_derivative:
             concept = context.get(delta_cmds.ConceptCommandContext)
@@ -852,6 +893,9 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
 
         rec = self.record_metadata(link, None, meta, context)
         self.pgops.add(Insert(table=self.table, records=[rec], priority=1))
+
+        if link.mapping != caos.types.ManyToMany:
+            self.schedule_mapping_update(link, meta, context)
 
         return link
 
@@ -887,7 +931,7 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
 
 class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
     def apply(self, meta, context=None):
-        old_link = meta.get(self.prototype_name).copy()
+        self.old_link = old_link = meta.get(self.prototype_name).copy()
         link = delta_cmds.AlterLink.apply(self, meta, context)
         LinkMetaCommand.apply(self, meta, context)
 
@@ -899,6 +943,9 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
 
         if self.alter_table and self.alter_table.ops:
             self.pgops.add(self.alter_table)
+
+        if old_link.mapping != link.mapping:
+            self.schedule_mapping_update(link, meta, context)
 
         return link
 
@@ -918,9 +965,14 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
 
             col = AlterTableDropColumn(Column(name=column_name, type=column_type))
             concept.op.alter_table.add_operation(col)
+
+            if result.mapping != caos.types.ManyToMany:
+                self.schedule_mapping_update(result, meta, context)
+
         elif not result.atomic() and not result.implicit_derivative:
             old_table_name = common.link_name_to_table_name(result.name, catenate=False)
             self.pgops.add(DropTable(name=old_table_name))
+            self.cancel_mapping_update(result, meta, context)
 
         self.pgops.add(Delete(table=self.table, condition=[('name', str(result.name))]))
 
@@ -999,7 +1051,7 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
         assert link, "Link property command must be run in Link command context"
 
         link_table_name = common.link_name_to_table_name(link.proto.name, catenate=False)
-        link.op.create_table(link.proto, meta, conditional=True)
+        link.op.create_table(link.proto, meta, context, conditional=True)
 
         if not link.op.alter_table:
             link.op.alter_table = AlterTable(link_table_name)
@@ -1041,8 +1093,220 @@ class DeleteLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.DeleteLinkPr
         return property
 
 
+class CreateMappingIndexes(MetaCommand):
+    def __init__(self, table_name, mapping, maplinks):
+        super().__init__()
+
+        key = str(table_name[1])
+        if mapping == caos.types.OneToOne:
+            # Each source can have only one target and
+            # each target can have only one source
+            sides = ('source', 'target')
+
+        elif mapping == caos.types.OneToMany:
+            # Each target can have only one source, but
+            # one source can have many targets
+            sides = ('target',)
+
+        elif mapping == caos.types.ManyToOne:
+            # Each source can have only one target, but
+            # one target can have many sources
+            sides = ('source',)
+
+        for side in sides:
+            index = MappingIndex(key + '_%s' % side, mapping, maplinks, table_name)
+            index.add_columns(('%s_id' % side, 'link_type_id'))
+            self.pgops.add(CreateIndex(index, priority=3))
+
+
+class AlterMappingIndexes(MetaCommand):
+    def __init__(self, idx_names, table_name, mapping, maplinks):
+        super().__init__()
+
+        self.pgops.add(DropMappingIndexes(idx_names, table_name, mapping))
+        self.pgops.add(CreateMappingIndexes(table_name, mapping, maplinks))
+
+
+class DropMappingIndexes(MetaCommand):
+    def __init__(self, idx_names, table_name, mapping):
+        super().__init__()
+
+        for idx_name in idx_names:
+            self.pgops.add(DropIndex((table_name[0], idx_name), priority=3))
+
+
+class UpdateMappingIndexes(MetaCommand):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.links = {}
+        self.idx_name_re = re.compile(r'.*(?P<mapping>[1*]{2})_link_mapping_idx$')
+        self.idx_pred_re = re.compile(r'''
+                              \( \s* link_type_id \s* = \s*
+                                  (?:(?: ANY \s* \( \s* ARRAY \s* \[
+                                      (?P<type_ids> \d+ (?:\s* , \s* \d+)* )
+                                  \s* \] \s* \) \s* )
+                                  |
+                                  (?P<type_id>\d+))
+                              \s* \)
+                           ''', re.X)
+        self.schema_exists = SchemaExists(name='caos')
+
+    def interpret_index(self, index_name, index_predicate, link_map):
+        m = self.idx_name_re.match(index_name)
+        if not m:
+            raise caos.MetaError('could not interpret index %s' % index_name)
+
+        mapping = m.group('mapping')
+
+        m = self.idx_pred_re.match(index_predicate)
+        if not m:
+            raise caos.MetaError('could not interpret index %s predicate: %s' % \
+                                 (index_name, index_predicate))
+
+        link_type_ids = (int(i) for i in re.split('\D+', m.group('type_ids') or m.group('type_id')))
+
+        return mapping, list(link_map[i] for i in link_type_ids)
+
+    def interpret_indexes(self, indexes, link_map):
+        for idx_name, idx_pred in zip(indexes['index_names'], indexes['index_predicates']):
+            yield idx_name, self.interpret_index(idx_name, idx_pred, link_map)
+
+    def _group_indexes(self, indexes):
+        """Group indexes by link name"""
+
+        for index_name, (mapping, link_names) in indexes:
+            for link_name in link_names:
+                yield link_name, index_name
+
+    def group_indexes(self, indexes):
+        key = lambda i: i[0]
+        grouped = itertools.groupby(sorted(self._group_indexes(indexes), key=key), key=key)
+        for link_name, indexes in grouped:
+            yield link_name, tuple(i[1] for i in indexes)
+
+    def apply(self, meta, context):
+        db = context.db
+        if self.schema_exists.execute(context):
+            link_map = context._get_link_map(reverse=True)
+            index_ds = datasources.introspection.tables.TableIndexes(db)
+            indexes = {}
+            for row in index_ds.fetch(schema_pattern='caos%', index_pattern='%_link_mapping_idx'):
+                indexes[tuple(row['table_name'])] = self.interpret_indexes(row, link_map)
+        else:
+            link_map = {}
+            indexes = {}
+
+        for link_name, ops in self.links.items():
+            table_name = common.link_name_to_table_name(link_name, catenate=False)
+
+            new_indexes = {k: [] for k in caos.types.LinkMapping.values()}
+            alter_indexes = {k: [] for k in caos.types.LinkMapping.values()}
+
+            existing = indexes.get(table_name)
+
+            if existing:
+                existing_by_name = dict(existing)
+                existing = dict(self.group_indexes(existing_by_name.items()))
+            else:
+                existing_by_name = {}
+                existing = {}
+
+            processed = {}
+
+            for op, proto in ops:
+                already_processed = processed.get(proto.name)
+
+                if isinstance(op, CreateLink):
+                    assert proto.name not in existing
+                    # CreateLink can only happen once
+                    assert not already_processed
+                    new_indexes[proto.mapping].append((proto.name, None, None))
+
+                elif isinstance(op, AlterLink):
+                    # We are in apply stage, so the potential link changes, renames
+                    # have not yet been pushed to the database, so link_map potentially
+                    # contains old link names
+                    ex_idx_names = existing.get(op.old_link.name)
+
+                    if ex_idx_names:
+                        ex_idx = existing_by_name[ex_idx_names[0]]
+                        queue = alter_indexes
+                    else:
+                        ex_idx = None
+                        queue = new_indexes
+
+                    item = (proto.name, op.old_link.name, ex_idx_names)
+
+                    # Delta generator could have yielded several AlterLink commands
+                    # for the same link, we need to respect only the last state.
+                    if already_processed:
+                        if already_processed != proto.mapping:
+                            queue[already_processed].remove(item)
+
+                            if not ex_idx or ex_idx[0] != proto.mapping:
+                                queue[proto.mapping].append(item)
+
+                    elif not ex_idx or ex_idx[0] != proto.mapping:
+                        queue[proto.mapping].append(item)
+
+                processed[proto.name] = proto.mapping
+
+            for mapping, maplinks in new_indexes.items():
+                if maplinks:
+                    maplinks = list(i[0] for i in maplinks)
+                    self.pgops.append(CreateMappingIndexes(table_name, mapping, maplinks))
+
+            for mapping, maplinks in alter_indexes.items():
+                new = []
+                alter = {}
+                for maplink in maplinks:
+                    maplink_name, orig_maplink_name, ex_idx_names = maplink
+                    ex_idx = existing_by_name[ex_idx_names[0]]
+
+                    alter_links = alter.get(ex_idx_names)
+                    if alter_links is None:
+                        alter[ex_idx_names] = alter_links = set(ex_idx[1])
+                    alter_links.discard(orig_maplink_name)
+
+                    new.append(maplink_name)
+
+                if new:
+                    self.pgops.append(CreateMappingIndexes(table_name, mapping, new))
+
+                for idx_names, altlinks in alter.items():
+                    if not altlinks:
+                        self.pgops.append(DropMappingIndexes(ex_idx_names, table_name, mapping))
+                    else:
+                        self.pgops.append(AlterMappingIndexes(idx_names, table_name, mapping,
+                                                              altlinks))
+
+
+class CommandContext(delta_cmds.CommandContext):
+    def __init__(self, db):
+        super().__init__()
+        self.db = db
+        self.link_name_to_id_map = None
+
+    def _get_link_map(self, reverse=False):
+        link_ds = datasources.meta.links.ConceptLinks(self.db)
+        links = link_ds.fetch(include_derivatives=True)
+        grouped = itertools.groupby(links, key=lambda i: i['id'])
+        if reverse:
+            link_map = {k: next(i)['name'] for k, i in grouped}
+        else:
+            link_map = {next(i)['name']: k for k, i in grouped}
+        return link_map
+
+    def get_link_map(self):
+        link_map = self.link_name_to_id_map
+        if not link_map:
+            link_map = self._get_link_map()
+            self.link_name_to_id_map = link_map
+        return link_map
+
+
 class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
-    def apply(self, meta):
+    def apply(self, meta, context):
         self.pgops.add(CreateSchema(name='caos', priority=-2))
 
         self.pgops.add(EnableFeature(feature=UuidFeature(),
@@ -1083,15 +1347,20 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
                                    neg_conditions=[TableExists(name=linktable.name)],
                                    priority=-1))
 
-        delta_cmds.AlterRealm.apply(self, meta)
+        self.update_mapping_indexes = UpdateMappingIndexes()
+
+        delta_cmds.AlterRealm.apply(self, meta, context)
         MetaCommand.apply(self, meta)
+
+        self.update_mapping_indexes.apply(meta, context)
+        self.pgops.append(self.update_mapping_indexes)
 
     def is_material(self):
         return True
 
-    def execute(self, db):
+    def execute(self, context):
         for op in self.serialize_ops():
-            op.execute(db)
+            op.execute(context)
 
     def serialize_ops(self):
         queues = {}
@@ -1140,7 +1409,7 @@ class Insert(DMLOperation):
         self.table = table
         self.records = records
 
-    def code(self, db):
+    def code(self, context):
         cols = [c.name for c in self.table.columns(writable_only=True)]
         l = len(cols)
 
@@ -1185,7 +1454,7 @@ class Update(DMLOperation):
         self.fields = [f for f, v in record if v is not Default]
         self.condition = condition
 
-    def code(self, db):
+    def code(self, context):
         e = common.quote_ident
 
         placeholders = []
@@ -1225,18 +1494,18 @@ class Update(DMLOperation):
 
 
 class Merge(Update):
-    def code(self, db):
-        code = super().code(db)
+    def code(self, context):
+        code = super().code(context)
         cols = (common.quote_ident(c[0]) for c in self.condition)
         result = (code[0] + ' RETURNING %s' % (','.join(cols)), code[1])
         return result
 
-    def execute(self, db):
-        result = super().execute(db)
+    def execute(self, context):
+        result = super().execute(context)
 
         if not result:
             op = Insert(self.table, records=[self.record])
-            result = op.execute(db)
+            result = op.execute(context)
 
         return result
 
@@ -1248,7 +1517,7 @@ class Delete(DMLOperation):
         self.table = table
         self.condition = condition
 
-    def code(self, db):
+    def code(self, context):
         e = common.quote_ident
         where = ' AND '.join('%s = $%d' % (e(c[0]), i + 1) for i, c in enumerate(self.condition))
 
@@ -1271,7 +1540,7 @@ class PrimaryKey(DBObject):
     def __init__(self, columns):
         self.columns = columns
 
-    def code(self, db):
+    def code(self, context):
         code = 'PRIMARY KEY (%s)' % ', '.join(common.quote_ident(c) for c in self.columns)
         return code
 
@@ -1279,7 +1548,7 @@ class UniqueConstraint(DBObject):
     def __init__(self, columns):
         self.columns = columns
 
-    def code(self, db):
+    def code(self, context):
         code = 'UNIQUE (%s)' % ', '.join(common.quote_ident(c) for c in self.columns)
         return code
 
@@ -1292,7 +1561,7 @@ class Column(DBObject):
         self.default = default
         self.readonly = readonly
 
-    def code(self, db):
+    def code(self, context):
         e = common.quote_ident
         return '%s %s %s %s' % (common.quote_ident(self.name), self.type,
                                 'NOT NULL' if self.required else '',
@@ -1306,6 +1575,76 @@ class DefaultMeta(type):
 
 class Default(metaclass=DefaultMeta):
     pass
+
+
+class Index(DBObject):
+    def __init__(self, name, table_name, unique=True):
+        super().__init__()
+
+        self.name = name
+        self.table_name = table_name
+        self.__columns = datastructures.OrderedSet()
+        self.predicate = None
+        self.unique = unique
+
+    def add_columns(self, columns):
+        self.__columns.update(columns)
+
+    def creation_code(self, context):
+        code = 'CREATE %(unique)s INDEX %(name)s ON %(table)s (%(cols)s) %(predicate)s' % \
+                {'unique': 'UNIQUE' if self.unique else '',
+                 'name': common.qname(self.name),
+                 'table': common.qname(*self.table_name),
+                 'cols': ', '.join(self.columns),
+                 'predicate': 'WHERE %s' % self.predicate if self.predicate else ''
+                }
+        return code
+
+    @property
+    def columns(self):
+        return iter(self.__columns)
+
+    def __repr__(self):
+        return '<%(mod)s.%(cls)s name=%(name)s cols=(%(cols)s) unique=%(uniq)s predicate=%(pred)s>'\
+               % {'mod': self.__class__.__module__, 'cls': self.__class__.__name__,
+                  'name': self.name, 'cols': ','.join(self.columns), 'uniq': self.unique,
+                  'pred': self.predicate}
+
+
+class MappingIndex(Index):
+    def __init__(self, name_prefix, mapping, link_names, table_name):
+        super().__init__(None, table_name, True)
+        self.link_names = link_names
+        self.name_prefix = name_prefix
+        self.mapping = mapping
+
+    def creation_code(self, context):
+        link_map = context.get_link_map()
+
+        ids = tuple(sorted(list(link_map[n] for n in self.link_names)))
+        id_hash = persistent_hash(ids)
+
+        name = '%s_%x_%s_link_mapping_idx' % (self.name_prefix, id_hash, self.mapping)
+        predicate = 'link_type_id IN (%s)' % ', '.join(str(id) for id in ids)
+
+        code = 'CREATE %(unique)s INDEX %(name)s ON %(table)s (%(cols)s) %(predicate)s' % \
+                {'unique': 'UNIQUE',
+                 'name': common.qname(name),
+                 'table': common.qname(*self.table_name),
+                 'cols': ', '.join(self.columns),
+                 'predicate': ('WHERE %s' % predicate)
+                }
+        return code
+
+    def __repr__(self):
+        name = '%s_%s_%s_link_mapping_idx' % (self.name_prefix, '<HASH>', self.mapping)
+        predicate = 'link_type_id IN (%s)' % ', '.join(str(n) for n in self.link_names)
+
+        return '<%(mod)s.%(cls)s name="%(name)s" cols=(%(cols)s) unique=%(uniq)s ' \
+               'predicate=%(pred)s>' \
+               % {'mod': self.__class__.__module__, 'cls': self.__class__.__name__,
+                  'name': name, 'cols': ','.join(self.columns), 'uniq': self.unique,
+                  'pred': predicate}
 
 
 class Table(DBObject):
@@ -1457,10 +1796,10 @@ class Feature:
         self.name = name
         self.schema = schema
 
-    def code(self, db):
+    def code(self, context):
         pgpath = Config.pg_install_path
         source = self.source % {'pgpath': pgpath}
-        source = source % {'version': '%s.%s' % db.version_info[:2]}
+        source = source % {'version': '%s.%s' % context.db.version_info[:2]}
 
         with open(source, 'r') as f:
             code = re.sub(r'SET\s+search_path\s*=\s*[^;]+;',
@@ -1473,7 +1812,7 @@ class TypeExists(Condition):
     def __init__(self, name):
         self.name = name
 
-    def code(self, db):
+    def code(self, context):
         code = '''SELECT
                         t.oid
                     FROM
@@ -1505,17 +1844,17 @@ class EnableFeature(DDLOperation):
         self.feature = feature
         self.opid = feature.name
 
-    def code(self, db):
-        return self.feature.code(db)
+    def code(self, context):
+        return self.feature.code(context)
 
     def __repr__(self):
         return '<caos.sync.%s %s>' % (self.__class__.__name__, self.feature.name)
 
 
 class EnableHstoreFeature(EnableFeature):
-    def execute(self, db):
-        super().execute(db)
-        self.init_hstore(db)
+    def execute(self, context):
+        super().execute(context)
+        self.init_hstore(context.db)
 
     @classmethod
     def init_hstore(cls, db):
@@ -1529,7 +1868,7 @@ class SchemaExists(Condition):
     def __init__(self, name):
         self.name = name
 
-    def code(self, db):
+    def code(self, context):
         return ('SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = $1', [self.name])
 
 
@@ -1541,7 +1880,7 @@ class CreateSchema(DDLOperation):
         self.opid = name
         self.neg_conditions.add(SchemaExists(self.name))
 
-    def code(self, db):
+    def code(self, context):
         return 'CREATE SCHEMA %s' % common.quote_ident(self.name)
 
     def __repr__(self):
@@ -1563,7 +1902,7 @@ class DomainExists(Condition):
     def __init__(self, name):
         self.name = name
 
-    def code(self, db):
+    def code(self, context):
         code = '''SELECT
                         domain_name
                     FROM
@@ -1578,7 +1917,7 @@ class CreateDomain(SchemaObjectOperation):
         super().__init__(name)
         self.base = base
 
-    def code(self, db):
+    def code(self, context):
         return 'CREATE DOMAIN %s AS %s' % (common.qname(*self.name), self.base)
 
 
@@ -1587,7 +1926,7 @@ class RenameDomain(SchemaObjectOperation):
         super().__init__(name)
         self.new_name = new_name
 
-    def code(self, db):
+    def code(self, context):
         return '''UPDATE
                         pg_catalog.pg_type AS t
                     SET
@@ -1604,7 +1943,7 @@ class RenameDomain(SchemaObjectOperation):
 
 
 class DropDomain(SchemaObjectOperation):
-    def code(self, db):
+    def code(self, context):
         return 'DROP DOMAIN %s' % common.qname(*self.name)
 
 
@@ -1615,7 +1954,7 @@ class AlterDomain(DDLOperation):
         self.name = name
 
 
-    def code(self, db):
+    def code(self, context):
         return 'ALTER DOMAIN %s ' % common.qname(*self.name)
 
     def __repr__(self):
@@ -1627,8 +1966,8 @@ class AlterDomainAlterDefault(AlterDomain):
         super().__init__(name)
         self.default = default
 
-    def code(self, db):
-        code = super().code(db)
+    def code(self, context):
+        code = super().code(context)
         if self.default is None:
             code += ' DROP DEFAULT ';
         else:
@@ -1642,8 +1981,8 @@ class AlterDomainAlterNull(AlterDomain):
         super().__init__(name)
         self.null = null
 
-    def code(self, db):
-        code = super().code(db)
+    def code(self, context):
+        code = super().code(context)
         if self.null:
             code += ' DROP NOT NULL ';
         else:
@@ -1681,15 +2020,15 @@ class AlterDomainAlterConstraint(AlterDomain):
 
 
 class AlterDomainDropConstraint(AlterDomainAlterConstraint):
-    def code(self, db):
-        code = super().code(db)
+    def code(self, context):
+        code = super().code(context)
         code += ' DROP CONSTRAINT %s ' % self.constraint_name(self.constraint)
         return code
 
 
 class AlterDomainAddConstraint(AlterDomainAlterConstraint):
-    def code(self, db):
-        code = super().code(db)
+    def code(self, context):
+        code = super().code(context)
         code += ' ADD CONSTRAINT %s %s' % (self.constraint_name(self.constraint),
                                            self.constraint_code(self.constraint))
         return code
@@ -1699,7 +2038,7 @@ class TableExists(Condition):
     def __init__(self, name):
         self.name = name
 
-    def code(self, db):
+    def code(self, context):
         code = '''SELECT
                         tablename
                     FROM
@@ -1715,9 +2054,9 @@ class CreateTable(SchemaObjectOperation):
                          priority=priority)
         self.table = table
 
-    def code(self, db):
-        elems = [c.code(db) for c in self.table.columns(only_self=True)]
-        elems += [c.code(db) for c in self.table.constraints]
+    def code(self, context):
+        elems = [c.code(context) for c in self.table.columns(only_self=True)]
+        elems += [c.code(context) for c in self.table.constraints]
         code = 'CREATE TABLE %s (%s)' % (common.qname(*self.table.name), ', '.join(c for c in elems))
 
         if self.table.bases:
@@ -1727,7 +2066,7 @@ class CreateTable(SchemaObjectOperation):
 
 
 class DropTable(SchemaObjectOperation):
-    def code(self, db):
+    def code(self, context):
         return 'DROP TABLE %s' % common.qname(*self.name)
 
 
@@ -1736,7 +2075,7 @@ class AlterTableBase(DDLOperation):
         super().__init__()
         self.name = name
 
-    def code(self, db):
+    def code(self, context):
         return 'ALTER TABLE %s' % common.qname(*self.name)
 
     def __repr__(self):
@@ -1751,23 +2090,49 @@ class AlterTable(AlterTableBase):
     def add_operation(self, op):
         self.ops.append(op)
 
-    def code(self, db):
+    def code(self, context):
         if self.ops:
-            code = super().code(db)
+            code = super().code(context)
             ops = []
             for op in self.ops:
                 if isinstance(op, tuple):
                     cond = True
                     if op[1]:
-                        cond = cond and self.check_conditions(db, op[1], True)
+                        cond = cond and self.check_conditions(context, op[1], True)
                     if op[2]:
-                        cond = cond and self.check_conditions(db, op[2], False)
+                        cond = cond and self.check_conditions(context, op[2], False)
                     if cond:
-                        ops.append(op[0].code(db))
+                        ops.append(op[0].code(context))
                 else:
-                    ops.append(op.code(db))
+                    ops.append(op.code(context))
             code += ' ' + ', '.join(ops)
             return code
+
+
+class CreateIndex(DDLOperation):
+    def __init__(self, index, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+        self.index = index
+
+    def code(self, context):
+        code = self.index.creation_code(context)
+        return code
+
+    def __repr__(self):
+        return '<%s.%s "%r">' % (self.__class__.__module__, self.__class__.__name__, self.index)
+
+
+class DropIndex(DDLOperation):
+    def __init__(self, index_name, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+        self.index_name = index_name
+
+    def code(self, context):
+        return 'DROP INDEX %s' % common.qname(*self.index_name)
+
+    def __repr__(self):
+        return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__,
+                               common.qname(*self.index_name))
 
 
 class ColumnExists(Condition):
@@ -1775,7 +2140,7 @@ class ColumnExists(Condition):
         self.table_name = table_name
         self.column_name = column_name
 
-    def code(self, db):
+    def code(self, context):
         code = '''SELECT
                         column_name
                     FROM
@@ -1789,15 +2154,15 @@ class AlterTableAddColumn(DDLOperation):
     def __init__(self, column):
         self.column = column
 
-    def code(self, db):
-        return 'ADD COLUMN ' + self.column.code(db)
+    def code(self, context):
+        return 'ADD COLUMN ' + self.column.code(context)
 
 
 class AlterTableDropColumn(DDLOperation):
     def __init__(self, column):
         self.column = column
 
-    def code(self, db):
+    def code(self, context):
         return 'DROP COLUMN %s' % common.quote_ident(self.column.name)
 
 
@@ -1806,7 +2171,7 @@ class AlterTableAlterColumnType(DDLOperation):
         self.column_name = column_name
         self.new_type = new_type
 
-    def code(self, db):
+    def code(self, context):
         return 'ALTER COLUMN %s SET DATA TYPE %s' % \
                 (common.quote_ident(str(self.column_name)), self.new_type)
 
@@ -1815,8 +2180,8 @@ class AlterTableAddConstraint(DDLOperation):
     def __init__(self, constraint):
         self.constraint = constraint
 
-    def code(self, db):
-        return 'ADD  ' + self.constraint.code(db)
+    def code(self, context):
+        return 'ADD  ' + self.constraint.code(context)
 
 
 class AlterTableSetSchema(AlterTableBase):
@@ -1824,8 +2189,8 @@ class AlterTableSetSchema(AlterTableBase):
         super().__init__(name)
         self.schema = schema
 
-    def code(self, db):
-        code = super().code(db)
+    def code(self, context):
+        code = super().code(context)
         code += ' SET SCHEMA %s ' % common.quote_ident(self.new_name)
         return code
 
@@ -1835,8 +2200,8 @@ class AlterTableRenameTo(AlterTableBase):
         super().__init__(name)
         self.new_name = new_name
 
-    def code(self, db):
-        code = super().code(db)
+    def code(self, context):
+        code = super().code(context)
         code += ' RENAME TO %s ' % common.quote_ident(self.new_name)
         return code
 
@@ -1847,8 +2212,8 @@ class AlterTableRenameColumn(AlterTableBase):
         self.old_col_name = old_col_name
         self.new_col_name = new_col_name
 
-    def code(self, db):
-        code = super().code(db)
+    def code(self, context):
+        code = super().code(context)
         code += ' RENAME COLUMN %s TO %s ' % (common.quote_ident(self.old_col_name),
                                               common.quote_ident(self.new_col_name))
         return code
@@ -1858,7 +2223,7 @@ class FunctionExists(Condition):
     def __init__(self, name):
         self.name = name
 
-    def code(self, db):
+    def code(self, context):
         code = '''SELECT
                         p.proname
                     FROM

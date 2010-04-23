@@ -131,3 +131,40 @@ source: |
                 -- And only real tables
                 --
                 AND c.relkind = 'r'
+...
+
+%SCHEMA semantix.caos.datasources.schemas.Sql
+%NAME TableIndexes
+---
+params:
+    schema_pattern:
+        type: str
+        default: null
+    table_pattern:
+        type: str
+        default: null
+    index_pattern:
+        type: str
+        default: null
+
+filters:
+    - format: dict
+
+source: |
+        SELECT
+                ARRAY[ns.nspname, c.relname]            AS table_name,
+                array_agg(ic.relname::text)::text[]     AS index_names,
+                array_agg(pg_get_expr(i.indpred, i.indrelid)::text)::text[]
+                                                        AS index_predicates
+            FROM
+                pg_class AS c
+                INNER JOIN pg_namespace AS ns ON ns.oid = c.relnamespace
+                INNER JOIN pg_index AS i ON i.indrelid = c.oid
+                INNER JOIN pg_class AS ic ON i.indexrelid = ic.oid
+            WHERE
+                (%(schema_pattern)s::text IS NULL OR ns.nspname LIKE %(schema_pattern)s::text)
+                AND (%(table_pattern)s::text IS NULL OR c.relname LIKE %(table_pattern)s::text)
+                AND (%(index_pattern)s::text IS NULL OR ic.relname LIKE %(index_pattern)s::text)
+            GROUP BY
+                table_name
+...

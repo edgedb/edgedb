@@ -332,6 +332,7 @@ class LinkDef(Prototype, adapts=proto.Link):
                             title=data['title'], description=data['description'],
                             is_abstract=data.get('abstract'),
                             readonly=data.get('readonly'),
+                            mapping=data.get('mapping'),
                             _setdefaults_=False)
         for property_name, property in data['properties'].items():
             property.name = property_name
@@ -391,7 +392,7 @@ class LinkSet(Prototype, adapts=proto.LinkSet):
         return result
 
 
-class LinkConstraint(Prototype, adapts=proto.LinkConstraint, ignore_aliases=True):
+class LinkConstraint(LangObject, adapts=proto.LinkConstraint, ignore_aliases=True):
     @classmethod
     def represent(cls, data):
         return {cls.constraint_name: next(iter(data.values))}
