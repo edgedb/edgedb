@@ -40,8 +40,8 @@ class CommandMeta(type):
 
         cls._command_name = name
         if hasattr(cls, '_commands'):
+            cls._commands = cls._commands.copy()
             if commands:
-                cls._commands = cls._commands.copy()
                 cls._commands.update(commands)
         else:
             cls._commands = datastructures.OrderedIndex(commands, key=lambda i: i._command_name)
