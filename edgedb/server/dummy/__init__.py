@@ -18,21 +18,24 @@ class Session(session.Session):
         self.xact = []
 
     def in_transaction(self):
-        return bool(self.xact)
+        return super().in_transaction() and bool(self.xact)
 
     def begin(self):
+        super().begin()
         self.xact.append(True)
 
     def commit(self):
-        if not self.in_transaction():
-            raise session.SessionError('commit() called but no transaction is running')
+        super().commit()
         self.xact.pop()
 
     def rollback(self):
-        if not self.in_transaction():
-            raise session.SessionError('rollback() called but no transaction is running')
-        self.xact.pop()
+        super().rollback()
+        if self.xact:
+            self.xact.pop()
 
+    def rollback_all(self):
+        super().rollback_all()
+        self.xact[:] = []
 
 
 class Backend(MetaBackend):

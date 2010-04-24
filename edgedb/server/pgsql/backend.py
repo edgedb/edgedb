@@ -47,25 +47,27 @@ class Session(session.Session):
         return xact
 
     def in_transaction(self):
-        return bool(self.xact)
+        return super().in_transaction() and bool(self.xact)
 
     def begin(self):
         super().begin()
         self.xact.append(self._new_transaction())
 
     def commit(self):
-        if not self.in_transaction():
-            raise session.SessionError('commit() called but no transaction is running')
         super().commit()
         xact = self.xact.pop()
         xact.commit()
 
     def rollback(self):
-        if not self.in_transaction():
-            raise session.SessionError('rollback() called but no transaction is running')
         super().rollback()
-        xact = self.xact.pop()
-        xact.rollback()
+        if self.xact:
+            xact = self.xact.pop()
+            xact.rollback()
+
+    def rollback_all(self):
+        super().rollback_all()
+        while self.xact:
+            self.xact.pop().rollback()
 
 
 class Query:
@@ -343,9 +345,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             data = dict((str(k), str(attrs[k]) if attrs[k] is not None else None) for k in attrs)
 
             rows = self.runquery(query, data, connection=connection)
-            id = next(rows)
-            if id is None:
+            id = list(rows)
+            if not id:
                 raise Exception('failed to store entity')
+            id = id[0]
 
             """LOG [caos.sync]
             print('Merged entity %s[%s][%s]' % \
@@ -627,14 +630,17 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         if len(rows) > 0:
             table = common.link_name_to_table_name(link_name)
-            self.runquery("""INSERT INTO %s(source_id, target_id, link_type_id)
-                             ((VALUES %s)
-                              EXCEPT
-                              (SELECT source_id, target_id, link_type_id
-                              FROM %s
-                              WHERE (source_id, target_id, link_type_id) in (VALUES %s)))""" %
-                             (table, ",".join(rows), table, ",".join(rows)), params,
-                             connection=connection)
+            try:
+                self.runquery("""INSERT INTO %s(source_id, target_id, link_type_id)
+                                 ((VALUES %s)
+                                  EXCEPT
+                                  (SELECT source_id, target_id, link_type_id
+                                  FROM %s
+                                  WHERE (source_id, target_id, link_type_id) in (VALUES %s)))""" %
+                                 (table, ",".join(rows), table, ",".join(rows)), params,
+                                 connection=connection)
+            except postgresql.exceptions.UniqueError as e:
+                raise caos.error.StorageLinkMappingCardinalityViolation from e
 
 
     def load_links(self, this_concept, this_id, other_concepts=None, link_names=None,
