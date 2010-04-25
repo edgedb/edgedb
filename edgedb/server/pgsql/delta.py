@@ -403,6 +403,78 @@ class AtomMetaCommand(PrototypeMetaCommand):
 
         return rec, updates
 
+    def get_atom_host_and_pointer(self, atom, meta, context):
+        if context:
+            concept = context.get(delta_cmds.ConceptCommandContext)
+            link = context.get(delta_cmds.LinkCommandContext)
+        else:
+            concept = link = None
+
+        if concept and link:
+            host, pointer = concept, link
+        elif link:
+            property = context.get(delta_cmds.LinkPropertyCommandContext)
+            host, pointer = link, property
+        else:
+            host = pointer = None
+
+        return host, pointer
+
+    def alter_atom_type(self, atom, meta, host, pointer, new_type, intent):
+
+        users = []
+
+        if host:
+            # Automatic atom type change.  There is only one user: host concept table
+            users.append((host, pointer))
+        else:
+            for link in meta(type='link'):
+                if link.target and link.target.name == atom.name:
+                    users.append((link.source, link))
+
+        domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
+
+        base, mods_encoded, new_mods, _ = self.get_atom_base_and_mods(meta, atom)
+
+        target_type = new_type
+
+        if intent == 'alter':
+            simple_alter = atom.automatic and not new_mods
+            if not simple_alter:
+                new_name = domain_name[0], domain_name[1] + '_tmp'
+                self.pgops.add(RenameDomain(domain_name, new_name))
+                target_type = common.qname(*domain_name)
+
+                self.pgops.add(CreateDomain(name=domain_name, base=new_type))
+                for mod in new_mods:
+                    self.pgops.add(AlterDomainAddConstraint(name=domain_name, constraint=mod))
+
+                domain_name = new_name
+        elif intent == 'create':
+            self.pgops.add(CreateDomain(name=domain_name, base=base))
+
+        for host_proto, item_proto in users:
+            if isinstance(item_proto, proto.Link):
+                name = item_proto.base[0] if item_proto.implicit_derivative else item_proto.name
+            else:
+                name = item_proto.name
+
+            table_name = common.get_table_name(host_proto, catenate=False)
+            column_name = common.caos_name_to_pg_colname(name)
+
+            alter_type = AlterTableAlterColumnType(column_name, target_type)
+            alter_table = AlterTable(table_name)
+            alter_table.add_operation(alter_type)
+            self.pgops.add(alter_table)
+
+        if not host:
+            for child_atom in meta(type='atom', include_automatic=True):
+                if child_atom.base == atom.name:
+                    self.alter_atom_type(child_atom, meta, None, None, target_type, 'alter')
+
+        if intent == 'drop' or (intent == 'alter' and not simple_alter):
+            self.pgops.add(DropDomain(domain_name))
+
 
 class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
     def apply(self, meta, context=None):
@@ -501,16 +573,10 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
             # to use the new one, and then the old domain dropped.  Obviously this
             # recurses down to every child domain.
             #
-
-            if concept and link:
-                host, pointer = concept.proto, link.proto
-            elif link:
-                property = context.get(delta_cmds.LinkPropertyCommandContext)
-                host, pointer = link.proto, property.proto
-            else:
-                host = pointer = None
-
-            self.alter_atom_type(meta, new_atom, host, pointer, new_type,
+            host, pointer = self.get_atom_host_and_pointer(new_atom, meta, context)
+            host_proto = host.proto if host else None
+            pointer_proto = pointer.proto if pointer else None
+            self.alter_atom_type(new_atom, meta, host_proto, pointer_proto, new_type,
                                  intent=type_intent)
 
         if type_intent != 'drop':
@@ -526,61 +592,6 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
                 self.pgops.add(AlterDomainAddConstraint(name=domain_name, constraint=mod))
 
         return new_atom
-
-    def alter_atom_type(self, meta, atom, host, pointer, new_type, intent):
-
-        users = []
-
-        if host:
-            # Automatic atom type change.  There is only one user: host concept table
-            users.append((host, pointer))
-        else:
-            for link in meta(type='link'):
-                if link.target and link.target.name == atom.name:
-                    users.append((link.source, link))
-
-        domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
-
-        base, mods_encoded, new_mods, _ = self.get_atom_base_and_mods(meta, atom)
-
-        target_type = new_type
-
-        if intent == 'alter':
-            simple_alter = atom.automatic and not new_mods
-            if not simple_alter:
-                new_name = domain_name[0], domain_name[1] + '_tmp'
-                self.pgops.add(RenameDomain(domain_name, new_name))
-                target_type = common.qname(*domain_name)
-
-                self.pgops.add(CreateDomain(name=domain_name, base=new_type))
-                for mod in new_mods:
-                    self.pgops.add(AlterDomainAddConstraint(name=domain_name, constraint=mod))
-
-                domain_name = new_name
-        elif intent == 'create':
-            self.pgops.add(CreateDomain(name=domain_name, base=base))
-
-        for host_proto, item_proto in users:
-            if isinstance(item_proto, proto.Link):
-                name = item_proto.base[0] if item_proto.implicit_derivative else item_proto.name
-            else:
-                name = item_proto.name
-
-            table_name = common.get_table_name(host_proto, catenate=False)
-            column_name = common.caos_name_to_pg_colname(name)
-
-            alter_type = AlterTableAlterColumnType(column_name, target_type)
-            alter_table = AlterTable(table_name)
-            alter_table.add_operation(alter_type)
-            self.pgops.add(alter_table)
-
-        if not host:
-            for child_atom in meta(type='atom', include_automatic=True):
-                if child_atom.base == atom.name:
-                    self.alter_atom_type(meta, child_atom, None, None, target_type, 'alter')
-
-        if intent == 'drop' or (intent == 'alter' and not simple_alter):
-            self.pgops.add(DropDomain(domain_name))
 
 
 class DeleteAtom(AtomMetaCommand, adapts=delta_cmds.DeleteAtom):
@@ -856,6 +867,25 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
         mapping_indexes.links.pop(name, None)
         self.pgops.add(CancelLinkMappingUpdate())
 
+    def alter_host_table_column(self, link, meta, context, new_type):
+        concept_ctx = context.get(delta_cmds.ConceptCommandContext)
+
+        atom = meta.get(new_type)
+        target_type = self.pg_type_from_atom(meta, atom)
+
+        if isinstance(link, proto.Link):
+            name = link.normal_name()
+        else:
+            name = link.name
+
+        table_name = common.get_table_name(concept_ctx.proto, catenate=False)
+        column_name = common.caos_name_to_pg_colname(name)
+
+        alter_type = AlterTableAlterColumnType(column_name, target_type)
+        alter_table = AlterTable(table_name)
+        alter_table.add_operation(alter_type)
+        self.pgops.add(alter_table)
+
 
 class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
     def apply(self, meta, context=None):
@@ -943,6 +973,15 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
 
         if self.alter_table and self.alter_table.ops:
             self.pgops.add(self.alter_table)
+
+        new_type = None
+        for op in self(delta_cmds.AlterPrototypeProperty):
+            if op.property == 'target':
+                new_type = op.new_value
+                break
+
+        if new_type:
+            self.alter_host_table_column(link, meta, context, new_type)
 
         if old_link.mapping != link.mapping:
             self.schedule_mapping_update(link, meta, context)
