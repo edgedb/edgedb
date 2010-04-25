@@ -362,12 +362,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             entity._instancedata.update(entity, updates, register_changes=False, allow_ro=True)
             session.add_entity(entity)
 
-            for name, link in links.items():
-                if isinstance(link, caos.concept.LinkedSet) and link._instancedata.dirty:
-                    self.store_links(entity, link, name, connection)
-                    link._instancedata.dirty = False
-
         return id
+
 
     @debug
     def delete_entity(self, entity, session):
@@ -382,6 +378,74 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         result = self.runquery(query, [entity.id], session.connection, compat=False)
         return result
+
+
+    @debug
+    def store_links(self, source, targets, link_name, session):
+        table = common.link_name_to_table_name(link_name)
+
+        rows = []
+        params = []
+
+        cl_ds = datasources.meta.links.ConceptLink(session.connection)
+
+        for target in targets:
+            """LOG [caos.sync]
+            print('Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
+                  (source.__class__._metadata.name, source.id,
+                   (source.name if hasattr(source, 'name') else ''), link_name,
+                   target.__class__._metadata.name,
+                   target.id, (target.name if hasattr(target, 'name') else ''))
+                  )
+            """
+
+            full_link_name = caos.proto.Link.gen_link_name(source._metadata.prototype.name,
+                                                           target._metadata.prototype.name,
+                                                           link_name)
+            lt = cl_ds.fetch(name=str(full_link_name))
+
+            rows.append('(%s::uuid, %s::uuid, %s::int)')
+            params += [source.id, target.id, lt[0]['id']]
+
+        if len(rows) > 0:
+            try:
+                self.runquery("INSERT INTO %s(source_id, target_id, link_type_id) VALUES %s" % \
+                                 (table, ",".join(rows)), params,
+                                 connection=session.connection)
+            except postgresql.exceptions.UniqueError as e:
+                raise caos.error.StorageLinkMappingCardinalityViolation from e
+
+
+    @debug
+    def delete_links(self, source, targets, link_name, session):
+        table = common.link_name_to_table_name(link_name)
+
+        target_ids = list(t.id for t in targets)
+
+        assert len(list(filter(lambda i: i is not None, target_ids)))
+
+        """LOG [caos.sync]
+        print('Deleting link %s[%s][%s]---{%s}-->[[%s]]' % \
+              (source.__class__._metadata.name, source.id,
+               (source.name if hasattr(source, 'name') else ''), link_name,
+               ','.join(target_ids)
+              )
+             )
+        """
+
+        qry = '''DELETE FROM %s
+                 WHERE
+                     source_id = $1
+                     AND target_id = any($2)
+              ''' % table
+
+        result = self.runquery(qry, (source.id, target_ids),
+                               connection=session.connection,
+                               compat=False, return_stmt=True)
+        result = result.first(source.id, target_ids)
+
+        assert result == len(target_ids)
+
 
     def caosqlcursor(self, session):
         return CaosQLCursor(session.connection)
@@ -596,53 +660,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             meta.add(concept)
 
 
-    @debug
-    def store_links(self, source, targets, link_name, connection):
-        rows = []
-
-        params = []
-        for target in targets:
-            target.sync()
-
-            """LOG [caos.sync]
-            print('Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
-                  (source.__class__._metadata.name, source.id,
-                   (source.name if hasattr(source, 'name') else ''), link_name,
-                   target.__class__._metadata.name,
-                   target.id, (target.name if hasattr(target, 'name') else ''))
-                  )
-            """
-
-            if isinstance(targets._metadata.link, caos.types.NodeClass):
-                full_link_name = targets._metadata.link._class_metadata.full_link_name
-            else:
-                for link, link_target_class in targets._metadata.link.links():
-                    if isinstance(target, link_target_class):
-                        full_link_name = link._metadata.name
-                        break
-
-            lt = datasources.meta.links.ConceptLink(self.connection).fetch(name=str(full_link_name))
-
-            rows.append('(%s::uuid, %s::uuid, %s::int)')
-            params += [source.id, target.id, lt[0]['id']]
-
-        params += params
-
-        if len(rows) > 0:
-            table = common.link_name_to_table_name(link_name)
-            try:
-                self.runquery("""INSERT INTO %s(source_id, target_id, link_type_id)
-                                 ((VALUES %s)
-                                  EXCEPT
-                                  (SELECT source_id, target_id, link_type_id
-                                  FROM %s
-                                  WHERE (source_id, target_id, link_type_id) in (VALUES %s)))""" %
-                                 (table, ",".join(rows), table, ",".join(rows)), params,
-                                 connection=connection)
-            except postgresql.exceptions.UniqueError as e:
-                raise caos.error.StorageLinkMappingCardinalityViolation from e
-
-
     def load_links(self, this_concept, this_id, other_concepts=None, link_names=None,
                                                                      reverse=False):
 
@@ -743,7 +760,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     @debug
-    def runquery(self, query, params=None, connection=None, compat=True):
+    def runquery(self, query, params=None, connection=None, compat=True, return_stmt=False):
         if compat:
             cursor = CompatCursor(self.connection)
             query, pxf, nparams = cursor._convert_query(query)
@@ -754,12 +771,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         """LOG [caos.sql] Issued SQL
         print(query)
+        print(params)
         """
 
-        if params:
-            return ps.rows(*params)
+        if return_stmt:
+            return ps
         else:
-            return ps.rows()
+            if params:
+                return ps.rows(*params)
+            else:
+                return ps.rows()
 
 
     def pg_table_inheritance_to_bases(self, table_name, schema_name):
