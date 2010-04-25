@@ -1480,7 +1480,7 @@ class Insert(DMLOperation):
         return (code, vals)
 
     def __repr__(self):
-        vals = (('(%s)' % ', '.join(str(v) for col, v in row)) for row in self.records)
+        vals = (('(%s)' % ', '.join('%s=%r' % (col, v) for col, v in row)) for row in self.records)
         return '<caos.sync.%s %s (%s)>' % (self.__class__.__name__, self.table.name, ', '.join(vals))
 
 
@@ -1606,10 +1606,19 @@ class Column(DBObject):
                                 'NOT NULL' if self.required else '',
                                 ('DEFAULT %s' % self.default) if self.default is not None else '')
 
+    def __repr__(self):
+        return '<%s.%s "%s" %s>' % (self.__class__.__module__, self.__class__.__name__,
+                                    self.name, self.type)
+
 
 class DefaultMeta(type):
     def __bool__(cls):
         return False
+
+    def __repr__(self):
+        return '<DEFAULT>'
+
+    __str__ = __repr__
 
 
 class Default(metaclass=DefaultMeta):
@@ -2118,7 +2127,11 @@ class AlterTableBase(DDLOperation):
         return 'ALTER TABLE %s' % common.qname(*self.name)
 
     def __repr__(self):
-        return '<caos.sync.%s %s>' % (self.__class__.__name__, self.name)
+        return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__, self.name)
+
+
+class AlterTableFragment(DDLOperation):
+    pass
 
 
 class AlterTable(AlterTableBase):
@@ -2146,6 +2159,16 @@ class AlterTable(AlterTableBase):
                     ops.append(op.code(context))
             code += ' ' + ', '.join(ops)
             return code
+
+    def dump(self):
+        result = [repr(self)]
+
+        for op in self.ops:
+            if isinstance(op, tuple):
+                op = op[0]
+            result.extend('  %s' % l for l in op.dump().split('\n'))
+
+        return '\n'.join(result)
 
 
 class CreateIndex(DDLOperation):
@@ -2189,23 +2212,29 @@ class ColumnExists(Condition):
         return code, self.table_name + (self.column_name,)
 
 
-class AlterTableAddColumn(DDLOperation):
+class AlterTableAddColumn(AlterTableFragment):
     def __init__(self, column):
         self.column = column
 
     def code(self, context):
         return 'ADD COLUMN ' + self.column.code(context)
 
+    def __repr__(self):
+        return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__, self.column)
 
-class AlterTableDropColumn(DDLOperation):
+
+class AlterTableDropColumn(AlterTableFragment):
     def __init__(self, column):
         self.column = column
 
     def code(self, context):
         return 'DROP COLUMN %s' % common.quote_ident(self.column.name)
 
+    def __repr__(self):
+        return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__, self.column)
 
-class AlterTableAlterColumnType(DDLOperation):
+
+class AlterTableAlterColumnType(AlterTableFragment):
     def __init__(self, column_name, new_type):
         self.column_name = column_name
         self.new_type = new_type
@@ -2214,8 +2243,12 @@ class AlterTableAlterColumnType(DDLOperation):
         return 'ALTER COLUMN %s SET DATA TYPE %s' % \
                 (common.quote_ident(str(self.column_name)), self.new_type)
 
+    def __repr__(self):
+        return '<%s.%s "%s" to %s>' % (self.__class__.__module__, self.__class__.__name__,
+                                       self.column_name, self.new_type)
 
-class AlterTableAddConstraint(DDLOperation):
+
+class AlterTableAddConstraint(AlterTableFragment):
     def __init__(self, constraint):
         self.constraint = constraint
 
