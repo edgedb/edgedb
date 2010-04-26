@@ -8,6 +8,7 @@
 
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
 from semantix.caos.datasources.base import Datasource, DatasourceError
+from semantix.utils.debug import debug
 
 
 class SqlDatasourceError(DatasourceError): pass
@@ -22,6 +23,7 @@ class Sql(Datasource):
         self.cache = {}
         self.caching = 'cache' in self.descriptor and self.descriptor['cache'] == 'memory'
 
+    @debug
     def fetch(self, **params):
         cursor = CompatCursor(self.connection)
         params = self._filter_params(params)
@@ -35,6 +37,12 @@ class Sql(Datasource):
         query = self.descriptor['source']
 
         query, pxf, nparams = cursor._convert_query(query)
+        """LOG [caos.sql] Datasource Fetch
+        print('%s.%s' % (self.__class__.__module__, self.__class__.__name__))
+        print(query)
+        if params:
+            print(pxf(params))
+        """
         ps = self.connection.prepare(query)
         if params:
             rows = ps(*pxf(params))
