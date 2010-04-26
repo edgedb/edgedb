@@ -1,0 +1,93 @@
+##
+# Copyright (c) 2012 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%SCHEMA semantix.caos.datasources.schemas.Sql
+%NAME CascadeActions
+---
+params:
+    name:
+        type: str
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+            ca.id           AS id,
+            ca.name         AS name,
+            ca.title        AS title,
+            ca.description  AS description
+        FROM
+            caos.pointer_cascade_action ca
+        WHERE
+            %(name)s::text IS NULL OR ca.name LIKE %(name)s::text
+...
+
+
+%SCHEMA semantix.caos.datasources.schemas.Sql
+%NAME CascadeEvents
+---
+params:
+    name:
+        type: str
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+            ce.id           AS id,
+            ce.name         AS name,
+            ce.title        AS title,
+            ce.description  AS description,
+            (SELECT
+                    array_agg(ca.name)
+                FROM
+                    (SELECT
+                        unnest(ev.allowed_actions) AS a_id
+                     FROM
+                        caos.pointer_cascade_event ev
+                     WHERE
+                        ev.id = ce.id) ev_a
+                    INNER JOIN caos.pointer_cascade_action ca ON ev_a.a_id = ca.id
+            )               AS allowed_actions
+        FROM
+            caos.pointer_cascade_event ce
+        WHERE
+            %(name)s::text IS NULL OR ce.name LIKE %(name)s::text
+...
+
+
+%SCHEMA semantix.caos.datasources.schemas.Sql
+%NAME CascadePolicies
+---
+params:
+    name:
+        type: str
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+            cp.id           AS id,
+            cp.name         AS name,
+            cp.title        AS title,
+            cp.description  AS description,
+            cp.category     AS category,
+            o.name          AS subject,
+            e.name          AS event,
+            a.name          AS action
+        FROM
+            caos.pointer_cascade_policy cp
+            INNER JOIN caos.metaobject o ON o.id = cp.subject
+            INNER JOIN caos.pointer_cascade_event e ON e.id = cp.event
+            INNER JOIN caos.pointer_cascade_action a ON a.id = cp.action
+        WHERE
+            %(name)s::text IS NULL OR cp.name LIKE %(name)s::text
+...

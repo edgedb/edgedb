@@ -57,28 +57,25 @@ class Language(meta.Language):
 
 
 class ObjectMeta(Adapter):
-    def __new__(metacls, name, bases, clsdict, *, adapts=None, ignore_aliases=False):
-        result = super(ObjectMeta, metacls).__new__(metacls, name, bases, clsdict, adapts=adapts)
-        result._adapts = adapts
-
+    def __new__(metacls, name, bases, clsdict, *, adapts=None, ignore_aliases=False, **kwargs):
+        result = super(ObjectMeta, metacls).__new__(metacls, name, bases, clsdict, adapts=adapts,
+                                                                                   **kwargs)
         if ignore_aliases:
             dumper.Dumper.add_ignore_aliases(adapts if adapts is not None else result)
 
         return result
 
-    def __init__(cls, name, bases, clsdict, *, adapts=None, ignore_aliases=False):
-        super(ObjectMeta, cls).__init__(name, bases, clsdict, adapts=adapts)
+    def __init__(cls, name, bases, clsdict, *, adapts=None, ignore_aliases=False, **kwargs):
+        super(ObjectMeta, cls).__init__(name, bases, clsdict, adapts=adapts, **kwargs)
 
         if hasattr(cls, '__sx_getstate__'):
             representer = lambda dumper, data: cls.represent_wrapper(data, dumper)
 
-            if cls._adapts is not None:
-                yaml.add_multi_representer(cls._adapts, representer, Dumper=dumper.Dumper)
+            adaptee = cls.get_adaptee()
+            if adaptee is not None:
+                yaml.add_multi_representer(adaptee, representer, Dumper=dumper.Dumper)
             else:
                 yaml.add_multi_representer(cls, representer, Dumper=dumper.Dumper)
-
-    def get_adaptee(cls):
-        return cls._adapts
 
 
 class Object(meta.Object, metaclass=ObjectMeta):

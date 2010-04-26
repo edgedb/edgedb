@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -9,6 +9,7 @@
 from semantix import caos
 from semantix.caos import delta, proto
 from semantix.utils import datastructures, helper
+from semantix.utils.datastructures import typed
 from semantix.utils.lang import yaml
 from semantix.utils.lang.yaml.struct import MixedStructMeta
 
@@ -78,6 +79,16 @@ class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
         elif isinstance(value, proto.PrototypeRef) \
                                 and isinstance(field.type[0], caos.types.PrototypeClass):
             pass
+
+        elif issubclass(field.type[0], typed.AbstractTypedCollection) \
+                and isinstance(field.type[0].type, caos.types.PrototypeClass):
+            vals = []
+            for v in value:
+                v = caos.name.Name(v)
+                ref_type = field.type[0].type.ref_type
+                v = ref_type(prototype_name=v)
+                vals.append(v)
+            value = vals
 
         else:
             value = MixedStructMeta.adapt_value(field, value)
@@ -332,6 +343,57 @@ class AlterConcept(AlterNamedPrototype, adapts=delta.AlterConcept):
 class DeleteConcept(DeleteNamedPrototype, adapts=delta.DeleteConcept):
     pass
 
+
+class CreatePointerCascadeAction(CreateNamedPrototype, adapts=delta.CreatePointerCascadeAction):
+    pass
+
+
+class RenamePointerCascadeAction(RenameNamedPrototype, adapts=delta.RenamePointerCascadeAction):
+    pass
+
+
+class AlterPointerCascadeAction(AlterNamedPrototype, adapts=delta.AlterPointerCascadeAction):
+    pass
+
+
+class DeletePointerCascadeAction(DeleteNamedPrototype, adapts=delta.DeletePointerCascadeAction):
+    pass
+
+
+class CreatePointerCascadeEvent(CreateNamedPrototype, adapts=delta.CreatePointerCascadeEvent):
+    pass
+
+
+class RenamePointerCascadeEvent(RenameNamedPrototype, adapts=delta.RenamePointerCascadeEvent):
+    pass
+
+
+class RebasePointerCascadeEvent(RebaseNamedPrototype, adapts=delta.RebasePointerCascadeEvent):
+    pass
+
+
+class AlterPointerCascadeEvent(AlterNamedPrototype, adapts=delta.AlterPointerCascadeEvent):
+    pass
+
+
+class DeletePointerCascadeEvent(DeleteNamedPrototype, adapts=delta.DeletePointerCascadeEvent):
+    pass
+
+
+class CreatePointerCascadePolicy(CreateNamedPrototype, adapts=delta.CreatePointerCascadePolicy):
+    pass
+
+
+class RenamePointerCascadePolicy(RenameNamedPrototype, adapts=delta.RenamePointerCascadePolicy):
+    pass
+
+
+class AlterPointerCascadePolicy(AlterNamedPrototype, adapts=delta.AlterPointerCascadePolicy):
+    pass
+
+
+class DeletePointerCascadePolicy(DeleteNamedPrototype, adapts=delta.DeletePointerCascadePolicy):
+    pass
 
 
 class CreateLinkSet(CreateNamedPrototype, adapts=delta.CreateLinkSet):

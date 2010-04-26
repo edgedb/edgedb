@@ -435,8 +435,8 @@ class ComputableTable(MetaObjectTable):
         ])
 
         self.constraints = set([
-            dbops.PrimaryKey(('caos', 'link'), columns=('id',)),
-            dbops.UniqueConstraint(('caos', 'link'), columns=('name',))
+            dbops.PrimaryKey(('caos', 'computable'), columns=('id',)),
+            dbops.UniqueConstraint(('caos', 'computable'), columns=('name',))
         ])
 
         self._columns = self.columns()
@@ -454,6 +454,90 @@ class FeatureTable(dbops.Table):
 
         self.constraints = set([
             dbops.PrimaryKey(name, columns=('name',)),
+        ])
+
+        self._columns = self.columns()
+
+
+class PolicyTable(MetaObjectTable):
+    def __init__(self, name=None):
+        name = name or ('caos', 'policy')
+        super().__init__(name=name)
+
+        self.bases = [('caos', 'metaobject')]
+
+        self.__columns = datastructures.OrderedSet([
+            dbops.Column(name='subject', type='integer', required=True),
+            dbops.Column(name='category', type='text', required=True)
+        ])
+
+        self.constraints = set([
+            dbops.PrimaryKey(('caos', 'policy'), columns=('id',)),
+            dbops.UniqueConstraint(('caos', 'policy'), columns=('name',))
+        ])
+
+        self._columns = self.columns()
+
+
+class EventPolicyTable(PolicyTable):
+    def __init__(self, name=None):
+        name = name or ('caos', 'event_policy')
+        super().__init__(name=name)
+
+        self.bases = [('caos', 'policy')]
+
+        self.__columns = datastructures.OrderedSet([
+            dbops.Column(name='event', type='integer', required=True)
+        ])
+
+        self.constraints = set([
+            dbops.PrimaryKey(('caos', 'policy'), columns=('id',)),
+            dbops.UniqueConstraint(('caos', 'policy'), columns=('name',))
+        ])
+
+        self._columns = self.columns()
+
+
+class PointerCascadeActionTable(MetaObjectTable):
+    def __init__(self):
+        super().__init__(name=('caos', 'pointer_cascade_action'))
+        self.bases = [('caos', 'metaobject')]
+
+        self.constraints = set([
+            dbops.PrimaryKey(('caos', 'pointer_cascade_action'), columns=('id',)),
+            dbops.UniqueConstraint(('caos', 'pointer_cascade_action'), columns=('name',))
+        ])
+
+
+class PointerCascadeEventTable(MetaObjectTable):
+    def __init__(self):
+        super().__init__(name=('caos', 'pointer_cascade_event'))
+        self.bases = [('caos', 'metaobject')]
+
+        self.__columns = datastructures.OrderedSet([
+            dbops.Column(name='allowed_actions', type='integer[]')
+        ])
+
+        self.constraints = set([
+            dbops.PrimaryKey(('caos', 'pointer_cascade_event'), columns=('id',)),
+            dbops.UniqueConstraint(('caos', 'pointer_cascade_event'), columns=('name',))
+        ])
+
+        self._columns = self.columns()
+
+
+class PointerCascadePolicyTable(EventPolicyTable):
+    def __init__(self):
+        super().__init__(name=('caos', 'pointer_cascade_policy'))
+        self.bases = [('caos', 'event_policy')]
+
+        self.__columns = datastructures.OrderedSet([
+            dbops.Column(name='action', type='integer', required=True)
+        ])
+
+        self.constraints = set([
+            dbops.PrimaryKey(('caos', 'pointer_cascade_policy'), columns=('id',)),
+            dbops.UniqueConstraint(('caos', 'pointer_cascade_policy'), columns=('name',))
         ])
 
         self._columns = self.columns()

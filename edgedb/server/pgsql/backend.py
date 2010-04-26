@@ -661,17 +661,23 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 self._init_introspection_cache()
 
                 self.read_modules(self.meta)
+                self.read_pointer_cascade_actions(self.meta)
+                self.read_pointer_cascade_events(self.meta)
                 self.read_atoms(self.meta)
                 self.read_concepts(self.meta)
                 self.read_links(self.meta)
                 self.read_link_properties(self.meta)
                 self.read_computables(self.meta)
+                self.read_pointer_cascade_policies(self.meta)
 
+                self.order_pointer_cascade_actions(self.meta)
+                self.order_pointer_cascade_events(self.meta)
                 self.order_atoms(self.meta)
                 self.order_link_properties(self.meta)
                 self.order_computables(self.meta)
                 self.order_links(self.meta)
                 self.order_concepts(self.meta)
+                self.order_pointer_cascade_policies(self.meta)
 
                 self.free_resources()
 
@@ -2210,6 +2216,64 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def order_computables(self, meta):
+        pass
+
+
+    def read_pointer_cascade_actions(self, meta):
+        ptr_cascade_actions_ds = datasources.meta.cascades.CascadeActions(self.connection)
+        ptr_cascade_actions = ptr_cascade_actions_ds.fetch()
+
+        for r in ptr_cascade_actions:
+            name = caos.name.Name(r['name'])
+            title = self.hstore_to_word_combination(r['title'])
+            description = r['description']
+
+            action = proto.PointerCascadeAction(name=name, title=title, description=description)
+            meta.add(action)
+
+
+    def order_pointer_cascade_actions(self, meta):
+        pass
+
+
+    def read_pointer_cascade_events(self, meta):
+        ptr_cascade_events_ds = datasources.meta.cascades.CascadeEvents(self.connection)
+        ptr_cascade_events = ptr_cascade_events_ds.fetch()
+
+        for r in ptr_cascade_events:
+            name = caos.name.Name(r['name'])
+            title = self.hstore_to_word_combination(r['title'])
+            description = r['description']
+            allowed_actions = [meta.get(a, type=proto.PointerCascadeAction)
+                               for a in r['allowed_actions']]
+            allowed_actions = proto.PointerCascadeActionSet(allowed_actions)
+
+            event = proto.PointerCascadeEvent(name=name, title=title, description=description,
+                                              allowed_actions=allowed_actions)
+            meta.add(event)
+
+
+    def order_pointer_cascade_events(self, meta):
+        pass
+
+
+    def read_pointer_cascade_policies(self, meta):
+        ptr_cascade_policies_ds = datasources.meta.cascades.CascadePolicies(self.connection)
+        ptr_cascade_policies = ptr_cascade_policies_ds.fetch()
+
+        for r in ptr_cascade_policies:
+            name = caos.name.Name(r['name'])
+            title = self.hstore_to_word_combination(r['title'])
+            description = r['description']
+            policy = proto.PointerCascadePolicy(name=name, title=title, description=description,
+                                                subject=meta.get(r['subject']),
+                                                event=meta.get(r['event']),
+                                                action=meta.get(r['action']),
+                                                category=r['category'])
+            meta.add(policy)
+
+
+    def order_pointer_cascade_policies(self, meta):
         pass
 
 

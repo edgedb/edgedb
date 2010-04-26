@@ -36,6 +36,11 @@ class Field:
 
         self.formatters = {'str': str_formatter, 'repr': repr_formatter}
 
+    def copy(self):
+        return self.__class__(self.type, self.default, coerce=self.coerce,
+                              str_formatter=self.formatters['str'],
+                              repr_formatter=self.formatters['repr'])
+
     def adapt(self, value):
         if not isinstance(value, self.type):
             for t in self.type:

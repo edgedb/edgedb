@@ -9,6 +9,7 @@
 import io
 
 import importlib
+import builtins
 import collections
 import itertools
 import decimal
@@ -23,7 +24,7 @@ from semantix.utils.lang.yaml.struct import MixedStructMeta
 from semantix.utils.nlang import morphology
 from semantix.utils.algos.persistent_hash import persistent_hash
 from semantix.utils.algos import topological
-from semantix.utils.datastructures import xvalue, OrderedSet
+from semantix.utils.datastructures import xvalue, OrderedSet, typed
 
 from semantix import caos
 from semantix.caos import proto
@@ -85,6 +86,33 @@ class Decimal(yaml.Object, metaclass=DecimalMeta,
     def __sx_getstate__(cls, data):
         return str(data)
 
+
+class TypedSetMeta(type(yaml.Object), type(typed.TypedSet)):
+    def __new__(mcls, name, bases, dct, *, adapts=None, ignore_aliases=False, type=None):
+        builtins.type(typed.TypedSet).__new__(mcls, name, bases, dct, type=type)
+        result = builtins.type(yaml.Object).__new__(mcls, name, bases, dct,
+                                                    adapts=adapts, ignore_aliases=ignore_aliases,
+                                                    type=type)
+        return result
+
+    def __init__(cls, name, bases, dct, *, adapts=None, ignore_aliases=False, type=None):
+        builtins.type(typed.TypedSet).__init__(cls, name, bases, dct, type=type)
+        builtins.type(yaml.Object).__init__(cls, name, bases, dct,
+                                                 adapts=adapts, ignore_aliases=ignore_aliases)
+
+
+class TypedSet(yaml.Object, metaclass=TypedSetMeta, adapts=typed.TypedSet, type=object):
+    _TYPE_ARGS = ('type',)
+
+    def __sx_setstate__(self, data):
+        if not isinstance(data, list):
+            data = (data,)
+
+        typed.TypedSet.__init__(self, data)
+
+    @classmethod
+    def __sx_getstate__(cls, data):
+        return [item.name for item in data]
 
 
 class WordCombination(LangObject, adapts=morphology.WordCombination, ignore_aliases=True):
@@ -442,6 +470,84 @@ class SourceIndex(LangObject, adapts=proto.SourceIndex, ignore_aliases=True):
         return str(data.expr)
 
 
+class PointerCascadeAction(LangObject, adapts=proto.PointerCascadeAction):
+    def __sx_setstate__(self, data):
+        proto.PointerCascadeAction.__init__(self, name=default_name, title=data['title'],
+                                            description=data.get('description'),
+                                            _setdefaults_=False, _relaxrequired_=True)
+
+    @classmethod
+    def __sx_getstate__(cls, data):
+        result = {}
+
+        if data.title:
+            result['title'] = data.title
+
+        if data.description:
+            result['description'] = data.description
+
+        return result
+
+
+class PointerCascadeActionSet(TypedSet, adapts=proto.PointerCascadeActionSet,
+                                        type=proto.PointerCascadeAction):
+    def __sx_setstate__(self, data):
+        if not isinstance(data, list):
+            data = (data,)
+
+        items = []
+        for name in data:
+            item = proto.PointerCascadeAction(_setdefaults_=False, _relaxrequired_=True)
+            item._name = name
+            items.append(item)
+
+        proto.PointerCascadeActionSet.__init__(self, items)
+
+
+class PointerCascadeEvent(LangObject, adapts=proto.PointerCascadeEvent):
+    def __sx_setstate__(self, data):
+        extends = data.get('extends')
+        if extends:
+            if not isinstance(extends, list):
+                extends = [extends]
+
+        proto.PointerCascadeEvent.__init__(self, name=default_name, title=data['title'],
+                                           base=tuple(extends) if extends else tuple(),
+                                           description=data['description'],
+                                           allowed_actions=data['allowed-actions'],
+                                           _setdefaults_=False, _relaxrequired_=True)
+
+    @classmethod
+    def __sx_getstate__(cls, data):
+        result = {}
+
+        if data.base:
+            result['extends'] = next(iter(data.base))
+
+        if data.title:
+            result['title'] = data.title
+
+        if data.description:
+            result['description'] = data.description
+
+        result['allowed-actions'] = list(sorted(a.name for a in data.allowed_actions))
+
+        return result
+
+
+class PointerCascadePolicy(LangObject, adapts=proto.PointerCascadePolicy):
+    @classmethod
+    def __sx_getstate__(cls, data):
+        result = {}
+
+        result['name'] = data.name
+        result['subject'] = data.subject.name
+        result['event'] = data.event.name
+        result['action'] = data.action.name
+
+        return result
+
+
 class LinkPropertyDef(Prototype, proto.LinkProperty):
     def __sx_setstate__(self, data):
         extends = data.get('extends')
@@ -576,6 +682,7 @@ class LinkDef(Prototype, adapts=proto.Link):
         self._properties = data['properties']
         self._computables = data.get('computables', {})
         self._indexes = data.get('indexes') or ()
+        self._cascades = data.get('cascades')
 
     @classmethod
     def __sx_getstate__(cls, data):
@@ -745,6 +852,7 @@ class SpecializedLink(LangObject):
             link._abstract_constraints = info.get('abstract-constraints')
             link._properties = props
             link._targets = targets
+            link._cascades = info['cascades']
 
             self.link = link
         else:
@@ -798,10 +906,13 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
     def read_elements(self, data, localschema):
         self.caosql_expr = caosql_expr.CaosQLExpression(localschema, localschema.modules)
+        self.read_cascade_actions(data, localschema)
+        self.read_cascade_events(data, localschema)
         self.read_atoms(data, localschema)
         self.read_link_properties(data, localschema)
         self.read_links(data, localschema)
         self.read_concepts(data, localschema)
+        self.read_cascade_policy(data, localschema)
 
     def order_elements(self, localschema):
         # The final pass on may produce additional objects,
@@ -811,6 +922,18 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         linkprops = OrderedSet(self.order_link_properties(localschema))
         computables = OrderedSet(self.order_computables(localschema))
         atoms = OrderedSet(self.order_atoms(localschema))
+        cascade_policy = OrderedSet(self.order_cascade_policy(localschema))
+        cascade_events = OrderedSet(self.order_cascade_events(localschema))
+        cascade_actions = OrderedSet(self.order_cascade_actions(localschema))
+
+        for action in cascade_actions:
+            action.setdefaults()
+
+        for event in cascade_events:
+            event.setdefaults()
+
+        for policy in cascade_policy:
+            policy.setdefaults()
 
         for atom in atoms:
             atom.setdefaults()
@@ -872,7 +995,9 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 links.add(link)
 
         # Arrange prototypes in the resulting schema according to determined topological order.
-        localschema.reorder(itertools.chain(atoms, computables, linkprops, links, concepts))
+        localschema.reorder(itertools.chain(cascade_actions, cascade_events,
+                                            atoms, computables, linkprops, links, concepts,
+                                            cascade_policy))
 
 
     def get_proto_schema_class(self):
@@ -895,6 +1020,108 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             raise MetaError('"%s" is final and cannot be inherited from' % base.name,
                             context=context)
         return base
+
+
+    def read_cascade_actions(self, data, localschema):
+        for action_name, action in data['cascade-actions'].items():
+            action.name = caos.Name(name=action_name, module=self.module.name)
+            self._add_proto(localschema, action)
+
+
+    def order_cascade_actions(self, localschema):
+        return self.module('cascade-action', include_automatic=True)
+
+
+    def read_cascade_events(self, data, localschema):
+        for event_name, event in data['cascade-events'].items():
+            event.name = caos.Name(name=event_name, module=self.module.name)
+
+            actions = proto.PointerCascadeActionSet()
+            for action in event.allowed_actions:
+                action = localschema.get(action._name, type=proto.PointerCascadeAction,
+                                                       index_only=False)
+                actions.add(action)
+
+            event.allowed_actions = actions
+
+            self._add_proto(localschema, event)
+
+
+    def order_cascade_events(self, localschema):
+        g = {}
+
+        for event in self.module('cascade-event', include_automatic=True):
+            g[event.name] = {"item": event, "merge": [], "deps": []}
+
+            if event.base:
+                for base_name in event.base:
+                    base = self._check_base(event, base_name, localschema)
+                    if base_name.module != self.module.name:
+                        g[base_name] = {"item": base, "merge": [], "deps": []}
+                g[event.name]["merge"].extend(event.base)
+
+        atoms = topological.normalize(g, merger=proto.PointerCascadeEvent.merge)
+        return list(filter(lambda a: a.name.module == self.module.name, atoms))
+
+
+    def _read_cascade_policies(self, pointer, cascade_policies, localschema):
+        for event, actions in cascade_policies.items():
+            if isinstance(actions, str):
+                actions = {'default': actions}
+
+            event = localschema.get(event, index_only=False)
+
+            for category, action in actions.items():
+                action = localschema.get(action, index_only=False)
+
+                name = caos.types.ProtoPointerCascadePolicy.generate_name(pointer, event,
+                                                                          category)
+                name = caos.name.Name(name=name, module=self.module.name)
+
+                policy = proto.PointerCascadePolicy(name=name, subject=pointer, event=event,
+                                                    action=action, category=category)
+
+                self._add_proto(localschema, policy)
+
+
+    def read_cascade_policy(self, data, localschema):
+        data = data.get('policies')
+
+        links = data.get('links') if data else None
+        if links:
+            for link_name, link_data in data['links'].items():
+                link = localschema.get(link_name)
+                cascade_policies = link_data.get('cascades')
+                if cascade_policies:
+                    self._read_cascade_policies(link, link_data['cascades'], localschema)
+
+        concepts = data.get('concepts') if data else None
+        if concepts:
+            for concept_name, concept_data in concepts.items():
+                concept = localschema.get(concept_name)
+
+                links = concept_data.get('links')
+
+                if links:
+                    for link_name, link_data in links.items():
+                        if not caos.Name.is_qualified(link_name):
+                            # If the name is not fully qualified, assume inline link definition.
+                            # The only attribute that is used for global definition is the name.
+                            link_qname = caos.Name(name=link_name, module=self.module.name)
+                        else:
+                            link_qname = caos.Name(link_name)
+
+                        genlink = localschema.get(link_qname)
+
+                        speclink = concept.pointers[genlink.name]
+
+                        cascade_policies = link_data.get('cascades')
+                        if cascade_policies:
+                            self._read_cascade_policies(speclink, link_data['cascades'], localschema)
+
+
+    def order_cascade_policy(self, localschema):
+        return self.module('cascade-policy', include_automatic=True)
 
 
     def read_atoms(self, data, localschema):
@@ -1199,6 +1426,11 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 aconstraints = getattr(link, '_abstract_constraints', ())
                 if aconstraints:
                     self.add_pointer_constraints(link, aconstraints, type, 'abstract')
+
+            cascade_policies = getattr(link, '_cascades', {})
+
+            if cascade_policies:
+                self._read_cascade_policies(link, cascade_policies, localschema)
 
             if link.base:
                 for base_name in link.base:

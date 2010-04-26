@@ -210,6 +210,49 @@ mapping:
                               sequence:
                                 - type: str
 
+    "cascade-actions":
+        type: map
+        default: {}
+        mapping:
+            =: # name of a cascade action
+                type: map
+                object: semantix.caos.backends.yaml.PointerCascadeAction
+                required: yes
+                mapping:
+                    "title":
+                        *TEXT_WITH_GRAM_CATEGORIES
+
+                    "description":
+                        type: str
+
+    "cascade-events":
+        type: map
+        default: {}
+        mapping:
+            =: # name of a cascade event
+                type: map
+                object: semantix.caos.backends.yaml.PointerCascadeEvent
+                required: yes
+                mapping:
+                    "title":
+                        *TEXT_WITH_GRAM_CATEGORIES
+
+                    "description":
+                        type: str
+
+                    "extends":
+                        type: str
+
+                    "allowed-actions":
+                        type: choice
+                        required: yes
+                        object: semantix.caos.backends.yaml.PointerCascadeActionSet
+                        choice:
+                            - type: str
+                            - type: seq
+                              sequence:
+                                - type: str
+
     "links":
         type: map
         default: {}
@@ -263,6 +306,18 @@ mapping:
                         object: semantix.caos.backends.yaml.LinkExposedBehaviour
                         enum: ["first-item", "set"]
                         default: null
+
+                    "cascades": &CASCADES
+                        type: map
+                        mapping:
+                            =:
+                                type: choice
+                                choice:
+                                    - type: str
+                                    - type: map
+                                      mapping:
+                                        =:
+                                            type: str
 
                     "properties":
                         type: map
@@ -425,6 +480,8 @@ mapping:
                                                     - *POINTER_CONSTRAINTS
                                               "abstract-constraints":
                                                   *POINTER_CONSTRAINTS
+                                              "cascades":
+                                                  *CASCADES
                                               "comparison":
                                                   type: str
                                                   enum: [cidirect, fuzzy]
@@ -477,3 +534,33 @@ mapping:
                                                 type: float
                                                 range: {min: 0.0, max: 1.0}
                                                 required: yes
+
+    "policies":
+        type: map
+        mapping:
+            "links":
+                type: map
+                default: {}
+                mapping:
+                    =:
+                        type: map
+                        mapping:
+                            "cascades":
+                                *CASCADES
+
+            "concepts":
+                type: map
+                default: {}
+                mapping:
+                    =:
+                        type: map
+                        mapping:
+                            "links":
+                                type: map
+                                default: {}
+                                mapping:
+                                    =:
+                                        type: map
+                                        mapping:
+                                            "cascades":
+                                                *CASCADES

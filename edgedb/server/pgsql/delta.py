@@ -6,6 +6,7 @@
 ##
 
 
+import collections
 import itertools
 import postgresql.string
 import re
@@ -32,7 +33,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 9
+BACKEND_FORMAT_VERSION = 10
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -77,11 +78,13 @@ class PrototypeMetaCommand(MetaCommand, delta_cmds.PrototypeCommand):
 
 
 class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeCommand):
+    op_priority = 0
+
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._type_mech = schemamech.TypeMech()
 
-    def fill_record(self, rec=None, obj=None):
+    def fill_record(self, schema, rec=None, obj=None):
         updates = {}
 
         myrec = self.table.record()
@@ -132,13 +135,68 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeC
             result = None
         return result
 
-    def create_object(self, prototype):
-        rec, updates = self.fill_record()
-        self.pgops.add(dbops.Insert(table=self.table, records=[rec]))
+    def create_object(self, schema, prototype):
+        rec, updates = self.fill_record(schema)
+        self.pgops.add(dbops.Insert(table=self.table, records=[rec], priority=self.op_priority))
         return updates
 
-    def rename(self, old_name, new_name):
-        pass
+    def update(self, meta, context):
+        ctx = context.get_top()
+        orig_proto = ctx.original_proto
+        updaterec, updates = self.fill_record(meta)
+
+        if updaterec:
+            condition = [('name', str(orig_proto.name))]
+            self.pgops.add(dbops.Update(table=self.table, record=updaterec, condition=condition))
+
+        return updates
+
+    def rename(self, meta, context, old_name, new_name):
+        updaterec = self.table.record(name=str(new_name))
+        condition = [('name', str(old_name))]
+        self.pgops.add(dbops.Update(table=self.table, record=updaterec, condition=condition))
+
+    def delete(self, meta, context, proto):
+        self.pgops.add(dbops.Delete(table=self.table, condition=[('name', str(proto.name))]))
+
+
+class CreateNamedPrototype(NamedPrototypeMetaCommand):
+    def apply(self, meta, context):
+        obj = self.__class__.get_adaptee().apply(self, meta, context)
+        NamedPrototypeMetaCommand.apply(self, meta, context)
+        self.create_object(meta, obj)
+        return obj
+
+
+class RenameNamedPrototype(NamedPrototypeMetaCommand):
+    def apply(self, meta, context):
+        obj = self.__class__.get_adaptee().apply(self, meta, context)
+        NamedPrototypeMetaCommand.apply(self, meta, context)
+        self.rename(meta, context, self.prototype_name, self.new_name)
+        return obj
+
+
+class RebaseNamedPrototype(NamedPrototypeMetaCommand):
+    def apply(self, meta, context):
+        obj = self.__class__.get_adaptee().apply(self, meta, context)
+        NamedPrototypeMetaCommand.apply(self, meta, context)
+        return obj
+
+
+class AlterNamedPrototype(NamedPrototypeMetaCommand):
+    def apply(self, meta, context):
+        obj = self.__class__.get_adaptee().apply(self, meta, context)
+        NamedPrototypeMetaCommand.apply(self, meta, context)
+        self.update(meta, context)
+        return obj
+
+
+class DeleteNamedPrototype(NamedPrototypeMetaCommand):
+    def apply(self, meta, context):
+        obj = self.__class__.get_adaptee().apply(self, meta, context)
+        NamedPrototypeMetaCommand.apply(self, meta, context)
+        self.delete(meta, context, obj)
+        return obj
 
 
 class AlterPrototypeProperty(MetaCommand, adapts=delta_cmds.AlterPrototypeProperty):
@@ -179,8 +237,8 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
         super().__init__(**kwargs)
         self.table = deltadbops.AtomTable()
 
-    def fill_record(self, rec=None, obj=None):
-        rec, updates = super().fill_record(rec, obj)
+    def fill_record(self, schema, rec=None, obj=None):
+        rec, updates = super().fill_record(schema, rec, obj)
         if rec:
             if rec.base:
                 rec.base = str(rec.base)
@@ -264,7 +322,7 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
         new_domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
         base, _, constraints, extraconstraints = types.get_atom_base_and_constraints(meta, atom)
 
-        updates = self.create_object(atom)
+        updates = self.create_object(meta, atom)
 
         if not atom.automatic:
             self.pgops.add(dbops.CreateDomain(name=new_domain_name, base=base))
@@ -329,15 +387,11 @@ class RenameAtom(AtomMetaCommand, adapts=delta_cmds.RenameAtom):
         proto = delta_cmds.RenameAtom.apply(self, meta, context)
         AtomMetaCommand.apply(self, meta, context)
 
-        super().rename(self.prototype_name, self.new_name)
-
         domain_name = common.atom_name_to_domain_name(self.prototype_name, catenate=False)
         new_domain_name = common.atom_name_to_domain_name(self.new_name, catenate=False)
 
         self.pgops.add(dbops.RenameDomain(name=domain_name, new_name=new_domain_name))
-        updaterec = self.table.record(name=str(self.new_name))
-        condition = [('name', str(self.prototype_name))]
-        self.pgops.add(dbops.Update(table=self.table, record=updaterec, condition=condition))
+        self.rename(meta, context, self.prototype_name, self.new_name)
 
         if not proto.automatic and proto.issubclass(meta, caos_objects.sequence.Sequence):
             seq_name = common.atom_name_to_sequence_name(self.prototype_name, catenate=False)
@@ -354,7 +408,7 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
         new_atom = delta_cmds.AlterAtom.apply(self, meta, context)
         AtomMetaCommand.apply(self, meta, context)
 
-        updaterec, updates = self.fill_record()
+        updaterec, updates = self.fill_record(meta)
 
         if updaterec:
             condition = [('name', str(old_atom.name))]
@@ -613,8 +667,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
     def attach_alter_record(self, context):
         self._attach_multicommand(context, dbops.AlterCompositeType)
 
-    def rename(self, old_name, new_name, obj=None):
-        super().rename(old_name, new_name)
+    def rename(self, meta, context, old_name, new_name, obj=None):
+        super().rename(meta, context, old_name, new_name)
 
         if obj is not None and isinstance(obj, caos.types.ProtoLink):
             old_table_name = common.link_name_to_table_name(old_name, catenate=False)
@@ -646,10 +700,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             self.pgops.add(dbops.AlterCompositeTypeRenameTo(old_rec_name, new_rec_name[1],
                                                             conditions=(rec_cond,)))
 
-        updaterec = self.table.record(name=str(new_name))
-        condition = [('name', str(old_name))]
-        self.pgops.add(dbops.Update(table=self.table, record=updaterec, condition=condition))
-
         old_func_name = (old_table_name[0],
                          common.caos_name_to_pg_name(old_name.name + '_batch_merger'))
         new_func_name = (new_table_name[0],
@@ -660,7 +710,9 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                              conditions=(cond,))
         self.pgops.add(cmd)
 
-    def delete(self, proto, meta, context):
+    def delete(self, meta, context, proto):
+        super().delete(meta, context, proto)
+
         schema = common.caos_module_name_to_schema_name(proto.name.module)
         name = common.caos_name_to_pg_name(proto.name.name + '_batch_merger')
         func_name = (schema, name)
@@ -1297,8 +1349,8 @@ class ConceptMetaCommand(CompositePrototypeMetaCommand):
         super().__init__(**kwargs)
         self.table = deltadbops.ConceptTable()
 
-    def fill_record(self, rec=None):
-        rec, updates = super().fill_record(rec)
+    def fill_record(self, schema, rec=None):
+        rec, updates = super().fill_record(schema, rec)
         if rec and rec.custombases:
             rec.custombases = tuple(str(b) for b in rec.custombases)
         return rec, updates
@@ -1321,7 +1373,7 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
         concept = delta_cmds.CreateConcept.apply(self, meta, context)
         ConceptMetaCommand.apply(self, meta, context)
 
-        fields = self.create_object(concept)
+        fields = self.create_object(meta, concept)
 
         cid_col = dbops.Column(name='concept_id', type='integer', required=True)
 
@@ -1372,7 +1424,7 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
         concept.op.attach_alter_table(context)
         concept.op.attach_alter_record(context)
 
-        self.rename(self.prototype_name, self.new_name)
+        self.rename(meta, context, self.prototype_name, self.new_name)
 
         concept.op.table_name = common.concept_name_to_table_name(self.new_name, catenate=False)
 
@@ -1411,7 +1463,7 @@ class AlterConcept(ConceptMetaCommand, adapts=delta_cmds.AlterConcept):
         concept = delta_cmds.AlterConcept.apply(self, meta, context=context)
         ConceptMetaCommand.apply(self, meta, context)
 
-        updaterec, updates = self.fill_record()
+        updaterec, updates = self.fill_record(meta)
 
         if updaterec:
             condition = [('name', str(concept.name))]
@@ -1434,15 +1486,151 @@ class DeleteConcept(ConceptMetaCommand, adapts=delta_cmds.DeleteConcept):
         concept = delta_cmds.DeleteConcept.apply(self, meta, context)
         ConceptMetaCommand.apply(self, meta, context)
 
-        self.delete(concept, meta, concept)
+        self.delete(meta, context, concept)
 
         self.pgops.add(dbops.DropTable(name=old_table_name))
-        self.pgops.add(dbops.Delete(table=self.table, condition=[('name', str(concept.name))]))
 
         old_record_name = common.concept_name_to_record_name(self.prototype_name, catenate=False)
         self.pgops.add(dbops.DropCompositeType(name=old_record_name))
 
         return concept
+
+
+class PointerCascadeActionCommand:
+    table = deltadbops.PointerCascadeActionTable()
+
+
+class CreatePointerCascadeAction(CreateNamedPrototype,
+                                 PointerCascadeActionCommand,
+                                 adapts=delta_cmds.CreatePointerCascadeAction):
+    pass
+
+
+class RenamePointerCascadeAction(RenameNamedPrototype,
+                                 PointerCascadeActionCommand,
+                                 adapts=delta_cmds.RenamePointerCascadeAction):
+    pass
+
+
+class AlterPointerCascadeAction(AlterNamedPrototype,
+                                PointerCascadeActionCommand,
+                                adapts=delta_cmds.AlterPointerCascadeAction):
+    pass
+
+
+class DeletePointerCascadeAction(DeleteNamedPrototype,
+                                 PointerCascadeActionCommand,
+                                 adapts=delta_cmds.DeletePointerCascadeAction):
+    pass
+
+
+class PointerCascadeEventCommand(metaclass=CommandMeta):
+    table = deltadbops.PointerCascadeEventTable()
+
+    def fill_record(self, schema, rec=None, obj=None):
+        rec, updates = super().fill_record(schema, rec=rec, obj=obj)
+
+        if rec:
+            acts = updates.get('allowed_actions')
+            if acts:
+                actions = []
+
+                for action in acts[1]:
+                    if isinstance(action, proto.PrototypeRef):
+                        name = action.prototype_name
+                    else:
+                        name = action.name
+
+                    actions.append(name)
+
+                rec.allowed_actions = dbops.Query(
+                    '(SELECT array_agg(id) FROM caos.metaobject WHERE name = any($1::text[]))',
+                    [actions], type='integer[]')
+
+        return rec, updates
+
+
+class CreatePointerCascadeEvent(PointerCascadeEventCommand,
+                                CreateNamedPrototype,
+                                adapts=delta_cmds.CreatePointerCascadeEvent):
+    pass
+
+
+class RenamePointerCascadeEvent(PointerCascadeEventCommand,
+                                RenameNamedPrototype,
+                                adapts=delta_cmds.RenamePointerCascadeEvent):
+    pass
+
+
+class RebasePointerCascadeEvent(PointerCascadeEventCommand,
+                                RebaseNamedPrototype,
+                                adapts=delta_cmds.RebasePointerCascadeEvent):
+    pass
+
+
+class AlterPointerCascadeEvent(PointerCascadeEventCommand,
+                               AlterNamedPrototype,
+                               adapts=delta_cmds.AlterPointerCascadeEvent):
+    pass
+
+
+class DeletePointerCascadeEvent(PointerCascadeEventCommand,
+                                DeleteNamedPrototype,
+                                adapts=delta_cmds.DeletePointerCascadeEvent):
+    pass
+
+
+class PointerCascadePolicyCommand(metaclass=CommandMeta):
+    table = deltadbops.PointerCascadePolicyTable()
+    op_priority = 1
+
+    def fill_record(self, schema, rec=None, obj=None):
+        rec, updates = super().fill_record(schema, rec=rec, obj=obj)
+
+        if rec:
+            subj = updates.get('subject')
+            if subj:
+                rec.subject = dbops.Query(
+                    '(SELECT id FROM caos.metaobject WHERE name = $1)',
+                    [subj[1]], type='integer')
+
+            event = updates.get('event')
+            if event:
+                rec.event = dbops.Query(
+                    '(SELECT id FROM caos.metaobject WHERE name = $1)',
+                    [event[1]], type='integer')
+
+            action = updates.get('action')
+            if action:
+                rec.action = dbops.Query(
+                    '(SELECT id FROM caos.metaobject WHERE name = $1)',
+                    [action[1]], type='integer')
+
+        return rec, updates
+
+
+class CreatePointerCascadePolicy(PointerCascadePolicyCommand,
+                                 CreateNamedPrototype,
+                                 adapts=delta_cmds.CreatePointerCascadePolicy):
+    pass
+
+
+class RenamePointerCascadePolicy(PointerCascadePolicyCommand,
+                                 RenameNamedPrototype,
+                                 adapts=delta_cmds.RenamePointerCascadePolicy):
+    pass
+
+
+class AlterPointerCascadePolicy(PointerCascadePolicyCommand,
+                                AlterNamedPrototype,
+                                adapts=delta_cmds.AlterPointerCascadePolicy):
+    pass
+
+
+class DeletePointerCascadePolicy(PointerCascadePolicyCommand,
+                                 DeleteNamedPrototype,
+                                 adapts=delta_cmds.DeletePointerCascadePolicy):
+    pass
 
 
 class ScheduleLinkMappingUpdate(MetaCommand):
@@ -1482,7 +1670,7 @@ class PointerMetaCommand(MetaCommand):
             return result
 
     def record_metadata(self, pointer, old_pointer, meta, context):
-        rec, updates = self.fill_record()
+        rec, updates = self.fill_record(meta)
 
         if rec:
             host = self.get_host(meta, context)
@@ -1866,7 +2054,7 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
             link_cmd = context.get(delta_cmds.LinkCommandContext)
             assert link_cmd
 
-            self.rename(self.prototype_name, self.new_name, obj=result)
+            self.rename(meta, context, self.prototype_name, self.new_name, obj=result)
             link_cmd.op.table_name = common.link_name_to_table_name(self.new_name, catenate=False)
 
             # Indexes
@@ -2265,7 +2453,7 @@ class ComputableMetaCommand(NamedPrototypeMetaCommand, PointerMetaCommand):
         self.table = deltadbops.ComputableTable()
 
     def record_metadata(self, pointer, old_pointer, meta, context):
-        rec, updates = self.fill_record()
+        rec, updates = self.fill_record(meta)
 
         if rec:
             host = self.get_host(meta, context)
@@ -2658,7 +2846,7 @@ class AlterModule(CompositePrototypeMetaCommand, adapts=delta_cmds.AlterModule):
         module = delta_cmds.AlterModule.apply(self, schema, context=context)
         CompositePrototypeMetaCommand.apply(self, schema, context)
 
-        updaterec, updates = self.fill_record()
+        updaterec, updates = self.fill_record(schema)
 
         if updaterec:
             condition = [('name', str(module.name))]
@@ -2742,6 +2930,16 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
                                          neg_conditions=[dbops.TableExists(name=metatable.name)],
                                          priority=-1))
 
+        policytable = deltadbops.PolicyTable()
+        self.pgops.add(dbops.CreateTable(table=policytable,
+                                         neg_conditions=[dbops.TableExists(name=policytable.name)],
+                                         priority=-1))
+
+        eventpolicytable = deltadbops.EventPolicyTable()
+        self.pgops.add(dbops.CreateTable(table=eventpolicytable,
+                                         neg_conditions=[dbops.TableExists(name=eventpolicytable.name)],
+                                         priority=-1))
+
         atomtable = deltadbops.AtomTable()
         self.pgops.add(dbops.CreateTable(table=atomtable,
                                          neg_conditions=[dbops.TableExists(name=atomtable.name)],
@@ -2765,6 +2963,21 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
         computabletable = deltadbops.ComputableTable()
         self.pgops.add(dbops.CreateTable(table=computabletable,
                                          neg_conditions=[dbops.TableExists(name=computabletable.name)],
+                                         priority=-1))
+
+        ptrcascadeactiontable = deltadbops.PointerCascadeActionTable()
+        self.pgops.add(dbops.CreateTable(table=ptrcascadeactiontable,
+                                         neg_conditions=[dbops.TableExists(name=ptrcascadeactiontable.name)],
+                                         priority=-1))
+
+        ptrcascadeeventtable = deltadbops.PointerCascadeEventTable()
+        self.pgops.add(dbops.CreateTable(table=ptrcascadeeventtable,
+                                         neg_conditions=[dbops.TableExists(name=ptrcascadeeventtable.name)],
+                                         priority=-1))
+
+        ptrcascadepolicytable = deltadbops.PointerCascadePolicyTable()
+        self.pgops.add(dbops.CreateTable(table=ptrcascadepolicytable,
+                                         neg_conditions=[dbops.TableExists(name=ptrcascadepolicytable.name)],
                                          priority=-1))
 
         entity_modstat_type = deltadbops.EntityModStatType()
@@ -3243,6 +3456,35 @@ class UpgradeBackend(MetaCommand):
             c.add_command(delete)
 
             c.execute(context)
+
+    def update_to_version_10(self, context):
+        """
+        Backend format 10 adds base tables for policies and tables for pointer cascade policies
+        """
+
+        cg = dbops.CommandGroup()
+
+        policytable = deltadbops.PolicyTable()
+        cg.add_command(dbops.CreateTable(table=policytable,
+                                         neg_conditions=[dbops.TableExists(name=policytable.name)]))
+
+        eventpolicytable = deltadbops.EventPolicyTable()
+        cg.add_command(dbops.CreateTable(table=eventpolicytable,
+                                         neg_conditions=[dbops.TableExists(name=eventpolicytable.name)]))
+
+        ptrcascadeactiontable = deltadbops.PointerCascadeActionTable()
+        cg.add_command(dbops.CreateTable(table=ptrcascadeactiontable,
+                                         neg_conditions=[dbops.TableExists(name=ptrcascadeactiontable.name)]))
+
+        ptrcascadeeventtable = deltadbops.PointerCascadeEventTable()
+        cg.add_command(dbops.CreateTable(table=ptrcascadeeventtable,
+                                         neg_conditions=[dbops.TableExists(name=ptrcascadeeventtable.name)]))
+
+        ptrcascadepolicytable = deltadbops.PointerCascadePolicyTable()
+        cg.add_command(dbops.CreateTable(table=ptrcascadepolicytable,
+                                         neg_conditions=[dbops.TableExists(name=ptrcascadepolicytable.name)]))
+
+        cg.execute(context)
 
     @classmethod
     def update_backend_info(cls):

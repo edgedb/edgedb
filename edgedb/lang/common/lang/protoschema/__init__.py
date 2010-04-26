@@ -89,7 +89,10 @@ class SchemaModule(types.ModuleType):
 
         proto = self.__sx_prototypes__.get(protoname, nsname=nsname)
         schema = get_loaded_proto_schema(self.__class__)
-        cls = proto(schema, cache=False)
+        try:
+            cls = proto(schema, cache=False)
+        except Exception as e:
+            raise SemantixError('could not create class from prototype') from e
         setattr(self, name, cls)
         return cls
 
@@ -368,7 +371,7 @@ class ProtoModule:
                     pass
                 else:
                     if prototype is not None:
-                        break
+                        return prototype
         else:
             ns = self.get_namespace(type, name=nsname)
 
@@ -377,6 +380,9 @@ class ProtoModule:
 
             fq_name = '{}.{}'.format(self.name, name)
             prototype = ns.lookup_qname(fq_name)
+
+            if type is not None and issubclass(type, ProtoObject):
+                type = type.get_canonical_class()
 
         if default is default_err:
             default = self.SchemaError
