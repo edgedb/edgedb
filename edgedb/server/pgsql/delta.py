@@ -1152,6 +1152,9 @@ class CreateMappingIndexes(MetaCommand):
             # one target can have many sources
             sides = ('source',)
 
+        else:
+            sides = ()
+
         for side in sides:
             index = MappingIndex(key + '_%s' % side, mapping, maplinks, table_name)
             index.add_columns(('%s_id' % side, 'link_type_id'))
