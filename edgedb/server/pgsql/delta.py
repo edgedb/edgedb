@@ -610,7 +610,7 @@ class DeleteAtom(AtomMetaCommand, adapts=delta_cmds.DeleteAtom):
         # Domain dropping gets low priority since other things may depend on it
         cond = DomainExists(old_domain_name)
         ops.add(DropDomain(name=old_domain_name, conditions=[cond], priority=3))
-        ops.add(Delete(table=AtomTable(), condition=[('name', str(old_domain_name))]))
+        ops.add(Delete(table=AtomTable(), condition=[('name', str(self.prototype_name))]))
 
         return atom
 
