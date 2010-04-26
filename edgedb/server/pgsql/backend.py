@@ -389,6 +389,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         cl_ds = datasources.meta.links.ConceptLink(session.connection)
 
+        link = getattr(source.__class__, str(link_name))
+
+        if isinstance(link, caos.types.NodeClass):
+            link_names = [(link, link._class_metadata.full_link_name)]
+        else:
+            link_names = [(l.target, l._metadata.name) for l in link]
+
         for target in targets:
             """LOG [caos.sync]
             print('Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
@@ -399,9 +406,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                   )
             """
 
-            full_link_name = caos.proto.Link.gen_link_name(source._metadata.prototype.name,
-                                                           target._metadata.prototype.name,
-                                                           link_name)
+            for t, full_link_name in link_names:
+                if isinstance(target, t):
+                    break
+            else:
+                assert False, "No link found"
+
             lt = cl_ds.fetch(name=str(full_link_name))
 
             rows.append('(%s::uuid, %s::uuid, %s::int)')
@@ -413,7 +423,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                  (table, ",".join(rows)), params,
                                  connection=session.connection)
             except postgresql.exceptions.UniqueError as e:
-                raise caos.error.StorageLinkMappingCardinalityViolation from e
+                err = '"%s" link cardinality violation' % link_name
+                detail = 'SOURCE: %s(%s)\nTARGETS: %s' % \
+                         (source.__class__._metadata.name, source.id,
+                          list((t.__class__._metadata.name, t.id) for t in targets))
+                ex = caos.error.StorageLinkMappingCardinalityViolation(err, details=detail)
+                raise ex from e
 
 
     @debug
