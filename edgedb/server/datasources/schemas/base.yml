@@ -20,7 +20,7 @@ mapping:
                 mapping:
                     "type":
                         type: str
-                        enum: ["int", "float", "str", "bool", "list"]
+                        enum: ["int", "float", "str", "bool", "list", "uuid"]
                         required: yes
 
                     "default":

@@ -6,6 +6,9 @@
 ##
 
 
+import uuid
+
+
 def check_type(variable, type):
     if not isinstance(type, str):
         raise Exception('check_type: type parameter must be string')
@@ -27,6 +30,9 @@ def check_type(variable, type):
 
     if type == 'list':
         return isinstance(variable, list)
+
+    if type == 'uuid':
+        return isinstance(variable, uuid.UUID)
 
     if type == 'none':
         return variable is None
