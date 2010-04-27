@@ -143,6 +143,8 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
                     if not _f[0]:
                         multiline = True
                         break
+                    if tmp:
+                        tmp += ', '
                     tmp += _f[1]
                 else:
                     if len(tmp) + len(tab) > width:
