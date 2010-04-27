@@ -39,6 +39,7 @@ class Session(session.Session):
     def __init__(self, realm, connection, entity_cache):
         super().__init__(realm, entity_cache=entity_cache)
         self.connection = connection
+        self.link_cache = {}
         self.xact = []
 
     def _new_transaction(self):
@@ -381,6 +382,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return result
 
 
+    def get_link_map(self, session):
+        if not session.link_cache:
+            cl_ds = datasources.meta.links.ConceptLinks(session.connection)
+
+            for row in cl_ds.fetch():
+                session.link_cache[row['name']] = row['id']
+
+        return session.link_cache
+
+
     @debug
     def store_links(self, source, targets, link_name, session):
         table = common.link_name_to_table_name(link_name)
@@ -388,7 +399,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         rows = []
         params = []
 
-        cl_ds = datasources.meta.links.ConceptLink(session.connection)
+        link_map = self.get_link_map(session)
 
         link = getattr(source.__class__, str(link_name))
 
@@ -413,10 +424,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             else:
                 assert False, "No link found"
 
-            lt = cl_ds.fetch(name=str(full_link_name))
+            link_id = link_map[full_link_name]
 
             rows.append('(%s::uuid, %s::uuid, %s::int)')
-            params += [source.id, target.id, lt[0]['id']]
+            params += [source.id, target.id, link_id]
 
         if len(rows) > 0:
             try:
