@@ -60,3 +60,10 @@ class EquivalenceOperator(Operator):
 
 IS = EquivalenceOperator('is')
 IS_NOT = EquivalenceOperator('is not')
+
+
+class MembershipOperator(Operator):
+    pass
+
+IN = MembershipOperator('in')
+NOT_IN = MembershipOperator('not in')

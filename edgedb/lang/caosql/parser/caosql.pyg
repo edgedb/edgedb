@@ -174,7 +174,7 @@ simple_predicate                -> primary_query meta_op opt_fq_graph_name:
                                  | EXISTS var IN safe_set_query ':' predicate
                                  | FOR ALL var IN safe_set_query ':' predicate
                                  | primary_query IN safe_set_query:
-                                        return BinOpNode(op='in', left=kids[0], right=kids[2])
+                                        return BinOpNode(op=ast.ops.IN, left=kids[0], right=kids[2])
                                  | primary_query comp_op quantifier safe_set_query
                                  | boolean_constant:
                                         return kids[0]

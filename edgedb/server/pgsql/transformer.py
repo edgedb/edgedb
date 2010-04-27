@@ -217,6 +217,27 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             result = result.rlink.source
         return result
 
+    def is_universal_set(self, expr):
+        """Determine whether the given expression represents the universal set of entities.
+
+        Arguments:
+            - expr: Expression to test
+
+        Return:
+            True if the expression represents a universal set, False otherwise.
+        """
+
+        if isinstance(expr, tree.ast.PathCombination):
+            if len(expr.paths) == 1:
+                expr = next(iter(expr.paths))
+            else:
+                expr = None
+
+        if isinstance(expr, tree.ast.EntitySet):
+            return next(iter(expr.concepts)).name == 'semantix.caos.builtins.BaseObject'
+
+        return False
+
     def _process_constant(self, context, expr):
         if expr.index is not None and not isinstance(expr.index, int):
             if expr.index in context.current.argmap:
@@ -263,16 +284,31 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
 
         elif isinstance(expr, tree.ast.EntitySet):
             root = self.get_caos_path_root(expr)
-
-            if next(iter(root.concepts)).name != 'semantix.caos.builtins.BaseObject':
-                self._process_graph(context, cte or context.current.query, root)
+            self._process_graph(context, cte or context.current.query, root)
 
         elif isinstance(expr, tree.ast.BinOp):
-            left = self._process_expr(context, expr.left, cte)
+            left_is_universal_set = self.is_universal_set(expr.left)
+
+            if not left_is_universal_set:
+                left = self._process_expr(context, expr.left, cte)
+            else:
+                left = pgsql.ast.IgnoreNode()
 
             if expr.op == ast.ops.OR:
                 context.current.append_graphs = True
-            right = self._process_expr(context, expr.right, cte)
+
+            if self.is_universal_set(expr.right):
+                if expr.op in (ast.ops.IN, ast.ops.EQ):
+                    # Membership in universal set is always True
+                    right = pgsql.ast.IgnoreNode()
+                elif expr.op in (ast.ops.NOT_IN, ast.ops.NE):
+                    # No entity can be outside the universal set,
+                    right = pgsql.ast.ConstantNode(value=False)
+                else:
+                    assert False, "Unsupported universal set expression"
+            else:
+                right = self._process_expr(context, expr.right, cte)
+
             context.current.append_graphs = False
 
             if isinstance(left, pgsql.ast.IgnoreNode):
