@@ -8,6 +8,7 @@
 
 
 import re as regex
+import weakref
 
 import semantix.utils.ast.base
 from semantix.utils.io import terminal
@@ -88,7 +89,7 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
                 return rv + ')'
             elif isinstance(node, list):
                 return '[%s]' % ', '.join(_format(x) for x in node)
-            elif isinstance(node, (set, frozenset)):
+            elif isinstance(node, (set, frozenset, weakref.WeakSet)):
                 return '{%s}' % ', '.join(_format(x) for x in node)
             return highlight('LITERAL', repr(node))
         if not isinstance(node, semantix.utils.ast.base.AST):
@@ -132,7 +133,7 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
                 if not result.endswith('\n'):
                     result += '\n'
 
-            elif isinstance(value, (list, set, frozenset)):
+            elif isinstance(value, (list, set, frozenset, weakref.WeakSet)):
                 cache = {}
                 multiline = False
                 tmp = ''
