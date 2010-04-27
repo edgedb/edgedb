@@ -310,6 +310,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             else:
                 if issubclass(cls, cls._metadata.realm.schema.semantix.caos.builtins.Object):
                     attrs['semantix.caos.builtins.ctime'] = 'NOW'
+                    attrs['semantix.caos.builtins.mtime'] = 'NOW'
 
                 if attrs:
                     cols_names = [common.quote_ident(self.caos_name_to_pg_column_name(a))
