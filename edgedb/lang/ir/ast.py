@@ -62,7 +62,7 @@ class Base(ast.AST):
                         if item in old:
                             value[i] = new
 
-            elif isinstance(value, set):
+            elif isinstance(value, (set, weakref.WeakSet)):
                 for item in value.copy():
                     if isinstance(item, Base):
                         if deep and field.traverse:
@@ -133,7 +133,7 @@ class MetaRef(AtomicRefSimple):
     __fields = ['name']
 
 class EntityLink(Base):
-    __fields = ['filter', 'source', 'target']
+    __fields = ['filter', 'source', 'target', 'link_proto']
 
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
@@ -202,7 +202,8 @@ class EntitySet(Base):
                 ('conjunction', Conjunction),
                 ('disjunction', Disjunction),
                 ('rlink', EntityLink, None, False),
-                ('atomrefs', set), ('metarefs', set)]
+                ('atomrefs', set), ('metarefs', set), ('users', set),
+                ('joins', set, set, False)]
 
 
 class Constant(Base): __fields = ['value', 'index', 'expr', 'type']

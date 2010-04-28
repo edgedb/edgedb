@@ -18,8 +18,8 @@ from semantix.caos.caosql import CaosQLError
 class ParseContextLevel(object):
     def __init__(self, prevlevel=None):
         if prevlevel is not None:
-            self.anchors = prevlevel.anchors.copy()
-            self.namespaces = prevlevel.namespaces.copy()
+            self.anchors = prevlevel.anchors
+            self.namespaces = prevlevel.namespaces
             self.location = prevlevel.location
         else:
             self.anchors = {}
@@ -28,19 +28,21 @@ class ParseContextLevel(object):
 
 
 class ParseContext(object):
-    stack = []
-
     def __init__(self):
+        self.stack = []
         self.push()
 
     def push(self):
-        level = ParseContextLevel()
+        level = ParseContextLevel(self.current)
         self.stack.append(level)
 
         return level
 
     def pop(self):
         self.stack.pop()
+
+    def __call__(self):
+        return ParseContextWrapper(self)
 
     def _current(self):
         if len(self.stack) > 0:
@@ -107,15 +109,16 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         return graph
 
     def _process_select_where(self, context, where):
-        context.current.location = 'generator'
+        with context():
+            context.current.location = 'generator'
 
-        if where:
-            expr = self._process_expr(context, where)
-            expr = self.merge_paths(expr)
-            self.postprocess_expr(expr)
-            return expr
-        else:
-            return None
+            if where:
+                expr = self._process_expr(context, where)
+                expr = self.merge_paths(expr)
+                self.postprocess_expr(expr)
+                return expr
+            else:
+                return None
 
     def _process_expr(self, context, expr):
         node = None
@@ -181,12 +184,16 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                 tips = {}
                                 for p in refnode.paths:
                                     concept = next(iter(p.concepts))
+                                    path_copy = self.copy_path(p)
+                                    path_copy.users.add(context.current.location)
                                     if concept in tips:
-                                        tips[concept].add(self.copy_path(p))
+                                        tips[concept].add(path_copy)
                                     else:
-                                        tips[concept] = {self.copy_path(p)}
+                                        tips[concept] = {path_copy}
                             else:
-                                tips = {next(iter(refnode.concepts)): {self.copy_path(refnode)}}
+                                path_copy = self.copy_path(refnode)
+                                path_copy.users.add(context.current.location)
+                                tips = {next(iter(refnode.concepts)): {path_copy}}
                         continue
 
                     tip = node
@@ -202,6 +209,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 step.concepts = frozenset(tips.keys())
                 step.id = tree.transformer.LinearPath([step.concepts])
                 step.anchor = anchor
+
+                step.users.add(context.current.location)
 
                 if anchor:
                     anchors[anchor] = step
@@ -227,7 +236,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     outbound, inbound = concept.match_links(self.realm, link_protos, direction,
                                                             skip_atomic=all_links)
 
-                    links = {caos_types.OutboundDirection: outbound, caos_types.InboundDirection: inbound}
+                    links = {caos_types.OutboundDirection: outbound,
+                             caos_types.InboundDirection: inbound}
 
                     for dir, linksets in links.items():
                         for linkset_proto in linksets:
@@ -239,7 +249,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                 assert target
 
                                 if link_item.implicit_derivative:
+                                    link_proto = link_item
                                     link_item = link_item.get_class_base(self.realm)[0]
+                                else:
+                                    assert False
 
                                 if isinstance(target, caos_types.ProtoConcept):
                                     if seen_atoms:
@@ -253,9 +266,13 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                         target_set = tree.ast.EntitySet()
                                         target_set.concepts = frozenset((target,))
                                         target_set.id = tree.transformer.LinearPath(t.id)
-                                        target_set.id.add(link_spec.labels, link_spec.direction, target_set.concepts)
+                                        target_set.id.add(link_spec.labels, link_spec.direction,
+                                                          target_set.concepts)
+                                        target_set.users.add(context.current.location)
 
-                                        link = tree.ast.EntityLink(source=t, target=target_set, filter=link_spec)
+                                        link = tree.ast.EntityLink(source=t, target=target_set,
+                                                                   filter=link_spec,
+                                                                   link_proto=link_proto)
 
                                         t.disjunction.update(link)
                                         target_set.rlink = link
@@ -272,7 +289,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                                     newtips[target] = set()
                                     for t in tip:
-                                        atomref = tree.ast.AtomicRefSimple(name=linkset_proto.name, ref=t)
+                                        atomref = tree.ast.AtomicRefSimple(name=linkset_proto.name,
+                                                                           ref=t)
                                         newtips[target].add(atomref)
 
                                 else:
@@ -308,14 +326,14 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
     def _process_select_targets(self, context, targets):
         selector = list()
 
-        context.current.location = 'selector'
-        for target in targets:
-            expr = self._process_expr(context, target.expr)
-            expr = self.merge_paths(expr)
-            t = tree.ast.SelectorExpr(expr=expr, name=target.alias)
-            selector.append(t)
+        with context():
+            context.current.location = 'selector'
+            for target in targets:
+                expr = self._process_expr(context, target.expr)
+                expr = self.merge_paths(expr)
+                t = tree.ast.SelectorExpr(expr=expr, name=target.alias)
+                selector.append(t)
 
-        context.current.location = None
         return selector
 
     def _get_path_tip(self, path):
@@ -330,14 +348,15 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             return last
 
     def _process_sorter(self, context, sorters):
-        context.current.location = 'sorter'
 
         result = []
 
-        for sorter in sorters:
-            expr = self._process_expr(context, sorter.path)
-            expr = self.merge_paths(expr)
-            s = tree.ast.SortExpr(expr=expr, direction=sorter.direction)
-            result.append(s)
+        with context():
+            context.current.location = 'sorter'
+            for sorter in sorters:
+                expr = self._process_expr(context, sorter.path)
+                expr = self.merge_paths(expr)
+                s = tree.ast.SortExpr(expr=expr, direction=sorter.direction)
+                result.append(s)
 
         return result

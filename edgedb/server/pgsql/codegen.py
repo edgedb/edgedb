@@ -151,6 +151,15 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.alias:
             self.write(' AS ' + common.quote_ident(node.alias))
 
+    def visit_ExistsNode(self, node):
+        self.write('EXISTS (')
+        self.new_lines = 1
+        self.indentation += 1
+        self.visit(node.expr)
+        self.indentation -= 1
+        self.new_lines = 1
+        self.write(')')
+
     def visit_UpdateQueryNode(self, node):
         self.write('UPDATE ')
         self.new_lines = 1

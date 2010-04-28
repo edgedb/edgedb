@@ -44,6 +44,7 @@ class TransformerContextLevel(object):
             self.argmap = prevlevel.argmap
             self.location = 'query'
             self.append_graphs = False
+            self.ignore_cardinality = prevlevel.ignore_cardinality
             self.query = prevlevel.query
             self.realm = prevlevel.realm
         else:
@@ -55,6 +56,7 @@ class TransformerContextLevel(object):
             self.argmap = OrderedSet()
             self.location = 'query'
             self.append_graphs = False
+            self.ignore_cardinality = False
             self.query = pgsql.ast.SelectQueryNode()
             self.realm = None
 
@@ -122,7 +124,7 @@ class TransformerContextWrapper(object):
             return self.context
 
     def __exit__(self, exc_type, exc_value, traceback):
-        if self.mode == TransformerContext.ALTERNATE:
+        if self.mode != TransformerContext.CURRENT:
             self.context.pop()
 
 
@@ -245,6 +247,57 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
 
         return False
 
+    def is_entity_set(self, expr):
+        """Determine whether the given expression represents a set of entities.
+
+        Arguments:
+            - expr: Expression to test
+
+        Return:
+            True if the expression represents a set of entities, False otherwise.
+        """
+
+        return isinstance(expr, (tree.ast.PathCombination, tree.ast.EntitySet))
+
+    def get_cte_fieldref_for_set(self, context, caos_node, field_name, meta=False, map=None):
+        """Return FieldRef node corresponding to the specified atom or meta value set.
+
+        Arguments:
+            - context: Current context
+            - caos_node: A tree.ast.EntitySet node
+            - field_name: The name of the atomic link of entities represented by caos_node
+            - meta: If True, field_name is a reference to concept metadata instead of the
+                    atom data. Default: False.
+            - map: Optional AtomicRef->FieldRef mapping to look search in.  If not specified,
+                   the global map from the current context will be considered.
+
+        Return:
+            A pgsql.ast.FieldRef node representing a set of atom/meta values for the specified,
+            caos_node and field_name.
+        """
+
+        if map is None:
+            map = context.current.concept_node_map
+
+        cte_refs = map[caos_node]
+
+        # First, check if the original data source is available in this context, i.e
+        # the table is present in the current sub-query.
+        #
+        data_table = cte_refs.get('data')
+        if data_table:
+            ref = pgsql.ast.FieldRefNode(table=data_table, field=field_name,
+                                         origin=data_table, origin_field=field_name)
+        else:
+            key = ('meta', field_name) if meta else field_name
+            ref = cte_refs.get(key)
+            assert ref, 'Reference to an inaccessible table node %s' % key
+
+        if isinstance(ref, pgsql.ast.SelectExprNode):
+            ref = ref.expr
+
+        return ref
+
     def _process_constant(self, context, expr):
         if expr.type:
             if isinstance(expr.type, caos_types.ProtoAtom):
@@ -363,20 +416,8 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             fieldrefs = []
 
             for ref in datarefs:
-                cte_refs = context.current.concept_node_map[ref]
-
-                data_table = cte_refs.get('data')
-                if data_table:
-                    ref = pgsql.ast.FieldRefNode(table=data_table, field=expr.name,
-                                                 origin=data_table, origin_field=expr.name)
-                else:
-                    key = ('meta', expr.name) if isinstance(expr, tree.ast.MetaRef) else expr.name
-                    ref = cte_refs.get(key)
-                    assert ref, 'Reference to an inaccessible table node %s' % key
-
-                if isinstance(ref, pgsql.ast.SelectExprNode):
-                    ref = ref.expr
-
+                is_metaref = isinstance(expr, tree.ast.MetaRef)
+                ref = self.get_cte_fieldref_for_set(context, ref, expr.name, is_metaref)
                 fieldrefs.append(ref)
 
             if len(fieldrefs) > 1:
@@ -402,8 +443,12 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         return result
 
     def _process_graph(self, context, cte, startnode):
-        # Avoid processing the same subgraph more than once
-        if startnode in context.current.ctemap:
+        try:
+            context.current.ctemap[cte][startnode]
+        except KeyError:
+            pass
+        else:
+            # Avoid processing the same subgraph more than once
             return
 
         sqlpath = self._process_path(context, cte, None, startnode)
@@ -443,7 +488,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
 
     def _relation_from_concepts(self, context, node):
         concept = next(iter(node.concepts))
-        table_name, table_schema_name = self._caos_name_to_pg_table(concept.name)
+        table_schema_name, table_name = common.concept_name_to_table_name(concept.name, catenate=False)
         concept_table = pgsql.ast.TableNode(name=table_name,
                                             schema=table_schema_name,
                                             concepts=node.concepts,
@@ -451,11 +496,13 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
                                             caosnode=node)
         return concept_table
 
-    def caos_path_to_sql_path(self, context, step_cte, caos_path_tip, sql_path_tip, link, weak=False):
+    def caos_path_to_sql_path(self, context, root_cte, step_cte, caos_path_tip, sql_path_tip, link,
+                                                                                        weak=False):
         """
         Generates a Common Table Expression for a given step in the path
 
         @param context: parse context
+        @param root_cte: root CTE
         @param step_cte: parent CTE
         @param caos_path_tip: Caos path step node
         @param sql_path_tip: current position in parent CTE join chain
@@ -485,7 +532,8 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
                 step_cte = pgsql.ast.SelectQueryNode(concepts=caos_path_tip.concepts, alias=cte_alias,
                                                      caosnode=caos_path_tip)
 
-        context.current.ctemap[caos_path_tip] = step_cte
+        ctemap = context.current.ctemap.setdefault(root_cte, {})
+        ctemap[caos_path_tip] = step_cte
 
         fromnode = step_cte.fromlist[0] if step_cte.fromlist else pgsql.ast.FromExprNode()
 
@@ -499,7 +547,8 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         if not sql_path_tip:
             fromnode.expr = concept_table
         else:
-            target_id_field = pgsql.ast.FieldRefNode(table=concept_table, field='semantix.caos.builtins.id',
+            target_id_field = pgsql.ast.FieldRefNode(table=concept_table,
+                                                     field='semantix.caos.builtins.id',
                                                      origin=concept_table,
                                                      origin_field='semantix.caos.builtins.id')
 
@@ -691,28 +740,75 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         else:
             return expr
 
-    def _caos_name_to_pg_table(self, name):
-        # XXX: TODO: centralize this with pgsql backend
-        return name.name + '_data', 'caos_' + name.module
+    def init_filter_cte(self, context, sql_path_tip, caos_path_tip):
+        cte = pgsql.ast.SelectQueryNode()
+        fromnode = pgsql.ast.FromExprNode()
+        cte.fromlist.append(fromnode)
 
-    def _process_conjunction(self, context, cte, sql_path_tip, conjunction, parent_cte, weak=False):
+        concept_table = self._relation_from_concepts(context, caos_path_tip)
+
+        field_name = 'semantix.caos.builtins.id'
+        bond = pgsql.ast.FieldRefNode(table=concept_table, field=field_name, origin=concept_table,
+                                                                             origin_field=field_name)
+        concept_table.addbond(caos_path_tip.concepts, bond)
+        fromnode.expr = concept_table
+
+        ref = self.get_cte_fieldref_for_set(context, caos_path_tip, field_name,
+                                            map=sql_path_tip.concept_node_map)
+        cte.where = pgsql.ast.BinOpNode(left=bond, op=ast.ops.EQ, right=ref)
+
+        target = pgsql.ast.SelectExprNode(expr=pgsql.ast.ConstantNode(value=True))
+        cte.targets.append(target)
+
+        return cte
+
+    def _process_conjunction(self, context, cte, sql_path_tip, caos_path_tip, conjunction,
+                                                               parent_cte, weak=False):
         sql_path = sql_path_tip
 
         for link in conjunction.paths:
             if isinstance(link, tree.ast.EntityLink):
-                sql_path = self.caos_path_to_sql_path(context, parent_cte, link.target, sql_path, link, weak)
-                sql_path = self._process_path(context, cte, sql_path, link.target, weak)
+                link_proto = link.link_proto
+
+                target_sets = {link.target} | set(link.target.joins)
+                in_selector = bool(list(filter(lambda i: 'selector' in i.users, target_sets)))
+
+                cardinality_ok = context.current.ignore_cardinality or \
+                                 in_selector or \
+                                 link_proto.mapping in (caos_types.OneToOne, caos_types.ManyToOne)
+
+                if cardinality_ok:
+                    sql_path = self.caos_path_to_sql_path(context, cte, parent_cte, link.target,
+                                                                        sql_path, link, weak)
+
+                    sql_path = self._process_path(context, cte, sql_path, link.target, weak)
+                else:
+                    cte = self.init_filter_cte(context, parent_cte or sql_path_tip, caos_path_tip)
+                    pred = pgsql.ast.ExistsNode(expr=cte)
+                    op = ast.ops.OR if weak else ast.ops.AND
+                    sql_path_tip.where = self.extend_predicate(sql_path_tip.where, pred, op)
+
+                    with context(TransformerContext.NEW):
+                        context.current.ignore_cardinality = True
+                        sql_path = self.caos_path_to_sql_path(context, cte, cte, link.target,
+                                                                            sql_path, link, weak)
+
+                        self._process_path(context, cte, sql_path, link.target, weak)
+                        sql_path = sql_path_tip
             else:
                 sql_path = self._process_path(context, cte, sql_path, link, weak)
 
         return sql_path
 
 
-    def _process_path(self, context, cte, sql_path_tip, caos_path_tip, weak=False):
+    def _process_path(self, context, root_cte, sql_path_tip, caos_path_tip, weak=False):
         sql_paths = []
 
         if not sql_path_tip and isinstance(caos_path_tip, tree.ast.EntitySet):
-            sql_path_tip = self.caos_path_to_sql_path(context, None, caos_path_tip, None, None)
+            # Bootstrap the SQL path
+            sql_path_tip = self.caos_path_to_sql_path(context, root_cte,
+                                                      step_cte=None, caos_path_tip=caos_path_tip,
+                                                      sql_path_tip=None, link=None)
 
         if isinstance(caos_path_tip, tree.ast.Disjunction):
             disjunction = caos_path_tip
@@ -725,14 +821,15 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             conjunction = caos_path_tip.conjunction
 
         if conjunction and conjunction.paths:
-            sql_path_tip = self._process_conjunction(context, cte, sql_path_tip, conjunction, sql_path_tip,
-                                                                                                      weak)
+            sql_path_tip = self._process_conjunction(context, root_cte, sql_path_tip, caos_path_tip,
+                                                              conjunction, sql_path_tip, weak)
             if isinstance(caos_path_tip, tree.ast.EntitySet):
                 # Path conjunction works as a strong filter and, thus, the CTE corresponding
                 # to the given Caos node must only be referenced with those conjunctions
                 # included.
                 #
-                context.current.ctemap[caos_path_tip] = sql_path_tip
+                ctemap = context.current.ctemap.setdefault(root_cte, {})
+                ctemap[caos_path_tip] = sql_path_tip
 
 
         if disjunction and disjunction.paths:
@@ -740,12 +837,14 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
                 need_union = False
                 for link in disjunction.paths:
                     if isinstance(link, tree.ast.EntityLink):
-                        sql_path = self.caos_path_to_sql_path(context, sql_path_tip, link.target, sql_path_tip,
-                                                              link, weak=True)
-                        sql_path = self._process_path(context, cte, sql_path, link.target, weak=True)
+                        sql_path = self.caos_path_to_sql_path(context, root_cte, sql_path_tip,
+                                                              link.target, sql_path_tip, link,
+                                                              weak=True)
+                        sql_path = self._process_path(context, root_cte, sql_path, link.target, weak=True)
                         sql_paths.append(sql_path)
                     elif isinstance(link, tree.ast.Conjunction):
-                        sql_path = self._process_conjunction(context, cte, sql_path_tip, link, None)
+                        sql_path = self._process_conjunction(context, root_cte, sql_path_tip,
+                                                             caos_path_tip, link, None, weak=True)
                         sql_paths.append(sql_path)
                         need_union = True
                     else:
@@ -758,7 +857,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             else:
                 for link in disjunction.paths:
                     if isinstance(link, (tree.ast.EntitySet, tree.ast.PathCombination)):
-                        sql_path = self._process_path(context, cte, None, link)
+                        sql_path = self._process_path(context, root_cte, None, link)
                         sql_paths.append(sql_path)
                     else:
                         assert False, 'unexpected expression type in disjunction path: %s' % link

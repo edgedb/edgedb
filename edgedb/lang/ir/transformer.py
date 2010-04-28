@@ -216,7 +216,10 @@ class TreeTransformer:
             left = self.merge_paths(expr.left)
             right = self.merge_paths(expr.right)
 
-            combination = caos_ast.Disjunction if (expr.op == ast.ops.OR) else caos_ast.Conjunction
+            if expr.op in (ast.ops.OR, ast.ops.IN, ast.ops.NOT_IN):
+                combination = caos_ast.Disjunction
+            else:
+                combination = caos_ast.Conjunction
 
             paths = set()
             for operand in (left, right):
@@ -380,6 +383,9 @@ class TreeTransformer:
             left.disjunction = self.add_paths(left.disjunction, right.disjunction, merge_filters)
             left.atomrefs.update(right.atomrefs)
             left.metarefs.update(right.metarefs)
+            left.users.update(right.users)
+            left.joins.update(right.joins)
+            left.joins.discard(left)
 
             if merge_filters:
                 left.conjunction = self.intersect_paths(left.conjunction, right.conjunction)
@@ -409,6 +415,7 @@ class TreeTransformer:
         return disjunction
 
     def add_to_conjunction(self, conjunction, path, merge_filters):
+        result = None
         if merge_filters:
             for cpath in conjunction.paths:
                 if isinstance(cpath, (caos_ast.EntityLink, caos_ast.EntitySet)):
@@ -503,6 +510,9 @@ class TreeTransformer:
             left_set.conjunction = self.intersect_paths(left_set.conjunction, right_set.conjunction)
             left_set.atomrefs.update(right_set.atomrefs)
             left_set.metarefs.update(right_set.metarefs)
+            left_set.users.update(right_set.users)
+            left_set.joins.update(right_set.joins)
+            left_set.joins.discard(left_set)
 
             disjunction = self.intersect_paths(left_set.disjunction, right_set.disjunction)
 
@@ -732,14 +742,17 @@ class TreeTransformer:
             assert False, "Unexpected expression type %s" % path
 
     def copy_path(self, path):
-        result = caos_ast.EntitySet(id=path.id, anchor=path.anchor, concepts=path.concepts)
+        result = caos_ast.EntitySet(id=path.id, anchor=path.anchor, concepts=path.concepts,
+                                    users=path.users, joins=path.joins)
         current = result
 
         while path.rlink:
             parent_path = path.rlink.source
             parent = caos_ast.EntitySet(id=parent_path.id, anchor=parent_path.anchor,
-                                        concepts=parent_path.concepts)
-            link = caos_ast.EntityLink(filter=path.rlink.filter, source=parent, target=current)
+                                        concepts=parent_path.concepts, users=parent_path.users,
+                                        joins=parent_path.joins)
+            link = caos_ast.EntityLink(filter=path.rlink.filter, source=parent, target=current,
+                                       link_proto=path.rlink.link_proto)
             parent.disjunction = caos_ast.Disjunction(paths=frozenset((link,)))
             current.rlink = link
             current = parent
@@ -805,12 +818,20 @@ class TreeTransformer:
 
                     id_col = caos_name.Name('semantix.caos.builtins.id')
                     if op in (ast.ops.EQ, ast.ops.NE):
-                        lrefs = [caos_ast.AtomicRefSimple(ref=p, name=id_col) for p in left_exprs.paths]
-                        rrefs = [caos_ast.AtomicRefSimple(ref=p, name=id_col) for p in right_exprs.paths]
+                        lrefs = [caos_ast.AtomicRefSimple(ref=p, name=id_col)
+                                    for p in left_exprs.paths]
+                        rrefs = [caos_ast.AtomicRefSimple(ref=p, name=id_col)
+                                    for p in right_exprs.paths]
 
                         l = caos_ast.Disjunction(paths=frozenset(lrefs))
                         r = caos_ast.Disjunction(paths=frozenset(rrefs))
                         result = newbinop(l, r)
+
+                        for lset, rset in itertools.product(left_exprs.paths, right_exprs.paths):
+                            lset.joins.add(rset)
+                            rset.backrefs.add(lset)
+                            rset.joins.add(lset)
+                            lset.backrefs.add(rset)
 
                 elif op in (ast.ops.IS, ast.ops.IS_NOT):
                     paths = set()
@@ -823,6 +844,24 @@ class TreeTransformer:
                     if len(paths) == 1:
                         result = next(iter(paths))
                     else:
+                        result = caos_ast.Disjunction(paths=frozenset(paths))
+
+                elif op in (ast.ops.IN, ast.ops.NOT_IN) and reversed:
+                    if isinstance(right, caos_ast.Constant):
+
+                        # <Constant> IN <EntitySet> is interpreted as a membership
+                        # check of entity with ID represented by Constant in the EntitySet,
+                        # which is equivalent to <EntitySet>.id = <Constant>
+                        #
+                        id_col = caos_name.Name('semantix.caos.builtins.id')
+
+                        membership_op = ast.ops.EQ if op == ast.ops.IN else ast.ops.NE
+                        paths = set()
+                        for p in left_exprs.paths:
+                            ref = caos_ast.AtomicRefSimple(ref=p, name=id_col)
+                            expr = caos_ast.BinOp(left=ref, right=right, op=membership_op)
+                            paths.add(caos_ast.AtomicRefExpr(expr=expr))
+
                         result = caos_ast.Disjunction(paths=frozenset(paths))
 
                 if not result:
@@ -851,10 +890,10 @@ class TreeTransformer:
                     if rightdict:
                         paths = set()
 
-                        # If both operands are atom references, then we check if the referenced atom parent
-                        # concepts intersect, and if they do we fold the expression into the atom ref for those
-                        # common concepts only.  If there are no common concepts, a usual binary operation is
-                        # returned.
+                        # If both operands are atom references, then we check if the referenced
+                        # atom parent concepts intersect, and if they do we fold the expression
+                        # into the atom ref for those common concepts only.  If there are no common
+                        # concepts, a usual binary operation is returned.
                         #
                         for ref in left_exprs.paths:
                             left_id = ref.ref.id
@@ -887,7 +926,8 @@ class TreeTransformer:
                             operand_id = operand.ref.id
                             ref = pathdict.get(operand_id)
                             if ref:
-                                ref.expr = self.extend_binop(ref.expr, operand, op=op, reverse=reversed)
+                                ref.expr = self.extend_binop(ref.expr, operand, op=op,
+                                                                                reverse=reversed)
                                 break
 
                     if len(operands) == 2:
@@ -901,6 +941,11 @@ class TreeTransformer:
 
         elif isinstance(left, caos_ast.EntitySet):
             if op in (ast.ops.EQ, ast.ops.NE) and isinstance(right, caos_ast.EntitySet):
+                left.joins.add(right)
+                right.backrefs.add(left)
+                right.joins.add(left)
+                left.backrefs.add(right)
+
                 l = caos_ast.AtomicRefSimple(ref=left, name='semantix.caos.builtin.id')
                 r = caos_ast.AtomicRefSimple(ref=right, name='semantix.caos.builtin.id')
                 result = newbinop(l, r)
