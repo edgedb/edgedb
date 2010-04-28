@@ -383,6 +383,18 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
 
             context.current.append_graphs = False
 
+            cte = cte or context.current.query
+
+            # Fold constant ops into the inner query filter.
+            if isinstance(expr.left, tree.ast.Constant) and isinstance(right, pgsql.ast.IgnoreNode):
+                cte.fromlist[0].expr.where = self.extend_predicate(cte.fromlist[0].expr.where,
+                                                                   left, expr.op)
+                left = pgsql.ast.IgnoreNode()
+            elif isinstance(expr.right, tree.ast.Constant) and isinstance(left, pgsql.ast.IgnoreNode):
+                cte.fromlist[0].expr.where = self.extend_predicate(cte.fromlist[0].expr.where,
+                                                                   right, expr.op)
+                right = pgsql.ast.IgnoreNode()
+
             if isinstance(left, pgsql.ast.IgnoreNode):
                 result = right
             elif isinstance(right, pgsql.ast.IgnoreNode):

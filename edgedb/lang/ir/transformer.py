@@ -873,12 +873,17 @@ class TreeTransformer:
                     paths = set()
 
                     for ref in left_exprs.paths:
+                        if isinstance(ref, caos_ast.AtomicRefExpr):
+                            # We must not inline expressions beyond the original bin-op
+                            result = newbinop(left, right)
+                            break
                         paths.add(caos_ast.AtomicRefExpr(expr=newbinop(ref, right)))
-
-                    if len(paths) == 1:
-                        result = next(iter(paths))
                     else:
-                        result = caos_ast.Disjunction(paths=frozenset(paths))
+                        if len(paths) == 1:
+                            result = next(iter(paths))
+                        else:
+                            result = caos_ast.Disjunction(paths=frozenset(paths))
+
 
                 elif isinstance(right, (caos_ast.AtomicRef, caos_ast.Disjunction)):
 
@@ -895,7 +900,7 @@ class TreeTransformer:
                         # If both operands are atom references, then we check if the referenced
                         # atom parent concepts intersect, and if they do we fold the expression
                         # into the atom ref for those common concepts only.  If there are no common
-                        # concepts, a usual binary operation is returned.
+                        # concepts, a regular binary operation is returned.
                         #
                         for ref in left_exprs.paths:
                             left_id = ref.ref.id
