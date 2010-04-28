@@ -10,6 +10,7 @@ import weakref
 
 from semantix.utils import ast
 from semantix.caos import name as caos_name
+from semantix.caos import types as caos_types
 
 
 class Base(ast.AST):
@@ -197,7 +198,7 @@ class Conjunction(PathCombination):
 
 
 class EntitySet(Base):
-    __fields = ['id', 'anchor', ('concepts', frozenset), 'atom',
+    __fields = ['id', 'anchor', ('concept', caos_types.ProtoNode), 'atom',
                 'filter',
                 ('conjunction', Conjunction),
                 ('disjunction', Disjunction),

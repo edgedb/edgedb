@@ -9,12 +9,15 @@
 import itertools
 
 from semantix.caos import name as caos_name
+from semantix.caos import types as caos_types
 from semantix.caos.tree import ast as caos_ast
 
 from semantix.utils.algos import boolean
 from semantix.utils import datastructures, ast
+from semantix.utils.functional import checktypes
 
 
+@checktypes
 class LinearPath(list):
     """
     Denotes a linear path in the graph.  The path is considered linear if it does not have
@@ -36,15 +39,15 @@ class LinearPath(list):
         for i in range(1, len(self) - 1, 2):
             if self[i] != other[i]:
                 break
-            if not (self[i + 1] & other[i + 1]):
+            if self[i + 1] != other[i + 1]:
                 break
         else:
             return True
         return False
 
-    def add(self, links, direction, targets):
+    def add(self, links, direction:caos_types.LinkDirection, target:caos_types.ProtoNode):
         self.append((frozenset(links), direction))
-        self.append(frozenset(targets))
+        self.append(target)
 
     def __hash__(self):
         return hash(tuple(self))
@@ -53,10 +56,10 @@ class LinearPath(list):
         if not self:
             return '';
 
-        result = '|'.join(str(c.name) for c in self[0])
+        result = '%s' % self[0].name
 
         for i in range(1, len(self) - 1, 2):
-            result += '[%s%s]%s' % (self[i][1], str(self[i][0]), '|'.join(str(c.name) for c in self[i + 1]))
+            result += '[%s%s]%s' % (self[i][1], str(self[i][0]), self[i + 1].name)
         return result
 
 
@@ -742,14 +745,14 @@ class TreeTransformer:
             assert False, "Unexpected expression type %s" % path
 
     def copy_path(self, path):
-        result = caos_ast.EntitySet(id=path.id, anchor=path.anchor, concepts=path.concepts,
+        result = caos_ast.EntitySet(id=path.id, anchor=path.anchor, concept=path.concept,
                                     users=path.users, joins=path.joins)
         current = result
 
         while path.rlink:
             parent_path = path.rlink.source
             parent = caos_ast.EntitySet(id=parent_path.id, anchor=parent_path.anchor,
-                                        concepts=parent_path.concepts, users=parent_path.users,
+                                        concept=parent_path.concept, users=parent_path.users,
                                         joins=parent_path.joins)
             link = caos_ast.EntityLink(filter=path.rlink.filter, source=parent, target=current,
                                        link_proto=path.rlink.link_proto)
@@ -837,8 +840,7 @@ class TreeTransformer:
                     paths = set()
 
                     for path in left_exprs.paths:
-                        condition = bool(set(path.concepts) & {right})
-                        if (op == ast.ops.IS_NOT) ^ condition:
+                        if (op == ast.ops.IS) == (path.concept == right):
                             paths.add(path)
 
                     if len(paths) == 1:

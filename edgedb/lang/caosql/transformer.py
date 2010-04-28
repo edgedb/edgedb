@@ -183,7 +183,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                             if isinstance(refnode, tree.ast.Disjunction):
                                 tips = {}
                                 for p in refnode.paths:
-                                    concept = next(iter(p.concepts))
+                                    concept = p.concept
                                     path_copy = self.copy_path(p)
                                     path_copy.users.add(context.current.location)
                                     if concept in tips:
@@ -193,7 +193,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                             else:
                                 path_copy = self.copy_path(refnode)
                                 path_copy.users.add(context.current.location)
-                                tips = {next(iter(refnode.concepts)): {path_copy}}
+                                tips = {refnode.concept: {path_copy}}
                         continue
 
                     tip = node
@@ -204,10 +204,9 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                 step = tree.ast.EntitySet()
 
-                tips = {self._normalize_concept(context, tip.expr, tip.namespace): {step}}
-
-                step.concepts = frozenset(tips.keys())
-                step.id = tree.transformer.LinearPath([step.concepts])
+                step.concept = self._normalize_concept(context, tip.expr, tip.namespace)
+                tips = {step.concept: {step}}
+                step.id = tree.transformer.LinearPath([step.concept])
                 step.anchor = anchor
 
                 step.users.add(context.current.location)
@@ -264,10 +263,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                                     for t in tip:
                                         target_set = tree.ast.EntitySet()
-                                        target_set.concepts = frozenset((target,))
+                                        target_set.concept = target
                                         target_set.id = tree.transformer.LinearPath(t.id)
                                         target_set.id.add(link_spec.labels, link_spec.direction,
-                                                          target_set.concepts)
+                                                          target_set.concept)
                                         target_set.users.add(context.current.location)
 
                                         link = tree.ast.EntityLink(source=t, target=target_set,
