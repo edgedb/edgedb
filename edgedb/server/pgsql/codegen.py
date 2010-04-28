@@ -261,8 +261,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.expr)
 
     def visit_ConstantNode(self, node):
-        if node.index is not None:
+        if node.expr is not None:
+            self.visit(node.expr)
+        elif node.index is not None:
             self.write('$%d' % (node.index + 1))
+            if node.type is not None:
+                self.write('::%s' % node.type)
         else:
             if node.value is None:
                 self.write('NULL')

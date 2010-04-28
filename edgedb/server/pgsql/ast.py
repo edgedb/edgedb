@@ -27,7 +27,7 @@ class PathVarNode(VarNode):
     pass
 
 class ConstantNode(Base):
-    __fields = ['value', 'index']
+    __fields = ['value', 'index', 'expr', 'type']
 
 class UnaryOpNode(Base):
     __fields = ['op', 'operand']

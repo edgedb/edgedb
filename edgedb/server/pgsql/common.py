@@ -104,3 +104,25 @@ def get_table_name(obj, catenate=True):
         return link_name_to_table_name(obj.normal_name(), catenate)
     else:
         assert False
+
+
+_type_index = None
+
+def py_type_to_pg_type(typ):
+    global _type_index
+
+    if _type_index is None:
+        import postgresql.types
+        import postgresql.types.io
+
+        _type_index = {}
+
+        for mod in postgresql.types.io.io_modules:
+            mod = postgresql.types.io.load(mod)
+
+            oid_to_type = getattr(mod, 'oid_to_type', None)
+            if oid_to_type:
+                _type_index.update({k: postgresql.types.oid_to_name[v]
+                                    for k, v in zip(oid_to_type.values(), oid_to_type.keys())})
+
+    return _type_index[typ]

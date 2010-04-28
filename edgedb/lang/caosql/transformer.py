@@ -51,18 +51,32 @@ class ParseContext(object):
     current = property(_current)
 
 
+class ParseContextWrapper(object):
+    def __init__(self, context):
+        self.context = context
+
+    def __enter__(self):
+        self.context.push()
+        return self.context
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.context.pop()
+
+
 class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
     def __init__(self, realm, module_aliases=None):
         self.realm = realm
         self.module_aliases = module_aliases
 
-    def transform(self, caosql_tree):
+    def transform(self, caosql_tree, arg_types):
         self.context = context = ParseContext()
-        stree = self._transform_select(context, caosql_tree)
+        stree = self._transform_select(context, caosql_tree, arg_types)
 
         return stree
 
-    def _transform_select(self, context, caosql_tree):
+    def _transform_select(self, context, caosql_tree, arg_types):
+        self.arg_types = arg_types or {}
+
         graph = context.current.graph = tree.ast.GraphExpr()
 
         if caosql_tree.namespaces:
@@ -75,8 +89,15 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         graph.generator = self._process_select_where(context, caosql_tree.where)
         graph.selector = self._process_select_targets(context, caosql_tree.targets)
         graph.sorter = self._process_sorter(context, caosql_tree.orderby)
-        graph.offset = caosql_tree.offset
-        graph.limit = caosql_tree.limit
+        if caosql_tree.offset:
+            graph.offset = tree.ast.Constant(value=caosql_tree.offset.value,
+                                             index=caosql_tree.offset.index,
+                                             type=int)
+
+        if caosql_tree.limit:
+            graph.limit = tree.ast.Constant(value=caosql_tree.limit.value,
+                                             index=caosql_tree.limit.index,
+                                             type=int)
 
         paths = [graph.generator] + [s.expr for s in graph.selector] + [s.expr for s in graph.sorter]
 
@@ -108,7 +129,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             node = self._process_path(context, expr)
 
         elif isinstance(expr, qlast.ConstantNode):
-            node = tree.ast.Constant(value=expr.value, index=expr.index)
+            type = self.arg_types.get(expr.index)
+            node = tree.ast.Constant(value=expr.value, index=expr.index, type=type)
 
         elif isinstance(expr, qlast.SequenceNode):
             elements=[self._process_expr(context, e) for e in expr.elements]

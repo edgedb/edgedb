@@ -12,8 +12,12 @@ from semantix.utils import ast
 from semantix.caos import caosql, tree
 from semantix.caos import types as caos_types
 from semantix.caos.backends import pgsql
+from semantix.caos.backends.pgsql import common
 from semantix.utils.debug import debug
 from semantix.utils.datastructures import OrderedSet
+
+
+from . import delta as delta_cmds
 
 
 class Alias(str):
@@ -41,6 +45,7 @@ class TransformerContextLevel(object):
             self.location = 'query'
             self.append_graphs = False
             self.query = prevlevel.query
+            self.realm = prevlevel.realm
         else:
             self.vars = {}
             self.ctes = {}
@@ -51,6 +56,7 @@ class TransformerContextLevel(object):
             self.location = 'query'
             self.append_graphs = False
             self.query = pgsql.ast.SelectQueryNode()
+            self.realm = None
 
     def genalias(self, alias=None, hint=None):
         if alias is None:
@@ -122,9 +128,9 @@ class TransformerContextWrapper(object):
 
 class CaosTreeTransformer(ast.visitor.NodeVisitor):
     @debug
-    def transform(self, query):
+    def transform(self, query, realm):
         # Transform to sql tree
-        qtree, argmap = self._transform_tree(query)
+        qtree, argmap = self._transform_tree(query, realm)
 
         """LOG [caos.query] SQL Tree
         self._dump(qtree)
@@ -143,10 +149,11 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
     def _dump(self, tree):
         print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*|caosnode)$'))
 
-    def _transform_tree(self, tree):
+    def _transform_tree(self, tree, realm):
 
         context = TransformerContext()
 
+        context.current.realm = realm
         context.current.query.where = self._process_generator(context, tree.generator)
 
         self._process_selector(context, tree.selector, context.current.query)
@@ -239,15 +246,27 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         return False
 
     def _process_constant(self, context, expr):
-        if expr.index is not None and not isinstance(expr.index, int):
-            if expr.index in context.current.argmap:
-                index = context.current.argmap.index(expr.index)
+        if expr.type:
+            if isinstance(expr.type, caos_types.ProtoAtom):
+                const_type = delta_cmds.CompositePrototypeMetaCommand.pg_type_from_atom(
+                                                            context.current.realm.meta, expr.type)
             else:
-                context.current.argmap.add(expr.index)
-                index = len(context.current.argmap) - 1
+                const_type = common.py_type_to_pg_type(expr.type)
         else:
-            index = expr.index
-        result = pgsql.ast.ConstantNode(value=expr.value, index=index)
+            const_type = None
+
+        if expr.expr:
+            result = pgsql.ast.ConstantNode(expr=self._process_expr(context, expr.expr))
+        else:
+            if expr.index is not None and not isinstance(expr.index, int):
+                if expr.index in context.current.argmap:
+                    index = context.current.argmap.index(expr.index)
+                else:
+                    context.current.argmap.add(expr.index)
+                    index = len(context.current.argmap) - 1
+            else:
+                index = expr.index
+            result = pgsql.ast.ConstantNode(value=expr.value, index=index, type=const_type)
         return result
 
     def _process_expr(self, context, expr, cte=None):

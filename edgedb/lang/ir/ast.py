@@ -205,7 +205,8 @@ class EntitySet(Base):
                 ('atomrefs', set), ('metarefs', set)]
 
 
-class Constant(Base): __fields = ['value', 'index']
+class Constant(Base): __fields = ['value', 'index', 'expr', 'type']
+
 class Sequence(Base): __fields = [('elements', set)]
 
 class BinOp(Base):

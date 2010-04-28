@@ -106,9 +106,10 @@ class Query:
 class CaosQLCursor:
     cache = {}
 
-    def __init__(self, connection):
-        self.connection = connection
-        self.cursor = CompatCursor(connection)
+    def __init__(self, session):
+        self.realm = session.realm
+        self.connection = session.connection
+        self.cursor = CompatCursor(self.connection)
         self.transformer = CaosTreeTransformer()
         self.current_portal = None
 
@@ -116,7 +117,7 @@ class CaosQLCursor:
     def prepare(self, query):
         result = self.cache.get(query)
         if not result:
-            qtext, argmap = self.transformer.transform(query)
+            qtext, argmap = self.transformer.transform(query, self.realm)
             ps = self.connection.prepare(qtext)
             self.cache[query] = (qtext, ps, argmap)
         else:
@@ -475,7 +476,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def caosqlcursor(self, session):
-        return CaosQLCursor(session.connection)
+        return CaosQLCursor(session)
 
 
     def read_modules(self):

@@ -897,7 +897,7 @@ class TreeTransformer:
 
         elif isinstance(left, caos_ast.Constant):
             if isinstance(right, caos_ast.Constant):
-                result = self.eval_const_expr(left, right, op, reversed)
+                result = caos_ast.Constant(expr=newbinop(left, right))
 
         elif isinstance(left, caos_ast.EntitySet):
             if op in (ast.ops.EQ, ast.ops.NE) and isinstance(right, caos_ast.EntitySet):
