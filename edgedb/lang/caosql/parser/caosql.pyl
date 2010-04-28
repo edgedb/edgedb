@@ -33,7 +33,7 @@ INITIAL:
     "[Tt][Rr][Uu][Ee]"                      : return "TRUE"
     "[Ff][Aa][Ll][Ss][Ee]"                  : return "FALSE"
     "[Uu][Ss][Ii][Nn][Gg]"                  : return "USING"
-    "[Nn][Uu][Ll][Ll]"  : return "NULL"
+    "[Nn][Oo][Nn][Ee]"  : return "NONE"
     "\("                : return "("
     "\)"                : return ")"
     ","                 : return ","

@@ -161,7 +161,7 @@ neg_predicate                   -> simple_predicate:
                                         return UnaryOpNode(op=ast.ops.NOT, operand=kids[1])
 ;
 
-simple_predicate                -> primary_query meta_op opt_fq_graph_name:
+simple_predicate                -> primary_query meta_op opt_fq_graph_name_or_none:
                                         return BinOpNode(op=kids[1], left=kids[0], right=kids[2])
                                  | primary_query meta_op quantifier opt_fq_graph_name_set:
                                         return BinOpNode(op=kids[1], left=kids[0], right=kids[2])
@@ -211,8 +211,12 @@ comp_op                         -> '<':
 quantifier                      -> SOME | ANY | ALL
 ;
 
-number_constant                 -> NULL:
+none_constant                   -> NONE:
                                         return ConstantNode(value=None)
+;
+
+number_constant                 -> none_constant:
+                                        return kids[0]
                                  | NUMBER:
                                         if '.' in kids[0]:
                                             value = float(kids[0])
@@ -346,6 +350,12 @@ simple_link_expr                -> opt_fq_link_label_expr:
 opt_fq_graph_name_set           -> '(' opt_fq_graph_name (',' opt_fq_graph_name)* ')':
                                         elements = [kids[1]] + [k[1] for k in kids[2]]
                                         return SequenceNode(elements=elements)
+;
+
+opt_fq_graph_name_or_none       -> none_constant:
+                                        return kids[0]
+                                 | opt_fq_graph_name:
+                                        return kids[0]
 ;
 
 opt_fq_graph_name               -> nsname '.' graph_name:
