@@ -14,6 +14,7 @@ required: yes
 mapping:
     "params":
         type: map
+        default: {}
         mapping:
             =:
                 type: map
