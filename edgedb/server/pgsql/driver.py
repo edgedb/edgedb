@@ -53,6 +53,9 @@ driver = Driver()
 
 def connect(iri):
     params = postgresql.iri.parse(iri)
+    settings = params.setdefault('settings', {})
+    settings['standard_conforming_strings'] = 'on'
     connection = driver.fit(**params)()
     connection.connect()
+
     return connection
