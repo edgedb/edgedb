@@ -128,7 +128,7 @@ class TestUtilsConfig(object):
             test2(1, 10.0)
 
     def test_utils_config_overlapping(self):
-        with assert_raises(ConfigError, error_substring='Overlapping'):
+        with assert_raises(ConfigError, error_re='Overlapping'):
             @configurable
             def test3(test=cvalue(1.0)):
                 pass
@@ -142,7 +142,7 @@ class TestUtilsConfig(object):
         def test4(test=cvalue(1.0)):
             pass
 
-        with assert_raises(ConfigError, error_substring='read-only'):
+        with assert_raises(ConfigError, error_re='read-only'):
             config.semantix.utils.config.tests.test_config.test4.test = 10
 
     def test_utils_config_not_exist_value(self):
@@ -268,7 +268,7 @@ class TestUtilsConfig(object):
         with assert_raises(ConfigRequiredValueError):
             test_nd1()
 
-        with assert_raises(TypeError, error_substring='Invalid value'):
+        with assert_raises(TypeError, error_re='Invalid value'):
             set_value('semantix.utils.config.tests.test_config.test_nd1.bar', 142)
 
         set_value('semantix.utils.config.tests.test_config.test_nd1.bar', '142')
@@ -379,7 +379,7 @@ class TestUtilsConfig(object):
             set_value('semantix.utils.config.tests.test_config.TMP.param', 10)
 
     def test_utils_config_invalid_name(self):
-        with assert_raises(ConfigError, error_substring='Unable to apply'):
+        with assert_raises(ConfigError, error_re='Unable to apply'):
             @configurable
             def _name(test=cvalue('root')):
                 return test
@@ -399,7 +399,7 @@ class TestUtilsConfig(object):
 
         assert inter_test2() == 'smth/root/'
 
-        with assert_raises(ConfigError, error_substring='Malformed substitution syntax'):
+        with assert_raises(ConfigError, error_re='Malformed substitution syntax'):
             inter_test3()
 
         set_value('semantix.utils.config.tests.test_config.inter_test1.test', '33')

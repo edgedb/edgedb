@@ -160,12 +160,18 @@ def highlight(code, lang=None):
 
 
 @contextlib.contextmanager
-def assert_raises(exception_cls, *, error_substring=None):
+def assert_raises(exception_cls, *, cause=None, error_re=None):
     try:
         yield
     except exception_cls as ex:
-        if error_substring is not None:
-            assert error_substring in ex.args[0]
+        if cause is not None:
+            assert isinstance(ex.__cause__, cause)
+
+        if error_re is not None:
+            err_re = re.compile('%s' % error_re)
+
+            assert err_re.search(ex.args[0]) or \
+                   (cause is not None and err_re.search(ex.__cause__.args[0]))
     else:
         assert False, '%s was expected to be raised' % exception_cls.__name__
 
