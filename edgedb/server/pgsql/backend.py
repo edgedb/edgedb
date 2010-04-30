@@ -48,8 +48,41 @@ from . import pool
 from . import session
 
 
+class Cursor:
+    def __init__(self, dbcursor, offset, limit):
+        self.dbcursor = dbcursor
+        self.offset = offset
+        self.limit = limit
+        self.cursor_pos = 0
+
+    def seek(self, offset, whence='set'):
+        if whence == 'set':
+            result = self.dbcursor.seek(offset, 'ABSOLUTE')
+            self.cursor_pos = result
+        elif whence == 'cur':
+            result = self.dbcursor.seek(offset, 'FORWARD')
+            self.cursor_pos += result
+        elif whence == 'end':
+            result = self.dbcursor.seek('ALL')
+            self.cursor_pos = result - offset
+
+        return self.cursor_pos
+
+    def tell(self):
+        return self.cursor_pos
+
+    def __iter__(self):
+        if self.offset:
+            self.seek(self.offset, 'set')
+
+        while self.limit is None or self.cursor_pos <= self.limit:
+            self.cursor_pos += 1
+            yield next(self.dbcursor)
+
+
 class Query:
-    def __init__(self, text, statement, argmap, result_types, argument_types, context=None):
+    def __init__(self, text, statement, argmap, result_types, argument_types, context=None,
+                 scrolling_cursor=False, offset=None, limit=None):
         self.text = text
         self.argmap = argmap
         self.context = context
@@ -57,9 +90,29 @@ class Query:
         self.result_types = result_types
         self.argument_types = argument_types
 
+        self.scrolling_cursor = scrolling_cursor
+        self.offset = offset
+        self.limit = limit
+
     def __call__(self, *args, **kwargs):
         vars = self.convert_args(args, kwargs)
-        return self.statement(*vars)
+
+        if self.scrolling_cursor:
+            if self.limit:
+                limit = vars[self.limit.index]
+                vars.pop()
+            else:
+                limit = None
+
+            if self.offset:
+                offset = vars[self.offset.index]
+                vars.pop()
+            else:
+                offset = None
+
+            return Cursor(self.statement.declare(*vars), offset, limit)
+        else:
+            return self.statement(*vars)
 
     def first(self, *args, **kwargs):
         vars = self.convert_args(args, kwargs)
@@ -67,14 +120,18 @@ class Query:
 
     def rows(self, *args, **kwargs):
         vars = self.convert_args(args, kwargs)
-        return self.statement.rows(vars)
+
+        if self.scrolling_cursor:
+            return Cursor(self.statement.declare(*vars), self.offset, self.limit)
+        else:
+            return self.statement.rows(vars)
 
     def chunks(self, *args, **kwargs):
         vars = self.convert_args(args, kwargs)
         return self.statement.chunks(*vars)
 
     def convert_args(self, args, kwargs):
-        result = args or []
+        result = list(args) or []
         for k in self.argmap:
             result.append(kwargs[k])
 
@@ -100,12 +157,29 @@ class CaosQLCursor:
         self.current_portal = None
 
     @debug
-    def prepare(self, query):
-        result = self.cache.get(query)
+    def prepare(self, query, scrolling_cursor=False):
+        if scrolling_cursor:
+            offset = query.offset
+            limit = query.limit
+        else:
+            offset = limit = None
+
+        cache_key = (query, scrolling_cursor)
+
+        result = self.cache.get(cache_key)
+
         if not result:
+            if scrolling_cursor:
+                query.offset = None
+                query.limit = None
+
             qtext, argmap = self.transformer.transform(query, self.realm)
             ps = self.connection.prepare(qtext)
-            self.cache[query] = (qtext, ps, argmap)
+            self.cache[cache_key] = (qtext, ps, argmap)
+
+            if scrolling_cursor:
+                query.offset = offset
+                query.limit = limit
         else:
             qtext, ps, argmap = result
             """LOG [cache.caos.query] Cache Hit
@@ -121,7 +195,8 @@ class CaosQLCursor:
                 restypes[k] = v
 
         return Query(text=qtext, statement=ps, argmap=argmap, result_types=restypes,
-                     argument_types=query.argument_types)
+                     argument_types=query.argument_types, scrolling_cursor=scrolling_cursor,
+                     offset=offset, limit=limit)
 
 
 class Backend(backends.MetaBackend, backends.DataBackend):
