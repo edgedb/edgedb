@@ -6,13 +6,10 @@
 ##
 
 
-import importlib
-
 from semantix import caos
 from semantix.caos import delta
-from semantix.utils import datastructures
+from semantix.utils import datastructures, helper
 from semantix.utils.lang import yaml
-from semantix.utils.algos import persistent_hash
 
 from .common import StructMeta
 
@@ -148,11 +145,9 @@ class PrototypeCommand(Command, adapts=delta.PrototypeCommand):
         return result
 
     def construct(self):
-        self.data['prototype_name'] = caos.Name(self.data['prototype_name'])
-
-        if 'prototype_class' in self.data:
-            module, _, name = self.data['prototype_class'].rpartition('.')
-            self.data['prototype_class'] = getattr(importlib.import_module(module), name)
+        prototype_class = self.data.get('prototype_class')
+        if prototype_class:
+            self.data['prototype_class'] = helper.get_object(prototype_class)
 
         properties = self.data.get('properties')
         if properties:
@@ -168,15 +163,33 @@ class PrototypeCommand(Command, adapts=delta.PrototypeCommand):
         return super().construct()
 
 
+class NamedPrototypeCommand(PrototypeCommand, adapts=delta.NamedPrototypeCommand):
+    def construct(self):
+        self.data['prototype_name'] = caos.Name(self.data['prototype_name'])
+        return super().construct()
+
+
 class CreatePrototype(PrototypeCommand, adapts=delta.CreatePrototype):
     pass
 
 
-class RenamePrototype(Command, adapts=delta.RenamePrototype):
+class CreateSimplePrototype(CreatePrototype, adapts=delta.CreateSimplePrototype):
+    @classmethod
+    def represent_command(cls, data):
+        result = super().represent_command(data)
+        result['prototype_data'] = data.prototype_data
+        return result
+
+
+class CreateNamedPrototype(NamedPrototypeCommand, adapts=delta.CreateNamedPrototype):
     pass
 
 
-class AlterPrototype(PrototypeCommand, adapts=delta.AlterPrototype):
+class RenameNamedPrototype(NamedPrototypeCommand, adapts=delta.RenameNamedPrototype):
+    pass
+
+
+class AlterNamedPrototype(NamedPrototypeCommand, adapts=delta.AlterNamedPrototype):
     pass
 
 
@@ -190,59 +203,35 @@ class AlterPrototypeProperty(Command, adapts=delta.AlterPrototypeProperty):
         return result
 
 
-class DeletePrototype(Command, adapts=delta.DeletePrototype):
+class DeleteNamedPrototype(NamedPrototypeCommand, adapts=delta.DeleteNamedPrototype):
     pass
 
 
-class AtomModCommand(Command, adapts=delta.AtomModCommand):
-    @classmethod
-    def represent_command(cls, data):
-        result = super().represent_command(data)
-        result['mod_class'] = '%s.%s' % (data.mod_class.__module__,
-                                         data.mod_class.__name__)
-        return result
-
-    def construct(self):
-        module, _, name = self.data['mod_class'].rpartition('.')
-        self.data['mod_class'] = getattr(importlib.import_module(module), name)
-        super().construct()
-
-
-class LinkConstraintCommand(Command, adapts=delta.LinkConstraintCommand):
-    @classmethod
-    def represent_command(cls, data):
-        result = super().represent_command(data)
-        result['constraint_class'] = '%s.%s' % (data.constraint_class.__module__,
-                                                data.constraint_class.__name__)
-        return result
-
-    def construct(self):
-        module, _, name = self.data['constraint_class'].rpartition('.')
-        self.data['constraint_class'] = getattr(importlib.import_module(module), name)
-        super().construct()
-
-
-class CreateAtom(CreatePrototype, adapts=delta.CreateAtom):
+class AtomModCommand(PrototypeCommand, adapts=delta.AtomModCommand):
     pass
 
 
-class CreateAtomMod(AtomModCommand, adapts=delta.CreateAtomMod):
-    @classmethod
-    def represent_command(cls, data):
-        result = super().represent_command(data)
-        result['mod_data'] = data.mod_data
-        return result
-
-
-class RenameAtom(RenamePrototype, adapts=delta.RenameAtom):
+class LinkConstraintCommand(PrototypeCommand, adapts=delta.LinkConstraintCommand):
     pass
 
 
-class AlterAtom(AlterPrototype, adapts=delta.AlterAtom):
+class CreateAtom(CreateNamedPrototype, adapts=delta.CreateAtom):
     pass
 
 
-class DeleteAtom(DeletePrototype, adapts=delta.DeleteAtom):
+class CreateAtomMod(AtomModCommand, CreateSimplePrototype, adapts=delta.CreateAtomMod):
+    pass
+
+
+class RenameAtom(RenameNamedPrototype, adapts=delta.RenameAtom):
+    pass
+
+
+class AlterAtom(AlterNamedPrototype, adapts=delta.AlterAtom):
+    pass
+
+
+class DeleteAtom(DeleteNamedPrototype, adapts=delta.DeleteAtom):
     pass
 
 
@@ -250,79 +239,76 @@ class DeleteAtomMod(AtomModCommand, adapts=delta.DeleteAtomMod):
     pass
 
 
-class CreateConcept(CreatePrototype, adapts=delta.CreateConcept):
+class CreateConcept(CreateNamedPrototype, adapts=delta.CreateConcept):
     pass
 
 
-class RenameConcept(RenamePrototype, adapts=delta.RenameConcept):
+class RenameConcept(RenameNamedPrototype, adapts=delta.RenameConcept):
     pass
 
 
-class AlterConcept(AlterPrototype, adapts=delta.AlterConcept):
+class AlterConcept(AlterNamedPrototype, adapts=delta.AlterConcept):
     pass
 
 
-class DeleteConcept(DeletePrototype, adapts=delta.DeleteConcept):
-    pass
-
-
-
-class CreateLinkSet(CreatePrototype, adapts=delta.CreateLinkSet):
-    pass
-
-
-class RenameLinkSet(RenamePrototype, adapts=delta.RenameLinkSet):
-    pass
-
-
-class AlterLinkSet(AlterPrototype, adapts=delta.AlterLinkSet):
-    pass
-
-
-class DeleteLinkSet(DeletePrototype, adapts=delta.DeleteLinkSet):
+class DeleteConcept(DeleteNamedPrototype, adapts=delta.DeleteConcept):
     pass
 
 
 
-class CreateLink(CreatePrototype, adapts=delta.CreateLink):
+class CreateLinkSet(CreateNamedPrototype, adapts=delta.CreateLinkSet):
     pass
 
 
-class RenameLink(RenamePrototype, adapts=delta.RenameLink):
+class RenameLinkSet(RenameNamedPrototype, adapts=delta.RenameLinkSet):
     pass
 
 
-class AlterLink(AlterPrototype, adapts=delta.AlterLink):
+class AlterLinkSet(AlterNamedPrototype, adapts=delta.AlterLinkSet):
     pass
 
 
-class DeleteLink(DeletePrototype, adapts=delta.DeleteLink):
+class DeleteLinkSet(DeleteNamedPrototype, adapts=delta.DeleteLinkSet):
     pass
 
 
-class CreateLinkConstraint(LinkConstraintCommand, adapts=delta.CreateLinkConstraint):
-    @classmethod
-    def represent_command(cls, data):
-        result = super().represent_command(data)
-        result['constraint_data'] = data.constraint_data
-        return result
+
+class CreateLink(CreateNamedPrototype, adapts=delta.CreateLink):
+    pass
+
+
+class RenameLink(RenameNamedPrototype, adapts=delta.RenameLink):
+    pass
+
+
+class AlterLink(AlterNamedPrototype, adapts=delta.AlterLink):
+    pass
+
+
+class DeleteLink(DeleteNamedPrototype, adapts=delta.DeleteLink):
+    pass
+
+
+class CreateLinkConstraint(LinkConstraintCommand, CreateSimplePrototype,
+                           adapts=delta.CreateLinkConstraint):
+    pass
 
 
 class DeleteLinkConstraint(LinkConstraintCommand, adapts=delta.DeleteLinkConstraint):
     pass
 
 
-class CreateLinkProperty(CreatePrototype, adapts=delta.CreateLinkProperty):
+class CreateLinkProperty(CreateNamedPrototype, adapts=delta.CreateLinkProperty):
     pass
 
 
-class RenameLinkProperty(RenamePrototype, adapts=delta.RenameLinkProperty):
+class RenameLinkProperty(RenameNamedPrototype, adapts=delta.RenameLinkProperty):
     pass
 
 
-class AlterLinkProperty(AlterPrototype, adapts=delta.AlterLinkProperty):
+class AlterLinkProperty(AlterNamedPrototype, adapts=delta.AlterLinkProperty):
     pass
 
 
-class DeleteLinkProperty(DeletePrototype, adapts=delta.DeleteLinkProperty):
+class DeleteLinkProperty(DeleteNamedPrototype, adapts=delta.DeleteLinkProperty):
     pass

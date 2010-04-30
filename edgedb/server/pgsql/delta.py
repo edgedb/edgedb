@@ -285,6 +285,10 @@ class Command(BaseCommand):
 
 
 class PrototypeMetaCommand(MetaCommand, delta_cmds.PrototypeCommand):
+    pass
+
+
+class NamedPrototypeMetaCommand(MetaCommand, delta_cmds.NamedPrototypeCommand):
     def fill_record(self, rec=None, obj=None):
         updates = {}
 
@@ -337,21 +341,21 @@ class AlterPrototypeProperty(MetaCommand, adapts=delta_cmds.AlterPrototypeProper
     pass
 
 
-class CreateAtomMod(MetaCommand, adapts=delta_cmds.CreateAtomMod):
+class CreateAtomMod(PrototypeMetaCommand, adapts=delta_cmds.CreateAtomMod):
     def apply(self, meta, context=None):
         result = delta_cmds.CreateAtomMod.apply(self, meta, context)
-        MetaCommand.apply(self, meta, context)
+        PrototypeMetaCommand.apply(self, meta, context)
         return result
 
 
-class DeleteAtomMod(MetaCommand, adapts=delta_cmds.DeleteAtomMod):
+class DeleteAtomMod(PrototypeMetaCommand, adapts=delta_cmds.DeleteAtomMod):
     def apply(self, meta, context=None):
         result = delta_cmds.DeleteAtomMod.apply(self, meta, context)
-        MetaCommand.apply(self, meta, context)
+        PrototypeMetaCommand.apply(self, meta, context)
         return result
 
 
-class AtomMetaCommand(PrototypeMetaCommand):
+class AtomMetaCommand(NamedPrototypeMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.table = AtomTable()
@@ -518,12 +522,12 @@ class RenameAtom(AtomMetaCommand, adapts=delta_cmds.RenameAtom):
         proto = delta_cmds.RenameAtom.apply(self, meta, context)
         AtomMetaCommand.apply(self, meta, context)
 
-        domain_name = common.atom_name_to_domain_name(self.old_name, catenate=False)
+        domain_name = common.atom_name_to_domain_name(self.prototype_name, catenate=False)
         new_domain_name = common.atom_name_to_domain_name(self.new_name, catenate=False)
 
         self.pgops.add(RenameDomain(name=domain_name, new_name=new_domain_name))
         updaterec = self.table.record(name=str(self.new_name))
-        condition = [('name', str(self.old_name))]
+        condition = [('name', str(self.prototype_name))]
         self.pgops.add(Update(table=self.table, record=updaterec, condition=condition))
 
         return proto
@@ -615,7 +619,7 @@ class DeleteAtom(AtomMetaCommand, adapts=delta_cmds.DeleteAtom):
         return atom
 
 
-class CompositePrototypeMetaCommand(PrototypeMetaCommand):
+class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.alter_table = None
@@ -706,7 +710,7 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
     def apply(self, meta, context=None):
         proto = delta_cmds.RenameConcept.apply(self, meta, context)
         ConceptMetaCommand.apply(self, meta, context)
-        self.rename(self.old_name, self.new_name)
+        self.rename(self.prototype_name, self.new_name)
 
         if context:
             concept = context.get(delta_cmds.ConceptCommandContext)
@@ -937,15 +941,15 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
 
         if context:
             concept = context.get(delta_cmds.ConceptCommandContext)
-            old_name = proto.Link.normalize_link_name(self.old_name)
+            prototype_name = proto.Link.normalize_link_name(self.prototype_name)
             new_name = proto.Link.normalize_link_name(self.new_name)
-            if concept and result.atomic() and old_name != new_name:
+            if concept and result.atomic() and prototype_name != new_name:
                 table_name = common.concept_name_to_table_name(concept.proto.name, catenate=False)
 
-                old_name = common.caos_name_to_pg_colname(old_name)
+                prototype_name = common.caos_name_to_pg_colname(prototype_name)
                 new_name = common.caos_name_to_pg_colname(new_name)
 
-                rename = AlterTableRenameColumn(table_name, old_name, new_name)
+                rename = AlterTableRenameColumn(table_name, prototype_name, new_name)
                 self.pgops.add(rename)
 
         if self.alter_table and self.alter_table.ops:
@@ -954,7 +958,7 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
         rec = self.table.record()
         rec.name = str(self.new_name)
         self.pgops.add(Update(table=self.table, record=rec,
-                              condition=[('name', str(self.old_name))], priority=1))
+                              condition=[('name', str(self.prototype_name))], priority=1))
 
         return result
 
@@ -1018,35 +1022,35 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
         return result
 
 
-class CreateLinkSet(MetaCommand, adapts=delta_cmds.CreateLinkSet):
+class CreateLinkSet(PrototypeMetaCommand, adapts=delta_cmds.CreateLinkSet):
     def apply(self, meta, context=None):
         result = delta_cmds.CreateLinkSet.apply(self, meta, context)
-        MetaCommand.apply(self, meta, context)
+        PrototypeMetaCommand.apply(self, meta, context)
         return result
 
 
-class RenameLinkSet(MetaCommand, adapts=delta_cmds.RenameLinkSet):
+class RenameLinkSet(PrototypeMetaCommand, adapts=delta_cmds.RenameLinkSet):
     def apply(self, meta, context=None):
         result = delta_cmds.RenameLinkSet.apply(self, meta, context)
-        MetaCommand.apply(self, meta, context)
+        PrototypeMetaCommand.apply(self, meta, context)
         return result
 
 
-class AlterLinkSet(MetaCommand, adapts=delta_cmds.AlterLinkSet):
+class AlterLinkSet(PrototypeMetaCommand, adapts=delta_cmds.AlterLinkSet):
     def apply(self, meta, context=None):
         result = delta_cmds.AlterLinkSet.apply(self, meta, context)
-        MetaCommand.apply(self, meta, context)
+        PrototypeMetaCommand.apply(self, meta, context)
         return result
 
 
-class DeleteLinkSet(MetaCommand, adapts=delta_cmds.DeleteLinkSet):
+class DeleteLinkSet(PrototypeMetaCommand, adapts=delta_cmds.DeleteLinkSet):
     def apply(self, meta, context=None):
         result = delta_cmds.DeleteLinkSet.apply(self, meta, context)
-        MetaCommand.apply(self, meta, context)
+        PrototypeMetaCommand.apply(self, meta, context)
         return result
 
 
-class LinkConstraintMetaCommand(MetaCommand):
+class LinkConstraintMetaCommand(PrototypeMetaCommand):
     pass
 
 
