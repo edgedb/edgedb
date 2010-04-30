@@ -83,7 +83,7 @@ class Base(ast.AST):
                             newset.add(new)
                 setattr(self, name, frozenset(newset))
 
-class GraphExpr(ast.AST):
+class GraphExpr(Base):
     __fields = ['generator', ('selector', list), ('sorter', list), 'offset', 'limit',
                 ('opselector', list), 'optarget', 'opvalues', 'op']
 
