@@ -108,7 +108,7 @@ class ScalarType(SchemaScalarType):
     def check(self, node):
         super().check(node)
 
-        if node.tag not in self.scalar_tags:
+        if not self.check_tag(node, *self.scalar_tags):
             raise SchemaValidationError('expected scalar, got %s' % node.tag, node)
 
         return node

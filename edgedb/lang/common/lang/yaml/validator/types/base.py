@@ -58,9 +58,16 @@ class SchemaType(object):
     def default_node_type(self):
         return yaml.nodes.ScalarNode
 
-    def check_tag(self, node, tag, allow_null=True):
-        return node.tag == tag or hasattr(node, 'tags') and tag in node.tags \
-                               or allow_null and node.tag == 'tag:yaml.org,2002:null'
+    def check_tag(self, node, *tags, allow_null=True):
+        if allow_null:
+            tags = ('tag:yaml.org,2002:null',) + tags
+
+        for tag in tags:
+            if node.tag == tag or (hasattr(node, 'tags') and tag in node.tags):
+                break
+        else:
+            return False
+        return True
 
     def push_tag(self, node, tag):
         if not hasattr(node, 'tags'):

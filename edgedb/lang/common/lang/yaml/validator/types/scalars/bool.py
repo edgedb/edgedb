@@ -11,7 +11,7 @@ from ...error import SchemaValidationError
 
 class BoolType(SchemaType):
     def check(self, node):
-        if node.tag != 'tag:yaml.org,2002:bool':
+        if not self.check_tag(node, 'tag:yaml.org,2002:bool'):
             raise SchemaValidationError('expected bool', node)
 
         return super().check(node)

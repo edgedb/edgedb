@@ -11,7 +11,7 @@ from ...error import SchemaValidationError
 
 class IntType(SchemaScalarType):
     def check(self, node):
-        if node.tag != 'tag:yaml.org,2002:int':
+        if not self.check_tag(node, 'tag:yaml.org,2002:int'):
             raise SchemaValidationError('expected integer', node)
 
         return super().check(node)
