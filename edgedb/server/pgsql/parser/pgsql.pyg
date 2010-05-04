@@ -1,0 +1,1155 @@
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+#
+# Based on gram.y from PostgreSQL 9.0
+#
+
+
+code:
+    from semantix.utils import ast
+    from semantix.caos.backends.pgsql import ast as pgast
+
+%nonassoc       SET ;
+%left           UNION EXCEPT ;
+%left           INTERSECT ;
+%left           OR ;
+%left           AND ;
+#%right          NOT ;
+#%right          '=' ;
+%nonassoc       '<' '>' ;
+#%nonassoc       LIKE ILIKE SIMILAR ;
+#%nonassoc       ESCAPE ;
+#%nonassoc       OVERLAPS ;
+#%nonassoc       BETWEEN ;
+#%nonassoc       IN_P ;
+#%left           POSTFIXOP ;
+
+%nonassoc       UNBOUNDED ;
+%nonassoc       IDENT PARTITION RANGE ROWS PRECEDING FOLLOWING ;
+%left           OP OPERATOR ;
+#%nonassoc       NOTNULL ;
+#%nonassoc       ISNULL ;
+#%nonassoc       IS NULL_P TRUE_P FALSE_P UNKNOWN ;
+%left           '+' '-' ;
+%left           '*' '/' '%' ;
+%left           '^' ;
+
+#%left           ZONE ;
+#%right          UMINUS ;
+#%left           '[' ']' ;
+#%left           '(' ')' ;
+#%left           TYPECAST ;
+#%left           '.' ;
+
+
+a_expr             -> c_expr:
+                        return kids[0]
+
+                    | a_expr TYPECAST typename:
+                        if isinstance(kids[0], pgast.ConstantNode):
+                            kids[0].type = kids[2]
+                            return kids[0]
+                        else:
+                            return pgast.TypeCastNode(expr=kids[0], type=kids[2])
+
+                    | a_expr AT TIME ZONE a_expr:
+                        return pgast.FunctionCallNode(name='timezone', args=[kids[4], kids[0]])
+
+                    | %prec(UMINUS) '+' a_expr:
+                        return pgast.UnaryOpNode(op=ast.ops.UPLUS, operand=kids[1])
+
+                    | %prec(UMINUS) '-' a_expr:
+                        return pgast.UnaryOpNode(op=ast.ops.UMINUS, operand=kids[1])
+
+                    | a_expr '+' a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.ADD, right=kids[2])
+
+                    | a_expr '-' a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.SUB, right=kids[2])
+
+                    | a_expr '*' a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.MUL, right=kids[2])
+
+                    | a_expr '/' a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.DIV, right=kids[2])
+
+                    | a_expr '%' a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.MOD, right=kids[2])
+
+                    | a_expr '^' a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.POW, right=kids[2])
+
+                    | a_expr '<' a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.LT, right=kids[2])
+
+                    | a_expr '>' a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.GT, right=kids[2])
+
+                    | a_expr '=' a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.EQ, right=kids[2])
+
+                    | %prec(OP) a_expr qual_op a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=kids[1], right=kids[2])
+
+                    | %prec(OP) qual_op a_expr:
+                        return pgast.UnaryOpNode(op=kids[0], operand=kids[1])
+
+                    | %prec(POSTFIXOP) a_expr qual_op:
+                        return pgast.PostfixOpNode(op=kids[1], operand=kids[0])
+
+                    | a_expr AND a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.AND, right=kids[2])
+
+                    | a_expr OR a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.OR, right=kids[2])
+
+                    | NOT a_expr:
+                        return pgast.UnaryOpNode(op=ast.ops.NOT, operand=kids[1])
+
+                    | a_expr LIKE a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=pgast.LIKE, right=kids[2])
+
+                    | a_expr LIKE a_expr ESCAPE a_expr:
+                        right = pgast.FunctionCallNode(name='like_escape', args=[kids[2], kids[4]])
+                        return pgast.BinOpNode(left=kids[0], op=pgast.LIKE, right=right)
+
+                    | a_expr NOT LIKE a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=pgast.NOT_LIKE, right=kids[3])
+
+                    | a_expr NOT LIKE a_expr ESCAPE a_expr:
+                        right = pgast.FunctionCallNode(name='like_escape', args=[kids[3], kids[5]])
+                        return pgast.BinOpNode(left=kids[0], op=pgast.NOT_LIKE, right=right)
+
+                    | a_expr ILIKE a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=pgast.ILIKE, right=kids[2])
+
+                    | a_expr ILIKE a_expr ESCAPE a_expr:
+                        right = pgast.FunctionCallNode(name='like_escape', args=[kids[2], kids[4]])
+                        return pgast.BinOpNode(left=kids[0], op=pgast.ILIKE, right=right)
+
+                    | a_expr NOT ILIKE a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=pgast.NOT_ILIKE, right=kids[3])
+
+                    | a_expr NOT ILIKE a_expr ESCAPE a_expr:
+                        right = pgast.FunctionCallNode(name='like_escape', args=[kids[3], kids[5]])
+                        return pgast.BinOpNode(left=kids[0], op=pgast.NOT_ILIKE, right=right)
+
+                    | %prec(SIMILAR) a_expr SIMILAR TO a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=pgast.SIMILAR_TO, right=kids[2])
+
+                    | a_expr SIMILAR TO a_expr ESCAPE a_expr:
+                        right = pgast.FunctionCallNode(name='similar_escape', args=[kids[3], kids[5]])
+                        return pgast.BinOpNode(left=kids[0], op=pgast.SIMILAR_TO, right=right)
+
+                    | %prec(SIMILAR) a_expr NOT SIMILAR TO a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=pgast.NOT_SIMILAR_TO, right=kids[4])
+
+                    | a_expr NOT SIMILAR TO a_expr ESCAPE a_expr:
+                        right = pgast.FunctionCallNode(name='similar_escape', args=[kids[4], kids[6]])
+                        return pgast.BinOpNode(left=kids[0], op=pgast.NOT_SIMILAR_TO, right=right)
+
+                    | a_expr IS NULL_P:
+                        right = pgast.ConstantNode(value=None)
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.IS, right=right)
+
+                    | a_expr IS NOT NULL_P:
+                        right = pgast.ConstantNode(value=None)
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.IS_NOT, right=right)
+
+                    | row OVERLAPS row:
+                        return pgast.FunctionCallNode(name='overlaps', args=[kids[0], kids[2]])
+
+                    | a_expr IS TRUE_P:
+                        right = pgast.ConstantNode(value=True)
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.IS, right=right)
+
+                    | a_expr IS NOT TRUE_P:
+                        right = pgast.ConstantNode(value=True)
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.IS_NOT, right=right)
+
+                    | a_expr IS FALSE_P:
+                        right = pgast.ConstantNode(value=False)
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.NOT, right=right)
+
+                    | a_expr IS NOT FALSE_P:
+                        right = pgast.ConstantNode(value=False)
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.IS_NOT, right=right)
+
+                    | a_expr IS UNKNOWN:
+                        right = pgast.ConstantNode(value=None)
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.IS, right=right)
+
+                    | a_expr IS NOT UNKNOWN:
+                        right = pgast.ConstantNode(value=None)
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.IS_NOT, right=right)
+
+                    | %prec(IS) a_expr IS DISTINCT FROM a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.IS_DISTINCT, right=kids[4])
+
+                    | %prec(IS) a_expr IS NOT DISTINCT FROM a_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.IS_NOT_DISTINCT, right=kids[5])
+
+                    | %prec(IS) a_expr IS OF '(' type_list ')':
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.EQ, right=kids[4])
+
+                    | %prec(IS) a_expr IS NOT OF '(' type_list ')':
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.NE, right=kids[5])
+
+                    | %prec(BETWEEN) a_expr BETWEEN ASYMMETRIC? b_expr AND b_expr:
+                        left = pgast.BinOpNode(left=kids[0], op=ast.ops.GE, right=kids[3])
+                        right = pgast.BinOpNode(left=kids[0], op=ast.ops.LE, right=kids[5])
+                        return pgast.BinOpNode(left=left, op=ast.ops.AND, right=right)
+
+                    | %prec(BETWEEN) a_expr NOT BETWEEN opt_asymmetric b_expr AND b_expr:
+                        left = pgast.BinOpNode(left=kids[0], op=ast.ops.LT, right=kids[4])
+                        right = pgast.BinOpNode(left=kids[0], op=ast.ops.GT, right=kids[6])
+                        return pgast.BinOpNode(left=left, op=ast.ops.OR, right=right)
+
+                    | %prec(BETWEEN) a_expr BETWEEN SYMMETRIC b_expr AND b_expr:
+                        left = pgast.BinOpNode(left=kids[0], op=ast.ops.GE, right=kids[3])
+                        right = pgast.BinOpNode(left=kids[0], op=ast.ops.LE, right=kids[5])
+                        one = pgast.BinOpNode(left=left, op=ast.ops.AND, right=right)
+                        left = pgast.BinOpNode(left=kids[0], op=ast.ops.GE, right=kids[5])
+                        right = pgast.BinOpNode(left=kids[0], op=ast.ops.LE, right=kids[3])
+                        second = pgast.BinOpNode(left=left, op=ast.ops.AND, right=right)
+                        return pgast.BinOpNode(left=one, op=ast.ops.OR, right=second)
+
+                    | %prec(BETWEEN) a_expr NOT BETWEEN SYMMETRIC b_expr AND b_expr:
+                        left = pgast.BinOpNode(left=kids[0], op=ast.ops.LT, right=kids[4])
+                        right = pgast.BinOpNode(left=kids[0], op=ast.ops.GT, right=kids[6])
+                        one = pgast.BinOpNode(left=left, op=ast.ops.AND, right=right)
+                        left = pgast.BinOpNode(left=kids[0], op=ast.ops.LT, right=kids[6])
+                        right = pgast.BinOpNode(left=kids[0], op=ast.ops.GT, right=kids[4])
+                        second = pgast.BinOpNode(left=left, op=ast.ops.AND, right=right)
+                        return pgast.BinOpNode(left=one, op=ast.ops.OR, right=second)
+
+                    | a_expr IN_P in_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.IN, right=kids[2])
+
+                    | a_expr NOT IN_P in_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.NOT_IN, right=kids[2])
+;
+
+
+b_expr             -> c_expr:
+                        return kids[0]
+
+                    | b_expr TYPECAST typename:
+                        return pgast.TypeCastNode(expr=kids[0], type=kids[2])
+
+                    | %prec(UMINUS) '+' b_expr:
+                        return pgast.UnaryOpNode(op=ast.ops.UPLUS, operand=kids[1])
+
+                    | %prec(UMINUS) '-' b_expr:
+                        return pgast.UnaryOpNode(op=ast.ops.UMINUS, operand=kids[1])
+
+                    | b_expr '+' b_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.ADD, right=kids[2])
+
+                    | b_expr '-' b_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.SUB, right=kids[2])
+
+                    | b_expr '*' b_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.MUL, right=kids[2])
+
+                    | b_expr '/' b_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.DIV, right=kids[2])
+
+                    | b_expr '%' b_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.MOD, right=kids[2])
+
+                    | b_expr '^' b_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.POW, right=kids[2])
+
+                    | b_expr '<' b_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.LT, right=kids[2])
+
+                    | b_expr '>' b_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.GT, right=kids[2])
+
+                    | b_expr '=' b_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.EQ, right=kids[2])
+
+                    | %prec(OP) b_expr qual_op b_expr:
+                        return pgast.BinOpNode(left=kids[0], op=kids[1], right=kids[2])
+
+                    | %prec(OP) qual_op b_expr:
+                        return pgast.UnaryOpNode(op=kids[0], operand=kids[1])
+
+                    | %prec(POSTFIXOP) b_expr qual_op:
+                        return pgast.PostfixOpNode(op=kids[1], operand=kids[0])
+
+                    | %prec(IS) b_expr IS DISTINCT FROM b_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.IS_DISTINCT, right=kids[4])
+
+                    | %prec(IS) b_expr IS NOT DISTINCT FROM b_expr:
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.IS_NOT_DISTINCT, right=kids[5])
+
+                    | %prec(IS) b_expr IS OF '(' type_list ')':
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.EQ, right=kids[4])
+
+                    | %prec(IS) b_expr IS NOT OF '(' type_list ')':
+                        return pgast.BinOpNode(left=kids[0], op=ast.ops.NE, right=kids[5])
+;
+
+
+c_expr             -> columnref:
+                        return kids[0]
+
+                    | a_expr_const:
+                        return kids[0]
+
+                    | PARAM indirection?:
+                        pref = pgast.ParamRefNode(param=kids[0])
+
+                        if kids[1] is not None:
+                            return pgast.IndirectionNode(expr=pref)
+                        else:
+                            return pref
+
+                    | '(' a_expr ')' indirection?:
+                        if kids[3] is not None:
+                            return pgast.IndirectionNode(expr=kids[1])
+                        else:
+                            return kids[1]
+
+#                   | case_expr:
+#                       return kids[0]
+
+                    | func_expr:
+                        return kids[0]
+
+#                   | (%prec UMINUS) select_with_parens:
+#                   | EXISTS select_with_parens
+#                   | ARRAY select_with_parens
+
+                    | ARRAY array_expr:
+                        return kids[1]
+
+                    | row:
+                        return pgast.RowExprNode(expr=kids[1])
+;
+
+
+a_expr_const       -> ICONST:
+                        return pgast.ConstantNode(value=kids[0])
+
+                    | FCONST:
+                        return pgast.ConstantNode(value=kids[0])
+
+                    | SCONST:
+                        return pgast.ConstantNode(value=kids[0])
+
+                    | BCONST:
+                        return pgast.ConstantNode(value=kids[0])
+
+                    | XCONST:
+                        return pgast.ConstantNode(value=kids[0])
+
+                    | func_name SCONST:
+                        return pgast.TypeCastNode(expr=pgast.ConstantNode(value=kids[1]),
+                                                  type=pgast.TypeNode(name=kids[0]))
+
+                    | func_name '(' func_arg_list ')' SCONST:
+
+                        return pgast.TypeCastNode(expr=pgast.ConstantNode(value=kids[4]),
+                                                  type=pgast.TypeNode(name=kids[0], typmods=kids[2]))
+
+                    | const_typename SCONST:
+                        return pgast.TypeCastNode(expr=pgast.ConstantNode(value=kids[1]), type=kids[0])
+
+                    | const_interval SCONST interval?:
+                        type = kids[0]
+                        type.typmods = kids[2]
+                        return pgast.TypeCastNode(expr=pgast.ConstantNode(value=kids[1]), type=type)
+
+                    | const_interval '(' ICONST ')' SCONST interval?:
+                        type = kids[0]
+                        if kids[5]:
+                            type.typmods = [kids[2], kids[5]]
+                        else:
+                            type.typmods = [kids[2]]
+                        return pgast.TypeCastNode(expr=pgast.ConstantNode(value=kids[4]), type=type)
+
+                    | TRUE_P:
+                        return pgast.ConstantNode(value=True)
+
+                    | FALSE_P:
+                        return pgast.ConstantNode(value=False)
+
+                    | NULL_P:
+                        return pgast.ConstantNode(value=None)
+;
+
+
+expr_list          -> a_expr (',' a_expr)*:
+                        return [kids[0]] + [k[1] for k in kids[1]]
+;
+
+
+type_list          -> typename (',' typename)*:
+                        return [kids[0]] + [k[1] for k in kids[1]]
+;
+
+
+array_expr         -> '[' expr_list ']':
+                        return pgast.ArrayExprNode(expr=kids[1])
+
+                    | '[' array_expr_list ']':
+                        return pgast.ArrayExprNode(expr=kids[1])
+
+                    | '[' ']':
+                        return pgast.ArrayExprNode()
+;
+
+
+array_expr_list     -> array_expr (',' array_expr)*:
+                        return [kids[0]] + [k[1] for k in kids[1]]
+;
+
+
+func_expr          -> func_name '(' ')':
+                        return pgast.FunctionCallNode(name=kids[0])
+
+                    | func_name '(' func_arg_list ')':
+                        return pgast.FunctionCallNode(name=kids[0], args=kids[2])
+
+                    | CURRENT_DATE:
+                        return pgast.TypeCastNode(
+                                expr=pgast.TypeCastNode(type=pgast.TypeNode(name='text'),
+                                                        expr=pgast.ConstantNode(value='now')),
+                                type=pgast.TypeNode(name='date'))
+
+                    | CURRENT_TIME:
+                        return pgast.TypeCastNode(
+                                expr=pgast.TypeCastNode(type=pgast.TypeNode(name='text'),
+                                                        expr=pgast.ConstantNode(value='now')),
+                                type=pgast.TypeNode(name='timetz'))
+
+                    | CURRENT_TIMESTAMP:
+                        return pgast.FunctionCallNode(name='now')
+
+                    | COALESCE '(' expr_list ')':
+                        return pgast.FunctionCallNode(name='coalesce', args=kids[2])
+;
+
+
+func_arg_list      -> func_arg_expr (',' func_arg_expr)*:
+                        return [kids[0]] + [k[1] for k in kids[1]]
+;
+
+
+func_arg_expr      -> a_expr:
+                        return kids[0]
+
+                    | a_expr AS param_name:
+                        return kids[0]
+;
+
+
+typename           -> simple_typename array_bounds?:
+                        node = kids[0]
+                        node.array_bounds = kids[1]
+                        return node
+;
+
+
+array_bounds       -> array_bounds? '[' ']':
+                        if kids[0] is None:
+                            return [-1]
+                        else:
+                            return kids[0] + [-1]
+
+                    | array_bounds? '[' ICONST ']':
+                        if kids[0] is None:
+                            return [int(kids[2])]
+                        else:
+                            return kids[0] + [int(kids[2])]
+;
+
+
+simple_typename    -> generic_type:
+                        return kids[0]
+
+                    | numeric:
+                        return kids[0]
+
+                    | bit:
+                        return kids[0]
+
+                    | character:
+                        return kids[0]
+
+                    | const_date_time:
+                        return kids[0]
+
+                    | const_interval interval?:
+                        return kids[0]
+
+                    | const_interval '(' ICONST ')' interval?:
+                        return kids[0]
+;
+
+
+generic_type       -> type_function_name ('.' attr_name)* type_modifiers?:
+                        if kids[1]:
+                            name = (kids[0],) + tuple(k[1] for k in kids[1])
+                        else:
+                            name = kids[0]
+
+                        node = pgast.TypeNode(name=name)
+                        node.typmods = kids[1]
+                        return node
+;
+
+
+numeric            -> INT_P:
+                        return pgast.TypeNode(name='integer')
+
+                    | INTEGER:
+                        return pgast.TypeNode(name='integer')
+
+                    | SMALLINT:
+                        return pgast.TypeNode(name='smallint')
+
+                    | BIGINT:
+                        return pgast.TypeNode(name='bigint')
+
+                    | FLOAT_P ('(' ICONST ')')?:
+                        if kids[1] is None:
+                            return pgast.TypeNode(name='float8')
+                        else:
+                            name = 'float8' if kids[1][1] > 24 else 'float4'
+                            return pgast.TypeNode(name=name)
+
+                    | DOUBLE_P PRECISION:
+                        return pgast.TypeNode(name='float8')
+
+                    | DECIMAL_P type_modifiers?:
+                        return pgast.TypeNode(name='numeric', typemods=kids[1])
+
+                    | DEC type_modifiers?:
+                        return pgast.TypeNode(name='numeric', typemods=kids[1])
+
+                    | NUMERIC type_modifiers?:
+                        return pgast.TypeNode(name='numeric', typemods=kids[1])
+
+                    | BOOLEAN_P:
+                        return pgast.TypeNode(name='bool')
+;
+
+
+bit                -> BIT VARYING? type_modifiers ?:
+                        name = 'bit' if kids[1] is None else 'varbit'
+                        return pgast.TypeNode(name=name, typmods=kids[2])
+;
+
+
+const_bit          -> bit:
+                        return kids[0]
+;
+
+
+character          -> CHARACTER VARYING? ('(' ICONST ')')? (CHARACTER SET col_id)?:
+                        name = 'char' if kids[1] is None else 'varchar'
+                        return pgast.TypeNode(name=name, typmods=kids[2][1] if kids[2] else None)
+;
+
+
+const_character    -> character:
+                        return kids[0]
+;
+
+
+
+type_modifiers     -> '(' expr_list ')':
+                        return kids[1]
+;
+
+
+attr_name          -> col_label:
+                        return kids[1]
+;
+
+
+const_type_name    -> numeric:
+                        return kids[0]
+                    | const_bit:
+                        return kids[0]
+                    | const_character:
+                        return kids[0]
+                    | const_date_time:
+                        return kids[0]
+;
+
+const_date_time    -> TIMESTAMP '(' ICONST ')' opt_timezone:
+                        name = 'timestamp' if kids[4] is None else 'timestamptz'
+                        return pgast.TypeNode(name=name, typemods=[kids[2]])
+
+                    | TIMESTAMP opt_timezone:
+                        name = 'timestamp' if kids[4] is None else 'timestamptz'
+                        return pgast.TypeNode(name=name)
+
+                    | TIME '(' ICONST ')' opt_timezone:
+                        name = 'time' if kids[4] is None else 'timetz'
+                        return pgast.TypeNode(name=name, typemods=[kids[2]])
+
+                    | TIME opt_timezone:
+                        name = 'time' if kids[4] is None else 'timetz'
+                        return pgast.TypeNode(name=name)
+;
+
+
+const_interval     -> INTERVAL:
+                        return pgast.TypeNode(name='interval')
+;
+
+
+interval           -> YEAR_P
+                    | MONTH_P
+                    | DAY_P
+                    | HOUR_P
+                    | MINUTE_P
+                    | SECOND_P ( '(' ICONST ')' )?
+                    | YEAR_P TO MONTH_P
+                    | DAY_P TO HOUR_P
+                    | DAY_P TO MINUTE_P
+                    | DAY_P TO SECOND_P ( '(' ICONST ')' )?
+                    | HOUR_P TO MINUTE_P
+                    | HOUR_P TO SECOND_P ( '(' ICONST ')' )?
+                    | MINUTE_P TO SECOND_P ( '(' ICONST ')' )?
+;
+
+
+opt_timezone       -> WITH TIME ZONE:
+                        return True
+
+                    | WITHOUT TIME ZONE
+                        return False
+;
+
+
+row                -> ROW '(' expr_list ')':
+                        return kids[2]
+
+                    | ROW '(' ')':
+                        return None
+
+                    | '(' expr_list ',' a_expr ')':
+                        return kids[1] + [kids[3]]
+;
+
+
+math_op            -> '+': return kids[0]
+                    | '-': return kids[0]
+                    | '*': return kids[0]
+                    | '/': return kids[0]
+                    | '%': return kids[0]
+                    | '^': return kids[0]
+                    | '<': return kids[0]
+                    | '>': return kids[0]
+                    | '=': return kids[0]
+;
+
+
+qual_op            -> OP:
+                        return kids[0]
+
+                    | OPERATOR '(' any_operator ')':
+                        return kids[2]
+;
+
+
+all_op             -> OP:
+                        return kids[0]
+                    | math_op:
+                        return kids[0]
+;
+
+
+any_operator       -> all_op:
+                        return kids[0]
+
+                    | col_id '.' any_operator:
+                        return (kids[0], kids[2])
+;
+
+
+columnref          -> col_id indirection?:
+                        return pgast.FieldRefNode(field=kids[0])
+;
+
+
+indirection_el     -> '.' attr_name:
+                        return kids[1]
+
+                    | '.' '*':
+                        return pgast.StarIndirectionNode()
+
+                    | '[' a_expr ']':
+                        return pgast.IndexIndirectionNode(upper=kids[1])
+
+                    | '[' a_expr ':' a_expr ']':
+                        return pgast.IndexIndirectionNode(lower=kids[1], upper=kids[3])
+;
+
+
+col_id             -> IDENT:
+                        return kids[0]
+                    | unreserved_keyword:
+                        return kids[0][0]
+                    | col_name_keyword:
+                        return kids[0][0]
+;
+
+
+type_function_name -> IDENT:
+                        return kids[0]
+                    | unreserved_keyword:
+                        return kids[0][0]
+                    | type_func_name_keyword:
+                        return kids[0][0]
+;
+
+
+col_label          -> IDENT:
+                        return kids[0]
+                    | unreserved_keyword:
+                        return kids[0][0]
+                    | type_func_name_keyword:
+                        return kids[0][0]
+                    | reserved_keyword:
+                        return kids[0][0]
+;
+
+
+indirection        -> indirection_el+:
+                        return kids[0]
+;
+
+
+func_name          -> type_function_name:
+                        return kids[0]
+                    | col_id indirection:
+                        return kids
+;
+
+
+unreserved_keyword -> ABORT_P
+                    | ABSOLUTE_P
+                    | ACCESS
+                    | ACTION
+                    | ADD_P
+                    | ADMIN
+                    | AFTER
+                    | AGGREGATE
+                    | ALSO
+                    | ALTER
+                    | ALWAYS
+                    | ASSERTION
+                    | ASSIGNMENT
+                    | AT
+                    | BACKWARD
+                    | BEFORE
+                    | BEGIN_P
+                    | BY
+                    | CACHE
+                    | CALLED
+                    | CASCADE
+                    | CASCADED
+                    | CATALOG_P
+                    | CHAIN
+                    | CHARACTERISTICS
+                    | CHECKPOINT
+                    | CLASS
+                    | CLOSE
+                    | CLUSTER
+                    | COMMENT
+                    | COMMENTS
+                    | COMMIT
+                    | COMMITTED
+                    | CONFIGURATION
+                    | CONNECTION
+                    | CONSTRAINTS
+                    | CONTENT_P
+                    | CONTINUE_P
+                    | CONVERSION_P
+                    | COPY
+                    | COST
+                    | CREATEDB
+                    | CREATEROLE
+                    | CREATEUSER
+                    | CSV
+                    | CURRENT_P
+                    | CURSOR
+                    | CYCLE
+                    | DATA_P
+                    | DATABASE
+                    | DAY_P
+                    | DEALLOCATE
+                    | DECLARE
+                    | DEFAULTS
+                    | DEFERRED
+                    | DEFINER
+                    | DELETE_P
+                    | DELIMITER
+                    | DELIMITERS
+                    | DICTIONARY
+                    | DISABLE_P
+                    | DISCARD
+                    | DOCUMENT_P
+                    | DOMAIN_P
+                    | DOUBLE_P
+                    | DROP
+                    | EACH
+                    | ENABLE_P
+                    | ENCODING
+                    | ENCRYPTED
+                    | ENUM_P
+                    | ESCAPE
+                    | EXCLUDE
+                    | EXCLUDING
+                    | EXCLUSIVE
+                    | EXECUTE
+                    | EXPLAIN
+                    | EXTERNAL
+                    | FAMILY
+                    | FIRST_P
+                    | FOLLOWING
+                    | FORCE
+                    | FORWARD
+                    | FUNCTION
+                    | FUNCTIONS
+                    | GLOBAL
+                    | GRANTED
+                    | HANDLER
+                    | HEADER_P
+                    | HOLD
+                    | HOUR_P
+                    | IDENTITY_P
+                    | IF_P
+                    | unreserved_keyword2:
+                        return kids[0]
+;
+
+unreserved_keyword2 -> IMMEDIATE
+                    | IMMUTABLE
+                    | IMPLICIT_P
+                    | INCLUDING
+                    | INCREMENT
+                    | INDEX
+                    | INDEXES
+                    | INHERIT
+                    | INHERITS
+                    | INLINE_P
+                    | INPUT_P
+                    | INSENSITIVE
+                    | INSERT
+                    | INSTEAD
+                    | INVOKER
+                    | ISOLATION
+                    | KEY
+                    | LANGUAGE
+                    | LARGE_P
+                    | LAST_P
+                    | LC_COLLATE_P
+                    | LC_CTYPE_P
+                    | LEVEL
+                    | LISTEN
+                    | LOAD
+                    | LOCAL
+                    | LOCATION
+                    | LOCK_P
+                    | LOGIN_P
+                    | MAPPING
+                    | MATCH
+                    | MAXVALUE
+                    | MINUTE_P
+                    | MINVALUE
+                    | MODE
+                    | MONTH_P
+                    | MOVE
+                    | NAME_P
+                    | NAMES
+                    | NEXT
+                    | NO
+                    | NOCREATEDB
+                    | NOCREATEROLE
+                    | NOCREATEUSER
+                    | NOINHERIT
+                    | NOLOGIN_P
+                    | NOSUPERUSER
+                    | NOTHING
+                    | NOTIFY
+                    | NOWAIT
+                    | NULLS_P
+                    | unreserved_keyword3:
+                        return kids[0]
+;
+
+
+unreserved_keyword3 -> OBJECT_P
+                    | OF
+                    | OIDS
+                    | OPERATOR
+                    | OPTION
+                    | OPTIONS
+                    | OWNED
+                    | OWNER
+                    | PARSER
+                    | PARTIAL
+                    | PARTITION
+                    | PASSWORD
+                    | PLANS
+                    | PRECEDING
+                    | PREPARE
+                    | PREPARED
+                    | PRESERVE
+                    | PRIOR
+                    | PRIVILEGES
+                    | PROCEDURAL
+                    | PROCEDURE
+                    | QUOTE
+                    | RANGE
+                    | READ
+                    | REASSIGN
+                    | RECHECK
+                    | RECURSIVE
+                    | REINDEX
+                    | RELATIVE_P
+                    | RELEASE
+                    | RENAME
+                    | REPEATABLE
+                    | REPLACE
+                    | REPLICA
+                    | RESET
+                    | RESTART
+                    | RESTRICT
+                    | RETURNS
+                    | REVOKE
+                    | ROLE
+                    | ROLLBACK
+                    | ROWS
+                    | RULE
+                    | SAVEPOINT
+                    | SCHEMA
+                    | SCROLL
+                    | SEARCH
+                    | SECOND_P
+                    | SECURITY
+                    | SEQUENCE
+                    | SEQUENCES
+                    | SERIALIZABLE
+                    | SERVER
+                    | SESSION
+                    | SET
+                    | SHARE
+                    | SHOW
+                    | SIMPLE
+                    | STABLE
+                    | STANDALONE_P
+                    | START
+                    | STATEMENT
+                    | STATISTICS
+                    | STDIN
+                    | STDOUT
+                    | STORAGE
+                    | STRICT_P
+                    | STRIP_P
+                    | SUPERUSER_P
+                    | SYSID
+                    | SYSTEM_P
+                    | TABLES
+                    | TABLESPACE
+                    | TEMP
+                    | TEMPLATE
+                    | TEMPORARY
+                    | TEXT_P
+                    | TRANSACTION
+                    | TRIGGER
+                    | TRUNCATE
+                    | TRUSTED
+                    | TYPE_P
+                    | UNBOUNDED
+                    | UNCOMMITTED
+                    | UNENCRYPTED
+                    | UNKNOWN
+                    | UNLISTEN
+                    | UNTIL
+                    | UPDATE
+                    | VACUUM
+                    | VALID
+                    | VALIDATOR
+                    | VALUE_P
+                    | VARYING
+                    | VERSION_P
+                    | VIEW
+                    | VOLATILE
+                    | WHITESPACE_P
+                    | WITHOUT
+                    | WORK
+                    | WRAPPER
+                    | WRITE
+                    | XML_P
+                    | YEAR_P
+                    | YES_P
+                    | ZONE
+;
+
+col_name_keyword   -> BETWEEN
+                    | BIGINT
+                    | BIT
+                    | BOOLEAN_P
+                    | CHAR_P
+                    | CHARACTER
+                    | COALESCE
+                    | DEC
+                    | DECIMAL_P
+                    | EXISTS
+                    | EXTRACT
+                    | FLOAT_P
+                    | GREATEST
+                    | INOUT
+                    | INT_P
+                    | INTEGER
+                    | INTERVAL
+                    | LEAST
+                    | NATIONAL
+                    | NCHAR
+                    | NONE
+                    | NULLIF
+                    | NUMERIC
+                    | OUT_P
+                    | OVERLAY
+                    | POSITION
+                    | PRECISION
+                    | REAL
+                    | ROW
+                    | SETOF
+                    | SMALLINT
+                    | SUBSTRING
+                    | TIME
+                    | TIMESTAMP
+                    | TREAT
+                    | TRIM
+                    | VALUES
+                    | VARCHAR
+                    | XMLATTRIBUTES
+                    | XMLCONCAT
+                    | XMLELEMENT
+                    | XMLFOREST
+                    | XMLPARSE
+                    | XMLPI
+                    | XMLROOT
+                    | XMLSERIALIZE
+;
+
+
+type_func_name_keyword -> AUTHORIZATION
+                        | BINARY
+                        | CONCURRENTLY
+                        | CROSS
+                        | CURRENT_SCHEMA
+                        | FREEZE
+                        | FULL
+                        | ILIKE
+                        | INNER_P
+                        | IS
+                        | ISNULL
+                        | JOIN
+                        | LEFT
+                        | LIKE
+                        | NATURAL
+                        | NOTNULL
+                        | OUTER_P
+                        | OVER
+                        | OVERLAPS
+                        | RIGHT
+                        | SIMILAR
+                        | VERBOSE
+;
+
+
+reserved_keyword       -> ALL
+                        | ANALYSE
+                        | ANALYZE
+                        | AND
+                        | ANY
+                        | ARRAY
+                        | AS
+                        | ASC
+                        | ASYMMETRIC
+                        | BOTH
+                        | CASE
+                        | CAST
+                        | CHECK
+                        | COLLATE
+                        | COLUMN
+                        | CONSTRAINT
+                        | CREATE
+                        | CURRENT_CATALOG
+                        | CURRENT_DATE
+                        | CURRENT_ROLE
+                        | CURRENT_TIME
+                        | CURRENT_TIMESTAMP
+                        | CURRENT_USER
+                        | DEFAULT
+                        | DEFERRABLE
+                        | DESC
+                        | DISTINCT
+                        | DO
+                        | ELSE
+                        | END_P
+                        | EXCEPT
+                        | FALSE_P
+                        | FETCH
+                        | FOR
+                        | FOREIGN
+                        | FROM
+                        | GRANT
+                        | GROUP_P
+                        | HAVING
+                        | IN_P
+                        | INITIALLY
+                        | INTERSECT
+                        | INTO
+                        | LEADING
+                        | LIMIT
+                        | LOCALTIME
+                        | LOCALTIMESTAMP
+                        | NOT
+                        | NULL_P
+                        | OFF
+                        | OFFSET
+                        | ON
+                        | ONLY
+                        | OR
+                        | ORDER
+                        | PLACING
+                        | PRIMARY
+                        | REFERENCES
+                        | RETURNING
+                        | SELECT
+                        | SESSION_USER
+                        | SOME
+                        | SYMMETRIC
+                        | TABLE
+                        | THEN
+                        | TO
+                        | TRAILING
+                        | TRUE_P
+                        | UNION
+                        | UNIQUE
+                        | USER
+                        | USING
+                        | VARIADIC
+                        | WHEN
+                        | WHERE
+                        | WINDOW
+                        | WITH
+;

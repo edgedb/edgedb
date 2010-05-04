@@ -32,6 +32,9 @@ class ConstantNode(Base):
 class UnaryOpNode(Base):
     __fields = ['op', 'operand']
 
+class PostfixOpNode(Base):
+    __fields = ['op', 'operand']
+
 class PredicateNode(Base):
     __fields = [('expr', Base, None)]
 
@@ -122,3 +125,39 @@ class FunctionCallNode(Base):
 
 class IgnoreNode(Base):
     pass
+
+
+class TypeCastNode(Base):
+    __fields = ['expr', 'type']
+
+class ParamRefNode(Base):
+    __fields = ['param']
+
+class IndirectionNode(Base):
+    __fields = ['expr', 'indirection']
+
+class RowExprNode(Base):
+    __fields = ['expr']
+
+class TypeNode(Base):
+    __fields = ['name', 'typmods']
+
+class StarIndirectionNode(Base):
+    pass
+
+class IndexIndirectionNode(Base):
+    __fields = ['lower', 'upper']
+
+
+class PgSQLOperator(ast.ops.Operator):
+    pass
+
+
+LIKE = PgSQLOperator('~~')
+NOT_LIKE = PgSQLOperator('!~~')
+ILIKE = PgSQLOperator('~~*')
+NOT_ILIKE = PgSQLOperator('!~~*')
+SIMILAR_TO = PgSQLOperator('~')
+NOT_SIMILAR_TO = PgSQLOperator('!~')
+IS_DISTINCT = PgSQLOperator('IS DISTINCT')
+IS_NOT_DISTINCT = PgSQLOperator('IS NOT DISTINCT')
