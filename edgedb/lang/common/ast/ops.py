@@ -41,12 +41,26 @@ LE = ComparisonOperator('<=')
 class ArithmeticOperator(Operator):
     pass
 
-ADD = ArithmeticOperator('+')
-SUB = ArithmeticOperator('-')
-MUL = ArithmeticOperator('*')
-DIV = ArithmeticOperator('/')
-POW = ArithmeticOperator('^')
-MOD = ArithmeticOperator('%')
+
+class BinaryArithmeticOperator(ArithmeticOperator):
+    pass
+
+
+ADD = BinaryArithmeticOperator('+')
+SUB = BinaryArithmeticOperator('-')
+MUL = BinaryArithmeticOperator('*')
+DIV = BinaryArithmeticOperator('/')
+POW = BinaryArithmeticOperator('^')
+MOD = BinaryArithmeticOperator('%')
+
+
+class UnaryArithmeticOperator(ArithmeticOperator):
+    pass
+
+
+UPLUS = UnaryArithmeticOperator('+')
+UMINUS = UnaryArithmeticOperator('-')
+
 
 class BooleanOperator(Operator):
     pass
