@@ -9,6 +9,7 @@
 import itertools
 
 from semantix.caos import name as caos_name
+from semantix.caos import error as caos_error
 from semantix.caos import types as caos_types
 from semantix.caos.tree import ast as caos_ast
 
@@ -139,6 +140,14 @@ class TreeTransformer:
 
         elif isinstance(expr, caos_ast.AtomicRefExpr):
             self.extract_prefixes(expr.expr, prefixes)
+
+        elif isinstance(expr, caos_ast.FunctionCall):
+            for arg in expr.args:
+                self.extract_prefixes(arg, prefixes)
+
+        elif isinstance(expr, caos_ast.Sequence):
+            for path in expr.elements:
+                self.extract_prefixes(path, prefixes)
 
         elif isinstance(expr, caos_ast.Constant):
             pass
@@ -787,21 +796,33 @@ class TreeTransformer:
         if node.name in (('search', 'rank'), ('search', 'headline')):
             refs = set()
             for arg in node.args:
-                refs.update(ast.find_children(arg, lambda n: isinstance(n, caos_ast.EntitySet),
-                                              force_traversal=True))
+                if isinstance(arg, caos_ast.EntitySet):
+                    refs.add(arg)
+                else:
+                    refs.update(ast.find_children(arg, lambda n: isinstance(n, caos_ast.EntitySet),
+                                                  force_traversal=True))
 
-            if len(refs) == 1:
-                ref = next(iter(refs))
+            assert len(refs) == 1
 
-                cols = []
-                for link_name, link in ref.concept.get_searchable_links():
-                    cols.append(caos_ast.AtomicRefSimple(ref=ref, name=link_name,
-                                                         caoslink=link.first))
+            ref = next(iter(refs))
 
-                ref.atomrefs.update(cols)
+            cols = []
+            for link_name, link in ref.concept.get_searchable_links():
+                id = LinearPath(ref.id)
+                id.add(frozenset((link.first,)), caos_types.OutboundDirection, link.first.target)
+                cols.append(caos_ast.AtomicRefSimple(ref=ref, name=link_name,
+                                                     caoslink=link.first,
+                                                     id=id))
 
-                node = caos_ast.FunctionCall(name=node.name,
-                                             args=[caos_ast.Sequence(elements=cols), node.args[1]])
+            if not cols:
+                raise caos_error.CaosError('%s call on concept %s without any search configuration'\
+                                           % (node.name, ref.concept.name),
+                                           hint='Configure search for "%s"' % ref.concept.name)
+
+            ref.atomrefs.update(cols)
+
+            node = caos_ast.FunctionCall(name=node.name,
+                                         args=[caos_ast.Sequence(elements=cols), node.args[1]])
 
         return node
 
@@ -1017,6 +1038,13 @@ class TreeTransformer:
 
             elif op == caos_ast.SEARCH:
                 # A SEARCH operation on an entity set is always an inline filter ATM
+                cols = list(left.concept.get_searchable_links())
+                if not cols:
+                    err = '%s operator called on concept %s without any search configuration' \
+                                               % (caos_ast.SEARCH, left.concept.name)
+                    hint = 'Configure search for "%s"' % left.concept.name
+                    raise caos_error.CaosError(err, hint=hint)
+
                 result = caos_ast.AtomicRefExpr(expr=newbinop(left, right))
 
             elif op in (ast.ops.IS, ast.ops.IS_NOT):
