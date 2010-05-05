@@ -676,7 +676,7 @@ class TreeTransformer:
             our_node = our
 
 
-        if link:
+        if isinstance(other, caos_ast.EntityLink):
             other_link = other
             other_node = other.target
         else:
