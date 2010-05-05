@@ -64,6 +64,27 @@ class LinearPath(list):
         return result
 
 
+@checktypes
+class MultiPath(LinearPath):
+    def add(self, links, direction:caos_types.LinkDirection, target):
+        self.append((frozenset(links), direction))
+        self.append(target)
+
+    def __hash__(self):
+        return hash(tuple(self))
+
+    def __str__(self):
+        if not self:
+            return '';
+
+        result = '%s' % ','.join(str(c.name) for c in self[0])
+
+        for i in range(1, len(self) - 1, 2):
+            result += '[%s%s]%s' % (self[i][1], str(self[i][0]),
+                                    ','.join(str(c.name) for c in self[i + 1]))
+        return result
+
+
 class PathIndex(dict):
     """
     Graph path mapping path identifiers to AST nodes
