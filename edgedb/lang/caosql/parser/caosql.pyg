@@ -2,6 +2,7 @@ code:
     import re
     from semantix.utils import ast
     from semantix.caos import types as caos_types
+    from semantix.caos.tree import ast as caos_ast
     from semantix.caos.caosql.ast import *
     from semantix.caos.caosql.parser.errors import CaosQLSyntaxError
 
@@ -167,6 +168,9 @@ simple_predicate                -> primary_query meta_op opt_fq_graph_name_or_no
                                         return BinOpNode(op=kids[1], left=kids[0], right=kids[2])
                                  | primary_query comp_op primary_query:
                                         return BinOpNode(op=kids[1], left=kids[0], right=kids[2])
+                                 | primary_query '@@' string_constant:
+                                        return BinOpNode(op=caos_ast.SEARCH, left=kids[0],
+                                                         right=kids[2])
                                  | path_expr:
                                         return ExistsPredicateNode(expr=kids[0])
                                  | EXISTS '(' set_query ')':
@@ -176,7 +180,7 @@ simple_predicate                -> primary_query meta_op opt_fq_graph_name_or_no
                                  | primary_query IN safe_set_query:
                                         return BinOpNode(op=ast.ops.IN, left=kids[0], right=kids[2])
                                  | primary_query comp_op quantifier safe_set_query
-                                 | boolean_constant:
+                                 | base_boolean_constant:
                                         return kids[0]
                                  | '(' predicate ')':
                                         return kids[1]
@@ -215,35 +219,65 @@ none_constant                   -> NONE:
                                         return ConstantNode(value=None)
 ;
 
-number_constant                 -> none_constant:
+
+base_constant                   -> none_constant:
                                         return kids[0]
-                                 | NUMBER:
-                                        if '.' in kids[0]:
-                                            value = float(kids[0])
-                                        else:
-                                            value = int(kids[0])
-                                        return ConstantNode(value=value)
                                  | '$' NUMBER:
                                         return ConstantNode(value=None, index=int(kids[1]))
                                  | '$' IDENTIFIER:
                                         return ConstantNode(value=None, index=str(kids[1]))
 ;
 
-constant                        -> number_constant:
+
+base_number_constant            -> NUMBER:
+                                        if '.' in kids[0]:
+                                            value = float(kids[0])
+                                        else:
+                                            value = int(kids[0])
+                                        return ConstantNode(value=value)
+;
+
+
+number_constant                 -> base_constant:
                                         return kids[0]
-                                 | LITERAL:
-                                        return ConstantNode(value=kids[0].strip('"\''))
-                                 | boolean_constant:
+                                 | base_number_constant:
                                         return kids[0]
 ;
 
-boolean_constant                -> TRUE:
+
+base_string_constant            -> LITERAL:
+                                        return ConstantNode(value=kids[0].strip('"\''))
+;
+
+
+string_constant                 -> base_constant:
+                                        return kids[0]
+                                 | base_string_constant:
+                                        return kids[0]
+;
+
+
+base_boolean_constant           -> TRUE:
                                         return ConstantNode(value=True)
                                  | FALSE:
                                         return ConstantNode(value=False)
 ;
 
+
+constant                        -> base_constant:
+                                        return kids[0]
+                                 | base_number_constant:
+                                        return kids[0]
+                                 | base_string_constant:
+                                        return kids[0]
+                                 | base_boolean_constant:
+                                        return kids[0]
+;
+
+
 orderby_expr                    -> path_expr sort_direction?:
+                                        return SortExprNode(path=kids[0], direction=kids[1])
+                                 | value_query sort_direction?:
                                         return SortExprNode(path=kids[0], direction=kids[1])
 ;
 
@@ -398,7 +432,9 @@ path_start_label_expr           -> '[' opt_fq_graph_name ']':
 regexp_op                       -> '*' | '+' | '?'
 ;
 
-function_name                   -> IDENTIFIER:
+function_name                   -> IDENTIFIER ':' IDENTIFIER:
+                                        return kids[0], kids[2]
+                                 | IDENTIFIER:
                                         return kids[0]
 ;
 

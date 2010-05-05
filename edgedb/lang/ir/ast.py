@@ -107,7 +107,7 @@ class AtomicRef(Base):
 
 
 class AtomicRefSimple(AtomicRef):
-    __fields = [('name', caos_name.Name, None)]
+    __fields = [('name', caos_name.Name, None), 'caoslink']
 
 
 class AtomicRefExpr(AtomicRef):
@@ -209,7 +209,7 @@ class EntitySet(Base):
 
 class Constant(Base): __fields = ['value', 'index', 'expr', 'type']
 
-class Sequence(Base): __fields = [('elements', set)]
+class Sequence(Base): __fields = [('elements', list)]
 
 class BinOp(Base):
     __fields = ['left', 'right', 'op']
@@ -221,3 +221,12 @@ class SortExpr(Base): __fields = ['expr', 'direction']
 class SelectorExpr(Base): __fields = ['expr', 'name']
 class UpdateExpr(Base): __fields = ['expr', 'value']
 class FunctionCall(Base): __fields = ['name', ('args', list)]
+
+
+class CaosOperator(ast.ops.Operator):
+    pass
+
+class TextSearchOperator(CaosOperator):
+    pass
+
+SEARCH = TextSearchOperator('@@')

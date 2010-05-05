@@ -127,6 +127,10 @@ class IgnoreNode(Base):
     pass
 
 
+class ArrayNode(Base):
+    __fields = [('elements', list)]
+
+
 class TypeCastNode(Base):
     __fields = ['expr', 'type']
 

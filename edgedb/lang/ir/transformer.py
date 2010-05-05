@@ -258,6 +258,12 @@ class TreeTransformer:
                 args.append(self.merge_paths(arg))
             expr = expr.__class__(name=expr.name, args=args)
 
+        elif isinstance(expr, caos_ast.Sequence):
+            elements = []
+            for element in expr.elements:
+                elements.append(self.merge_paths(element))
+            expr = expr.__class__(elements=elements)
+
         else:
             assert False
 
@@ -731,12 +737,26 @@ class TreeTransformer:
         elif isinstance(path, caos_ast.FunctionCall):
             paths = set()
             for p in path.args:
-                paths.add(self.extract_paths(p, reverse))
+                p = self.extract_paths(p, reverse)
+                if p:
+                    paths.add(p)
 
             if len(paths) == 1:
                 return next(iter(paths))
             else:
                 return caos_ast.Conjunction(paths=frozenset(paths))
+
+        elif isinstance(path, caos_ast.Sequence):
+            paths = set()
+            for p in path.elements:
+                p = self.extract_paths(p, reverse)
+                if p:
+                    paths.add(p)
+
+            if len(paths) == 1:
+                return next(iter(paths))
+            else:
+                return caos_ast.Disjunction(paths=frozenset(paths))
 
         elif isinstance(path, caos_ast.Constant):
             return None
@@ -762,6 +782,28 @@ class TreeTransformer:
             path = parent_path
 
         return result
+
+    def process_function_call(self, node):
+        if node.name in (('search', 'rank'), ('search', 'headline')):
+            refs = set()
+            for arg in node.args:
+                refs.update(ast.find_children(arg, lambda n: isinstance(n, caos_ast.EntitySet),
+                                              force_traversal=True))
+
+            if len(refs) == 1:
+                ref = next(iter(refs))
+
+                cols = []
+                for link_name, link in ref.concept.get_searchable_links():
+                    cols.append(caos_ast.AtomicRefSimple(ref=ref, name=link_name,
+                                                         caoslink=link.first))
+
+                ref.atomrefs.update(cols)
+
+                node = caos_ast.FunctionCall(name=node.name,
+                                             args=[caos_ast.Sequence(elements=cols), node.args[1]])
+
+        return node
 
     def process_binop(self, left, right, op):
         try:
@@ -866,6 +908,14 @@ class TreeTransformer:
 
                         result = caos_ast.Disjunction(paths=frozenset(paths))
 
+                elif op == caos_ast.SEARCH:
+                    paths = set()
+                    for p in left_exprs.paths:
+                        expr = caos_ast.BinOp(left=p, right=right, op=op)
+                        paths.add(caos_ast.AtomicRefExpr(expr=expr))
+
+                    result = caos_ast.Disjunction(paths=frozenset(paths))
+
                 if not result:
                     result = newbinop(left, right)
             else:
@@ -947,15 +997,28 @@ class TreeTransformer:
                 result = caos_ast.Constant(expr=newbinop(left, right))
 
         elif isinstance(left, caos_ast.EntitySet):
-            if op in (ast.ops.EQ, ast.ops.NE) and isinstance(right, caos_ast.EntitySet):
-                left.joins.add(right)
-                right.backrefs.add(left)
-                right.joins.add(left)
-                left.backrefs.add(right)
+            if op in (ast.ops.EQ, ast.ops.NE):
+                # Comparison of two entity sets or a constant and an entity set is
+                # considered to be a comparison of entity ids.
+                #
+                if isinstance(right, caos_ast.EntitySet):
+                    left.joins.add(right)
+                    right.backrefs.add(left)
+                    right.joins.add(left)
+                    left.backrefs.add(right)
 
-                l = caos_ast.AtomicRefSimple(ref=left, name='semantix.caos.builtin.id')
-                r = caos_ast.AtomicRefSimple(ref=right, name='semantix.caos.builtin.id')
-                result = newbinop(l, r)
+                    l = caos_ast.AtomicRefSimple(ref=left, name='semantix.caos.builtin.id')
+                    r = caos_ast.AtomicRefSimple(ref=right, name='semantix.caos.builtin.id')
+                    result = newbinop(l, r)
+
+                elif isinstance(right, caos_ast.Constant):
+                    l = caos_ast.AtomicRefSimple(ref=left, name='semantix.caos.builtin.id')
+                    result = newbinop(l, right)
+
+            elif op == caos_ast.SEARCH:
+                # A SEARCH operation on an entity set is always an inline filter ATM
+                result = caos_ast.AtomicRefExpr(expr=newbinop(left, right))
+
             elif op in (ast.ops.IS, ast.ops.IS_NOT):
                 assert False
             else:

@@ -142,6 +142,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         elif isinstance(expr, qlast.FunctionCallNode):
             args = [self._process_expr(context, a) for a in expr.args]
             node = tree.ast.FunctionCall(name=expr.func, args=args)
+            node = self.process_function_call(node)
 
         elif isinstance(expr, qlast.PrototypeRefNode):
             if expr.module:

@@ -322,6 +322,38 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             result = pgsql.ast.ConstantNode(value=expr.value, index=index, type=const_type)
         return result
 
+    def _text_search_refs(self, context, vector):
+        for link_name, link in vector.concept.get_searchable_links():
+            yield tree.ast.AtomicRefSimple(ref=vector, name=link_name, caoslink=link.first)
+
+    def _text_search_args(self, context, vector, query, tsvector=True):
+        empty_str = pgsql.ast.ConstantNode(value='')
+        sep_str = pgsql.ast.ConstantNode(value='; ')
+        lang_const = pgsql.ast.ConstantNode(value='english')
+        cols = None
+
+        if isinstance(vector, tree.ast.EntitySet):
+            refs = self._text_search_refs(context, vector)
+        elif isinstance(vector, tree.ast.Sequence):
+            refs = vector.elements
+
+        if tsvector:
+            for atomref in refs:
+                ref = self._process_expr(context, atomref)
+                ref = pgsql.ast.FunctionCallNode(name='coalesce', args=[ref, empty_str])
+                ref = pgsql.ast.FunctionCallNode(name='to_tsvector', args=[lang_const, ref])
+                weight_const = pgsql.ast.ConstantNode(value=atomref.caoslink.search.weight)
+                ref = pgsql.ast.FunctionCallNode(name='setweight', args=[ref, weight_const])
+                cols = self.extend_predicate(cols, ref, op='||')
+        else:
+            cols = pgsql.ast.ArrayNode(elements=[self._process_expr(context, r) for r in refs])
+            cols = pgsql.ast.FunctionCallNode(name='array_to_string', args=[cols, sep_str])
+
+        query = self._process_expr(context, query)
+        query = pgsql.ast.FunctionCallNode(name='plainto_tsquery', args=[query])
+
+        return cols, query
+
     def _process_expr(self, context, expr, cte=None):
         result = None
 
@@ -381,26 +413,30 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             else:
                 right = self._process_expr(context, expr.right, cte)
 
-            context.current.append_graphs = False
-
-            cte = cte or context.current.query
-
-            # Fold constant ops into the inner query filter.
-            if isinstance(expr.left, tree.ast.Constant) and isinstance(right, pgsql.ast.IgnoreNode):
-                cte.fromlist[0].expr.where = self.extend_predicate(cte.fromlist[0].expr.where,
-                                                                   left, expr.op)
-                left = pgsql.ast.IgnoreNode()
-            elif isinstance(expr.right, tree.ast.Constant) and isinstance(left, pgsql.ast.IgnoreNode):
-                cte.fromlist[0].expr.where = self.extend_predicate(cte.fromlist[0].expr.where,
-                                                                   right, expr.op)
-                right = pgsql.ast.IgnoreNode()
-
-            if isinstance(left, pgsql.ast.IgnoreNode):
-                result = right
-            elif isinstance(right, pgsql.ast.IgnoreNode):
-                result = left
+            if expr.op == tree.ast.SEARCH:
+                vector, query = self._text_search_args(context, expr.left, expr.right)
+                result = pgsql.ast.BinOpNode(left=vector, right=query, op=expr.op)
             else:
-                result = pgsql.ast.BinOpNode(op=expr.op, left=left, right=right)
+                context.current.append_graphs = False
+
+                cte = cte or context.current.query
+
+                # Fold constant ops into the inner query filter.
+                if isinstance(expr.left, tree.ast.Constant) and isinstance(right, pgsql.ast.IgnoreNode):
+                    cte.fromlist[0].expr.where = self.extend_predicate(cte.fromlist[0].expr.where,
+                                                                       left, expr.op)
+                    left = pgsql.ast.IgnoreNode()
+                elif isinstance(expr.right, tree.ast.Constant) and isinstance(left, pgsql.ast.IgnoreNode):
+                    cte.fromlist[0].expr.where = self.extend_predicate(cte.fromlist[0].expr.where,
+                                                                       right, expr.op)
+                    right = pgsql.ast.IgnoreNode()
+
+                if isinstance(left, pgsql.ast.IgnoreNode):
+                    result = right
+                elif isinstance(right, pgsql.ast.IgnoreNode):
+                    result = left
+                else:
+                    result = pgsql.ast.BinOpNode(op=expr.op, left=left, right=right)
 
         elif isinstance(expr, tree.ast.Constant):
             result = self._process_constant(context, expr)
@@ -410,8 +446,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             result = pgsql.ast.SequenceNode(elements=elements)
 
         elif isinstance(expr, tree.ast.FunctionCall):
-            args = [self._process_expr(context, a, cte) for a in expr.args]
-            result = pgsql.ast.FunctionCallNode(name=expr.name, args=args)
+            result = self._process_function(context, expr, cte)
 
         elif isinstance(expr, tree.ast.AtomicRefExpr):
             result = self._process_expr(context, expr.expr, cte)
@@ -451,6 +486,20 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
 
         else:
             assert False, "Unexpected expression: %s" % expr
+
+        return result
+
+    def _process_function(self, context, expr, cte):
+        if expr.name == ('search', 'rank'):
+            vector, query = self._text_search_args(context, *expr.args)
+            result = pgsql.ast.FunctionCallNode(name='ts_rank_cd', args=[vector, query])
+        elif expr.name == ('search', 'headline'):
+            vector, query = self._text_search_args(context, *expr.args, tsvector=False)
+            lang = pgsql.ast.ConstantNode(value='english')
+            result = pgsql.ast.FunctionCallNode(name='ts_headline', args=[lang, vector, query])
+        else:
+            args = [self._process_expr(context, a, cte) for a in expr.args]
+            result = pgsql.ast.FunctionCallNode(name=expr.name, args=args)
 
         return result
 

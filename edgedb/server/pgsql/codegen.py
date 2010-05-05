@@ -294,6 +294,15 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
         self.write(')')
 
+    def visit_ArrayNode(self, node):
+        self.write('ARRAY[')
+        count = len(node.elements)
+        for i, e in enumerate(node.elements):
+            self.visit(e)
+            if i != count - 1:
+                self.write(', ')
+        self.write(']')
+
     def visit_FunctionCallNode(self, node):
         self.write(node.name)
         self.write('(')

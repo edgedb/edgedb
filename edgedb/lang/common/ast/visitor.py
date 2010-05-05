@@ -9,7 +9,7 @@
 
 from .base import *
 
-def find_children(node, test_func, *args, **kwargs):
+def find_children(node, test_func, *args, force_traversal=False, **kwargs):
     visited = set()
 
     def _find_children(node, test_func):
@@ -23,7 +23,7 @@ def find_children(node, test_func, *args, **kwargs):
         for field, value in iter_fields(node):
             field_spec = node._fields[field]
 
-            if isinstance(value, (list, set)):
+            if isinstance(value, (list, set, frozenset)):
                 for n in value:
                     if not isinstance(n, AST):
                         continue
@@ -31,7 +31,7 @@ def find_children(node, test_func, *args, **kwargs):
                     if test_func(n, *args, **kwargs):
                         result.append(n)
 
-                    if field_spec.traverse:
+                    if field_spec.traverse or force_traversal:
                         _n = _find_children(n, test_func)
                         if _n is not None:
                             result.extend(_n)
@@ -40,7 +40,7 @@ def find_children(node, test_func, *args, **kwargs):
                 if test_func(value, *args, **kwargs):
                     result.append(value)
 
-                if field_spec.traverse:
+                if field_spec.traverse or force_traversal:
                     _n = _find_children(value, test_func)
                     if _n is not None:
                         result.extend(_n)
