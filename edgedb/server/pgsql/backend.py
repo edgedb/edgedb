@@ -165,8 +165,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.domains = set()
         self.modules = self.read_modules()
 
-        self.column_map = {}
-
         self.parser = parser.PgSQLParser()
         self.search_idx_expr = astexpr.TextSearchExpr()
 
@@ -268,9 +266,20 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         result = ps.first()
 
         if result is not None:
-            return dict((self.column_map[k], result[k])
-                        for k in result.keys()
-                        if k not in ('semantix.caos.builtins.id', 'concept_id'))
+            concept_proto = self.meta.get(concept)
+            ret = {}
+
+            for link_name in concept_proto.links:
+
+                if link_name != 'semantix.caos.builtins.id':
+                    colname = common.caos_name_to_pg_colname(link_name)
+
+                    try:
+                        ret[str(link_name)] = result[colname]
+                    except KeyError:
+                        pass
+
+            return ret
         else:
             return None
 
@@ -313,7 +322,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                     else:
                         col_type = 'int'
-                    column_name = self.caos_name_to_pg_column_name(a)
+                    column_name = common.caos_name_to_pg_colname(a)
                     column_name = common.quote_ident(column_name)
                     cols.append('%s = %%(%s)s::%s' % (column_name, str(a), col_type))
                 query += ','.join(cols)
@@ -326,7 +335,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     attrs['semantix.caos.builtins.mtime'] = 'NOW'
 
                 if attrs:
-                    cols_names = [common.quote_ident(self.caos_name_to_pg_column_name(a))
+                    cols_names = [common.quote_ident(common.caos_name_to_pg_colname(a))
                                   for a in attrs]
                     cols_names = ', ' + ', '.join(cols_names)
                     cols = []
@@ -886,27 +895,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 bases += (caos.Name(name=base_name, module=base_module),)
 
         return bases
-
-
-    def caos_name_to_pg_column_name(self, name):
-        """
-        Convert Caos name to a valid PostgresSQL column name
-
-        PostgreSQL has a limit of 63 characters for column names.
-
-        @param name: Caos name to convert
-        @return: PostgreSQL column name
-        """
-        mapped_name = self.column_map.get(name)
-        if mapped_name:
-            return mapped_name
-        name = str(name)
-
-        mapped_name = common.caos_name_to_pg_colname(name)
-
-        self.column_map[mapped_name] = name
-        self.column_map[name] = mapped_name
-        return mapped_name
 
 
     def pg_type_to_atom_name_and_mods(self, type_expr):
