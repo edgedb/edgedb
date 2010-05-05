@@ -236,11 +236,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         condition = [('ref', str('HEAD'))]
         plans.append(delta_cmds.Merge(table, record=rec, condition=condition))
 
-        with self.connection.xact():
+        with self.connection.xact() as xact:
             self.apply_synchronization_plan(plans)
             self.invalidate_meta_cache()
             meta = self.getmeta()
             if meta.get_checksum() != d.checksum:
+                xact.rollback()
+                self.modules = self.read_modules()
                 raise base_delta.DeltaChecksumError('could not apply delta correctly: '
                                                     'checksums do not match')
 
