@@ -294,6 +294,18 @@ mapping:
                                                   mapping:
                                                     =:
                                                         type: any
+                                              "search":
+                                                  type: choice
+                                                  object: semantix.caos.backends.yaml.LinkSearchConfiguration
+                                                  choice:
+                                                    - type: map
+                                                      mapping:
+                                                         "weight":
+                                                            type: str
+                                                            object: semantix.caos.backends.yaml.LinkSearchWeight
+                                                            enum: ['A', 'B', 'C', 'D']
+                                                            required: True
+                                                    - type: bool
 
                     "heuristics":
                         type: map

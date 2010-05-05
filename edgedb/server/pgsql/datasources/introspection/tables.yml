@@ -155,7 +155,9 @@ source: |
                 ARRAY[ns.nspname, c.relname]            AS table_name,
                 array_agg(ic.relname::text)::text[]     AS index_names,
                 array_agg(pg_get_expr(i.indpred, i.indrelid)::text)::text[]
-                                                        AS index_predicates
+                                                        AS index_predicates,
+                array_agg(pg_get_expr(i.indexprs, i.indrelid)::text)::text[]
+                                                        AS index_expressions
             FROM
                 pg_class AS c
                 INNER JOIN pg_namespace AS ns ON ns.oid = c.relnamespace

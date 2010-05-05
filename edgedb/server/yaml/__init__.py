@@ -85,6 +85,15 @@ class LinkMapping(LangObject, adapts=caos.types.LinkMapping, ignore_aliases=True
         return str(data)
 
 
+class LinkSearchWeight(LangObject, adapts=caos.types.LinkSearchWeight, ignore_aliases=True):
+    def __new__(cls, context, data):
+        return caos.types.LinkSearchWeight.__new__(cls, data)
+
+    @classmethod
+    def represent(cls, data):
+        return str(data)
+
+
 class PrototypeMeta(LangObjectMeta, StructMeta):
     pass
 
@@ -374,6 +383,9 @@ class LinkDef(Prototype, adapts=proto.Link):
             constraints = itertools.chain.from_iterable(data.constraints.values())
             result['constraints'] = list(constraints)
 
+        if data.search:
+            result['search'] = data.search
+
         return result
 
 
@@ -404,6 +416,29 @@ class LinkConstraintUnique(LinkConstraint, adapts=proto.LinkConstraintUnique):
         proto.LinkConstraintUnique.__init__(self, values, context=self.context)
 
 
+class LinkSearchConfiguration(LangObject, adapts=proto.LinkSearchConfiguration, ignore_aliases=True):
+    def construct(self):
+        if isinstance(self.data, bool):
+            if self.data:
+                weight = caos.types.SearchWeight_A
+            else:
+                weight = None
+        else:
+            if self.data:
+                weight = caos.types.LinkSearchWeight(self.data['weight'])
+            else:
+                weight = None
+
+        proto.LinkSearchConfiguration.__init__(self, weight=weight)
+
+    @classmethod
+    def represent(cls, data):
+        if data.weight:
+            return {'weight': data.weight}
+        else:
+            return None
+
+
 class LinkList(LangObject, list):
 
     def construct(self):
@@ -427,6 +462,11 @@ class LinkList(LangObject, list):
                                       required=info['required'], title=info['title'],
                                       description=info['description'], readonly=info['readonly'],
                                       _setdefaults_=False)
+
+                    search = info.get('search')
+                    if search and search.weight is not None:
+                        link.search = search
+
                     link.mods = info.get('mods')
                     link.context = self.context
 

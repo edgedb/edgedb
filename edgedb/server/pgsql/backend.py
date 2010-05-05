@@ -34,6 +34,9 @@ from .datasources import introspection
 
 from .transformer import CaosTreeTransformer
 
+from . import astexpr
+from .parser import parser
+
 
 class Session(session.Session):
     def __init__(self, realm, connection, entity_cache):
@@ -141,6 +144,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     cast_re = re.compile(r"""(::(?P<type>(?:(?P<quote>\"?)[\w -]+(?P=quote)\.)?
                                 (?P<quote1>\"?)[\w -]+(?P=quote1)))+$""", re.X)
 
+    search_idx_name_re = re.compile(r""".*_(?P<language>\w+)_(?P<index_class>\w+)_search_idx$
+                                    """, re.X)
+
     constr_expr_res = {
         'AtomModRegExp': re.compile(r"VALUE(?:::\w+)? \s* ~ \s* '(?P<expr>[^']*)'::text", re.X),
         'AtomModMaxLength': re.compile(r"length\(VALUE(?:::\w+)?\) \s* <= \s* (?P<expr>\d+)$",re.X),
@@ -160,6 +166,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.modules = self.read_modules()
 
         self.column_map = {}
+
+        self.parser = parser.PgSQLParser()
+        self.search_idx_expr = astexpr.TextSearchExpr()
 
         self.meta = proto.RealmMeta(load_builtins=False)
 
@@ -536,6 +545,45 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             meta.add(atom)
 
 
+    def interpret_search_index(self, index_name, index_expression):
+        m = self.search_idx_name_re.match(index_name)
+        if not m:
+            raise caos.MetaError('could not interpret index %s' % index_name)
+
+        language = m.group('language')
+        index_class = m.group('index_class')
+
+        tree = self.parser.parse(index_expression)
+        columns = self.search_idx_expr.match(tree)
+
+        if columns is None:
+            raise caos.MetaError('could not interpret index %s' % index_name)
+
+        return index_class, language, columns
+
+    def interpret_search_indexes(self, indexes):
+        for idx_name, idx_expr in zip(indexes['index_names'], indexes['index_expressions']):
+            yield self.interpret_search_index(idx_name, idx_expr)
+
+
+    def read_search_indexes(self):
+        indexes = {}
+        index_ds = datasources.introspection.tables.TableIndexes(self.connection)
+        for row in index_ds.fetch(schema_pattern='caos%', index_pattern='%_search_idx'):
+            concept_module = common.schema_name_to_caos_module_name(row['table_name'][0])
+            concept_name = common.table_name_to_concept_name(row['table_name'][1])
+            concept_name = caos.Name(name=concept_name, module=concept_module)
+
+            indexes[concept_name] = {}
+
+            for index_class, language, columns in self.interpret_search_indexes(row):
+                for column_name, column_config in columns.items():
+                    idx = indexes[concept_name].setdefault(column_name, {})
+                    idx[(index_class, column_config[0])] = caos.types.LinkSearchWeight(column_config[1])
+
+        return indexes
+
+
     def read_links(self, meta):
 
         link_tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
@@ -557,6 +605,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         g = {}
 
         concept_columns = {}
+        concept_indexes = self.read_search_indexes()
 
         for r in links_list:
             name = caos.Name(r['name'])
@@ -595,9 +644,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             title = self.hstore_to_word_combination(r['title'])
             description = self.hstore_to_word_combination(r['description'])
             source = meta.get(r['source']) if r['source'] else None
+            link_search = None
 
             if r['implicit_derivative'] and r['is_atom']:
                 cols = concept_columns.get(source.name)
+                indexes = concept_indexes.get(source.name)
 
                 concept_schema, concept_table = common.concept_name_to_table_name(source.name,
                                                                                   catenate=False)
@@ -620,6 +671,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                                 col['column_default'], meta,
                                                 caos.Name(name=derived_atom_name,
                                                           module=source.name.module))
+
+                if indexes:
+                    col_search_index = indexes.get(base_link_name)
+                    if col_search_index:
+                        weight = col_search_index[('default', 'english')]
+                        link_search = proto.LinkSearchConfiguration(weight=weight)
             else:
                 target = meta.get(r['target']) if r['target'] else None
 
@@ -632,6 +689,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                 readonly=r['readonly'])
             link.implicit_derivative = r['implicit_derivative']
             link.properties = properties
+
+            if link_search:
+                link.search = link_search
 
             if r['constraints']:
                 for cls, val in r['constraints'].items():

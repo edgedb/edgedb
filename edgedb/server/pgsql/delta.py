@@ -619,10 +619,45 @@ class DeleteAtom(AtomMetaCommand, adapts=delta_cmds.DeleteAtom):
         return atom
 
 
+class UpdateSearchIndexes(MetaCommand):
+    def __init__(self, host, **kwargs):
+        super().__init__(**kwargs)
+        self.host = host
+
+    def get_index_name(self, host_table_name, language, index_class='default'):
+        return '%s_%s_%s_search_idx' % (host_table_name[1], language, index_class)
+
+    def apply(self, meta, context):
+        if isinstance(self.host, caos.types.ProtoConcept):
+            columns = []
+
+            names = sorted(self.host.links.keys())
+
+            for link_name in names:
+                for link in self.host.links[link_name]:
+                    if link.search:
+                        column_name = common.caos_name_to_pg_colname(link_name)
+                        columns.append(TextSearchIndexColumn(column_name, link.search.weight,
+                                                             'english'))
+
+            if columns:
+                table_name = common.get_table_name(self.host, catenate=False)
+
+                index_name = self.get_index_name(table_name, 'default')
+                index = TextSearchIndex(name=index_name, table_name=table_name, columns=columns)
+
+                cond = IndexExists(index_name=(table_name[0], index_name))
+                op = DropIndex(index_name=(table_name[0], index_name), conditions=(cond,))
+                self.pgops.add(op)
+                op = CreateIndex(index=index)
+                self.pgops.add(op)
+
+
 class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.alter_table = None
+        self.update_search_indexes = None
 
     @classmethod
     def _pg_type_from_atom(cls, meta, atom_obj):
@@ -660,6 +695,19 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         updaterec = self.table.record(name=str(new_name))
         condition = [('name', str(old_name))]
         self.pgops.add(Update(table=self.table, record=updaterec, condition=condition))
+
+
+    def search_index_add(self, host, pointer, meta, context):
+        if self.update_search_indexes is None:
+            self.update_search_indexes = UpdateSearchIndexes(host)
+
+    def search_index_alter(self, host, pointer, meta, context):
+        if self.update_search_indexes is None:
+            self.update_search_indexes = UpdateSearchIndexes(host)
+
+    def search_index_delete(self, host, pointer, meta, context):
+        if self.update_search_indexes is None:
+            self.update_search_indexes = UpdateSearchIndexes(host)
 
 
 class ConceptMetaCommand(CompositePrototypeMetaCommand):
@@ -703,6 +751,10 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
         if self.alter_table.ops:
             self.pgops.add(self.alter_table)
 
+        if self.update_search_indexes:
+            self.update_search_indexes.apply(meta, context)
+            self.pgops.add(self.update_search_indexes)
+
         return concept
 
 
@@ -739,6 +791,10 @@ class AlterConcept(ConceptMetaCommand, adapts=delta_cmds.AlterConcept):
 
         if self.alter_table.ops:
             self.pgops.add(self.alter_table)
+
+        if self.update_search_indexes:
+            self.update_search_indexes.apply(meta, context)
+            self.pgops.add(self.update_search_indexes)
 
         return concept
 
@@ -1134,6 +1190,59 @@ class DeleteLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.DeleteLinkPr
         link.op.alter_table.add_operation(col)
 
         return property
+
+
+class LinkSearchConfigurationMetaCommand(PrototypeMetaCommand):
+    pass
+
+
+class CreateLinkSearchConfiguration(LinkSearchConfigurationMetaCommand,
+                                    adapts=delta_cmds.CreateLinkSearchConfiguration):
+    def apply(self, meta, context=None):
+        config = delta_cmds.CreateLinkSearchConfiguration.apply(self, meta, context)
+        LinkSearchConfigurationMetaCommand.apply(self, meta, context)
+
+        link = context.get(delta_cmds.LinkCommandContext)
+        assert link, "Link search configuration command must be run in Link command context"
+
+        concept = context.get(delta_cmds.ConceptCommandContext)
+        assert concept, "Link search configuration command must be run in Concept command context"
+
+        concept.op.search_index_add(concept.proto, link.proto, meta, context)
+
+        return config
+
+
+class AlterLinkSearchConfiguration(LinkSearchConfigurationMetaCommand,
+                                   adapts=delta_cmds.AlterLinkSearchConfiguration):
+    def apply(self, meta, context=None):
+        delta_cmds.AlterLinkSearchConfiguration.apply(self, meta, context)
+        LinkSearchConfigurationMetaCommand.apply(self, meta, context)
+
+        link = context.get(delta_cmds.LinkCommandContext)
+        assert link, "Link search configuration command must be run in Link command context"
+
+        concept = context.get(delta_cmds.ConceptCommandContext)
+        assert concept, "Link search configuration command must be run in Concept command context"
+
+        concept.op.search_index_alter(concept.proto, link.proto, meta, context)
+
+
+class DeleteLinkSearchConfiguration(LinkSearchConfigurationMetaCommand,
+                                    adapts=delta_cmds.DeleteLinkSearchConfiguration):
+    def apply(self, meta, context=None):
+        config = delta_cmds.DeleteLinkSearchConfiguration.apply(self, meta, context)
+        LinkSearchConfigurationMetaCommand.apply(self, meta, context)
+
+        link = context.get(delta_cmds.LinkCommandContext)
+        assert link, "Link search configuration command must be run in Link command context"
+
+        concept = context.get(delta_cmds.ConceptCommandContext)
+        assert concept, "Link search configuration command must be run in Concept command context"
+
+        concept.op.search_index_delete(concept.proto, link.proto, meta, context)
+
+        return config
 
 
 class CreateMappingIndexes(MetaCommand):
@@ -1618,6 +1727,29 @@ class Column(DBObject):
                                     self.name, self.type)
 
 
+class IndexColumn(DBObject):
+    def __init__(self, name):
+        self.name = name
+
+    def __repr__(self):
+        return '<%s.%s "%s">' % (self.__class__.__module__, self.__class__.__name__, self.name)
+
+
+class TextSearchIndexColumn(IndexColumn):
+    def __init__(self, name, weight, language):
+        super().__init__(name)
+        self.weight = weight
+        self.language = language
+
+    def code(self, context):
+        ql = postgresql.string.quote_literal
+        qi = common.quote_ident
+
+        return "setweight(to_tsvector(%s, coalesce(%s, '')), %s)" % \
+                (ql(self.language), qi(self.name), ql(self.weight))
+
+
+
 class DefaultMeta(type):
     def __bool__(cls):
         return False
@@ -1662,8 +1794,23 @@ class Index(DBObject):
     def __repr__(self):
         return '<%(mod)s.%(cls)s name=%(name)s cols=(%(cols)s) unique=%(uniq)s predicate=%(pred)s>'\
                % {'mod': self.__class__.__module__, 'cls': self.__class__.__name__,
-                  'name': self.name, 'cols': ','.join(self.columns), 'uniq': self.unique,
-                  'pred': self.predicate}
+                  'name': self.name, 'cols': ','.join('%r' % c for c in self.columns),
+                  'uniq': self.unique, 'pred': self.predicate}
+
+
+class TextSearchIndex(Index):
+    def __init__(self, name, table_name, columns):
+        super().__init__(name, table_name)
+        self.add_columns(columns)
+
+    def creation_code(self, context):
+        code = 'CREATE INDEX %(name)s ON %(table)s USING gin((%(cols)s)) %(predicate)s' % \
+                {'name': common.qname(self.name),
+                 'table': common.qname(*self.table_name),
+                 'cols': ' || '.join(c.code(context) for c in self.columns),
+                 'predicate': 'WHERE %s' % self.predicate if self.predicate else ''
+                }
+        return code
 
 
 class MappingIndex(Index):
@@ -2176,6 +2323,23 @@ class AlterTable(AlterTableBase):
             result.extend('  %s' % l for l in op.dump().split('\n'))
 
         return '\n'.join(result)
+
+
+class IndexExists(Condition):
+    def __init__(self, index_name):
+        self.index_name = index_name
+
+    def code(self, context):
+        code = '''SELECT
+                       i.indexrelid
+                   FROM
+                       pg_catalog.pg_index i
+                       INNER JOIN pg_catalog.pg_class ic ON ic.oid = i.indexrelid
+                       INNER JOIN pg_catalog.pg_namespace icn ON icn.oid = ic.relnamespace
+                   WHERE
+                       icn.nspname = $1 AND ic.relname = $2'''
+
+        return code, self.index_name
 
 
 class CreateIndex(DDLOperation):
