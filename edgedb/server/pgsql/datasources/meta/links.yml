@@ -41,13 +41,16 @@ params:
     source_concept:
         type: str
         default: null
+
     target_concept:
         type: str
         default: null
+
     name:
         type: str
         default: null
-    include_derivatives:
+
+    include_specialized:
         type: bool
         default: True
 
@@ -66,7 +69,6 @@ source: |
             l.required,
             l.title,
             l.description,
-            l.implicit_derivative,
             l.is_atom,
             l.is_abstract,
             l.readonly,
@@ -79,6 +81,6 @@ source: |
             (%(source_concept)s::text IS NULL OR %(source_concept)s::text = sc.name)
             AND (%(target_concept)s::text IS NULL OR %(target_concept)s::text = tc.name)
             AND (%(name)s::text IS NULL OR %(name)s::text = l.name)
-            AND (%(include_derivatives)s::bool OR NOT l.implicit_derivative)
+            AND (%(include_specialized)s::bool OR l.source_id IS NULL)
         ORDER BY
             l.id, l.target_id NULLS FIRST

@@ -909,7 +909,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
         self.pgops.add(c)
 
     def has_table(self, link, meta, context):
-        return (not link.atomic() or link.properties) and not link.implicit_derivative
+        return (not link.atomic() or link.properties) and link.generic()
 
     def schedule_mapping_update(self, link, meta, context):
         if (not link.atomic() or link.properties):
@@ -965,7 +965,7 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
         if self.has_table(link, meta, context):
             self.create_table(link, meta, context, conditional=True)
 
-        if link.atomic() and link.implicit_derivative:
+        if link.atomic() and not link.generic():
             concept = context.get(delta_cmds.ConceptCommandContext)
             assert concept, "Link command must be run in Concept command context"
 
@@ -1054,7 +1054,7 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
         result = delta_cmds.DeleteLink.apply(self, meta, context)
         LinkMetaCommand.apply(self, meta, context)
 
-        if result.atomic() and result.implicit_derivative:
+        if result.atomic() and not result.generic():
             concept = context.get(delta_cmds.ConceptCommandContext)
 
             name = result.normal_name()
@@ -1068,7 +1068,7 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
             if result.mapping != caos.types.ManyToMany:
                 self.schedule_mapping_update(result, meta, context)
 
-        elif not result.atomic() and not result.implicit_derivative:
+        elif not result.atomic() and result.generic():
             old_table_name = common.link_name_to_table_name(result.name, catenate=False)
             self.pgops.add(DropTable(name=old_table_name))
             self.cancel_mapping_update(result, meta, context)
@@ -1444,7 +1444,7 @@ class CommandContext(delta_cmds.CommandContext):
 
     def _get_link_map(self, reverse=False):
         link_ds = datasources.meta.links.ConceptLinks(self.db)
-        links = link_ds.fetch(include_derivatives=True)
+        links = link_ds.fetch()
         grouped = itertools.groupby(links, key=lambda i: i['id'])
         if reverse:
             link_map = {k: next(i)['name'] for k, i in grouped}
@@ -1981,7 +1981,6 @@ class LinkTable(MetaObjectTable):
             Column(name='target_id', type='integer'),
             Column(name='mapping', type='char(2)', required=True),
             Column(name='required', type='boolean', required=True, default=False),
-            Column(name='implicit_derivative', type='boolean', required=True, default=False),
             Column(name='is_atom', type='boolean', required=True, default=False),
             Column(name='readonly', type='boolean', required=True, default=False),
             Column(name='constraints', type='caos.hstore')

@@ -351,7 +351,7 @@ class LinkDef(Prototype, adapts=proto.Link):
     def represent(cls, data):
         result = {}
 
-        if not data.implicit_derivative:
+        if data.generic():
             if data.base:
                 result['extends'] = list(data.base)
 
@@ -613,11 +613,10 @@ class MetaSet(LangObject):
 
             g[link.name] = {"item": link, "merge": [], "deps": []}
 
-            if link.implicit_derivative and not link.atomic():
+            if not link.generic() and not link.atomic():
                 base = globalmeta.get(link.normal_name())
                 if base.is_atom:
-                    raise caos.MetaError('implicitly defined atomic link %s used to link to concept'
-                                          % link.name)
+                    raise caos.MetaError('%s link target conflict (atom/concept)' % link.name)
 
             if link.base:
                 g[link.name]['merge'].extend(link.base)
@@ -681,10 +680,9 @@ class MetaSet(LangObject):
                         else:
                             link_qname = caos.Name(link_name)
 
-                    # A new implicit subclass of the link is created for each
+                    # A new specialized subclass of the link is created for each
                     # (source, link_name, target) combination
                     link.base = (link_qname,)
-                    link.implicit_derivative = True
                     link_genname = proto.Link.gen_link_name(link.source, link.target, link_qname.name)
                     link.name = caos.Name(name=link_genname, module=link_qname.module)
                     globalmeta.add(link)
@@ -781,7 +779,7 @@ class RealmMeta(LangObject, adapts=proto.RealmMeta):
         for type in ('atom', 'link', 'concept'):
             for obj in data(type=type, include_builtin=False, include_automatic=False):
                 # XXX
-                if type == 'link' and obj.implicit_derivative:
+                if type == 'link' and not obj.generic():
                     continue
                 result[type + 's'][str(obj.name)] = obj
 

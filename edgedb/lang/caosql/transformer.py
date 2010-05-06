@@ -248,7 +248,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                     target = link_item.source
                                 assert target
 
-                                if link_item.implicit_derivative:
+                                if not link_item.generic():
                                     link_proto = link_item
                                     link_item = self.realm.meta.get(link_item.normal_name())
                                 else:

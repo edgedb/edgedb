@@ -621,7 +621,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             bases = tuple()
             properties = {}
 
-            if not r['implicit_derivative'] and not r['is_atom']:
+            if not r['source_id'] and not r['is_atom']:
                 t = link_tables.get(name)
                 if not t:
                     raise caos.MetaError(('internal inconsistency: record for link %s exists but '
@@ -645,7 +645,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     property = proto.LinkProperty(name=property_name, atom=atom)
                     properties[property_name] = property
             else:
-                if r['implicit_derivative']:
+                if r['source_id']:
                     bases = (proto.Link.normalize_link_name(name),)
                 else:
                     bases = (caos.Name('semantix.caos.builtins.link'),)
@@ -655,7 +655,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             source = meta.get(r['source']) if r['source'] else None
             link_search = None
 
-            if r['implicit_derivative'] and r['is_atom']:
+            if r['source_id'] and r['is_atom']:
                 cols = concept_columns.get(source.name)
                 indexes = concept_indexes.get(source.name)
 
@@ -696,7 +696,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                 is_abstract=r['is_abstract'],
                                 is_atom=r['is_atom'],
                                 readonly=r['readonly'])
-            link.implicit_derivative = r['implicit_derivative']
             link.properties = properties
 
             if link_search:
