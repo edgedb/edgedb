@@ -250,7 +250,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                                 if link_item.implicit_derivative:
                                     link_proto = link_item
-                                    link_item = link_item.get_class_base(self.realm)[0]
+                                    link_item = self.realm.meta.get(link_item.normal_name())
                                 else:
                                     assert False
 

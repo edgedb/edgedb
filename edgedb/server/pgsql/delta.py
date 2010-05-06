@@ -459,7 +459,7 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
 
         for host_proto, item_proto in users:
             if isinstance(item_proto, proto.Link):
-                name = item_proto.base[0] if item_proto.implicit_derivative else item_proto.name
+                name = item_proto.normal_name()
             else:
                 name = item_proto.name
 
@@ -871,7 +871,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
 
             column_type = self.pg_type_from_atom(meta, link.target)
 
-            name = link.base[0] if link.implicit_derivative else link.name
+            name = link.normal_name()
             column_name = common.caos_name_to_pg_colname(name)
 
             columns.append(Column(name=column_name, type=column_type,
@@ -1057,7 +1057,7 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
         if result.atomic() and result.implicit_derivative:
             concept = context.get(delta_cmds.ConceptCommandContext)
 
-            name = result.base[0] if result.implicit_derivative else result.name
+            name = result.normal_name()
             column_name = common.caos_name_to_pg_colname(name)
             # We don't really care about the type -- we're dropping the thing
             column_type = 'text'
