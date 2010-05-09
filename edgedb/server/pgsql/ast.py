@@ -112,7 +112,7 @@ class ExistsNode(Base):
     __fields = ['expr']
 
 class FieldRefNode(Base):
-    __fields = ['table', 'field', 'origin', 'origin_field']
+    __fields = ['table', 'field', 'origin', 'origin_field', 'indirection']
 
 class SequenceNode(Base):
     __fields = [('elements', list)]
@@ -121,7 +121,7 @@ class SortExprNode(Base):
     __fields = ['expr', 'direction']
 
 class FunctionCallNode(Base):
-    __fields = ['name', ('args', list)]
+    __fields = ['name', ('args', list), 'over']
 
 class IgnoreNode(Base):
     pass
@@ -141,10 +141,10 @@ class IndirectionNode(Base):
     __fields = ['expr', 'indirection']
 
 class RowExprNode(Base):
-    __fields = ['expr']
+    __fields = [('args', list)]
 
 class TypeNode(Base):
-    __fields = ['name', 'typmods']
+    __fields = ['name', 'typmods', 'array_bounds', ('setof', bool)]
 
 class StarIndirectionNode(Base):
     pass
@@ -165,3 +165,5 @@ SIMILAR_TO = PgSQLOperator('~')
 NOT_SIMILAR_TO = PgSQLOperator('!~')
 IS_DISTINCT = PgSQLOperator('IS DISTINCT')
 IS_NOT_DISTINCT = PgSQLOperator('IS NOT DISTINCT')
+IS_OF = PgSQLOperator('IS OF')
+IS_NOT_OF = PgSQLOperator('IS NOT OF')

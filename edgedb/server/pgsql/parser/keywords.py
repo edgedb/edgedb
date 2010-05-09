@@ -6,7 +6,8 @@
 ##
 
 
-UNRESERVED_KEYWORD, RESERVED_KEYWORD, TYPE_FUNC_NAME_KEYWORD, COL_NAME_KEYWORD = range(1, 5)
+keyword_types = range(1, 5)
+UNRESERVED_KEYWORD, RESERVED_KEYWORD, TYPE_FUNC_NAME_KEYWORD, COL_NAME_KEYWORD = keyword_types
 
 pg_keywords = {
     "abort": ("ABORT_P", UNRESERVED_KEYWORD),
@@ -405,3 +406,9 @@ pg_keywords = {
     "yes": ("YES_P", UNRESERVED_KEYWORD),
     "zone": ("ZONE", UNRESERVED_KEYWORD),
 }
+
+
+by_type = {typ: {} for typ in keyword_types}
+
+for val, spec in pg_keywords.items():
+    by_type[spec[1]][val] = spec[0]

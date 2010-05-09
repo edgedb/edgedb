@@ -203,7 +203,7 @@ INITIAL:
             if nchars == 1 and self.value[0] in ',()[].;:+-*/%^<>=':
                 return self.value[0]
 
-        return 'OP'
+        return 'Op'
 
     "{param}":
         self.value = int(self.value[1:])

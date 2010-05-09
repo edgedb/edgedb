@@ -7,42 +7,74 @@
 
 
 import os
+
+import Parsing
 import pyggy
 
-from semantix.utils import ast
+from semantix.utils import debug
 
-from .error import PgSQLParserError
-from .. import ast as pgast
+from . import parsermeta
 
 
-class PgSQLParser:
+class _ParserSpecs:
+    parser_spec = None
+    lexer_spec = None
+
+    @classmethod
+    def get_specs(cls):
+        if cls.parser_spec is None:
+            from . import parserdef
+            cls.parser_spec = Parsing.Spec(
+                                parserdef,
+                                pickleFile=cls.localpath("parserdef.pickle"),
+                                skinny=True,
+                                logFile=cls.localpath("parserdef.log"),
+                                #graphFile=cls.localpath("parserdef.dot"),
+                                verbose='caos.pgsql.parser' in debug.channels)
+
+        if cls.lexer_spec is None:
+            _, lexer_spec = pyggy.getlexer(cls.localpath("pgsql.pyl"))
+            cls.lexer_spec = lexer_spec.lexspec
+
+        return cls.parser_spec, cls.lexer_spec
+
+    @classmethod
+    def localpath(cls, filename):
+        return os.path.join(os.path.dirname(__file__), filename)
+
+
+class PgSQLParser(Parsing.Lr):
     def __init__(self):
-        self.lexer, self.ltab = pyggy.getlexer(self.getsrc("pgsql.pyl"))
-        self.lexer.lineno = 1
+        self.parser_spec = None
+        self.lexer_spec = None
+        self.lexer = None
 
-        self.parser, self.ptab = pyggy.getparser(self.getsrc("pgsql.pyg"))
-        self.parser.setlexer(self.lexer)
 
-    def parse(self, expr):
-        self.lexer.setinputstr(expr)
+    def reset_parser(self, input):
+        if self.parser_spec is None:
+            self.parser_spec, self.lexer_spec = _ParserSpecs.get_specs()
+            self.lexer = pyggy.lexer.lexer(self.lexer_spec)
+            super().__init__(self.parser_spec)
 
-        try:
-            tree = self.parser.parse()
-        except pyggy.ParseError as e:
-            raise PgSQLParserError(str(e), token=e.tok, expr=e.str, lineno=self.lexer.lineno)
+        self.reset()
+        self.lexer.setinputstr(input)
 
-        raw_ast = pyggy.proctree(tree, self.ptab)
-        return ast.fix_parent_links(raw_ast)
+    @debug.debug
+    def parse(self, input):
+        self.reset_parser(input)
 
-    def getsrc(self, name):
-        return os.path.join(os.path.dirname(__file__), name)
+        tok = self.lexer.token()
 
-if __name__ == '__main__':
-    import sys
+        while tok:
+            token = parsermeta.TokenMeta.for_lex_token(tok)(self, self.lexer.value)
 
-    parser = PgSQLParser()
+            """LOG [caos.pgsql.lexer] TOKEN
+            print('%r' % token)
+            """
 
-    input = sys.stdin.read()
-    result = parser.parse(input)
+            self.token(token)
+            tok = self.lexer.token()
 
-    print(ast.dump.pretty_dump(result, colorize=True))
+        self.eoi()
+
+        return self.start[0].val

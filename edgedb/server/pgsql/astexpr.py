@@ -28,8 +28,16 @@ class TextSearchExpr:
                                         pgastmatch.FunctionCallNode(
                                             name='coalesce',
                                             args=[
-                                                astmatch.group('column_name',
-                                                               pgastmatch.FieldRefNode()),
+                                                astmatch.Or(
+                                                    astmatch.group('column_name',
+                                                        pgastmatch.FieldRefNode()),
+
+                                                    pgastmatch.TypeCastNode(
+                                                        expr=astmatch.group('column_name',
+                                                                pgastmatch.FieldRefNode())
+                                                    )
+                                                ),
+
                                                 pgastmatch.ConstantNode()
                                             ]
                                         ),
