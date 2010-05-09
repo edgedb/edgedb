@@ -139,7 +139,13 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
                 tmp = ''
                 for n in value:
                     _f = _format(n, identation + 2)
-                    cache[n] = _f
+
+                    try:
+                        cache[n] = _f
+                    except TypeError:
+                        # Unhashable types
+                        cache[id(n)] = _f
+
                     if not _f[0]:
                         multiline = True
                         break
@@ -155,10 +161,14 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
                 else:
                     result += '%s%s = [\n' % (pad_tab, highlight('NODE_FIELD', field))
                     for n in value:
-                        if n in cache:
+                        try:
                             _f = cache[n]
-                        else:
-                            _f = _format(n, identation + 2)
+                        except KeyError:
+                            try:
+                                _f = cache[id(n)]
+                            except KeyError:
+                                _f = _format(n, identation + 2)
+
                         one_line_result, tmp = _f
                         if one_line_result:
                             tmp = pad_tab + tab + tmp + '\n'
