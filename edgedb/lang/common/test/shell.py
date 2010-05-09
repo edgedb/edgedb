@@ -22,6 +22,7 @@ class TestCommand(shell.Command, name='test', expose=True):
         parser.add_argument('--no-color', dest='color', action='store_false')
         parser.add_argument('--no-magic', dest='magic', action='store_false', default=True)
         parser.add_argument('--skip', dest='skipped', action='append')
+        parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', default=False)
         parser.add_argument('tests', nargs='*')
 
         return parser
@@ -50,6 +51,9 @@ class TestCommand(shell.Command, name='test', expose=True):
 
         if not args.keep_going:
             test_args.append('-x')
+
+        if args.verbose:
+            test_args.append('-v')
 
         path = os.path.dirname(os.path.abspath(__file__))
 
