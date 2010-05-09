@@ -28,112 +28,10 @@ from semantix.utils.algos.persistent_hash import persistent_hash
 from . import datasources
 
 
-numeric_spec = collections.OrderedDict((
-                    #(((-32768, 32767), 0), 'smallint'),
-                    #(((-2147483648, 2147483647), 0), 'int'),
-                    (((-9223372036854775808, 9223372036854775807), 0), 'bigint'),
-                    (None, 'numeric')
-               ))
-
-def numeric_to_pg(atom, mods, force_numeric=False):
-    min_value = mods.get(proto.AtomModMinValue)
-    min_value_ex = mods.get(proto.AtomModMinExValue)
-    max_value = mods.get(proto.AtomModMaxValue)
-    max_value_ex = mods.get(proto.AtomModMaxExValue)
-    precision_mod = mods.get(proto.AtomModPrecision)
-
-    int_precision = precision = max_length = upper = lower = None
-
-    if precision_mod:
-        precision = precision_mod.value
-        if precision[1]:
-            int_precision = precision[0] - precision[1]
-        else:
-            int_precision = precision[0]
-        max_length = 10 ** int_precision - 1
-
-    if min_value and min_value_ex:
-        lower = max(min_value.value, min_value_ex.value)
-    elif min_value:
-        lower = min_value.value
-    elif min_value_ex:
-        lower = min_value_ex.value
-
-    if max_value and max_value_ex:
-        upper = max(max_value.value, max_value_ex.value)
-    elif max_value:
-        upper = max_value.value
-    elif max_value_ex:
-        upper = max_value_ex.value
-
-    if max_length is not None:
-        upper = min(max_length, upper) if upper is not None else max_length
-        lower = max(-max_length, lower) if lower is not None else -max_length
-
-
-    mod_used = set()
-
-    if force_numeric:
-        type = 'numeric'
-    else:
-        type = None
-        for spec, type in numeric_spec.items():
-            if spec is None:
-                break
-            else:
-                length, spec_precision = spec
-                within_bounds = True
-                if length is not None:
-                    spec_lower, spec_upper = length
-                    within_bounds = (spec_lower is None or \
-                                         (lower is not None and lower > spec_lower)) \
-                                    and (spec_upper is None or \
-                                         (upper is not None and upper < spec_upper))
-
-                within_bounds = within_bounds and \
-                                (spec_precision is None \
-                                 or (precision is None or precision[1] <= spec_precision))
-
-                if within_bounds:
-                    break
-        else:
-            type = None
-
-    if type == 'numeric':
-        if upper:
-            len = math.ceil(math.log(upper, 10))
-            if precision:
-                if len == int_precision:
-                    mod_used.add(precision_mod)
-
-                scale = precision[1] or 0
-                type = 'numeric(%d,%d)' % (len + scale, scale)
-            else:
-                type = 'numeric(%d)' % len
-        # if there is no upper limit on length, we cannot use any modifiers
-        # on the numeric type, including precision, even if it is specified,
-        # and need to use unlimited version instead
-
-    return type, mod_used
-
-
-def decimal_to_pg(atom, mods):
-    return numeric_to_pg(atom, mods, force_numeric=True)
-
-
-def str_to_pg(atom, mods):
-    max_length_mod = mods.get(proto.AtomModMaxLength)
-
-    if max_length_mod:
-        return 'character varying (%d)' % max_length_mod.value, (max_length_mod,)
-    else:
-        return 'text', ()
-
-
 base_type_name_map = {
-    caos.Name('semantix.caos.builtins.str'): str_to_pg,
-    caos.Name('semantix.caos.builtins.int'): numeric_to_pg,
-    caos.Name('semantix.caos.builtins.decimal'): decimal_to_pg,
+    caos.Name('semantix.caos.builtins.str'): 'text',
+    caos.Name('semantix.caos.builtins.int'): 'bigint',
+    caos.Name('semantix.caos.builtins.decimal'): 'numeric',
     caos.Name('semantix.caos.builtins.bool'): 'boolean',
     caos.Name('semantix.caos.builtins.float'): 'double precision',
     caos.Name('semantix.caos.builtins.uuid'): 'uuid',
@@ -141,41 +39,14 @@ base_type_name_map = {
     caos.Name('semantix.caos.builtins.timedelta'): 'interval'
 }
 
-
-def str_from_pg(type, typmod):
-    name = caos.Name('semantix.caos.builtins.str')
-    mods = []
-
-    assert typmod is None or len(typmod) == 1
-
-    if typmod:
-        mods.append(proto.AtomModMaxLength(int(typmod[0])))
-
-    return name, mods
-
-
-def numeric_from_pg(type, typmod):
-    if typmod and len(typmod) == 2:
-        name = caos.Name('semantix.caos.builtins.decimal')
-        mods = [proto.AtomModPrecision((int(typmod[0]), int(typmod[1])))]
-    else:
-        name = caos.Name('semantix.caos.builtins.int')
-        if typmod:
-            mods = [proto.AtomModPrecision((int(typmod[0])))]
-        else:
-            mods = ()
-
-    return name, mods
-
-
 base_type_name_map_r = {
-    'character varying': str_from_pg,
-    'character': str_from_pg,
-    'text': str_from_pg,
-    'numeric': numeric_from_pg,
-    'integer': numeric_from_pg,
-    'bigint': numeric_from_pg,
-    'smallint': numeric_from_pg,
+    'character varying': caos.Name('semantix.caos.builtins.str'),
+    'character': caos.Name('semantix.caos.builtins.str'),
+    'text': caos.Name('semantix.caos.builtins.str'),
+    'numeric': caos.Name('semantix.caos.builtins.decimal'),
+    'integer': caos.Name('semantix.caos.builtins.int'),
+    'bigint': caos.Name('semantix.caos.builtins.int'),
+    'smallint': caos.Name('semantix.caos.builtins.int'),
     'boolean': caos.Name('semantix.caos.builtins.bool'),
     'double precision': caos.Name('semantix.caos.builtins.float'),
     'uuid': caos.Name('semantix.caos.builtins.uuid'),
@@ -232,10 +103,21 @@ class BaseCommand:
         print(code, vars)
         """
 
-        return context.db.prepare(code)(*vars)
+        result = context.db.prepare(code)(*vars)
+        extra = self.extra(context)
+        if extra:
+            for cmd in extra:
+                cmd.execute(context)
+        return result
 
     def dump(self):
         return str(self)
+
+    def code(self, context):
+        return ''
+
+    def extra(self, context, *args, **kwargs):
+        return None
 
 
 class Command(BaseCommand):
@@ -254,7 +136,7 @@ class Command(BaseCommand):
         if ok:
             code, vars = self.get_code_and_vars(context)
 
-            """LOG [caos.meta.sync.cmd] Sync command:
+            """LOG [caos.delta.cmd] Sync command:
             print(self)
             """
 
@@ -266,6 +148,11 @@ class Command(BaseCommand):
                 result = context.db.prepare(code)(*vars)
             else:
                 result = context.db.execute(code)
+
+            extra = self.extra(context)
+            if extra:
+                for cmd in extra:
+                    cmd.execute(context)
         return result
 
     def check_conditions(self, context, conditions, positive):
@@ -407,7 +294,8 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
 
         return rec, updates
 
-    def get_atom_host_and_pointer(self, atom, meta, context):
+    @classmethod
+    def get_atom_host_and_pointer(cls, atom, meta, context):
         if context:
             concept = context.get(delta_cmds.ConceptCommandContext)
             link = context.get(delta_cmds.LinkCommandContext)
@@ -479,6 +367,24 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
         if intent == 'drop' or (intent == 'alter' and not simple_alter):
             self.pgops.add(DropDomain(domain_name))
 
+    @classmethod
+    def get_mod_constraint(cls, atom, meta, context, mod, original=False):
+        host, pointer = cls.get_atom_host_and_pointer(atom, meta, context)
+
+        if original:
+            host_proto, pointer_proto = host.original_proto, pointer.original_proto
+        else:
+            host_proto, pointer_proto = host.proto, pointer.proto
+
+        column_name = common.caos_name_to_pg_colname(pointer_proto.normal_name())
+        prefix = (host_proto.name, pointer_proto.normal_name())
+        table_name = common.get_table_name(host_proto, catenate=False)
+        constraint = AtomModTableConstraint(table_name=table_name,
+                                            column_name=column_name,
+                                            prefix=prefix,
+                                            mod=mod)
+        return constraint
+
 
 class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
     def apply(self, meta, context=None):
@@ -490,7 +396,7 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
 
         updates = self.create_object(atom)
 
-        if not atom.automatic or mods:
+        if not atom.automatic:
             self.pgops.add(CreateDomain(name=new_domain_name, base=base))
 
             for mod in mods:
@@ -500,6 +406,18 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
 
             if default is not None:
                 self.pgops.add(AlterDomainAlterDefault(name=new_domain_name, default=default))
+        else:
+            host, pointer = self.get_atom_host_and_pointer(atom, meta, context)
+
+            # Skip inherited links
+            if pointer.proto.source.name == host.proto.name:
+                alter_table = host.op.get_alter_table()
+
+                for mod in mods:
+                    constraint = self.get_mod_constraint(atom, meta, context, mod)
+                    op = AlterTableAddConstraint(constraint=constraint)
+                    alter_table.add_operation(op)
+
 
         if extramods:
             values = {}
@@ -539,19 +457,28 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
         new_atom = delta_cmds.AlterAtom.apply(self, meta, context)
         AtomMetaCommand.apply(self, meta, context)
 
-        domain_name = common.atom_name_to_domain_name(new_atom.name, catenate=False)
-
         updaterec, updates = self.fill_record()
 
         if updaterec:
             condition = [('name', str(old_atom.name))]
             self.pgops.add(Update(table=self.table, record=updaterec, condition=condition))
 
-        old_base, old_mods_encoded, old_mods, _ = self.get_atom_base_and_mods(meta, old_atom)
-        base, mods_encoded, new_mods, _ = self.get_atom_base_and_mods(meta, new_atom)
+        self.alter_atom(self, meta, context, old_atom, new_atom, updates=updates)
+
+        return new_atom
+
+    @classmethod
+    def alter_atom(cls, op, meta, context, old_atom, new_atom, in_place=True, updates=None):
+
+        old_base, old_mods_encoded, old_mods, _ = cls.get_atom_base_and_mods(meta, old_atom)
+        base, mods_encoded, new_mods, _ = cls.get_atom_base_and_mods(meta, new_atom)
+
+        domain_name = common.atom_name_to_domain_name(new_atom.name, catenate=False)
 
         new_type = None
         type_intent = 'alter'
+
+        host, pointer = cls.get_atom_host_and_pointer(new_atom, meta, context)
 
         if new_atom.automatic:
             if old_mods_encoded and not old_mods and new_mods:
@@ -560,15 +487,11 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
             elif old_mods_encoded and old_mods and not new_mods:
                 new_type = base
                 type_intent = 'drop'
+        elif old_atom.automatic:
+            type_intent = 'drop'
 
         if not new_type and old_base != base:
             new_type = base
-
-        if context:
-            concept = context.get(delta_cmds.ConceptCommandContext)
-            link = context.get(delta_cmds.LinkCommandContext)
-        else:
-            concept = link = None
 
         if new_type:
             # The change of the underlying data type for domains is a complex problem.
@@ -577,25 +500,52 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
             # to use the new one, and then the old domain dropped.  Obviously this
             # recurses down to every child domain.
             #
-            host, pointer = self.get_atom_host_and_pointer(new_atom, meta, context)
             host_proto = host.proto if host else None
             pointer_proto = pointer.proto if pointer else None
-            self.alter_atom_type(new_atom, meta, host_proto, pointer_proto, new_type,
-                                 intent=type_intent)
+
+            if in_place:
+                op.alter_atom_type(new_atom, meta, host_proto, pointer_proto, new_type,
+                                   intent=type_intent)
 
         if type_intent != 'drop':
-            default_delta = updates.get('default')
-            if default_delta:
-                self.pgops.add(AlterDomainAlterDefault(name=domain_name,
-                                                       default=default_delta))
+            if updates:
+                default_delta = updates.get('default')
+                if default_delta:
+                    if new_atom.automatic:
+                        assert False
+                    else:
+                        op.pgops.add(AlterDomainAlterDefault(name=domain_name,
+                                                             default=default_delta))
 
-            for mod in old_mods - new_mods:
-                self.pgops.add(AlterDomainDropConstraint(name=domain_name, constraint=mod))
+            if new_atom.automatic:
+                alter_table = host.op.get_alter_table()
 
-            for mod in new_mods - old_mods:
-                self.pgops.add(AlterDomainAddConstraint(name=domain_name, constraint=mod))
+                for mod in old_mods - new_mods:
+                    constraint = cls.get_mod_constraint(old_atom, meta, context, mod)
+                    op = AlterTableDropConstraint(constraint=constraint)
+                    alter_table.add_operation(op)
 
-        return new_atom
+                for mod in new_mods - old_mods:
+                    constraint = cls.get_mod_constraint(new_atom, meta, context, mod)
+                    op = AlterTableAddConstraint(constraint=constraint)
+                    alter_table.add_operation(op)
+
+            else:
+                for mod in old_mods - new_mods:
+                    op.pgops.add(AlterDomainDropConstraint(name=domain_name, constraint=mod))
+
+                for mod in new_mods - old_mods:
+                    op.pgops.add(AlterDomainAddConstraint(name=domain_name, constraint=mod))
+        else:
+            # We need to drop orphan constraints
+            if old_atom.automatic:
+                alter_table = host.op.get_alter_table()
+
+                for mod in old_mods:
+                    constraint = cls.get_mod_constraint(old_atom, meta, context, mod)
+                    op = AlterTableDropConstraint(constraint=constraint)
+                    alter_table.add_operation(op)
+
 
 
 class DeleteAtom(AtomMetaCommand, adapts=delta_cmds.DeleteAtom):
@@ -656,6 +606,7 @@ class UpdateSearchIndexes(MetaCommand):
 class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        self.table_name = None
         self.alter_table = None
         self.update_search_indexes = None
 
@@ -665,7 +616,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
         need_to_create = False
 
-        if not atom_obj.automatic or mods:
+        if not atom_obj.automatic:
             column_type = base_type_name_map.get(atom_obj.name)
             if column_type:
                 column_type = base
@@ -676,6 +627,12 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             column_type = base
 
         return column_type, need_to_create
+
+    def get_alter_table(self):
+        if self.alter_table is None:
+            assert self.table_name
+            self.alter_table = AlterTable(self.table_name)
+        return self.alter_table
 
     @classmethod
     def pg_type_from_atom(cls, meta, atom):
@@ -725,12 +682,13 @@ class ConceptMetaCommand(CompositePrototypeMetaCommand):
 class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
     def apply(self, meta, context=None):
         new_table_name = common.concept_name_to_table_name(self.prototype_name, catenate=False)
+        self.table_name = new_table_name
         concept_table = Table(name=new_table_name)
         schema_name = common.caos_module_name_to_schema_name(self.prototype_name.module)
         self.create_schema(schema_name)
         self.pgops.add(CreateTable(table=concept_table))
 
-        self.alter_table = AlterTable(new_table_name)
+        alter_table = self.get_alter_table()
 
         concept = delta_cmds.CreateConcept.apply(self, meta, context)
         ConceptMetaCommand.apply(self, meta, context)
@@ -739,17 +697,18 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
 
         if concept.name == 'semantix.caos.builtins.BaseObject':
             col = Column(name='concept_id', type='integer', required=True)
-            self.alter_table.add_operation(AlterTableAddColumn(col))
+            alter_table.add_operation(AlterTableAddColumn(col))
 
-        constraint = PrimaryKey(columns=['semantix.caos.builtins.id'])
-        self.alter_table.add_operation(AlterTableAddConstraint(constraint))
+        constraint = PrimaryKey(table_name=alter_table.name,
+                                columns=['semantix.caos.builtins.id'])
+        alter_table.add_operation(AlterTableAddConstraint(constraint))
 
         bases = (common.concept_name_to_table_name(p, catenate=False)
                  for p in fields['base'] if proto.Concept.is_prototype(p))
         concept_table.bases = list(bases)
 
-        if self.alter_table.ops:
-            self.pgops.add(self.alter_table)
+        if alter_table.ops:
+            self.pgops.add(alter_table)
 
         if self.update_search_indexes:
             self.update_search_indexes.apply(meta, context)
@@ -764,15 +723,60 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
         ConceptMetaCommand.apply(self, meta, context)
         self.rename(self.prototype_name, self.new_name)
 
-        if context:
-            concept = context.get(delta_cmds.ConceptCommandContext)
-            if concept:
-                if concept.op.alter_table.ops:
-                    concept.op.pgops.add(concept.op.alter_table)
-                table_name = common.concept_name_to_table_name(self.new_name, catenate=False)
-                concept.op.alter_table = AlterTable(table_name)
+        concept = context.get(delta_cmds.ConceptCommandContext)
+        assert concept
+
+        # Need to update all bits that reference concept name
+
+        # Atom mods
+        for linkset in proto.ownlinks.values():
+            for link in linkset:
+                if link.atomic():
+                    self.adjust_link_constraints(meta, context, proto, link)
+
+        if concept.op.alter_table.ops:
+            concept.op.pgops.add(concept.op.alter_table)
+
+        self.table_name = common.concept_name_to_table_name(self.new_name, catenate=False)
+        concept.op.alter_table = AlterTable(self.table_name)
 
         return proto
+
+    def adjust_link_constraints(self, meta, context, concept, link):
+        target = link.target
+        if target.automatic:
+
+            concept_context = context.get(delta_cmds.ConceptCommandContext)
+            alter_table = concept_context.op.get_alter_table()
+            table = common.get_table_name(concept, catenate=False)
+
+            drop_constraints = {}
+
+            for op in alter_table(TableConstraintCommand):
+                if isinstance(op, AlterTableDropConstraint):
+                    name = op.constraint.raw_constraint_name()
+                    drop_constraints[name] = op
+
+            # We need to establish fake AlterLink context here since
+            # atom mod constraint ops need it.
+            link_op = AlterLink(prototype_name=link.name, prototype_class=proto.Link)
+            with context(delta_cmds.LinkCommandContext(link_op, link)):
+                for mod in target.mods.values():
+                    old_constraint = AtomMetaCommand.get_mod_constraint(target, meta,
+                                                                        context,
+                                                                        mod, original=True)
+
+                    if old_constraint.raw_constraint_name() in drop_constraints:
+                        # No need to rename constraints that are to be dropped
+                        continue
+
+                    new_constraint = AtomMetaCommand.get_mod_constraint(target, meta,
+                                                                        context, mod)
+
+                    op = AlterTableRenameConstraint(table_name=table,
+                                                    constraint=old_constraint,
+                                                    new_constraint=new_constraint)
+                    self.pgops.add(op)
 
 
 class AlterConcept(ConceptMetaCommand, adapts=delta_cmds.AlterConcept):
@@ -891,7 +895,8 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
             columns.append(Column(name='target_id', type='uuid', required=True))
             columns.append(Column(name='link_type_id', type='integer', required=True))
 
-        constraints.append(PrimaryKey(columns=['source_id', 'target_id', 'link_type_id']))
+        constraints.append(PrimaryKey(table_name=new_table_name,
+                                      columns=['source_id', 'target_id', 'link_type_id']))
 
         table = Table(name=new_table_name)
         table.add_columns(columns)
@@ -927,24 +932,34 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
         mapping_indexes.links.pop(name, None)
         self.pgops.add(CancelLinkMappingUpdate())
 
-    def alter_host_table_column(self, link, meta, context, new_type):
-        concept_ctx = context.get(delta_cmds.ConceptCommandContext)
+    def alter_host_table_column(self, link, meta, context, old_type, new_type):
 
-        atom = meta.get(new_type)
-        target_type = self.pg_type_from_atom(meta, atom)
+        dropped_atom = None
 
-        if isinstance(link, proto.Link):
-            name = link.normal_name()
-        else:
-            name = link.name
+        for op in self(delta_cmds.AtomCommand):
+            for rename in op(delta_cmds.RenameAtom):
+                if old_type == rename.prototype_name and new_type == rename.new_name:
+                    # Our target alter is a mere rename
+                    return
+            if isinstance(op, delta_cmds.CreateAtom):
+                if op.prototype_name == new_type:
+                    # CreateAtom will take care of everything for us
+                    return
+            elif isinstance(op, delta_cmds.DeleteAtom):
+                if op.prototype_name == old_type:
+                    # The former target atom might as well have been dropped
+                    dropped_atom = op.old_prototype
 
-        table_name = common.get_table_name(concept_ctx.proto, catenate=False)
-        column_name = common.caos_name_to_pg_colname(name)
+        old_atom = meta.get(old_type, dropped_atom)
+        assert old_atom
+        new_atom = meta.get(new_type)
 
+        AlterAtom.alter_atom(self, meta, context, old_atom, new_atom, in_place=False)
+        alter_table = context.get(delta_cmds.ConceptCommandContext).op.get_alter_table()
+        column_name = common.caos_name_to_pg_colname(link.normal_name())
+        target_type = self.pg_type_from_atom(meta, new_atom)
         alter_type = AlterTableAlterColumnType(column_name, target_type)
-        alter_table = AlterTable(table_name)
         alter_table.add_operation(alter_type)
-        self.pgops.add(alter_table)
 
 
 class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
@@ -1025,26 +1040,28 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
         link = delta_cmds.AlterLink.apply(self, meta, context)
         LinkMetaCommand.apply(self, meta, context)
 
-        rec = self.record_metadata(link, old_link, meta, context)
+        with context(delta_cmds.LinkCommandContext(self, link)):
+            rec = self.record_metadata(link, old_link, meta, context)
 
-        if rec:
-            self.pgops.add(Update(table=self.table, record=rec,
-                                  condition=[('name', str(link.name))], priority=1))
+            if rec:
+                self.pgops.add(Update(table=self.table, record=rec,
+                                      condition=[('name', str(link.name))], priority=1))
 
-        if self.alter_table and self.alter_table.ops:
-            self.pgops.add(self.alter_table)
+            if self.alter_table and self.alter_table.ops:
+                self.pgops.add(self.alter_table)
 
-        new_type = None
-        for op in self(delta_cmds.AlterPrototypeProperty):
-            if op.property == 'target':
-                new_type = op.new_value
-                break
+            new_type = None
+            for op in self(delta_cmds.AlterPrototypeProperty):
+                if op.property == 'target':
+                    new_type = op.new_value
+                    old_type = op.old_value
+                    break
 
-        if new_type:
-            self.alter_host_table_column(link, meta, context, new_type)
+            if new_type:
+                self.alter_host_table_column(link, meta, context, old_type, new_type)
 
-        if old_link.mapping != link.mapping:
-            self.schedule_mapping_update(link, meta, context)
+            if old_link.mapping != link.mapping:
+                self.schedule_mapping_update(link, meta, context)
 
         return link
 
@@ -1691,21 +1708,123 @@ class DBObject:
     pass
 
 
-class PrimaryKey(DBObject):
-    def __init__(self, columns):
+class TableConstraint(DBObject):
+    def __init__(self, table_name, column_name=None):
+        self.table_name = table_name
+        self.column_name = column_name
+
+    def constraint_name(self):
+        raise NotImplementedError
+
+    def code(self, context):
+        return None
+
+    def rename_code(self, context):
+        return None
+
+    def extra(self, context, alter_table):
+        return None
+
+    def rename_extra(self, context, new_name):
+        return None
+
+
+class PrimaryKey(TableConstraint):
+    def __init__(self, table_name, columns):
+        super().__init__(table_name)
         self.columns = columns
 
     def code(self, context):
         code = 'PRIMARY KEY (%s)' % ', '.join(common.quote_ident(c) for c in self.columns)
         return code
 
-class UniqueConstraint(DBObject):
-    def __init__(self, columns):
+
+class UniqueConstraint(TableConstraint):
+    def __init__(self, table_name, columns):
+        super().__init__(table_name)
         self.columns = columns
 
     def code(self, context):
         code = 'UNIQUE (%s)' % ', '.join(common.quote_ident(c) for c in self.columns)
         return code
+
+
+class AtomModConstraint(TableConstraint):
+    def __init__(self, table_name, column_name, prefix, mod):
+        super().__init__(table_name, column_name)
+
+        self.prefix = prefix if isinstance(prefix, tuple) else (prefix,)
+        self.mod = mod
+
+    def raw_constraint_name(self):
+        cls = self.mod.__class__.get_canonical_class()
+        name = '%s::%s.%s::atom_mod' % (':'.join(str(p) for p in self.prefix),
+                                        cls.__module__, cls.__name__)
+        return name
+
+    def constraint_name(self):
+        name = self.raw_constraint_name()
+        name = common.caos_name_to_pg_colname(name)
+        return common.quote_ident(name)
+
+    def constraint_code(self, context, value_holder='VALUE'):
+        ql = postgresql.string.quote_literal
+        value_holder = common.quote_ident(value_holder)
+
+        if isinstance(self.mod, proto.AtomModRegExp):
+            expr = ['%s ~ %s' % (value_holder, ql(re)) for re in self.mod.values]
+            expr = ' AND '.join(expr)
+        elif isinstance(self.mod, proto.AtomModMaxLength):
+            expr = 'length(%s::text) <= %s' % (value_holder, str(self.mod.value))
+        elif isinstance(self.mod, proto.AtomModMinLength):
+            expr = 'length(%s::text) >= %s' % (value_holder, str(self.mod.value))
+        elif isinstance(self.mod, proto.AtomModMaxValue):
+            expr = '%s <= %s' + (value_holder, ql(str(self.mod.value)))
+        elif isinstance(self.mod, proto.AtomModMaxExValue):
+            expr = '%s < %s' % (value_holder, ql(str(self.mod.value)))
+        elif isinstance(self.mod, proto.AtomModMinValue):
+            expr = '%s >= %s' % (value_holder, ql(str(self.mod.value)))
+        elif isinstance(self.mod, proto.AtomModMinExValue):
+            expr = '%s > %s' % (value_holder, ql(str(self.mod.value)))
+
+        return 'CHECK (%s)' % expr
+
+
+class AtomModTableConstraint(AtomModConstraint):
+    def __init__(self, table_name, column_name, prefix, mod):
+        super().__init__(table_name, column_name, prefix, mod)
+
+    def code(self, context):
+        return 'CONSTRAINT %s %s' % (self.constraint_name(),
+                                     self.constraint_code(context, self.column_name))
+
+    def extra(self, context, alter_table):
+        text = self.raw_constraint_name()
+        cmd = Comment(object=self, text=text)
+        return [cmd]
+
+    def rename_code(self, context, new_constraint):
+        return '''UPDATE
+                        pg_catalog.pg_constraint AS con
+                    SET
+                        conname = $1
+                    FROM
+                        pg_catalog.pg_class AS c,
+                        pg_catalog.pg_namespace AS ns
+                    WHERE
+                        con.conrelid = c.oid
+                        AND c.relnamespace = ns.oid
+                        AND ns.nspname = $3
+                        AND c.relname = $4
+                        AND con.conname = $2
+               ''', [common.caos_name_to_pg_colname(new_constraint.raw_constraint_name()),
+                     common.caos_name_to_pg_colname(self.raw_constraint_name()),
+                     new_constraint.table_name[0], new_constraint.table_name[1]]
+
+    def rename_extra(self, context, new_constraint):
+        new_name = new_constraint.raw_constraint_name()
+        cmd = Comment(object=new_constraint, text=new_name)
+        return [cmd]
 
 
 class Column(DBObject):
@@ -1892,7 +2011,7 @@ class DeltaRefTable(Table):
         ])
 
         self.constraints = set([
-            PrimaryKey(columns=('ref',))
+            PrimaryKey(name, columns=('ref',))
         ])
 
 
@@ -1912,7 +2031,7 @@ class DeltaLogTable(Table):
         ])
 
         self.constraints = set([
-            PrimaryKey(columns=('id',))
+            PrimaryKey(name, columns=('id',))
         ])
 
 
@@ -1930,8 +2049,8 @@ class MetaObjectTable(Table):
         ])
 
         self.constraints = set([
-            PrimaryKey(columns=('id',)),
-            UniqueConstraint(columns=('name',))
+            PrimaryKey(name, columns=('id',)),
+            UniqueConstraint(name, columns=('name',))
         ])
 
 
@@ -1949,8 +2068,8 @@ class AtomTable(MetaObjectTable):
         ])
 
         self.constraints = set([
-            PrimaryKey(columns=('id',)),
-            UniqueConstraint(columns=('name',))
+            PrimaryKey(('caos', 'atom'), columns=('id',)),
+            UniqueConstraint(('caos', 'atom'), columns=('name',))
         ])
 
 
@@ -1965,8 +2084,8 @@ class ConceptTable(MetaObjectTable):
         ])
 
         self.constraints = set([
-            PrimaryKey(columns=('id',)),
-            UniqueConstraint(columns=('name',))
+            PrimaryKey(('caos', 'concept'), columns=('id',)),
+            UniqueConstraint(('caos', 'concept'), columns=('name',))
         ])
 
 
@@ -1987,8 +2106,8 @@ class LinkTable(MetaObjectTable):
         ])
 
         self.constraints = set([
-            PrimaryKey(columns=('id',)),
-            UniqueConstraint(columns=('name',))
+            PrimaryKey(('caos', 'link'), columns=('id',)),
+            UniqueConstraint(('caos', 'link'), columns=('name',))
         ])
 
 
@@ -2313,6 +2432,17 @@ class AlterTable(AlterTableBase):
             code += ' ' + ', '.join(ops)
             return code
 
+    def extra(self, context):
+        extra = []
+        for op in self.ops:
+            if isinstance(op, tuple):
+                op = op[0]
+            op_extra = op.extra(context, self)
+            if op_extra:
+                extra.extend(op_extra)
+
+        return extra
+
     def dump(self):
         result = [repr(self)]
 
@@ -2322,6 +2452,12 @@ class AlterTable(AlterTableBase):
             result.extend('  %s' % l for l in op.dump().split('\n'))
 
         return '\n'.join(result)
+
+    def __iter__(self):
+        return iter(self.ops)
+
+    def __call__(self, typ):
+        return filter(lambda i: isinstance(i, typ), self.ops)
 
 
 class IndexExists(Condition):
@@ -2418,12 +2554,40 @@ class AlterTableAlterColumnType(AlterTableFragment):
                                        self.column_name, self.new_type)
 
 
-class AlterTableAddConstraint(AlterTableFragment):
+class TableConstraintCommand:
+    pass
+
+
+class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
     def __init__(self, constraint):
         self.constraint = constraint
 
     def code(self, context):
         return 'ADD  ' + self.constraint.code(context)
+
+    def extra(self, context, alter_table):
+        return self.constraint.extra(context, alter_table)
+
+
+class AlterTableRenameConstraint(AlterTableBase, TableConstraintCommand):
+    def __init__(self, table_name, constraint, new_constraint):
+        super().__init__(table_name)
+        self.constraint = constraint
+        self.new_constraint = new_constraint
+
+    def code(self, context):
+        return self.constraint.rename_code(context, self.new_constraint)
+
+    def extra(self, context):
+        return self.constraint.rename_extra(context, self.new_constraint)
+
+
+class AlterTableDropConstraint(AlterTableFragment, TableConstraintCommand):
+    def __init__(self, constraint):
+        self.constraint = constraint
+
+    def code(self, context):
+        return 'DROP CONSTRAINT ' + self.constraint.constraint_name()
 
 
 class AlterTableSetSchema(AlterTableBase):
@@ -2475,3 +2639,26 @@ class FunctionExists(Condition):
                         p.proname = $2 and ns.nspname = $1'''
 
         return code, self.name
+
+
+class Comment(DDLOperation):
+    def __init__(self, object, text, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__()
+
+        self.object = object
+        self.text = text
+
+    def code(self, context):
+        if isinstance(self.object, TableConstraint):
+            object_type = 'CONSTRAINT'
+            object_name = self.object.constraint_name()
+            table_name = self.object.table_name
+        else:
+            assert False
+
+        code = 'COMMENT ON %s %s %s IS %s' % \
+                (object_type, object_name,
+                 'ON %s' % common.qname(*table_name) if table_name else '',
+                  postgresql.string.quote_literal(self.text))
+
+        return code

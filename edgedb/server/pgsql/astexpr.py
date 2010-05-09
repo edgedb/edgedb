@@ -6,6 +6,11 @@
 ##
 
 
+from semantix.caos import proto
+
+from semantix.utils.functional import adapter
+
+from semantix.utils import ast
 from semantix.utils.ast import match as astmatch
 from  . import astmatch as pgastmatch
 
@@ -72,7 +77,7 @@ class TextSearchExpr:
                      )
 
 
-            self.pattern = astmatch.Or(tscol, binop1)
+            self.pattern = astmatch.Or(tscol, binop1, binop2)
 
         return self.pattern
 
@@ -88,5 +93,87 @@ class TextSearchExpr:
                 result[field_name] = (language, weight)
 
             return result
+        else:
+            return None
+
+
+class AtomModAdapterMeta(type(proto.AtomMod), adapter.Adapter):
+    pass
+
+
+class AtomModExpr(metaclass=AtomModAdapterMeta):
+    pass
+
+
+class AtomModValueExpr(AtomModExpr, adapts=proto.AtomModLength):
+    def __init__(self):
+        self.pattern = None
+
+    def get_pattern(self):
+        if self.pattern is None:
+            self.pattern = pgastmatch.BinOpNode(
+                left=pgastmatch.FunctionCallNode(
+                    args=[
+                        astmatch.Or(
+                            pgastmatch.FieldRefNode(),
+                            pgastmatch.TypeCastNode(
+                                expr=pgastmatch.FieldRefNode()
+                            )
+                        )
+                    ],
+                    name='length'
+                ),
+                right=astmatch.group('value', pgastmatch.ConstantNode())
+            )
+
+        return self.pattern
+
+    def match(self, tree):
+        m = astmatch.match(self.get_pattern(), tree)
+        if m:
+            return m.value[0].node.value
+        else:
+            return None
+
+
+class AtomModRegExpExpr(AtomModExpr, adapts=proto.AtomModRegExp):
+    def __init__(self):
+        self.pattern = None
+
+    def get_pattern(self):
+        if self.pattern is None:
+            match = pgastmatch.BinOpNode(
+                op='~',
+                left=astmatch.Or(
+                        pgastmatch.FieldRefNode(),
+                        pgastmatch.TypeCastNode(
+                            expr=pgastmatch.FieldRefNode()
+                        )
+                    ),
+                right=astmatch.group('regexp', pgastmatch.ConstantNode())
+            )
+
+
+            binop1 = pgastmatch.BinOpNode(
+                        op=ast.ops.AND,
+                        left=match,
+                        right=match
+                     )
+
+            binop2 = pgastmatch.BinOpNode(
+                        op=ast.ops.AND,
+                        left=match,
+                        right=binop1
+                     )
+
+
+            self.pattern = astmatch.Or(match, binop1, binop2)
+
+        return self.pattern
+
+    def match(self, tree):
+        m = astmatch.match(self.get_pattern(), tree)
+        if m:
+            return [i.node.value for i in m.regexp]
         else:
             return None

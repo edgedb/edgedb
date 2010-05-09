@@ -18,6 +18,7 @@ from semantix.utils.algos import topological
 from semantix.utils.debug import debug
 from semantix.utils.lang import yaml
 from semantix.utils.nlang import morphology
+from semantix.utils import datastructures
 
 from semantix import caos
 
@@ -144,8 +145,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     cast_re = re.compile(r"""(::(?P<type>(?:(?P<quote>\"?)[\w -]+(?P=quote)\.)?
                                 (?P<quote1>\"?)[\w -]+(?P=quote1)))+$""", re.X)
 
-    search_idx_name_re = re.compile(r""".*_(?P<language>\w+)_(?P<index_class>\w+)_search_idx$
-                                    """, re.X)
+    search_idx_name_re = re.compile(r"""
+        .*_(?P<language>\w+)_(?P<index_class>\w+)_search_idx$
+    """, re.X)
+
+    mod_constraint_name_re = re.compile(r"""
+        ^(?P<concept_name>[.\w]+):(?P<link_name>[.\w]+)::(?P<constraint_class>[.\w]+)::atom_mod$
+    """, re.X)
+
 
     constr_expr_res = {
         'AtomModRegExp': re.compile(r"VALUE(?:::\w+)? \s* ~ \s* '(?P<expr>[^']*)'::text", re.X),
@@ -167,6 +174,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         self.parser = parser.PgSQLParser()
         self.search_idx_expr = astexpr.TextSearchExpr()
+        self.atom_mod_exprs = {}
 
         self.meta = proto.RealmMeta(load_builtins=False)
 
@@ -593,6 +601,75 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return indexes
 
 
+    def interpret_table_constraint(self, name, expr):
+        m = self.mod_constraint_name_re.match(name)
+        if not m:
+            raise caos.MetaError('could not interpret table constraint %s' % name)
+
+        link_name = m.group('link_name')
+        constraint_class = helper.get_object(m.group('constraint_class'))
+
+        expr_tree = self.parser.parse(expr)
+
+        pattern = self.atom_mod_exprs.get(constraint_class)
+        if not pattern:
+            adapter = astexpr.AtomModAdapterMeta.get_adapter(constraint_class)
+
+            if not adapter:
+                msg = 'could not interpret table constraint %s' % name
+                details = 'No matching pattern defined for constraint class "%s"' % constraint_class
+                hint = 'Implement matching pattern for "%s"' % constraint_class
+                raise caos.MetaError(msg, details=details, hint=hint)
+
+            pattern = adapter()
+            self.atom_mod_exprs[constraint_class] = pattern
+
+        constraint_data = pattern.match(expr_tree)
+
+        if constraint_data is None:
+            from semantix.utils import ast
+
+            msg = 'could not interpret table constraint %s' % name
+            details = 'Expression:\n%s' % ast.dump.pretty_dump(expr_tree)
+            hint = 'Take a look at the matching pattern and adjust'
+            raise caos.MetaError(msg, details=details, hint=hint)
+
+        return link_name, constraint_class(constraint_data)
+
+
+    def interpret_table_constraints(self, constr):
+        cs = zip(constr['constraint_names'], constr['constraint_expressions'],
+                 constr['constraint_descriptions'])
+
+        for name, expr, description in cs:
+            yield self.interpret_table_constraint(description, expr)
+
+
+    def read_table_constraints(self):
+        constraints = {}
+        constraints_ds = introspection.tables.TableConstraints(self.connection)
+
+        for row in constraints_ds.fetch(schema_pattern='caos%', constraint_pattern='%::atom_mod'):
+            concept_module = common.schema_name_to_caos_module_name(row['table_name'][0])
+            concept_name = common.table_name_to_concept_name(row['table_name'][1])
+            concept_name = caos.Name(name=concept_name, module=concept_module)
+
+            concept_constr = constraints[concept_name] = {}
+
+
+            for link_name, mod in self.interpret_table_constraints(row):
+                idx = datastructures.OrderedIndex(key=lambda i: i.get_canonical_class())
+                link_mods = concept_constr.setdefault(link_name, idx)
+                cls = mod.get_canonical_class()
+                try:
+                    existing_mod = link_mods[cls]
+                    existing_mod.merge(mod)
+                except KeyError:
+                    link_mods.add(mod)
+
+        return constraints
+
+
     def read_links(self, meta):
 
         link_tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
@@ -614,6 +691,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         g = {}
 
         concept_columns = {}
+        concept_constraints = self.read_table_constraints()
         concept_indexes = self.read_search_indexes()
 
         for r in links_list:
@@ -638,7 +716,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     property_name = caos.Name(name=row['column_name'], module=t['schema'])
                     derived_atom_name = '__' + name.name + '__' + property_name.name
                     atom = self.atom_from_pg_type(row['column_type'], t['schema'],
-                                                  row['column_default'], meta,
+                                                  [], row['column_default'], meta,
                                                   caos.Name(name=derived_atom_name,
                                                             module=name.module))
 
@@ -658,6 +736,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if r['source_id'] and r['is_atom']:
                 cols = concept_columns.get(source.name)
                 indexes = concept_indexes.get(source.name)
+                constraints = concept_constraints.get(source.name, {})
 
                 concept_schema, concept_table = common.concept_name_to_table_name(source.name,
                                                                                   catenate=False)
@@ -676,8 +755,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     col_type_schema = 'caos_semantix.caos.builtins'
                 else:
                     col_type_schema = col['column_type_schema']
+
+                mods = constraints.get(base_link_name)
+
                 target = self.atom_from_pg_type(col['column_type'], col_type_schema,
-                                                col['column_default'], meta,
+                                                mods, col['column_default'], meta,
                                                 caos.Name(name=derived_atom_name,
                                                           module=source.name.module))
 
@@ -916,7 +998,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return None
 
 
-    def atom_from_pg_type(self, type_expr, atom_schema, atom_default, meta, derived_name):
+    def atom_from_pg_type(self, type_expr, atom_schema, atom_mods, atom_default, meta, derived_name):
 
         atom_name = caos.Name(name=common.domain_name_to_atom_name(type_expr),
                               module=common.schema_name_to_caos_module_name(atom_schema))
@@ -926,19 +1008,25 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         if not atom:
             atom = meta.get(derived_name, None)
 
-        if not atom:
+        if not atom or atom_mods:
 
             typeconv = self.pg_type_to_atom_name_and_mods(type_expr)
             if typeconv:
                 name, mods = typeconv
                 atom = meta.get(name)
 
-                if mods:
-                    atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,
-                                      automatic=True)
-                    for mod in mods:
-                        atom.add_mod(mod)
-                    meta.add(atom)
+                mods = set(mods)
+                if atom_mods:
+                    mods.update(atom_mods)
+            else:
+                mods = set(atom_mods)
+
+            if atom_mods:
+                atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,
+                                  automatic=True)
+                for mod in mods:
+                    atom.add_mod(mod)
+                meta.add(atom)
 
         assert atom
         return atom

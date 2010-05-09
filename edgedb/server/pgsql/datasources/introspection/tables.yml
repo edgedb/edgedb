@@ -170,3 +170,53 @@ source: |
             GROUP BY
                 table_name
 ...
+
+%SCHEMA semantix.caos.datasources.schemas.Sql
+%NAME TableConstraints
+---
+params:
+    schema_pattern:
+        type: str
+        default: null
+    table_pattern:
+        type: str
+        default: null
+    constraint_pattern:
+        type: str
+        default: null
+
+filters:
+    - format: dict
+
+source: |
+        SELECT
+                ARRAY[ns.nspname, cc.relname]           AS table_name,
+                array_agg(c.oid::int)::int[]            AS constraint_ids,
+                array_agg(c.conname::text)::text[]      AS constraint_names,
+                array_agg(pg_get_expr(c.conbin, c.conrelid)::text)::text[]
+                                                        AS constraint_expressions,
+                array_agg(
+                    (SELECT
+                        cmt.description
+                    FROM
+                        pg_description AS cmt
+                        INNER JOIN pg_constraint AS cmtc ON cmtc.oid = cmt.objoid
+                    WHERE
+                        cmtc.conname = c.conname
+                        AND cmtc.coninhcount = 0
+                        AND cmt.description IS NOT NULL AND cmt.description != ''
+                    LIMIT
+                        1)
+                )::text[]                               AS constraint_descriptions
+            FROM
+                pg_constraint AS c
+                INNER JOIN pg_class AS cc ON c.conrelid = cc.oid
+                INNER JOIN pg_namespace AS ns ON ns.oid = cc.relnamespace
+            WHERE
+                (%(schema_pattern)s::text IS NULL OR ns.nspname LIKE %(schema_pattern)s::text)
+                AND (%(table_pattern)s::text IS NULL OR cc.relname LIKE %(table_pattern)s::text)
+                AND (%(constraint_pattern)s::text IS NULL OR c.conname LIKE %(constraint_pattern)s::text)
+
+            GROUP BY
+                table_name
+...
