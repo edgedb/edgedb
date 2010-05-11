@@ -6,7 +6,7 @@
 ##
 
 
-import functools
+import uuid
 
 import postgresql
 from postgresql.driver import pq3
@@ -29,6 +29,10 @@ oid_to_io = {
         compose((interval_pack, postgresql.types.io.lib.interval64_pack)),
         compose((postgresql.types.io.lib.interval64_unpack, interval_unpack))
     )
+}
+
+oid_to_type = {
+    postgresql.types.UUIDOID: uuid.UUID
 }
 
 

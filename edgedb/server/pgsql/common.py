@@ -13,6 +13,8 @@ import postgresql
 
 from semantix.caos import proto
 
+from . import driver
+
 
 def quote_ident(text):
     """
@@ -124,5 +126,8 @@ def py_type_to_pg_type(typ):
             if oid_to_type:
                 _type_index.update({k: postgresql.types.oid_to_name[v]
                                     for k, v in zip(oid_to_type.values(), oid_to_type.keys())})
+
+        _type_index.update({k: postgresql.types.oid_to_name[v]
+                            for k, v in zip(driver.oid_to_type.values(), driver.oid_to_type.keys())})
 
     return _type_index[typ]
