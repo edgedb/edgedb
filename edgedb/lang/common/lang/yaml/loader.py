@@ -177,6 +177,8 @@ class Composer(yaml.composer.Composer):
 
         node.document_name = getattr(start_document, 'document_name', None)
         node.imports = getattr(start_document, 'imports', None)
+        if self.document_context is not None:
+            self.document_context.document_name = node.document_name
 
         self.get_event()
         self.anchors = {}
