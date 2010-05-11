@@ -268,10 +268,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def load_entity(self, concept, id, session):
-        query = 'SELECT * FROM %s WHERE "semantix.caos.builtins.id" = \'%s\'' % \
-                                                (common.concept_name_to_table_name(concept), id)
+        query = 'SELECT * FROM %s WHERE "semantix.caos.builtins.id" = $1' % \
+                                                (common.concept_name_to_table_name(concept))
         ps = session.connection.prepare(query)
-        result = ps.first()
+        result = ps.first(id)
 
         if result is not None:
             concept_proto = self.meta.get(concept)
