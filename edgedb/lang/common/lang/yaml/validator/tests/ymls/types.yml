@@ -36,3 +36,10 @@ mapping:
     minmax:
         type: int
         range: {min: 3, max-ex: 20}
+
+    odict:
+        type: map
+        ordered: true
+        mapping:
+            =:
+                type: int

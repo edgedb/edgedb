@@ -6,6 +6,8 @@
 ##
 
 
+import collections
+
 from semantix.utils.lang.yaml import validator
 from semantix.utils.lang.yaml.validator.tests.base import SchemaTest, raises, result
 
@@ -187,4 +189,14 @@ class TestTypes(SchemaTest):
     def test_validator_types_int_minmax_fail2(self):
         """
         minmax: 20
+        """
+
+    @result(key='odict', value=collections.OrderedDict([('A', 1), ('B', 2), ('C', 3), ('D', 4)]))
+    def test_validator_types_ordered_map(self):
+        """
+        odict:
+            A: 1
+            B: 2
+            C: 3
+            D: 4
         """

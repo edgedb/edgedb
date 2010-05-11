@@ -35,6 +35,10 @@ class SchemaType(object):
         if 'object' in self.dct:
             tag = 'tag:semantix.sprymix.com,2009/semantix/object/create:' + self.dct['object']
             self.push_tag(node, tag)
+        elif 'class' in self.dct:
+            tag = 'tag:semantix.sprymix.com,2009/semantix/class/derive:' + self.dct['class']
+            self.push_tag(node, tag)
+
         return node
 
     def is_bool(self, value):

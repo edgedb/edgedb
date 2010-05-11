@@ -6,6 +6,7 @@
 ##
 
 
+import collections
 import copy
 import yaml
 
@@ -13,11 +14,11 @@ from .composite import CompositeType
 from ..error import SchemaValidationError
 
 class MappingType(CompositeType):
-    __slots__ = ['keys', 'unique_base', 'unique']
+    __slots__ = ['keys', 'unique_base', 'unique', 'ordered']
 
     def __init__(self, schema):
         super().__init__(schema)
-        self.keys = {}
+        self.keys = collections.OrderedDict()
 
         self.unique_base = {}
         self.unique = None
@@ -45,6 +46,7 @@ class MappingType(CompositeType):
 
         self._init_constrainrs(('max-length', 'min-length'), dct)
         self.load_keys(dct['mapping'])
+        self.ordered = dct.get('ordered', False)
 
     def begin_checks(self):
         super(MappingType, self).begin_checks()
@@ -137,5 +139,8 @@ class MappingType(CompositeType):
                         k = yaml.nodes.ScalarNode(value=key, tag='tag:yaml.org,2002:str')
                         v = yaml.nodes.ScalarNode(value=None, tag='tag:yaml.org,2002:null')
                         node.value.append((k, v))
+
+        if self.ordered:
+            self.push_tag(node, 'tag:semantix.sprymix.com,2009/semantix/orderedmap')
 
         return node
