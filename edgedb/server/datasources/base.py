@@ -46,9 +46,8 @@ class DatasourceError(Exception):
 
 class Datasource(object):
     @classmethod
-    def init_class(cls, descriptor):
+    def prepare_class(cls, descriptor):
         cls.descriptor = descriptor
-
 
     def __init__(self):
         self.params = self.descriptor.get('params', None)

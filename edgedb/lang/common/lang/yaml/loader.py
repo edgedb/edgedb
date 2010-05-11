@@ -246,7 +246,7 @@ class Constructor(yaml.constructor.Constructor):
 
         data = self.construct_object(nodecopy)
 
-        result.init_class(data)
+        result.prepare_class(data)
 
         yield result
 

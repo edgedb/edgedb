@@ -10,7 +10,7 @@ from . import types, error
 
 class Schema(object):
     @classmethod
-    def init_class(cls, data):
+    def prepare_class(cls, data):
         cls.__dct = data
 
     def __init__(self):
