@@ -530,7 +530,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             atom_data = {'name': name,
                          'title': self.hstore_to_word_combination(row['title']),
-                         'description': self.hstore_to_word_combination(row['description']),
+                         'description': row['description'],
                          'automatic': row['automatic'],
                          'is_abstract': row['is_abstract'],
                          'base': row['base'],
@@ -729,7 +729,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     bases = (caos.Name('semantix.caos.builtins.link'),)
 
             title = self.hstore_to_word_combination(r['title'])
-            description = self.hstore_to_word_combination(r['description'])
+            description = r['description']
             source = meta.get(r['source']) if r['source'] else None
             link_search = None
 
@@ -820,7 +820,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             name = caos.Name(row['name'])
             concepts[name] = {'name': name,
                               'title': self.hstore_to_word_combination(row['title']),
-                              'description': self.hstore_to_word_combination(row['description']),
+                              'description': row['description'],
                               'is_abstract': row['is_abstract'], 'custombases': row['custombases']}
 
         for t in tables:

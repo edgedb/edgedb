@@ -206,7 +206,7 @@ class NamedPrototypeMetaCommand(MetaCommand, delta_cmds.NamedPrototypeCommand):
                 rec.title = rec.title.as_dict()
 
             if rec.description:
-                rec.description = rec.description.as_dict()
+                rec.description = rec.description
 
         return rec, updates
 
@@ -2045,7 +2045,7 @@ class MetaObjectTable(Table):
             Column(name='name', type='text', required=True),
             Column(name='is_abstract', type='boolean', required=True, default=False),
             Column(name='title', type='caos.hstore'),
-            Column(name='description', type='caos.hstore')
+            Column(name='description', type='text')
         ])
 
         self.constraints = set([
