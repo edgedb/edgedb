@@ -20,11 +20,14 @@ class AbstractMeta(type):
     Supports standard @abstractmethod and @abstractproperty decorators.
     """
 
-    def __new__(mcls, name, bases, dct):
-        cls = super().__new__(mcls, name, bases, dct)
-
+    def __init__(cls, name, bases, dct):
         abstracts = {name for name, value in dct.items() \
                                                 if getattr(value, '__isabstractmethod__', False)}
+
+        try:
+            abstracts |= getattr(cls, '__abstractmethods__')
+        except AttributeError:
+            pass
 
         for base in bases:
             for name in getattr(base, '__abstractmethods__', set()):
@@ -33,4 +36,3 @@ class AbstractMeta(type):
                     abstracts.add(name)
 
         cls.__abstractmethods__ = frozenset(abstracts)
-        return cls
