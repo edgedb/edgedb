@@ -6,6 +6,7 @@
 ##
 
 
+import itertools
 import weakref
 
 from semantix.utils import ast
@@ -73,7 +74,7 @@ class Base(ast.AST):
                             value.add(new)
 
             elif isinstance(value, frozenset):
-                newset = set(value)
+                newset = {v for v in value}
                 for item in value:
                     if isinstance(item, Base):
                         if deep and field.traverse:
@@ -82,6 +83,13 @@ class Base(ast.AST):
                             newset.remove(item)
                             newset.add(new)
                 setattr(self, name, frozenset(newset))
+
+    @classmethod
+    def fixup_refs(cls, refs, newref):
+        # Use list here, since the backref sets can be changed by replace_refs() call
+        for referrer in list(itertools.chain.from_iterable(ref.backrefs for ref in refs)):
+            referrer.replace_refs(refs, newref, deep=False)
+
 
 class GraphExpr(Base):
     __fields = ['generator', ('selector', list), ('sorter', list), 'offset', 'limit',
@@ -136,6 +144,14 @@ class MetaRef(AtomicRefSimple):
 class EntityLink(Base):
     __fields = ['filter', 'source', 'target', 'link_proto']
 
+    def replace_refs(self, old, new, deep=False):
+        # Since EntityLink can be a member of PathCombination set
+        # we need to refresh our backrefs to make sure that set hashes are straight.
+        replace = self.source in old or self.target in old
+        super().replace_refs(old, new, deep)
+        if replace:
+            self.fixup_refs([self], self)
+
     def __eq__(self, other):
         if not isinstance(other, self.__class__):
             return NotImplemented
@@ -175,7 +191,7 @@ class PathCombination(Base):
             self.update_refs()
 
     def update_refs(self):
-        refs = [path for path in self.paths if isinstance(path, EntitySet)]
+        refs = [path for path in self.paths if isinstance(path, (EntitySet, EntityLink))]
 
         for ref in refs:
             ref.backrefs.add(self)

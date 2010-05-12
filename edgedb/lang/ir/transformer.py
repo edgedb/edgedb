@@ -14,7 +14,7 @@ from semantix.caos import types as caos_types
 from semantix.caos.tree import ast as caos_ast
 
 from semantix.utils.algos import boolean
-from semantix.utils import datastructures, ast
+from semantix.utils import datastructures, ast, debug
 from semantix.utils.functional import checktypes
 
 
@@ -331,6 +331,8 @@ class TreeTransformer:
         expr.paths = frozenset(p for p in expr.paths)
         return expr
 
+    nest = 0
+
     def unify_paths(self, paths, mode, reverse=True, merge_filters=False):
         mypaths = set(paths)
 
@@ -346,9 +348,30 @@ class TreeTransformer:
                 continue
 
             if issubclass(mode, caos_ast.Disjunction):
+                """LOG [caos.graph.merge] ADDING
+                print(' ' * self.nest, 'ADDING', result, path, getattr(result, 'id', '??'), getattr(path, 'id', '??'), merge_filters)
+                self.nest += 2
+                """
+
                 result = self.add_paths(result, path, merge_filters=merge_filters)
+
+                """LOG [caos.graph.merge] ADDITION RESULT
+                self.nest -= 2
+                if not self.nest:
+                    self._dump(result)
+                """
             else:
-                result = self.intersect_paths(result, path)
+                """LOG [caos.graph.merge] INTERSECTING
+                print(' ' * self.nest, getattr(result, 'id', result), getattr(path, 'id', path))
+                self.nest += 2
+                """
+
+                result = self.intersect_paths(result, path, merge_filters=merge_filters)
+
+                """LOG [caos.graph.merge] INTERSECTION RESULT
+                self._dump(result)
+                self.nest -= 2
+                """
 
         return result
 
@@ -427,7 +450,14 @@ class TreeTransformer:
             left.joins.discard(left)
 
             if merge_filters:
-                left.conjunction = self.intersect_paths(left.conjunction, right.conjunction)
+                left.conjunction = self.intersect_paths(left.conjunction,
+                                                        right.conjunction, merge_filters)
+
+                # If greedy disjunction merging is requested, we must also try to
+                # merge disjunctions.
+                paths = frozenset(left.conjunction.paths) | frozenset(left.disjunction.paths)
+                self.unify_paths(paths, caos_ast.Conjunction, reverse=False, merge_filters=True)
+                left.disjunction.paths = left.disjunction.paths - left.conjunction.paths
             else:
                 conjunction = self.add_paths(left.conjunction, right.conjunction, merge_filters)
                 if conjunction.paths:
@@ -468,13 +498,14 @@ class TreeTransformer:
 
         return result
 
-    def add_disjunctions(self, left, right):
+    def add_disjunctions(self, left, right, merge_filters=False):
         result = caos_ast.Disjunction()
         result.update(left)
         result.update(right)
 
         if len(result.paths) > 1:
-            self.unify_paths(result.paths, mode=result.__class__, reverse=False)
+            self.unify_paths(result.paths, mode=result.__class__, reverse=False,
+                             merge_filters=merge_filters)
             result.paths = frozenset(p for p in result.paths)
 
         return result
@@ -510,7 +541,7 @@ class TreeTransformer:
                 result = self.add_to_disjunction(left, right, merge_filters)
 
             elif isinstance(right, caos_ast.Disjunction):
-                result = self.add_disjunctions(left, right)
+                result = self.add_disjunctions(left, right, merge_filters)
 
             elif isinstance(right, caos_ast.Conjunction):
                 result = self.add_conjunction_to_disjunction(left, right)
@@ -528,7 +559,7 @@ class TreeTransformer:
         return result
 
 
-    def intersect_sets(self, left, right):
+    def intersect_sets(self, left, right, merge_filters=False):
         if left is right:
             return left
 
@@ -546,14 +577,14 @@ class TreeTransformer:
             if right_set.filter:
                 left_set.filter = self.extend_binop(left_set.filter, right_set.filter, op=ast.ops.AND)
 
-            left_set.conjunction = self.intersect_paths(left_set.conjunction, right_set.conjunction)
+            left_set.conjunction = self.intersect_paths(left_set.conjunction, right_set.conjunction, merge_filters)
             left_set.atomrefs.update(right_set.atomrefs)
             left_set.metarefs.update(right_set.metarefs)
             left_set.users.update(right_set.users)
             left_set.joins.update(right_set.joins)
             left_set.joins.discard(left_set)
 
-            disjunction = self.intersect_paths(left_set.disjunction, right_set.disjunction)
+            disjunction = self.intersect_paths(left_set.disjunction, right_set.disjunction, merge_filters)
 
             left_set.disjunction = caos_ast.Disjunction()
 
@@ -567,7 +598,7 @@ class TreeTransformer:
                         left_set.disjunction = caos_ast.Disjunction()
 
             elif disjunction.paths:
-                left_set.conjunction = self.intersect_paths(left_set.conjunction, disjunction)
+                left_set.conjunction = self.intersect_paths(left_set.conjunction, disjunction, merge_filters)
 
                 self.flatten_path_combination(left_set.conjunction)
 
@@ -600,13 +631,14 @@ class TreeTransformer:
 
         return conjunction
 
-    def intersect_conjunctions(self, left, right):
+    def intersect_conjunctions(self, left, right, merge_filters=False):
         result = caos_ast.Conjunction(paths=left.paths)
         result.update(right)
 
         if len(result.paths) > 1:
             self.flatten_path_combination(result)
-            self.unify_paths(result.paths, mode=result.__class__, reverse=False)
+            self.unify_paths(result.paths, mode=result.__class__, reverse=False,
+                             merge_filters=merge_filters)
             result.paths = frozenset(p for p in result.paths)
 
         return result
@@ -652,7 +684,7 @@ class TreeTransformer:
         else:
             return caos_ast.Conjunction()
 
-    def intersect_paths(self, left, right):
+    def intersect_paths(self, left, right, merge_filters=False):
         if isinstance(left, (caos_ast.EntityLink, caos_ast.EntitySet)):
             if isinstance(right, (caos_ast.EntityLink, caos_ast.EntitySet)):
                 # Both operands are sets -- simply merge them
@@ -682,7 +714,7 @@ class TreeTransformer:
                 result = self.intersect_disjunction_with_conjunction(right, left)
 
             elif isinstance(right, caos_ast.Conjunction):
-                result = self.intersect_conjunctions(left, right)
+                result = self.intersect_conjunctions(left, right, merge_filters)
 
         return result
 
@@ -704,6 +736,12 @@ class TreeTransformer:
             other_link = None
             other_node = other
 
+        """LOG [caos.graph.merge] MATCH PREFIXES
+        print(' ' * self.nest, our, other, ignore_filters)
+        print(' ' * self.nest, '   PATHS: ', our_node.id)
+        print(' ' * self.nest, '      *** ', other_node.id)
+        """
+
         ok = (our_node.id == other_node.id
               and our_node.anchor == other_node.anchor
               and (ignore_filters or (not our_node.filter and not other_node.filter
@@ -717,12 +755,14 @@ class TreeTransformer:
             else:
                 result = other_node
 
+        """LOG [caos.graph.merge] MATCH PREFIXES RESULT
+        print(' ' * self.nest, '    ----> ', result)
+        """
+
         return result
 
     def fixup_refs(self, refs, newref):
-        # Use list here, since the backref sets can be changed by replace_refs() call
-        for referrer in list(itertools.chain.from_iterable(ref.backrefs for ref in refs)):
-            referrer.replace_refs(refs, newref, deep=False)
+        caos_ast.Base.fixup_refs(refs, newref)
 
     def extract_paths(self, path, reverse=False):
         if isinstance(path, (caos_ast.EntitySet, caos_ast.InlineFilter, caos_ast.AtomicRef)):

@@ -101,8 +101,13 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                              index=caosql_tree.limit.index,
                                              type=int)
 
-        paths = [graph.generator] + [s.expr for s in graph.selector] + [s.expr for s in graph.sorter]
+        # Merge selector and sorter disjunctions first
+        paths = [s.expr for s in graph.selector] + [s.expr for s in graph.sorter]
+        union = tree.ast.Disjunction(paths=frozenset(paths))
+        self.flatten_and_unify_path_combination(union, deep=True, merge_filters=True)
 
+        # Merge the resulting disjunction with generator conjunction
+        paths = [graph.generator] + list(union.paths)
         union = tree.ast.Disjunction(paths=frozenset(paths))
         self.flatten_and_unify_path_combination(union, deep=True, merge_filters=True)
 
