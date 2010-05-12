@@ -6,6 +6,7 @@
 ##
 
 
+import types
 import inspect
 import warnings
 import itertools
@@ -190,6 +191,7 @@ class FunctionValidator:
             return result
 
         tools.decorate(wrapper, func)
+        setattr(wrapper, '_checktypes_', True)
         return wrapper
 
     @classmethod
@@ -201,6 +203,7 @@ class FunctionValidator:
                                             decorate_class=cls.checktypes_class)
             if patched is not object:
                 setattr(target_cls, name, patched)
+                applied = True
 
         return target_cls
 
@@ -213,9 +216,14 @@ class checktypes:
         if inspect.isfunction(func):
             args_spec = tools.get_argsspec(func)
             if not args_spec.annotations:
-                warnings.warn('No annotation for function %s while using @checktypes on it' % \
+                warnings.warn('No annotation for function "%s" while using @checktypes on it' % \
                                                                                     func.__name__)
                 return func
 
         return tools.apply_decorator(func, decorate_function=FunctionValidator.checktypes_function,
                                      decorate_class=FunctionValidator.checktypes_class)
+
+
+@checktypes
+def ischecktypes(func:types.FunctionType):
+    return hasattr(func, '_checktypes_') and func._checktypes_ is True
