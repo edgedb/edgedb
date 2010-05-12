@@ -194,7 +194,17 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         else:
             query = context.current.query
 
+        self._postprocess_query(query)
+
         return query, context.current.argmap
+
+    def _postprocess_query(self, query):
+        ctes = set(ast.find_children(query, lambda i: isinstance(i, pgsql.ast.SelectQueryNode)))
+        for cte in ctes:
+            if cte.where_strong:
+                cte.where = self.extend_predicate(cte.where, cte.where_strong, ast.ops.AND)
+            if cte.where_weak:
+                cte.where = self.extend_predicate(cte.where, cte.where_weak, ast.ops.OR)
 
     def _process_generator(self, context, generator):
         context.current.location = 'generator'
@@ -784,8 +794,10 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             context.current.location = 'nodefilter'
             context.current.concept_node_map[caos_path_tip] = {'data': concept_table}
             expr = pgsql.ast.PredicateNode(expr=self._process_expr(context, caos_path_tip.filter))
-            step_cte.where = self.extend_predicate(step_cte.where, expr,
-                                                   ast.ops.OR if weak else ast.ops.AND)
+            if weak:
+                step_cte.where_weak = self.extend_predicate(step_cte.where_weak, expr, ast.ops.OR)
+            else:
+                step_cte.where_strong = self.extend_predicate(step_cte.where_strong, expr, ast.ops.AND)
 
             context.pop()
 
