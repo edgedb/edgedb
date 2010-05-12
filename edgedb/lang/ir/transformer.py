@@ -965,8 +965,9 @@ class TreeTransformer:
                     paths = set()
 
                     for ref in left_exprs.paths:
-                        if isinstance(ref, caos_ast.AtomicRefExpr):
-                            # We must not inline expressions beyond the original bin-op
+                        if isinstance(ref, caos_ast.AtomicRefExpr) \
+                           and isinstance(op, ast.ops.BooleanOperator):
+                            # We must not inline boolean expressions beyond the original bin-op
                             result = newbinop(left, right)
                             break
                         paths.add(caos_ast.AtomicRefExpr(expr=newbinop(ref, right)))
