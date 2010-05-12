@@ -6,17 +6,30 @@
 ##
 
 
-import abc
 import types
 import inspect
 import functools
-import threading
+import weakref
+
+from semantix.utils import abc
+from semantix.exceptions import SemantixError
 
 
-__all__ = ['get_argsspec', 'apply_decorator', 'decorate', 'Decorator', 'BaseDecorator']
+__all__ = ['descent_decoration', 'get_argsspec', 'apply_decorator', 'decorate', 'isdecorated',
+           'Decorator', 'BaseDecorator', 'NonDecoratable']
+
+
+class NonDecoratable:
+    pass
 
 
 def decorate(wrapper, wrapped):
+    if isinstance(wrapped, type) and issubclass(wrapped, NonDecoratable):
+        raise SemantixError('Unable to decorate %r as a subclass of NonDecoratable' % wrapped)
+
+    elif isinstance(wrapped, NonDecoratable):
+        raise SemantixError('Unable to decorate %r as an instance of NonDecoratable' % wrapped)
+
     for attr in ('__module__', '__name__', '__doc__'):
         if hasattr(wrapped, attr):
             setattr(wrapper, attr, getattr(wrapped, attr))
@@ -26,12 +39,19 @@ def decorate(wrapper, wrapped):
             wrapper.__dict__.update(wrapped.__dict__)
 
         if hasattr(wrapped, '_args_spec_'):
-            setattr(wrapper, '_args_spec_', getattr(wrapped, '_args_spec_'))
+            setattr(wrapper, '_args_spec_', wrapped._args_spec_)
 
         else:
             setattr(wrapper, '_args_spec_', inspect.getfullargspec(wrapped))
 
-        setattr(wrapper, '_func_', wrapped)
+        if not hasattr(wrapper, '_func_'):
+            setattr(wrapper, '_func_', wrapped)
+
+
+def isdecorated(func):
+    return (isinstance(func, types.FunctionType) and hasattr(func, '_args_spec') \
+                                                            and hasattr(func, '_func_')) \
+            or isinstance(func, BaseDecorator)
 
 
 class BaseDecorator:
@@ -39,61 +59,34 @@ class BaseDecorator:
         self._func_ = func
 
 
-_lock = threading.Lock()
-class Decorator(BaseDecorator, metaclass=abc.ABCMeta):
-    def __init__(self, func):
-        self._func_ = func
-        decorate(self, func)
+class Decorator(BaseDecorator, metaclass=abc.AbstractMeta):
+    _cache = weakref.WeakKeyDictionary()
 
-        self._instance_caller = {}
-        self._class_caller = {}
+    def __init__(self, func):
+        BaseDecorator.__init__(self, func)
+        decorate(self, func)
 
     def __get__(self, obj, cls=None):
         if obj:
-            try:
-                return obj._decorator_cache_[self][obj][self.__name__]
-
-            except (KeyError, AttributeError):
-                with _lock:
-                    if not hasattr(obj, '_decorator_cache_'):
-                        setattr(obj, '_decorator_cache_', {self: {obj: {}}})
-
-                    elif self not in obj._decorator_cache_:
-                        obj._decorator_cache_[self] = {obj: {}}
-
-                    elif obj not in obj._decorator_cache_[self]:
-                        obj._decorator_cache_[self][obj] = {}
-
-                    if not self.__name__ in obj._decorator_cache_[self][obj]:
-                        wrapper = functools.partial(self.instance_call, obj)
-                        decorate(wrapper, self._func_)
-
-                        obj._decorator_cache_[self][obj][self.__name__] = wrapper
-
-                    return obj._decorator_cache_[self][obj][self.__name__]
+            target = obj
+            method = self.instance_call
 
         else:
-            try:
-                return cls._decorator_cache_[self][cls][self.__name__]
+            target = cls
+            method = self.class_call
 
-            except (KeyError, AttributeError):
-                with _lock:
-                    if not hasattr(cls, '_decorator_cache_'):
-                        setattr(cls, '_decorator_cache_', {self: {cls: {}}})
+        try:
+            return Decorator._cache[target][self, self.__name__]
 
-                    elif self not in cls._decorator_cache_:
-                        cls._decorator_cache_[self] = {cls: {}}
+        except KeyError:
+            if target not in Decorator._cache:
+                Decorator._cache[target] = {}
 
-                    elif cls not in cls._decorator_cache_[self]:
-                        cls._decorator_cache_[self][cls] = {}
+            wrapper = functools.partial(method, target)
+            decorate(wrapper, self._func_)
 
-                    if not self.__name__ in cls._decorator_cache_[self][cls]:
-                        wrapper = functools.partial(self.class_call, cls)
-                        decorate(wrapper, self._func_)
-
-                        cls._decorator_cache_[self][cls][self.__name__] = wrapper
-
-                    return cls._decorator_cache_[self][cls][self.__name__]
+            Decorator._cache[target][self, self.__name__] = wrapper
+            return wrapper
 
     @abc.abstractmethod
     def __call__(self, *args, **kwargs):
@@ -111,6 +104,37 @@ def get_argsspec(func):
         return getattr(func, '_args_spec_')
     except AttributeError:
         return inspect.getfullargspec(func)
+
+
+def descent_decoration(obj, *, on_function=None, on_class=None, _short=False):
+    assert on_function or on_class
+
+    if inspect.isfunction(obj):
+        if _short:
+            on_function(obj)
+        else:
+            if hasattr(obj, '_func_') and on_function:
+                on_function(obj._func_)
+        return
+
+    if inspect.isclass(obj) and on_class:
+        on_class(obj)
+        return
+
+    if isinstance(obj, classmethod) or isinstance(obj, staticmethod):
+        descent_decoration(obj.__func__, on_function=on_function, on_class=on_class, _short=True)
+        return
+
+    if isinstance(obj, property):
+        for name in 'fget', 'fset', 'fdel':
+            _obj = getattr(obj, name, None)
+            if _obj:
+                descent_decoration(_obj, on_function=on_function, on_class=on_class, _short=True)
+        return
+
+    if isinstance(obj, BaseDecorator):
+        descent_decoration(obj._func_, on_function=on_function, on_class=on_class, _short=True)
+        return
 
 
 def apply_decorator(func, *, decorate_function=None, decorate_class=None):
