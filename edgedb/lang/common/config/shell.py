@@ -82,7 +82,7 @@ class _Renderer:
                 print(cls.hl(' -> ', 'sep'), end='')
                 print(cls.hl('%r' % value.default, 'default_value'), end='')
 
-            if value.type:
+            if value.type and isinstance(value.type, type):
                 print(cls.hl(' <%s>' % value.type.__name__, 'type'), end='')
 
         if value.doc:

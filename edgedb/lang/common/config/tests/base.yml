@@ -18,7 +18,7 @@ semantix:
                             123
 
                         bar:
-                            '456'
+                            [0, 0]
 
                     test_yaml2:
                         a:

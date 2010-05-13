@@ -240,10 +240,7 @@ def configurable(obj, *, basename=None, bind_to=None):
     return apply_decorator(obj, decorate_function=decorate_function, decorate_class=decorate_class)
 
 
-class _NoDefault:
-    pass
-NoDefault = _NoDefault()
-
+NoDefault = object()
 
 class cvalue(ChecktypeExempt):
     __slots__ = ('_name', '_default', '_value', '_value_context', '_doc', '_validator', '_type',

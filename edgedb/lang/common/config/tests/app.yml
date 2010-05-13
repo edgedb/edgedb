@@ -16,4 +16,4 @@ semantix:
                 test_config:
                     test_yaml1:
                         bar:
-                            'zzz'
+                            [1, 2]

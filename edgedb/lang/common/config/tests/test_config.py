@@ -409,9 +409,9 @@ class TestUtilsConfig(object):
         from semantix.utils.config.tests import app
 
         @configurable
-        def test_yaml1(foo=cvalue(1), bar:str=cvalue('')):
+        def test_yaml1(foo=cvalue(1), bar:list=cvalue([None, None])):
             assert foo == 123
-            assert bar == 'zzz'
+            assert bar == [1, 2]
 
         test_yaml1()
 
