@@ -152,6 +152,15 @@ class AST(object, metaclass=MetaAST):
                 setattr(copied, field, copy.deepcopy(value, memo))
         return copied
 
+class LanguageAST(AST):
+    def __init__(self, **kwargs):
+        self.source_position = (None, -1, -1)
+        if 'source_position' in kwargs:
+            self.source_position = kwargs['source_position']
+            del kwargs['source_position']
+
+        super().__init__(**kwargs)
+
 
 class ASTBlockNode(AST):
     __fields = [('body', list)]
