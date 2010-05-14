@@ -7,13 +7,16 @@
 ##
 
 
+import ast as std_ast
 import re as regex
 import weakref
 
 import semantix.utils.ast.base
 from semantix.utils.io import terminal
 
-def dump(node, annotate_fields=True, include_attributes=False):
+def dump(node, annotate_fields=True, include_attributes=False, module=None):
+    module = module or semantix.utils.ast.base
+
     visited = {}
     """
     Return a formatted dump of the tree in *node*.  This is mainly useful for
@@ -24,12 +27,12 @@ def dump(node, annotate_fields=True, include_attributes=False):
     *include_attributes* can be set to True.
     """
     def _format(node):
-        if isinstance(node, semantix.utils.ast.base.AST) and id(node) in visited:
+        if isinstance(node, module.AST) and id(node) in visited:
             return _node_recursion_rep(node)
         visited[id(node)] = True
 
-        if isinstance(node, semantix.utils.ast.base.AST):
-            fields = [(a, _format(b)) for a, b in semantix.utils.ast.base.iter_fields(node)]
+        if isinstance(node, module.AST):
+            fields = [(a, _format(b)) for a, b in module.iter_fields(node)]
             rv = '%s(%s' % (node.__class__.__name__, ', '.join(
                 ('%s=%s' % field for field in fields)
                 if annotate_fields else
@@ -43,13 +46,17 @@ def dump(node, annotate_fields=True, include_attributes=False):
         elif isinstance(node, list):
             return '[%s]' % ', '.join(_format(x) for x in node)
         return repr(node)
-    if not isinstance(node, semantix.utils.ast.base.AST):
+    if not isinstance(node, module.AST):
         return str(node)
     else:
         return _format(node)
 
 
 def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=None):
+    module = std_ast
+    if isinstance(node, semantix.utils.ast.base.AST):
+        module = semantix.utils.ast.base
+
     visited = {}
 
     if field_mask is not None:
@@ -75,12 +82,12 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
         visited = {}
 
         def _format(node):
-            if isinstance(node, semantix.utils.ast.base.AST) and id(node) in visited:
+            if isinstance(node, module.AST) and id(node) in visited:
                 return highlight('RECURSION', _node_recursion_rep(node))
             visited[id(node)] = True
 
-            if isinstance(node, semantix.utils.ast.base.AST):
-                fields = [(a, _format(b)) for a, b in semantix.utils.ast.base.iter_fields(node) \
+            if isinstance(node, module.AST):
+                fields = [(a, _format(b)) for a, b in module.iter_fields(node) \
                           if mask_re is None or not mask_re.match(a)]
 
                 rv = '%s(%s' % (highlight('NODE_NAME', node.__class__.__name__), ', '.join(
@@ -92,7 +99,7 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
             elif isinstance(node, (set, frozenset, weakref.WeakSet)):
                 return '{%s}' % ', '.join(_format(x) for x in node)
             return highlight('LITERAL', repr(node))
-        if not isinstance(node, semantix.utils.ast.base.AST):
+        if not isinstance(node, module.AST):
             return str(node)
         else:
             return _format(node)
@@ -101,7 +108,7 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
     returns: one line = True, multiline = False
     """
     def _format(node, identation=0, force_multiline=False):
-        if isinstance(node, semantix.utils.ast.base.AST) and id(node) in visited:
+        if isinstance(node, module.AST) and id(node) in visited:
             if colorize:
                 return (1, highlight('RECURSION', _node_recursion_rep(node)))
             else:
@@ -111,7 +118,7 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
         tab = ' ' * identation_size
 
         if not force_multiline:
-            result = dump(node)
+            result = dump(node, module=module)
             if len(result) + len(tab) < width:
                 return (True, _dump(node) if colorize else result)
 
@@ -120,11 +127,11 @@ def pretty_dump(node, identation_size=4, width=80, colorize=False, field_mask=No
 
         result = '%s%s(%x)(\n' % (pad, highlight('NODE_NAME', node.__class__.__name__), id(node))
 
-        for field, value in semantix.utils.ast.base.iter_fields(node):
+        for field, value in module.iter_fields(node):
             if mask_re is not None and mask_re.match(field):
                 continue
 
-            if isinstance(value, semantix.utils.ast.base.AST):
+            if isinstance(value, module.AST):
                 _f = _format(value, identation + 1)
 
                 result += '%s%s = ' % (pad_tab, highlight('NODE_FIELD', field))
