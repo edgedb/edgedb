@@ -156,10 +156,16 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         context = TransformerContext()
 
         context.current.realm = realm
-        context.current.query.where = self._process_generator(context, tree.generator)
+        expr = self._process_generator(context, tree.generator)
+        if getattr(expr, 'aggregates', False):
+            context.current.query.having = expr
+        else:
+            context.current.query.where = expr
 
         self._process_selector(context, tree.selector, context.current.query)
         self._process_sorter(context, tree.sorter)
+
+        self._process_groupby(context, tree.grouper)
 
         if tree.offset:
             context.current.query.offset = self._process_constant(context, tree.offset)
@@ -229,6 +235,14 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             sortexpr = pgsql.ast.SortExprNode(expr=self._process_expr(context, expr.expr),
                                               direction=expr.direction)
             query.orderby.append(sortexpr)
+
+    def _process_groupby(self, context, grouper):
+        query = context.current.query
+        context.current.location = 'grouper'
+
+        for expr in grouper:
+            sortexpr = self._process_expr(context, expr)
+            query.groupby.append(sortexpr)
 
     def get_caos_path_root(self, expr):
         result = expr
@@ -441,12 +455,24 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
                                                                        right, expr.op)
                     right = pgsql.ast.IgnoreNode()
 
-                if isinstance(left, pgsql.ast.IgnoreNode):
-                    result = right
-                elif isinstance(right, pgsql.ast.IgnoreNode):
-                    result = left
+                if isinstance(left, pgsql.ast.IgnoreNode) or isinstance(right, pgsql.ast.IgnoreNode):
+                    if isinstance(left, pgsql.ast.IgnoreNode):
+                        result, from_expr = right, expr.right
+                    elif isinstance(right, pgsql.ast.IgnoreNode):
+                        result, from_expr = left, expr.left
+
+                    if getattr(from_expr, 'aggregates', False):
+                        context.current.query.having = result
+                        result = pgsql.ast.IgnoreNode()
                 else:
-                    result = pgsql.ast.BinOpNode(op=expr.op, left=left, right=right)
+                    left_aggregates = getattr(expr.left, 'aggregates', False)
+                    op_aggregates = getattr(expr, 'aggregates', False)
+
+                    if left_aggregates and not op_aggregates:
+                        context.current.query.having = left
+                        result = right
+                    else:
+                        result = pgsql.ast.BinOpNode(op=expr.op, left=left, right=right)
 
         elif isinstance(expr, tree.ast.Constant):
             result = self._process_constant(context, expr)
@@ -503,13 +529,26 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         if expr.name == ('search', 'rank'):
             vector, query = self._text_search_args(context, *expr.args)
             result = pgsql.ast.FunctionCallNode(name='ts_rank_cd', args=[vector, query])
+
         elif expr.name == ('search', 'headline'):
             vector, query = self._text_search_args(context, *expr.args, tsvector=False)
             lang = pgsql.ast.ConstantNode(value='english')
             result = pgsql.ast.FunctionCallNode(name='ts_headline', args=[lang, vector, query])
+
         else:
+            if expr.name == ('agg', 'sum'):
+                name = 'sum'
+            elif expr.name == ('agg', 'list'):
+                name = 'array_agg'
+            elif expr.name == ('agg', 'count'):
+                name = 'count'
+            elif isinstance(expr.name, tuple):
+                assert False, 'unsupported function %s' % (expr.name,)
+            else:
+                name = expr.name
+
             args = [self._process_expr(context, a, cte) for a in expr.args]
-            result = pgsql.ast.FunctionCallNode(name=expr.name, args=args)
+            result = pgsql.ast.FunctionCallNode(name=name, args=args)
 
         return result
 
@@ -793,11 +832,13 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             context.push()
             context.current.location = 'nodefilter'
             context.current.concept_node_map[caos_path_tip] = {'data': concept_table}
-            expr = pgsql.ast.PredicateNode(expr=self._process_expr(context, caos_path_tip.filter))
-            if weak:
-                step_cte.where_weak = self.extend_predicate(step_cte.where_weak, expr, ast.ops.OR)
-            else:
-                step_cte.where_strong = self.extend_predicate(step_cte.where_strong, expr, ast.ops.AND)
+            expr = self._process_expr(context, caos_path_tip.filter)
+            if expr:
+                expr = pgsql.ast.PredicateNode(expr=expr)
+                if weak:
+                    step_cte.where_weak = self.extend_predicate(step_cte.where_weak, expr, ast.ops.OR)
+                else:
+                    step_cte.where_strong = self.extend_predicate(step_cte.where_strong, expr, ast.ops.AND)
 
             context.pop()
 

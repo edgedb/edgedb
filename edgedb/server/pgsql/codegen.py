@@ -83,6 +83,29 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.where)
             self.indentation -= 2
 
+        if node.groupby:
+            self.indentation += 1
+            self.new_lines = 1
+            self.write('GROUP BY')
+            self.new_lines = 1
+            self.indentation += 1
+            count = len(node.groupby)
+            for i, groupexpr in enumerate(node.groupby):
+                self.new_lines = 1
+                self.visit(groupexpr)
+                if i != count - 1:
+                    self.write(',')
+            self.indentation -= 2
+
+        if node.having:
+            self.indentation += 1
+            self.new_lines = 1
+            self.write('HAVING')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit(node.having)
+            self.indentation -= 2
+
         if node.orderby:
             self.indentation += 1
             self.new_lines = 1

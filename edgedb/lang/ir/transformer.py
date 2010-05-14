@@ -10,79 +10,14 @@ import itertools
 
 from semantix.caos import name as caos_name
 from semantix.caos import error as caos_error
+from semantix.caos import utils as caos_utils
+from semantix.caos.utils import LinearPath, MultiPath
 from semantix.caos import types as caos_types
 from semantix.caos.tree import ast as caos_ast
 
 from semantix.utils.algos import boolean
 from semantix.utils import datastructures, ast, debug
 from semantix.utils.functional import checktypes
-
-
-@checktypes
-class LinearPath(list):
-    """
-    Denotes a linear path in the graph.  The path is considered linear if it does not have
-    branches and is in the form <concept> <link> <concept> <link> ... <concept>
-    """
-
-    def __eq__(self, other):
-        if not isinstance(other, LinearPath):
-            return NotImplemented
-
-        if len(other) != len(self):
-            return False
-        elif len(self) == 0:
-            return True
-
-        if self[0] != other[0]:
-            return False
-
-        for i in range(1, len(self) - 1, 2):
-            if self[i] != other[i]:
-                break
-            if self[i + 1] != other[i + 1]:
-                break
-        else:
-            return True
-        return False
-
-    def add(self, links, direction:caos_types.LinkDirection, target:caos_types.ProtoNode):
-        self.append((frozenset(links), direction))
-        self.append(target)
-
-    def __hash__(self):
-        return hash(tuple(self))
-
-    def __str__(self):
-        if not self:
-            return '';
-
-        result = '%s' % self[0].name
-
-        for i in range(1, len(self) - 1, 2):
-            result += '[%s%s]%s' % (self[i][1], str(self[i][0]), self[i + 1].name)
-        return result
-
-
-@checktypes
-class MultiPath(LinearPath):
-    def add(self, links, direction:caos_types.LinkDirection, target):
-        self.append((frozenset(links), direction))
-        self.append(target)
-
-    def __hash__(self):
-        return hash(tuple(self))
-
-    def __str__(self):
-        if not self:
-            return '';
-
-        result = '%s' % ','.join(str(c.name) for c in self[0])
-
-        for i in range(1, len(self) - 1, 2):
-            result += '[%s%s]%s' % (self[i][1], str(self[i][0]),
-                                    ','.join(str(c.name) for c in self[i + 1]))
-        return result
 
 
 class PathIndex(dict):
@@ -141,10 +76,12 @@ class TreeTransformer:
         elif isinstance(expr, (caos_ast.EntitySet, caos_ast.AtomicRefSimple)):
             key = getattr(expr, 'anchor', None) or expr.id
 
-            if key not in prefixes:
-                prefixes[key] = {expr}
-            else:
-                prefixes[key].add(expr)
+            if key:
+                # XXX AtomicRefs with PathCombinations in ref don't have an id
+                if key not in prefixes:
+                    prefixes[key] = {expr}
+                else:
+                    prefixes[key].add(expr)
 
             if isinstance(expr, caos_ast.EntitySet) and expr.rlink:
                 self.extract_prefixes(expr.rlink.source, prefixes)
@@ -178,17 +115,62 @@ class TreeTransformer:
         return prefixes
 
     def replace_atom_refs(self, expr, prefixes):
-        arefs = ast.find_children(expr, lambda i: isinstance(i, caos_ast.AtomicRefSimple))
+
+        if isinstance(expr, caos_ast.AtomicRefSimple):
+            arefs = (expr,)
+        else:
+            arefs = ast.find_children(expr, lambda i: isinstance(i, caos_ast.AtomicRefSimple))
 
         for aref in arefs:
-            prefix = getattr(aref.ref, 'anchor', None) or aref.ref.id
-            newref = prefixes[prefix]
-            if len(newref) > 1:
-                newref = caos_ast.Disjunction(paths=frozenset(newref))
+            if isinstance(aref.ref, caos_ast.PathCombination):
+                aref_prefixes = [getattr(r, 'anchor', None) or r.id for r in aref.ref.paths]
             else:
-                newref = next(iter(newref))
-            aref.ref = newref
+                aref_prefixes = [getattr(aref.ref, 'anchor', None) or aref.ref.id]
 
+            newrefs = set()
+
+            for prefix in aref_prefixes:
+                newref = prefixes[prefix]
+
+                if aref.id:
+                    # XXX: not all AtomRefs have a valid id, i.e the ones that have
+                    # Disjunction as their ref.
+                    for ref in newref:
+                        # Make sure to pull the atom from all the alternative paths.
+                        # atomrefs might have fallen out of date due to development of
+                        # alternative paths by the path merger.
+                        #
+                        if isinstance(aref, caos_ast.MetaRef):
+                            ref.metarefs.update(prefixes[aref.id])
+                        else:
+                            ref.atomrefs.update(prefixes[aref.id])
+
+                newrefs.update(newref)
+
+            if len(newrefs) > 1:
+                newrefs = caos_ast.Disjunction(paths=frozenset(newrefs))
+            else:
+                newrefs = next(iter(newrefs))
+            aref.ref = newrefs
+
+        return expr
+
+    def entityref_to_idref(self, expr):
+        p = next(iter(expr.paths))
+        if isinstance(p, caos_ast.EntitySet):
+            name = caos_name.Name('semantix.caos.builtins.id')
+
+            if len(expr.paths) == 1:
+                ref = p
+                id = None
+            else:
+                link_proto = self.realm.session.schema.get(name)
+                target_proto = self.realm.session.schema.get('semantix.caos.builtins.uuid')
+                ref = expr
+                id = LinearPath(ref.id)
+                id.add(link_proto, caos_types.OutboundDirection, target_proto)
+
+            expr = caos_ast.AtomicRefSimple(ref=p, name=name, id=id)
         return expr
 
     def _dump(self, tree):
@@ -209,6 +191,65 @@ class TreeTransformer:
                     binop = caos_ast.BinOp(left=binop, op=op, right=expr)
 
         return binop
+
+    def is_aggregated_expr(self, expr):
+        return getattr(expr, 'aggregates', False) or \
+               (isinstance(expr, caos_types.NodeClass) and \
+                    caos_utils.get_path_id(expr) in self.context.current.groupprefixes)
+
+
+    def reorder_aggregates(self, expr):
+        if getattr(expr, 'aggregates', False):
+            # No need to drill-down, the expression is known to be a pure aggregate
+            return expr
+
+        if isinstance(expr, caos_ast.FunctionCall):
+            has_agg_args = False
+
+            for arg in expr.args:
+                self.reorder_aggregates(arg)
+
+                if self.is_aggregated_expr(arg):
+                    has_agg_args = True
+                elif has_agg_args and not isinstance(expr, caos_ast.Constant):
+                    raise TreeError('invalid expression mix of aggregates and non-aggregates')
+
+            if has_agg_args:
+                expr.aggregates = True
+
+        elif isinstance(expr, caos_ast.BinOp):
+            left = self.reorder_aggregates(expr.left)
+            right = self.reorder_aggregates(expr.right)
+
+            left_aggregates = self.is_aggregated_expr(left)
+            right_aggregates = self.is_aggregated_expr(right)
+
+            if (left_aggregates and (right_aggregates or isinstance(right, caos_ast.Constant))) \
+               or (isinstance(left, caos_ast.Constant) and right_aggregates):
+                expr.aggregates = True
+
+            elif expr.op == ast.ops.AND:
+                if right_aggregates:
+                    # Reorder the operands so that aggregate expr is always on the left
+                    expr.left, expr.right = expr.right, expr.left
+
+            elif left_aggregates or right_aggregates:
+                raise TreeError('invalid expression mix of aggregates and non-aggregates')
+
+        elif isinstance(expr, (caos_ast.AtomicRef, caos_ast.Constant, caos_ast.InlineFilter,
+                               caos_ast.EntitySet)):
+            pass
+
+        elif isinstance(expr, caos_ast.PathCombination):
+            for p in expr.paths:
+                self.reorder_aggregates(p)
+
+        else:
+            # All other nodes fall through
+            assert False
+
+        return expr
+
 
     def postprocess_expr(self, expr):
         paths = self.extract_paths(expr, reverse=True)
@@ -279,7 +320,7 @@ class TreeTransformer:
             self.flatten_and_unify_path_combination(e, deep=False)
 
             if len(e.paths) > 1:
-                expr = caos_ast.BinOp(left=left, op=expr.op, right=right)
+                expr = caos_ast.BinOp(left=left, op=expr.op, right=right, aggregates=expr.aggregates)
             else:
                 expr = next(iter(expr.paths))
 
@@ -300,7 +341,7 @@ class TreeTransformer:
             args = []
             for arg in expr.args:
                 args.append(self.merge_paths(arg))
-            expr = expr.__class__(name=expr.name, args=args)
+            expr = expr.__class__(name=expr.name, args=args, aggregates=expr.aggregates)
 
         elif isinstance(expr, caos_ast.Sequence):
             elements = []
@@ -347,6 +388,7 @@ class TreeTransformer:
 
     nest = 0
 
+    @debug.debug
     def unify_paths(self, paths, mode, reverse=True, merge_filters=False):
         mypaths = set(paths)
 
@@ -732,6 +774,7 @@ class TreeTransformer:
 
         return result
 
+    @debug.debug
     def match_prefixes(self, our, other, ignore_filters):
         result = None
 
@@ -899,6 +942,9 @@ class TreeTransformer:
             node = caos_ast.FunctionCall(name=node.name,
                                          args=[caos_ast.Sequence(elements=cols), node.args[1]])
 
+        elif node.name[0] == 'agg':
+            node.aggregates = True
+
         return node
 
     def process_binop(self, left, right, op):
@@ -974,7 +1020,8 @@ class TreeTransformer:
                             rset.joins.add(lset)
                             lset.backrefs.add(rset)
 
-                elif op in (ast.ops.IS, ast.ops.IS_NOT):
+                elif op in (ast.ops.IS, ast.ops.IS_NOT) and \
+                                                        isinstance(right, caos_types.ProtoConcept):
                     paths = set()
 
                     for path in left_exprs.paths:
@@ -1129,6 +1176,9 @@ class TreeTransformer:
                 result = newbinop(left, right)
 
         elif isinstance(left, caos_ast.BinOp):
+            result = newbinop(left, right)
+
+        elif isinstance(left, caos_ast.FunctionCall):
             result = newbinop(left, right)
 
         if not result:

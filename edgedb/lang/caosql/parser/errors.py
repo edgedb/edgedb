@@ -17,4 +17,4 @@ class CaosQLSyntaxError(CaosQLError):
         self.lineno = lineno
 
     def __str__(self):
-        return "unexpected `%s' on line %d" % (self.token, self.lineno)
+        return "unexpected `%s' (%s) on line %d" % (self.token, self.expr, self.lineno)

@@ -18,7 +18,7 @@ class ArgListNode(Base):
     __fields = ['name', ('args', list)]
 
 class BinOpNode(Base):
-    __fields = ['left', 'op', 'right']
+    __fields = ['left', 'op', 'right', ('aggregates', bool)]
 
 class VarNode(Base):
     __fields = ['name']
@@ -78,7 +78,7 @@ class TableNode(RelationNode):
 class SelectQueryNode(RelationNode):
     __fields = ['distinct', ('fromlist', list), ('targets', list),
                 'where', 'where_weak', 'where_strong',
-                ('orderby', list), 'offset', 'limit',
+                ('orderby', list), 'offset', 'limit', ('groupby', list), 'having',
                 ('ctes', datastructures.OrderedSet), ('concept_node_map', dict), ('linkmap', dict)]
 
 class UpdateQueryNode(Base):
@@ -122,7 +122,7 @@ class SortExprNode(Base):
     __fields = ['expr', 'direction']
 
 class FunctionCallNode(Base):
-    __fields = ['name', ('args', list), 'over']
+    __fields = ['name', ('args', list), 'over', ('aggregate', bool)]
 
 class IgnoreNode(Base):
     pass

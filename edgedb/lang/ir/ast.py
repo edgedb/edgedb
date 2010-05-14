@@ -92,8 +92,8 @@ class Base(ast.AST):
 
 
 class GraphExpr(Base):
-    __fields = ['generator', ('selector', list), ('sorter', list), 'offset', 'limit',
-                ('opselector', list), 'optarget', 'opvalues', 'op']
+    __fields = ['generator', ('selector', list), ('grouper', list), ('sorter', list),
+                'offset', 'limit', ('opselector', list), 'optarget', 'opvalues', 'op']
 
 
 class AtomicRef(Base):
@@ -228,7 +228,7 @@ class Constant(Base): __fields = ['value', 'index', 'expr', 'type']
 class Sequence(Base): __fields = [('elements', list)]
 
 class BinOp(Base):
-    __fields = ['left', 'right', 'op']
+    __fields = ['left', 'right', 'op', ('aggregates', bool)]
 
 class InlineFilter(Base): __fields  = ['expr', 'ref']
 class ExistPred(Base): __fields = ['expr', 'outer']
@@ -236,7 +236,10 @@ class AtomicExistPred(ExistPred): pass
 class SortExpr(Base): __fields = ['expr', 'direction']
 class SelectorExpr(Base): __fields = ['expr', 'name']
 class UpdateExpr(Base): __fields = ['expr', 'value']
-class FunctionCall(Base): __fields = ['name', ('args', list)]
+class FunctionCall(Base):
+    __fields = ['name',
+                ('args', list),
+                ('aggregates', bool)]
 
 
 class CaosOperator(ast.ops.Operator):

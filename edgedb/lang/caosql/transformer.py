@@ -21,10 +21,14 @@ class ParseContextLevel(object):
             self.anchors = prevlevel.anchors
             self.namespaces = prevlevel.namespaces
             self.location = prevlevel.location
+            self.groupprefixes = prevlevel.groupprefixes
+            self.in_aggregate = prevlevel.in_aggregate[:]
         else:
             self.anchors = {}
             self.namespaces = {}
             self.location = None
+            self.groupprefixes = None
+            self.in_aggregate = []
 
 
 class ParseContext(object):
@@ -89,6 +93,12 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             context.current.namespaces.update(self.module_aliases)
 
         graph.generator = self._process_select_where(context, caosql_tree.where)
+
+        graph.grouper = self._process_grouper(context, caosql_tree.groupby)
+        if graph.grouper:
+            groupgraph = tree.ast.Disjunction(paths=frozenset(graph.grouper))
+            context.current.groupprefixes = self.extract_prefixes(groupgraph)
+
         graph.selector = self._process_select_targets(context, caosql_tree.targets)
         graph.sorter = self._process_sorter(context, caosql_tree.orderby)
         if caosql_tree.offset:
@@ -102,7 +112,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                              type=int)
 
         # Merge selector and sorter disjunctions first
-        paths = [s.expr for s in graph.selector] + [s.expr for s in graph.sorter]
+        paths = [s.expr for s in graph.selector] + [s.expr for s in graph.sorter] + \
+                [s for s in graph.grouper]
         union = tree.ast.Disjunction(paths=frozenset(paths))
         self.flatten_and_unify_path_combination(union, deep=True, merge_filters=True)
 
@@ -110,6 +121,11 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         paths = [graph.generator] + list(union.paths)
         union = tree.ast.Disjunction(paths=frozenset(paths))
         self.flatten_and_unify_path_combination(union, deep=True, merge_filters=True)
+
+        # Reorder aggregate expressions so that all of them appear as the first sub-tree in
+        # the generator expression.
+        #
+        self.reorder_aggregates(graph.generator)
 
         return graph
 
@@ -135,6 +151,16 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
         elif isinstance(expr, qlast.PathNode):
             node = self._process_path(context, expr)
+            if context.current.groupprefixes and context.current.location in ('sorter', 'selector')\
+                                             and not context.current.in_aggregate:
+                for p in node.paths:
+                    if p.id not in context.current.groupprefixes:
+                        err = ('node reference "%s" must appear in the GROUP BY expression or '
+                               'used in an aggregate function ') % p.id
+                        raise CaosQLError(err)
+
+            if context.current.location != 'generator' or context.current.in_aggregate:
+                node = self.entityref_to_idref(node)
 
         elif isinstance(expr, qlast.ConstantNode):
             type = self.arg_types.get(expr.index)
@@ -145,9 +171,12 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             node = tree.ast.Sequence(elements=elements)
 
         elif isinstance(expr, qlast.FunctionCallNode):
-            args = [self._process_expr(context, a) for a in expr.args]
-            node = tree.ast.FunctionCall(name=expr.func, args=args)
-            node = self.process_function_call(node)
+            with context():
+                if expr.func[0] == 'agg':
+                    context.current.in_aggregate.append(expr)
+                args = [self._process_expr(context, a) for a in expr.args]
+                node = tree.ast.FunctionCall(name=expr.func, args=args)
+                node = self.process_function_call(node)
 
         elif isinstance(expr, qlast.PrototypeRefNode):
             if expr.module:
@@ -294,8 +323,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                                     newtips[target] = set()
                                     for t in tip:
+                                        atomref_id = tree.transformer.LinearPath(t.id)
+                                        atomref_id.add(link_item, dir, target)
                                         atomref = tree.ast.AtomicRefSimple(name=linkset_proto.name,
-                                                                           ref=t)
+                                                                           ref=t, id=atomref_id)
                                         newtips[target].add(atomref)
 
                                 else:
@@ -363,5 +394,18 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 expr = self.merge_paths(expr)
                 s = tree.ast.SortExpr(expr=expr, direction=sorter.direction)
                 result.append(s)
+
+        return result
+
+    def _process_grouper(self, context, groupers):
+
+        result = []
+
+        with context():
+            context.current.location = 'grouper'
+            for grouper in groupers:
+                expr = self._process_expr(context, grouper)
+                expr = self.merge_paths(expr)
+                result.append(expr)
 
         return result

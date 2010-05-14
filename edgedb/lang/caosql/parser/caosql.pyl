@@ -21,6 +21,7 @@ INITIAL:
     "[Aa][Ss]"          : return "AS"
     "[Bb][Yy]"          : return "BY"
     "[Oo][Rr][Dd][Ee][Rr]"                  : return "ORDER"
+    "[Gg][Rr][Oo][Uu][Pp]"                  : return "GROUP"
     "[Aa][Ss][Cc]"                          : return "ASC"
     "[Dd][Ee][Ss][Cc]"                      : return "DESC"
     "[Ii][Nn][Tt][Ee][Rr][Ss][Ee][Cc][Tt]"  : return "INTERSECT"

@@ -92,6 +92,7 @@ arg_list                        -> query (',' query )* :
 select_query                    -> (USING select_nsdecl (',' select_nsdecl)*)?
                                    SELECT (DISTINCT)? select_expr (',' select_expr)*
                                    (WHERE predicate)?
+                                   (GROUP BY groupby_expr (',' groupby_expr)*)?
                                    (ORDER BY orderby_expr (',' orderby_expr)*)?
                                    (OFFSET number_constant)?
                                    (LIMIT number_constant)?:
@@ -108,13 +109,16 @@ select_query                    -> (USING select_nsdecl (',' select_nsdecl)*)?
                                             node.where = kids[5][1]
 
                                         if kids[6] is not None:
-                                            node.orderby = [kids[6][2]] + [k[1] for k in kids[6][3]]
+                                            node.groupby = [kids[6][2]] + [k[1] for k in kids[6][3]]
 
                                         if kids[7] is not None:
-                                            node.offset = kids[7][1]
+                                            node.orderby = [kids[7][2]] + [k[1] for k in kids[7][3]]
 
                                         if kids[8] is not None:
-                                            node.limit = kids[8][1]
+                                            node.offset = kids[8][1]
+
+                                        if kids[9] is not None:
+                                            node.limit = kids[9][1]
 
                                         return node
 ;
@@ -271,6 +275,13 @@ constant                        -> base_constant:
                                  | base_string_constant:
                                         return kids[0]
                                  | base_boolean_constant:
+                                        return kids[0]
+;
+
+
+groupby_expr                    -> path_expr:
+                                        return kids[0]
+                                 | value_query:
                                         return kids[0]
 ;
 

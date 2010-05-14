@@ -32,8 +32,8 @@ class LinkNode(ast.AST): __fields = ['name', 'namespace', 'direction']
 class LinkExprNode(ast.AST): __fields = ['expr']
 
 class SelectQueryNode(ast.AST):
-    __fields = ['namespaces', 'distinct', ('targets', list), 'where', ('orderby', list),
-                'offset', 'limit']
+    __fields = ['namespaces', 'distinct', ('targets', list), 'where', ('groupby', list),
+                ('orderby', list), 'offset', 'limit']
 
 class NamespaceDeclarationNode(ast.AST): __fields = ['namespace', 'alias']
 
