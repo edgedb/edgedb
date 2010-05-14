@@ -177,6 +177,20 @@ class TreeTransformer:
 
         return prefixes
 
+    def replace_atom_refs(self, expr, prefixes):
+        arefs = ast.find_children(expr, lambda i: isinstance(i, caos_ast.AtomicRefSimple))
+
+        for aref in arefs:
+            prefix = getattr(aref.ref, 'anchor', None) or aref.ref.id
+            newref = prefixes[prefix]
+            if len(newref) > 1:
+                newref = caos_ast.Disjunction(paths=frozenset(newref))
+            else:
+                newref = next(iter(newref))
+            aref.ref = newref
+
+        return expr
+
     def _dump(self, tree):
         if tree is not None:
             print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*|refs|backrefs)$'))
