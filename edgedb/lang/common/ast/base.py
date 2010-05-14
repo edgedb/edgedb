@@ -5,7 +5,11 @@
 # See LICENSE for details.
 ##
 
+
 import copy
+import collections
+
+
 from . import dump
 
 
@@ -26,6 +30,9 @@ class MetaAST(type):
         super().__init__(name, bases, dct)
 
         fields = {}
+        if __debug__:
+            fields = collections.OrderedDict()
+
         for parent in cls.__mro__:
             lst = getattr(cls, '_' + parent.__name__ + '__fields', [])
             for field in lst:
