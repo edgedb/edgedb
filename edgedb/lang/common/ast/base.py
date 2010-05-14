@@ -134,6 +134,24 @@ class AST(object, metaclass=MetaAST):
         else:
             return dump.dump(self, *args, **kwargs)
 
+    def __copy__(self):
+        copied = self.__class__()
+        for field, value in iter_fields(self):
+            setattr(copied, field, value)
+        return copied
+
+    def __deepcopy__(self, memo):
+        copied = self.__class__()
+        for field, value in iter_fields(self):
+            if isinstance(value, list):
+                new_value = []
+                for subval in value:
+                    new_value.append(copy.deepcopy(subval, memo))
+                setattr(copied, field, new_value)
+            else:
+                setattr(copied, field, copy.deepcopy(value, memo))
+        return copied
+
 
 class ASTBlockNode(AST):
     __fields = [('body', list)]
