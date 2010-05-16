@@ -43,6 +43,8 @@ class StructMeta(StructMeta):
                     field['mapping'] = type.get_yaml_validator_config()
                 else:
                     field['mapping'] = {'=': {'type': 'any'}}
+            elif issubclass(type, bool):
+                field = {'type': 'bool'}
             elif issubclass(type, int):
                 field = {'type': 'int'}
             elif issubclass(type, str):

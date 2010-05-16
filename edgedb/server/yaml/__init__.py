@@ -58,7 +58,7 @@ class LangObject(yaml.Object, metaclass=LangObjectMeta):
         return cls
 
 
-class WordCombination(LangObject, adapts=morphology.WordCombination):
+class WordCombination(LangObject, adapts=morphology.WordCombination, ignore_aliases=True):
     def construct(self):
         if isinstance(self.data, str):
             morphology.WordCombination.__init__(self, self.data)
@@ -221,7 +221,7 @@ class AtomModRegExp(AtomMod, adapts=proto.AtomModRegExp):
     def represent(self, data):
         return {'regexp': next(iter(data.values))}
 
-default_name = caos.Name('!unknown.name')
+default_name = None
 
 class Atom(Prototype, adapts=proto.Atom):
     def construct(self):
@@ -229,7 +229,7 @@ class Atom(Prototype, adapts=proto.Atom):
         proto.Atom.__init__(self, name=default_name, backend=None, base=data['extends'],
                             default=data['default'], title=data['title'],
                             description=data['description'], is_abstract=data['abstract'],
-                            _setdefaults_=False)
+                            _setdefaults_=False, _relaxrequired_=True)
         mods = data.get('mods')
         if mods:
             for mod in mods:
@@ -257,7 +257,8 @@ class Atom(Prototype, adapts=proto.Atom):
             result['abstract'] = data.is_abstract
 
         if data.mods:
-            result['mods'] = list(itertools.chain.from_iterable(data.mods.values()))
+            result['mods'] = sorted(list(itertools.chain.from_iterable(data.mods.values())),
+                                    key=lambda i: i.__class__.mod_name)
 
         return result
 
@@ -274,7 +275,7 @@ class Concept(Prototype, adapts=proto.Concept):
                                base=tuple(extends) if extends else tuple(),
                                title=data.get('title'), description=data.get('description'),
                                is_abstract=data.get('abstract'),
-                               _setdefaults_=False)
+                               _setdefaults_=False, _relaxrequired_=True)
         self._links = data.get('links', {})
 
     @classmethod
@@ -302,11 +303,11 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
     def construct(self):
         data = self.data
         if isinstance(data, str):
-            proto.LinkProperty.__init__(self, name=default_name, atom=data)
+            proto.LinkProperty.__init__(self, name=default_name, atom=data, _relaxrequired_=True)
         else:
             atom_name, info = next(iter(data.items()))
             proto.LinkProperty.__init__(self, name=default_name, atom=atom_name, title=info['title'],
-                                       description=info['description'])
+                                       description=info['description'], _relaxrequired_=True)
             self.mods = info.get('mods')
 
     @classmethod
@@ -342,7 +343,7 @@ class LinkDef(Prototype, adapts=proto.Link):
                             is_abstract=data.get('abstract'),
                             readonly=data.get('readonly'),
                             mapping=data.get('mapping'),
-                            _setdefaults_=False)
+                            _setdefaults_=False, _relaxrequired_=True)
         for property_name, property in data['properties'].items():
             property.name = property_name
             self.add_property(property)
@@ -444,12 +445,14 @@ class LinkList(LangObject, list):
     def construct(self):
         data = self.data
         if isinstance(data, str):
-            link = proto.Link(source=None, target=data, name=default_name, _setdefaults_=False)
+            link = proto.Link(source=None, target=data, name=default_name, _setdefaults_=False,
+                              _relaxrequired_=True)
             link.context = self.context
             self.append(link)
         elif isinstance(data, list):
             for target in data:
-                link = proto.Link(source=None, target=target, name=default_name, _setdefaults_=False)
+                link = proto.Link(source=None, target=target, name=default_name,
+                                  _setdefaults_=False, _relaxrequired_=True)
                 link.context = self.context
                 self.append(link)
         else:
@@ -461,7 +464,7 @@ class LinkList(LangObject, list):
                     link = proto.Link(name=default_name, target=t, mapping=info['mapping'],
                                       required=info['required'], title=info['title'],
                                       description=info['description'], readonly=info['readonly'],
-                                      _setdefaults_=False)
+                                      _setdefaults_=False, _relaxrequired_=True)
 
                     search = info.get('search')
                     if search and search.weight is not None:
@@ -532,6 +535,7 @@ class MetaSet(LangObject):
             for concept in concepts:
                 if self.include_builtin or concept.name.module != 'semantix.caos.builtins':
                     concept.setdefaults()
+                    concept.materialize(self.finalindex)
                     self.finalindex.add(concept)
 
 
@@ -683,7 +687,7 @@ class MetaSet(LangObject):
                     # A new specialized subclass of the link is created for each
                     # (source, link_name, target) combination
                     link.base = (link_qname,)
-                    link_genname = proto.Link.gen_link_name(link.source, link.target, link_qname.name)
+                    link_genname = proto.Link.gen_link_name(link.source, link.target, link_qname)
                     link.name = caos.Name(name=link_genname, module=link_qname.module)
                     globalmeta.add(link)
                     localmeta.add(link)

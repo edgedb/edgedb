@@ -184,6 +184,9 @@ params:
     constraint_pattern:
         type: str
         default: null
+    include_inherited:
+        type: bool
+        default: false
 
 filters:
     - format: dict
@@ -216,6 +219,7 @@ source: |
                 (%(schema_pattern)s::text IS NULL OR ns.nspname LIKE %(schema_pattern)s::text)
                 AND (%(table_pattern)s::text IS NULL OR cc.relname LIKE %(table_pattern)s::text)
                 AND (%(constraint_pattern)s::text IS NULL OR c.conname LIKE %(constraint_pattern)s::text)
+                AND (%(include_inherited)s OR c.coninhcount = 0)
 
             GROUP BY
                 table_name

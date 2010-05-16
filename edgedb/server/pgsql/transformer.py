@@ -1084,7 +1084,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
                     context.current.concept_node_map[caosnode][field] = selexpr
 
 
-            path_concepts = sqlpath.concepts.union(*[c.children for c in sqlpath.concepts])
+            path_concepts = sqlpath.concepts.union(*[c.children() for c in sqlpath.concepts])
             if concepts is None:
                 concepts = path_concepts.copy()
                 concept_filter = None

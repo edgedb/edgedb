@@ -182,13 +182,13 @@ class NamedPrototypeMetaCommand(MetaCommand, delta_cmds.NamedPrototypeCommand):
         myrec = self.table.record()
 
         if not obj:
-            for name, value in itertools.chain(self.get_struct_properties().items(),
-                                               self.get_properties(('source', 'target')).items()):
+            for name, value in itertools.chain(self.get_struct_properties(True).items(),
+                                               self.get_properties(('source', 'target'), True).items()):
                 updates[name] = value
                 if hasattr(myrec, name):
                     if not rec:
                         rec = self.table.record()
-                    setattr(rec, name, value)
+                    setattr(rec, name, value[1])
         else:
             for field in obj.__class__._fields:
                 value = getattr(obj, field)
@@ -235,6 +235,13 @@ class CreateAtomMod(PrototypeMetaCommand, adapts=delta_cmds.CreateAtomMod):
         return result
 
 
+class AlterAtomMod(PrototypeMetaCommand, adapts=delta_cmds.AlterAtomMod):
+    def apply(self, meta, context=None):
+        result = delta_cmds.AlterAtomMod.apply(self, meta, context)
+        PrototypeMetaCommand.apply(self, meta, context)
+        return result
+
+
 class DeleteAtomMod(PrototypeMetaCommand, adapts=delta_cmds.DeleteAtomMod):
     def apply(self, meta, context=None):
         result = delta_cmds.DeleteAtomMod.apply(self, meta, context)
@@ -248,10 +255,12 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
         self.table = AtomTable()
 
     @classmethod
-    def get_atom_base_and_mods(cls, meta, atom):
+    def get_atom_base_and_mods(cls, meta, atom, own_only=True):
         mods = set()
         extramods = set()
         mods_encoded = ()
+
+        atom_mods = atom.effective_local_mods if own_only else atom.mods
 
         if proto.Atom.is_prototype(atom.base):
             # Base is another atom prototype, check if it is fundamental,
@@ -259,21 +268,21 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
             base = base_type_name_map.get(atom.base)
             if base:
                 if not isinstance(base, str):
-                    base, mods_encoded = base(meta.get(atom.base), atom.mods)
+                    base, mods_encoded = base(meta.get(atom.base), atom_mods)
             else:
                 base = common.atom_name_to_domain_name(atom.base)
         else:
             # Base is a Python type, must correspond to PostgreSQL type
             base = base_type_name_map[atom.name]
             if not isinstance(base, str):
-                base, mods_encoded = base(meta.get(atom.name), atom.mods)
+                base, mods_encoded = base(meta.get(atom.name), atom_mods)
 
         directly_supported_mods = (proto.AtomModMaxLength, proto.AtomModMinLength,
                                    proto.AtomModRegExp, proto.AtomModMaxValue,
                                    proto.AtomModMaxExValue, proto.AtomModMinValue,
                                    proto.AtomModMinExValue)
 
-        for mod in atom.mods.values():
+        for mod in atom_mods.values():
             if mod in mods_encoded:
                 continue
             elif isinstance(mod, directly_supported_mods):
@@ -405,7 +414,7 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
             default = updates.get('default')
 
             if default is not None:
-                self.pgops.add(AlterDomainAlterDefault(name=new_domain_name, default=default))
+                self.pgops.add(AlterDomainAlterDefault(name=new_domain_name, default=default[1]))
         else:
             host, pointer = self.get_atom_host_and_pointer(atom, meta, context)
 
@@ -515,7 +524,7 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
                         assert False
                     else:
                         op.pgops.add(AlterDomainAlterDefault(name=domain_name,
-                                                             default=default_delta))
+                                                             default=default_delta[1]))
 
             if new_atom.automatic:
                 alter_table = host.op.get_alter_table()
@@ -704,7 +713,7 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
         alter_table.add_operation(AlterTableAddConstraint(constraint))
 
         bases = (common.concept_name_to_table_name(p, catenate=False)
-                 for p in fields['base'] if proto.Concept.is_prototype(p))
+                 for p in fields['base'][1] if proto.Concept.is_prototype(p))
         concept_table.bases = list(bases)
 
         if alter_table.ops:
@@ -761,7 +770,7 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
             # atom mod constraint ops need it.
             link_op = AlterLink(prototype_name=link.name, prototype_class=proto.Link)
             with context(delta_cmds.LinkCommandContext(link_op, link)):
-                for mod in target.mods.values():
+                for mod in target.effective_local_mods.values():
                     old_constraint = AtomMetaCommand.get_mod_constraint(target, meta,
                                                                         context,
                                                                         mod, original=True)
@@ -787,11 +796,29 @@ class AlterConcept(ConceptMetaCommand, adapts=delta_cmds.AlterConcept):
         concept = delta_cmds.AlterConcept.apply(self, meta, context=context)
         ConceptMetaCommand.apply(self, meta, context)
 
-        updaterec, _ = self.fill_record()
+        updaterec, updates = self.fill_record()
 
         if updaterec:
             condition = [('name', str(concept.name))]
             self.pgops.add(Update(table=self.table, record=updaterec, condition=condition))
+
+        if updates:
+            base_delta = updates.get('base')
+            if base_delta:
+                dropped_bases = set(base_delta[0]) - set(base_delta[1])
+                added_bases = set(base_delta[1]) - set(base_delta[0])
+
+                for dropped_base in dropped_bases:
+                    parent_table_name = common.concept_name_to_table_name(
+                                            caos.name.Name(dropped_base), catenate=False)
+                    op = AlterTableDropParent(parent_name=parent_table_name)
+                    self.alter_table.add_operation(op)
+
+                for added_base in added_bases:
+                    parent_table_name = common.concept_name_to_table_name(
+                                            caos.name.Name(added_base), catenate=False)
+                    op = AlterTableAddParent(parent_name=parent_table_name)
+                    self.alter_table.add_operation(op)
 
         if self.alter_table.ops:
             self.pgops.add(self.alter_table)
@@ -838,7 +865,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
 
             source = updates.get('source')
             if source:
-                source = source
+                source = source[1]
             elif concept:
                 source = concept.proto.name
 
@@ -849,7 +876,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
             target = updates.get('target')
             if target:
                 rec.target_id = Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
-                                      [str(target)],
+                                      [str(target[1])],
                                       type='integer')
 
         if not old_link or old_link.constraints != link.constraints:
@@ -986,12 +1013,13 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
 
             cols = self.get_columns(link, meta)
             table_name = common.get_table_name(concept.proto, catenate=False)
+            concept_alter_table = concept.op.get_alter_table()
 
             for col in cols:
                 # The column may already exist as inherited from parent table
                 cond = ColumnExists(table_name=table_name, column_name=col.name)
                 cmd = AlterTableAddColumn(col)
-                concept.op.alter_table.add_operation((cmd, None, (cond,)))
+                concept_alter_table.add_operation((cmd, None, (cond,)))
 
         if self.alter_table and self.alter_table.ops:
             self.pgops.add(self.alter_table)
@@ -1057,7 +1085,8 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
                     old_type = op.old_value
                     break
 
-            if new_type:
+            if new_type and (isinstance(link.target, caos.types.ProtoAtom) or \
+                             isinstance(self.old_link.target, caos.types.ProtoAtom)):
                 self.alter_host_table_column(link, meta, context, old_type, new_type)
 
             if old_link.mapping != link.mapping:
@@ -1826,6 +1855,10 @@ class AtomModTableConstraint(AtomModConstraint):
         cmd = Comment(object=new_constraint, text=new_name)
         return [cmd]
 
+    def __repr__(self):
+        return '<%s.%s "%s" "%r">' % (self.__class__.__module__, self.__class__.__name__,
+                                      self.column_name, self.mod)
+
 
 class Column(DBObject):
     def __init__(self, name, type, required=False, default=None, readonly=False):
@@ -2518,6 +2551,28 @@ class ColumnExists(Condition):
         return code, self.table_name + (self.column_name,)
 
 
+class AlterTableAddParent(AlterTableFragment):
+    def __init__(self, parent_name):
+        self.parent_name = parent_name
+
+    def code(self, context):
+        return 'INHERIT %s' % common.qname(*self.parent_name)
+
+    def __repr__(self):
+        return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__, self.parent_name)
+
+
+class AlterTableDropParent(AlterTableFragment):
+    def __init__(self, parent_name):
+        self.parent_name = parent_name
+
+    def code(self, context):
+        return 'NO INHERIT %s' % common.qname(*self.parent_name)
+
+    def __repr__(self):
+        return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__, self.parent_name)
+
+
 class AlterTableAddColumn(AlterTableFragment):
     def __init__(self, column):
         self.column = column
@@ -2568,6 +2623,10 @@ class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
     def extra(self, context, alter_table):
         return self.constraint.extra(context, alter_table)
 
+    def __repr__(self):
+        return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__,
+                               self.constraint)
+
 
 class AlterTableRenameConstraint(AlterTableBase, TableConstraintCommand):
     def __init__(self, table_name, constraint, new_constraint):
@@ -2581,6 +2640,10 @@ class AlterTableRenameConstraint(AlterTableBase, TableConstraintCommand):
     def extra(self, context):
         return self.constraint.rename_extra(context, self.new_constraint)
 
+    def __repr__(self):
+        return '<%s.%s %r to %r>' % (self.__class__.__module__, self.__class__.__name__,
+                                       self.constraint, self.new_constraint)
+
 
 class AlterTableDropConstraint(AlterTableFragment, TableConstraintCommand):
     def __init__(self, constraint):
@@ -2588,6 +2651,10 @@ class AlterTableDropConstraint(AlterTableFragment, TableConstraintCommand):
 
     def code(self, context):
         return 'DROP CONSTRAINT ' + self.constraint.constraint_name()
+
+    def __repr__(self):
+        return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__,
+                               self.constraint)
 
 
 class AlterTableSetSchema(AlterTableBase):

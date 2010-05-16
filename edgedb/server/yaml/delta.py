@@ -227,6 +227,14 @@ class CreateAtomMod(AtomModCommand, CreateSimplePrototype, adapts=delta.CreateAt
     pass
 
 
+class AlterAtomMod(AtomModCommand, CreateSimplePrototype, adapts=delta.AlterAtomMod):
+    pass
+
+
+class DeleteAtomMod(AtomModCommand, adapts=delta.DeleteAtomMod):
+    pass
+
+
 class RenameAtom(RenameNamedPrototype, adapts=delta.RenameAtom):
     pass
 
@@ -236,10 +244,6 @@ class AlterAtom(AlterNamedPrototype, adapts=delta.AlterAtom):
 
 
 class DeleteAtom(DeleteNamedPrototype, adapts=delta.DeleteAtom):
-    pass
-
-
-class DeleteAtomMod(AtomModCommand, adapts=delta.DeleteAtomMod):
     pass
 
 

@@ -155,13 +155,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     constr_expr_res = {
-        'AtomModRegExp': re.compile(r"VALUE(?:::\w+)? \s* ~ \s* '(?P<expr>[^']*)'::text", re.X),
-        'AtomModMaxLength': re.compile(r"length\(VALUE(?:::\w+)?\) \s* <= \s* (?P<expr>\d+)$",re.X),
-        'AtomModMinLength': re.compile(r"length\(VALUE(?:::\w+)?\) \s* >= \s* (?P<expr>\d+)$", re.X),
-        'AtomModMinValue': re.compile(r"VALUE(?:::\w+)? \s* >= \s* (?P<expr>.+)$",re.X),
-        'AtomModMinExValue': re.compile(r"VALUE(?:::\w+)? \s* > \s* (?P<expr>.+)$",re.X),
-        'AtomModMaxValue': re.compile(r"VALUE(?:::\w+)? \s* <= \s* (?P<expr>.+)$",re.X),
-        'AtomModMaxExValue': re.compile(r"VALUE(?:::\w+)? \s* < \s* (?P<expr>.+)$",re.X),
+        'regexp': re.compile(r"VALUE(?:::\w+)? \s* ~ \s* '(?P<expr>[^']*)'::text", re.X),
+        'max-length': re.compile(r"length\(VALUE(?:::\w+)?\) \s* <= \s* (?P<expr>\d+)$",re.X),
+        'min-length': re.compile(r"length\(VALUE(?:::\w+)?\) \s* >= \s* (?P<expr>\d+)$", re.X),
+        'min-value': re.compile(r"VALUE(?:::\w+)? \s* >= \s* (?P<expr>.+)$",re.X),
+        'min-value-ex': re.compile(r"VALUE(?:::\w+)? \s* > \s* (?P<expr>.+)$",re.X),
+        'max-value': re.compile(r"VALUE(?:::\w+)? \s* <= \s* (?P<expr>.+)$",re.X),
+        'max-value-ex': re.compile(r"VALUE(?:::\w+)? \s* < \s* (?P<expr>.+)$",re.X),
     }
 
 
@@ -199,8 +199,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def adapt_delta(self, delta):
         return delta_cmds.CommandMeta.adapt(delta)
 
-
+    @debug
     def process_delta(self, delta, meta):
+        """LOG [caos.delta.plan] PgSQL Delta Plan
+            print(delta.dump())
+        """
         delta = self.adapt_delta(delta)
         context = delta_cmds.CommandContext(self.connection)
         delta.apply(meta, context)
@@ -208,7 +211,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     @debug
     def apply_synchronization_plan(self, plans):
-        """LOG [caos.delta.plan] PgSQL Delta Plan
+        """LOG [caos.delta.plan] PgSQL Adapted Delta Plan
         for plan in plans:
             print(plan.dump())
         """
@@ -543,11 +546,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             domain_descr = domains[name]
 
-            bases = caos.Name(atom_data['base'])
-            atom = proto.Atom(name=name, base=bases, default=atom_data['default'],
+            base = caos.Name(atom_data['base'])
+            atom = proto.Atom(name=name, base=base, default=atom_data['default'],
                               title=atom_data['title'], description=atom_data['description'],
                               automatic=atom_data['automatic'],
                               is_abstract=atom_data['is_abstract'])
+
+            # Copy mods from parent (row['mods'] does not contain any inherited mods)
+            atom.acquire_mods(meta)
 
             if domain_descr['constraints'] is not None:
                 for constraint_type in domain_descr['constraints']:
@@ -809,6 +815,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 g[concept.name]["merge"].extend(concept.base)
         topological.normalize(g, merger=proto.Concept.merge)
 
+        for concept in meta(type='concept', include_automatic=True, include_builtin=True):
+            concept.materialize(meta)
+
 
     def read_concepts(self, meta):
         tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
@@ -1018,6 +1027,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 mods = set(mods)
                 if atom_mods:
                     mods.update(atom_mods)
+
+                atom.acquire_mods(meta)
             else:
                 mods = set(atom_mods)
 
@@ -1026,6 +1037,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                   automatic=True)
                 for mod in mods:
                     atom.add_mod(mod)
+
+                atom.acquire_mods(meta)
+
                 meta.add(atom)
 
         assert atom
