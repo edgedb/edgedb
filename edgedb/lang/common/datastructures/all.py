@@ -385,11 +385,12 @@ class Struct(metaclass=StructMeta):
     # XXX: the following is a CC from AST, consider consolidation
     def _init_fields(self, values):
         setdefaults = values.get('_setdefaults_', True)
+        relaxrequired = values.get('_relaxrequired_', False)
         for field_name, field  in self.__class__._fields.items():
             value = values.get(field_name)
 
             if value is None and field.default is not None and setdefaults:
-                value = self._getdefault(field_name, field)
+                value = self._getdefault(field_name, field, relaxrequired)
 
             setattr(self, field_name, value)
 
@@ -408,13 +409,16 @@ class Struct(metaclass=StructMeta):
                                name, ' or '.join(t.__name__ for t in field.type),
                                value.__class__.__name__))
 
-    def _getdefault(self, field_name, field):
+    def _getdefault(self, field_name, field, relaxrequired=False):
         if field.default in field.type:
             value = field.default()
         elif field.default is NoDefault:
-            raise TypeError('%s.%s.%s is required' % (self.__class__.__module__,
-                                                      self.__class__.__name__,
-                                                      field_name))
+            if relaxrequired:
+                value = None
+            else:
+                raise TypeError('%s.%s.%s is required' % (self.__class__.__module__,
+                                                          self.__class__.__name__,
+                                                          field_name))
         else:
             value = field.default
         return value
