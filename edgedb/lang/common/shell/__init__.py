@@ -103,6 +103,7 @@ class MainCommand(CommandGroup, name='__main__'):
     def create_parser(self, parser):
         parser.add_argument('--color', choices=('auto', 'always', 'never'), default='auto')
         parser.add_argument('-d', '--debug', dest='debug', action='append')
+        parser.add_argument('--profile', dest='profile')
         return parser
 
     def __call__(self, args):
@@ -114,7 +115,12 @@ class MainCommand(CommandGroup, name='__main__'):
             debug.channels.update(args.debug)
 
         try:
-            super().__call__(args)
+            if args.profile:
+                import cProfile
+                ep = super().__call__
+                cProfile.runctx('ep(args)', globals=globals(), locals=locals(), filename=args.profile)
+            else:
+                super().__call__(args)
         except SemantixError as e:
             print(term.colorstr('ERROR: %s' % e, 'red'))
             return 1
