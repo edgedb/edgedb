@@ -227,6 +227,13 @@ class NamedPrototypeMetaCommand(MetaCommand, delta_cmds.NamedPrototypeCommand):
 
         return rec, updates
 
+    def pack_default(self, alter_default):
+        if alter_default.new_value:
+            return yaml.Language.dump(alter_default.new_value)
+        else:
+            result = None
+        return result
+
     def create_module(self, module_name):
         schema_name = common.caos_module_name_to_schema_name(module_name)
         condition = SchemaExists(name=schema_name)
@@ -252,6 +259,10 @@ class NamedPrototypeMetaCommand(MetaCommand, delta_cmds.NamedPrototypeCommand):
 
 
 class AlterPrototypeProperty(MetaCommand, adapts=delta_cmds.AlterPrototypeProperty):
+    pass
+
+
+class AlterDefault(MetaCommand, adapts=delta_cmds.AlterDefault):
     pass
 
 
@@ -325,8 +336,11 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
             if rec.base:
                 rec.base = str(rec.base)
 
-            if rec.default not in (None, Default):
-                rec.default = yaml.Language.dump(rec.default)
+        default = list(self(delta_cmds.AlterDefault))
+        if default:
+            if not rec:
+                rec = self.table.record()
+            rec.default = self.pack_default(default[0])
 
         return rec, updates
 
@@ -438,10 +452,19 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
             for mod in mods:
                 self.pgops.add(AlterDomainAddConstraint(name=new_domain_name, constraint=mod))
 
-            default = updates.get('default')
+            default = list(self(delta_cmds.AlterDefault))
 
-            if default is not None:
-                self.pgops.add(AlterDomainAlterDefault(name=new_domain_name, default=default[1]))
+            if default:
+                default = default[0]
+                if len(default.new_value) > 0 and \
+                                        isinstance(default.new_value[0], proto.LiteralDefaultSpec):
+                    # We only care to support literal defaults here.  Supporting
+                    # defaults based on queries has no sense on the database level
+                    # since the database forbids queries for DEFAULT and pre-calculating
+                    # the value does not make sense either since the whole point of
+                    # query defaults is to be default.
+                    self.pgops.add(AlterDomainAlterDefault(name=new_domain_name,
+                                                           default=default.new_value[0].value))
         else:
             host, pointer = self.get_atom_host_and_pointer(atom, meta, context)
 
@@ -545,13 +568,19 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
 
         if type_intent != 'drop':
             if updates:
-                default_delta = updates.get('default')
+                default_delta = list(op(delta_cmds.AlterDefault))
                 if default_delta:
-                    if new_atom.automatic:
-                        assert False
-                    else:
-                        op.pgops.add(AlterDomainAlterDefault(name=domain_name,
-                                                             default=default_delta[1]))
+                    default_delta = default_delta[0]
+                    if not new_atom.automatic:
+                        if not default_delta.new_value or \
+                           not isinstance(default_delta.new_value[0], proto.LiteralDefaultSpec):
+                            new_default = None
+                        else:
+                            new_default = default_delta.new_value[0].value
+                        # Only non-automatic atoms can get their own defaults.
+                        # Automatic atoms are not represented by domains and inherit
+                        # their defaults from parent.
+                        op.pgops.add(AlterDomainAlterDefault(name=domain_name, default=new_default))
 
             if new_atom.automatic:
                 alter_table = host.op.get_alter_table()
@@ -906,6 +935,12 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
                                       [str(target[1])],
                                       type='integer')
 
+        default = list(self(delta_cmds.AlterDefault))
+        if default:
+            if not rec:
+                rec = self.table.record()
+            rec.default = self.pack_default(default[0])
+
         if not old_link or old_link.constraints != link.constraints:
             if not rec:
                 rec = self.table.record()
@@ -1220,6 +1255,12 @@ class LinkPropertyMetaCommand(CompositePrototypeMetaCommand):
 
     def record_metadata(self, prop, old_prop, meta, context):
         rec, updates = self.fill_record()
+
+        default = list(self(delta_cmds.AlterDefault))
+        if default:
+            if not rec:
+                rec = self.table.record()
+            rec.default = self.pack_default(default[0])
 
         link = context.get(delta_cmds.LinkCommandContext)
         assert link

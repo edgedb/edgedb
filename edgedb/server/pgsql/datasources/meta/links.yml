@@ -72,7 +72,8 @@ source: |
             l.is_atom,
             l.is_abstract,
             l.readonly,
-            l.constraints
+            l.constraints,
+            l.default
         FROM
             caos.link l
             LEFT JOIN caos.metaobject sc ON l.source_id = sc.id

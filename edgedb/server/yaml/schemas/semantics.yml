@@ -56,9 +56,28 @@ mapping:
                         type: bool
                         default: null
 
-                    "default":
-                        type: any
-                        default:
+                    "default": &DEFAULT
+                        type: choice
+                        choice:
+                            - &DEFAULT_ITEM
+                              type: choice
+                              choice:
+                                - type: scalar
+                                  object: semantix.caos.backends.yaml.LiteralDefaultSpec
+                                  required: true
+
+                                - type: map
+                                  object: semantix.caos.backends.yaml.QueryDefaultSpec
+                                  max-length: 1
+                                  min-length: 1
+                                  mapping:
+                                    "query":
+                                        type: str
+                                        required: true
+
+                            - type: seq
+                              sequence:
+                                - *DEFAULT_ITEM
 
                     "mods": &ATOM_MODS
                         type: seq
@@ -177,6 +196,9 @@ mapping:
                     "required":
                         type: bool
 
+                    "default":
+                        *DEFAULT
+
                     "mapping": &LINK_MAPPING
                         type: str
                         object: semantix.caos.backends.yaml.LinkMapping
@@ -275,7 +297,7 @@ mapping:
                                                   type: str
                                                   enum: [cidirect, fuzzy]
                                               "default":
-                                                  type: str
+                                                  *DEFAULT
                                               "constraints":
                                                   type: seq
                                                   sequence:

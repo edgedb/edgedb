@@ -102,6 +102,33 @@ class Prototype(LangObject, adapts=proto.Prototype, metaclass=PrototypeMeta):
     pass
 
 
+class DefaultSpec(LangObject, adapts=proto.DefaultSpec, ignore_aliases=True):
+    @classmethod
+    def resolve(cls, data):
+        if isinstance(data, dict) and 'query' in data:
+            return QueryDefaultSpec
+        else:
+            return LiteralDefaultSpec
+
+
+class LiteralDefaultSpec(DefaultSpec, adapts=proto.LiteralDefaultSpec):
+    def construct(self):
+        proto.LiteralDefaultSpec.__init__(self, self.data)
+
+    @classmethod
+    def represent(cls, data):
+        return data.value
+
+
+class QueryDefaultSpec(DefaultSpec, adapts=proto.QueryDefaultSpec):
+    def construct(self):
+        proto.QueryDefaultSpec.__init__(self, self.data['query'])
+
+    @classmethod
+    def represent(cls, data):
+        return {'query': str(data.value)}
+
+
 class AtomMod(LangObject, ignore_aliases=True):
     pass
 
@@ -226,8 +253,13 @@ default_name = None
 class Atom(Prototype, adapts=proto.Atom):
     def construct(self):
         data = self.data
+
+        default = data['default']
+        if default and not isinstance(default, list):
+            default = [default]
+
         proto.Atom.__init__(self, name=default_name, backend=None, base=data['extends'],
-                            default=data['default'], title=data['title'],
+                            default=default, title=data['title'],
                             description=data['description'], is_abstract=data['abstract'],
                             _setdefaults_=False, _relaxrequired_=True)
         mods = data.get('mods')
@@ -337,12 +369,17 @@ class LinkDef(Prototype, adapts=proto.Link):
             if not isinstance(extends, list):
                 extends = [extends]
 
+        default = data['default']
+        if default and not isinstance(default, list):
+            default = [default]
+
         proto.Link.__init__(self, name=default_name, backend=None,
                             base=tuple(extends) if extends else tuple(),
                             title=data['title'], description=data['description'],
                             is_abstract=data.get('abstract'),
                             readonly=data.get('readonly'),
                             mapping=data.get('mapping'),
+                            default=default,
                             _setdefaults_=False, _relaxrequired_=True)
         for property_name, property in data['properties'].items():
             property.name = property_name
@@ -376,6 +413,9 @@ class LinkDef(Prototype, adapts=proto.Link):
 
         if data.required:
             result['required'] = data.required
+
+        if data.default is not None:
+            result['default'] = data.default
 
         if data.properties:
             result['properties'] = data.properties
@@ -460,10 +500,15 @@ class LinkList(LangObject, list):
                 if not isinstance(target, tuple):
                     target = (target,)
 
+                default = info['default']
+                if default and not isinstance(default, list):
+                    default = [default]
+
                 for t in target:
                     link = proto.Link(name=default_name, target=t, mapping=info['mapping'],
                                       required=info['required'], title=info['title'],
                                       description=info['description'], readonly=info['readonly'],
+                                      default=default,
                                       _setdefaults_=False, _relaxrequired_=True)
 
                     search = info.get('search')
@@ -720,8 +765,7 @@ class MetaSet(LangObject):
                         mods = getattr(link, 'mods', None)
                         if mods:
                             # Got an inline atom definition.
-                            default = getattr(link, 'default', None)
-                            atom = self.genatom(concept, link.target.name, default, link_name, mods)
+                            atom = self.genatom(concept, link.target.name, link_name, mods)
                             globalmeta.add(atom)
                             link.target = atom
 
@@ -743,10 +787,10 @@ class MetaSet(LangObject):
         return topological.normalize(g, merger=proto.Concept.merge)
 
 
-    def genatom(self, host, base, default, link_name, mods):
+    def genatom(self, host, base, link_name, mods):
         atom_name = Atom.gen_atom_name(host, link_name)
         atom = proto.Atom(name=caos.Name(name=atom_name, module=host.name.module),
-                          base=base, default=default, automatic=True, backend=None)
+                          base=base, automatic=True, backend=None)
         for mod in mods:
             atom.add_mod(mod)
         return atom

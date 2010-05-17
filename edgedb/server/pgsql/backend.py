@@ -577,7 +577,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                          }
 
             if atom_data['default']:
-                atom_data['default'] = next(iter(yaml.Language.load(row['default'])))
+                atom_data['default'] = self.unpack_default(row['default'])
 
             base = caos.Name(atom_data['base'])
             atom = proto.Atom(name=name, base=base, default=atom_data['default'],
@@ -586,7 +586,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                               is_abstract=atom_data['is_abstract'])
 
             # Copy mods from parent (row['mods'] does not contain any inherited mods)
-            atom.acquire_mods(meta)
+            atom.acquire_parent_data(meta)
 
             if domain['constraints'] is not None:
                 for constraint_type in domain['constraints']:
@@ -599,6 +599,21 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     atom.add_mod(mod)
 
             meta.add(atom)
+
+
+    def unpack_default(self, value):
+        value = next(iter(yaml.Language.load(value)))
+
+        result = []
+        for item in value:
+            # XXX: This implicitly relies on yaml backend to be loaded, since
+            # adapter for DefaultSpec is defined there.
+            adapter = yaml.ObjectMeta.get_adapter(proto.DefaultSpec)
+            assert adapter, "could not find YAML adapter for proto.DefaultSpec"
+            item = adapter.resolve(item)(None, item)
+            item.construct()
+            result.append(item)
+        return result
 
 
     def interpret_search_index(self, index_name, index_expression):
@@ -781,6 +796,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             source = meta.get(r['source']) if r['source'] else None
             link_search = None
 
+            if r['default']:
+                r['default'] = self.unpack_default(r['default'])
+
             if r['source_id'] and r['is_atom']:
                 concept_schema, concept_table = common.concept_name_to_table_name(source.name,
                                                                                   catenate=False)
@@ -827,7 +845,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                 title=title, description=description,
                                 is_abstract=r['is_abstract'],
                                 is_atom=r['is_atom'],
-                                readonly=r['readonly'])
+                                readonly=r['readonly'],
+                                default=r['default'])
 
             link.properties = prop_objects
 
@@ -1089,7 +1108,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 if atom_mods:
                     mods.update(atom_mods)
 
-                atom.acquire_mods(meta)
+                atom.acquire_parent_data(meta)
             else:
                 mods = set(atom_mods) if atom_mods else {}
 
@@ -1099,7 +1118,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 for mod in mods:
                     atom.add_mod(mod)
 
-                atom.acquire_mods(meta)
+                atom.acquire_parent_data(meta)
 
                 meta.add(atom)
 

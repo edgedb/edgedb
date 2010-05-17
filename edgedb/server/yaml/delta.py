@@ -7,7 +7,7 @@
 
 
 from semantix import caos
-from semantix.caos import delta
+from semantix.caos import delta, proto
 from semantix.utils import datastructures, helper
 from semantix.utils.lang import yaml
 
@@ -72,16 +72,7 @@ class CommandMeta(type(yaml.Object), type(delta.Command), StructMeta):
 
 class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
     def adapt_value(self, field, value):
-        if not isinstance(value, field.type):
-            adapter = yaml.ObjectMeta.get_adapter(field.type[0])
-            if adapter:
-                value = adapter(None, value)
-                constructor = getattr(value, 'construct', None)
-                if constructor:
-                    constructor()
-            else:
-                value = field.adapt(value)
-        return value
+        return StructMeta.adapt_value(field, value)
 
     @classmethod
     def represent(cls, data):
@@ -205,6 +196,23 @@ class AlterPrototypeProperty(Command, adapts=delta.AlterPrototypeProperty):
 
 class DeleteNamedPrototype(NamedPrototypeCommand, adapts=delta.DeleteNamedPrototype):
     pass
+
+
+class AlterDefault(Command, adapts=delta.AlterDefault):
+    def construct(self):
+        adapter = yaml.ObjectMeta.get_adapter(proto.DefaultSpec)
+        assert adapter, 'could not find YAML adapter for proto.DefaultSpec'
+
+        for f in ('old_value', 'new_value'):
+            if self.data[f]:
+                val = []
+                for spec in self.data[f]:
+                    spec = adapter.resolve(spec)(None, spec)
+                    spec.construct()
+                    val.append(spec)
+                self.data[f] = val
+
+        super().construct()
 
 
 class AtomModCommand(PrototypeCommand, adapts=delta.AtomModCommand):

@@ -63,3 +63,22 @@ class StructMeta(StructMeta):
             result[f] = getattr(data, f)
 
         return result
+
+    @classmethod
+    def adapt_value(mcls, field, value):
+        """Tries to coerce the value into the type of the field"""
+
+        if not isinstance(value, field.type):
+            adapter = yaml.ObjectMeta.get_adapter(field.type[0])
+            if adapter:
+                resolver = getattr(adapter, 'resolve', None)
+                if resolver:
+                    adapter = resolver(value)
+
+                value = adapter(None, value)
+                constructor = getattr(value, 'construct', None)
+                if constructor:
+                    constructor()
+            else:
+                value = field.adapt(value)
+        return value
