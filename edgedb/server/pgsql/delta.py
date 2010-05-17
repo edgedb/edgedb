@@ -1913,7 +1913,7 @@ class AtomModConstraint(TableConstraint):
         elif isinstance(self.mod, proto.AtomModMinLength):
             expr = 'length(%s::text) >= %s' % (value_holder, str(self.mod.value))
         elif isinstance(self.mod, proto.AtomModMaxValue):
-            expr = '%s <= %s' + (value_holder, ql(str(self.mod.value)))
+            expr = '%s <= %s' % (value_holder, ql(str(self.mod.value)))
         elif isinstance(self.mod, proto.AtomModMaxExValue):
             expr = '%s < %s' % (value_holder, ql(str(self.mod.value)))
         elif isinstance(self.mod, proto.AtomModMinValue):
