@@ -45,7 +45,7 @@ class Adapter(type):
                             return c
                         elif issubclass(c, adaptee):
                             return adapter
-            else:
+            elif mc is not mcls:
                 adapter = mc.get_adapter(cls)
                 if adapter:
                     return adapter
