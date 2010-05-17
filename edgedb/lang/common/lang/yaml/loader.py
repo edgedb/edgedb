@@ -107,7 +107,7 @@ class Parser(yaml.parser.Parser):
     def process_directives(self):
         self.schema = None
         self.document_name = None
-        self.imports = []
+        self.imports = {}
 
         rejected_tokens = []
 
@@ -122,7 +122,7 @@ class Parser(yaml.parser.Parser):
                     raise yaml.parser.ParserError(None, None, "duplicate NAME directive", token.start_mark)
                 self.document_name = token.value
             elif token.name == 'IMPORT':
-                self.imports = self.parse_imports(token)
+                self.imports.update(self.parse_imports(token))
             else:
                 rejected_tokens.append(token)
 
