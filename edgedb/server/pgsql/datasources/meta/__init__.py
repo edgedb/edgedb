@@ -9,3 +9,4 @@
 from . import atoms
 from . import concepts
 from . import links
+from . import modules

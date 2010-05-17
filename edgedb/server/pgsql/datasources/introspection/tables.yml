@@ -22,7 +22,8 @@ filters:
 source: |
         SELECT
                 a.attname                               AS column_name,
-                format_type(t.oid, a.atttypmod)         AS column_type,
+                t.typname                               AS column_type,
+                format_type(t.oid, a.atttypmod)         AS column_type_formatted,
                 tns.nspname                             AS column_type_schema,
                 t.oid                                   AS column_type_oid,
                 a.attnotnull                            AS column_required,
@@ -92,7 +93,7 @@ source: |
                                 AND ns.oid = c.relnamespace
                                 AND (%(max_depth)s::int IS NULL OR i.depth < %(max_depth)s::int)
                 )
-                SELECT DISTINCT ON (name, ns) name, ns, depth, pos FROM inheritance) q
+                SELECT DISTINCT ON (ns, name) ns, name, depth, pos FROM inheritance) q
             ORDER BY
                 depth, pos
 ...

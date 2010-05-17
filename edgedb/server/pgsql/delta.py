@@ -6,10 +6,7 @@
 ##
 
 
-import collections
 import itertools
-import math
-import os
 import re
 
 import postgresql
@@ -171,6 +168,26 @@ class Command(BaseCommand):
         return result
 
 
+class CommandGroup(Command):
+    def __init__(self, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+        self.commands = []
+
+    def add_command(self, cmd):
+        self.commands.append(cmd)
+
+
+    def execute(self, context):
+        result = None
+        ok = self.check_conditions(context, self.conditions, True) and \
+             self.check_conditions(context, self.neg_conditions, False)
+
+        if ok:
+            result = [c.execute(context) for c in self.commands]
+
+        return result
+
+
 class PrototypeMetaCommand(MetaCommand, delta_cmds.PrototypeCommand):
     pass
 
@@ -210,16 +227,26 @@ class NamedPrototypeMetaCommand(MetaCommand, delta_cmds.NamedPrototypeCommand):
 
         return rec, updates
 
-    def create_schema(self, name):
-        condition = SchemaExists(name=name)
-        self.pgops.add(CreateSchema(name=name, neg_conditions={condition}))
+    def create_module(self, module_name):
+        schema_name = common.caos_module_name_to_schema_name(module_name)
+        condition = SchemaExists(name=schema_name)
+
+        cmd = CommandGroup(neg_conditions={condition})
+        cmd.add_command(CreateSchema(name=schema_name))
+
+        modtab = ModuleTable()
+        rec = modtab.record()
+        rec.name = module_name
+        rec.schema_name = schema_name
+        cmd.add_command(Insert(modtab, [rec]))
+
+        self.pgops.add(cmd)
 
     def create_object(self, prototype):
-        schema_name = common.caos_module_name_to_schema_name(prototype.name.module)
         rec, updates = self.fill_record()
         self.pgops.add(Insert(table=self.table, records=[rec]))
 
-        self.create_schema(schema_name)
+        self.create_module(prototype.name.module)
 
         return updates
 
@@ -361,7 +388,7 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
                 name = item_proto.name
 
             table_name = common.get_table_name(host_proto, catenate=False)
-            column_name = common.caos_name_to_pg_colname(name)
+            column_name = common.caos_name_to_pg_name(name)
 
             alter_type = AlterTableAlterColumnType(column_name, target_type)
             alter_table = AlterTable(table_name)
@@ -385,7 +412,7 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
         else:
             host_proto, pointer_proto = host.proto, pointer.proto
 
-        column_name = common.caos_name_to_pg_colname(pointer_proto.normal_name())
+        column_name = common.caos_name_to_pg_name(pointer_proto.normal_name())
         prefix = (host_proto.name, pointer_proto.normal_name())
         table_name = common.get_table_name(host_proto, catenate=False)
         constraint = AtomModTableConstraint(table_name=table_name,
@@ -584,7 +611,8 @@ class UpdateSearchIndexes(MetaCommand):
         self.host = host
 
     def get_index_name(self, host_table_name, language, index_class='default'):
-        return '%s_%s_%s_search_idx' % (host_table_name[1], language, index_class)
+        name = '%s_%s_%s_search_idx' % (host_table_name[1], language, index_class)
+        return common.caos_name_to_pg_name(name)
 
     def apply(self, meta, context):
         if isinstance(self.host, caos.types.ProtoConcept):
@@ -595,7 +623,7 @@ class UpdateSearchIndexes(MetaCommand):
             for link_name in names:
                 for link in self.host.links[link_name]:
                     if link.search:
-                        column_name = common.caos_name_to_pg_colname(link_name)
+                        column_name = common.caos_name_to_pg_name(link_name)
                         columns.append(TextSearchIndexColumn(column_name, link.search.weight,
                                                              'english'))
 
@@ -693,8 +721,7 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
         new_table_name = common.concept_name_to_table_name(self.prototype_name, catenate=False)
         self.table_name = new_table_name
         concept_table = Table(name=new_table_name)
-        schema_name = common.caos_module_name_to_schema_name(self.prototype_name.module)
-        self.create_schema(schema_name)
+        self.create_module(self.prototype_name.module)
         self.pgops.add(CreateTable(table=concept_table))
 
         alter_table = self.get_alter_table()
@@ -903,7 +930,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
             column_type = self.pg_type_from_atom(meta, link.target)
 
             name = link.normal_name()
-            column_name = common.caos_name_to_pg_colname(name)
+            column_name = common.caos_name_to_pg_name(name)
 
             columns.append(Column(name=column_name, type=column_type,
                                   required=link.required))
@@ -912,7 +939,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
 
     def create_table(self, link, meta, context, conditional=False):
         new_table_name = common.link_name_to_table_name(link.name, catenate=False)
-        self.create_schema(new_table_name[0])
+        self.create_module(link.name.module)
 
         constraints = []
         columns = []
@@ -939,6 +966,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
         else:
             c = CreateTable(table=table)
         self.pgops.add(c)
+        self.table_name = new_table_name
 
     def has_table(self, link, meta, context):
         return (not link.atomic() or link.properties) and link.generic()
@@ -983,7 +1011,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
 
         AlterAtom.alter_atom(self, meta, context, old_atom, new_atom, in_place=False)
         alter_table = context.get(delta_cmds.ConceptCommandContext).op.get_alter_table()
-        column_name = common.caos_name_to_pg_colname(link.normal_name())
+        column_name = common.caos_name_to_pg_name(link.normal_name())
         target_type = self.pg_type_from_atom(meta, new_atom)
         alter_type = AlterTableAlterColumnType(column_name, target_type)
         alter_table.add_operation(alter_type)
@@ -1045,8 +1073,8 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
             if concept and result.atomic() and prototype_name != new_name:
                 table_name = common.concept_name_to_table_name(concept.proto.name, catenate=False)
 
-                prototype_name = common.caos_name_to_pg_colname(prototype_name)
-                new_name = common.caos_name_to_pg_colname(new_name)
+                prototype_name = common.caos_name_to_pg_name(prototype_name)
+                new_name = common.caos_name_to_pg_name(new_name)
 
                 rename = AlterTableRenameColumn(table_name, prototype_name, new_name)
                 self.pgops.add(rename)
@@ -1104,7 +1132,7 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
             concept = context.get(delta_cmds.ConceptCommandContext)
 
             name = result.normal_name()
-            column_name = common.caos_name_to_pg_colname(name)
+            column_name = common.caos_name_to_pg_name(name)
             # We don't really care about the type -- we're dropping the thing
             column_type = 'text'
 
@@ -1171,6 +1199,10 @@ class DeleteLinkConstraint(LinkConstraintMetaCommand, adapts=delta_cmds.DeleteLi
 
 
 class LinkPropertyMetaCommand(CompositePrototypeMetaCommand):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.table = LinkPropertyTable()
+
     def get_columns(self, property, meta):
         columns = []
 
@@ -1180,11 +1212,23 @@ class LinkPropertyMetaCommand(CompositePrototypeMetaCommand):
         column_type = self.pg_type_from_atom(meta, property.atom)
 
         name = property.name
-        column_name = common.caos_name_to_pg_colname(name)
+        column_name = common.caos_name_to_pg_name(name)
 
         columns.append(Column(name=column_name, type=column_type))
 
         return columns
+
+    def record_metadata(self, prop, old_prop, meta, context):
+        rec, updates = self.fill_record()
+
+        link = context.get(delta_cmds.LinkCommandContext)
+        assert link
+
+        if isinstance(self, delta_cmds.CreateLinkProperty):
+            rec.link_id = Query('(SELECT id FROM caos.link WHERE name = $1)',
+                                [str(link.proto.name)], type='integer')
+
+        return rec
 
 
 class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkProperty):
@@ -1195,15 +1239,19 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
         link = context.get(delta_cmds.LinkCommandContext)
         assert link, "Link property command must be run in Link command context"
 
-        link_table_name = common.link_name_to_table_name(link.proto.name, catenate=False)
         link.op.create_table(link.proto, meta, context, conditional=True)
-
-        if not link.op.alter_table:
-            link.op.alter_table = AlterTable(link_table_name)
+        alter_table = link.op.get_alter_table()
 
         cols = self.get_columns(property, meta)
         for col in cols:
-            link.op.alter_table.add_operation(AlterTableAddColumn(col))
+            alter_table.add_operation(AlterTableAddColumn(col))
+
+        rec = self.record_metadata(property, None, meta, context)
+
+        # Priority is set to 2 to make sure that INSERT is run after the host link
+        # is INSERTed into caos.link.
+        #
+        self.pgops.add(Insert(table=self.table, records=[rec], priority=2))
 
         return property
 
@@ -1228,12 +1276,14 @@ class DeleteLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.DeleteLinkPr
         if not link.op.alter_table:
             link.op.alter_table = AlterTable(link_table_name)
 
-        column_name = common.caos_name_to_pg_colname(property.name)
+        column_name = common.caos_name_to_pg_name(property.name)
         # We don't really care about the type -- we're dropping the thing
         column_type = 'text'
 
         col = AlterTableDropColumn(Column(name=column_name, type=column_type))
         link.op.alter_table.add_operation(col)
+
+        self.pgops.add(Delete(table=self.table, condition=[('name', str(property.name))]))
 
         return property
 
@@ -1418,7 +1468,6 @@ class UpdateMappingIndexes(MetaCommand):
                 already_processed = processed.get(proto.name)
 
                 if isinstance(op, CreateLink):
-                    assert proto.name not in existing
                     # CreateLink can only happen once
                     assert not already_processed
                     new_indexes[proto.mapping].append((proto.name, None, None))
@@ -1528,6 +1577,11 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
                                    neg_conditions=[TableExists(name=deltareftable.name)],
                                    priority=-1))
 
+        moduletable = ModuleTable()
+        self.pgops.add(CreateTable(table=moduletable,
+                                   neg_conditions=[TableExists(name=moduletable.name)],
+                                   priority=-1))
+
         metatable = MetaObjectTable()
         self.pgops.add(CreateTable(table=metatable,
                                    neg_conditions=[TableExists(name=metatable.name)],
@@ -1546,6 +1600,11 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
         linktable = LinkTable()
         self.pgops.add(CreateTable(table=linktable,
                                    neg_conditions=[TableExists(name=linktable.name)],
+                                   priority=-1))
+
+        linkproptable = LinkPropertyTable()
+        self.pgops.add(CreateTable(table=linkproptable,
+                                   neg_conditions=[TableExists(name=linkproptable.name)],
                                    priority=-1))
 
         self.update_mapping_indexes = UpdateMappingIndexes()
@@ -1604,8 +1663,8 @@ class Query:
 
 
 class Insert(DMLOperation):
-    def __init__(self, table, records, *, priority=0):
-        super().__init__(priority=priority)
+    def __init__(self, table, records, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
 
         self.table = table
         self.records = records
@@ -1793,7 +1852,7 @@ class AtomModConstraint(TableConstraint):
 
     def constraint_name(self):
         name = self.raw_constraint_name()
-        name = common.caos_name_to_pg_colname(name)
+        name = common.caos_name_to_pg_name(name)
         return common.quote_ident(name)
 
     def constraint_code(self, context, value_holder='VALUE'):
@@ -1846,8 +1905,8 @@ class AtomModTableConstraint(AtomModConstraint):
                         AND ns.nspname = $3
                         AND c.relname = $4
                         AND con.conname = $2
-               ''', [common.caos_name_to_pg_colname(new_constraint.raw_constraint_name()),
-                     common.caos_name_to_pg_colname(self.raw_constraint_name()),
+               ''', [common.caos_name_to_pg_name(new_constraint.raw_constraint_name()),
+                     common.caos_name_to_pg_name(self.raw_constraint_name()),
                      new_constraint.table_name[0], new_constraint.table_name[1]]
 
     def rename_extra(self, context, new_constraint):
@@ -1976,9 +2035,10 @@ class MappingIndex(Index):
         link_map = context.get_link_map()
 
         ids = tuple(sorted(list(link_map[n] for n in self.link_names)))
-        id_hash = persistent_hash(ids)
+        id_str = '_'.join(str(i) for i in ids)
 
-        name = '%s_%x_%s_link_mapping_idx' % (self.name_prefix, id_hash, self.mapping)
+        name = '%s_%s_%s_link_mapping_idx' % (self.name_prefix, id_str, self.mapping)
+        name = common.caos_name_to_pg_name(name)
         predicate = 'link_type_id IN (%s)' % ', '.join(str(id) for id in ids)
 
         code = 'CREATE %(unique)s INDEX %(name)s ON %(table)s (%(cols)s) %(predicate)s' % \
@@ -2068,6 +2128,21 @@ class DeltaLogTable(Table):
         ])
 
 
+class ModuleTable(Table):
+    def __init__(self, name=None):
+        name = name or ('caos', 'module')
+        super().__init__(name=name)
+
+        self.__columns = datastructures.OrderedSet([
+            Column(name='name', type='text', required=True),
+            Column(name='schema_name', type='text', required=True)
+        ])
+
+        self.constraints = set([
+            PrimaryKey(name, columns=('name',)),
+        ])
+
+
 class MetaObjectTable(Table):
     def __init__(self, name=None):
         name = name or ('caos', 'metaobject')
@@ -2135,12 +2210,31 @@ class LinkTable(MetaObjectTable):
             Column(name='required', type='boolean', required=True, default=False),
             Column(name='is_atom', type='boolean', required=True, default=False),
             Column(name='readonly', type='boolean', required=True, default=False),
+            Column(name='default', type='text'),
             Column(name='constraints', type='caos.hstore')
         ])
 
         self.constraints = set([
             PrimaryKey(('caos', 'link'), columns=('id',)),
             UniqueConstraint(('caos', 'link'), columns=('name',))
+        ])
+
+
+class LinkPropertyTable(MetaObjectTable):
+    def __init__(self):
+        super().__init__(name=('caos', 'link_property'))
+
+        self.bases = [('caos', 'metaobject')]
+
+        self.__columns = datastructures.OrderedSet([
+            Column(name='link_id', type='integer', required=True),
+            Column(name='readonly', type='boolean', required=True, default=False),
+            Column(name='default', type='text')
+        ])
+
+        self.constraints = set([
+            PrimaryKey(('caos', 'link_property'), columns=('id',)),
+            UniqueConstraint(('caos', 'link_property'), columns=('name',))
         ])
 
 

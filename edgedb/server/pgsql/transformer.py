@@ -11,6 +11,7 @@ import collections
 from semantix.utils import ast
 from semantix.caos import caosql, tree
 from semantix.caos import types as caos_types
+from semantix.caos import name as caos_name
 from semantix.caos.backends import pgsql
 from semantix.caos.backends.pgsql import common
 from semantix.utils.debug import debug
@@ -22,7 +23,7 @@ from . import delta as delta_cmds
 
 class Alias(str):
     def __new__(cls, value=''):
-        return super(Alias, cls).__new__(cls, pgsql.common.caos_name_to_pg_colname(value))
+        return super(Alias, cls).__new__(cls, pgsql.common.caos_name_to_pg_name(value))
 
     def __add__(self, other):
         return Alias(super().__add__(other))
@@ -691,11 +692,10 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
                     map = existing_link[label]
                 else:
                     if label is None:
-                        table_name = 'link_link'
-                        table_schema = 'caos_semantix.caos.builtins'
+                        link_name = caos_name.Name('link', 'semantix.caos.builtins')
+                        table_schema, table_name = common.link_name_to_table_name(link_name, catenate=False)
                     else:
-                        table_name = label.name.name + '_link'
-                        table_schema = 'caos_' + label.name.module
+                        table_schema, table_name = common.link_name_to_table_name(label.name, catenate=False)
 
                     map = pgsql.ast.TableNode(name=table_name, schema=table_schema,
                                               concepts=frozenset({caos_path_tip.concept}),

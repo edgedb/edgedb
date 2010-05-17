@@ -169,8 +169,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.connection = connection
         delta_cmds.EnableHstoreFeature.init_hstore(connection)
 
-        self.domains = set()
         self.modules = self.read_modules()
+        self.domain_to_atom_map = {}
 
         self.parser = parser.PgSQLParser()
         self.search_idx_expr = astexpr.TextSearchExpr()
@@ -268,6 +268,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def invalidate_meta_cache(self):
         self.meta = proto.RealmMeta(load_builtins=False)
         self.modules = self.read_modules()
+        self.domain_to_atom_map = {}
 
 
     def load_entity(self, concept, id, session):
@@ -283,7 +284,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             for link_name in concept_proto.links:
 
                 if link_name != 'semantix.caos.builtins.id':
-                    colname = common.caos_name_to_pg_colname(link_name)
+                    colname = common.caos_name_to_pg_name(link_name)
 
                     try:
                         ret[str(link_name)] = result[colname]
@@ -333,7 +334,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                     else:
                         col_type = 'int'
-                    column_name = common.caos_name_to_pg_colname(a)
+                    column_name = common.caos_name_to_pg_name(a)
                     column_name = common.quote_ident(column_name)
                     cols.append('%s = %%(%s)s::%s' % (column_name, str(a), col_type))
                 query += ','.join(cols)
@@ -346,7 +347,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     attrs['semantix.caos.builtins.mtime'] = 'NOW'
 
                 if attrs:
-                    cols_names = [common.quote_ident(common.caos_name_to_pg_colname(a))
+                    cols_names = [common.quote_ident(common.caos_name_to_pg_name(a))
                                   for a in attrs]
                     cols_names = ', ' + ', '.join(cols_names)
                     cols = []
@@ -512,24 +513,58 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def read_modules(self):
         schemas = introspection.schemas.SchemasList(self.connection).fetch(schema_name='caos%')
-        return {common.schema_name_to_caos_module_name(s['name']) for s in schemas}
+        schemas = {s['name'] for s in schemas}
+
+        context = delta_cmds.CommandContext(self.connection)
+        cond = delta_cmds.TableExists(name=('caos', 'module'))
+        module_index_exists = cond.execute(context)
+
+        if 'caos' in schemas and module_index_exists:
+            modules = datasources.meta.modules.ModuleList(self.connection).fetch()
+            modules = {m['schema_name']: m['name'] for m in modules}
+
+            recorded_schemas = set(modules.keys())
+
+            # Sanity checks
+            extra_schemas = schemas - recorded_schemas - {'caos'}
+            missing_schemas = recorded_schemas - schemas
+
+            if extra_schemas:
+                msg = 'internal metadata incosistency'
+                details = 'Extraneous data schemas exist: %s' \
+                            % (', '.join('"%s"' % s for s in extra_schemas))
+                raise caos.MetaError(msg, details=details)
+
+            if missing_schemas:
+                msg = 'internal metadata incosistency'
+                details = 'Missing schemas for modules: %s' \
+                            % (', '.join('"%s"' % s for s in extra_schemas))
+                raise caos.MetaError(msg, details=details)
+
+            return set(modules.values()) | {'caos'}
+
+        return {}
 
 
     def read_atoms(self, meta):
         domains = introspection.domains.DomainsList(self.connection).fetch(schema_name='caos%',
                                                                            domain_name='%_domain')
-        domains = {caos.Name(name=common.domain_name_to_atom_name(d['name']),
-                             module=common.schema_name_to_caos_module_name(d['schema'])):
-                   self.normalize_domain_descr(d) for d in domains}
-        self.domains = set(domains.keys())
+        domains = {(d['schema'], d['name']): self.normalize_domain_descr(d) for d in domains}
 
         atom_list = datasources.meta.atoms.AtomList(self.connection).fetch()
 
         for row in atom_list:
             name = caos.Name(row['name'])
 
-            if name not in domains:
+            domain_name = common.atom_name_to_domain_name(name, catenate=False)
+
+            domain = domains.get(domain_name)
+            if not domain:
+                # That's fine, automatic atoms are not represented by domains, skip them,
+                # they'll be handled by read_links()
                 continue
+
+            self.domain_to_atom_map[domain_name] = name
 
             atom_data = {'name': name,
                          'title': self.hstore_to_word_combination(row['title']),
@@ -544,8 +579,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if atom_data['default']:
                 atom_data['default'] = next(iter(yaml.Language.load(row['default'])))
 
-            domain_descr = domains[name]
-
             base = caos.Name(atom_data['base'])
             atom = proto.Atom(name=name, base=base, default=atom_data['default'],
                               title=atom_data['title'], description=atom_data['description'],
@@ -555,9 +588,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             # Copy mods from parent (row['mods'] does not contain any inherited mods)
             atom.acquire_mods(meta)
 
-            if domain_descr['constraints'] is not None:
-                for constraint_type in domain_descr['constraints']:
-                    for constraint in domain_descr['constraints'][constraint_type]:
+            if domain['constraints'] is not None:
+                for constraint_type in domain['constraints']:
+                    for constraint in domain['constraints'][constraint_type]:
                         atom.add_mod(constraint)
 
             if row['mods']:
@@ -593,15 +626,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         indexes = {}
         index_ds = datasources.introspection.tables.TableIndexes(self.connection)
         for row in index_ds.fetch(schema_pattern='caos%', index_pattern='%_search_idx'):
-            concept_module = common.schema_name_to_caos_module_name(row['table_name'][0])
-            concept_name = common.table_name_to_concept_name(row['table_name'][1])
-            concept_name = caos.Name(name=concept_name, module=concept_module)
-
-            indexes[concept_name] = {}
+            tabidx = indexes[tuple(row['table_name'])] = {}
 
             for index_class, language, columns in self.interpret_search_indexes(row):
                 for column_name, column_config in columns.items():
-                    idx = indexes[concept_name].setdefault(column_name, {})
+                    idx = tabidx.setdefault(column_name, {})
                     idx[(index_class, column_config[0])] = caos.types.LinkSearchWeight(column_config[1])
 
         return indexes
@@ -656,12 +685,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         constraints_ds = introspection.tables.TableConstraints(self.connection)
 
         for row in constraints_ds.fetch(schema_pattern='caos%', constraint_pattern='%::atom_mod'):
-            concept_module = common.schema_name_to_caos_module_name(row['table_name'][0])
-            concept_name = common.table_name_to_concept_name(row['table_name'][1])
-            concept_name = caos.Name(name=concept_name, module=concept_module)
-
-            concept_constr = constraints[concept_name] = {}
-
+            concept_constr = constraints[tuple(row['table_name'])] = {}
 
             for link_name, mod in self.interpret_table_constraints(row):
                 idx = datastructures.OrderedIndex(key=lambda i: i.get_canonical_class())
@@ -680,19 +704,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         link_tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
                                                                             table_pattern='%_link')
-
-        ltables = {}
-
-        for t in link_tables:
-            name = common.table_name_to_link_name(t['name'])
-            module = common.schema_name_to_caos_module_name(t['schema'])
-            name = caos.Name(name=name, module=module)
-
-            ltables[name] = t
-
-        link_tables = ltables
+        link_tables = {(t['schema'], t['name']): t for t in link_tables}
 
         links_list = datasources.meta.links.ConceptLinks(self.connection).fetch()
+        links_list = {caos.Name(r['name']): r for r in links_list}
+
+        link_properties = datasources.meta.links.LinkProperties(self.connection).fetch()
+        lp = {}
+        for row in link_properties:
+            lp.setdefault(row['link_name'], {})[caos.name.Name(row['property_name'])] = row
+        link_properties = lp
 
         g = {}
 
@@ -700,34 +721,55 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         concept_constraints = self.read_table_constraints()
         concept_indexes = self.read_search_indexes()
 
-        for r in links_list:
-            name = caos.Name(r['name'])
+        table_to_name_map = {common.link_name_to_table_name(name, catenate=False): name \
+                                                                    for name in links_list}
+
+        for name, r in links_list.items():
             bases = tuple()
-            properties = {}
+            prop_objects = {}
 
             if not r['source_id'] and not r['is_atom']:
-                t = link_tables.get(name)
+                link_table_name = common.link_name_to_table_name(name, catenate=False)
+                t = link_tables.get(link_table_name)
                 if not t:
                     raise caos.MetaError(('internal inconsistency: record for link %s exists but '
                                           'the table is missing') % name)
 
-                bases = self.pg_table_inheritance_to_bases(t['name'], t['schema'])
+                bases = self.pg_table_inheritance_to_bases(t['name'], t['schema'],
+                                                           table_to_name_map)
 
                 columns = introspection.tables.TableColumns(self.connection)
                 columns = columns.fetch(table_name=t['name'], schema_name=t['schema'])
-                for row in columns:
-                    if row['column_name'] in ('source_id', 'target_id', 'link_type_id'):
-                        continue
+                columns = {c['column_name']: c for c in columns}
 
-                    property_name = caos.Name(name=row['column_name'], module=t['schema'])
-                    derived_atom_name = '__' + name.name + '__' + property_name.name
-                    atom = self.atom_from_pg_type(row['column_type'], t['schema'],
-                                                  [], row['column_default'], meta,
+                properties = link_properties.get(name, {})
+
+                for prop_name, prop in properties.items():
+                    column_name = common.caos_name_to_pg_name(prop_name)
+
+                    col = columns.get(column_name)
+
+                    if not col:
+                        err = 'internal metadata inconsistency'
+                        details = ('Record for link property "%s" exists but the corresponding '
+                                   'table column is missing') % prop_name
+                        raise caos.MetaError(err, details=details)
+
+                    if col['column_type_schema'] == 'pg_catalog':
+                        col_type_schema = common.caos_module_name_to_schema_name('semantix.caos.builtins')
+                        col_type = col['column_type_formatted']
+                    else:
+                        col_type_schema = col['column_type_schema']
+                        col_type = col['column_type']
+
+                    derived_atom_name = '__' + name.name + '__' + prop_name.name
+                    atom = self.atom_from_pg_type(col_type, col_type_schema,
+                                                  [], col['column_default'], meta,
                                                   caos.Name(name=derived_atom_name,
                                                             module=name.module))
 
-                    property = proto.LinkProperty(name=property_name, atom=atom)
-                    properties[property_name] = property
+                    property = proto.LinkProperty(name=prop_name, atom=atom)
+                    prop_objects[prop_name] = property
             else:
                 if r['source_id']:
                     bases = (proto.Link.normalize_link_name(name),)
@@ -740,31 +782,33 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             link_search = None
 
             if r['source_id'] and r['is_atom']:
-                cols = concept_columns.get(source.name)
-                indexes = concept_indexes.get(source.name)
-                constraints = concept_constraints.get(source.name, {})
-
                 concept_schema, concept_table = common.concept_name_to_table_name(source.name,
                                                                                   catenate=False)
+                cols = concept_columns.get((concept_schema, concept_table))
+                indexes = concept_indexes.get((concept_schema, concept_table))
+                constraints = concept_constraints.get((concept_schema, concept_table), {})
+
                 if not cols:
                     cols = introspection.tables.TableColumns(self.connection)
                     cols = cols.fetch(table_name=concept_table, schema_name=concept_schema)
                     cols = {col['column_name']: col for col in cols}
-                    concept_columns[source.name] = cols
+                    concept_columns[(concept_schema, concept_table)] = cols
 
                 base_link_name = bases[0]
 
-                col = cols[base_link_name]
+                col = cols[common.caos_name_to_pg_name(base_link_name)]
 
                 derived_atom_name = proto.Atom.gen_atom_name(source, base_link_name)
                 if col['column_type_schema'] == 'pg_catalog':
-                    col_type_schema = 'caos_semantix.caos.builtins'
+                    col_type_schema = common.caos_module_name_to_schema_name('semantix.caos.builtins')
+                    col_type = col['column_type_formatted']
                 else:
                     col_type_schema = col['column_type_schema']
+                    col_type = col['column_type']
 
                 mods = constraints.get(base_link_name)
 
-                target = self.atom_from_pg_type(col['column_type'], col_type_schema,
+                target = self.atom_from_pg_type(col_type, col_type_schema,
                                                 mods, col['column_default'], meta,
                                                 caos.Name(name=derived_atom_name,
                                                           module=source.name.module))
@@ -784,7 +828,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                 is_abstract=r['is_abstract'],
                                 is_atom=r['is_atom'],
                                 readonly=r['readonly'])
-            link.properties = properties
+
+            link.properties = prop_objects
 
             if link_search:
                 link.search = link_search
@@ -821,32 +866,48 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def read_concepts(self, meta):
         tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
-                                                                      table_pattern='%_data')
+                                                                       table_pattern='%_data')
+        tables = {(t['schema'], t['name']): t for t in tables}
+
         concept_list = datasources.meta.concepts.ConceptList(self.connection).fetch()
+        concept_list = {caos.Name(row['name']): row for row in concept_list}
 
-        concepts = {}
-        for row in concept_list:
-            name = caos.Name(row['name'])
-            concepts[name] = {'name': name,
-                              'title': self.hstore_to_word_combination(row['title']),
-                              'description': row['description'],
-                              'is_abstract': row['is_abstract'], 'custombases': row['custombases']}
+        visited_tables = set()
 
-        for t in tables:
-            name = common.table_name_to_concept_name(t['name'])
-            module = common.schema_name_to_caos_module_name(t['schema'])
-            name = caos.Name(name=name, module=module)
+        table_to_name_map = {common.concept_name_to_table_name(n, catenate=False): n \
+                                                                        for n in concept_list}
 
-            bases = self.pg_table_inheritance_to_bases(t['name'], t['schema'])
+        for name, row in concept_list.items():
+            concept = {'name': name,
+                       'title': self.hstore_to_word_combination(row['title']),
+                       'description': row['description'],
+                       'is_abstract': row['is_abstract'],
+                       'custombases': row['custombases']}
 
-            concept = proto.Concept(name=name, base=bases, title=concepts[name]['title'],
-                                    description=concepts[name]['description'],
-                                    is_abstract=concepts[name]['is_abstract'],
-                                    custombases=tuple(concepts[name]['custombases']))
+
+            table_name = common.concept_name_to_table_name(name, catenate=False)
+            table = tables.get(table_name)
+
+            visited_tables.add(table_name)
+
+            bases = self.pg_table_inheritance_to_bases(table['name'], table['schema'],
+                                                                      table_to_name_map)
+
+            concept = proto.Concept(name=name, base=bases, title=concept['title'],
+                                    description=concept['description'],
+                                    is_abstract=concept['is_abstract'],
+                                    custombases=tuple(concept['custombases']))
 
             columns = introspection.tables.TableColumns(self.connection)
-            columns = columns.fetch(table_name=t['name'], schema_name=t['schema'])
+            columns = columns.fetch(table_name=table['name'], schema_name=table['schema'])
             meta.add(concept)
+
+        tabdiff = set(tables.keys()) - visited_tables
+        if tabdiff:
+            msg = 'internal metadata incosistency'
+            details = 'Extraneous data tables exist: %s' \
+                        % (', '.join('"%s.%s"' % t for t in tabdiff))
+            raise caos.MetaError(msg, details=details)
 
 
     def load_links(self, this_concept, this_id, other_concepts=None, link_names=None,
@@ -972,17 +1033,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 return ps.rows()
 
 
-    def pg_table_inheritance_to_bases(self, table_name, schema_name):
+    def pg_table_inheritance_to_bases(self, table_name, schema_name, table_to_name_map):
         inheritance = introspection.tables.TableInheritance(self.connection)
         inheritance = inheritance.fetch(table_name=table_name, schema_name=schema_name, max_depth=1)
         inheritance = [i[:2] for i in inheritance[1:]]
 
         bases = tuple()
         if len(inheritance) > 0:
-            for table in inheritance:
-                base_name = common.table_name_to_concept_name(table[0])
-                base_module = common.schema_name_to_caos_module_name(table[1])
-                bases += (caos.Name(name=base_name, module=base_module),)
+            bases = tuple(table_to_name_map[table[:2]] for table in inheritance)
 
         return bases
 
@@ -1009,10 +1067,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def atom_from_pg_type(self, type_expr, atom_schema, atom_mods, atom_default, meta, derived_name):
 
-        atom_name = caos.Name(name=common.domain_name_to_atom_name(type_expr),
-                              module=common.schema_name_to_caos_module_name(atom_schema))
+        domain_name = type_expr.split('.')[-1]
+        atom_name = self.domain_to_atom_map.get((atom_schema, domain_name))
 
-        atom = meta.get(atom_name, None)
+        if atom_name:
+            atom = meta.get(atom_name, None)
+        else:
+            atom = None
 
         if not atom:
             atom = meta.get(derived_name, None)
@@ -1030,7 +1091,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                 atom.acquire_mods(meta)
             else:
-                mods = set(atom_mods)
+                mods = set(atom_mods) if atom_mods else {}
 
             if atom_mods:
                 atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,
