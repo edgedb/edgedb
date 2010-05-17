@@ -1287,7 +1287,10 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
 
         cols = self.get_columns(property, meta)
         for col in cols:
-            alter_table.add_operation(AlterTableAddColumn(col))
+            # The column may already exist as inherited from parent table
+            cond = ColumnExists(table_name=alter_table.name, column_name=col.name)
+            cmd = AlterTableAddColumn(col)
+            alter_table.add_operation((cmd, None, (cond,)))
 
         rec = self.record_metadata(property, None, meta, context)
 
