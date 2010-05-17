@@ -87,5 +87,9 @@ class Object(meta.Object, metaclass=ObjectMeta):
             return dumper.represent_sequence('tag:yaml.org,2002:seq', result)
         elif isinstance(result, str):
             return dumper.represent_scalar('tag:yaml.org,2002:str', result)
+        elif isinstance(result, bool):
+            return dumper.represent_scalar('tag:yaml.org,2002:bool', str(result))
+        elif isinstance(result, int):
+            return dumper.represent_scalar('tag:yaml.org,2002:int', str(result))
         else:
             assert False, 'unhandled representer result type: %s' % result
