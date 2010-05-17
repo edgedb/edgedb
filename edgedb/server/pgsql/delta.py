@@ -81,7 +81,7 @@ class MetaCommand(delta_cmds.Command, metaclass=CommandMeta):
 class BaseCommand:
     def get_code_and_vars(self, context):
         code = self.code(context)
-        assert code
+        assert code is not None
         if isinstance(code, tuple):
             code, vars = code
         else:
@@ -100,12 +100,13 @@ class BaseCommand:
         print(code, vars)
         """
 
-        result = context.db.prepare(code)(*vars)
-        extra = self.extra(context)
-        if extra:
-            for cmd in extra:
-                cmd.execute(context)
-        return result
+        if code:
+            result = context.db.prepare(code)(*vars)
+            extra = self.extra(context)
+            if extra:
+                for cmd in extra:
+                    cmd.execute(context)
+            return result
 
     def dump(self):
         return str(self)
@@ -141,15 +142,16 @@ class Command(BaseCommand):
             print(code, vars)
             """
 
-            if vars is not None:
-                result = context.db.prepare(code)(*vars)
-            else:
-                result = context.db.execute(code)
+            if code:
+                if vars is not None:
+                    result = context.db.prepare(code)(*vars)
+                else:
+                    result = context.db.execute(code)
 
-            extra = self.extra(context)
-            if extra:
-                for cmd in extra:
-                    cmd.execute(context)
+                extra = self.extra(context)
+                if extra:
+                    for cmd in extra:
+                        cmd.execute(context)
         return result
 
     def check_conditions(self, context, conditions, positive):
@@ -2597,8 +2599,9 @@ class AlterTable(AlterTableBase):
                         ops.append(op[0].code(context))
                 else:
                     ops.append(op.code(context))
-            code += ' ' + ', '.join(ops)
-            return code
+            if ops:
+                return code + ' ' + ', '.join(ops)
+        return False
 
     def extra(self, context):
         extra = []
