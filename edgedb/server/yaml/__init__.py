@@ -593,10 +593,12 @@ class MetaSet(LangObject):
             globalmeta.add(atom)
             localmeta.add(atom)
 
+        ns = localmeta.get_namespace(proto.Atom)
+
         for atom in localmeta('atom', include_builtin=self.include_builtin):
             if atom.base:
                 try:
-                    atom.base = localmeta.normalize_name(atom.base, include_pyobjects=True)
+                    atom.base = ns.normalize_name(atom.base, include_pyobjects=True)
                 except caos.MetaError as e:
                     raise MetaError(e, atom.context) from e
 
@@ -617,6 +619,10 @@ class MetaSet(LangObject):
 
 
     def read_links(self, data, globalmeta, localmeta):
+
+        atom_ns = localmeta.get_namespace(proto.Atom)
+        link_ns = localmeta.get_namespace(proto.Link)
+
         for link_name, link in data['links'].items():
             module = self.module
             link.name = caos.Name(name=link_name, module=module)
@@ -624,7 +630,7 @@ class MetaSet(LangObject):
             properties = {}
             for property_name, property in link.properties.items():
                 property.name = caos.Name(name=link_name + '__' + property_name, module=module)
-                property.atom = localmeta.normalize_name(property.atom)
+                property.atom = atom_ns.normalize_name(property.atom)
                 properties[property.name] = property
             link.properties = properties
 
@@ -633,7 +639,7 @@ class MetaSet(LangObject):
 
         for link in localmeta('link', include_builtin=self.include_builtin):
             if link.base:
-                link.base = tuple(localmeta.normalize_name(b) for b in link.base)
+                link.base = tuple(link_ns.normalize_name(b) for b in link.base)
             elif link.name != 'semantix.caos.builtins.link':
                 link.base = (caos.Name('semantix.caos.builtins.link'),)
 
@@ -676,6 +682,9 @@ class MetaSet(LangObject):
     def read_concepts(self, data, globalmeta, localmeta):
         backend = None
 
+        concept_ns = localmeta.get_namespace(proto.Concept)
+        link_ns = localmeta.get_namespace(proto.Link)
+
         for concept_name, concept in data['concepts'].items():
             concept.name = caos.Name(name=concept_name, module=self.module)
             concept.backend = backend
@@ -692,7 +701,7 @@ class MetaSet(LangObject):
 
             if concept.base:
                 for b in concept.base:
-                    base_name = localmeta.normalize_name(b, include_pyobjects=True)
+                    base_name = concept_ns.normalize_name(b, include_pyobjects=True)
                     if proto.Concept.is_prototype(base_name):
                         bases.append(base_name)
                     else:
@@ -711,9 +720,9 @@ class MetaSet(LangObject):
             for link_name, links in concept._links.items():
                 for link in links:
                     link.source = concept.name
-                    link.target = localmeta.normalize_name(link.target)
+                    link.target = concept_ns.normalize_name(link.target)
 
-                    link_qname = localmeta.normalize_name(link_name, default=None)
+                    link_qname = link_ns.normalize_name(link_name, default=None)
                     if not link_qname:
                         # The link has not been defined globally.
                         if not caos.Name.is_qualified(link_name):
@@ -797,8 +806,7 @@ class MetaSet(LangObject):
 
 
     def items(self):
-        return itertools.chain([('_index_', self.finalindex), ('_module_', self.module)],
-                               self.finalindex.index_by_name.items())
+        return itertools.chain([('_index_', self.finalindex), ('_module_', self.module)])
 
 
 class EntityShell(LangObject, adapts=caos.concept.EntityShell):
