@@ -15,6 +15,9 @@ params:
     schema_name:
         type: str
         default: "public"
+    include_inherited:
+        type: bool
+        default: True
 
 filters:
     - format: dict
@@ -27,7 +30,9 @@ source: |
                 tns.nspname                             AS column_type_schema,
                 t.oid                                   AS column_type_oid,
                 a.attnotnull                            AS column_required,
-                pg_get_expr(def.adbin, c.oid, true)     AS column_default
+                pg_get_expr(def.adbin, c.oid, true)     AS column_default,
+                a.attislocal                            AS column_is_local,
+                a.attinhcount                           AS column_ancestors
             FROM
                 pg_class c
                 INNER JOIN pg_namespace ns ON c.relnamespace = ns.oid
@@ -39,6 +44,7 @@ source: |
                 c.relname = %(table_name)s
                 AND ns.nspname = %(schema_name)s
                 AND a.attnum > 0
+                AND (%(include_inherited)s::bool OR a.attislocal)
             ORDER BY
                 a.attnum
 ...

@@ -192,6 +192,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 self.read_atoms(self.meta)
                 self.read_concepts(self.meta)
                 self.read_links(self.meta)
+                self.read_link_properties(self.meta)
+
+                self.order_atoms(self.meta)
+                self.order_link_properties(self.meta)
+                self.order_links(self.meta)
+                self.order_concepts(self.meta)
 
         return self.meta
 
@@ -328,7 +334,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 for a in attrs:
                     l = getattr(cls, str(a), None)
                     if l:
-                        col_type = delta_cmds.CompositePrototypeMetaCommand.pg_type_from_atom(
+                        col_type = delta_cmds.PrototypeMetaCommand.pg_type_from_atom(
                                                         realm.meta, l._metadata.prototype)
                         col_type = 'text::%s' % col_type
 
@@ -354,7 +360,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     for a in attrs:
                         if hasattr(cls, str(a)):
                             l = getattr(cls, str(a))
-                            col_type = delta_cmds.CompositePrototypeMetaCommand.pg_type_from_atom(
+                            col_type = delta_cmds.PrototypeMetaCommand.pg_type_from_atom(
                                                         realm.meta, l._metadata.prototype)
                             col_type = 'text::%s' % col_type
 
@@ -601,6 +607,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             meta.add(atom)
 
 
+    def order_atoms(self, meta):
+        pass
+
+
     def unpack_default(self, value):
         value = next(iter(yaml.Language.load(value)))
 
@@ -715,6 +725,44 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return constraints
 
 
+    def read_pointer_target_column(self, meta, source, pointer_name, columns_cache,
+                                                                     constraints_cache):
+        host_schema, host_table = common.get_table_name(source, catenate=False)
+        cols = columns_cache.get((host_schema, host_table))
+        constraints = constraints_cache.get((host_schema, host_table))
+
+        if not cols:
+            cols = introspection.tables.TableColumns(self.connection)
+            cols = cols.fetch(table_name=host_table, schema_name=host_schema)
+            cols = {col['column_name']: col for col in cols}
+            columns_cache[(host_schema, host_table)] = cols
+
+        col = cols.get(common.caos_name_to_pg_name(pointer_name))
+
+        if not col:
+            msg = 'internal metadata inconsistency'
+            details = ('Record for "%s" hosted by "%s" exists, but corresponding table column '
+                       'is missing' % (pointer_name, source.name))
+            raise caos.MetaError(msg, details=details)
+
+        derived_atom_name = proto.Atom.gen_atom_name(source, pointer_name)
+        if col['column_type_schema'] == 'pg_catalog':
+            col_type_schema = common.caos_module_name_to_schema_name('semantix.caos.builtins')
+            col_type = col['column_type_formatted']
+        else:
+            col_type_schema = col['column_type_schema']
+            col_type = col['column_type']
+
+        mods = constraints.get(pointer_name) if constraints else None
+
+        target = self.atom_from_pg_type(col_type, col_type_schema,
+                                        mods, col['column_default'], meta,
+                                        caos.Name(name=derived_atom_name,
+                                                  module=source.name.module))
+
+        return target
+
+
     def read_links(self, meta):
 
         link_tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
@@ -724,16 +772,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         links_list = datasources.meta.links.ConceptLinks(self.connection).fetch()
         links_list = {caos.Name(r['name']): r for r in links_list}
 
-        link_properties = datasources.meta.links.LinkProperties(self.connection).fetch()
-        lp = {}
-        for row in link_properties:
-            lp.setdefault(row['link_name'], {})[caos.name.Name(row['property_name'])] = row
-        link_properties = lp
-
-        g = {}
-
         concept_columns = {}
         concept_constraints = self.read_table_constraints()
+
         concept_indexes = self.read_search_indexes()
 
         table_to_name_map = {common.link_name_to_table_name(name, catenate=False): name \
@@ -741,7 +782,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         for name, r in links_list.items():
             bases = tuple()
-            prop_objects = {}
 
             if not r['source_id'] and not r['is_atom']:
                 link_table_name = common.link_name_to_table_name(name, catenate=False)
@@ -753,41 +793,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 bases = self.pg_table_inheritance_to_bases(t['name'], t['schema'],
                                                            table_to_name_map)
 
-                columns = introspection.tables.TableColumns(self.connection)
-                columns = columns.fetch(table_name=t['name'], schema_name=t['schema'])
-                columns = {c['column_name']: c for c in columns}
-
-                properties = link_properties.get(name, {})
-
-                for prop_name, prop in properties.items():
-                    column_name = common.caos_name_to_pg_name(prop_name)
-
-                    col = columns.get(column_name)
-
-                    if not col:
-                        err = 'internal metadata inconsistency'
-                        details = ('Record for link property "%s" exists but the corresponding '
-                                   'table column is missing') % prop_name
-                        raise caos.MetaError(err, details=details)
-
-                    if col['column_type_schema'] == 'pg_catalog':
-                        col_type_schema = common.caos_module_name_to_schema_name('semantix.caos.builtins')
-                        col_type = col['column_type_formatted']
-                    else:
-                        col_type_schema = col['column_type_schema']
-                        col_type = col['column_type']
-
-                    derived_atom_name = '__' + name.name + '__' + prop_name.name
-                    atom = self.atom_from_pg_type(col_type, col_type_schema,
-                                                  [], col['column_default'], meta,
-                                                  caos.Name(name=derived_atom_name,
-                                                            module=name.module))
-
-                    property = proto.LinkProperty(name=prop_name, atom=atom)
-                    prop_objects[prop_name] = property
             else:
                 if r['source_id']:
-                    bases = (proto.Link.normalize_link_name(name),)
+                    bases = (proto.Link.normalize_name(name),)
                 else:
                     bases = (caos.Name('semantix.caos.builtins.link'),)
 
@@ -800,39 +808,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 r['default'] = self.unpack_default(r['default'])
 
             if r['source_id'] and r['is_atom']:
+                target = self.read_pointer_target_column(meta, source, bases[0], concept_columns,
+                                                                       concept_constraints)
+
                 concept_schema, concept_table = common.concept_name_to_table_name(source.name,
                                                                                   catenate=False)
-                cols = concept_columns.get((concept_schema, concept_table))
+
                 indexes = concept_indexes.get((concept_schema, concept_table))
-                constraints = concept_constraints.get((concept_schema, concept_table), {})
-
-                if not cols:
-                    cols = introspection.tables.TableColumns(self.connection)
-                    cols = cols.fetch(table_name=concept_table, schema_name=concept_schema)
-                    cols = {col['column_name']: col for col in cols}
-                    concept_columns[(concept_schema, concept_table)] = cols
-
-                base_link_name = bases[0]
-
-                col = cols[common.caos_name_to_pg_name(base_link_name)]
-
-                derived_atom_name = proto.Atom.gen_atom_name(source, base_link_name)
-                if col['column_type_schema'] == 'pg_catalog':
-                    col_type_schema = common.caos_module_name_to_schema_name('semantix.caos.builtins')
-                    col_type = col['column_type_formatted']
-                else:
-                    col_type_schema = col['column_type_schema']
-                    col_type = col['column_type']
-
-                mods = constraints.get(base_link_name)
-
-                target = self.atom_from_pg_type(col_type, col_type_schema,
-                                                mods, col['column_default'], meta,
-                                                caos.Name(name=derived_atom_name,
-                                                          module=source.name.module))
 
                 if indexes:
-                    col_search_index = indexes.get(base_link_name)
+                    col_search_index = indexes.get(bases[0])
                     if col_search_index:
                         weight = col_search_index[('default', 'english')]
                         link_search = proto.LinkSearchConfiguration(weight=weight)
@@ -848,8 +833,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                 readonly=r['readonly'],
                                 default=r['default'])
 
-            link.properties = prop_objects
-
             if link_search:
                 link.search = link_search
 
@@ -864,23 +847,74 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         and source.name.module != 'semantix.caos.builtins':
                     target.add_rlink(link)
 
+            meta.add(link)
+
+
+    def order_links(self, meta):
+        g = {}
+
+        for link in meta(type='link', include_automatic=True, include_builtin=True):
             g[link.name] = {"item": link, "merge": [], "deps": []}
             if link.base:
                 g[link.name]['merge'].extend(link.base)
 
-            meta.add(link)
-
         topological.normalize(g, merger=proto.Link.merge)
 
-        g = {}
-        for concept in meta(type='concept', include_automatic=True, include_builtin=True):
-            g[concept.name] = {"item": concept, "merge": [], "deps": []}
-            if concept.base:
-                g[concept.name]["merge"].extend(concept.base)
-        topological.normalize(g, merger=proto.Concept.merge)
+        for link in meta(type='link', include_automatic=True, include_builtin=True):
+            link.materialize(meta)
 
-        for concept in meta(type='concept', include_automatic=True, include_builtin=True):
-            concept.materialize(meta)
+
+    def read_link_properties(self, meta):
+        link_props = datasources.meta.links.LinkProperties(self.connection).fetch()
+        link_props = {caos.Name(r['name']): r for r in link_props}
+        link_constraints = self.read_table_constraints()
+        link_columns = {}
+
+        for name, r in link_props.items():
+            bases = ()
+
+            if r['source_id']:
+                bases = (proto.LinkProperty.normalize_name(name),)
+            elif r['base']:
+                bases = tuple(caos.Name(b) for b in r['base'])
+            elif name != 'semantix.caos.builtins.link_property':
+                bases = (caos.Name('semantix.caos.builtins.link_property'),)
+
+            title = self.hstore_to_word_combination(r['title'])
+            description = r['description']
+            source = meta.get(r['source']) if r['source'] else None
+
+            default = self.unpack_default(r['default']) if r['default'] else None
+
+            if source:
+                # The property is attached to a link, check out link table columns for
+                # target information.
+                target = self.read_pointer_target_column(meta, source, bases[0], link_columns,
+                                                                       link_constraints)
+            else:
+                target = None
+
+            prop = proto.LinkProperty(name=name, base=bases, source=source, target=target,
+                                      required=r['required'],
+                                      title=title, description=description,
+                                      readonly=r['readonly'],
+                                      default=default)
+
+            if source:
+                source.add_property(prop)
+
+            meta.add(prop)
+
+
+    def order_link_properties(self, meta):
+        g = {}
+
+        for prop in meta(type='link_property', include_automatic=True, include_builtin=True):
+            g[prop.name] = {"item": prop, "merge": [], "deps": []}
+            if prop.base:
+                g[prop.name]['merge'].extend(prop.base)
+
+        topological.normalize(g, merger=proto.LinkProperty.merge)
 
 
     def read_concepts(self, meta):
@@ -927,6 +961,18 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             details = 'Extraneous data tables exist: %s' \
                         % (', '.join('"%s.%s"' % t for t in tabdiff))
             raise caos.MetaError(msg, details=details)
+
+
+    def order_concepts(self, meta):
+        g = {}
+        for concept in meta(type='concept', include_automatic=True, include_builtin=True):
+            g[concept.name] = {"item": concept, "merge": [], "deps": []}
+            if concept.base:
+                g[concept.name]["merge"].extend(concept.base)
+        topological.normalize(g, merger=proto.Concept.merge)
+
+        for concept in meta(type='concept', include_automatic=True, include_builtin=True):
+            concept.materialize(meta)
 
 
     def load_links(self, this_concept, this_id, other_concepts=None, link_names=None,

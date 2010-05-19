@@ -326,7 +326,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
     def _process_constant(self, context, expr):
         if expr.type:
             if isinstance(expr.type, caos_types.ProtoAtom):
-                const_type = delta_cmds.CompositePrototypeMetaCommand.pg_type_from_atom(
+                const_type = delta_cmds.PrototypeMetaCommand.pg_type_from_atom(
                                                             context.current.realm.meta, expr.type)
             else:
                 const_type = common.py_type_to_pg_type(expr.type)

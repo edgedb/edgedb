@@ -164,6 +164,30 @@ mapping:
                                         enum: [ceiling, down, floor, half-down,
                                                half-even, half-up, up, 05up]
 
+    "link-properties":
+        type: map
+        default: {}
+        mapping:
+            =: # name of a link property
+                type: map
+                object: semantix.caos.backends.yaml.LinkPropertyDef
+                required: yes
+                mapping:
+                    "title":
+                        *TEXT_WITH_GRAM_CATEGORIES
+
+                    "description":
+                        type: str
+
+                    "extends":
+                        type: choice
+                        default:
+                        choice:
+                            - type: str
+                            - type: seq
+                              sequence:
+                                - type: str
+
     "links":
         type: map
         default: {}
@@ -228,7 +252,10 @@ mapping:
                                                 "required":
                                                     type: bool
                                                     default: False
-                                                "mods": *ATOM_MODS
+                                                "mods":
+                                                    *ATOM_MODS
+                                                "default":
+                                                    *DEFAULT
 
 
     "concepts":
@@ -314,8 +341,12 @@ mapping:
                                               "properties":
                                                   type: map
                                                   mapping:
-                                                    =:
-                                                        type: any
+                                                    =: # property name
+                                                        object: semantix.caos.backends.yaml.LinkPropertyProps
+                                                        type: map
+                                                        mapping:
+                                                            "default":
+                                                                *DEFAULT
                                               "search":
                                                   type: choice
                                                   object: semantix.caos.backends.yaml.LinkSearchConfiguration

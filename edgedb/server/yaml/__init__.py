@@ -331,23 +331,45 @@ class Concept(Prototype, adapts=proto.Concept):
         return result
 
 
+class LinkPropertyDef(Prototype, proto.LinkProperty):
+    def construct(self):
+        data = self.data
+
+        extends = data.get('extends')
+        if extends:
+            if not isinstance(extends, list):
+                extends = [extends]
+
+        proto.LinkProperty.__init__(self, name=default_name, title=data['title'],
+                                    base=tuple(extends) if extends else tuple(),
+                                    description=data['description'],
+                                    _setdefaults_=False, _relaxrequired_=True)
+
+
 class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
     def construct(self):
         data = self.data
         if isinstance(data, str):
-            proto.LinkProperty.__init__(self, name=default_name, atom=data, _relaxrequired_=True)
+            proto.LinkProperty.__init__(self, name=default_name, target=data, _relaxrequired_=True)
         else:
             atom_name, info = next(iter(data.items()))
-            proto.LinkProperty.__init__(self, name=default_name, atom=atom_name, title=info['title'],
-                                       description=info['description'], _relaxrequired_=True)
+
+            default = info['default']
+            if default and not isinstance(default, list):
+                default = [default]
+
+            proto.LinkProperty.__init__(self, name=default_name, target=atom_name,
+                                        title=info['title'], description=info['description'],
+                                        default=default,
+                                        _setdefaults_=False, _relaxrequired_=True)
             self.mods = info.get('mods')
 
     @classmethod
     def represent(cls, data):
         result = {}
 
-        if data.atom.mods and data.atom.automatic:
-            result['mods'] = list(itertools.chain.from_iterable(data.atom.mods.values()))
+        if data.target and data.target.mods and data.target.automatic:
+            result['mods'] = list(itertools.chain.from_iterable(data.target.mods.values()))
 
         if data.title:
             result['title'] = data.title
@@ -355,10 +377,31 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
         if data.description:
             result['description'] = data.description
 
+        if data.default is not None:
+            result['default'] = data.default
+
         if result:
-            return {data.atom.name: result}
+            if data.target:
+                return {data.target.name: result}
+            else:
+                return result
         else:
-            return str(data.atom.name)
+            if data.target:
+                return str(data.target.name)
+            else:
+                return {}
+
+
+class LinkPropertyProps(Prototype, proto.LinkProperty):
+    def construct(self):
+        data = self.data
+
+        default = data['default']
+        if default and not isinstance(default, list):
+            default = [default]
+
+        proto.LinkProperty.__init__(self, name=default_name, default=default,
+                                    _setdefaults_=False, _relaxrequired_=True)
 
 
 class LinkDef(Prototype, adapts=proto.Link):
@@ -381,9 +424,8 @@ class LinkDef(Prototype, adapts=proto.Link):
                             mapping=data.get('mapping'),
                             default=default,
                             _setdefaults_=False, _relaxrequired_=True)
-        for property_name, property in data['properties'].items():
-            property.name = property_name
-            self.add_property(property)
+
+        self._properties = data['properties']
 
     @classmethod
     def represent(cls, data):
@@ -417,8 +459,8 @@ class LinkDef(Prototype, adapts=proto.Link):
         if data.default is not None:
             result['default'] = data.default
 
-        if data.properties:
-            result['properties'] = data.properties
+        if data.own_properties:
+            result['properties'] = {p.normal_name(): p for p in data.own_properties.values()}
 
         if data.constraints:
             constraints = itertools.chain.from_iterable(data.constraints.values())
@@ -504,6 +546,8 @@ class LinkList(LangObject, list):
                 if default and not isinstance(default, list):
                     default = [default]
 
+                props = info['properties']
+
                 for t in target:
                     link = proto.Link(name=default_name, target=t, mapping=info['mapping'],
                                       required=info['required'], title=info['title'],
@@ -522,6 +566,8 @@ class LinkList(LangObject, list):
                     if constraints:
                         for constraint in constraints:
                             link.add_constraint(constraint)
+
+                    link._properties = props
 
                     self.append(link)
 
@@ -557,14 +603,16 @@ class MetaSet(LangObject):
             localindex.add_module(module.__name__, alias)
 
         self.read_atoms(data, globalindex, localindex)
+        self.read_link_properties(data, globalindex, localindex)
         self.read_links(data, globalindex, localindex)
         self.read_concepts(data, globalindex, localindex)
 
         if self.toplevel:
-            # The final pass on concepts may produce additional links and atoms,
-            # thus, it has to be performed first.
+            # The final pass on may produce additional objects,
+            # thus, it has to be performed in reverse order.
             concepts = self.order_concepts(globalindex)
             links = self.order_links(globalindex)
+            linkprops = self.order_link_properties(globalindex)
             atoms = self.order_atoms(globalindex)
 
             for atom in atoms:
@@ -572,9 +620,15 @@ class MetaSet(LangObject):
                     atom.setdefaults()
                     self.finalindex.add(atom)
 
+            for prop in linkprops:
+                if self.include_builtin or prop.name.module != 'semantix.caos.builtins':
+                    prop.setdefaults()
+                    self.finalindex.add(prop)
+
             for link in links:
                 if self.include_builtin or link.name.module != 'semantix.caos.builtins':
                     link.setdefaults()
+                    link.materialize(self.finalindex)
                     self.finalindex.add(link)
 
             for concept in concepts:
@@ -618,21 +672,97 @@ class MetaSet(LangObject):
         return topological.normalize(g, merger=proto.Atom.merge)
 
 
+    def read_link_properties(self, data, globalmeta, localmeta):
+        linkprop_ns = localmeta.get_namespace(proto.LinkProperty)
+
+        for property_name, property in data['link-properties'].items():
+            module = self.module
+            property.name = caos.Name(name=property_name, module=module)
+
+            globalmeta.add(property)
+            localmeta.add(property)
+
+        for prop in localmeta('link_property', include_builtin=self.include_builtin):
+            if prop.base:
+                prop.base = tuple(linkprop_ns.normalize_name(b) for b in prop.base)
+            elif prop.name != 'semantix.caos.builtins.link_property':
+                prop.base = (caos.Name('semantix.caos.builtins.link_property'),)
+
+
+    def order_link_properties(self, globalmeta):
+        g = {}
+
+        for prop in globalmeta('link_property', include_automatic=True, include_builtin=True):
+            g[prop.name] = {"item": prop, "merge": [], "deps": []}
+
+            if prop.base:
+                g[prop.name]['merge'].extend(prop.base)
+
+        return topological.normalize(g, merger=proto.LinkProperty.merge)
+
+
+    def read_properties_for_link(self, link, globalmeta, localmeta):
+        atom_ns = localmeta.get_namespace(proto.Atom)
+        linkprop_ns = localmeta.get_namespace(proto.LinkProperty)
+
+        props = getattr(link, '_properties', None)
+        if not props:
+            return
+
+        for property_name, property in props.items():
+
+            property_qname = linkprop_ns.normalize_name(property_name, default=None)
+
+            if not property_qname:
+                if not link.generic():
+                    # Only generic links can implicitly define properties
+                    raise caos.MetaError('reference to an undefined property "%s"' % property_name)
+
+                # The link property has not been defined globally.
+                if not caos.Name.is_qualified(property_name):
+                    # If the name is not fully qualified, assume inline link property
+                    # definition. The only attribute that is used for global definition
+                    # is the name.
+                    property_qname = caos.Name(name=property_name, module=self.module)
+                    propdef = proto.LinkProperty(name=property_qname,
+                                    base=(caos.Name('semantix.caos.builtins.link_property'),))
+                    globalmeta.add(propdef)
+                    localmeta.add(propdef)
+                else:
+                    property_qname = caos.Name(property_name)
+
+            if link.generic():
+                property.target = atom_ns.normalize_name(property.target)
+            else:
+                link_base = globalmeta.get(link.base[0], type=proto.Link)
+                propdef = link_base.properties.get(property_qname)
+                if not propdef:
+                    raise caos.MetaError('link "%s" does not define property "%s"' \
+                                         % (link.name, property_qname))
+                property_qname = propdef.normal_name()
+
+            # A new specialized subclass of the link property is created for each
+            # (source, property_name, target_atom) combination
+            property.base = (property_qname,)
+            prop_genname = proto.LinkProperty.generate_name(link.name, property.target,
+                                                            property_qname)
+            property.name = caos.Name(name=prop_genname, module=property_qname.module)
+            property.source = link
+            globalmeta.add(property)
+            localmeta.add(property)
+
+            link.add_property(property)
+
+
     def read_links(self, data, globalmeta, localmeta):
 
-        atom_ns = localmeta.get_namespace(proto.Atom)
         link_ns = localmeta.get_namespace(proto.Link)
 
         for link_name, link in data['links'].items():
             module = self.module
             link.name = caos.Name(name=link_name, module=module)
 
-            properties = {}
-            for property_name, property in link.properties.items():
-                property.name = caos.Name(name=link_name + '__' + property_name, module=module)
-                property.atom = atom_ns.normalize_name(property.atom)
-                properties[property.name] = property
-            link.properties = properties
+            self.read_properties_for_link(link, globalmeta, localmeta)
 
             globalmeta.add(link)
             localmeta.add(link)
@@ -649,16 +779,15 @@ class MetaSet(LangObject):
 
         for link in globalmeta('link', include_automatic=True, include_builtin=True):
             for property_name, property in link.properties.items():
-                if not isinstance(property.atom, proto.Prototype):
-                    property.atom = globalmeta.get(property.atom)
+                if property.target:
+                    property.target = globalmeta.get(property.target)
 
                     mods = getattr(property, 'mods', None)
                     if mods:
                         # Got an inline atom definition.
-                        default = getattr(property, 'default', None)
-                        atom = self.genatom(link, property.atom.name, default, property_name, mods)
+                        atom = self.genatom(link, property.target.name, property_name, mods)
                         globalmeta.add(atom)
-                        property.atom = atom
+                        property.target = atom
 
             if link.source and not isinstance(link.source, proto.Prototype):
                 link.source = globalmeta.get(link.source)
@@ -741,8 +870,11 @@ class MetaSet(LangObject):
                     # A new specialized subclass of the link is created for each
                     # (source, link_name, target) combination
                     link.base = (link_qname,)
-                    link_genname = proto.Link.gen_link_name(link.source, link.target, link_qname)
+                    link_genname = proto.Link.generate_name(link.source, link.target, link_qname)
                     link.name = caos.Name(name=link_genname, module=link_qname.module)
+
+                    self.read_properties_for_link(link, globalmeta, localmeta)
+
                     globalmeta.add(link)
                     localmeta.add(link)
                     concept.add_link(link)
@@ -830,14 +962,19 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
 class RealmMeta(LangObject, adapts=proto.RealmMeta):
     @classmethod
     def represent(cls, data):
-        result = {'atoms': {}, 'links': {}, 'concepts': {}}
+        result = {'atoms': {}, 'links': {}, 'concepts': {}, 'link-properties': {}}
 
-        for type in ('atom', 'link', 'concept'):
+        for type in ('atom', 'link', 'concept', 'link_property'):
             for obj in data(type=type, include_builtin=False, include_automatic=False):
                 # XXX
-                if type == 'link' and not obj.generic():
+                if type in ('link', 'link_property') and not obj.generic():
                     continue
-                result[type + 's'][str(obj.name)] = obj
+                if type == 'link_property':
+                    key = 'link-properties'
+                else:
+                    key = type + 's'
+
+                result[key][str(obj.name)] = obj
 
         return result
 

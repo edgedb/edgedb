@@ -91,23 +91,47 @@ source: |
 %NAME LinkProperties
 ---
 params:
-    link_name:
+    source:
         type: str
         default: null
+
+    target:
+        type: str
+        default: null
+
+    name:
+        type: str
+        default: null
+
+    include_specialized:
+        type: bool
+        default: True
 
 filters:
     - format: dict
 
 source: |
     SELECT
-            p.name          AS property_name,
-            p.readonly      AS property_readonly,
-            p.default       AS property_default,
-            l.name          AS link_name
+            p.id            AS id,
+            p.name          AS name,
+            p.base          AS base,
+            p.title         AS title,
+            p.description   AS description,
+            p.required      AS required,
+            p.readonly      AS readonly,
+            p.default       AS default,
+            p.source_id     AS source_id,
+            p.target_id     AS target_id,
+            l.name          AS source,
+            a.name          AS target
         FROM
             caos.link_property p
-            INNER JOIN caos.link l ON l.id = p.link_id
+            LEFT JOIN caos.link l ON l.id = p.source_id
+            LEFT JOIN caos.atom a ON a.id = p.target_id
         WHERE
-            (%(link_name)s::text IS NULL OR %(link_name)s::text = l.name)
+            (%(source)s::text IS NULL OR %(source)s::text = l.name)
+            AND (%(target)s::text IS NULL OR %(target)s::text = a.name)
+            AND (%(name)s::text IS NULL OR %(name)s::text = p.name)
+            AND (%(include_specialized)s::bool OR p.source_id IS NULL)
         ORDER BY
-            l.name, p.name
+            p.id, p.target_id NULLS FIRST

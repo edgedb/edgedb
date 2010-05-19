@@ -191,10 +191,30 @@ class CommandGroup(Command):
 
 
 class PrototypeMetaCommand(MetaCommand, delta_cmds.PrototypeCommand):
-    pass
+    @classmethod
+    def _pg_type_from_atom(cls, meta, atom_obj):
+        base, _, mods, _ = AtomMetaCommand.get_atom_base_and_mods(meta, atom_obj)
+
+        need_to_create = False
+
+        if not atom_obj.automatic:
+            column_type = base_type_name_map.get(atom_obj.name)
+            if column_type:
+                column_type = base
+            else:
+                column_type = common.atom_name_to_domain_name(atom_obj.name)
+                need_to_create = bool(mods)
+        else:
+            column_type = base
+
+        return column_type, need_to_create
+
+    @classmethod
+    def pg_type_from_atom(cls, meta, atom):
+        return cls._pg_type_from_atom(meta, atom)[0]
 
 
-class NamedPrototypeMetaCommand(MetaCommand, delta_cmds.NamedPrototypeCommand):
+class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeCommand):
     def fill_record(self, rec=None, obj=None):
         updates = {}
 
@@ -472,7 +492,7 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
 
             # Skip inherited links
             if pointer.proto.source.name == host.proto.name:
-                alter_table = host.op.get_alter_table()
+                alter_table = host.op.get_alter_table(context)
 
                 for mod in mods:
                     constraint = self.get_mod_constraint(atom, meta, context, mod)
@@ -585,7 +605,7 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
                         op.pgops.add(AlterDomainAlterDefault(name=domain_name, default=new_default))
 
             if new_atom.automatic:
-                alter_table = host.op.get_alter_table()
+                alter_table = host.op.get_alter_table(context)
 
                 for mod in old_mods - new_mods:
                     constraint = cls.get_mod_constraint(old_atom, meta, context, mod)
@@ -606,7 +626,7 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
         else:
             # We need to drop orphan constraints
             if old_atom.automatic:
-                alter_table = host.op.get_alter_table()
+                alter_table = host.op.get_alter_table(context)
 
                 for mod in old_mods:
                     constraint = cls.get_mod_constraint(old_atom, meta, context, mod)
@@ -678,33 +698,15 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         self.alter_table = None
         self.update_search_indexes = None
 
-    @classmethod
-    def _pg_type_from_atom(cls, meta, atom_obj):
-        base, _, mods, _ = AtomMetaCommand.get_atom_base_and_mods(meta, atom_obj)
-
-        need_to_create = False
-
-        if not atom_obj.automatic:
-            column_type = base_type_name_map.get(atom_obj.name)
-            if column_type:
-                column_type = base
-            else:
-                column_type = common.atom_name_to_domain_name(atom_obj.name)
-                need_to_create = bool(mods)
-        else:
-            column_type = base
-
-        return column_type, need_to_create
-
-    def get_alter_table(self):
+    def get_alter_table(self, context):
         if self.alter_table is None:
-            assert self.table_name
+            if not self.table_name:
+                assert self.__class__.context_class
+                ctx = context.get(self.__class__.context_class)
+                assert ctx
+                self.table_name = common.get_table_name(ctx.proto, catenate=False)
             self.alter_table = AlterTable(self.table_name)
         return self.alter_table
-
-    @classmethod
-    def pg_type_from_atom(cls, meta, atom):
-        return cls._pg_type_from_atom(meta, atom)[0]
 
     def rename(self, old_name, new_name):
         old_table_name = common.concept_name_to_table_name(old_name, catenate=False)
@@ -755,7 +757,7 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
         self.create_module(self.prototype_name.module)
         self.pgops.add(CreateTable(table=concept_table))
 
-        alter_table = self.get_alter_table()
+        alter_table = self.get_alter_table(context)
 
         concept = delta_cmds.CreateConcept.apply(self, meta, context)
         ConceptMetaCommand.apply(self, meta, context)
@@ -814,7 +816,7 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
         if target.automatic:
 
             concept_context = context.get(delta_cmds.ConceptCommandContext)
-            alter_table = concept_context.op.get_alter_table()
+            alter_table = concept_context.op.get_alter_table(context)
             table = common.get_table_name(concept, catenate=False)
 
             drop_constraints = {}
@@ -910,22 +912,28 @@ class CancelLinkMappingUpdate(MetaCommand):
     pass
 
 
-class LinkMetaCommand(CompositePrototypeMetaCommand):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.table = LinkTable()
+class PointerMetaCommand(MetaCommand):
 
-    def record_metadata(self, link, old_link, meta, context):
+    def get_host(self, meta, context):
+        if context:
+            link = context.get(delta_cmds.LinkCommandContext)
+            if link and isinstance(self, delta_cmds.LinkPropertyCommand):
+                return link
+            concept = context.get(delta_cmds.ConceptCommandContext)
+            if concept:
+                return concept
+
+    def record_metadata(self, pointer, old_pointer, meta, context):
         rec, updates = self.fill_record()
 
         if rec:
-            concept = context.get(delta_cmds.ConceptCommandContext) if context else None
+            host = self.get_host(meta, context)
 
             source = updates.get('source')
             if source:
                 source = source[1]
-            elif concept:
-                source = concept.proto.name
+            elif host:
+                source = host.proto.name
 
             if source:
                 rec.source_id = Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
@@ -943,6 +951,85 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
                 rec = self.table.record()
             rec.default = self.pack_default(default[0])
 
+        return rec
+
+    def alter_host_table_column(self, link, meta, context, old_type, new_type):
+
+        dropped_atom = None
+
+        for op in self(delta_cmds.AtomCommand):
+            for rename in op(delta_cmds.RenameAtom):
+                if old_type == rename.prototype_name and new_type == rename.new_name:
+                    # Our target alter is a mere rename
+                    return
+            if isinstance(op, delta_cmds.CreateAtom):
+                if op.prototype_name == new_type:
+                    # CreateAtom will take care of everything for us
+                    return
+            elif isinstance(op, delta_cmds.DeleteAtom):
+                if op.prototype_name == old_type:
+                    # The former target atom might as well have been dropped
+                    dropped_atom = op.old_prototype
+
+        old_atom = meta.get(old_type, dropped_atom)
+        assert old_atom
+        new_atom = meta.get(new_type)
+
+        AlterAtom.alter_atom(self, meta, context, old_atom, new_atom, in_place=False)
+        alter_table = context.get(delta_cmds.ConceptCommandContext).op.get_alter_table(context)
+        column_name = common.caos_name_to_pg_name(link.normal_name())
+        target_type = self.pg_type_from_atom(meta, new_atom)
+        alter_type = AlterTableAlterColumnType(column_name, target_type)
+        alter_table.add_operation(alter_type)
+
+    def get_columns(self, pointer, meta):
+        columns = []
+
+        if pointer.atomic():
+            if not isinstance(pointer.target, proto.Atom):
+                pointer.target = meta.get(pointer.target)
+
+            column_type = self.pg_type_from_atom(meta, pointer.target)
+
+            name = pointer.normal_name()
+            column_name = common.caos_name_to_pg_name(name)
+
+            columns.append(Column(name=column_name, type=column_type,
+                                  required=pointer.required))
+
+        return columns
+
+    def rename_pointer(self, pointer, meta, context, old_name, new_name):
+        if context:
+            old_name = pointer.normalize_name(old_name)
+            new_name = pointer.normalize_name(new_name)
+
+            host = self.get_host(meta, context)
+
+            if host and pointer.atomic() and new_name != new_name:
+                table_name = common.get_table_name(host.proto, catenate=False)
+
+                prototype_name = common.caos_name_to_pg_name(new_name)
+                new_name = common.caos_name_to_pg_name(new_name)
+
+                rename = AlterTableRenameColumn(table_name, prototype_name, new_name)
+                self.pgops.add(rename)
+
+        rec = self.table.record()
+        rec.name = str(self.new_name)
+        self.pgops.add(Update(table=self.table, record=rec,
+                              condition=[('name', str(self.prototype_name))], priority=1))
+
+
+
+class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.table = LinkTable()
+
+    def record_metadata(self, link, old_link, meta, context):
+        rec = super().record_metadata(link, old_link, meta, context)
+
         if not old_link or old_link.constraints != link.constraints:
             if not rec:
                 rec = self.table.record()
@@ -957,25 +1044,8 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
 
         return rec
 
-    def get_columns(self, link, meta):
-        columns = []
-
-        if link.atomic():
-            if not isinstance(link.target, proto.Atom):
-                link.target = meta.get(link.target)
-
-            column_type = self.pg_type_from_atom(meta, link.target)
-
-            name = link.normal_name()
-            column_name = common.caos_name_to_pg_name(name)
-
-            columns.append(Column(name=column_name, type=column_type,
-                                  required=link.required))
-
-        return columns
-
     def create_table(self, link, meta, context, conditional=False):
-        new_table_name = common.link_name_to_table_name(link.name, catenate=False)
+        self.table_name = new_table_name = common.link_name_to_table_name(link.name, catenate=False)
         self.create_module(link.name.module)
 
         constraints = []
@@ -1008,6 +1078,10 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
     def has_table(self, link, meta, context):
         return (not link.atomic() or link.properties) and link.generic()
 
+    def provide_table(self, link, meta, context):
+        if self.has_table(link, meta, context):
+            self.create_table(link, meta, context, conditional=True)
+
     def schedule_mapping_update(self, link, meta, context):
         if (not link.atomic() or link.properties):
             mapping_indexes = context.get(delta_cmds.RealmCommandContext).op.update_mapping_indexes
@@ -1024,38 +1098,11 @@ class LinkMetaCommand(CompositePrototypeMetaCommand):
         mapping_indexes.links.pop(name, None)
         self.pgops.add(CancelLinkMappingUpdate())
 
-    def alter_host_table_column(self, link, meta, context, old_type, new_type):
-
-        dropped_atom = None
-
-        for op in self(delta_cmds.AtomCommand):
-            for rename in op(delta_cmds.RenameAtom):
-                if old_type == rename.prototype_name and new_type == rename.new_name:
-                    # Our target alter is a mere rename
-                    return
-            if isinstance(op, delta_cmds.CreateAtom):
-                if op.prototype_name == new_type:
-                    # CreateAtom will take care of everything for us
-                    return
-            elif isinstance(op, delta_cmds.DeleteAtom):
-                if op.prototype_name == old_type:
-                    # The former target atom might as well have been dropped
-                    dropped_atom = op.old_prototype
-
-        old_atom = meta.get(old_type, dropped_atom)
-        assert old_atom
-        new_atom = meta.get(new_type)
-
-        AlterAtom.alter_atom(self, meta, context, old_atom, new_atom, in_place=False)
-        alter_table = context.get(delta_cmds.ConceptCommandContext).op.get_alter_table()
-        column_name = common.caos_name_to_pg_name(link.normal_name())
-        target_type = self.pg_type_from_atom(meta, new_atom)
-        alter_type = AlterTableAlterColumnType(column_name, target_type)
-        alter_table.add_operation(alter_type)
-
 
 class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
     def apply(self, meta, context=None):
+        # Need to do this early, since potential table alters triggered by sub-commands
+        # need this.
         link = delta_cmds.CreateLink.apply(self, meta, context)
         LinkMetaCommand.apply(self, meta, context)
 
@@ -1069,8 +1116,7 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
         # separate tables even if they do not define additional properties.
         # This is to allow for further schema evolution.
         #
-        if self.has_table(link, meta, context):
-            self.create_table(link, meta, context, conditional=True)
+        self.provide_table(link, meta, context)
 
         if link.atomic() and not link.generic():
             concept = context.get(delta_cmds.ConceptCommandContext)
@@ -1078,7 +1124,7 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
 
             cols = self.get_columns(link, meta)
             table_name = common.get_table_name(concept.proto, catenate=False)
-            concept_alter_table = concept.op.get_alter_table()
+            concept_alter_table = concept.op.get_alter_table(context)
 
             for col in cols:
                 # The column may already exist as inherited from parent table
@@ -1103,26 +1149,10 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
         result = delta_cmds.RenameLink.apply(self, meta, context)
         LinkMetaCommand.apply(self, meta, context)
 
-        if context:
-            concept = context.get(delta_cmds.ConceptCommandContext)
-            prototype_name = proto.Link.normalize_link_name(self.prototype_name)
-            new_name = proto.Link.normalize_link_name(self.new_name)
-            if concept and result.atomic() and prototype_name != new_name:
-                table_name = common.concept_name_to_table_name(concept.proto.name, catenate=False)
-
-                prototype_name = common.caos_name_to_pg_name(prototype_name)
-                new_name = common.caos_name_to_pg_name(new_name)
-
-                rename = AlterTableRenameColumn(table_name, prototype_name, new_name)
-                self.pgops.add(rename)
+        self.rename_pointer(result, meta, context, self.prototype_name, self.new_name)
 
         if self.alter_table and self.alter_table.ops:
             self.pgops.add(self.alter_table)
-
-        rec = self.table.record()
-        rec.name = str(self.new_name)
-        self.pgops.add(Update(table=self.table, record=rec,
-                              condition=[('name', str(self.prototype_name))], priority=1))
 
         return result
 
@@ -1235,64 +1265,41 @@ class DeleteLinkConstraint(LinkConstraintMetaCommand, adapts=delta_cmds.DeleteLi
         return constraint
 
 
-class LinkPropertyMetaCommand(CompositePrototypeMetaCommand):
+class LinkPropertyMetaCommand(NamedPrototypeMetaCommand, PointerMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.table = LinkPropertyTable()
 
-    def get_columns(self, property, meta):
-        columns = []
-
-        if not isinstance(property.atom, proto.Atom):
-            property.atom = meta.get(property.atom)
-
-        column_type = self.pg_type_from_atom(meta, property.atom)
-
-        name = property.name
-        column_name = common.caos_name_to_pg_name(name)
-
-        columns.append(Column(name=column_name, type=column_type))
-
-        return columns
-
-    def record_metadata(self, prop, old_prop, meta, context):
-        rec, updates = self.fill_record()
-
-        default = list(self(delta_cmds.AlterDefault))
-        if default:
-            if not rec:
-                rec = self.table.record()
-            rec.default = self.pack_default(default[0])
-
-        link = context.get(delta_cmds.LinkCommandContext)
-        assert link
-
-        if isinstance(self, delta_cmds.CreateLinkProperty):
-            rec.link_id = Query('(SELECT id FROM caos.link WHERE name = $1)',
-                                [str(link.proto.name)], type='integer')
-
+    def record_metadata(self, pointer, old_pointer, meta, context):
+        rec = super().record_metadata(pointer, old_pointer, meta, context)
+        if rec.base:
+            if isinstance(rec.base, caos.Name):
+                rec.base = str(rec.base)
+            else:
+                rec.base = tuple(str(b) for b in rec.base)
         return rec
 
 
 class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkProperty):
-    def apply(self, meta, context=None):
+    def apply(self, meta, context):
         property = delta_cmds.CreateLinkProperty.apply(self, meta, context)
         LinkPropertyMetaCommand.apply(self, meta, context)
 
         link = context.get(delta_cmds.LinkCommandContext)
-        assert link, "Link property command must be run in Link command context"
 
-        link.op.create_table(link.proto, meta, context, conditional=True)
-        alter_table = link.op.get_alter_table()
+        if link and link.proto.generic():
+            link.op.provide_table(link.proto, meta, context)
+            alter_table = link.op.get_alter_table(context)
 
-        cols = self.get_columns(property, meta)
-        for col in cols:
-            # The column may already exist as inherited from parent table
-            cond = ColumnExists(table_name=alter_table.name, column_name=col.name)
-            cmd = AlterTableAddColumn(col)
-            alter_table.add_operation((cmd, None, (cond,)))
+            cols = self.get_columns(property, meta)
+            for col in cols:
+                # The column may already exist as inherited from parent table
+                cond = ColumnExists(table_name=alter_table.name, column_name=col.name)
+                cmd = AlterTableAddColumn(col)
+                alter_table.add_operation((cmd, None, (cond,)))
 
-        rec = self.record_metadata(property, None, meta, context)
+        with context(delta_cmds.LinkPropertyCommandContext(self, property)):
+            rec = self.record_metadata(property, None, meta, context)
 
         # Priority is set to 2 to make sure that INSERT is run after the host link
         # is INSERTed into caos.link.
@@ -1303,11 +1310,39 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
 
 
 class RenameLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.RenameLinkProperty):
-    pass
+    def apply(self, meta, context=None):
+        result = delta_cmds.RenameLinkProperty.apply(self, meta, context)
+        LinkPropertyMetaCommand.apply(self, meta, context)
+
+        self.rename_pointer(result, meta, context, self.prototype_name, self.new_name)
+
+        return result
 
 
 class AlterLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.AlterLinkProperty):
-    pass
+    def apply(self, meta, context=None):
+        self.old_prop = old_prop = meta.get(self.prototype_name, type=self.prototype_class).copy()
+        prop = delta_cmds.AlterLinkProperty.apply(self, meta, context)
+        LinkPropertyMetaCommand.apply(self, meta, context)
+
+        with context(delta_cmds.LinkPropertyCommandContext(self, prop)):
+            rec = self.record_metadata(prop, old_prop, meta, context)
+
+            if rec:
+                self.pgops.add(Update(table=self.table, record=rec,
+                                      condition=[('name', str(prop.name))], priority=1))
+
+            new_type = None
+            for op in self(delta_cmds.AlterPrototypeProperty):
+                if op.property == 'target':
+                    new_type = op.new_value
+                    old_type = op.old_value
+                    break
+
+            if new_type:
+                self.alter_host_table_column(prop, meta, context, old_type, new_type)
+
+        return prop
 
 
 class DeleteLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.DeleteLinkProperty):
@@ -1316,18 +1351,18 @@ class DeleteLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.DeleteLinkPr
         LinkPropertyMetaCommand.apply(self, meta, context)
 
         link = context.get(delta_cmds.LinkCommandContext)
-        assert link, "Link property command must be run in Link command context"
 
-        link_table_name = common.link_name_to_table_name(link.proto.name, catenate=False)
-        if not link.op.alter_table:
-            link.op.alter_table = AlterTable(link_table_name)
+        if link:
+            link_table_name = common.link_name_to_table_name(link.proto.name, catenate=False)
+            if not link.op.alter_table:
+                link.op.alter_table = AlterTable(link_table_name)
 
-        column_name = common.caos_name_to_pg_name(property.name)
-        # We don't really care about the type -- we're dropping the thing
-        column_type = 'text'
+            column_name = common.caos_name_to_pg_name(property.normal_name())
+            # We don't really care about the type -- we're dropping the thing
+            column_type = 'text'
 
-        col = AlterTableDropColumn(Column(name=column_name, type=column_type))
-        link.op.alter_table.add_operation(col)
+            col = AlterTableDropColumn(Column(name=column_name, type=column_type))
+            link.op.alter_table.add_operation(col)
 
         self.pgops.add(Delete(table=self.table, condition=[('name', str(property.name))]))
 
@@ -2273,8 +2308,11 @@ class LinkPropertyTable(MetaObjectTable):
         self.bases = [('caos', 'metaobject')]
 
         self.__columns = datastructures.OrderedSet([
-            Column(name='link_id', type='integer', required=True),
+            Column(name='source_id', type='integer'),
+            Column(name='target_id', type='integer'),
+            Column(name='required', type='boolean', required=True, default=False),
             Column(name='readonly', type='boolean', required=True, default=False),
+            Column(name='base', type='text[]'),
             Column(name='default', type='text')
         ])
 
