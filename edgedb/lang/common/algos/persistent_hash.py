@@ -9,6 +9,7 @@
 """Persistent hash implementation for builtin types."""
 
 
+import decimal
 from hashlib import md5
 
 
@@ -26,6 +27,10 @@ def persistent_hash(value):
         return str_hash('__semantix__TRUE__' if value else '__semantix__FALSE__')
     elif isinstance(value, int):
         return int_hash(value)
+    elif isinstance(value, float):
+        return float_hash(value)
+    elif isinstance(value, decimal.Decimal):
+        return decimal_hash(value)
     elif isinstance(value, tuple):
         return tuple_hash(value)
     elif isinstance(value, frozenset):
@@ -45,6 +50,18 @@ def str_hash(value):
 def int_hash(value):
     """Compute a persistent hash for an integer value"""
     return value
+
+
+def float_hash(value):
+    """Compute a persistent hash for a float value"""
+    # XXX: Check if this is really persistent cross-arch
+    return hash(value)
+
+
+def decimal_hash(value):
+    """Compute a persistent hash for a Decimal value"""
+    # XXX: Check if this is really persistent cross-arch
+    return hash(value)
 
 
 def tuple_hash(value):
