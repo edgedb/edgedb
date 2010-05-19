@@ -95,7 +95,11 @@ class CascadedContext:
         traps = context.traps.copy()
         traps.update(cumulative.traps)
 
-        prec = cumulative.prec if cumulative.prec is not None else context.prec
+        if cumulative.prec is not None:
+            prec = cumulative.prec
+        else:
+            prec = context.prec or decimal.DefaultContext.prec
+
         Emax = prec - (cumulative.scale or 0) - 1 if cumulative.Emax is None else cumulative.Emax
 
         result = decimal.Context(
