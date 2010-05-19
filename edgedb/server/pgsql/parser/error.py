@@ -10,7 +10,7 @@ from semantix import SemantixError
 
 
 class PgSQLParserError(SemantixError):
-    def __init__(self, msg, *, token, lineno, expr=None):
+    def __init__(self, msg, *, token=None, lineno=None, expr=None):
         super().__init__(msg)
 
         self.token = token

@@ -231,9 +231,23 @@ _gen_keyword_tokens()
 class Result(Nonterm):
     "%start"
 
+    def reduce_constraint(self, expr):
+        "%reduce ColConstraintElem"
+        self.val = expr.val
+
     def reduce(self, expr):
         "%reduce a_expr"
         self.val = expr.val
+
+
+class ColConstraintElem(Nonterm):
+    # NOT NULL_P | NULL_P | UNIQUE opt_definition OptConsTableSpace
+    # | PRIMARY KEY opt_definition OptConsTableSpace
+    # | CHECK '(' a_expr ')'
+
+    def reduce_LPAREN_a_expr_RPAREN(self, *kids):
+        "%reduce CHECK LPAREN a_expr RPAREN"
+        return kids[2]
 
 
 class attrs(Nonterm):

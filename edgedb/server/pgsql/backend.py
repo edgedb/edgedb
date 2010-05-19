@@ -8,12 +8,11 @@
 
 import os
 import re
-import importlib
 
 import postgresql.string
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
-from semantix.utils import helper
+from semantix.utils import ast, helper
 from semantix.utils.algos import topological
 from semantix.utils.debug import debug
 from semantix.utils.lang import yaml
@@ -36,7 +35,7 @@ from .datasources import introspection
 from .transformer import CaosTreeTransformer
 
 from . import astexpr
-from .parser import parser
+from . import parser
 
 
 class Session(session.Session):
@@ -138,12 +137,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     typlen_re = re.compile(r"(?P<type>.*) \( (?P<length>\d+ (?:\s*,\s*(\d+))*) \)$",
                            re.X)
 
-    check_constraint_re = re.compile(r"CHECK \s* \( (?P<expr>.*) \)$", re.X)
-
     constraint_type_re = re.compile(r"^(?P<type>[.\w-]+)(?:_\d+)?$", re.X)
-
-    cast_re = re.compile(r"""(::(?P<type>(?:(?P<quote>\"?)[\w -]+(?P=quote)\.)?
-                                (?P<quote1>\"?)[\w -]+(?P=quote1)))+$""", re.X)
 
     search_idx_name_re = re.compile(r"""
         .*_(?P<language>\w+)_(?P<index_class>\w+)_search_idx$
@@ -152,17 +146,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     mod_constraint_name_re = re.compile(r"""
         ^(?P<concept_name>[.\w]+):(?P<link_name>[.\w]+)::(?P<constraint_class>[.\w]+)::atom_mod$
     """, re.X)
-
-
-    constr_expr_res = {
-        'regexp': re.compile(r"VALUE(?:::\w+)? \s* ~ \s* '(?P<expr>[^']*)'::text", re.X),
-        'max-length': re.compile(r"length\(VALUE(?:::\w+)?\) \s* <= \s* (?P<expr>\d+)$",re.X),
-        'min-length': re.compile(r"length\(VALUE(?:::\w+)?\) \s* >= \s* (?P<expr>\d+)$", re.X),
-        'min-value': re.compile(r"VALUE(?:::\w+)? \s* >= \s* (?P<expr>.+)$",re.X),
-        'min-value-ex': re.compile(r"VALUE(?:::\w+)? \s* > \s* (?P<expr>.+)$",re.X),
-        'max-value': re.compile(r"VALUE(?:::\w+)? \s* <= \s* (?P<expr>.+)$",re.X),
-        'max-value-ex': re.compile(r"VALUE(?:::\w+)? \s* < \s* (?P<expr>.+)$",re.X),
-    }
 
 
     def __init__(self, deltarepo, connection):
@@ -175,6 +158,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.parser = parser.PgSQLParser()
         self.search_idx_expr = astexpr.TextSearchExpr()
         self.atom_mod_exprs = {}
+        self.constant_expr = None
 
         self.meta = proto.RealmMeta(load_builtins=False)
 
@@ -594,14 +578,18 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             # Copy mods from parent (row['mods'] does not contain any inherited mods)
             atom.acquire_parent_data(meta)
 
-            if domain['constraints'] is not None:
-                for constraint_type in domain['constraints']:
-                    for constraint in domain['constraints'][constraint_type]:
-                        atom.add_mod(constraint)
+            if domain['constraints']:
+                mods = atom.normalize_mods(meta, domain['constraints'])
+                for mod in mods:
+                    atom.add_mod(mod)
 
             if row['mods']:
+                mods = []
                 for cls, val in row['mods'].items():
-                    mod = helper.get_object(cls)(next(iter(yaml.Language.load(val))))
+                    mods.append(helper.get_object(cls)(next(iter(yaml.Language.load(val)))))
+
+                mods = atom.normalize_mods(meta, mods)
+                for mod in mods:
                     atom.add_mod(mod)
 
             meta.add(atom)
@@ -661,24 +649,46 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return indexes
 
 
-    def interpret_table_constraint(self, name, expr):
-        m = self.mod_constraint_name_re.match(name)
-        if not m:
-            raise caos.MetaError('could not interpret table constraint %s' % name)
+    def interpret_constant(self, expr):
+        try:
+            expr_tree = self.parser.parse(expr)
+        except parser.PgSQLParserError as e:
+            msg = 'could not interpret constant expression "%s"' % expr
+            details = 'Syntax error when parsing expression: %s' % e.args[0]
+            raise caos.MetaError(msg, details=details) from e
 
-        link_name = m.group('link_name')
-        constraint_class = helper.get_object(m.group('constraint_class'))
+        if not self.constant_expr:
+            self.constant_expr = astexpr.ConstantExpr()
 
-        expr_tree = self.parser.parse(expr)
+        value = self.constant_expr.match(expr_tree)
+
+        if value is None:
+            msg = 'could not interpret constant expression "%s"' % expr
+            details = 'Could not match expression:\n%s' % ast.dump.pretty_dump(expr_tree)
+            hint = 'Take a look at the matching pattern and adjust'
+            raise caos.MetaError(msg, details=details, hint=hint)
+
+        return value
+
+
+    def interpret_constraint(self, constraint_class, expr, name):
+
+        try:
+            expr_tree = self.parser.parse(expr)
+        except parser.PgSQLParserError as e:
+            msg = 'could not interpret constraint %s' % name
+            details = 'Syntax error when parsing expression: %s' % e.args[0]
+            raise caos.MetaError(msg, details=details) from e
 
         pattern = self.atom_mod_exprs.get(constraint_class)
         if not pattern:
             adapter = astexpr.AtomModAdapterMeta.get_adapter(constraint_class)
 
             if not adapter:
-                msg = 'could not interpret table constraint %s' % name
+                msg = 'could not interpret constraint %s' % name
                 details = 'No matching pattern defined for constraint class "%s"' % constraint_class
                 hint = 'Implement matching pattern for "%s"' % constraint_class
+                hint += '\nExpression:\n%s' % ast.dump.pretty_dump(expr_tree)
                 raise caos.MetaError(msg, details=details, hint=hint)
 
             pattern = adapter()
@@ -687,12 +697,23 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         constraint_data = pattern.match(expr_tree)
 
         if constraint_data is None:
-            from semantix.utils import ast
-
-            msg = 'could not interpret table constraint %s' % name
-            details = 'Expression:\n%s' % ast.dump.pretty_dump(expr_tree)
+            msg = 'could not interpret constraint "%s"' % name
+            details = 'Pattern "%r" could not match expression:\n%s' \
+                                            % (pattern.__class__, ast.dump.pretty_dump(expr_tree))
             hint = 'Take a look at the matching pattern and adjust'
             raise caos.MetaError(msg, details=details, hint=hint)
+
+        return constraint_data
+
+
+    def interpret_table_constraint(self, name, expr):
+        m = self.mod_constraint_name_re.match(name)
+        if not m:
+            raise caos.MetaError('could not interpret table constraint %s' % name)
+
+        link_name = m.group('link_name')
+        constraint_class = helper.get_object(m.group('constraint_class'))
+        constraint_data = self.interpret_constraint(constraint_class, expr, name)
 
         return link_name, constraint_class(constraint_data)
 
@@ -1005,7 +1026,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def normalize_domain_descr(self, d):
         if d['constraint_names'] is not None:
-            constraints = {}
+            constraints = []
 
             for constr_name, constr_expr in zip(d['constraint_names'], d['constraints']):
                 m = self.constraint_type_re.match(constr_name)
@@ -1015,44 +1036,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     raise caos.MetaError('could not parse domain constraint "%s": %s' %
                                          (constr_name, constr_expr))
 
-                if constr_expr.startswith('CHECK'):
-                    # Strip `CHECK()`
-                    constr_expr = self.check_constraint_re.match(constr_expr).group('expr')
-                    constr_expr.replace("''", "'")
-                else:
-                    raise caos.MetaError('could not parse domain constraint "%s": %s' %
-                                         (constr_name, constr_expr))
-
-                constr_mod, dot, constr_class = constr_type.rpartition('.')
-
-                constr_mod = importlib.import_module(constr_mod)
-                constr_type = getattr(constr_mod, constr_class)
-
-                m = self.constr_expr_res[constr_type.mod_name].findall(constr_expr)
-                if not m:
-                    raise caos.MetaError('could not parse domain constraint "%s": %s' %
-                                         (constr_name, constr_expr))
-
-                if issubclass(constr_type, (proto.AtomModMinLength, proto.AtomModMaxLength)):
-                    constr_expr = [int(m[0])]
-                else:
-                    # That's a very hacky way to remove casts from expressions added by Postgres
-                    constr_expr = []
-                    for val in m:
-                        cast = self.cast_re.search(val)
-                        if cast:
-                            val = self.cast_re.sub('', val).strip("'")
-                            atom = self.pg_type_to_atom_name_and_mods(cast.group('type'))
-                            if atom:
-                                atom_name = atom[0]
-                                if atom_name == 'semantix.caos.builtins.int':
-                                    val = int(val)
-                        constr_expr.append(val)
-
-                if constr_type not in constraints:
-                    constraints[constr_type] = []
-
-                constraints[constr_type].extend((constr_type(e) for e in constr_expr))
+                constr_type = helper.get_object(constr_type)
+                constr_data = self.interpret_constraint(constr_type, constr_expr, constr_name)
+                constraints.append(constr_type(constr_data))
 
             d['constraints'] = constraints
 
@@ -1060,16 +1046,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             result = self.pg_type_to_atom_name_and_mods(d['basetype_full'])
             if result:
                 base, mods = result
-                for mod in mods:
-                    if mod.__class__ not in constraints:
-                        constraints[mod.__class__] = []
-
-                    constraints[mod.__class__].append(mod)
-
+                constraints.extend(mods)
 
         if d['default'] is not None:
-            # Strip casts from default expression
-            d['default'] = self.cast_re.sub('', d['default']).strip("'")
+            d['default'] = self.interpret_constant(d['default'])
 
         return d
 
@@ -1161,6 +1141,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if atom_mods:
                 atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,
                                   automatic=True)
+
+                mods = atom.normalize_mods(meta, mods)
+
                 for mod in mods:
                     atom.add_mod(mod)
 

@@ -14,7 +14,7 @@ import pyggy
 from semantix.utils import debug
 
 from . import parsermeta
-
+from .error import PgSQLParserError
 
 class _ParserSpecs:
     parser_spec = None
@@ -63,18 +63,22 @@ class PgSQLParser(Parsing.Lr):
     def parse(self, input):
         self.reset_parser(input)
 
-        tok = self.lexer.token()
-
-        while tok:
-            token = parsermeta.TokenMeta.for_lex_token(tok)(self, self.lexer.value)
-
-            """LOG [caos.pgsql.lexer] TOKEN
-            print('%r' % token)
-            """
-
-            self.token(token)
+        try:
             tok = self.lexer.token()
 
-        self.eoi()
+            while tok:
+                token = parsermeta.TokenMeta.for_lex_token(tok)(self, self.lexer.value)
+
+                """LOG [caos.pgsql.lexer] TOKEN
+                print('%r' % token)
+                """
+
+                self.token(token)
+                tok = self.lexer.token()
+
+            self.eoi()
+
+        except Parsing.SyntaxError as e:
+            raise PgSQLParserError(e.args[0]) from e
 
         return self.start[0].val

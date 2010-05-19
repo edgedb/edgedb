@@ -23,6 +23,7 @@ from semantix import caos
 from semantix.caos import proto
 from semantix.caos import backends
 from semantix.caos import delta as base_delta
+from semantix.caos import objects
 
 from . import delta
 from .common import StructMeta
@@ -56,6 +57,36 @@ class LangObject(yaml.Object, metaclass=LangObjectMeta):
                 return base
 
         return cls
+
+
+class Bool(yaml.Object, adapts=objects.boolean.Bool, ignore_aliases=True):
+    @classmethod
+    def represent(cls, data):
+        return bool(data)
+
+
+class TimeDelta(yaml.Object, adapts=objects.datetime.TimeDelta, ignore_aliases=True):
+    @classmethod
+    def represent(cls, data):
+        return str(data)
+
+
+class Int(yaml.Object, adapts=objects.int.Int, ignore_aliases=True):
+    @classmethod
+    def represent(cls, data):
+        return int(data)
+
+
+class DecimalMeta(LangObjectMeta, type(objects.numeric.Decimal)):
+    pass
+
+
+class Decimal(yaml.Object, metaclass=DecimalMeta,
+              adapts=objects.numeric.Decimal, ignore_aliases=True):
+    @classmethod
+    def represent(cls, data):
+        return str(data)
+
 
 
 class WordCombination(LangObject, adapts=morphology.WordCombination, ignore_aliases=True):
@@ -262,10 +293,7 @@ class Atom(Prototype, adapts=proto.Atom):
                             default=default, title=data['title'],
                             description=data['description'], is_abstract=data['abstract'],
                             _setdefaults_=False, _relaxrequired_=True)
-        mods = data.get('mods')
-        if mods:
-            for mod in mods:
-                self.add_mod(mod)
+        self._mods = data.get('mods')
 
     @classmethod
     def represent(cls, data):
@@ -661,6 +689,12 @@ class MetaSet(LangObject):
         g = {}
 
         for atom in globalmeta('atom', include_automatic=True, include_builtin=True):
+            mods = getattr(atom, '_mods', None)
+            if mods:
+                atom.normalize_mods(globalmeta, mods)
+                for mod in mods:
+                    atom.add_mod(mod)
+
             g[atom.name] = {"item": atom, "merge": [], "deps": []}
 
             if atom.base:
@@ -785,7 +819,8 @@ class MetaSet(LangObject):
                     mods = getattr(property, 'mods', None)
                     if mods:
                         # Got an inline atom definition.
-                        atom = self.genatom(link, property.target.name, property_name, mods)
+                        atom = self.genatom(globalmeta, link, property.target.name, property_name,
+                                                                                    mods)
                         globalmeta.add(atom)
                         property.target = atom
 
@@ -906,7 +941,8 @@ class MetaSet(LangObject):
                         mods = getattr(link, 'mods', None)
                         if mods:
                             # Got an inline atom definition.
-                            atom = self.genatom(concept, link.target.name, link_name, mods)
+                            atom = self.genatom(globalmeta, concept, link.target.name, link_name,
+                                                                                       mods)
                             globalmeta.add(atom)
                             link.target = atom
 
@@ -928,10 +964,11 @@ class MetaSet(LangObject):
         return topological.normalize(g, merger=proto.Concept.merge)
 
 
-    def genatom(self, host, base, link_name, mods):
+    def genatom(self, meta, host, base, link_name, mods):
         atom_name = Atom.gen_atom_name(host, link_name)
         atom = proto.Atom(name=caos.Name(name=atom_name, module=host.name.module),
                           base=base, automatic=True, backend=None)
+        atom.normalize_mods(meta, mods)
         for mod in mods:
             atom.add_mod(mod)
         return atom

@@ -12,7 +12,31 @@ from semantix.utils.functional import adapter
 
 from semantix.utils import ast
 from semantix.utils.ast import match as astmatch
+from . import ast as pgast
 from  . import astmatch as pgastmatch
+
+
+class ConstantExpr:
+    def __init__(self):
+        self.pattern = None
+
+    def get_pattern(self):
+        if self.pattern is None:
+            self.pattern = astmatch.Or(
+                               astmatch.group('value', pgastmatch.ConstantNode()),
+                               pgastmatch.TypeCastNode(
+                                   expr=astmatch.group('value', pgastmatch.ConstantNode())
+                               )
+                           )
+        return self.pattern
+
+    def match(self, tree):
+        m = astmatch.match(self.get_pattern(), tree)
+        if m:
+            return m.value[0].node.value
+        else:
+            return None
+
 
 
 class TextSearchExpr:
@@ -105,7 +129,7 @@ class AtomModExpr(metaclass=AtomModAdapterMeta):
     pass
 
 
-class AtomModValueExpr(AtomModExpr, adapts=proto.AtomModLength):
+class AtomModLengthExpr(AtomModExpr, adapts=proto.AtomModLength):
     def __init__(self):
         self.pattern = None
 
@@ -132,6 +156,56 @@ class AtomModValueExpr(AtomModExpr, adapts=proto.AtomModLength):
         m = astmatch.match(self.get_pattern(), tree)
         if m:
             return m.value[0].node.value
+        else:
+            return None
+
+
+class AtomModComparisonExpr(AtomModExpr, adapts=proto.AtomModComparison):
+    def __init__(self):
+        self.pattern = None
+
+    def get_pattern(self):
+        if self.pattern is None:
+            self.pattern = pgastmatch.BinOpNode(
+                left=astmatch.Or(
+                        pgastmatch.FieldRefNode(),
+                        pgastmatch.TypeCastNode(
+                            expr=pgastmatch.FieldRefNode()
+                        )
+                     ),
+                right=astmatch.Or(
+                          astmatch.group('value', astmatch.Or(
+                            pgastmatch.ConstantNode(),
+                            pgastmatch.UnaryOpNode(
+                                operand=pgastmatch.ConstantNode()
+                            )
+                          )),
+                          pgastmatch.TypeCastNode(
+                            expr=astmatch.group('value', astmatch.Or(
+                                    pgastmatch.ConstantNode(),
+                                    pgastmatch.UnaryOpNode(
+                                        operand=pgastmatch.ConstantNode()
+                                    )
+                                 ))
+                          )
+                      )
+            )
+
+        return self.pattern
+
+    def match(self, tree):
+        m = astmatch.match(self.get_pattern(), tree)
+        if m:
+            node = m.value[0].node
+            if isinstance(node, pgast.UnaryOpNode):
+                if node.op == ast.ops.UMINUS:
+                    value = -node.operand.value
+                else:
+                    value = node.operand.value
+            else:
+                value = node.value
+
+            return value
         else:
             return None
 
