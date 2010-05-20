@@ -353,8 +353,8 @@ class Concept(Prototype, adapts=proto.Concept):
         if data.is_abstract:
             result['abstract'] = data.is_abstract
 
-        if data.ownlinks:
-            result['links'] = dict(data.ownlinks)
+        if data.own_pointers:
+            result['links'] = dict(data.own_pointers)
 
         return result
 
@@ -487,8 +487,8 @@ class LinkDef(Prototype, adapts=proto.Link):
         if data.default is not None:
             result['default'] = data.default
 
-        if data.own_properties:
-            result['properties'] = {p.normal_name(): p for p in data.own_properties.values()}
+        if data.own_pointers:
+            result['properties'] = {p.normal_name(): p for p in data.own_pointers.values()}
 
         if data.constraints:
             constraints = itertools.chain.from_iterable(data.constraints.values())
@@ -769,7 +769,7 @@ class MetaSet(LangObject):
                 property.target = atom_ns.normalize_name(property.target)
             else:
                 link_base = globalmeta.get(link.base[0], type=proto.Link)
-                propdef = link_base.properties.get(property_qname)
+                propdef = link_base.pointers.get(property_qname)
                 if not propdef:
                     raise caos.MetaError('link "%s" does not define property "%s"' \
                                          % (link.name, property_qname))
@@ -812,7 +812,7 @@ class MetaSet(LangObject):
         g = {}
 
         for link in globalmeta('link', include_automatic=True, include_builtin=True):
-            for property_name, property in link.properties.items():
+            for property_name, property in link.pointers.items():
                 if property.target:
                     property.target = globalmeta.get(property.target)
 
@@ -922,7 +922,7 @@ class MetaSet(LangObject):
             links = {}
             link_target_types = {}
 
-            for link_name, links in concept.links.items():
+            for link_name, links in concept.pointers.items():
                 for link in links:
                     if not isinstance(link.source, proto.Prototype):
                         link.source = globalmeta.get(link.source)

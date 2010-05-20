@@ -271,7 +271,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             concept_proto = self.meta.get(concept)
             ret = {}
 
-            for link_name in concept_proto.links:
+            for link_name in concept_proto.pointers:
 
                 if link_name != 'semantix.caos.builtins.id':
                     colname = common.caos_name_to_pg_name(link_name)
@@ -291,7 +291,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         cls = entity.__class__
         concept = cls._metadata.name
         id = entity.id
-        links = entity._instancedata.links
+        links = entity._instancedata.pointers
         realm = cls._metadata.realm
 
         connection = session.connection if session else self.connection

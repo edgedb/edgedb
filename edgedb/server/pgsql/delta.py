@@ -669,10 +669,10 @@ class UpdateSearchIndexes(MetaCommand):
         if isinstance(self.host, caos.types.ProtoConcept):
             columns = []
 
-            names = sorted(self.host.links.keys())
+            names = sorted(self.host.pointers.keys())
 
             for link_name in names:
-                for link in self.host.links[link_name]:
+                for link in self.host.pointers[link_name]:
                     if link.search:
                         column_name = common.caos_name_to_pg_name(link_name)
                         columns.append(TextSearchIndexColumn(column_name, link.search.weight,
@@ -798,7 +798,7 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
         # Need to update all bits that reference concept name
 
         # Atom mods
-        for linkset in proto.ownlinks.values():
+        for linkset in proto.own_pointers.values():
             for link in linkset:
                 if link.atomic():
                     self.adjust_link_constraints(meta, context, proto, link)
@@ -1076,14 +1076,14 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         self.table_name = new_table_name
 
     def has_table(self, link, meta, context):
-        return (not link.atomic() or link.properties) and link.generic()
+        return (not link.atomic() or link.pointers) and link.generic()
 
     def provide_table(self, link, meta, context):
         if self.has_table(link, meta, context):
             self.create_table(link, meta, context, conditional=True)
 
     def schedule_mapping_update(self, link, meta, context):
-        if (not link.atomic() or link.properties):
+        if (not link.atomic() or link.pointers):
             mapping_indexes = context.get(delta_cmds.RealmCommandContext).op.update_mapping_indexes
             link_name = link.normal_name()
             ops = mapping_indexes.links.get(link_name)
