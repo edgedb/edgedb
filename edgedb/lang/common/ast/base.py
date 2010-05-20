@@ -5,7 +5,7 @@
 # See LICENSE for details.
 ##
 
-
+import copy
 from . import dump
 
 
@@ -93,6 +93,18 @@ class AST(object, metaclass=MetaAST):
 
             # Bypass overloaded setattr
             object.__setattr__(self, field_name, value)
+
+    def __copy__(self):
+        copied = self.__class__()
+        for field, value in iter_fields(self):
+            setattr(copied, field, value)
+        return copied
+
+    def __deepcopy__(self, memo):
+        copied = self.__class__()
+        for field, value in iter_fields(self):
+            setattr(copied, field, copy.deepcopy(value, memo))
+        return copied
 
     if __debug__:
         def __setattr__(self, name, value):
