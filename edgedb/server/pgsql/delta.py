@@ -1053,11 +1053,13 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
 
         if link.name == 'semantix.caos.builtins.link':
             columns.append(Column(name='source_id', type='uuid', required=True))
-            columns.append(Column(name='target_id', type='uuid', required=True))
+            # target_id column is not required, since there may be records for atomic links,
+            # and atoms are stored in the source table.
+            columns.append(Column(name='target_id', type='uuid', required=False))
             columns.append(Column(name='link_type_id', type='integer', required=True))
 
-        constraints.append(PrimaryKey(table_name=new_table_name,
-                                      columns=['source_id', 'target_id', 'link_type_id']))
+        constraints.append(UniqueConstraint(table_name=new_table_name,
+                                            columns=['source_id', 'target_id', 'link_type_id']))
 
         table = Table(name=new_table_name)
         table.add_columns(columns)
@@ -1819,7 +1821,8 @@ class Update(DMLOperation):
 
             placeholders.append('%s = %s' % (e(f), expr))
 
-        where = ' AND '.join('%s = $%d' % (e(c[0]), ci + i) for ci, c in enumerate(self.condition))
+        where = ' AND '.join('%s IS NOT DISTINCT FROM $%d' % (e(c[0]), ci + i) \
+                             for ci, c in enumerate(self.condition))
 
         code = 'UPDATE %s SET %s WHERE %s' % \
                 (common.qname(*self.table.name), ', '.join(placeholders), where)

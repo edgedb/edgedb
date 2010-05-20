@@ -88,11 +88,17 @@ class TreeTransformer:
             elif isinstance(expr, caos_ast.AtomicRefSimple):
                 self.extract_prefixes(expr.ref, prefixes)
 
+        elif isinstance(expr, caos_ast.EntityLink):
+            self.extract_prefixes(expr.target or expr.source, prefixes)
+
+        elif isinstance(expr, caos_ast.LinkPropRefSimple):
+            self.extract_prefixes(expr.ref, prefixes)
+
         elif isinstance(expr, caos_ast.BinOp):
             self.extract_prefixes(expr.left, prefixes)
             self.extract_prefixes(expr.right, prefixes)
 
-        elif isinstance(expr, caos_ast.InlineFilter):
+        elif isinstance(expr, (caos_ast.InlineFilter, caos_ast.InlinePropFilter)):
             self.extract_prefixes(expr.ref, prefixes)
             self.extract_prefixes(expr.expr, prefixes)
 
@@ -237,7 +243,7 @@ class TreeTransformer:
                 raise TreeError('invalid expression mix of aggregates and non-aggregates')
 
         elif isinstance(expr, (caos_ast.AtomicRef, caos_ast.Constant, caos_ast.InlineFilter,
-                               caos_ast.EntitySet)):
+                               caos_ast.EntitySet, caos_ast.InlinePropFilter)):
             pass
 
         elif isinstance(expr, caos_ast.PathCombination):
@@ -246,7 +252,7 @@ class TreeTransformer:
 
         else:
             # All other nodes fall through
-            assert False
+            assert False, 'unexpected expression "%r"' % expr
 
         return expr
 
@@ -286,7 +292,8 @@ class TreeTransformer:
                 self._postprocess_expr(path)
 
         elif isinstance(expr, caos_ast.EntityLink):
-            self._postprocess_expr(expr.target)
+            if expr.target:
+                self._postprocess_expr(expr.target)
 
         else:
             assert False, "Unexpexted expression: %s" % expr
@@ -297,6 +304,17 @@ class TreeTransformer:
                 expr.ref.filter = self.extend_binop(expr.ref.filter, expr.expr)
                 self.merge_paths(expr.ref)
                 expr = caos_ast.InlineFilter(expr=expr.ref.filter, ref=expr.ref)
+            else:
+                self.merge_paths(expr.expr)
+
+        elif isinstance(expr, caos_ast.LinkPropRefExpr):
+            if self.context.current.location == 'generator':
+                expr.ref.propfilter = self.extend_binop(expr.ref.propfilter, expr.expr)
+                if expr.ref.target:
+                    self.merge_paths(expr.ref.target)
+                else:
+                    self.merge_paths(expr.ref.source)
+                expr = caos_ast.InlinePropFilter(expr=expr.ref.propfilter, ref=expr.ref)
             else:
                 self.merge_paths(expr.expr)
 
@@ -330,11 +348,14 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.AtomicRefSimple):
             expr.ref.atomrefs.add(expr)
 
+        elif isinstance(expr, caos_ast.LinkPropRefSimple):
+            expr.ref.proprefs.add(expr)
+
         elif isinstance(expr, caos_ast.EntitySet):
             if expr.rlink:
                 self.merge_paths(expr.rlink.source)
 
-        elif isinstance(expr, (caos_ast.InlineFilter, caos_ast.Constant)):
+        elif isinstance(expr, (caos_ast.InlineFilter, caos_ast.Constant, caos_ast.InlinePropFilter)):
             pass
 
         elif isinstance(expr, caos_ast.FunctionCall):
@@ -350,7 +371,7 @@ class TreeTransformer:
             expr = expr.__class__(elements=elements)
 
         else:
-            assert False
+            assert False, 'unexpected expression "%r"' % expr
 
         return expr
 
@@ -418,7 +439,7 @@ class TreeTransformer:
                 """
             else:
                 """LOG [caos.graph.merge] INTERSECTING
-                print(' ' * self.nest, getattr(result, 'id', result), getattr(path, 'id', path))
+                print(' ' * self.nest, result, path, getattr(result, 'id', '??'), getattr(path, 'id', '??'), merge_filters)
                 self.nest += 2
                 """
 
@@ -479,48 +500,70 @@ class TreeTransformer:
         match = self.match_prefixes(left, right, ignore_filters=merge_filters)
         if match:
             if isinstance(left, caos_ast.EntityLink):
+                left_link = left
+                right_link = right
+
                 left = left.target
                 right = right.target
-
-            self.fixup_refs([right], left)
-
-            if merge_filters and right.filter:
-                left.filter = self.extend_binop(left.filter, right.filter, op=ast.ops.AND)
-
-            if merge_filters:
-                paths_left = set()
-                for dpath in right.disjunction.paths:
-                    if isinstance(dpath, (caos_ast.EntitySet, caos_ast.EntityLink)):
-                        merged = self.intersect_paths(left.conjunction, dpath)
-                        if merged is not left.conjunction:
-                            paths_left.add(dpath)
-                    else:
-                        paths_left.add(dpath)
-                right.disjunction = caos_ast.Disjunction(paths=frozenset(paths_left))
-
-            left.disjunction = self.add_paths(left.disjunction, right.disjunction, merge_filters)
-            left.atomrefs.update(right.atomrefs)
-            left.metarefs.update(right.metarefs)
-            left.users.update(right.users)
-            left.joins.update(right.joins)
-            left.joins.discard(left)
-
-            if merge_filters:
-                left.conjunction = self.intersect_paths(left.conjunction,
-                                                        right.conjunction, merge_filters)
-
-                # If greedy disjunction merging is requested, we must also try to
-                # merge disjunctions.
-                paths = frozenset(left.conjunction.paths) | frozenset(left.disjunction.paths)
-                self.unify_paths(paths, caos_ast.Conjunction, reverse=False, merge_filters=True)
-                left.disjunction.paths = left.disjunction.paths - left.conjunction.paths
             else:
-                conjunction = self.add_paths(left.conjunction, right.conjunction, merge_filters)
-                if conjunction.paths:
-                    left.disjunction.update(conjunction)
-                left.conjunction.paths = frozenset()
+                left_link = left.rlink
+                right_link = right.rlink
 
-            result = left
+            if left_link:
+                self.fixup_refs([right_link], left_link)
+                if merge_filters and right_link.propfilter:
+                    left_link.propfilter = self.extend_binop(left_link.propfilter,
+                                                             right_link.propfilter, op=ast.ops.AND)
+
+                left_link.proprefs.update(right_link.proprefs)
+
+            if left and right:
+                self.fixup_refs([right], left)
+
+                if merge_filters and right.filter:
+                    left.filter = self.extend_binop(left.filter, right.filter, op=ast.ops.AND)
+
+                if merge_filters:
+                    paths_left = set()
+                    for dpath in right.disjunction.paths:
+                        if isinstance(dpath, (caos_ast.EntitySet, caos_ast.EntityLink)):
+                            merged = self.intersect_paths(left.conjunction, dpath, merge_filters)
+                            if merged is not left.conjunction:
+                                paths_left.add(dpath)
+                        else:
+                            paths_left.add(dpath)
+                    right.disjunction = caos_ast.Disjunction(paths=frozenset(paths_left))
+
+                left.disjunction = self.add_paths(left.disjunction,
+                                                  right.disjunction, merge_filters)
+                left.atomrefs.update(right.atomrefs)
+                left.metarefs.update(right.metarefs)
+                left.users.update(right.users)
+                left.joins.update(right.joins)
+                left.joins.discard(left)
+
+                if merge_filters:
+                    left.conjunction = self.intersect_paths(left.conjunction,
+                                                            right.conjunction, merge_filters)
+
+                    # If greedy disjunction merging is requested, we must also try to
+                    # merge disjunctions.
+                    paths = frozenset(left.conjunction.paths) | frozenset(left.disjunction.paths)
+                    self.unify_paths(paths, caos_ast.Conjunction, reverse=False, merge_filters=True)
+                    left.disjunction.paths = left.disjunction.paths - left.conjunction.paths
+                else:
+                    conjunction = self.add_paths(left.conjunction, right.conjunction, merge_filters)
+                    if conjunction.paths:
+                        left.disjunction.update(conjunction)
+                    left.conjunction.paths = frozenset()
+
+                result = left
+            elif left:
+                result = left
+            elif right:
+                result = right
+            else:
+                result = left_link
         else:
             result = caos_ast.Disjunction(paths=frozenset((left, right)))
 
@@ -624,47 +667,70 @@ class TreeTransformer:
             if isinstance(left, caos_ast.EntityLink):
                 left_set = left.target
                 right_set = right.target
+                left_link = left
+                right_link = right
             else:
                 left_set = left
                 right_set = right
+                left_link = left.rlink
+                right_link = right.rlink
 
-            self.fixup_refs([right_set], left_set)
+            if left_link:
+                self.fixup_refs([right_link], left_link)
+                if right_link.propfilter:
+                    left_link.propfilter = self.extend_binop(left_link.propfilter,
+                                                             right_link.propfilter, op=ast.ops.AND)
 
-            if right_set.filter:
-                left_set.filter = self.extend_binop(left_set.filter, right_set.filter, op=ast.ops.AND)
+                left_link.proprefs.update(right_link.proprefs)
 
-            left_set.conjunction = self.intersect_paths(left_set.conjunction, right_set.conjunction, merge_filters)
-            left_set.atomrefs.update(right_set.atomrefs)
-            left_set.metarefs.update(right_set.metarefs)
-            left_set.users.update(right_set.users)
-            left_set.joins.update(right_set.joins)
-            left_set.joins.discard(left_set)
+            if right_set and left_set:
+                self.fixup_refs([right_set], left_set)
 
-            disjunction = self.intersect_paths(left_set.disjunction, right_set.disjunction, merge_filters)
+                if right_set.filter:
+                    left_set.filter = self.extend_binop(left_set.filter, right_set.filter,
+                                                        op=ast.ops.AND)
 
-            left_set.disjunction = caos_ast.Disjunction()
+                left_set.conjunction = self.intersect_paths(left_set.conjunction,
+                                                            right_set.conjunction, merge_filters)
+                left_set.atomrefs.update(right_set.atomrefs)
+                left_set.metarefs.update(right_set.metarefs)
+                left_set.users.update(right_set.users)
+                left_set.joins.update(right_set.joins)
+                left_set.joins.discard(left_set)
 
-            if isinstance(disjunction, caos_ast.Disjunction):
-                left_set.disjunction = disjunction
+                disjunction = self.intersect_paths(left_set.disjunction,
+                                                   right_set.disjunction, merge_filters)
 
-                if len(left_set.disjunction.paths) == 1:
-                    first_disj = next(iter(left_set.disjunction.paths))
-                    if isinstance(first_disj, caos_ast.Conjunction):
-                        left_set.conjunction = first_disj
-                        left_set.disjunction = caos_ast.Disjunction()
+                left_set.disjunction = caos_ast.Disjunction()
 
-            elif disjunction.paths:
-                left_set.conjunction = self.intersect_paths(left_set.conjunction, disjunction, merge_filters)
+                if isinstance(disjunction, caos_ast.Disjunction):
+                    left_set.disjunction = disjunction
 
-                self.flatten_path_combination(left_set.conjunction)
+                    if len(left_set.disjunction.paths) == 1:
+                        first_disj = next(iter(left_set.disjunction.paths))
+                        if isinstance(first_disj, caos_ast.Conjunction):
+                            left_set.conjunction = first_disj
+                            left_set.disjunction = caos_ast.Disjunction()
 
-                if len(left_set.conjunction.paths) == 1:
-                    first_conj = next(iter(left_set.conjunction.paths))
-                    if isinstance(first_conj, caos_ast.Disjunction):
-                        left_set.disjunction = first_conj
-                        left_set.conjunction = caos_ast.Conjunction()
+                elif disjunction.paths:
+                    left_set.conjunction = self.intersect_paths(left_set.conjunction,
+                                                                disjunction, merge_filters)
 
-            result = left
+                    self.flatten_path_combination(left_set.conjunction)
+
+                    if len(left_set.conjunction.paths) == 1:
+                        first_conj = next(iter(left_set.conjunction.paths))
+                        if isinstance(first_conj, caos_ast.Disjunction):
+                            left_set.disjunction = first_conj
+                            left_set.conjunction = caos_ast.Conjunction()
+
+                result = left
+            elif left_set:
+                result = left
+            elif right_set:
+                result = right
+            else:
+                result = left_link
         else:
             result = caos_ast.Conjunction(paths=frozenset({left, right}))
 
@@ -744,7 +810,7 @@ class TreeTransformer:
         if isinstance(left, (caos_ast.EntityLink, caos_ast.EntitySet)):
             if isinstance(right, (caos_ast.EntityLink, caos_ast.EntitySet)):
                 # Both operands are sets -- simply merge them
-                result = self.intersect_sets(left, right)
+                result = self.intersect_sets(left, right, merge_filters)
 
             elif isinstance(right, caos_ast.Disjunction):
                 result = self.intersect_with_disjunction(right, left)
@@ -795,15 +861,17 @@ class TreeTransformer:
 
         """LOG [caos.graph.merge] MATCH PREFIXES
         print(' ' * self.nest, our, other, ignore_filters)
-        print(' ' * self.nest, '   PATHS: ', our_node.id)
-        print(' ' * self.nest, '      *** ', other_node.id)
+        print(' ' * self.nest, '   PATHS: ', our_node.id if our_node else None)
+        print(' ' * self.nest, '      *** ', other_node.id if other_node else None)
         """
 
-        ok = (our_node.id == other_node.id
-              and our_node.anchor == other_node.anchor
-              and (ignore_filters or (not our_node.filter and not other_node.filter
-                                      and not our_node.conjunction.paths
-                                      and not other_node.conjunction.paths))
+        ok = ((our_node is None and other_node is None) or
+              (our_node is not None and other_node is not None and
+                (our_node.id == other_node.id
+                 and our_node.anchor == other_node.anchor
+                 and (ignore_filters or (not our_node.filter and not other_node.filter
+                                         and not our_node.conjunction.paths
+                                         and not other_node.conjunction.paths))))
               and (not link or (link.filter == other_link.filter)))
 
         if ok:
@@ -833,8 +901,17 @@ class TreeTransformer:
                     result = result.rlink.source
             return result
 
+        elif isinstance(path, (caos_ast.InlinePropFilter, caos_ast.LinkPropRef)):
+            return self.extract_paths(path.ref, reverse)
+
         elif isinstance(path, caos_ast.EntityLink):
-            return path
+            if reverse:
+                result = path.source
+                while result.rlink:
+                    result = result.rlink.source
+            else:
+                result = path
+            return result
 
         elif isinstance(path, caos_ast.PathCombination):
             result = set()
@@ -965,17 +1042,17 @@ class TreeTransformer:
             else:
                 return caos_ast.BinOp(left=left, op=operation, right=right)
 
-        if isinstance(left, (caos_ast.AtomicRef, caos_ast.Disjunction)):
+        if isinstance(left, (caos_ast.AtomicRef, caos_ast.LinkPropRef, caos_ast.Disjunction)):
             # If both left and right operands are references to atoms of the same node,
             # or one of the operands is a reference to an atom and other is a constant,
             # then fold the expression into an in-line filter of that node.
             #
-            if isinstance(left, caos_ast.AtomicRef):
+            if not isinstance(left, caos_ast.Disjunction):
                 left_exprs = caos_ast.Disjunction(paths=frozenset({left}))
             else:
                 left_exprs = left
 
-            def check_atomic_disjunction(expr):
+            def check_atomic_disjunction(expr, typ):
                 """Check that all paths in disjunction are atom references.
 
                    Return a dict mapping path prefixes to a corresponding node.
@@ -985,18 +1062,22 @@ class TreeTransformer:
                     # Check that refs in the operand are all atomic: non-atoms do not coerse
                     # to literals.
                     #
-                    if not isinstance(ref, caos_ast.AtomicRef):
+                    if not isinstance(ref, typ):
                         return None
 
-                    ref_id = ref.ref.id
+                    if isinstance(ref, caos_ast.AtomicRef):
+                        ref_id = ref.ref.id
+                    else:
+                        ref_id = ref.id
 
                     assert not pathdict.get(ref_id)
                     pathdict[ref_id] = ref
                 return pathdict
 
-            pathdict = check_atomic_disjunction(left_exprs)
+            pathdict = check_atomic_disjunction(left_exprs, caos_ast.AtomicRef)
+            proppathdict = check_atomic_disjunction(left_exprs, caos_ast.LinkPropRef)
 
-            if not pathdict:
+            if not pathdict and not proppathdict:
                 if isinstance(right, (caos_ast.Disjunction, caos_ast.EntitySet)):
                     if isinstance(right, caos_ast.EntitySet):
                         right_exprs = caos_ast.Disjunction(paths=frozenset({right}))
@@ -1065,30 +1146,33 @@ class TreeTransformer:
                 if isinstance(right, caos_ast.Constant):
                     paths = set()
 
+                    if proppathdict:
+                        exprnode_type = caos_ast.LinkPropRefExpr
+                    else:
+                        exprnode_type = caos_ast.AtomicRefExpr
+
                     for ref in left_exprs.paths:
-                        if isinstance(ref, caos_ast.AtomicRefExpr) \
+                        if isinstance(ref, exprnode_type) \
                            and isinstance(op, ast.ops.BooleanOperator):
                             # We must not inline boolean expressions beyond the original bin-op
                             result = newbinop(left, right)
                             break
-                        paths.add(caos_ast.AtomicRefExpr(expr=newbinop(ref, right)))
+                        paths.add(exprnode_type(expr=newbinop(ref, right)))
                     else:
                         if len(paths) == 1:
                             result = next(iter(paths))
                         else:
                             result = caos_ast.Disjunction(paths=frozenset(paths))
 
-
                 elif isinstance(right, (caos_ast.AtomicRef, caos_ast.Disjunction)):
-
                     if isinstance(right, caos_ast.AtomicRef):
                         right_exprs = caos_ast.Disjunction(paths=frozenset((right,)))
                     else:
                         right_exprs = right
 
-                    rightdict = check_atomic_disjunction(right_exprs)
+                    rightdict = check_atomic_disjunction(right_exprs, caos_ast.AtomicRef)
 
-                    if rightdict:
+                    if rightdict and not proppathdict:
                         paths = set()
 
                         # If both operands are atom references, then we check if the referenced
@@ -1116,10 +1200,48 @@ class TreeTransformer:
                     else:
                         result = newbinop(left, right)
 
+                elif isinstance(right, (caos_ast.LinkPropRef, caos_ast.Disjunction)):
+                    if isinstance(right, caos_ast.LinkPropRef):
+                        right_exprs = caos_ast.Disjunction(paths=frozenset((right,)))
+                    else:
+                        right_exprs = right
+
+                    rightdict = check_atomic_disjunction(right_exprs, caos_ast.LinkPropRef)
+
+                    if rightdict and not pathdict:
+                        paths = set()
+
+                        # If both operands are atom references, then we check if the referenced
+                        # atom parent concepts intersect, and if they do we fold the expression
+                        # into the atom ref for those common concepts only.  If there are no common
+                        # concepts, a regular binary operation is returned.
+                        #
+                        for ref in left_exprs.paths:
+                            left_id = ref.id
+
+                            right_expr = rightdict.get(left_id)
+
+                            if right_expr:
+                                right_expr.replace_refs([right_expr.ref], ref.ref, deep=True)
+                                filterop = newbinop(ref, right_expr)
+                                paths.add(caos_ast.LinkPropRefExpr(expr=filterop))
+
+                        if paths:
+                            if len(paths) == 1:
+                                result = next(iter(paths))
+                            else:
+                                result = caos_ast.Disjunction(paths=frozenset(paths))
+                        else:
+                            result = newbinop(left, right)
+                    else:
+                        result = newbinop(left, right)
+
                 elif isinstance(right, caos_ast.BinOp) and op == right.op:
                     # Got a bin-op, that was not folded into an atom ref.  Re-check it since
                     # we may use operator associativity to fold one of the operands
                     #
+                    assert not proppathdict
+
                     operands = [right.left, right.right]
                     while operands:
                         operand = operands.pop()

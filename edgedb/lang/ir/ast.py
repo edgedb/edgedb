@@ -96,7 +96,7 @@ class GraphExpr(Base):
                 'offset', 'limit', ('opselector', list), 'optarget', 'opvalues', 'op']
 
 
-class AtomicRef(Base):
+class BaseRef(Base):
     __fields = ['id', ('ref', Base, None, False)]
 
     def __init__(self, **kwargs):
@@ -114,11 +114,15 @@ class AtomicRef(Base):
             self.ref.backrefs.add(self)
 
 
+class AtomicRef(BaseRef):
+    pass
+
+
 class AtomicRefSimple(AtomicRef):
     __fields = [('name', caos_name.Name, None), 'caoslink']
 
 
-class AtomicRefExpr(AtomicRef):
+class BaseRefExpr(Base):
     __fields = ['expr']
 
     def __init__(self, **kwargs):
@@ -131,6 +135,8 @@ class AtomicRefExpr(AtomicRef):
         if name == 'expr':
             self.update_ref()
 
+
+class AtomicRefExpr(AtomicRef, BaseRefExpr):
     def update_ref(self):
         refs = set(ast.find_children(self.expr, lambda n: isinstance(n, EntitySet)))
         assert(len(refs) == 1)
@@ -141,8 +147,25 @@ class AtomicRefExpr(AtomicRef):
 class MetaRef(AtomicRefSimple):
     __fields = ['name']
 
+
+class LinkPropRef(BaseRef):
+    pass
+
+
+class LinkPropRefSimple(LinkPropRef):
+    __fields = [('name', caos_name.Name, None)]
+
+
+class LinkPropRefExpr(LinkPropRef, BaseRefExpr):
+    def update_ref(self):
+        refs = set(ast.find_children(self.expr, lambda n: isinstance(n, EntityLink)))
+        assert(len(refs) == 1)
+        ast.AST.__setattr__(self, 'ref', next(iter(refs)))
+        self.ref.backrefs.add(self)
+
+
 class EntityLink(Base):
-    __fields = ['filter', 'source', 'target', 'link_proto']
+    __fields = ['filter', 'propfilter', 'source', 'target', 'link_proto', ('proprefs', set)]
 
     def replace_refs(self, old, new, deep=False):
         # Since EntityLink can be a member of PathCombination set
@@ -151,16 +174,6 @@ class EntityLink(Base):
         super().replace_refs(old, new, deep)
         if replace:
             self.fixup_refs([self], self)
-
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return NotImplemented
-        if other is None:
-            return False
-        return self.filter == other.filter and self.source is other.source and self.target is other.target
-
-    def __hash__(self):
-        return hash((self.filter, self.source, self.target))
 
 
 class EntityLinkSpec(ast.AST):
@@ -231,6 +244,7 @@ class BinOp(Base):
     __fields = ['left', 'right', 'op', ('aggregates', bool)]
 
 class InlineFilter(Base): __fields  = ['expr', 'ref']
+class InlinePropFilter(Base): __fields  = ['expr', 'ref']
 class ExistPred(Base): __fields = ['expr', 'outer']
 class AtomicExistPred(ExistPred): pass
 class SortExpr(Base): __fields = ['expr', 'direction']

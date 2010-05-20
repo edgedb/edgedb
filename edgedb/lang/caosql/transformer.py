@@ -11,6 +11,7 @@ import itertools
 from semantix.caos import types as caos_types
 from semantix.caos import tree
 from semantix.caos import name as caos_name
+from semantix.caos import proto as caos_proto
 from semantix.caos.caosql import ast as qlast
 from semantix.caos.caosql import CaosQLError
 
@@ -261,8 +262,11 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 newtips = {}
 
                 for concept, tip in tips.items():
-                    module = link_expr.namespace or concept.name.module
-                    link_protos = self._normalize_link(context, link_expr.name, module)
+                    module = link_expr.namespace
+                    link_protos = self._normalize_link(context, concept, link_expr.name, module)
+
+                    if not link_protos:
+                        raise CaosQLError('reference to an undefined link "%s"' % link_expr.name)
 
                     seen_concepts = seen_atoms = False
                     all_links = link_protos[0].name == 'semantix.caos.builtins.link'
@@ -340,22 +344,65 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     anchors[anchor] = tree.ast.Disjunction(paths=frozenset(paths))
 
                 tips = newtips
+
+            elif isinstance(tip, qlast.LinkPropExprNode):
+                # LinkExprNode
+                link_expr = tip.expr
+
+                newtips = {}
+
+                for concept, tip in tips.items():
+                    module = link_expr.namespace
+
+                    for entset in tip:
+                        link = entset.rlink
+                        link_proto = next(iter(link.filter.labels))
+                        prop_protos = self._normalize_link(context, link_proto, link_expr.name,
+                                                           module, type=caos_proto.LinkProperty)
+
+                        if not prop_protos:
+                            raise CaosQLError('reference to an undefined link property "%s"'  \
+                                              % link_expr.name)
+
+                        for prop_proto in prop_protos:
+                            propref = tree.ast.LinkPropRefSimple(name=prop_proto.name, ref=link,
+                                                                 id=entset.id)
+                            newtips[prop_proto] = {propref}
+
+                tips = newtips
+            else:
+                assert False, 'Unexpected path step expression: "%s"' % tip
+
         paths = itertools.chain.from_iterable(tips.values())
         return tree.ast.Disjunction(paths=frozenset(paths))
 
-    def _normalize_link(self, context, link, namespace):
+    def _normalize_link(self, context, concept, link, namespace, type=caos_types.ProtoLink):
         if link == '%':
             links = [self.realm.meta.get(name='semantix.caos.builtins.link')]
         else:
-            links = self.realm.meta.match(name=link, module_aliases=context.current.namespaces,
-                                          type=caos_types.ProtoLink)
+            if not namespace:
+                assert '%' not in link
+                linkset = concept.get_attr(self.realm, link)
+                if linkset:
+                    if isinstance(linkset, caos_types.ProtoLinkSet):
+                        links = [self.realm.meta.get(linkset.first.base[0], type=type)]
+                    else:
+                        links = [self.realm.meta.get(linkset.base[0], type=type)]
+            else:
+                name = caos_name.Name(name=link, module=namespace)
+                links = self.realm.meta.match(name=name, module_aliases=context.current.namespaces,
+                                              type=type)
         return links
 
     def _normalize_concept(self, context, concept, namespace):
         if concept == '%':
             concept = self.realm.meta.get(name='semantix.caos.builtins.BaseObject')
         else:
-            concept = self.realm.meta.get(name=concept, module_aliases=context.current.namespaces,
+            if namespace:
+                name = caos_name.Name(name=concept, module=namespace)
+            else:
+                name = concept
+            concept = self.realm.meta.get(name=name, module_aliases=context.current.namespaces,
                                           type=caos_types.ProtoNode)
         return concept
 

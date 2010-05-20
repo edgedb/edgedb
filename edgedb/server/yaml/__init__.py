@@ -370,7 +370,7 @@ class LinkPropertyDef(Prototype, proto.LinkProperty):
 
         proto.LinkProperty.__init__(self, name=default_name, title=data['title'],
                                     base=tuple(extends) if extends else tuple(),
-                                    description=data['description'],
+                                    description=data['description'], readonly=data['readonly'],
                                     _setdefaults_=False, _relaxrequired_=True)
 
 
@@ -388,7 +388,7 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
 
             proto.LinkProperty.__init__(self, name=default_name, target=atom_name,
                                         title=info['title'], description=info['description'],
-                                        default=default,
+                                        readonly=info['readonly'], default=default,
                                         _setdefaults_=False, _relaxrequired_=True)
             self.mods = info.get('mods')
 
@@ -992,7 +992,26 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
             factory = session.realm.getfactory(module_aliases=aliases, session=session)
 
             concept, data = next(iter(self.data.items()))
-            self.entity = factory(concept)(**data)
+
+            links = {}
+            props = {}
+            for link_name, linkval in data.items():
+                if isinstance(linkval, list):
+                    links[link_name] = list()
+                    for item in linkval:
+                        if isinstance(item, dict):
+                            links[link_name].append(item['target'])
+                            props[(link_name, item['target'])] = item['properties']
+                        else:
+                            links[link_name].append(item)
+                else:
+                    links[link_name] = linkval
+
+            self.entity = factory(concept)(**links)
+            for (link_name, target), link_properties in props.items():
+                linkcls = caos.concept.getlink(self.entity, link_name, target)
+                linkcls.update(**link_properties)
+
             self.context.document.entities.append(self.entity)
 
 

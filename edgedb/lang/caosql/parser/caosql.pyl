@@ -28,7 +28,6 @@ INITIAL:
     "[Uu][Nn][Ii][Oo][Nn]"                  : return "UNION"
     "[Ee][Xx][Cc][Ee][Pp][Tt]"              : return "EXCEPT"
     "[Ss][Ee][Ll][Ee][Cc][Tt]"              : return "SELECT"
-    "[Ff][Rr][Oo][Mm]"                      : return "FROM"
     "[Ww][Hh][Ee][Rr][Ee]"                  : return "WHERE"
     "[Dd][Ii][Ss][Tt][Ii][Nn][Cc][Tt]"      : return "DISTINCT"
     "[Tt][Rr][Uu][Ee]"                      : return "TRUE"
