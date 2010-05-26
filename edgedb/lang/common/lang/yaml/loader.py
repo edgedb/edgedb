@@ -230,7 +230,7 @@ class Constructor(yaml.constructor.Constructor):
                     raise yaml.constructor.ConstructorError(None, None, '%r' % e, node.start_mark)
 
                 if not alias:
-                    alias = mod
+                    alias = mod.__name__
                 self.document_context.imports[alias] = mod
 
         return super().construct_document(node)
@@ -251,7 +251,8 @@ class Constructor(yaml.constructor.Constructor):
 
         data = self.construct_object(nodecopy)
 
-        result.prepare_class(data)
+        context = self._get_source_context(node, self.document_context)
+        result.prepare_class(context, data)
 
         yield result
 
