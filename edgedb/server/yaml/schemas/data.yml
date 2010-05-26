@@ -34,7 +34,19 @@ mapping:
                                   sequence:
                                     - type: choice
                                       choice:
-                                        - *CONCEPT_DATA
-                                        - type: str
-                                          object: semantix.caos.backends.yaml.EntityShell
+                                        - &ENTITY_SPEC
+                                          type: choice
+                                          choice:
+                                            - *CONCEPT_DATA
+                                            - type: str
+                                              object: semantix.caos.backends.yaml.EntityShell
+                                        - type: map
+                                          mapping:
+                                            "target":
+                                               *ENTITY_SPEC
+                                            "properties":
+                                               type: map
+                                               mapping:
+                                                   =: # Property Name
+                                                       type: scalar
                                 - type: scalar

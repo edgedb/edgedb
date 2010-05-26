@@ -79,7 +79,8 @@ class SelectQueryNode(RelationNode):
     __fields = ['distinct', ('fromlist', list), ('targets', list),
                 'where', 'where_weak', 'where_strong',
                 ('orderby', list), 'offset', 'limit', ('groupby', list), 'having',
-                ('ctes', datastructures.OrderedSet), ('concept_node_map', dict), ('linkmap', dict)]
+                ('ctes', datastructures.OrderedSet),
+                ('concept_node_map', dict), ('link_node_map', dict), ('linkmap', dict)]
 
 class UpdateQueryNode(Base):
     __fields = ['fromexpr', ('values', list), 'where', ('targets', list)]

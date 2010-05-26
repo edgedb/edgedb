@@ -328,25 +328,27 @@ gpe_subpath_with_parens         -> '(' gpe_subpath_no_parens ')':
                                         return kids[1]
 ;
 
-path_start                      -> path_start_label_expr ('@' path_var)? ('{' var '}')?:
-                                        if kids[2] is not None:
+path_start                      -> path_start_label_expr ('{' var '}')?:
+                                        if kids[1] is not None:
                                             path = PathNode(steps=[kids[0]])
-                                            path.var = kids[2][1]
+                                            path.var = kids[1][1]
                                             return path
                                         else:
                                             return kids[0]
 ;
 
-gpe_subpath_no_parens           -> gpe_path_step+:
+gpe_subpath_no_parens           -> gpe_path_step+ ('@' linkprop)?:
+                                        if kids[1]:
+                                            kids[0].append(LinkPropExprNode(expr=kids[1][1]))
                                         return kids[0]
 ;
 
-gpe_path_step                   -> gpe_path_step_simple ('@' path_var)? ('{' var '}')?:
+gpe_path_step                   -> gpe_path_step_simple ('{' var '}')?:
                                         path = kids[0]
-                                        if kids[2] is not None:
+                                        if kids[1] is not None:
                                             if not isinstance(path, PathNode):
                                                 path = PathNode(steps=[path])
-                                            path.var = kids[2][1]
+                                            path.var = kids[1][1]
 
                                         return path
 ;
@@ -363,6 +365,12 @@ link_expr                       -> '.' link_spec:
 ;
 
 link_spec                       -> '[' or_link_expr ']':
+                                        return kids[1]
+                                 | link_label_expr:
+                                        return kids[0]
+;
+
+linkprop                        -> '[' link_label_expr ']':
                                         return kids[1]
                                  | link_label_expr:
                                         return kids[0]

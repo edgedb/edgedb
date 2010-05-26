@@ -9,10 +9,17 @@
 import datetime
 import dateutil.parser
 import dateutil.relativedelta
+import dateutil.tz
 import re
 
+from semantix.utils import config
 
+
+@config.configurable
 class DateTime(datetime.datetime):
+    local_timezone = config.cvalue(type=str, default=None, doc='Default local time-zone')
+    local_tz = None
+
     def __new__(cls, value=None):
         if isinstance(value, datetime.datetime):
             d = value
@@ -24,8 +31,13 @@ class DateTime(datetime.datetime):
         else:
             raise ValueError("invalid value for DateTime object: %s" % value)
 
+        if cls.local_tz is None:
+            cls.local_tz = dateutil.tz.gettz(name=cls.local_timezone)
+
+        tzinfo = d.tzinfo or cls.local_tz
+
         return super().__new__(cls, d.year, d.month, d.day, d.hour, d.minute, d.second,
-                                    d.microsecond, d.tzinfo)
+                                    d.microsecond, tzinfo)
 
 
 class TimeDelta(dateutil.relativedelta.relativedelta):

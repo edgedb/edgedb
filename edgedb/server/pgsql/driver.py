@@ -13,7 +13,7 @@ from postgresql.driver import pq3
 from postgresql.string import quote_ident
 from postgresql.python.functools import Composition as compose
 
-from semantix.caos.objects.datetime import TimeDelta
+from semantix.caos.objects.datetime import TimeDelta, DateTime
 
 
 def interval_pack(x):
@@ -32,7 +32,8 @@ oid_to_io = {
 }
 
 oid_to_type = {
-    postgresql.types.UUIDOID: uuid.UUID
+    postgresql.types.UUIDOID: uuid.UUID,
+    postgresql.types.TIMESTAMPTZOID: DateTime
 }
 
 

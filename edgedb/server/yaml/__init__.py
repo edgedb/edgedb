@@ -353,8 +353,8 @@ class Concept(Prototype, adapts=proto.Concept):
         if data.is_abstract:
             result['abstract'] = data.is_abstract
 
-        if data.ownlinks:
-            result['links'] = dict(data.ownlinks)
+        if data.own_pointers:
+            result['links'] = dict(data.own_pointers)
 
         return result
 
@@ -370,7 +370,7 @@ class LinkPropertyDef(Prototype, proto.LinkProperty):
 
         proto.LinkProperty.__init__(self, name=default_name, title=data['title'],
                                     base=tuple(extends) if extends else tuple(),
-                                    description=data['description'],
+                                    description=data['description'], readonly=data['readonly'],
                                     _setdefaults_=False, _relaxrequired_=True)
 
 
@@ -388,7 +388,7 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
 
             proto.LinkProperty.__init__(self, name=default_name, target=atom_name,
                                         title=info['title'], description=info['description'],
-                                        default=default,
+                                        readonly=info['readonly'], default=default,
                                         _setdefaults_=False, _relaxrequired_=True)
             self.mods = info.get('mods')
 
@@ -487,8 +487,8 @@ class LinkDef(Prototype, adapts=proto.Link):
         if data.default is not None:
             result['default'] = data.default
 
-        if data.own_properties:
-            result['properties'] = {p.normal_name(): p for p in data.own_properties.values()}
+        if data.own_pointers:
+            result['properties'] = {p.normal_name(): p for p in data.own_pointers.values()}
 
         if data.constraints:
             constraints = itertools.chain.from_iterable(data.constraints.values())
@@ -769,7 +769,7 @@ class MetaSet(LangObject):
                 property.target = atom_ns.normalize_name(property.target)
             else:
                 link_base = globalmeta.get(link.base[0], type=proto.Link)
-                propdef = link_base.properties.get(property_qname)
+                propdef = link_base.pointers.get(property_qname)
                 if not propdef:
                     raise caos.MetaError('link "%s" does not define property "%s"' \
                                          % (link.name, property_qname))
@@ -812,7 +812,7 @@ class MetaSet(LangObject):
         g = {}
 
         for link in globalmeta('link', include_automatic=True, include_builtin=True):
-            for property_name, property in link.properties.items():
+            for property_name, property in link.pointers.items():
                 if property.target:
                     property.target = globalmeta.get(property.target)
 
@@ -922,7 +922,7 @@ class MetaSet(LangObject):
             links = {}
             link_target_types = {}
 
-            for link_name, links in concept.links.items():
+            for link_name, links in concept.pointers.items():
                 for link in links:
                     if not isinstance(link.source, proto.Prototype):
                         link.source = globalmeta.get(link.source)
@@ -992,7 +992,26 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
             factory = session.realm.getfactory(module_aliases=aliases, session=session)
 
             concept, data = next(iter(self.data.items()))
-            self.entity = factory(concept)(**data)
+
+            links = {}
+            props = {}
+            for link_name, linkval in data.items():
+                if isinstance(linkval, list):
+                    links[link_name] = list()
+                    for item in linkval:
+                        if isinstance(item, dict):
+                            links[link_name].append(item['target'])
+                            props[(link_name, item['target'])] = item['properties']
+                        else:
+                            links[link_name].append(item)
+                else:
+                    links[link_name] = linkval
+
+            self.entity = factory(concept)(**links)
+            for (link_name, target), link_properties in props.items():
+                linkcls = caos.concept.getlink(self.entity, link_name, target)
+                linkcls.update(**link_properties)
+
             self.context.document.entities.append(self.entity)
 
 

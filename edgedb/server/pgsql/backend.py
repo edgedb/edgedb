@@ -8,6 +8,7 @@
 
 import os
 import re
+import collections
 
 import postgresql.string
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
@@ -271,7 +272,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             concept_proto = self.meta.get(concept)
             ret = {}
 
-            for link_name in concept_proto.links:
+            for link_name in concept_proto.pointers:
 
                 if link_name != 'semantix.caos.builtins.id':
                     colname = common.caos_name_to_pg_name(link_name)
@@ -286,12 +287,93 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             return None
 
 
+    def load_link(self, source, target, link, session):
+        proto_link = caos.types.prototype(link.__class__)
+        table = common.link_name_to_table_name(proto_link.normal_name(), catenate=True)
+
+        query = '''SELECT
+                       l.*
+                   FROM
+                       %s AS l
+                   WHERE
+                       l.source_id = $1
+                       AND l.target_id IS NOT DISTINCT FROM $2
+                       AND l.link_type_id = $3''' % table
+
+        ps = session.connection.prepare(query)
+        if isinstance(target.__class__, caos.types.AtomClass):
+            target_id = None
+        else:
+            target_id = target.id
+
+        link_map = self.get_link_map(session)
+        link_id = link_map[proto_link.name]
+
+        result = ps(source.id, target_id, link_id)
+
+        if result:
+            result = result[0]
+            ret = {}
+
+            for propname in proto_link.pointers:
+                colname = common.caos_name_to_pg_name(propname)
+                ret[str(propname)] = result[colname]
+
+            return ret
+
+        else:
+            return {}
+
+
+    def _get_update_refs(self, source_cls, pointers):
+        cols = []
+
+        realm = source_cls._metadata.realm
+
+        for a in pointers:
+            l = getattr(source_cls, str(a), None)
+            if l:
+                col_type = delta_cmds.PrototypeMetaCommand.pg_type_from_atom(
+                                                realm.meta, l._metadata.prototype)
+                col_type = 'text::%s' % col_type
+
+            else:
+                col_type = 'int'
+            column_name = common.caos_name_to_pg_name(a)
+            column_name = common.quote_ident(column_name)
+            cols.append('%s = %%(%s)s::%s' % (column_name, str(a), col_type))
+
+        return cols
+
+
+    def _get_insert_refs(self, source_cls, pointers, named=True):
+        realm = source_cls._metadata.realm
+
+        cols_names = [common.quote_ident(common.caos_name_to_pg_name(a))
+                      for a in pointers]
+        cols = []
+        for a in pointers:
+            if hasattr(source_cls, str(a)):
+                l = getattr(source_cls, str(a))
+                col_type = delta_cmds.PrototypeMetaCommand.pg_type_from_atom(
+                                            realm.meta, l._metadata.prototype)
+                col_type = 'text::%s' % col_type
+
+            else:
+                col_type = 'int'
+            if named:
+                cols.append('%%(%s)s::%s' % (a, col_type))
+            else:
+                cols.append('%%s::%s' % col_type)
+        return cols_names, cols
+
+
     @debug
     def store_entity(self, entity, session=None):
         cls = entity.__class__
         concept = cls._metadata.name
         id = entity.id
-        links = entity._instancedata.links
+        links = entity._instancedata.pointers
         realm = cls._metadata.realm
 
         connection = session.connection if session else self.connection
@@ -311,22 +393,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             if id is not None:
                 query = 'UPDATE %s SET ' % common.concept_name_to_table_name(concept)
-                cols = []
+
                 if issubclass(cls, cls._metadata.realm.schema.semantix.caos.builtins.Object):
                     attrs['semantix.caos.builtins.mtime'] = 'NOW'
 
-                for a in attrs:
-                    l = getattr(cls, str(a), None)
-                    if l:
-                        col_type = delta_cmds.PrototypeMetaCommand.pg_type_from_atom(
-                                                        realm.meta, l._metadata.prototype)
-                        col_type = 'text::%s' % col_type
+                cols = self._get_update_refs(cls, attrs)
 
-                    else:
-                        col_type = 'int'
-                    column_name = common.caos_name_to_pg_name(a)
-                    column_name = common.quote_ident(column_name)
-                    cols.append('%s = %%(%s)s::%s' % (column_name, str(a), col_type))
                 query += ','.join(cols)
                 query += ' WHERE "semantix.caos.builtins.id" = %s '  \
                                                         % postgresql.string.quote_literal(str(id))
@@ -336,22 +408,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     attrs['semantix.caos.builtins.ctime'] = 'NOW'
                     attrs['semantix.caos.builtins.mtime'] = 'NOW'
 
-                if attrs:
-                    cols_names = [common.quote_ident(common.caos_name_to_pg_name(a))
-                                  for a in attrs]
+                cols_names, cols_values = self._get_insert_refs(cls, attrs)
+                if cols_names:
                     cols_names = ', ' + ', '.join(cols_names)
-                    cols = []
-                    for a in attrs:
-                        if hasattr(cls, str(a)):
-                            l = getattr(cls, str(a))
-                            col_type = delta_cmds.PrototypeMetaCommand.pg_type_from_atom(
-                                                        realm.meta, l._metadata.prototype)
-                            col_type = 'text::%s' % col_type
-
-                        else:
-                            col_type = 'int'
-                        cols.append('%%(%s)s::%s' % (a, col_type))
-                    cols_values = ', ' + ', '.join(cols)
+                    cols_values = ', ' + ', '.join(cols_values)
                 else:
                     cols_names = ''
                     cols_values = ''
@@ -415,21 +475,48 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return session.link_cache
 
 
+    def get_table(self, prototype):
+        table_name = common.get_table_name(prototype, catenate=False)
+        table = delta_cmds.Table(table_name)
+
+        cols = []
+
+        if isinstance(prototype, caos.types.ProtoLink):
+            cols.extend([
+                delta_cmds.Column(name='source_id', type='uuid'),
+                delta_cmds.Column(name='target_id', type='uuid'),
+                delta_cmds.Column(name='link_type_id', type='int'),
+            ])
+
+        for pointer_name, pointer in prototype.pointers.items():
+            if pointer.atomic():
+                col_type = delta_cmds.PrototypeMetaCommand.pg_type_from_atom(self.meta,
+                                                                             pointer.target)
+                col_name = common.caos_name_to_pg_name(pointer_name)
+                cols.append(delta_cmds.Column(name=col_name, type=col_type))
+        table.add_columns(cols)
+
+        return table
+
+
     @debug
-    def store_links(self, source, targets, link_name, session):
-        table = common.link_name_to_table_name(link_name)
-
-        rows = []
-        params = []
-
+    def store_links(self, source, targets, link_name, session, merge=False):
         link_map = self.get_link_map(session)
 
         link = getattr(source.__class__, str(link_name))
+        link_cls = caos.concept.link(link, True)
+
+        table = self.get_table(link_cls._metadata.root_prototype)
 
         if isinstance(link, caos.types.NodeClass):
             link_names = [(link, link._class_metadata.full_link_name)]
         else:
             link_names = [(l.target, l._metadata.name) for l in link]
+
+        cmds = []
+        records = []
+
+        context = delta_cmds.CommandContext(session.connection)
 
         for target in targets:
             """LOG [caos.sync]
@@ -437,7 +524,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                   (source.__class__._metadata.name, source.id,
                    (source.name if hasattr(source, 'name') else ''), link_name,
                    target.__class__._metadata.name,
-                   target.id, (target.name if hasattr(target, 'name') else ''))
+                   getattr(target, 'id', target), (target.name if hasattr(target, 'name') else ''))
                   )
             """
 
@@ -447,16 +534,37 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             else:
                 assert False, "No link found"
 
-            link_id = link_map[full_link_name]
+            link_obj = caos.concept.getlink(source, link_name, target)
 
-            rows.append('(%s::uuid, %s::uuid, %s::int)')
-            params += [source.id, target.id, link_id]
+            attrs = {}
+            for prop_name, prop_cls in link_cls:
+                attrs[common.caos_name_to_pg_name(prop_name)] = getattr(link_obj, str(prop_name))
 
-        if len(rows) > 0:
+            rec = table.record(**attrs)
+
+            rec.source_id = source.id
+            rec.link_type_id = link_map[full_link_name]
+
+            if isinstance(target, caos.atom.Atom):
+                rec.target_id = None
+            else:
+                rec.target_id = target.id
+
+            if merge:
+                condition = [('source_id', rec.source_id), ('target_id', rec.target_id),
+                             ('link_type_id', rec.link_type_id)]
+
+                cmds.append(delta_cmds.Merge(table, rec, condition=condition))
+            else:
+                records.append(rec)
+
+        if records:
+            cmds.append(delta_cmds.Insert(table, records))
+
+        if cmds:
             try:
-                self.runquery("INSERT INTO %s(source_id, target_id, link_type_id) VALUES %s" % \
-                                 (table, ",".join(rows)), params,
-                                 connection=session.connection)
+                for cmd in cmds:
+                    cmd.execute(context)
             except postgresql.exceptions.UniqueError as e:
                 err = '"%s" link cardinality violation' % link_name
                 detail = 'SOURCE: %s(%s)\nTARGETS: %s' % \

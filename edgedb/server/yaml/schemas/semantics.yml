@@ -179,6 +179,9 @@ mapping:
                     "description":
                         type: str
 
+                    "readonly":
+                        type: bool
+
                     "extends":
                         type: choice
                         default:
@@ -252,6 +255,8 @@ mapping:
                                                 "required":
                                                     type: bool
                                                     default: False
+                                                "readonly":
+                                                    type: bool
                                                 "mods":
                                                     *ATOM_MODS
                                                 "default":
