@@ -30,10 +30,12 @@ class ChoiceType(CompositeType):
     def check(self, node):
         super().check(node)
 
+        """
         did = id(node)
         if did in self.checked:
             return node
         self.checked[did] = True
+        """
 
         errors = []
         tmp = None
