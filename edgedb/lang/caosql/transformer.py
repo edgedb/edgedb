@@ -119,14 +119,18 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         self.flatten_and_unify_path_combination(union, deep=True, merge_filters=True)
 
         # Merge the resulting disjunction with generator conjunction
-        paths = [graph.generator] + list(union.paths)
+        if graph.generator:
+            paths = [graph.generator] + list(union.paths)
+        else:
+            paths = union.paths
         union = tree.ast.Disjunction(paths=frozenset(paths))
         self.flatten_and_unify_path_combination(union, deep=True, merge_filters=True)
 
         # Reorder aggregate expressions so that all of them appear as the first sub-tree in
         # the generator expression.
         #
-        self.reorder_aggregates(graph.generator)
+        if graph.generator:
+            self.reorder_aggregates(graph.generator)
 
         return graph
 
@@ -383,6 +387,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             if not namespace:
                 assert '%' not in link
                 linkset = concept.get_attr(self.realm, link)
+                assert linkset
                 if linkset:
                     if isinstance(linkset, caos_types.ProtoLinkSet):
                         links = [self.realm.meta.get(linkset.first.base[0], type=type)]
