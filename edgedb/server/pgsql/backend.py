@@ -86,6 +86,10 @@ class Query:
         vars = self.convert_args(args, kwargs)
         return self.statement(*vars)
 
+    def first(self, *args, **kwargs):
+        vars = self.convert_args(args, kwargs)
+        return self.statement.first(*vars)
+
     def rows(self, *args, **kwargs):
         vars = self.convert_args(args, kwargs)
         return self.statement.rows(vars)
