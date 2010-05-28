@@ -77,7 +77,7 @@ class SchemaType(object):
         if not hasattr(node, 'tags'):
             node.tags = [node.tag]
         else:
-            node.tags.add(node.tag)
+            node.tags.append(node.tag)
         node.tag = tag
 
         return tag
