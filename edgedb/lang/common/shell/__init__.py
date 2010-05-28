@@ -122,8 +122,7 @@ class MainCommand(CommandGroup, name='__main__'):
             else:
                 super().__call__(args)
         except SemantixError as e:
-            print(term.colorstr('ERROR: %s' % e, 'red'))
-            return 1
+            raise
 
         return 0
 
