@@ -23,6 +23,6 @@ class Schema(Base):
         if not hasattr(node, 'tags'):
             node.tags = [node.tag]
         else:
-            node.tags.add(node.tag)
+            node.tags.append(node.tag)
         node.tag = 'tag:semantix.sprymix.com,2009/semantix/class/derive:semantix.utils.lang.yaml.schema.Base'
         return node
