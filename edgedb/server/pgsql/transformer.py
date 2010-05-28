@@ -159,11 +159,12 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         context = TransformerContext()
 
         context.current.realm = realm
-        expr = self._process_generator(context, tree.generator)
-        if getattr(expr, 'aggregates', False):
-            context.current.query.having = expr
-        else:
-            context.current.query.where = expr
+        if tree.generator:
+            expr = self._process_generator(context, tree.generator)
+            if getattr(expr, 'aggregates', False):
+                context.current.query.having = expr
+            else:
+                context.current.query.where = expr
 
         self._process_selector(context, tree.selector, context.current.query)
         self._process_sorter(context, tree.sorter)
