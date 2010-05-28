@@ -330,6 +330,14 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             if isinstance(expr.type, caos_types.ProtoAtom):
                 const_type = delta_cmds.PrototypeMetaCommand.pg_type_from_atom(
                                                             context.current.realm.meta, expr.type)
+            elif isinstance(expr.type, tuple):
+                item_type = expr.type[1]
+                if isinstance(item_type, caos_types.ProtoAtom):
+                    item_type = delta_cmds.PrototypeMetaCommand.pg_type_from_atom(
+                                                        context.current.realm.meta, item_type)
+                else:
+                    item_type = common.py_type_to_pg_type(expr.type)
+                const_type = '%s[]' % item_type
             else:
                 const_type = common.py_type_to_pg_type(expr.type)
         else:
@@ -451,14 +459,21 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
 
                 cte = cte or context.current.query
 
+                if expr.op == ast.ops.IN and isinstance(expr.right, tree.ast.Constant):
+                    # "expr IN $CONST" must be translated into "expr = any($CONST)"
+                    op = ast.ops.EQ
+                    right = pgsql.ast.FunctionCallNode(name='any', args=[right])
+                else:
+                    op = expr.op
+
                 # Fold constant ops into the inner query filter.
                 if isinstance(expr.left, tree.ast.Constant) and isinstance(right, pgsql.ast.IgnoreNode):
                     cte.fromlist[0].expr.where = self.extend_predicate(cte.fromlist[0].expr.where,
-                                                                       left, expr.op)
+                                                                       left, op)
                     left = pgsql.ast.IgnoreNode()
                 elif isinstance(expr.right, tree.ast.Constant) and isinstance(left, pgsql.ast.IgnoreNode):
                     cte.fromlist[0].expr.where = self.extend_predicate(cte.fromlist[0].expr.where,
-                                                                       right, expr.op)
+                                                                       right, op)
                     right = pgsql.ast.IgnoreNode()
 
                 if isinstance(left, pgsql.ast.IgnoreNode) or isinstance(right, pgsql.ast.IgnoreNode):
@@ -478,7 +493,7 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
                         context.current.query.having = left
                         result = right
                     else:
-                        result = pgsql.ast.BinOpNode(op=expr.op, left=left, right=right)
+                        result = pgsql.ast.BinOpNode(op=op, left=left, right=right)
 
         elif isinstance(expr, tree.ast.Constant):
             result = self._process_constant(context, expr)
