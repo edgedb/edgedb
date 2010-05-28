@@ -40,6 +40,21 @@ class DateTime(datetime.datetime):
                                     d.microsecond, tzinfo)
 
 
+class Time(datetime.time):
+    def __new__(cls, value=None):
+        if isinstance(value, datetime.time):
+            d = value
+        elif isinstance(value, str):
+            try:
+                d = dateutil.parser.parse(value)
+            except ValueError as e:
+                raise ValueError("invalid value for Time object: %s" % value) from e
+        else:
+            raise ValueError("invalid value for Time object: %s" % value)
+
+        return super().__new__(cls, d.hour, d.minute, d.second, d.microsecond)
+
+
 class TimeDelta(dateutil.relativedelta.relativedelta):
     _interval_tokens = {'year': 'years', 'years': 'years',
                         'month': 'months', 'months': 'months',
