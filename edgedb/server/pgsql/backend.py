@@ -262,6 +262,19 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.domain_to_atom_map = {}
 
 
+    def concept_name_from_id(self, id, session):
+        concept = caos.Name('semantix.caos.builtins.BaseObject')
+        query = '''SELECT c.name
+                   FROM
+                       %s AS e
+                       INNER JOIN caos.concept AS c ON c.id = e.concept_id
+                   WHERE e."semantix.caos.builtins.id" = $1
+                ''' % (common.concept_name_to_table_name(concept))
+        ps = session.connection.prepare(query)
+        concept = caos.Name(ps.first(id))
+        return concept
+
+
     def load_entity(self, concept, id, session):
         query = 'SELECT * FROM %s WHERE "semantix.caos.builtins.id" = $1' % \
                                                 (common.concept_name_to_table_name(concept))
@@ -269,7 +282,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         result = ps.first(id)
 
         if result is not None:
-            concept_proto = self.meta.get(concept)
+            concept_proto = session.realm.meta.get(concept)
             ret = {}
 
             for link_name in concept_proto.pointers:
