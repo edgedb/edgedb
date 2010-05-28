@@ -106,4 +106,10 @@ def py_type_to_pg_type(typ):
         _type_index.update({k: postgresql.types.oid_to_name[v]
                             for k, v in zip(driver.oid_to_type.values(), driver.oid_to_type.keys())})
 
-    return _type_index[typ]
+    if isinstance(typ, tuple):
+        supertyp, typ = typ
+        assert issubclass(supertyp, list)
+        basetyp = _type_index[typ]
+        return '%s[]' % basetyp
+    else:
+        return _type_index[typ]

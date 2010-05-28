@@ -194,6 +194,8 @@ safe_set_query                  -> sequence:
                                         return kids[0]
                                  | path_expr:
                                         return kids[0]
+                                 | arg_constant:
+                                        return kids[0]
 ;
 
 meta_op                         -> IS:
@@ -224,12 +226,17 @@ none_constant                   -> NONE:
 ;
 
 
-base_constant                   -> none_constant:
-                                        return kids[0]
-                                 | '$' NUMBER:
+arg_constant                    -> '$' NUMBER:
                                         return ConstantNode(value=None, index=int(kids[1]))
                                  | '$' IDENTIFIER:
                                         return ConstantNode(value=None, index=str(kids[1]))
+;
+
+
+base_constant                   -> none_constant:
+                                        return kids[0]
+                                 | arg_constant:
+                                        return kids[0]
 ;
 
 
