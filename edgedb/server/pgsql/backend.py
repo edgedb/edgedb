@@ -751,7 +751,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         columns = self.search_idx_expr.match(tree)
 
         if columns is None:
-            raise caos.MetaError('could not interpret index %s' % index_name)
+            msg = 'could not interpret index "%s"' % index_name
+            details = 'Could not match expression:\n%s' % ast.dump.pretty_dump(tree)
+            hint = 'Take a look at the matching pattern and adjust'
+            raise caos.MetaError(msg, details=details, hint=hint)
 
         return index_class, language, columns
 
