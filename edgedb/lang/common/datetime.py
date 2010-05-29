@@ -31,13 +31,16 @@ class DateTime(datetime.datetime):
         else:
             raise ValueError("invalid value for DateTime object: %s" % value)
 
-        if cls.local_tz is None:
-            cls.local_tz = dateutil.tz.gettz(name=cls.local_timezone)
-
-        tzinfo = d.tzinfo or cls.local_tz
+        tzinfo = d.tzinfo or cls.get_tz()
 
         return super().__new__(cls, d.year, d.month, d.day, d.hour, d.minute, d.second,
                                     d.microsecond, tzinfo)
+
+    @classmethod
+    def get_tz(cls):
+        if cls.local_tz is None:
+            cls.local_tz = dateutil.tz.gettz(name=cls.local_timezone)
+        return cls.local_tz
 
 
 class Time(datetime.time):
