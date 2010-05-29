@@ -587,18 +587,21 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
             result = pgsql.ast.FunctionCallNode(name='ts_headline', args=[lang, vector, query])
 
         else:
+            args = [self._process_expr(context, a, cte) for a in expr.args]
+
             if expr.name == ('agg', 'sum'):
                 name = 'sum'
             elif expr.name == ('agg', 'list'):
                 name = 'array_agg'
+            elif expr.name == ('agg', 'join'):
+                name = 'string_agg'
+                args = list(reversed(args))
             elif expr.name == ('agg', 'count'):
                 name = 'count'
             elif isinstance(expr.name, tuple):
                 assert False, 'unsupported function %s' % (expr.name,)
             else:
                 name = expr.name
-
-            args = [self._process_expr(context, a, cte) for a in expr.args]
             result = pgsql.ast.FunctionCallNode(name=name, args=args)
 
         return result
