@@ -94,14 +94,9 @@ class TextSearchExpr:
                         right=tscol
                      )
 
-            binop2 = pgastmatch.BinOpNode(
-                        op='||',
-                        left=tscol,
-                        right=binop1
-                     )
+            binop1.left = astmatch.Or(tscol, binop1)
 
-
-            self.pattern = astmatch.Or(tscol, binop1, binop2)
+            self.pattern = astmatch.Or(tscol, binop1)
 
         return self.pattern
 
