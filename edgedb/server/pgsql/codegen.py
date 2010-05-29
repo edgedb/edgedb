@@ -262,7 +262,10 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.field == '*':
             self.write(common.quote_ident(node.table.alias) + '.' + str(node.field))
         else:
-            self.write(common.qname(node.table.alias, str(node.field)))
+            if node.table:
+                self.write(common.qname(node.table.alias, str(node.field)))
+            else:
+                self.write(common.quote_ident(str(node.field)))
 
     def visit_FromExprNode(self, node):
         self.visit(node.expr)

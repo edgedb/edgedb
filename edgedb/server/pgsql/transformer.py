@@ -12,13 +12,14 @@ from semantix.utils import ast
 from semantix.caos import caosql, tree
 from semantix.caos import types as caos_types
 from semantix.caos import name as caos_name
+from semantix.caos import utils as caos_utils
 from semantix.caos.backends import pgsql
 from semantix.caos.backends.pgsql import common
 from semantix.utils.debug import debug
 from semantix.utils.datastructures import OrderedSet
 
 
-from . import delta as delta_cmds
+from . import types
 
 
 class Alias(str):
@@ -131,7 +132,131 @@ class TransformerContextWrapper(object):
             self.context.pop()
 
 
-class CaosTreeTransformer(ast.visitor.NodeVisitor):
+class PgSQLExprTransformer(ast.visitor.NodeVisitor):
+    def transform(self, tree, local_to_source=None):
+        context = TransformerContext()
+        context.current.source = local_to_source
+
+        if local_to_source:
+            context.current.attmap = {common.caos_name_to_pg_name(l.normal_name()): l.normal_name()\
+                                      for l in local_to_source.pointers.values()}
+
+        return self._process_expr(context, tree)
+
+    def _process_expr(self, context, expr):
+        if isinstance(expr, pgsql.ast.BinOpNode):
+            left = self._process_expr(context, expr.left)
+            right = self._process_expr(context, expr.right)
+            result = tree.ast.BinOp(left=left, op=expr.op, right=right)
+
+        elif isinstance(expr, pgsql.ast.FieldRefNode):
+            if context.current.source:
+                if isinstance(context.current.source, caos_types.ProtoConcept):
+                    id = caos_utils.LinearPath([context.current.source])
+                    entset = tree.ast.EntitySet(id=id, concept=context.current.source)
+                    result = tree.ast.AtomicRefSimple(ref=entset,
+                                                      name=context.current.attmap[expr.field])
+                else:
+                    id = caos_utils.LinearPath([None])
+                    id.add((context.current.source,), caos_types.OutboundDirection, None)
+                    linkspec = tree.ast.EntityLinkSpec(labels=frozenset((context.current.source,)))
+                    entlink = tree.ast.EntityLink(filter=linkspec)
+                    result = tree.ast.LinkPropRefSimple(ref=entlink,
+                                                        name=context.current.attmap[expr.field],
+                                                        id=id)
+
+        elif isinstance(expr, pgsql.ast.RowExprNode):
+            result = tree.ast.Sequence(elements=[self._process_expr(context, e) for e in expr.args])
+
+        else:
+            assert False, "unexpected node type: %r" % expr
+
+        return result
+
+
+class CaosExprTransformer(ast.visitor.NodeVisitor):
+    def _relation_from_concepts(self, context, node):
+        concept = node.concept
+        table_schema_name, table_name = common.concept_name_to_table_name(concept.name, catenate=False)
+        concept_table = pgsql.ast.TableNode(name=table_name,
+                                            schema=table_schema_name,
+                                            concepts=frozenset({node.concept}),
+                                            alias=context.current.genalias(hint=table_name),
+                                            caosnode=node)
+        return concept_table
+
+    def _relation_from_link(self, context, node):
+        link_proto = next(iter(node.filter.labels))
+        table_schema_name, table_name = common.link_name_to_table_name(link.name, catenate=False)
+        table = pgsql.ast.TableNode(name=table_name,
+                                    schema=table_schema_name,
+                                    alias=context.current.genalias(hint=table_name),
+                                    caosnode=node)
+        return table
+
+
+class SimpleExprTransformer(CaosExprTransformer):
+    def transform(self, tree, local=False):
+        context = TransformerContext()
+        context.current.local = local
+
+        qtree = self._process_expr(context, tree)
+
+        return qtree
+
+    def _process_expr(self, context, expr):
+        if isinstance(expr, tree.ast.BinOp):
+            left = self._process_expr(context, expr.left)
+            right = self._process_expr(context, expr.right)
+            result = pgsql.ast.BinOpNode(left=left, op=expr.op, right=right)
+
+        elif isinstance(expr, tree.ast.AtomicRefExpr):
+            result = self._process_expr(context, expr.expr)
+
+        elif isinstance(expr, tree.ast.AtomicRefSimple):
+            field_name = common.caos_name_to_pg_name(expr.name)
+
+            if not context.current.local:
+                table = self._relation_from_concepts(context, expr.ref)
+                result = pgsql.ast.FieldRefNode(table=table, field=field_name, origin=table,
+                                                origin_field=field_name)
+            else:
+                result = pgsql.ast.FieldRefNode(table=None, field=field_name, origin=None,
+                                                origin_field=field_name)
+
+        elif isinstance(expr, tree.ast.LinkPropRefExpr):
+            result = self._process_expr(context, expr.expr)
+
+        elif isinstance(expr, tree.ast.LinkPropRefSimple):
+            field_name = common.caos_name_to_pg_name(expr.name)
+
+            if not context.current.local:
+                table = self._relation_from_link(context, expr.ref)
+                result = pgsql.ast.FieldRefNode(table=table, field=field_name, origin=table,
+                                                origin_field=field_name)
+            else:
+                result = pgsql.ast.FieldRefNode(table=None, field=field_name, origin=None,
+                                                origin_field=field_name)
+
+        elif isinstance(expr, tree.ast.Disjunction):
+            variants = [self._process_expr(context, path) for path in expr.paths]
+
+            if len(variants) == 1:
+                result = variants[0]
+            else:
+                result = pgsql.ast.FunctionCallNode(name='coalesce', args=variants)
+
+        elif isinstance(expr, tree.ast.Sequence):
+            elements = [self._process_expr(context, e) for e in expr.elements]
+            result = pgsql.ast.SequenceNode(elements=elements)
+
+        else:
+            assert False, "unexpected node type: %r" % expr
+
+        return result
+
+
+class CaosTreeTransformer(CaosExprTransformer):
     @debug
     def transform(self, query, realm):
         # Transform to sql tree
@@ -329,13 +454,11 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
     def _process_constant(self, context, expr):
         if expr.type:
             if isinstance(expr.type, caos_types.ProtoAtom):
-                const_type = delta_cmds.PrototypeMetaCommand.pg_type_from_atom(
-                                                            context.current.realm.meta, expr.type)
+                const_type = types.pg_type_from_atom(context.current.realm.meta, expr.type)
             elif isinstance(expr.type, tuple):
                 item_type = expr.type[1]
                 if isinstance(item_type, caos_types.ProtoAtom):
-                    item_type = delta_cmds.PrototypeMetaCommand.pg_type_from_atom(
-                                                        context.current.realm.meta, item_type)
+                    item_type = types.pg_type_from_atom(context.current.realm.meta, item_type)
                 else:
                     item_type = common.py_type_to_pg_type(expr.type)
                 const_type = '%s[]' % item_type
@@ -659,16 +782,6 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
         join.updatebonds(right)
 
         return join
-
-    def _relation_from_concepts(self, context, node):
-        concept = node.concept
-        table_schema_name, table_name = common.concept_name_to_table_name(concept.name, catenate=False)
-        concept_table = pgsql.ast.TableNode(name=table_name,
-                                            schema=table_schema_name,
-                                            concepts=frozenset({node.concept}),
-                                            alias=context.current.genalias(hint=table_name),
-                                            caosnode=node)
-        return concept_table
 
     def caos_path_to_sql_path(self, context, root_cte, step_cte, caos_path_tip, sql_path_tip, link,
                                                                                         weak=False):

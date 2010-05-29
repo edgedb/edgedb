@@ -159,23 +159,33 @@ filters:
 
 source: |
         SELECT
-                ARRAY[ns.nspname, c.relname]            AS table_name,
-                array_agg(ic.relname::text)::text[]     AS index_names,
-                array_agg(pg_get_expr(i.indpred, i.indrelid)::text)::text[]
-                                                        AS index_predicates,
-                array_agg(pg_get_expr(i.indexprs, i.indrelid)::text)::text[]
-                                                        AS index_expressions
-            FROM
-                pg_class AS c
-                INNER JOIN pg_namespace AS ns ON ns.oid = c.relnamespace
-                INNER JOIN pg_index AS i ON i.indrelid = c.oid
-                INNER JOIN pg_class AS ic ON i.indexrelid = ic.oid
-            WHERE
-                (%(schema_pattern)s::text IS NULL OR ns.nspname LIKE %(schema_pattern)s::text)
-                AND (%(table_pattern)s::text IS NULL OR c.relname LIKE %(table_pattern)s::text)
-                AND (%(index_pattern)s::text IS NULL OR ic.relname LIKE %(index_pattern)s::text)
+                i.table_name                            AS table_name,
+                array_agg(i.index_name)::text[]         AS index_names,
+                array_agg(i.index_predicate)::text[]    AS index_predicates,
+                array_agg(i.index_expression)::text[]   AS index_expressions,
+                array_agg(i.index_columns)              AS index_columns
+        FROM
+            (SELECT
+                    ARRAY[ns.nspname, c.relname]                AS table_name,
+                    ic.relname::text                            AS index_name,
+                    pg_get_expr(i.indpred, i.indrelid)::text    AS index_predicate,
+                    pg_get_expr(i.indexprs, i.indrelid)::text   AS index_expression,
+                    string_agg(ia.attname::text, '~~~~' ORDER BY ia.attnum) AS index_columns
+                FROM
+                    pg_class AS c
+                    INNER JOIN pg_namespace AS ns ON ns.oid = c.relnamespace
+                    INNER JOIN pg_index AS i ON i.indrelid = c.oid
+                    INNER JOIN pg_class AS ic ON i.indexrelid = ic.oid
+                    LEFT JOIN pg_attribute AS ia ON ia.attrelid = i.indexrelid
+                WHERE
+                    (%(schema_pattern)s::text IS NULL OR ns.nspname LIKE %(schema_pattern)s::text)
+                    AND (%(table_pattern)s::text IS NULL OR c.relname LIKE %(table_pattern)s::text)
+                    AND (%(index_pattern)s::text IS NULL OR ic.relname LIKE %(index_pattern)s::text)
+                    AND (ia.attnum IS NULL OR ia.attnum >= 1)
+                GROUP BY
+                    table_name, index_name, index_predicate, index_expression) AS i
             GROUP BY
-                table_name
+                i.table_name
 ...
 
 %SCHEMA semantix.caos.datasources.schemas.Sql

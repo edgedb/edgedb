@@ -219,6 +219,10 @@ class AtomModCommand(PrototypeCommand, adapts=delta.AtomModCommand):
     pass
 
 
+class SourceIndexCommand(PrototypeCommand, adapts=delta.SourceIndexCommand):
+    pass
+
+
 class LinkConstraintCommand(PrototypeCommand, adapts=delta.LinkConstraintCommand):
     pass
 
@@ -252,6 +256,18 @@ class AlterAtom(AlterNamedPrototype, adapts=delta.AlterAtom):
 
 
 class DeleteAtom(DeleteNamedPrototype, adapts=delta.DeleteAtom):
+    pass
+
+
+class CreateSourceIndex(SourceIndexCommand, adapts=delta.CreateSourceIndex):
+    pass
+
+
+class AlterSourceIndex(SourceIndexCommand, adapts=delta.AlterSourceIndex):
+    pass
+
+
+class DeleteSourceIndex(SourceIndexCommand, adapts=delta.DeleteSourceIndex):
     pass
 
 

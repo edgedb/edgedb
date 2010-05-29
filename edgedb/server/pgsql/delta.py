@@ -14,6 +14,7 @@ import postgresql
 from semantix import caos
 from semantix.caos import proto
 from semantix.caos import delta as delta_cmds
+from semantix.caos.caosql import expr as caosql_expr
 
 from semantix.caos.backends.pgsql import common, Config
 
@@ -23,36 +24,11 @@ from semantix.utils.lang import yaml
 from semantix.utils.algos.persistent_hash import persistent_hash
 from semantix.utils import helper
 
+from . import ast as pg_ast
+from . import codegen
 from . import datasources
-
-
-base_type_name_map = {
-    caos.Name('semantix.caos.builtins.str'): 'text',
-    caos.Name('semantix.caos.builtins.int'): 'bigint',
-    caos.Name('semantix.caos.builtins.decimal'): 'numeric',
-    caos.Name('semantix.caos.builtins.bool'): 'boolean',
-    caos.Name('semantix.caos.builtins.float'): 'double precision',
-    caos.Name('semantix.caos.builtins.uuid'): 'uuid',
-    caos.Name('semantix.caos.builtins.datetime'): 'timestamp with time zone',
-    caos.Name('semantix.caos.builtins.time'): 'time without time zone',
-    caos.Name('semantix.caos.builtins.timedelta'): 'interval'
-}
-
-base_type_name_map_r = {
-    'character varying': caos.Name('semantix.caos.builtins.str'),
-    'character': caos.Name('semantix.caos.builtins.str'),
-    'text': caos.Name('semantix.caos.builtins.str'),
-    'numeric': caos.Name('semantix.caos.builtins.decimal'),
-    'integer': caos.Name('semantix.caos.builtins.int'),
-    'bigint': caos.Name('semantix.caos.builtins.int'),
-    'smallint': caos.Name('semantix.caos.builtins.int'),
-    'boolean': caos.Name('semantix.caos.builtins.bool'),
-    'double precision': caos.Name('semantix.caos.builtins.float'),
-    'uuid': caos.Name('semantix.caos.builtins.uuid'),
-    'timestamp with time zone': caos.Name('semantix.caos.builtins.datetime'),
-    'time without time zone': caos.Name('semantix.caos.builtins.time'),
-    'interval': caos.Name('semantix.caos.builtins.timedelta')
-}
+from . import transformer
+from . import types
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -194,27 +170,7 @@ class CommandGroup(Command):
 
 
 class PrototypeMetaCommand(MetaCommand, delta_cmds.PrototypeCommand):
-    @classmethod
-    def _pg_type_from_atom(cls, meta, atom_obj):
-        base, _, mods, _ = AtomMetaCommand.get_atom_base_and_mods(meta, atom_obj)
-
-        need_to_create = False
-
-        if not atom_obj.automatic:
-            column_type = base_type_name_map.get(atom_obj.name)
-            if column_type:
-                column_type = base
-            else:
-                column_type = common.atom_name_to_domain_name(atom_obj.name)
-                need_to_create = bool(mods)
-        else:
-            column_type = base
-
-        return column_type, need_to_create
-
-    @classmethod
-    def pg_type_from_atom(cls, meta, atom):
-        return cls._pg_type_from_atom(meta, atom)[0]
+    pass
 
 
 class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeCommand):
@@ -317,51 +273,6 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
         super().__init__(**kwargs)
         self.table = AtomTable()
 
-    @classmethod
-    def get_atom_base_and_mods(cls, meta, atom, own_only=True):
-        mods = set()
-        extramods = set()
-        mods_encoded = ()
-
-        atom_mods = atom.effective_local_mods if own_only else atom.mods
-
-        if proto.Atom.is_prototype(atom.base):
-            # Base is another atom prototype, check if it is fundamental,
-            # if not, then it is another domain
-            base = base_type_name_map.get(atom.base)
-            if base:
-                if not isinstance(base, str):
-                    base, mods_encoded = base(meta.get(atom.base), atom_mods)
-            else:
-                base = common.atom_name_to_domain_name(atom.base)
-        else:
-            # Base is a Python type, must correspond to PostgreSQL type
-            base = base_type_name_map.get(atom.name)
-            if not base:
-                base_class = helper.get_object(str(atom.base))
-                base_type = getattr(base_class, 'adapts', None)
-                assert base_type, '"%s" is not in builtins and does not define "adapts" attribute' \
-                                  % atom.base
-                base = base_type_name_map[base_type]
-
-            if not isinstance(base, str):
-                base, mods_encoded = base(meta.get(atom.name), atom_mods)
-
-        directly_supported_mods = (proto.AtomModMaxLength, proto.AtomModMinLength,
-                                   proto.AtomModRegExp, proto.AtomModMaxValue,
-                                   proto.AtomModMaxExValue, proto.AtomModMinValue,
-                                   proto.AtomModMinExValue)
-
-        for mod in atom_mods.values():
-            if mod in mods_encoded:
-                continue
-            elif isinstance(mod, directly_supported_mods):
-                mods.add(mod)
-            else:
-                extramods.add(mod)
-
-        return base, mods_encoded, mods, extramods
-
     def fill_record(self, rec=None, obj=None):
         rec, updates = super().fill_record(rec, obj)
         if rec:
@@ -408,7 +319,7 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
 
         domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
 
-        base, mods_encoded, new_mods, _ = self.get_atom_base_and_mods(meta, atom)
+        base, mods_encoded, new_mods, _ = types.get_atom_base_and_mods(meta, atom)
 
         target_type = new_type
 
@@ -474,7 +385,7 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
         AtomMetaCommand.apply(self, meta, context)
 
         new_domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
-        base, _, mods, extramods = self.get_atom_base_and_mods(meta, atom)
+        base, _, mods, extramods = types.get_atom_base_and_mods(meta, atom)
 
         updates = self.create_object(atom)
 
@@ -561,8 +472,8 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
     @classmethod
     def alter_atom(cls, op, meta, context, old_atom, new_atom, in_place=True, updates=None):
 
-        old_base, old_mods_encoded, old_mods, _ = cls.get_atom_base_and_mods(meta, old_atom)
-        base, mods_encoded, new_mods, _ = cls.get_atom_base_and_mods(meta, new_atom)
+        old_base, old_mods_encoded, old_mods, _ = types.get_atom_base_and_mods(meta, old_atom)
+        base, mods_encoded, new_mods, _ = types.get_atom_base_and_mods(meta, new_atom)
 
         domain_name = common.atom_name_to_domain_name(new_atom.name, catenate=False)
 
@@ -746,6 +657,77 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         if self.update_search_indexes is None:
             self.update_search_indexes = UpdateSearchIndexes(host)
 
+    def adjust_indexes(self, meta, context, source):
+        source_context = context.get(delta_cmds.LinkCommandContext)
+        if not source_context:
+            source_context = context.get(delta_cmds.ConceptCommandContext)
+        source_table = common.get_table_name(source_context.proto, catenate=False)
+        for index in source_context.proto.indexes:
+            old_name = SourceIndexCommand.get_index_name(source_context.original_proto, index)
+            new_name = SourceIndexCommand.get_index_name(source_context.proto, index)
+
+            self.pgops.add(RenameIndex(old_name=(source_table[0], old_name), new_name=new_name))
+
+
+class SourceIndexCommand(PrototypeMetaCommand):
+    @classmethod
+    def get_index_name(cls, host, index):
+        index_name = '%s_%s_reg_idx' % (host.name, persistent_hash(index.expr))
+        index_name = common.caos_name_to_pg_name(index_name)
+        return index_name
+
+
+class CreateSourceIndex(SourceIndexCommand, adapts=delta_cmds.CreateSourceIndex):
+    def apply(self, meta, context=None):
+        index = delta_cmds.CreateSourceIndex.apply(self, meta, context)
+        SourceIndexCommand.apply(self, meta, context)
+
+        source = context.get(delta_cmds.LinkCommandContext)
+        if not source:
+            source = context.get(delta_cmds.ConceptCommandContext)
+        table_name = common.get_table_name(source.proto, catenate=False)
+
+        expr = caosql_expr.CaosQLExpression(meta).process_concept_expr(index.expr, source.proto)
+        sql_tree = transformer.SimpleExprTransformer().transform(expr, True)
+        sql_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
+        if isinstance(sql_tree, pg_ast.SequenceNode):
+            # Trim the parentheses to avoid PostgreSQL choking on double parentheses.
+            # since it expects only a single set around the column list.
+            #
+            sql_expr = sql_expr[1:-1]
+        index_name = self.get_index_name(source.proto, index)
+        pg_index = Index(name=index_name, table_name=table_name, expr=sql_expr, unique=False)
+        self.pgops.add(CreateIndex(pg_index, priority=3))
+
+        return index
+
+
+class AlterSourceIndex(SourceIndexCommand, adapts=delta_cmds.AlterSourceIndex):
+    def apply(self, meta, context=None):
+        result = delta_cmds.AlterSourceIndex.apply(self, meta, context)
+        SourceIndexCommand.apply(self, meta, context)
+        return result
+
+
+class DeleteSourceIndex(SourceIndexCommand, adapts=delta_cmds.DeleteSourceIndex):
+    def apply(self, meta, context=None):
+        index = delta_cmds.DeleteSourceIndex.apply(self, meta, context)
+        SourceIndexCommand.apply(self, meta, context)
+
+        source = context.get(delta_cmds.LinkCommandContext)
+        if not source:
+            source = context.get(delta_cmds.ConceptCommandContext)
+
+        if not isinstance(source.op, delta_cmds.DeleteNamedPrototype):
+            # We should not drop indexes when the host is being dropped since
+            # the indexes are dropped automatically in this case.
+            #
+            table_name = common.get_table_name(source.proto, catenate=False)
+            index_name = self.get_index_name(source.proto, index)
+            self.pgops.add(DropIndex((table_name[0], index_name), priority=3))
+
+        return index
+
 
 class ConceptMetaCommand(CompositePrototypeMetaCommand):
     def __init__(self, **kwargs):
@@ -812,6 +794,9 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
             for link in linkset:
                 if link.atomic():
                     self.adjust_link_constraints(meta, context, proto, link)
+
+        # Indexes
+        self.adjust_indexes(meta, context, proto)
 
         if concept.op.alter_table.ops:
             concept.op.pgops.add(concept.op.alter_table)
@@ -988,7 +973,7 @@ class PointerMetaCommand(MetaCommand):
         AlterAtom.alter_atom(self, meta, context, old_atom, new_atom, in_place=False)
         alter_table = context.get(delta_cmds.ConceptCommandContext).op.get_alter_table(context)
         column_name = common.caos_name_to_pg_name(link.normal_name())
-        target_type = self.pg_type_from_atom(meta, new_atom)
+        target_type = types.pg_type_from_atom(meta, new_atom)
         alter_type = AlterTableAlterColumnType(column_name, target_type)
         alter_table.add_operation(alter_type)
 
@@ -999,7 +984,7 @@ class PointerMetaCommand(MetaCommand):
             if not isinstance(pointer.target, proto.Atom):
                 pointer.target = meta.get(pointer.target)
 
-            column_type = self.pg_type_from_atom(meta, pointer.target)
+            column_type = types.pg_type_from_atom(meta, pointer.target)
 
             name = pointer.normal_name()
             column_name = common.caos_name_to_pg_name(name)
@@ -1165,6 +1150,10 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
 
         if self.alter_table and self.alter_table.ops:
             self.pgops.add(self.alter_table)
+
+        if result.generic():
+            # Indexes
+            self.adjust_indexes(meta, context, result)
 
         return result
 
@@ -2070,7 +2059,7 @@ class Default(metaclass=DefaultMeta):
 
 
 class Index(DBObject):
-    def __init__(self, name, table_name, unique=True):
+    def __init__(self, name, table_name, unique=True, expr=None):
         super().__init__()
 
         self.name = name
@@ -2078,16 +2067,22 @@ class Index(DBObject):
         self.__columns = datastructures.OrderedSet()
         self.predicate = None
         self.unique = unique
+        self.expr = expr
 
     def add_columns(self, columns):
         self.__columns.update(columns)
 
     def creation_code(self, context):
-        code = 'CREATE %(unique)s INDEX %(name)s ON %(table)s (%(cols)s) %(predicate)s' % \
+        if self.expr:
+            expr = self.expr
+        else:
+            expr = ', '.join(self.columns)
+
+        code = 'CREATE %(unique)s INDEX %(name)s ON %(table)s (%(expr)s) %(predicate)s' % \
                 {'unique': 'UNIQUE' if self.unique else '',
                  'name': common.qname(self.name),
                  'table': common.qname(*self.table_name),
-                 'cols': ', '.join(self.columns),
+                 'expr': expr,
                  'predicate': 'WHERE %s' % self.predicate if self.predicate else ''
                 }
         return code
@@ -2713,6 +2708,23 @@ class CreateIndex(DDLOperation):
 
     def __repr__(self):
         return '<%s.%s "%r">' % (self.__class__.__module__, self.__class__.__name__, self.index)
+
+
+class RenameIndex(DDLOperation):
+    def __init__(self, old_name, new_name, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+        self.old_name = old_name
+        self.new_name = new_name
+
+    def code(self, context):
+        code = 'ALTER INDEX %s RENAME TO %s' % (common.qname(*self.old_name),
+                                                common.quote_ident(self.new_name))
+        return code
+
+    def __repr__(self):
+        return '<%s.%s "%s" to "%s">' % (self.__class__.__module__, self.__class__.__name__,
+                                         common.qname(*self.old_name),
+                                         common.quote_ident(self.new_name))
 
 
 class DropIndex(DDLOperation):

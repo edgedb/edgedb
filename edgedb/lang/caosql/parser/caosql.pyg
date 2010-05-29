@@ -17,7 +17,7 @@ set_query                       -> single_set_query:
                                         return kids[0]
 ;
 
-sequence                        -> '(' single_set_query (',' single_set_query)* ')':
+sequence                        -> '(' single_set_query (',' single_set_query)+ ')':
                                         elements = [kids[1]] + [k[1] for k in kids[2]]
                                         return SequenceNode(elements=elements)
 ;
@@ -321,6 +321,9 @@ gpe_path_simple                 -> path_start gpe_subpath?:
                                             ret += kids[1]
 
                                         return ret
+                                 | path_start '@' linkprop:
+                                        return [kids[0], LinkPropExprNode(expr=kids[2])]
+
 ;
 
 gpe_subpath                     -> gpe_subpath_no_parens:
@@ -377,7 +380,7 @@ link_spec                       -> '[' or_link_expr ']':
                                         return kids[0]
 ;
 
-linkprop                        -> '[' link_label_expr ']':
+linkprop                        -> '[' opt_fq_link_label_expr ']':
                                         return kids[1]
                                  | link_label_expr:
                                         return kids[0]

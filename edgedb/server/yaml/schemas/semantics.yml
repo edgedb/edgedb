@@ -262,6 +262,13 @@ mapping:
                                                 "default":
                                                     *DEFAULT
 
+                    "indexes":
+                        &INDEXES
+                        type: seq
+                        sequence:
+                            - type: str
+                              object: semantix.caos.backends.yaml.SourceIndex
+
 
     "concepts":
         type: map
@@ -341,8 +348,11 @@ mapping:
                                                           object: semantix.caos.backends.yaml.LinkConstraintUnique
                                                           mapping:
                                                             "unique":
-                                                               type: str
+                                                               type: choice
                                                                required: True
+                                                               choice:
+                                                                    - type: bool
+                                                                    - type: str
                                               "properties":
                                                   type: map
                                                   mapping:
@@ -364,6 +374,9 @@ mapping:
                                                             enum: ['A', 'B', 'C', 'D']
                                                             required: True
                                                     - type: bool
+
+                    "indexes":
+                        *INDEXES
 
                     "heuristics":
                         type: map

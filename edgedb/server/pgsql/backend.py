@@ -27,6 +27,9 @@ from semantix.caos import backends
 from semantix.caos import proto
 from semantix.caos import delta as base_delta
 
+from semantix.caos.caosql import transformer as caosql_transformer
+from semantix.caos.caosql import codegen as caosql_codegen
+
 from semantix.caos.backends.pgsql import common
 from semantix.caos.backends.pgsql import delta as delta_cmds
 
@@ -37,6 +40,8 @@ from .transformer import CaosTreeTransformer
 
 from . import astexpr
 from . import parser
+from . import types
+from . import transformer
 
 
 class Session(session.Session):
@@ -350,8 +355,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         for a in pointers:
             l = getattr(source_cls, str(a), None)
             if l:
-                col_type = delta_cmds.PrototypeMetaCommand.pg_type_from_atom(
-                                                realm.meta, l._metadata.prototype)
+                col_type = types.pg_type_from_atom(realm.meta, l._metadata.prototype)
                 col_type = 'text::%s' % col_type
 
             else:
@@ -372,8 +376,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         for a in pointers:
             if hasattr(source_cls, str(a)):
                 l = getattr(source_cls, str(a))
-                col_type = delta_cmds.PrototypeMetaCommand.pg_type_from_atom(
-                                            realm.meta, l._metadata.prototype)
+                col_type = types.pg_type_from_atom(realm.meta, l._metadata.prototype)
                 col_type = 'text::%s' % col_type
 
             else:
@@ -507,8 +510,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         for pointer_name, pointer in prototype.pointers.items():
             if pointer.atomic():
-                col_type = delta_cmds.PrototypeMetaCommand.pg_type_from_atom(self.meta,
-                                                                             pointer.target)
+                col_type = types.pg_type_from_atom(self.meta, pointer.target)
                 col_name = common.caos_name_to_pg_name(pointer_name)
                 cols.append(delta_cmds.Column(name=col_name, type=col_type))
         table.add_columns(cols)
@@ -777,6 +779,30 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return indexes
 
 
+    def interpret_index(self, index_cols, index_expression):
+        if not index_expression:
+            index_expression = '(%s)' % ', '.join(common.quote_ident(c) for c in index_cols)
+
+        tree = self.parser.parse(index_expression)
+
+        return tree
+
+
+    def interpret_indexes(self, indexes):
+        for cols, expr in zip(indexes['index_columns'], indexes['index_expressions']):
+            cols = cols.split('~~~~')
+            yield self.interpret_index(cols, expr)
+
+
+    def read_indexes(self):
+        indexes = {}
+        index_ds = datasources.introspection.tables.TableIndexes(self.connection)
+        for row in index_ds.fetch(schema_pattern='caos%', index_pattern='%_reg_idx'):
+            indexes[tuple(row['table_name'])] = set(self.interpret_indexes(row))
+
+        return indexes
+
+
     def interpret_constant(self, expr):
         try:
             expr_tree = self.parser.parse(expr)
@@ -1000,6 +1026,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def order_links(self, meta):
+        indexes = self.read_indexes()
+
+        reverse_transformer = transformer.PgSQLExprTransformer()
+        reverse_caosql_transformer = caosql_transformer.CaosqlReverseTransformer()
+
         g = {}
 
         for link in meta(type='link', include_automatic=True, include_builtin=True):
@@ -1011,6 +1042,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         for link in meta(type='link', include_automatic=True, include_builtin=True):
             link.materialize(meta)
+
+            if link.generic():
+                table_name = common.get_table_name(link, catenate=False)
+                tabidx = indexes.get(table_name)
+                if tabidx:
+                    for index in tabidx:
+                        caos_tree = reverse_transformer.transform(index, link)
+                        caosql_tree = reverse_caosql_transformer.transform(caos_tree)
+                        expr = caosql_codegen.CaosQLSourceGenerator.to_source(caosql_tree)
+                        link.add_index(proto.SourceIndex(expr=expr))
 
 
     def read_link_properties(self, meta):
@@ -1100,8 +1141,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                     is_abstract=concept['is_abstract'],
                                     custombases=tuple(concept['custombases']))
 
-            columns = introspection.tables.TableColumns(self.connection)
-            columns = columns.fetch(table_name=table['name'], schema_name=table['schema'])
             meta.add(concept)
 
         tabdiff = set(tables.keys()) - visited_tables
@@ -1113,11 +1152,27 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def order_concepts(self, meta):
+        indexes = self.read_indexes()
+
+        reverse_transformer = transformer.PgSQLExprTransformer()
+        reverse_caosql_transformer = caosql_transformer.CaosqlReverseTransformer()
+
         g = {}
         for concept in meta(type='concept', include_automatic=True, include_builtin=True):
             g[concept.name] = {"item": concept, "merge": [], "deps": []}
             if concept.base:
                 g[concept.name]["merge"].extend(concept.base)
+
+            table_name = common.get_table_name(concept, catenate=False)
+
+            tabidx = indexes.get(table_name)
+            if tabidx:
+                for index in tabidx:
+                    caos_tree = reverse_transformer.transform(index, concept)
+                    caosql_tree = reverse_caosql_transformer.transform(caos_tree)
+                    expr = caosql_codegen.CaosQLSourceGenerator.to_source(caosql_tree)
+                    concept.add_index(proto.SourceIndex(expr=expr))
+
         topological.normalize(g, merger=proto.Concept.merge)
 
         for concept in meta(type='concept', include_automatic=True, include_builtin=True):
@@ -1227,7 +1282,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             typmod = None
             typname = type_expr
 
-        typeconv = delta_cmds.base_type_name_map_r.get(typname)
+        typeconv = types.base_type_name_map_r.get(typname)
         if typeconv:
             if isinstance(typeconv, caos.Name):
                 name = typeconv

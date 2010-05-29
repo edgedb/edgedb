@@ -24,6 +24,8 @@ from semantix.caos import proto
 from semantix.caos import backends
 from semantix.caos import delta as base_delta
 from semantix.caos import objects
+from semantix.caos.caosql import expr as caosql_expr
+from semantix.caos.caosql import errors as caosql_exc
 
 from . import delta
 from .common import StructMeta
@@ -337,6 +339,7 @@ class Concept(Prototype, adapts=proto.Concept):
                                is_abstract=data.get('abstract'),
                                _setdefaults_=False, _relaxrequired_=True)
         self._links = data.get('links', {})
+        self._indexes = data.get('indexes') or ()
 
     @classmethod
     def represent(cls, data):
@@ -356,7 +359,30 @@ class Concept(Prototype, adapts=proto.Concept):
         if data.own_pointers:
             result['links'] = dict(data.own_pointers)
 
+        if data.indexes:
+            result['indexes'] = list(sorted(data.indexes, key=lambda i: i.expr))
+
         return result
+
+    def process_index_expr(self, index):
+        return index
+
+    def materialize(self, meta):
+        indexes = set()
+        for index in self.indexes:
+            indexes.add(self.process_index_expr(index))
+        self.indexes = indexes
+
+        proto.Concept.materialize(self, meta)
+
+
+class SourceIndex(LangObject, adapts=proto.SourceIndex, ignore_aliases=True):
+    def construct(self):
+        proto.SourceIndex.__init__(self, expr=self.data)
+
+    @classmethod
+    def represent(cls, data):
+        return str(data.expr)
 
 
 class LinkPropertyDef(Prototype, proto.LinkProperty):
@@ -454,6 +480,7 @@ class LinkDef(Prototype, adapts=proto.Link):
                             _setdefaults_=False, _relaxrequired_=True)
 
         self._properties = data['properties']
+        self._indexes = data.get('indexes') or ()
 
     @classmethod
     def represent(cls, data):
@@ -496,6 +523,9 @@ class LinkDef(Prototype, adapts=proto.Link):
 
         if data.search:
             result['search'] = data.search
+
+        if data.indexes:
+            result['indexes'] = list(sorted(data.indexes, key=lambda i: i.expr))
 
         return result
 
@@ -629,6 +659,8 @@ class MetaSet(LangObject):
 
         for alias, module in context.document.imports.items():
             localindex.add_module(module.__name__, alias)
+
+        self.caosql_expr = caosql_expr.CaosQLExpression(localindex)
 
         self.read_atoms(data, globalindex, localindex)
         self.read_link_properties(data, globalindex, localindex)
@@ -807,6 +839,9 @@ class MetaSet(LangObject):
             elif link.name != 'semantix.caos.builtins.link':
                 link.base = (caos.Name('semantix.caos.builtins.link'),)
 
+            for index in link._indexes:
+                expr, tree = self.normalize_index_expr(index.expr, link, localmeta)
+                link.add_index(proto.SourceIndex(expr, tree=tree))
 
     def order_links(self, globalmeta):
         g = {}
@@ -840,8 +875,17 @@ class MetaSet(LangObject):
             if link.base:
                 g[link.name]['merge'].extend(link.base)
 
-        return topological.normalize(g, merger=proto.Link.merge)
+        links = topological.normalize(g, merger=proto.Link.merge)
 
+        try:
+            for link in links:
+                for index in link.indexes:
+                    self.caosql_expr.check_source_atomic_expr(index.tree, link)
+
+        except caosql_exc.CaosQLReferenceError as e:
+            raise MetaError(e.args[0], context=index.context) from e
+
+        return links
 
     def read_concepts(self, data, globalmeta, localmeta):
         backend = None
@@ -914,6 +958,17 @@ class MetaSet(LangObject):
                     localmeta.add(link)
                     concept.add_link(link)
 
+            for index in concept._indexes:
+                expr, tree = self.normalize_index_expr(index.expr, concept, localmeta)
+                index.expr = expr
+                index.tree = tree
+                concept.add_index(index)
+
+
+    def normalize_index_expr(self, expr, concept, meta):
+        expr, tree = self.caosql_expr.normalize_source_expr(expr, concept)
+        return expr, tree
+
 
     def order_concepts(self, globalmeta):
         g = {}
@@ -961,7 +1016,17 @@ class MetaSet(LangObject):
             if concept.base:
                 g[concept.name]["merge"].extend(concept.base)
 
-        return topological.normalize(g, merger=proto.Concept.merge)
+        concepts = topological.normalize(g, merger=proto.Concept.merge)
+
+        try:
+            for concept in concepts:
+                for index in concept.indexes:
+                    self.caosql_expr.check_source_atomic_expr(index.tree, concept)
+
+        except caosql_exc.CaosQLReferenceError as e:
+            raise MetaError(e.args[0], context=index.context) from e
+
+        return concepts
 
 
     def genatom(self, meta, host, base, link_name, mods):

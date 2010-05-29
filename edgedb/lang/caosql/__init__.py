@@ -9,11 +9,4 @@
 from semantix import SemantixError
 
 from . import ast
-
-
-class CaosQLError(SemantixError):
-    pass
-
-
-class CaosQLQueryError(CaosQLError):
-    pass
+from .errors import CaosQLError, CaosQLQueryError

@@ -1024,6 +1024,77 @@ class TreeTransformer:
 
         return node
 
+    def process_sequence(self, seq):
+        pathdict = {}
+        proppathdict = {}
+        elems = []
+
+        for elem in seq.elements:
+            if isinstance(elem, (caos_ast.BaseRef, caos_ast.Disjunction)):
+                if not isinstance(elem, caos_ast.Disjunction):
+                    elem = caos_ast.Disjunction(paths=frozenset({elem}))
+                elif len(elem.paths) > 1:
+                    break
+
+                pd = self.check_atomic_disjunction(elem, caos_ast.AtomicRef)
+                if not pd:
+                    pd = self.check_atomic_disjunction(elem, caos_ast.LinkPropRef)
+                    if not pd:
+                        break
+                    proppathdict.update(pd)
+                else:
+                    pathdict.update(pd)
+
+                if pathdict and proppathdict:
+                    break
+
+                elems.append(next(iter(elem.paths)))
+            else:
+                # The sequence is not all atoms
+                break
+        else:
+            if len(pathdict) == 1:
+                exprtype = caos_ast.AtomicRefExpr
+            elif len(proppathdict) == 1:
+                exprtype = caos_ast.LinkPropRefExpr
+                pathdict = proppathdict
+            else:
+                exprtype = None
+
+            if exprtype:
+                # The sequence is composed of references to atoms of the same node
+                ref = list(pathdict.values())[0]
+
+                for elem in elems:
+                    if elem.ref is not ref.ref:
+                        elem.replace_refs([elem.ref], ref.ref, deep=True)
+
+                return exprtype(expr=caos_ast.Sequence(elements=elems))
+
+        return seq
+
+    def check_atomic_disjunction(self, expr, typ):
+        """Check that all paths in disjunction are atom references.
+
+           Return a dict mapping path prefixes to a corresponding node.
+        """
+        pathdict = {}
+        for ref in expr.paths:
+            # Check that refs in the operand are all atomic: non-atoms do not coerse
+            # to literals.
+            #
+            if not isinstance(ref, typ):
+                return None
+
+            if isinstance(ref, caos_ast.AtomicRef):
+                ref_id = ref.ref.id
+            else:
+                ref_id = ref.id
+
+            assert not pathdict.get(ref_id)
+            pathdict[ref_id] = ref
+        return pathdict
+
     def process_binop(self, left, right, op):
         try:
             result = self._process_binop(left, right, op, reversed=False)
@@ -1052,30 +1123,8 @@ class TreeTransformer:
             else:
                 left_exprs = left
 
-            def check_atomic_disjunction(expr, typ):
-                """Check that all paths in disjunction are atom references.
-
-                   Return a dict mapping path prefixes to a corresponding node.
-                """
-                pathdict = {}
-                for ref in expr.paths:
-                    # Check that refs in the operand are all atomic: non-atoms do not coerse
-                    # to literals.
-                    #
-                    if not isinstance(ref, typ):
-                        return None
-
-                    if isinstance(ref, caos_ast.AtomicRef):
-                        ref_id = ref.ref.id
-                    else:
-                        ref_id = ref.id
-
-                    assert not pathdict.get(ref_id)
-                    pathdict[ref_id] = ref
-                return pathdict
-
-            pathdict = check_atomic_disjunction(left_exprs, caos_ast.AtomicRef)
-            proppathdict = check_atomic_disjunction(left_exprs, caos_ast.LinkPropRef)
+            pathdict = self.check_atomic_disjunction(left_exprs, caos_ast.AtomicRef)
+            proppathdict = self.check_atomic_disjunction(left_exprs, caos_ast.LinkPropRef)
 
             if not pathdict and not proppathdict:
                 if isinstance(right, (caos_ast.Disjunction, caos_ast.EntitySet)):
@@ -1180,52 +1229,24 @@ class TreeTransformer:
                         else:
                             result = caos_ast.Disjunction(paths=frozenset(paths))
 
-                elif isinstance(right, (caos_ast.AtomicRef, caos_ast.Disjunction)):
-                    if isinstance(right, caos_ast.AtomicRef):
+                elif isinstance(right, (caos_ast.BaseRef, caos_ast.Disjunction)):
+                    if not isinstance(right, caos_ast.Disjunction):
                         right_exprs = caos_ast.Disjunction(paths=frozenset((right,)))
                     else:
                         right_exprs = right
 
-                    rightdict = check_atomic_disjunction(right_exprs, caos_ast.AtomicRef)
+                    rightdict = self.check_atomic_disjunction(right_exprs, caos_ast.AtomicRef)
+                    rightpropdict = self.check_atomic_disjunction(right_exprs, caos_ast.LinkPropRef)
 
-                    if rightdict and not proppathdict:
+                    if rightdict and pathdict or rightpropdict and proppathdict:
                         paths = set()
 
-                        # If both operands are atom references, then we check if the referenced
-                        # atom parent concepts intersect, and if they do we fold the expression
-                        # into the atom ref for those common concepts only.  If there are no common
-                        # concepts, a regular binary operation is returned.
-                        #
-                        for ref in left_exprs.paths:
-                            left_id = ref.ref.id
-
-                            right_expr = rightdict.get(left_id)
-
-                            if right_expr:
-                                right_expr.replace_refs([right_expr.ref], ref.ref, deep=True)
-                                filterop = newbinop(ref, right_expr)
-                                paths.add(caos_ast.AtomicRefExpr(expr=filterop))
-
-                        if paths:
-                            if len(paths) == 1:
-                                result = next(iter(paths))
-                            else:
-                                result = caos_ast.Disjunction(paths=frozenset(paths))
+                        if proppathdict:
+                            exprtype = caos_ast.LinkPropRefExpr
+                            rightdict = rightpropdict
                         else:
-                            result = newbinop(left, right)
-                    else:
-                        result = newbinop(left, right)
+                            exprtype = caos_ast.AtomicRefExpr
 
-                elif isinstance(right, (caos_ast.LinkPropRef, caos_ast.Disjunction)):
-                    if isinstance(right, caos_ast.LinkPropRef):
-                        right_exprs = caos_ast.Disjunction(paths=frozenset((right,)))
-                    else:
-                        right_exprs = right
-
-                    rightdict = check_atomic_disjunction(right_exprs, caos_ast.LinkPropRef)
-
-                    if rightdict and not pathdict:
-                        paths = set()
 
                         # If both operands are atom references, then we check if the referenced
                         # atom parent concepts intersect, and if they do we fold the expression
@@ -1233,14 +1254,17 @@ class TreeTransformer:
                         # concepts, a regular binary operation is returned.
                         #
                         for ref in left_exprs.paths:
-                            left_id = ref.id
+                            if isinstance(ref, caos_ast.AtomicRef):
+                                left_id = ref.ref.id
+                            else:
+                                left_id = ref.id
 
                             right_expr = rightdict.get(left_id)
 
                             if right_expr:
                                 right_expr.replace_refs([right_expr.ref], ref.ref, deep=True)
                                 filterop = newbinop(ref, right_expr)
-                                paths.add(caos_ast.LinkPropRefExpr(expr=filterop))
+                                paths.add(exprtype(expr=filterop))
 
                         if paths:
                             if len(paths) == 1:

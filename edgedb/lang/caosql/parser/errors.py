@@ -6,8 +6,7 @@
 ##
 
 
-from semantix import SemantixError
-from semantix.caos.caosql import CaosQLError
+from semantix.caos.caosql.errors import CaosQLError
 
 
 class CaosQLSyntaxError(CaosQLError):

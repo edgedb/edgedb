@@ -13,7 +13,7 @@ from semantix.caos import tree
 from semantix.caos import name as caos_name
 from semantix.caos import proto as caos_proto
 from semantix.caos.caosql import ast as qlast
-from semantix.caos.caosql import CaosQLError
+from semantix.caos.caosql import errors
 
 
 class ParseContextLevel(object):
@@ -68,6 +68,79 @@ class ParseContextWrapper(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.context.pop()
+
+
+class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
+    def transform(self, caos_tree):
+        return self._process_expr(caos_tree)
+
+    def _process_expr(self, expr):
+        if isinstance(expr, tree.ast.BinOp):
+            left = self._process_expr(expr.left)
+            right = self._process_expr(expr.right)
+            result = qlast.BinOpNode(left=left, op=expr.op, right=right)
+
+        elif isinstance(expr, tree.ast.AtomicRef):
+            path = self._process_expr(expr.ref)
+            link = qlast.LinkNode(name=expr.name.name, namespace=expr.name.module)
+            link = qlast.LinkExprNode(expr=link)
+            path.steps.append(link)
+            result = path
+
+        elif isinstance(expr, tree.ast.EntitySet):
+            links = []
+
+            while expr.rlink:
+                linknode = expr.rlink
+                linkproto = next(iter(linknode.filter.labels))
+
+                link = qlast.LinkNode(name=linkproto.name.name, namespace=linkproto.name.module,
+                                      direction=linknode.filter.direction)
+                link = qlast.LinkExprNode(expr=link)
+                links.append(link)
+
+                expr = expr.rlink.source
+
+            path = qlast.PathNode()
+            step = qlast.PathStepNode(expr=expr.concept.name.name,
+                                      namespace=expr.concept.name.module)
+            path.steps.append(step)
+            path.steps.extend(reversed(links))
+
+            result = path
+
+        elif isinstance(expr, tree.ast.LinkPropRef):
+            path = self._process_expr(expr.ref)
+            link = qlast.LinkNode(name=expr.name.name, namespace=expr.name.module)
+            link = qlast.LinkPropExprNode(expr=link)
+            path.steps.append(link)
+            result = path
+
+        elif isinstance(expr, tree.ast.EntityLink):
+            if expr.source:
+                path = self._process_expr(expr.source)
+            else:
+                path = qlast.PathNode()
+
+            linkproto = next(iter(expr.filter.labels))
+
+            if path.steps:
+                link = qlast.LinkNode(name=linkproto.name.name, namespace=linkproto.name.module)
+                link = qlast.LinkExprNode(expr=link)
+            else:
+                link = qlast.PathStepNode(expr=linkproto.name.name, namespace=linkproto.name.module)
+
+            path.steps.append(link)
+            result = path
+
+        elif isinstance(expr, tree.ast.Sequence):
+            elements = [self._process_expr(e) for e in expr.elements]
+            result = qlast.SequenceNode(elements=elements)
+
+        else:
+            assert False, "Unexpected expression type: %r" % expr
+
+        return result
 
 
 class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
@@ -162,7 +235,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     if p.id not in context.current.groupprefixes:
                         err = ('node reference "%s" must appear in the GROUP BY expression or '
                                'used in an aggregate function ') % p.id
-                        raise CaosQLError(err)
+                        raise errors.CaosQLError(err)
 
             if context.current.location != 'generator' or context.current.in_aggregate:
                 node = self.entityref_to_idref(node)
@@ -174,6 +247,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         elif isinstance(expr, qlast.SequenceNode):
             elements=[self._process_expr(context, e) for e in expr.elements]
             node = tree.ast.Sequence(elements=elements)
+            node = self.process_sequence(node)
 
         elif isinstance(expr, qlast.FunctionCallNode):
             with context():
@@ -206,12 +280,12 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             if isinstance(node, (qlast.PathNode, qlast.PathStepNode)):
                 if isinstance(node, qlast.PathNode):
                     if len(node.steps) > 1:
-                        raise CaosQLError('unsupported subpath expression')
+                        raise errors.CaosQLError('unsupported subpath expression')
 
                     anchor = node.var.name if node.var else None
 
                     if anchor in anchors:
-                        raise CaosQLError('duplicate anchor: %s' % anchor)
+                        raise errors.CaosQLError('duplicate anchor: %s' % anchor)
 
                     tip = self._get_path_tip(node)
 
@@ -242,14 +316,20 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
             if isinstance(tip, qlast.PathStepNode):
 
-                step = tree.ast.EntitySet()
+                proto = self._normalize_concept(context, tip.expr, tip.namespace)
 
-                step.concept = self._normalize_concept(context, tip.expr, tip.namespace)
-                tips = {step.concept: {step}}
-                step.id = tree.transformer.LinearPath([step.concept])
-                step.anchor = anchor
+                if isinstance(proto, caos_types.ProtoConcept):
+                    step = tree.ast.EntitySet()
+                    step.concept = proto
+                    tips = {step.concept: {step}}
+                    step.id = tree.transformer.LinearPath([step.concept])
+                    step.anchor = anchor
 
-                step.users.add(context.current.location)
+                    step.users.add(context.current.location)
+                else:
+                    linkspec = tree.ast.EntityLinkSpec(labels=frozenset((proto,)))
+                    step = tree.ast.EntityLink(filter=linkspec)
+                    tips = {None: {step}}
 
                 if anchor:
                     anchors[anchor] = step
@@ -261,7 +341,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 if isinstance(link_expr, qlast.LinkNode):
                     direction = link_expr.direction or caos_types.OutboundDirection
                 else:
-                    raise CaosQLError("complex link expressions are not supported yet")
+                    raise errors.CaosQLError("complex link expressions are not supported yet")
 
                 newtips = {}
 
@@ -270,7 +350,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     link_protos = self._normalize_link(context, concept, link_expr.name, module)
 
                     if not link_protos:
-                        raise CaosQLError('reference to an undefined link "%s"' % link_expr.name)
+                        raise errors.CaosQLReferenceError('reference to an undefined link "%s"' \
+                                                          % link_expr.name)
 
                     seen_concepts = seen_atoms = False
                     all_links = link_protos[0].name == 'semantix.caos.builtins.link'
@@ -298,7 +379,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                                 if isinstance(target, caos_types.ProtoConcept):
                                     if seen_atoms:
-                                        raise CaosQLError('path expression results in invalid atom/concept mix')
+                                        raise errors.CaosQLError('path expression results in an '
+                                                                 'invalid atom/concept mix')
                                     seen_concepts = True
 
                                     link_spec = tree.ast.EntityLinkSpec(labels=frozenset([link_item]),
@@ -326,7 +408,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                                 elif isinstance(target, caos_types.ProtoAtom):
                                     if seen_concepts:
-                                        raise CaosQLError('path expression results in invalid atom/concept mix')
+                                        raise errors.CaosQLError('path expression results in an '
+                                                                 'invalid atom/concept mix')
                                     seen_atoms = True
 
                                     newtips[target] = set()
@@ -341,7 +424,12 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                     assert False, 'unexpected link target type: %s' % target
 
                 if not newtips:
-                    raise CaosQLError('path expression always yields an empty set')
+                    msg = '%s is not a valid pointer of %s' % \
+                                (' or '.join('"%s"' % p.normal_name() for p in link_protos),
+                                 ' or '.join('"%s"' % p.name for p in tips.keys()))
+                    source = list(tips.keys())[0]
+                    pointer = list(link_protos)[0]
+                    raise errors.CaosQLReferenceError(msg, source=source, pointer=pointer)
 
                 if anchor:
                     paths = itertools.chain.from_iterable(newtips.values())
@@ -359,18 +447,26 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     module = link_expr.namespace
 
                     for entset in tip:
-                        link = entset.rlink
+                        if isinstance(entset, tree.ast.EntityLink):
+                            link = entset
+                            link_proto = next(iter(link.filter.labels))
+                            id = tree.transformer.LinearPath([None])
+                            id.add((link_proto,), caos_types.OutboundDirection, None)
+                        else:
+                            link = entset.rlink
+                            id = entset.id
+
                         link_proto = next(iter(link.filter.labels))
                         prop_protos = self._normalize_link(context, link_proto, link_expr.name,
                                                            module, type=caos_proto.LinkProperty)
 
                         if not prop_protos:
-                            raise CaosQLError('reference to an undefined link property "%s"'  \
-                                              % link_expr.name)
+                            raise errors.CaosQLError('reference to an undefined link property "%s"'\
+                                                     % link_expr.name)
 
                         for prop_proto in prop_protos:
                             propref = tree.ast.LinkPropRefSimple(name=prop_proto.name, ref=link,
-                                                                 id=entset.id)
+                                                                 id=id)
                             newtips[prop_proto] = {propref}
 
                 tips = newtips
@@ -407,8 +503,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 name = caos_name.Name(name=concept, module=namespace)
             else:
                 name = concept
-            concept = self.proto_schema.get(name=name, module_aliases=context.current.namespaces,
-                                            type=caos_types.ProtoNode)
+            concept = self.proto_schema.get(name=name, module_aliases=context.current.namespaces)
         return concept
 
     def _process_select_targets(self, context, targets):
