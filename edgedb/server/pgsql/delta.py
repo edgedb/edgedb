@@ -21,6 +21,7 @@ from semantix.utils import datastructures
 from semantix.utils.debug import debug
 from semantix.utils.lang import yaml
 from semantix.utils.algos.persistent_hash import persistent_hash
+from semantix.utils import helper
 
 from . import datasources
 
@@ -335,7 +336,14 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
                 base = common.atom_name_to_domain_name(atom.base)
         else:
             # Base is a Python type, must correspond to PostgreSQL type
-            base = base_type_name_map[atom.name]
+            base = base_type_name_map.get(atom.name)
+            if not base:
+                base_class = helper.get_object(str(atom.base))
+                base_type = getattr(base_class, 'adapts', None)
+                assert base_type, '"%s" is not in builtins and does not define "adapts" attribute' \
+                                  % atom.base
+                base = base_type_name_map[base_type]
+
             if not isinstance(base, str):
                 base, mods_encoded = base(meta.get(atom.name), atom_mods)
 
