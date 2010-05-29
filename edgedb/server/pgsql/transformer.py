@@ -469,12 +469,21 @@ class CaosTreeTransformer(ast.visitor.NodeVisitor):
 
                 # Fold constant ops into the inner query filter.
                 if isinstance(expr.left, tree.ast.Constant) and isinstance(right, pgsql.ast.IgnoreNode):
-                    cte.fromlist[0].expr.where = self.extend_predicate(cte.fromlist[0].expr.where,
-                                                                       left, op)
+                    if expr.op == ast.ops.OR:
+                        cte.fromlist[0].expr.where_weak = self.extend_predicate(cte.fromlist[0].expr.where_weak,
+                                                                                left, op)
+                    else:
+                        cte.fromlist[0].expr.where_strong = self.extend_predicate(cte.fromlist[0].expr.where_strong,
+                                                                                  left, op)
                     left = pgsql.ast.IgnoreNode()
+
                 elif isinstance(expr.right, tree.ast.Constant) and isinstance(left, pgsql.ast.IgnoreNode):
-                    cte.fromlist[0].expr.where = self.extend_predicate(cte.fromlist[0].expr.where,
-                                                                       right, op)
+                    if expr.op == ast.ops.OR:
+                        cte.fromlist[0].expr.where_weak = self.extend_predicate(cte.fromlist[0].expr.where_weak,
+                                                                                right, op)
+                    else:
+                        cte.fromlist[0].expr.where_strong = self.extend_predicate(cte.fromlist[0].expr.where_strong,
+                                                                                  right, op)
                     right = pgsql.ast.IgnoreNode()
 
                 if isinstance(left, pgsql.ast.IgnoreNode) or isinstance(right, pgsql.ast.IgnoreNode):
