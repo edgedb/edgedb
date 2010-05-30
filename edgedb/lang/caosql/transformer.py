@@ -71,8 +71,8 @@ class ParseContextWrapper(object):
 
 
 class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
-    def __init__(self, realm, module_aliases=None):
-        self.realm = realm
+    def __init__(self, proto_schema, module_aliases=None):
+        self.proto_schema = proto_schema
         self.module_aliases = module_aliases
 
     def transform(self, caosql_tree, arg_types):
@@ -188,8 +188,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 name = caos_name.Name(name=expr.name, module=expr.module)
             else:
                 name = expr.name
-            node = self.realm.meta.get(name=name, module_aliases=context.current.namespaces,
-                                       type=caos_types.ProtoNode)
+            node = self.proto_schema.get(name=name, module_aliases=context.current.namespaces,
+                                         type=caos_types.ProtoNode)
 
         else:
             assert False, "Unexpected expr: %s" % expr
@@ -275,8 +275,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     seen_concepts = seen_atoms = False
                     all_links = link_protos[0].name == 'semantix.caos.builtins.link'
 
-                    outbound, inbound = concept.match_links(self.realm, link_protos, direction,
-                                                            skip_atomic=all_links)
+                    outbound, inbound = concept.match_links(self.proto_schema, link_protos,
+                                                            direction, skip_atomic=all_links)
 
                     links = {caos_types.OutboundDirection: outbound,
                              caos_types.InboundDirection: inbound}
@@ -292,7 +292,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                                 if not link_item.generic():
                                     link_proto = link_item
-                                    link_item = self.realm.meta.get(link_item.normal_name())
+                                    link_item = self.proto_schema.get(link_item.normal_name())
                                 else:
                                     assert False
 
@@ -382,33 +382,33 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
     def _normalize_link(self, context, concept, link, namespace, type=caos_types.ProtoLink):
         if link == '%':
-            links = [self.realm.meta.get(name='semantix.caos.builtins.link')]
+            links = [self.proto_schema.get(name='semantix.caos.builtins.link')]
         else:
             if not namespace:
                 assert '%' not in link
-                linkset = concept.get_attr(self.realm, link)
+                linkset = concept.get_attr(self.proto_schema, link)
                 assert linkset
                 if linkset:
                     if isinstance(linkset, caos_types.ProtoLinkSet):
-                        links = [self.realm.meta.get(linkset.first.base[0], type=type)]
+                        links = [self.proto_schema.get(linkset.first.base[0], type=type)]
                     else:
-                        links = [self.realm.meta.get(linkset.base[0], type=type)]
+                        links = [self.proto_schema.get(linkset.base[0], type=type)]
             else:
                 name = caos_name.Name(name=link, module=namespace)
-                links = self.realm.meta.match(name=name, module_aliases=context.current.namespaces,
-                                              type=type)
+                links = self.proto_schema.match(name=name, module_aliases=context.current.namespaces,
+                                                type=type)
         return links
 
     def _normalize_concept(self, context, concept, namespace):
         if concept == '%':
-            concept = self.realm.meta.get(name='semantix.caos.builtins.BaseObject')
+            concept = self.proto_schema.get(name='semantix.caos.builtins.BaseObject')
         else:
             if namespace:
                 name = caos_name.Name(name=concept, module=namespace)
             else:
                 name = concept
-            concept = self.realm.meta.get(name=name, module_aliases=context.current.namespaces,
-                                          type=caos_types.ProtoNode)
+            concept = self.proto_schema.get(name=name, module_aliases=context.current.namespaces,
+                                            type=caos_types.ProtoNode)
         return concept
 
     def _process_select_targets(self, context, targets):
