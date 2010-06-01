@@ -452,3 +452,21 @@ class Struct(metaclass=StructMeta):
 
     def __repr__(self):
         return ', '.join('%s=%s' % (name, value) for name, value in self.formatfields('repr'))
+
+
+class xvalue:
+    """xvalue is a "rich" value that can have an arbitrary set of additional
+    attributes attached to it."""
+
+
+    __slots__ = ('value', 'attrs')
+
+    def __init__(self, value, **attrs):
+        self.value = value
+        self.attrs = attrs
+
+    def __repr__(self):
+        attrs = ', '.join('%s=%r' % (k, v) for k, v in self.attrs.items())
+        return '<xvalue "%r"; %s>' % (self.value, attrs)
+
+    __str__ = __repr__
