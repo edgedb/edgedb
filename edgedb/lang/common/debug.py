@@ -89,13 +89,13 @@ class debug(object):
                             # We want to use the first.
                             lineno = node.lineno - len(comment) + 1
 
-                            text = 'import semantix.utils.debug, os as _os_\n' \
+                            text = 'import semantix.utils.debug, semantix.utils.helper, os as _os_\n' \
                                    'if semantix.utils.debug.channels & %r:\n' \
                                    '    pass\n' % tags
 
                             if title:
                                 if type == 'LOG':
-                                    text += '    print("\\n" + "="*80 + "\\n" + %r + "\\n" + "="*80)\n' % title
+                                    text += '    print(semantix.utils.helper.dump_header(%r))\n' % title
                                 else:
                                     text += '    print(_os_.getpid(), %r, %s)' % (title, ', '.join(comment[1:]))
 
