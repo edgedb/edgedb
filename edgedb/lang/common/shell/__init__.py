@@ -13,7 +13,7 @@ import sys
 from semantix import SemantixError
 
 from semantix.utils import datastructures
-from semantix.utils import debug
+from semantix.utils import debug, config
 from semantix.utils.io import terminal
 
 from . import reqs
@@ -99,14 +99,19 @@ class Command(CommandBase, name=None):
         raise NotImplementedError
 
 
+@config.configurable
 class MainCommand(CommandGroup, name='__main__'):
+    colorize = config.cvalue('auto', type=str, doc='default commands color output setting value' \
+                                                   ' [auto, always, never]')
+
     def create_parser(self, parser):
-        parser.add_argument('--color', choices=('auto', 'always', 'never'), default='auto')
+        parser.add_argument('--color', choices=('auto', 'always', 'never'), default=self.colorize)
         parser.add_argument('-d', '--debug', dest='debug', action='append')
         parser.add_argument('--profile', dest='profile')
         return parser
 
     def __call__(self, args):
+        config.set_value('semantix.utils.shell.MainCommand.colorize', args.color)
         color = None if args.color == 'auto' else args.color == 'always'
         term = terminal.Terminal(sys.stdout.fileno(), colors=color)
         args.color = term.has_colors()
