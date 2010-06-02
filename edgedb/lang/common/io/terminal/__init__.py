@@ -8,11 +8,12 @@
 
 import os
 import sys
+import builtins
 
 
 from semantix.exceptions import SemantixError
-
 from semantix.utils.io.terminal.color import colorize, colorstr, dummycolorstr
+from semantix.utils.datastructures import xvalue
 
 
 def isatty(file):
@@ -25,7 +26,13 @@ class TerminalError(SemantixError):
 
 class Terminal:
     def __init__(self, fd=None, *, colors=None):
-        self.fd = fd or sys.stdout.fileno()
+        if fd is not None and not isinstance(fd, int):
+            self.fd = fd
+            self.fileno = fd.fileno()
+
+        else:
+            self.fd = None
+            self.fileno = fd or sys.stdout.fileno()
 
         self.colors = self.supports_colors() if colors is None else colors
 
@@ -41,13 +48,13 @@ class Terminal:
         return self.isatty() and os.getenv('TERM', None) != 'dumb'
 
     def isatty(self):
-        return os.isatty(self.fd)
+        return os.isatty(self.fileno)
 
     @property
     def size(self):
         try:
             import fcntl, termios, struct
-            size = struct.unpack('2h', fcntl.ioctl(self.fd, termios.TIOCGWINSZ, '    '))
+            size = struct.unpack('2h', fcntl.ioctl(self.fileno, termios.TIOCGWINSZ, '    '))
         except:
             size = (os.getenv('LINES', 25), os.getenv('COLUMNS', 80))
 
@@ -58,3 +65,16 @@ class Terminal:
             return colorize(string, fg, bg, opts)
         else:
             return string
+
+    def print(self, *args, **kwargs):
+        new_args = []
+        for arg in args:
+            if isinstance(arg, xvalue):
+                new_args.append(self.colorize(arg.value, **arg.attrs))
+            else:
+                new_args.append(arg)
+
+        if self.fd:
+            builtins.print(*new_args, file=self.fd, **kwargs)
+        else:
+            builtins.print(*new_args, **kwargs)
