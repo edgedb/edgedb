@@ -49,7 +49,7 @@ def decorate(wrapper, wrapped):
 
 
 def isdecorated(func):
-    return (isinstance(func, types.FunctionType) and hasattr(func, '_args_spec') \
+    return (isinstance(func, types.FunctionType) and hasattr(func, '_args_spec_') \
                                                             and hasattr(func, '_func_')) \
             or isinstance(func, BaseDecorator)
 
