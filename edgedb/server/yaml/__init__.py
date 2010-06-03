@@ -1113,12 +1113,12 @@ class DataSet(LangObject):
 
 
 class CaosName(LangObject, adapts=caos.Name, ignore_aliases=True):
+    def __new__(cls, context, data):
+        return caos.Name.__new__(cls, data)
+
     @classmethod
     def represent(cls, data):
         return str(data)
-
-    def construct(self):
-        caos.Name.__init__(self, self.data)
 
 
 class ModuleFromData:
