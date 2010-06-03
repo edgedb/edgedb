@@ -17,7 +17,8 @@ from semantix.caos.objects.datetime import TimeDelta, DateTime, Time
 
 
 def interval_pack(x):
-    return (0, x.days, (x.seconds, x.microseconds))
+    months, days, seconds, microseconds = x.to_months_days_seconds_microseconds()
+    return (months, days, (seconds, microseconds))
 
 def interval_unpack(mds):
     months, days, (seconds, microseconds) = mds

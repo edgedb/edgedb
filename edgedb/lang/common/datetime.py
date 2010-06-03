@@ -162,6 +162,13 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
     def __le__(self, other):
         return not self > other
 
+    def to_months_days_seconds_microseconds(self):
+        months = self.months + self.years * 12
+        days = self.days
+        seconds = self.seconds + self.minutes * 60 + self.hours * 3600
+        microseconds = self.microseconds
+        return months, days, seconds, microseconds
+
 
 class Time(TimeDelta):
     def __new__(cls, value=None, *, format=None):
