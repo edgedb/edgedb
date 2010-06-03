@@ -1029,7 +1029,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 tabidx = indexes.get(table_name)
                 if tabidx:
                     for index in tabidx:
-                        caos_tree = reverse_transformer.transform(index, link)
+                        caos_tree = reverse_transformer.transform(index, meta, link)
                         caosql_tree = reverse_caosql_transformer.transform(caos_tree)
                         expr = caosql_codegen.CaosQLSourceGenerator.to_source(caosql_tree)
                         link.add_index(proto.SourceIndex(expr=expr))
@@ -1164,7 +1164,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             tabidx = indexes.get(table_name)
             if tabidx:
                 for index in tabidx:
-                    caos_tree = reverse_transformer.transform(index, concept)
+                    caos_tree = reverse_transformer.transform(index, meta, concept)
                     caosql_tree = reverse_caosql_transformer.transform(caos_tree)
                     expr = caosql_codegen.CaosQLSourceGenerator.to_source(caosql_tree)
                     concept.add_index(proto.SourceIndex(expr=expr))

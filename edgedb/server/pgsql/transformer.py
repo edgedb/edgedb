@@ -133,13 +133,18 @@ class TransformerContextWrapper(object):
 
 
 class PgSQLExprTransformer(ast.visitor.NodeVisitor):
-    def transform(self, tree, local_to_source=None):
+    def transform(self, tree, schema, local_to_source=None):
         context = TransformerContext()
         context.current.source = local_to_source
 
         if local_to_source:
-            context.current.attmap = {common.caos_name_to_pg_name(l.normal_name()): l.normal_name()\
-                                      for l in local_to_source.pointers.values()}
+            context.current.attmap = {}
+
+            for l in local_to_source.pointers.values():
+                name = l.normal_name()
+                colname = common.caos_name_to_pg_name(l.normal_name())
+                source = context.current.source.get_pointer_origin(schema, name)
+                context.current.attmap[colname] = (name, source)
 
         return self._process_expr(context, tree)
 
@@ -153,17 +158,19 @@ class PgSQLExprTransformer(ast.visitor.NodeVisitor):
             if context.current.source:
                 if isinstance(context.current.source, caos_types.ProtoConcept):
                     id = caos_utils.LinearPath([context.current.source])
-                    entset = tree.ast.EntitySet(id=id, concept=context.current.source)
-                    result = tree.ast.AtomicRefSimple(ref=entset,
-                                                      name=context.current.attmap[expr.field])
+                    pointer, source = context.current.attmap[expr.field]
+                    entset = tree.ast.EntitySet(id=id, concept=source)
+                    result = tree.ast.AtomicRefSimple(ref=entset, name=pointer)
                 else:
                     id = caos_utils.LinearPath([None])
                     id.add((context.current.source,), caos_types.OutboundDirection, None)
                     linkspec = tree.ast.EntityLinkSpec(labels=frozenset((context.current.source,)))
                     entlink = tree.ast.EntityLink(filter=linkspec)
                     result = tree.ast.LinkPropRefSimple(ref=entlink,
-                                                        name=context.current.attmap[expr.field],
+                                                        name=context.current.attmap[expr.field][0],
                                                         id=id)
+            else:
+                assert False
 
         elif isinstance(expr, pgsql.ast.RowExprNode):
             result = tree.ast.Sequence(elements=[self._process_expr(context, e) for e in expr.args])

@@ -877,10 +877,12 @@ class MetaSet(LangObject):
 
         links = topological.normalize(g, merger=proto.Link.merge)
 
+        csql_expr = caosql_expr.CaosQLExpression(globalmeta)
+
         try:
             for link in links:
                 for index in link.indexes:
-                    self.caosql_expr.check_source_atomic_expr(index.tree, link)
+                    csql_expr.check_source_atomic_expr(index.tree, link)
 
         except caosql_exc.CaosQLReferenceError as e:
             raise MetaError(e.args[0], context=index.context) from e
@@ -1018,10 +1020,12 @@ class MetaSet(LangObject):
 
         concepts = topological.normalize(g, merger=proto.Concept.merge)
 
+        csql_expr = caosql_expr.CaosQLExpression(globalmeta)
+
         try:
             for concept in concepts:
                 for index in concept.indexes:
-                    self.caosql_expr.check_source_atomic_expr(index.tree, concept)
+                    csql_expr.check_source_atomic_expr(index.tree, concept)
 
         except caosql_exc.CaosQLReferenceError as e:
             raise MetaError(e.args[0], context=index.context) from e
