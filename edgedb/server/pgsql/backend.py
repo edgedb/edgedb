@@ -46,11 +46,13 @@ from .session import Session
 
 
 class Query:
-    def __init__(self, text, statement, argmap, context=None):
+    def __init__(self, text, statement, argmap, result_types, argument_types, context=None):
         self.text = text
         self.argmap = argmap
         self.context = context
         self.statement = statement
+        self.result_types = result_types
+        self.argument_types = argument_types
 
     def __call__(self, *args, **kwargs):
         vars = self.convert_args(args, kwargs)
@@ -76,7 +78,10 @@ class Query:
         return result
 
     def describe_output(self):
-        return dict(zip(self.statement.column_names, self.statement.column_types))
+        return dict(self.result_types)
+
+    def describe_arguments(self):
+        return dict(self.argument_types)
 
     __iter__ = rows
 
@@ -85,6 +90,7 @@ class CaosQLCursor:
     cache = {}
 
     def __init__(self, session):
+        self.session = session
         self.realm = session.realm
         self.connection = session.connection
         self.cursor = CompatCursor(self.connection)
@@ -104,7 +110,16 @@ class CaosQLCursor:
             print(qtext)
             """
 
-        return Query(text=qtext, statement=ps, argmap=argmap)
+        restypes = {}
+
+        for k, v in query.result_types.items():
+            if isinstance(v[0], caos.types.ProtoNode):
+                restypes[k] = (self.session.schema.get(v[0].name), v[1])
+            else:
+                restypes[k] = v
+
+        return Query(text=qtext, statement=ps, argmap=argmap, result_types=restypes,
+                     argument_types=query.argument_types)
 
 
 class Backend(backends.MetaBackend, backends.DataBackend):

@@ -24,12 +24,14 @@ class ParseContextLevel(object):
             self.location = prevlevel.location
             self.groupprefixes = prevlevel.groupprefixes
             self.in_aggregate = prevlevel.in_aggregate[:]
+            self.arguments = prevlevel.arguments
         else:
             self.anchors = {}
             self.namespaces = {}
             self.location = None
             self.groupprefixes = None
             self.in_aggregate = []
+            self.arguments = {}
 
 
 class ParseContext(object):
@@ -136,6 +138,7 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
         elif isinstance(expr, tree.ast.Sequence):
             elements = [self._process_expr(e) for e in expr.elements]
             result = qlast.SequenceNode(elements=elements)
+            result = self.process_sequence(result)
 
         else:
             assert False, "Unexpected expression type: %r" % expr
@@ -205,6 +208,9 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         if graph.generator:
             self.reorder_aggregates(graph.generator)
 
+        graph.result_types = self.get_selector_types(graph.selector, self.proto_schema)
+        graph.argument_types = self.context.current.arguments
+
         return graph
 
     def _process_select_where(self, context, where):
@@ -243,6 +249,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         elif isinstance(expr, qlast.ConstantNode):
             type = self.arg_types.get(expr.index)
             node = tree.ast.Constant(value=expr.value, index=expr.index, type=type)
+            if expr.index:
+                context.current.arguments[expr.index] = type
 
         elif isinstance(expr, qlast.SequenceNode):
             elements=[self._process_expr(context, e) for e in expr.elements]
@@ -483,7 +491,11 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             if not namespace:
                 assert '%' not in link
                 linkset = concept.get_attr(self.proto_schema, link)
-                assert linkset
+
+                if not linkset:
+                    raise errors.CaosQLReferenceError('"%s" is not a valid pointer of "%s"' \
+                                                      % (link, concept.name))
+
                 if linkset:
                     if isinstance(linkset, caos_types.ProtoLinkSet):
                         links = [self.proto_schema.get(linkset.first.base[0], type=type)]

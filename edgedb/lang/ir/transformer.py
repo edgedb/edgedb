@@ -1022,12 +1022,20 @@ class TreeTransformer:
         elif node.name[0] == 'agg':
             node.aggregates = True
 
+        for arg in node.args:
+            if not isinstance(arg, caos_ast.Constant):
+                break
+        else:
+            node = caos_ast.Constant(expr=node, type=node.args[0].type)
+
         return node
 
     def process_sequence(self, seq):
         pathdict = {}
         proppathdict = {}
         elems = []
+
+        const = True
 
         for elem in seq.elements:
             if isinstance(elem, (caos_ast.BaseRef, caos_ast.Disjunction)):
@@ -1049,27 +1057,33 @@ class TreeTransformer:
                     break
 
                 elems.append(next(iter(elem.paths)))
+                const = False
+            elif const and isinstance(elem, caos_ast.Constant):
+                continue
             else:
                 # The sequence is not all atoms
                 break
         else:
-            if len(pathdict) == 1:
-                exprtype = caos_ast.AtomicRefExpr
-            elif len(proppathdict) == 1:
-                exprtype = caos_ast.LinkPropRefExpr
-                pathdict = proppathdict
+            if const:
+                return caos_ast.Constant(expr=seq)
             else:
-                exprtype = None
+                if len(pathdict) == 1:
+                    exprtype = caos_ast.AtomicRefExpr
+                elif len(proppathdict) == 1:
+                    exprtype = caos_ast.LinkPropRefExpr
+                    pathdict = proppathdict
+                else:
+                    exprtype = None
 
-            if exprtype:
-                # The sequence is composed of references to atoms of the same node
-                ref = list(pathdict.values())[0]
+                if exprtype:
+                    # The sequence is composed of references to atoms of the same node
+                    ref = list(pathdict.values())[0]
 
-                for elem in elems:
-                    if elem.ref is not ref.ref:
-                        elem.replace_refs([elem.ref], ref.ref, deep=True)
+                    for elem in elems:
+                        if elem.ref is not ref.ref:
+                            elem.replace_refs([elem.ref], ref.ref, deep=True)
 
-                return exprtype(expr=caos_ast.Sequence(elements=elems))
+                    return exprtype(expr=caos_ast.Sequence(elements=elems))
 
         return seq
 
@@ -1300,7 +1314,12 @@ class TreeTransformer:
 
         elif isinstance(left, caos_ast.Constant):
             if isinstance(right, caos_ast.Constant):
-                result = caos_ast.Constant(expr=newbinop(left, right))
+                l, r = (right, left) if reversed else (left, right)
+                if l.type == r.type:
+                    result_type = l.type
+                else:
+                    result_type = caos_types.TypeRules.get_result(l.type, r.type, op)
+                result = caos_ast.Constant(expr=newbinop(left, right), type=result_type)
 
         elif isinstance(left, caos_ast.EntitySet):
             if op in (ast.ops.EQ, ast.ops.NE):
@@ -1372,3 +1391,54 @@ class TreeTransformer:
             params = (left.value, op, right.value)
 
         return caos_ast.Constant(value=eval('%r %s %r' % params))
+
+    def get_expr_type(self, expr, schema):
+        if isinstance(expr, caos_ast.MetaRef):
+            result = str
+        elif isinstance(expr, caos_ast.AtomicRefSimple):
+            if isinstance(expr.ref, caos_ast.PathCombination):
+                targets = [t.concept for t in expr.ref.paths]
+                concept = caos_utils.get_prototype_nearest_common_ancestor(targets, schema)
+            else:
+                concept = expr.ref.concept
+
+            if expr.name == 'semantix.caos.builtins.id':
+                result = concept
+            else:
+                linkset = concept.get_attr(schema, expr.name)
+                assert linkset, '"%s" is not a link of "%s"' % (expr.name, concept.name)
+                targets = [l.target for l in linkset]
+
+                if len(targets) == 1:
+                    result = targets[0]
+                else:
+                    result = caos_utils.get_prototype_nearest_common_ancestor(targets, schema)
+
+        elif isinstance(expr, caos_ast.Constant):
+            #assert expr.type is not None or expr.value is not None
+
+            if expr.type:
+                result = expr.type
+            elif expr.value is not None:
+                result = expr.value.__class__
+            else:
+                result = None
+
+        elif isinstance(expr, caos_ast.Disjunction):
+            if expr.paths:
+                result = self.get_expr_type(next(iter(expr.paths)), schema)
+            else:
+                result = None
+        else:
+            result = None
+
+        return result
+
+    def get_selector_types(self, selector, schema):
+        result = {}
+
+        for i, selexpr in enumerate(selector):
+            result[selexpr.name or i] = (self.get_expr_type(selexpr.expr, schema),
+                                         isinstance(selexpr.expr, caos_ast.Constant))
+
+        return result

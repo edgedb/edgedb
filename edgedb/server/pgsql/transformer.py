@@ -181,7 +181,7 @@ class PgSQLExprTransformer(ast.visitor.NodeVisitor):
         return result
 
 
-class CaosExprTransformer(ast.visitor.NodeVisitor):
+class CaosExprTransformer(tree.transformer.TreeTransformer):
     def _relation_from_concepts(self, context, node):
         concept = node.concept
         table_schema_name, table_name = common.concept_name_to_table_name(concept.name, catenate=False)
