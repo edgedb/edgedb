@@ -1072,10 +1072,21 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
                      for p in link.base if proto.Concept.is_prototype(p))
             table.bases = list(bases)
 
+        ct = CreateTable(table=table)
+
+        index_name = common.caos_name_to_pg_name(str(link.name)  + 'target_id_default_idx')
+        index = Index(index_name, new_table_name, unique=False)
+        index.add_columns(['target_id'])
+        ci = CreateIndex(index)
+
         if conditional:
-            c = CreateTable(table=table, neg_conditions=[TableExists(new_table_name)])
+            c = CommandGroup(neg_conditions=[TableExists(new_table_name)])
         else:
-            c = CreateTable(table=table)
+            c = CommandGroup()
+
+        c.add_command(ct)
+        c.add_command(ci)
+
         self.pgops.add(c)
         self.table_name = new_table_name
 
