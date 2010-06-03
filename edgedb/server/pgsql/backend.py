@@ -1154,6 +1154,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if concept.base:
                 g[concept.name]["merge"].extend(concept.base)
 
+        topological.normalize(g, merger=proto.Concept.merge)
+
+        for concept in meta(type='concept', include_automatic=True, include_builtin=True):
+            concept.materialize(meta)
+
             table_name = common.get_table_name(concept, catenate=False)
 
             tabidx = indexes.get(table_name)
@@ -1163,11 +1168,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     caosql_tree = reverse_caosql_transformer.transform(caos_tree)
                     expr = caosql_codegen.CaosQLSourceGenerator.to_source(caosql_tree)
                     concept.add_index(proto.SourceIndex(expr=expr))
-
-        topological.normalize(g, merger=proto.Concept.merge)
-
-        for concept in meta(type='concept', include_automatic=True, include_builtin=True):
-            concept.materialize(meta)
 
 
     def load_links(self, this_concept, this_id, other_concepts=None, link_names=None,
