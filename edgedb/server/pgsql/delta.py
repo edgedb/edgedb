@@ -966,16 +966,23 @@ class PointerMetaCommand(MetaCommand):
                     # The former target atom might as well have been dropped
                     dropped_atom = op.old_prototype
 
-        old_atom = meta.get(old_type, dropped_atom)
-        assert old_atom
+        old_target = meta.get(old_type, dropped_atom)
+        assert old_target
         new_atom = meta.get(new_type)
 
-        AlterAtom.alter_atom(self, meta, context, old_atom, new_atom, in_place=False)
         alter_table = context.get(delta_cmds.ConceptCommandContext).op.get_alter_table(context)
         column_name = common.caos_name_to_pg_name(link.normal_name())
         target_type = types.pg_type_from_atom(meta, new_atom)
-        alter_type = AlterTableAlterColumnType(column_name, target_type)
-        alter_table.add_operation(alter_type)
+
+        if isinstance(old_target, caos.types.ProtoAtom):
+            AlterAtom.alter_atom(self, meta, context, old_target, new_atom, in_place=False)
+            alter_type = AlterTableAlterColumnType(column_name, target_type)
+            alter_table.add_operation(alter_type)
+        else:
+            cols = self.get_columns(link, meta)
+            ops = [AlterTableAddColumn(col) for col in cols]
+            for op in ops:
+                alter_table.add_operation(op)
 
     def get_columns(self, pointer, meta):
         columns = []
@@ -1180,6 +1187,10 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
                     new_type = op.new_value
                     old_type = op.old_value
                     break
+
+            if new_type:
+                if not isinstance(link.target, caos.types.ProtoObject):
+                    link.target = meta.get(link.target)
 
             if new_type and (isinstance(link.target, caos.types.ProtoAtom) or \
                              isinstance(self.old_link.target, caos.types.ProtoAtom)):
