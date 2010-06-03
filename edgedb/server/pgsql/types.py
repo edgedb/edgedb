@@ -90,12 +90,15 @@ def get_atom_base_and_mods(meta, atom, own_only=True):
 
 def pg_type_from_atom(meta, atom, topbase=False):
     if topbase:
-        base = atom.get_topmost_base(meta, top_prototype=True).name
+        base = atom.get_topmost_base(meta, top_prototype=True)
     else:
         base, _, mods, _ = get_atom_base_and_mods(meta, atom)
 
     if topbase:
-        column_type = base_type_name_map[base]
+        column_type = base_type_name_map.get(base.name)
+        if not column_type:
+            base_class = meta.get(base.base, include_pyobjects=True)
+            column_type = base_type_name_map[base_class.adapts]
     elif not atom.automatic:
         column_type = base_type_name_map.get(atom.name)
         if column_type:
