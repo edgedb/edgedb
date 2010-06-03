@@ -18,6 +18,39 @@ if hasattr(local, '__sx_decimal_cascaded_contexts__'):
     del local.__sx_decimal_cascaded_contexts__
 
 
+class DecimalContext(decimal.Context):
+    zero_flags = dict.fromkeys(decimal._signals, 0)
+
+    def __init__(self, prec=None, rounding=None,
+                 traps=None, flags=None,
+                 Emin=None, Emax=None,
+                 capitals=None, _clamp=0,
+                 _ignored_flags=None):
+
+        if _ignored_flags is None:
+            _ignored_flags = []
+
+        if flags is None:
+            flags = self.zero_flags.copy()
+        elif not isinstance(flags, dict):
+            flags = {s: int(s in flags) for s in decimal._signals}
+
+        if traps is None:
+            traps = decimal.DefaultContext.traps.copy()
+        elif not isinstance(traps, dict):
+            traps = {s: int(s in traps) for s in decimal._signals}
+
+        self.flags = flags
+        self._ignored_flags = _ignored_flags
+        self.traps = traps
+        self.prec = prec if prec is not None else decimal.DefaultContext.prec
+        self.rounding = rounding if rounding is not None else decimal.DefaultContext.rounding
+        self.Emin = Emin if Emin is not None else decimal.DefaultContext.Emin
+        self.Emax = Emax if Emax is not None else decimal.DefaultContext.Emax
+        self.capitals = capitals if capitals is not None else decimal.DefaultContext.capitals
+        self._clamp = _clamp
+
+
 class CascadedContext:
     """Fixed-exponent cascaded decimal context
 
@@ -38,7 +71,7 @@ class CascadedContext:
         self.prec = prec
         self.rounding = rounding
         if traps is None:
-            self.traps = dict()
+            self.traps = {}
         elif not isinstance(traps, dict):
             self.traps = dict.fromkeys(traps, 1)
         else:
@@ -101,7 +134,8 @@ class CascadedContext:
             cumulative, last_increment = cls.get()
 
         traps = context.traps.copy()
-        traps.update(cumulative.traps)
+        if cumulative.traps:
+            traps.update(cumulative.traps)
 
         if cumulative.prec is not None:
             prec = cumulative.prec
@@ -110,7 +144,7 @@ class CascadedContext:
 
         Emax = prec - (cumulative.scale or 0) - 1 if cumulative.Emax is None else cumulative.Emax
 
-        result = decimal.Context(
+        result = DecimalContext(
                     prec = prec,
                     rounding = cumulative.rounding if cumulative.rounding is not None \
                                else context.rounding,
