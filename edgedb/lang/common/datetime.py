@@ -42,6 +42,11 @@ class DateTime(datetime.datetime):
             cls.local_tz = dateutil.tz.gettz(name=cls.local_timezone)
         return cls.local_tz
 
+    @classmethod
+    def now(cls, tz=None):
+        if not tz:
+            tz = cls.get_tz()
+        return cls(datetime.datetime.now(tz=tz))
 
 
 
