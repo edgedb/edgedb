@@ -10,11 +10,11 @@ class Operator:
     cache = {}
 
     def __new__(cls, val=''):
-        result = Operator.cache.get(val)
+        result = Operator.cache.get((cls, val))
 
         if not result:
-            result = super(Operator, cls).__new__(cls)
-            Operator.cache[val] = result
+            result = super().__new__(cls)
+            Operator.cache[cls, val] = result
 
         return result
 
