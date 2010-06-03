@@ -159,12 +159,15 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
 
 
 class Time(TimeDelta):
-    def __new__(cls, value=None):
+    def __new__(cls, value=None, *, format=None):
         if isinstance(value, datetime.time):
             d = value
         elif isinstance(value, str):
             try:
-                d = dateutil.parser.parse(value)
+                if format:
+                    d = datetime.datetime.strptime(value, format)
+                else:
+                    d = dateutil.parser.parse(value)
             except ValueError as e:
                 raise ValueError("invalid value for Time object: %s" % value) from e
         else:
