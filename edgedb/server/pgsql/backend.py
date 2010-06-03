@@ -587,31 +587,40 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def delete_links(self, source, targets, link_name, session):
         table = common.link_name_to_table_name(link_name)
 
-        target_ids = list(t.id for t in targets)
+        if targets:
+            target_ids = list(t.id for t in targets)
 
-        assert len(list(filter(lambda i: i is not None, target_ids)))
+            assert len(list(filter(lambda i: i is not None, target_ids)))
 
-        """LOG [caos.sync]
-        print('Deleting link %s[%s][%s]---{%s}-->[[%s]]' % \
-              (source.__class__._metadata.name, source.id,
-               (source.name if hasattr(source, 'name') else ''), link_name,
-               ','.join(target_ids)
-              )
-             )
-        """
+            """LOG [caos.sync]
+            print('Deleting link %s[%s][%s]---{%s}-->[[%s]]' % \
+                  (source.__class__._metadata.name, source.id,
+                   (source.name if hasattr(source, 'name') else ''), link_name,
+                   ','.join(target_ids)
+                  )
+                 )
+            """
 
-        qry = '''DELETE FROM %s
-                 WHERE
-                     source_id = $1
-                     AND target_id = any($2)
-              ''' % table
+            qry = '''DELETE FROM %s
+                     WHERE
+                         source_id = $1
+                         AND target_id = any($2)
+                  ''' % table
+            params = (source.id, target_ids)
+        else:
+            qry = '''DELETE FROM %s
+                     WHERE
+                         source_id = $1
+                  ''' % table
+            params = (source.id,)
 
-        result = self.runquery(qry, (source.id, target_ids),
+        result = self.runquery(qry, *params,
                                connection=session.connection,
                                compat=False, return_stmt=True)
-        result = result.first(source.id, target_ids)
+        result = result.first(*params)
 
-        assert result == len(target_ids)
+        if targets:
+            assert result == len(target_ids)
 
 
     def caosqlcursor(self, session):
