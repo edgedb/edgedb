@@ -43,19 +43,6 @@ class DateTime(datetime.datetime):
         return cls.local_tz
 
 
-class Time(datetime.time):
-    def __new__(cls, value=None):
-        if isinstance(value, datetime.time):
-            d = value
-        elif isinstance(value, str):
-            try:
-                d = dateutil.parser.parse(value)
-            except ValueError as e:
-                raise ValueError("invalid value for Time object: %s" % value) from e
-        else:
-            raise ValueError("invalid value for Time object: %s" % value)
-
-        return super().__new__(cls, d.hour, d.minute, d.second, d.microsecond)
 
 
 class TimeDelta(dateutil.relativedelta.relativedelta):
@@ -169,3 +156,25 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
 
     def __le__(self, other):
         return not self > other
+
+
+class Time(TimeDelta):
+    def __new__(cls, value=None):
+        if isinstance(value, datetime.time):
+            d = value
+        elif isinstance(value, str):
+            try:
+                d = dateutil.parser.parse(value)
+            except ValueError as e:
+                raise ValueError("invalid value for Time object: %s" % value) from e
+        else:
+            raise ValueError("invalid value for Time object: %s" % value)
+
+        return super().__new__(cls, hour=d.hour, minute=d.minute, second=d.second,
+                                    microsecond=d.microsecond)
+
+    def __str__(self):
+        return '%d:%d:%d.%d' % (self.hour, self.minute, self.second, self.microsecond)
+
+    def __repr__(self):
+        return "'%d:%d:%d.%d'" % (self.hour, self.minute, self.second, self.microsecond)
