@@ -201,6 +201,14 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                                     caosnode=node)
         return table
 
+    def _process_record(self, context, expr, cte):
+        elements = [self._process_expr(context, e, cte) for e in expr.elements]
+        elements = self._sort_record(context, elements, expr.concept)
+        type = pgsql.ast.TypeNode(name=common.concept_name_to_table_name(expr.concept.name))
+        result = pgsql.ast.TypeCastNode(expr=pgsql.ast.RowExprNode(args=elements),
+                                        type=type)
+        return result
+
 
 class SimpleExprTransformer(CaosExprTransformer):
     def transform(self, tree, local=False):
@@ -594,6 +602,10 @@ class CaosTreeTransformer(CaosExprTransformer):
                 if expr.op == ast.ops.IN and isinstance(expr.right, tree.ast.Constant):
                     # "expr IN $CONST" must be translated into "expr = any($CONST)"
                     op = ast.ops.EQ
+
+                    if isinstance(right.expr, pgsql.ast.SequenceNode):
+                        right.expr = pgsql.ast.ArrayNode(elements=right.expr.elements)
+
                     right = pgsql.ast.FunctionCallNode(name='any', args=[right])
                 else:
                     op = expr.op
@@ -665,6 +677,9 @@ class CaosTreeTransformer(CaosExprTransformer):
         elif isinstance(expr, tree.ast.Sequence):
             elements = [self._process_expr(context, e, cte) for e in expr.elements]
             result = pgsql.ast.SequenceNode(elements=elements)
+
+        elif isinstance(expr, tree.ast.Record):
+            result = self._process_record(context, expr, cte)
 
         elif isinstance(expr, tree.ast.FunctionCall):
             result = self._process_function(context, expr, cte)
@@ -738,6 +753,22 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         else:
             assert False, "Unexpected expression: %s" % expr
+
+        return result
+
+    def _sort_record(self, context, elements, concept):
+        table_name = common.get_table_name(concept, catenate=False)
+        cols = context.current.realm.backend('data').get_table_columns(table_name)
+
+        elts = {e.origin_field: e for e in elements}
+
+        result = []
+
+        for i, col in enumerate(cols.keys()):
+            if col == 'concept_id':
+                col = 'id'
+
+            result.append(elts[col])
 
         return result
 

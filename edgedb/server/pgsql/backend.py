@@ -148,6 +148,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.table_cache = {}
         self.domain_to_atom_map = {}
         self.column_cache = {}
+        self.table_id_to_proto_name_cache = {}
 
         self.parser = parser.PgSQLParser()
         self.search_idx_expr = astexpr.TextSearchExpr()
@@ -257,6 +258,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.table_cache.clear()
         self.domain_to_atom_map.clear()
         self.column_cache.clear()
+        self.table_id_to_proto_name_cache.clear()
 
 
     def concept_name_from_id(self, id, session):
@@ -270,6 +272,22 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         ps = session.connection.prepare(query)
         concept = caos.Name(ps.first(id))
         return concept
+
+
+    def entity_from_row(self, session, concept_name, attribute_map, row):
+        atom_link_map = {}
+
+        concept = session.realm.meta.get(concept_name)
+
+        for link_name, link in concept.pointers.items():
+            if link.atomic():
+                col_name = common.caos_name_to_pg_name(link_name)
+                atom_link_map[link_name] = attribute_map[col_name]
+
+        links = {k: row[i] for k, i in atom_link_map.items()}
+
+        concept = session.schema.get(concept_name)
+        return session._merge(links['semantix.caos.builtins.id'], concept, links)
 
 
     def load_entity(self, concept, id, session):
@@ -481,6 +499,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 self.concept_cache[row['name']] = row['id']
 
         return self.concept_cache
+
+
+    def source_name_from_relid(self, table_oid):
+        self.getmeta()
+        return self.table_id_to_proto_name_cache.get(table_oid)
 
 
     def get_table(self, prototype, session):
@@ -971,6 +994,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     raise caos.MetaError(('internal inconsistency: record for link %s exists but '
                                           'the table is missing') % name)
 
+                self.table_id_to_proto_name_cache[t['oid']] = name
+
                 bases = self.pg_table_inheritance_to_bases(t['name'], t['schema'],
                                                            table_to_name_map)
 
@@ -1145,6 +1170,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             table_name = common.concept_name_to_table_name(name, catenate=False)
             table = tables.get(table_name)
+
+            if not table:
+                msg = 'internal metadata incosistency'
+                details = 'Record for concept "%s" exists but the table is missing' % name
+                raise caos.MetaError(msg, details=details)
+
+            self.table_id_to_proto_name_cache[table['oid']] = name
 
             visited_tables.add(table_name)
 

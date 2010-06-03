@@ -109,7 +109,7 @@ class TreeTransformer:
             for arg in expr.args:
                 self.extract_prefixes(arg, prefixes)
 
-        elif isinstance(expr, caos_ast.Sequence):
+        elif isinstance(expr, (caos_ast.Sequence, caos_ast.Record)):
             for path in expr.elements:
                 self.extract_prefixes(path, prefixes)
 
@@ -161,22 +161,43 @@ class TreeTransformer:
 
         return expr
 
-    def entityref_to_idref(self, expr):
+    def entityref_to_idref(self, expr, schema, full_record=False):
         p = next(iter(expr.paths))
         if isinstance(p, caos_ast.EntitySet):
-            name = caos_name.Name('semantix.caos.builtins.id')
+            concepts = {c.concept for c in expr.paths}
+            assert len(concepts) == 1
 
-            if len(expr.paths) == 1:
-                ref = p
-                id = None
+            elements = []
+
+            concept = p.concept
+            ref = p if len(expr.paths) == 1 else expr
+
+            if full_record:
+                for link_name, link in concept.pointers.items():
+                    if link.atomic():
+                        link_proto = schema.get(link_name)
+                        target_proto = link_proto.target
+                        id = LinearPath(ref.id)
+                        id.add(link_proto, caos_types.OutboundDirection, target_proto)
+                        elements.append(caos_ast.AtomicRefSimple(ref=ref, name=link_name, id=id))
+
+                metaref = caos_ast.MetaRef(name='id', ref=ref)
+
+                for p in expr.paths:
+                    p.atomrefs.update(elements)
+                    p.metarefs.add(metaref)
+
+                elements.append(metaref)
+
+                expr = caos_ast.Record(elements=elements, concept=concept)
             else:
-                link_proto = self.realm.session.schema.get(name)
-                target_proto = self.realm.session.schema.get('semantix.caos.builtins.uuid')
-                ref = expr
+                link_name = caos_name.Name('semantix.caos.builtins.id')
+                link_proto = schema.get(link_name)
+                target_proto = link_proto.target
                 id = LinearPath(ref.id)
                 id.add(link_proto, caos_types.OutboundDirection, target_proto)
+                expr = caos_ast.AtomicRefSimple(ref=ref, name=link_name, id=id)
 
-            expr = caos_ast.AtomicRefSimple(ref=p, name=name, id=id)
         return expr
 
     def _dump(self, tree):
@@ -249,6 +270,18 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.PathCombination):
             for p in expr.paths:
                 self.reorder_aggregates(p)
+
+        elif isinstance(expr, (caos_ast.Sequence, caos_ast.Record)):
+            has_agg_elems = False
+            for item in expr.elements:
+                self.reorder_aggregates(item)
+                if self.is_aggregated_expr(item):
+                    has_agg_elems = True
+                elif has_agg_elems and not isinstance(expr, caos_ast.Constant):
+                    raise TreeError('invalid expression mix of aggregates and non-aggregates')
+
+            if has_agg_elems:
+                expr.aggregates = True
 
         else:
             # All other nodes fall through
@@ -345,6 +378,9 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.PathCombination):
             expr = self.flatten_and_unify_path_combination(expr, deep=True)
 
+        elif isinstance(expr, caos_ast.MetaRef):
+            expr.ref.metarefs.add(expr)
+
         elif isinstance(expr, caos_ast.AtomicRefSimple):
             expr.ref.atomrefs.add(expr)
 
@@ -364,11 +400,15 @@ class TreeTransformer:
                 args.append(self.merge_paths(arg))
             expr = expr.__class__(name=expr.name, args=args, aggregates=expr.aggregates)
 
-        elif isinstance(expr, caos_ast.Sequence):
+        elif isinstance(expr, (caos_ast.Sequence, caos_ast.Record)):
             elements = []
             for element in expr.elements:
                 elements.append(self.merge_paths(element))
-            expr = expr.__class__(elements=elements)
+
+            if isinstance(expr, caos_ast.Record):
+                expr = expr.__class__(elements=elements, concept=expr.concept)
+            else:
+                expr = expr.__class__(elements=elements)
 
         else:
             assert False, 'unexpected expression "%r"' % expr
@@ -950,7 +990,7 @@ class TreeTransformer:
             else:
                 return caos_ast.Conjunction(paths=frozenset(paths))
 
-        elif isinstance(path, caos_ast.Sequence):
+        elif isinstance(path, (caos_ast.Sequence, caos_ast.Record)):
             paths = set()
             for p in path.elements:
                 p = self.extract_paths(p, reverse)
@@ -1413,6 +1453,9 @@ class TreeTransformer:
                     result = targets[0]
                 else:
                     result = caos_utils.get_prototype_nearest_common_ancestor(targets, schema)
+
+        elif isinstance(expr, caos_ast.Record):
+            result = expr.concept
 
         elif isinstance(expr, caos_ast.Constant):
             #assert expr.type is not None or expr.value is not None

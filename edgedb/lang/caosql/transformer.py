@@ -225,7 +225,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             else:
                 return None
 
-    def _process_expr(self, context, expr):
+    def _process_expr(self, context, expr, *, selector_top_level=False):
         node = None
 
         if isinstance(expr, qlast.BinOpNode):
@@ -244,7 +244,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                         raise errors.CaosQLError(err)
 
             if context.current.location != 'generator' or context.current.in_aggregate:
-                node = self.entityref_to_idref(node)
+                node = self.entityref_to_idref(node, self.proto_schema,
+                                               full_record=selector_top_level)
 
         elif isinstance(expr, qlast.ConstantNode):
             type = self.arg_types.get(expr.index)
@@ -524,7 +525,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         with context():
             context.current.location = 'selector'
             for target in targets:
-                expr = self._process_expr(context, target.expr)
+                expr = self._process_expr(context, target.expr, selector_top_level=True)
                 expr = self.merge_paths(expr)
                 t = tree.ast.SelectorExpr(expr=expr, name=target.alias)
                 selector.append(t)

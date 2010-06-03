@@ -7,13 +7,18 @@
 
 
 import uuid
+from functools import partial
 
 import postgresql
 from postgresql.driver import pq3
+from postgresql import types as pg_types
 from postgresql.string import quote_ident
 from postgresql.python.functools import Composition as compose
 
 from semantix.caos.objects.datetime import TimeDelta, DateTime, Time
+from semantix.caos.objects import numeric
+
+from . import session as pg_caos_session
 
 
 def interval_pack(x):
@@ -35,7 +40,8 @@ oid_to_io = {
 oid_to_type = {
     postgresql.types.UUIDOID: uuid.UUID,
     postgresql.types.TIMESTAMPTZOID: DateTime,
-    postgresql.types.TIMEOID: Time
+    postgresql.types.TIMEOID: Time,
+    postgresql.types.NUMERICOID: numeric.Decimal
 }
 
 
@@ -49,6 +55,17 @@ class TypeIO(pq3.TypeIO):
 
     def resolve(self, typid, from_resolution_of=(), builtins=resolve, quote_ident=quote_ident):
         return super().resolve(typid, from_resolution_of, builtins, quote_ident)
+
+    def RowTypeFactory(self, attribute_map={}, _Row=pg_types.Row.from_sequence,
+                       composite_relid = None):
+
+        session = pg_caos_session.Session.from_connection(self.database)
+        if session:
+            backend = session.realm.backend('data')
+            source = backend.source_name_from_relid(composite_relid)
+            if source:
+                return partial(backend.entity_from_row, session, source, attribute_map)
+        return partial(_Row, attribute_map)
 
 
 class Driver(pq3.Driver):

@@ -320,6 +320,17 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
         self.write(')')
 
+    def visit_RowExprNode(self, node):
+        self.write('(')
+        count = len(node.args)
+        for i, e in enumerate(node.args):
+            self.visit(e)
+            if i != count - 1:
+                self.write(', ')
+
+        self.write(')')
+
+
     def visit_ArrayNode(self, node):
         self.write('ARRAY[')
         count = len(node.elements)
@@ -344,3 +355,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.expr)
         if node.direction:
             self.write(' ' + node.direction)
+
+    def visit_TypeCastNode(self, node):
+        self.visit(node.expr)
+        self.write('::')
+        self.visit(node.type)
+
+
+    def visit_TypeNode(self, node):
+        self.write(node.name)

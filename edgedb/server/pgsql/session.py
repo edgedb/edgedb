@@ -6,14 +6,19 @@
 ##
 
 
+import weakref
+
 from semantix.caos import session
 
 
 class Session(session.Session):
+    session_map = weakref.WeakValueDictionary()
+
     def __init__(self, realm, connection, entity_cache):
         super().__init__(realm, entity_cache=entity_cache)
         self.connection = connection
         self.xact = []
+        self.session_map[connection] = self
 
     def _new_transaction(self):
         xact = self.connection.xact()
@@ -42,3 +47,7 @@ class Session(session.Session):
         super().rollback_all()
         while self.xact:
             self.xact.pop().rollback()
+
+    @classmethod
+    def from_connection(cls, connection):
+        return cls.session_map.get(connection)
