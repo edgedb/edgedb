@@ -397,9 +397,11 @@ class BasePythonSourceGenerator(SourceGenerator):
         self.write('}')
 
     def visit_PyBinOp(self, node):
+        self.write('(')
         self.visit(node.left)
         self.write(' %s ' % BINOP_SYMBOLS[type(node.op)])
         self.visit(node.right)
+        self.write(')')
 
     def visit_PyBoolOp(self, node):
         self.write('(')
