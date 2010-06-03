@@ -419,7 +419,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         return isinstance(expr, (tree.ast.PathCombination, tree.ast.EntitySet))
 
-    def get_cte_fieldref_for_set(self, context, caos_node, field_name, meta=False, map=None):
+    def get_cte_fieldref_for_set(self, context, caos_node, link_name, meta=False, map=None):
         """Return FieldRef node corresponding to the specified atom or meta value set.
 
         Arguments:
@@ -446,10 +446,11 @@ class CaosTreeTransformer(CaosExprTransformer):
         #
         data_table = cte_refs.get('data')
         if data_table:
+            field_name = common.caos_name_to_pg_name(link_name)
             ref = pgsql.ast.FieldRefNode(table=data_table, field=field_name,
                                          origin=data_table, origin_field=field_name)
         else:
-            key = ('meta', field_name) if meta else field_name
+            key = ('meta', link_name) if meta else link_name
             ref = cte_refs.get(key)
             assert ref, 'Reference to an inaccessible table node %s' % key
 
@@ -719,8 +720,10 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                 cteref = maps[next(iter(expr.ref.filter.labels))]
 
-                fieldref = pgsql.ast.FieldRefNode(table=cteref, field=expr.name,
-                                                  origin=cteref, origin_field=expr.name)
+                colname = common.caos_name_to_pg_name(expr.name)
+
+                fieldref = pgsql.ast.FieldRefNode(table=cteref, field=colname,
+                                                  origin=cteref, origin_field=colname)
             else:
                 fieldref = cte_refs.get(expr.name)
                 assert fieldref, 'Reference to an inaccessible link table node %s' % expr.name
@@ -1007,8 +1010,10 @@ class CaosTreeTransformer(CaosExprTransformer):
             aliases = {}
 
             for field in atomrefs:
-                fieldref = pgsql.ast.FieldRefNode(table=concept_table, field=field,
-                                                  origin=concept_table, origin_field=field)
+                colname = common.caos_name_to_pg_name(field)
+
+                fieldref = pgsql.ast.FieldRefNode(table=concept_table, field=colname,
+                                                  origin=concept_table, origin_field=colname)
                 aliases[field] = step_cte.alias + ('_' + context.current.genalias(hint=str(field)))
                 selectnode = pgsql.ast.SelectExprNode(expr=fieldref, alias=aliases[field])
                 step_cte.targets.append(selectnode)
@@ -1019,7 +1024,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 # Record atom references in the global map in case they have to be pulled up later
                 #
                 refexpr = pgsql.ast.FieldRefNode(table=step_cte, field=selectnode.alias,
-                                                 origin=concept_table, origin_field=field)
+                                                 origin=concept_table, origin_field=colname)
                 selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
                 context.current.concept_node_map[caos_path_tip][field] = selectnode
 
@@ -1080,8 +1085,10 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                 maptable = maps[label]
 
-                fieldref = pgsql.ast.FieldRefNode(table=maptable, field=propref.name,
-                                                  origin=maptable, origin_field=propref.name)
+                colname = common.caos_name_to_pg_name(propref.name)
+
+                fieldref = pgsql.ast.FieldRefNode(table=maptable, field=colname,
+                                                  origin=maptable, origin_field=colname)
 
                 alias = str(label.name) + str(propref.name)
                 alias = step_cte.alias + ('_' + context.current.genalias(hint=alias))
@@ -1093,7 +1100,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 # Record references in the global map in case they have to be pulled up later
                 #
                 refexpr = pgsql.ast.FieldRefNode(table=step_cte, field=selectnode.alias,
-                                                 origin=map, origin_field=propref.name)
+                                                 origin=map, origin_field=colname)
                 selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
                 context.current.link_node_map.setdefault(link, {})[propref.name] = selectnode
 
