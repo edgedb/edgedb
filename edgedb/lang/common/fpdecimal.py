@@ -33,7 +33,8 @@ class CascadedContext:
 
     local = local
 
-    def __init__(self, prec=None, rounding=None, traps=None, Emin=None, Emax=None, scale=None):
+    def __init__(self, prec=None, rounding=None, traps=None, Emin=None, Emax=None, scale=None,
+                                                                        quantize_exponent=None):
         self.prec = prec
         self.rounding = rounding
         if traps is None:
@@ -54,6 +55,12 @@ class CascadedContext:
         self.Emax = Emax
         self.scale = scale
 
+        if quantize_exponent is None:
+            if scale is not None:
+                quantize_exponent = decimal.Decimal(10)**-scale
+
+        self.quantize_exponent = quantize_exponent
+
     def __enter__(self):
         cumulative = self.__class__.push(self)
         self.saved_context = decimal.getcontext()
@@ -73,6 +80,7 @@ class CascadedContext:
         Emin = increment.Emin if increment.Emin is not None else self.Emin
 
         scale = increment.scale if increment.scale is not None else self.scale
+        quantize_exponent = increment.quantize_exponent if increment.quantize_exponent is not None else self.quantize_exponent
 
         if increment.Emax is None and scale is not None and prec is not None:
             Emax = prec - scale - 1
@@ -83,7 +91,7 @@ class CascadedContext:
             raise ValueError('requested precision is less than existing fixed-point scale')
 
         result = CascadedContext(prec=prec, rounding=rounding, traps=traps, Emin=Emin, Emax=Emax,
-                                 scale=scale)
+                                 scale=scale, quantize_exponent=quantize_exponent)
 
         return result
 
@@ -155,11 +163,9 @@ class FPDecimal(decimal.Decimal):
         cumulative, last_increment = CascadedContext.get()
         context = CascadedContext.apply(decimal.getcontext())
 
-        if cumulative.scale is not None:
-            scale = decimal.Decimal(10)**-cumulative.scale
-
+        if cumulative.quantize_exponent is not None:
             try:
-                result = result.quantize(scale, context=context)
+                result = result.quantize(cumulative.quantize_exponent, context=context)
             except decimal.InvalidOperation as e:
                 raise decimal.Overflow from e
         else:
