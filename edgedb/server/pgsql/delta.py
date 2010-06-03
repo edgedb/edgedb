@@ -1745,14 +1745,16 @@ class Query:
 
 
 class Insert(DMLOperation):
-    def __init__(self, table, records, *, conditions=None, neg_conditions=None, priority=0):
+    def __init__(self, table, records, returning=None, *, conditions=None, neg_conditions=None,
+                                                                           priority=0):
         super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
 
         self.table = table
         self.records = records
+        self.returning = returning
 
     def code(self, context):
-        cols = [c.name for c in self.table.columns(writable_only=True)]
+        cols = [(c.name, c.type) for c in self.table.columns(writable_only=True)]
         l = len(cols)
 
         vals = []
@@ -1760,7 +1762,7 @@ class Insert(DMLOperation):
         i = 1
         for row in self.records:
             placeholder_row = []
-            for col in cols:
+            for col, coltype in cols:
                 val = getattr(row, col, None)
                 if val and isinstance(val, Query):
                     vals.extend(val.params)
@@ -1771,14 +1773,17 @@ class Insert(DMLOperation):
                     placeholder_row.append('DEFAULT')
                 else:
                     vals.append(val)
-                    placeholder_row.append('$%d' % i)
+                    placeholder_row.append('$%d::%s' % (i, coltype))
                     i += 1
             placeholders.append('(%s)' % ','.join(placeholder_row))
 
         code = 'INSERT INTO %s (%s) VALUES %s' % \
                 (common.qname(*self.table.name),
-                 ','.join(common.quote_ident(c) for c in cols),
+                 ','.join(common.quote_ident(c[0]) for c in cols),
                  ','.join(placeholders))
+
+        if self.returning:
+            code += ' RETURNING ' + ', '.join(self.returning)
 
         return (code, vals)
 
@@ -1788,13 +1793,16 @@ class Insert(DMLOperation):
 
 
 class Update(DMLOperation):
-    def __init__(self, table, record, condition, *, priority=0):
+    def __init__(self, table, record, condition, returning=None, *, priority=0):
         super().__init__(priority=priority)
 
         self.table = table
         self.record = record
         self.fields = [f for f, v in record if v is not Default]
         self.condition = condition
+        self.returning = returning
+        self.cols = {c.name: c.type for c in self.table.columns(writable_only=True)}
+
 
     def code(self, context):
         e = common.quote_ident
@@ -1814,7 +1822,7 @@ class Update(DMLOperation):
                 i += len(val.params)
                 vals.extend(val.params)
             else:
-                expr = '$%d' % i
+                expr = '$%d::%s' % (i, self.cols[f])
                 i += 1
                 vals.append(val)
 
@@ -1827,6 +1835,9 @@ class Update(DMLOperation):
                 (common.qname(*self.table.name), ', '.join(placeholders), where)
 
         vals += [c[1] for c in self.condition]
+
+        if self.returning:
+            code += ' RETURNING ' + ', '.join(self.returning)
 
         return (code, vals)
 

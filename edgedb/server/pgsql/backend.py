@@ -163,7 +163,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         delta_cmds.EnableHstoreFeature.init_hstore(connection)
 
         self.modules = self.read_modules()
+        self.link_cache = {}
+        self.concept_cache = {}
+        self.table_cache = {}
         self.domain_to_atom_map = {}
+        self.column_cache = {}
 
         self.parser = parser.PgSQLParser()
         self.search_idx_expr = astexpr.TextSearchExpr()
@@ -268,7 +272,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def invalidate_meta_cache(self):
         self.meta = proto.RealmMeta(load_builtins=False)
         self.modules = self.read_modules()
-        self.domain_to_atom_map = {}
+        self.link_cache.clear()
+        self.concept_cache.clear()
+        self.table_cache.clear()
+        self.domain_to_atom_map.clear()
+        self.column_cache.clear()
 
 
     def concept_name_from_id(self, id, session):
@@ -389,22 +397,30 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     @debug
-    def store_entity(self, entity, session=None):
+    def store_entity(self, entity, session):
         cls = entity.__class__
+        prototype = caos.types.prototype(cls)
         concept = cls._metadata.name
         id = entity.id
         links = entity._instancedata.pointers
-        realm = cls._metadata.realm
+        table = self.get_table(prototype, session)
 
         connection = session.connection if session else self.connection
+        concept_map = self.get_concept_map(session)
+        context = delta_cmds.CommandContext(session.connection)
+
+        idquery = delta_cmds.Query(text='caos.uuid_generate_v1mc()', params=(), type='uuid')
+        now = delta_cmds.Query(text="'NOW'", params=(), type='timestamptz')
 
         with connection.xact():
 
             attrs = {}
-            for n, v in links.items():
-                if issubclass(getattr(cls, str(n)), caos.atom.Atom) and \
-                                                            n != 'semantix.caos.builtins.id':
-                    attrs[n] = v
+            for link_name, link_cls in cls:
+                if isinstance(link_cls, caos.types.AtomClass) and \
+                                                    link_name != 'semantix.caos.builtins.id':
+                    attrs[common.caos_name_to_pg_name(link_name)] = links[link_name]
+
+            rec = table.record(**attrs)
 
             returning = ['"semantix.caos.builtins.id"']
             if issubclass(cls, cls._metadata.realm.schema.semantix.caos.builtins.Object):
@@ -412,47 +428,29 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                   '"semantix.caos.builtins.mtime"'))
 
             if id is not None:
-                query = 'UPDATE %s SET ' % common.concept_name_to_table_name(concept)
-
                 if issubclass(cls, cls._metadata.realm.schema.semantix.caos.builtins.Object):
-                    attrs['semantix.caos.builtins.mtime'] = 'NOW'
+                    setattr(rec, 'semantix.caos.builtins.mtime', now)
 
-                cols = self._get_update_refs(cls, attrs)
-
-                query += ','.join(cols)
-                query += ' WHERE "semantix.caos.builtins.id" = %s '  \
-                                                        % postgresql.string.quote_literal(str(id))
-                query += 'RETURNING %s' % ','.join(returning)
+                cmd = delta_cmds.Update(table=table, record=rec,
+                                        condition=[('semantix.caos.builtins.id', id)],
+                                        returning=returning)
             else:
+                setattr(rec, 'semantix.caos.builtins.id', idquery)
+
                 if issubclass(cls, cls._metadata.realm.schema.semantix.caos.builtins.Object):
-                    attrs['semantix.caos.builtins.ctime'] = 'NOW'
-                    attrs['semantix.caos.builtins.mtime'] = 'NOW'
+                    setattr(rec, 'semantix.caos.builtins.ctime', now)
+                    setattr(rec, 'semantix.caos.builtins.mtime', now)
 
-                cols_names, cols_values = self._get_insert_refs(cls, attrs)
-                if cols_names:
-                    cols_names = ', ' + ', '.join(cols_names)
-                    cols_values = ', ' + ', '.join(cols_values)
-                else:
-                    cols_names = ''
-                    cols_values = ''
+                rec.concept_id = concept_map[concept]
 
-                query = 'INSERT INTO %s ("semantix.caos.builtins.id", concept_id%s)' \
-                                        % (common.concept_name_to_table_name(concept), cols_names)
+                cmd = delta_cmds.Insert(table=table, records=[rec], returning=returning)
 
-                query += '''VALUES(caos.uuid_generate_v1mc(),
-                                   (SELECT id FROM caos.concept WHERE name = %(concept)s) %(cols)s)
-                         ''' \
-                            % {'concept': postgresql.string.quote_literal(str(concept)),
-                               'cols': cols_values}
+            rows = cmd.execute(context)
 
-                query += 'RETURNING %s' % ','.join(returning)
-
-            data = dict((str(k), str(attrs[k]) if attrs[k] is not None else None) for k in attrs)
-
-            rows = self.runquery(query, data, connection=connection)
             id = list(rows)
             if not id:
-                raise Exception('failed to store entity')
+                err = 'could not store "%s" entity' % concept
+                raise caos.error.StorageError(err)
             id = id[0]
 
             """LOG [caos.sync]
@@ -486,34 +484,61 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def get_link_map(self, session):
-        if not session.link_cache:
+        if not self.link_cache:
             cl_ds = datasources.meta.links.ConceptLinks(session.connection)
 
             for row in cl_ds.fetch():
-                session.link_cache[row['name']] = row['id']
+                self.link_cache[row['name']] = row['id']
 
-        return session.link_cache
+        return self.link_cache
 
 
-    def get_table(self, prototype):
-        table_name = common.get_table_name(prototype, catenate=False)
-        table = delta_cmds.Table(table_name)
+    def get_concept_map(self, session):
+        if not self.concept_cache:
+            cl_ds = datasources.meta.concepts.ConceptList(session.connection)
 
-        cols = []
+            for row in cl_ds.fetch():
+                self.concept_cache[row['name']] = row['id']
 
-        if isinstance(prototype, caos.types.ProtoLink):
-            cols.extend([
-                delta_cmds.Column(name='source_id', type='uuid'),
-                delta_cmds.Column(name='target_id', type='uuid'),
-                delta_cmds.Column(name='link_type_id', type='int'),
-            ])
+        return self.concept_cache
 
-        for pointer_name, pointer in prototype.pointers.items():
-            if pointer.atomic():
-                col_type = types.pg_type_from_atom(self.meta, pointer.target)
-                col_name = common.caos_name_to_pg_name(pointer_name)
-                cols.append(delta_cmds.Column(name=col_name, type=col_type))
-        table.add_columns(cols)
+
+    def get_table(self, prototype, session):
+        table = self.table_cache.get(prototype)
+
+        if not table:
+            table_name = common.get_table_name(prototype, catenate=False)
+            table = delta_cmds.Table(table_name)
+
+            cols = []
+
+            if isinstance(prototype, caos.types.ProtoLink):
+                cols.extend([
+                    delta_cmds.Column(name='source_id', type='uuid'),
+                    delta_cmds.Column(name='target_id', type='uuid'),
+                    delta_cmds.Column(name='link_type_id', type='int'),
+                ])
+
+                pointers = prototype.pointers
+
+            elif isinstance(prototype, caos.types.ProtoConcept):
+                cols.extend([
+                    delta_cmds.Column(name='concept_id', type='int')
+                ])
+
+                pointers = {n: p.first for n, p in prototype.pointers.items()}
+            else:
+                assert False
+
+            for pointer_name, pointer in pointers.items():
+                if pointer.atomic():
+                    col_type = types.pg_type_from_atom(session.realm.meta, pointer.target,
+                                                       topbase=True)
+                    col_name = common.caos_name_to_pg_name(pointer_name)
+                    cols.append(delta_cmds.Column(name=col_name, type=col_type))
+            table.add_columns(cols)
+
+            self.table_cache[prototype] = table
 
         return table
 
@@ -525,7 +550,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         link = getattr(source.__class__, str(link_name))
         link_cls = caos.concept.link(link, True)
 
-        table = self.get_table(link_cls._metadata.root_prototype)
+        table = self.get_table(link_cls._metadata.root_prototype, session)
 
         if isinstance(link, caos.types.NodeClass):
             link_names = [(link, link._class_metadata.full_link_name)]
@@ -900,17 +925,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return constraints
 
 
-    def read_pointer_target_column(self, meta, source, pointer_name, columns_cache,
-                                                                     constraints_cache):
+    def read_pointer_target_column(self, meta, source, pointer_name, constraints_cache):
         host_schema, host_table = common.get_table_name(source, catenate=False)
-        cols = columns_cache.get((host_schema, host_table))
+        cols = self.get_table_columns((host_schema, host_table))
         constraints = constraints_cache.get((host_schema, host_table))
-
-        if not cols:
-            cols = introspection.tables.TableColumns(self.connection)
-            cols = cols.fetch(table_name=host_table, schema_name=host_schema)
-            cols = {col['column_name']: col for col in cols}
-            columns_cache[(host_schema, host_table)] = cols
 
         col = cols.get(common.caos_name_to_pg_name(pointer_name))
 
@@ -947,7 +965,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         links_list = datasources.meta.links.ConceptLinks(self.connection).fetch()
         links_list = {caos.Name(r['name']): r for r in links_list}
 
-        concept_columns = {}
         concept_constraints = self.read_table_constraints()
 
         concept_indexes = self.read_search_indexes()
@@ -983,8 +1000,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 r['default'] = self.unpack_default(r['default'])
 
             if r['source_id'] and r['is_atom']:
-                target = self.read_pointer_target_column(meta, source, bases[0], concept_columns,
-                                                                       concept_constraints)
+                target = self.read_pointer_target_column(meta, source, bases[0], concept_constraints)
 
                 concept_schema, concept_table = common.concept_name_to_table_name(source.name,
                                                                                   catenate=False)
@@ -1058,7 +1074,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         link_props = datasources.meta.links.LinkProperties(self.connection).fetch()
         link_props = {caos.Name(r['name']): r for r in link_props}
         link_constraints = self.read_table_constraints()
-        link_columns = {}
 
         for name, r in link_props.items():
             bases = ()
@@ -1079,8 +1094,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if source:
                 # The property is attached to a link, check out link table columns for
                 # target information.
-                target = self.read_pointer_target_column(meta, source, bases[0], link_columns,
-                                                                       link_constraints)
+                target = self.read_pointer_target_column(meta, source, bases[0], link_constraints)
             else:
                 target = None
 
@@ -1105,6 +1119,18 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 g[prop.name]['merge'].extend(prop.base)
 
         topological.normalize(g, merger=proto.LinkProperty.merge)
+
+
+    def get_table_columns(self, table_name):
+        cols = self.column_cache.get(table_name)
+
+        if not cols:
+            cols = introspection.tables.TableColumns(self.connection)
+            cols = cols.fetch(table_name=table_name[1], schema_name=table_name[0])
+            cols = collections.OrderedDict((col['column_name'], col) for col in cols)
+            self.column_cache[table_name] = cols
+
+        return cols
 
 
     def read_concepts(self, meta):
