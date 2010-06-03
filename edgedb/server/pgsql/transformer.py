@@ -633,6 +633,29 @@ class CaosTreeTransformer(CaosExprTransformer):
                         context.current.query.having = left
                         result = right
                     else:
+                        left_type = self.get_expr_type(expr.left, context.current.realm.meta)
+                        right_type = self.get_expr_type(expr.right, context.current.realm.meta)
+
+                        if left_type and right_type:
+                            if isinstance(left_type, caos_types.ProtoAtom):
+                                left_type = types.pg_type_from_atom(context.current.realm.meta,
+                                                                    left_type, topbase=True)
+                            elif not isinstance(left_type, caos_types.ProtoObject) and \
+                                        (not isinstance(left_type, tuple) or \
+                                         not isinstance(left_type[1], caos_types.ProtoObject)):
+                                left_type = common.py_type_to_pg_type(left_type)
+
+                            if isinstance(right_type, caos_types.ProtoAtom):
+                                right_type = types.pg_type_from_atom(context.current.realm.meta,
+                                                                    right_type, topbase=True)
+                            elif not isinstance(right_type, caos_types.ProtoObject) and \
+                                        (not isinstance(right_type, tuple) or \
+                                         not isinstance(right_type[1], caos_types.ProtoObject)):
+                                right_type = common.py_type_to_pg_type(right_type)
+
+                            if left_type == 'text' and right_type == 'text' and op == ast.ops.ADD:
+                                op = '||'
+
                         result = pgsql.ast.BinOpNode(op=op, left=left, right=right)
 
         elif isinstance(expr, tree.ast.Constant):
