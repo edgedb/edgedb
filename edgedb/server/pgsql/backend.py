@@ -739,6 +739,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             session.connection.execute('DROP INDEX %s' % common.qname(updates_table.name[0],
                                                                       updates_index_name))
 
+        session.connection.execute('ANALYZE %s' % common.qname(*table))
+
 
     def store_entity_batch(self, entities, session, batch_id):
 
