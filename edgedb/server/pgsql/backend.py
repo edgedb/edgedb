@@ -78,7 +78,7 @@ class Query:
         return result
 
     def describe_output(self):
-        return dict(self.result_types)
+        return collections.OrderedDict(self.result_types)
 
     def describe_arguments(self):
         return dict(self.argument_types)

@@ -6,6 +6,7 @@
 ##
 
 
+import collections
 import itertools
 
 from semantix.caos import name as caos_name
@@ -1478,10 +1479,10 @@ class TreeTransformer:
         return result
 
     def get_selector_types(self, selector, schema):
-        result = {}
+        result = collections.OrderedDict()
 
         for i, selexpr in enumerate(selector):
-            result[selexpr.name or i] = (self.get_expr_type(selexpr.expr, schema),
-                                         isinstance(selexpr.expr, caos_ast.Constant))
+            result[selexpr.name or str(i)] = (self.get_expr_type(selexpr.expr, schema),
+                                              isinstance(selexpr.expr, caos_ast.Constant))
 
         return result
