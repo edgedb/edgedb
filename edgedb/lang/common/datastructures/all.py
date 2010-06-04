@@ -236,6 +236,9 @@ class BaseOrderedSet(collections.MutableSet):
     def copy(self):
         return self.__class__(self)
 
+    def clear(self):
+        self.map.clear()
+
 
 class OrderedSet(BaseOrderedSet, collections.MutableSequence):
 
