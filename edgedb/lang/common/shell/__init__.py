@@ -101,8 +101,10 @@ class Command(CommandBase, name=None):
 
 @config.configurable
 class MainCommand(CommandGroup, name='__main__'):
-    colorize = config.cvalue('auto', type=str, doc='default commands color output setting value' \
-                                                   ' [auto, always, never]')
+    colorize = config.cvalue('auto',
+                             type=str,
+                             validator=lambda value: value in ('auto', 'always', 'never'),
+                             doc='default commands color output setting value [auto, always, never]')
 
     def create_parser(self, parser):
         parser.add_argument('--color', choices=('auto', 'always', 'never'), default=self.colorize)
