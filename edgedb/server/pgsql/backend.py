@@ -167,6 +167,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return Session(realm, connection=self.connection.clone(), entity_cache=entity_cache)
 
 
+    def free_resources(self):
+        self.parser.cleanup()
+        import gc
+        gc.collect()
+
+
     def getmeta(self):
         if not self.meta.index:
             if 'caos' in self.modules:
@@ -179,6 +185,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 self.order_link_properties(self.meta)
                 self.order_links(self.meta)
                 self.order_concepts(self.meta)
+
+                self.free_resources()
 
         return self.meta
 

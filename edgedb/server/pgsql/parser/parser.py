@@ -42,21 +42,33 @@ class _ParserSpecs:
     def localpath(cls, filename):
         return os.path.join(os.path.dirname(__file__), filename)
 
+    @classmethod
+    def cleanup(cls):
+        cls.parser_spec = None
+        cls.lexer_spec = None
 
-class PgSQLParser(Parsing.Lr):
+
+class PgSQLParser:
     def __init__(self):
         self.parser_spec = None
         self.lexer_spec = None
         self.lexer = None
+        self.parser = None
 
+    def cleanup(self):
+        self.parser_spec = None
+        self.lexer_spec = None
+        self.lexer = None
+        self.parser = None
+        _ParserSpecs.cleanup()
 
     def reset_parser(self, input):
         if self.parser_spec is None:
             self.parser_spec, self.lexer_spec = _ParserSpecs.get_specs()
             self.lexer = pyggy.lexer.lexer(self.lexer_spec)
-            super().__init__(self.parser_spec)
+            self.parser = Parsing.Lr(self.parser_spec)
 
-        self.reset()
+        self.parser.reset()
         self.lexer.setinputstr(input)
 
     @debug.debug
@@ -67,18 +79,18 @@ class PgSQLParser(Parsing.Lr):
             tok = self.lexer.token()
 
             while tok:
-                token = parsermeta.TokenMeta.for_lex_token(tok)(self, self.lexer.value)
+                token = parsermeta.TokenMeta.for_lex_token(tok)(self.parser, self.lexer.value)
 
                 """LOG [caos.pgsql.lexer] TOKEN
                 print('%r' % token)
                 """
 
-                self.token(token)
+                self.parser.token(token)
                 tok = self.lexer.token()
 
-            self.eoi()
+            self.parser.eoi()
 
         except Parsing.SyntaxError as e:
             raise PgSQLParserError(e.args[0]) from e
 
-        return self.start[0].val
+        return self.parser.start[0].val
