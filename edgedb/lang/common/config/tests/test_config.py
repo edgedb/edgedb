@@ -125,7 +125,8 @@ class TestUtilsConfig(object):
         test2(1, test=10.0)
 
         with assert_raises(TypeError):
-            test2(1, 10.0)
+            CHK = 1
+            test2(1, test=1)
 
     def test_utils_config_overlapping(self):
         with assert_raises(ConfigError, error_re='Overlapping'):
@@ -175,6 +176,41 @@ class TestUtilsConfig(object):
             @configurable
             def test1000(test:int=cvalue(0.0)):
                 pass
+
+        with assert_raises(TypeError):
+            @configurable
+            def test1001(test=cvalue(0.0, validator=lambda v: v>0)):
+                pass
+
+        with assert_raises(TypeError):
+            @configurable
+            def test1002(test:str=cvalue(1, validator=lambda v: v>0)):
+                pass
+
+        with assert_raises(TypeError):
+            @configurable
+            def test1003(test:int=cvalue(1, validator=lambda v: isinstance(v, str))):
+                pass
+
+        with assert_raises(TypeError):
+            @configurable
+            class test1004:
+                test = cvalue(0.0, validator=lambda v: v>0)
+
+        with assert_raises(TypeError):
+            @configurable
+            class test1005:
+                test = cvalue(0.0, type=int)
+
+        with assert_raises(TypeError):
+            @configurable
+            class test1006:
+                test = cvalue(1, type=str, validator=lambda v: v>0)
+
+        with assert_raises(TypeError):
+            @configurable
+            class test1007:
+                test = cvalue(1, type=int, validator=lambda v: isinstance(v, str))
 
     def test_utils_config_class_methods_base(self):
         @configurable

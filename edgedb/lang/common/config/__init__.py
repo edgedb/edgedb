@@ -13,10 +13,11 @@ import inspect
 
 from semantix.utils.functional import decorate, apply_decorator, get_argsspec
 from semantix.utils.functional.types import Checker, FunctionValidator, checktypes, \
-                                            ChecktypeExempt, TypeChecker
+                                            ChecktypeExempt, TypeChecker, CombinedChecker
 from semantix.exceptions import SemantixError
 from semantix.utils.lang import yaml
 from semantix.utils.config.schema import Schema
+from semantix.rendering.css.compiler.ast import Combinator
 
 
 __all__ = ['ConfigError', 'ConfigRequiredValueError', 'config', 'configurable', 'cvalue']
@@ -130,6 +131,10 @@ def _get_conf(config, name):
     return node
 
 
+_Marker = object()
+_std_type = type
+
+
 def configurable(obj, *, basename=None, bind_to=None):
     if basename is None and obj.__module__ == '__main__':
         raise ConfigError('Unable to determine module\'s path')
@@ -159,7 +164,17 @@ def configurable(obj, *, basename=None, bind_to=None):
                 arg_default._bind(bind_to)
                 arg_default._owner = obj
 
-                if not arg_default._validator and arg_name in checkers:
+                if arg_default._validator:
+                    assert isinstance(arg_default._validator, Checker)
+
+                    if arg_name in checkers:
+                        checkers[arg_name] = CombinedChecker(checkers[arg_name],
+                                                             arg_default._validator)
+                        arg_default._validator = checkers[arg_name]
+                    else:
+                        checkers[arg_name] = arg_default._validator
+
+                elif arg_name in checkers:
                     checker = checkers[arg_name]
                     arg_default._set_validator(checker)
 
@@ -179,17 +194,29 @@ def configurable(obj, *, basename=None, bind_to=None):
             FunctionValidator.validate_kwonly(obj, args, args_spec)
 
             args = list(args)
-
             if args_spec.defaults:
-                j = 0
-                for i, arg_name in enumerate(args_spec.args):
+                try:
+                    flatten_args_spec = getattr(obj, '_flatten_args_spec_')
+                except AttributeError:
+                    flatten_args_spec = tuple(enumerate(reversed(tuple(
+                                            itertools.zip_longest(
+                                                reversed(tuple(args_spec.args) if args_spec.args else []),
+                                                reversed(tuple(args_spec.defaults) if args_spec.defaults else []),
+
+                                                fillvalue=_Marker
+                                            )
+                                        ))))
+                    setattr(obj, '_flatten_args_spec_', flatten_args_spec)
+
+                for i, (arg_name, default) in flatten_args_spec:
                     if i >= len(args):
-                        default = args_spec.defaults[j]
+                        if default is _Marker:
+                            raise TypeError('%s argument is required' % arg_name)
+
                         if isinstance(default, cvalue):
                             while isinstance(default, cvalue):
                                 default = default._get_value()
                         args.append(default)
-                        j += 1
 
             if args_spec.kwonlydefaults:
                 for def_name, def_value in args_spec.kwonlydefaults.items():
@@ -198,6 +225,7 @@ def configurable(obj, *, basename=None, bind_to=None):
                             def_value = def_value._get_value()
                         kwargs[def_name] = def_value
 
+            FunctionValidator.check_args(obj, args, kwargs, args_spec, checkers)
             return obj(*args, **kwargs)
 
         decorate(wrapper, obj)
@@ -215,10 +243,6 @@ def configurable(obj, *, basename=None, bind_to=None):
                 attr_value._set_name(obj_name + '.' + attr_name)
                 attr_value._bind(bind_to)
                 attr_value._owner = obj
-
-                if attr_value.type and isinstance(attr_value.type, type):
-                    attr_value._validator = Checker.get(attr_value.type)
-
                 attr_value._validate()
                 todecorate = True
 
@@ -240,7 +264,12 @@ def configurable(obj, *, basename=None, bind_to=None):
     return apply_decorator(obj, decorate_function=decorate_function, decorate_class=decorate_class)
 
 
-NoDefault = object()
+class NoDefault:
+    def __str__(self):
+        return '<config.NoDefault>'
+    __repr__ = __str__
+NoDefault = NoDefault()
+
 
 class cvalue(ChecktypeExempt):
     __slots__ = ('_name', '_default', '_value', '_value_context', '_doc', '_validator', '_type',
@@ -259,12 +288,20 @@ class cvalue(ChecktypeExempt):
         self._owner = None
         self._inter_cache = None
 
-        self._validator = None
         if validator:
-            if isinstance(validator, Checker):
-                self._set_validator(validator)
-            else:
-                self._set_validator(Checker.get(validator))
+            if not isinstance(validator, Checker):
+                validator = Checker.get(validator)
+
+            if type and isinstance(type, _std_type):
+                validator = CombinedChecker(TypeChecker(type), validator)
+
+            self._validator = validator
+
+        elif type and isinstance(type, _std_type):
+            self._validator = TypeChecker(type)
+
+        else:
+            self._validator = None
 
     doc = property(lambda self: self._doc)
     bound_to = property(lambda self: self._bound_to)
@@ -365,6 +402,9 @@ class cvalue(ChecktypeExempt):
 
     def __delete__(self, instance):
         raise TypeError('%s is a read-only config property' % self._name)
+
+    def __repr__(self):
+        return "<cvalue at 0x%x value:%r>" % (id(self), self._value)
 
 
 class _Loader(yaml.Object):
