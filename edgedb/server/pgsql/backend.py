@@ -9,12 +9,13 @@
 import os
 import re
 import collections
+import itertools
 
-import postgresql.string
+import postgresql
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
 from semantix.utils import ast, helper
-from semantix.utils.algos import topological
+from semantix.utils.algos import topological, persistent_hash
 from semantix.utils.debug import debug
 from semantix.utils.lang import yaml
 from semantix.utils.nlang import morphology
@@ -22,7 +23,6 @@ from semantix.utils import datastructures
 
 from semantix import caos
 
-from semantix.caos import session
 from semantix.caos import backends
 from semantix.caos import proto
 from semantix.caos import delta as base_delta
@@ -146,6 +146,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.link_cache = {}
         self.concept_cache = {}
         self.table_cache = {}
+        self.batch_instrument_cache = {}
+        self.batches = {}
         self.domain_to_atom_map = {}
         self.column_cache = {}
         self.table_id_to_proto_name_cache = {}
@@ -256,6 +258,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.link_cache.clear()
         self.concept_cache.clear()
         self.table_cache.clear()
+        self.batch_instrument_cache.clear()
         self.domain_to_atom_map.clear()
         self.column_cache.clear()
         self.table_id_to_proto_name_cache.clear()
@@ -466,18 +469,243 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return id
 
 
-    @debug
-    def delete_entity(self, entity, session):
-        concept = entity.__class__._metadata.name
-        table = common.concept_name_to_table_name(concept)
-        query = '''DELETE FROM %s WHERE "semantix.caos.builtins.id" = $1
-                   RETURNING "semantix.caos.builtins.id"''' % table
+    def start_batch(self, session, batch_id):
+        self.batches[batch_id] = {'objects': set()}
 
-        """LOG [caos.sync]
-        print('Removing entity %s[%s]' % (concept, entity.id))
+
+    def create_batch_merger(self, prototype, session):
+        text = r"""
+        CREATE OR REPLACE FUNCTION %(func_name)s (batch_id TEXT)
+        RETURNS SETOF %(key)s
+        LANGUAGE plpgsql
+        AS $$
+        DECLARE
+            row %(table_name)s%%ROWTYPE;
+        BEGIN
+            RETURN QUERY EXECUTE '
+                UPDATE
+                    %(table_name)s AS t
+                SET
+                    (%(cols)s) = (%(vals)s)
+                FROM
+                    (SELECT
+                        batch.*
+                     FROM
+                        %(table_name)s AS t
+                        INNER JOIN %(batch_prefix)s' || batch_id || '" AS batch
+                            ON (%(key_condition)s)) AS batch
+                WHERE
+                    %(key_condition)s
+                RETURNING
+                    %(keys)s';
+            RETURN;
+        END;
+        $$;
         """
 
-        result = self.runquery(query, [entity.id], session.connection, compat=False)
+        table_name = common.get_table_name(prototype, catenate=False)
+        name = '%x_batch_' % persistent_hash.persistent_hash(prototype.name.name)
+        batch_prefix = common.qname(table_name[0], name)[:-1]
+        func_name = common.qname(table_name[0],
+                                 common.caos_name_to_pg_name(prototype.name.name + '_batch_merger'))
+
+        columns = self.get_table_columns(table_name)
+
+        cols = ','.join(common.qname(col) for col in columns.keys())
+        vals = ','.join('batch.%s' % common.qname(col) for col in columns.keys())
+
+        if isinstance(prototype, caos.types.ProtoConcept):
+            keys = ('semantix.caos.builtins.id', 'concept_id')
+            key = common.concept_name_to_table_name(caos.Name('semantix.caos.builtins.BaseObject'))
+        elif isinstance(prototype, caos.types.ProtoLink):
+            keys = ('source_id', 'target_id', 'link_type_id')
+            key = common.link_name_to_table_name(caos.Name('semantix.caos.builtins.link'))
+
+        key_condition = '(%s) = (%s)' % \
+                            (','.join('t.%s' % common.quote_ident(k) for k in keys),
+                             ','.join('batch.%s' % common.quote_ident(k) for k in keys))
+
+        qry = text % {'table_name': common.qname(*table_name), 'batch_prefix': batch_prefix,
+                      'cols': cols, 'key_condition': key_condition,
+                      'func_name': func_name,
+                      'keys': ','.join('t.%s' % common.quote_ident(k) for k in keys),
+                      'vals': vals, 'key': key}
+
+        session.connection.execute(qry)
+
+        return func_name
+
+
+    def get_batch_instruments(self, prototype, session, batch_id):
+        result = self.batch_instrument_cache.get(batch_id)
+        if result:
+            result = result.get(prototype)
+
+        if not result:
+            model_table = self.get_table(prototype, session)
+            name = '%x_batch_%x' % (persistent_hash.persistent_hash(prototype.name.name), batch_id)
+            table_name = (model_table.name[0], common.caos_name_to_pg_name(name))
+            batch_table = delta_cmds.Table(table_name)
+
+            cols = self.get_table_columns(model_table.name)
+            colmap = {c.name: c for c in model_table.columns()}
+            batch_table.add_columns(colmap[col] for col in cols)
+
+            context = delta_cmds.CommandContext(session.connection)
+            delta_cmds.CreateTable(batch_table).execute(context)
+
+            merger_func = self.create_batch_merger(prototype, session)
+
+            if isinstance(prototype, caos.types.ProtoConcept):
+                keys = ('semantix.caos.builtins.id', 'concept_id')
+            elif isinstance(prototype, caos.types.ProtoLink):
+                keys = ('source_id', 'target_id', 'link_type_id')
+
+            name = '%x_batch_%x_updated' % (persistent_hash.persistent_hash(prototype.name.name),
+                                            batch_id)
+            schema = common.caos_module_name_to_schema_name(prototype.name.module)
+            updates_table_name = (schema, common.caos_name_to_pg_name(name))
+
+            updates_table = delta_cmds.Table(updates_table_name)
+            updates_table.add_columns(colmap[col] for col in keys)
+            delta_cmds.CreateTable(updates_table).execute(context)
+
+            result = (batch_table, updates_table, merger_func)
+
+            self.batch_instrument_cache.setdefault(batch_id, {})[prototype] = result
+
+        return result
+
+
+    def commit_batch(self, session, batch_id):
+        for prototype in self.batches[batch_id]['objects']:
+            self.merge_batch_table(session, prototype, batch_id)
+
+
+    def close_batch(self, session, batch_id):
+        for prototype in self.batches[batch_id]['objects']:
+
+            batch_table, updates_table, merger = self.get_batch_instruments(prototype, session,
+                                                                            batch_id)
+
+            session.connection.execute('DROP TABLE %s' % common.qname(*batch_table.name))
+            session.connection.execute('DROP TABLE %s' % common.qname(*updates_table.name))
+
+        self.batch_instrument_cache.pop(batch_id, None)
+        del self.batches[batch_id]
+
+
+    def merge_batch_table(self, session, prototype, batch_id):
+        table = common.get_table_name(prototype, catenate=False)
+        batch_table, updates_table, merger_func = self.get_batch_instruments(prototype,
+                                                                             session, batch_id)
+
+        columns = self.get_table_columns(table)
+
+        cols = ','.join(common.qname(col) for col in columns.keys())
+
+        if isinstance(prototype, caos.types.ProtoConcept):
+            keys = ('semantix.caos.builtins.id', 'concept_id')
+        elif isinstance(prototype, caos.types.ProtoLink):
+            keys = ('source_id', 'target_id', 'link_type_id')
+
+        keys = ', '.join(common.quote_ident(k) for k in keys)
+
+        batch_index_name = common.caos_name_to_pg_name(batch_table.name[1] + '_key_idx')
+        updates_index_name = common.caos_name_to_pg_name(updates_table.name[1] + '_key_idx')
+
+        qry = 'CREATE UNIQUE INDEX %(batch_index_name)s ON %(batch_table)s (%(keys)s)' % \
+               {'batch_table': common.qname(*batch_table.name), 'keys': keys,
+                'batch_index_name': common.quote_ident(batch_index_name)}
+
+        session.connection.execute(qry)
+
+        with session.connection.xact():
+            session.connection.execute('LOCK TABLE %s IN ROW EXCLUSIVE MODE' % common.qname(*table))
+
+            qry = '''INSERT INTO %(tab)s (SELECT * FROM %(proc_name)s('%(batch_id)x'))''' \
+                  % {'tab': common.qname(*updates_table.name),
+                     'proc_name': merger_func,
+                     'batch_id': batch_id}
+            session.connection.execute(qry)
+
+            qry = 'CREATE UNIQUE INDEX %(updates_index_name)s ON %(batch_table)s (%(keys)s)' % \
+                   {'batch_table': common.qname(*updates_table.name), 'keys': keys,
+                    'updates_index_name': common.quote_ident(updates_index_name)}
+            session.connection.execute(qry)
+
+            qry = '''INSERT INTO %(table_name)s (%(cols)s)
+                     (SELECT * FROM %(batch_table)s
+                      WHERE (%(keys)s) NOT IN (SELECT * FROM %(updated)s))
+                  ''' % {'table_name': common.qname(*table),
+                         'cols': cols,
+                         'batch_table': common.qname(*batch_table.name),
+                         'keys': keys,
+                         'updated': common.qname(*updates_table.name)}
+            session.connection.execute(qry)
+
+            session.connection.execute('TRUNCATE %s' % common.qname(*batch_table.name))
+            session.connection.execute('DROP INDEX %s' % common.qname(batch_table.name[0],
+                                                                      batch_index_name))
+            session.connection.execute('TRUNCATE %s' % common.qname(*updates_table.name))
+            session.connection.execute('DROP INDEX %s' % common.qname(updates_table.name[0],
+                                                                      updates_index_name))
+
+
+    def store_entity_batch(self, entities, session, batch_id):
+
+        concept_map = self.get_concept_map(session)
+        idquery = delta_cmds.Query(text='caos.uuid_generate_v1mc()', params=(), type='uuid')
+        now = delta_cmds.Query(text="'NOW'", params=(), type='timestamptz')
+        context = delta_cmds.CommandContext(session.connection)
+
+        key = lambda i: i.__class__._metadata.name
+        for concept, entities in itertools.groupby(sorted(entities, key=key), key=key):
+            concept = session.schema.get(concept)
+            concept_proto = concept._metadata.prototype
+            table, _, _ = self.get_batch_instruments(concept_proto, session, batch_id)
+
+            self.batches.setdefault(batch_id, {}).setdefault('objects', set()).add(concept_proto)
+
+            attrmap = {}
+
+            for link_name, link_cls in concept:
+                if isinstance(link_cls, caos.types.AtomClass) and \
+                                                    link_name != 'semantix.caos.builtins.id':
+                    attrmap[str(link_name)] = common.caos_name_to_pg_name(link_name)
+
+            records = []
+
+            concept_id = concept_map[concept_proto.name]
+
+            for entity in entities:
+                id = entity.id or idquery
+                rec = table.record()
+                for link_name, col_name in attrmap.items():
+                    setattr(rec, col_name, getattr(entity, link_name))
+                rec.concept_id = concept_id
+
+                setattr(rec, 'semantix.caos.builtins.id', id)
+                setattr(rec, 'semantix.caos.builtins.ctime', now)
+                setattr(rec, 'semantix.caos.builtins.mtime', now)
+
+                records.append(rec)
+
+            cmd = delta_cmds.Insert(table=table, records=records)
+            cmd.execute(context)
+
+
+    @debug
+    def delete_entities(self, entities, session):
+        key = lambda i: i.__class__._metadata.name
+        result = set()
+        for concept, entities in itertools.groupby(sorted(entities, key=key), key=key):
+            table = common.concept_name_to_table_name(concept)
+            query = '''DELETE FROM %s WHERE "semantix.caos.builtins.id" = any($1)
+                       RETURNING "semantix.caos.builtins.id"''' % table
+
+            result.update(self.runquery(query, ([e.id for e in entities],), session.connection,
+                                                                            compat=False))
         return result
 
 
@@ -619,6 +847,69 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                           list((t.__class__._metadata.name, t.id) for t in targets))
                 ex = caos.error.StorageLinkMappingCardinalityViolation(err, details=detail)
                 raise ex from e
+
+
+    def store_link_batch(self, links, session, batch_id):
+
+        link_map = self.get_link_map(session)
+        context = delta_cmds.CommandContext(session.connection)
+
+        def flatten_links(links):
+            for source, linksets in links:
+                for link_name, targets in linksets.items():
+                    yield link_name, source, targets
+
+        key = lambda i: i[0]
+        for link_name, pairs in itertools.groupby(sorted(flatten_links(links), key=key), key=key):
+            link = session.schema.get(link_name)
+            link_proto = link._metadata.root_prototype
+            table, _, _ = self.get_batch_instruments(link._metadata.root_prototype, session,
+                                                     batch_id)
+
+            self.batches.setdefault(batch_id, {'objects': set()})['objects'].add(link_proto)
+
+            attrmap = {}
+
+            for prop_name, prop_cls in link:
+                attrmap[str(prop_name)] = common.caos_name_to_pg_name(prop_name)
+
+            records = []
+
+            for link_name, source, targets in pairs:
+                link = getattr(source.__class__, str(link_name))
+
+                if isinstance(link, caos.types.NodeClass):
+                    link_names = [(link, link._class_metadata.full_link_name)]
+                else:
+                    link_names = [(l.target, l._metadata.name) for l in link]
+
+                for target in targets:
+                    for t, full_link_name in link_names:
+                        if isinstance(target, t):
+                            break
+                    else:
+                        assert False, "No link found"
+
+                    link_id = link_map[full_link_name]
+
+                    rec = table.record()
+                    linkobj = caos.concept.getlink(source, link_name, target)
+                    for prop_name, col_name in attrmap.items():
+                        setattr(rec, col_name, getattr(linkobj, prop_name))
+
+                    rec.link_type_id = link_id
+                    rec.source_id = linkobj._instancedata.source.id
+
+                    target = linkobj._instancedata.target
+                    if isinstance(target, caos.atom.Atom):
+                        rec.target_id = None
+                    else:
+                        rec.target_id = target.id
+
+                    records.append(rec)
+
+            cmd = delta_cmds.Insert(table=table, records=records)
+            cmd.execute(context)
 
 
     @debug

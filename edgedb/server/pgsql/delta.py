@@ -644,6 +644,23 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         condition = [('name', str(old_name))]
         self.pgops.add(Update(table=self.table, record=updaterec, condition=condition))
 
+        old_func_name = (old_table_name[0],
+                         common.caos_name_to_pg_name(old_name.name + '_batch_merger'))
+        new_func_name = (new_table_name[0],
+                         common.caos_name_to_pg_name(new_name.name + '_batch_merger'))
+
+        cond = FunctionExists(old_func_name, args=('text',),)
+        cmd = AlterFunctionRename(old_func_name, args=('text',), new_name=new_func_name,
+                                  conditions=(cond,))
+        self.pgops.add(cmd)
+
+    def delete(self, proto, meta, context):
+        schema = common.caos_module_name_to_schema_name(proto.name.module)
+        name = common.caos_name_to_pg_name(proto.name.name + '_batch_merger')
+        func_name = (schema, name)
+        cond = FunctionExists(func_name, args=('text',),)
+        cmd = DropFunction(func_name, args=('text',), conditions=(cond,))
+        self.pgops.add(cmd)
 
     def search_index_add(self, host, pointer, meta, context):
         if self.update_search_indexes is None:
@@ -892,6 +909,8 @@ class DeleteConcept(ConceptMetaCommand, adapts=delta_cmds.DeleteConcept):
 
         concept = delta_cmds.DeleteConcept.apply(self, meta, context)
         ConceptMetaCommand.apply(self, meta, context)
+
+        self.delete(concept, meta, concept)
 
         self.pgops.add(DropTable(name=old_table_name))
         self.pgops.add(Delete(table=self.table, condition=[('name', str(concept.name))]))
@@ -2189,6 +2208,7 @@ class Table(DBObject):
 
         self.name = name
         self.__columns = datastructures.OrderedSet()
+        self._columns = []
         self.constraints = set()
         self.bases = set()
         self.data = []
@@ -2196,7 +2216,7 @@ class Table(DBObject):
     @property
     def record(self):
         return datastructures.Record(self.__class__.__name__ + '_record',
-                                     [c.name for c in self.columns()],
+                                     [c.name for c in self._columns],
                                      default=Default)
 
     def columns(self, writable_only=False, only_self=False):
@@ -2213,6 +2233,7 @@ class Table(DBObject):
 
     def add_columns(self, iterable):
         self.__columns.update(iterable)
+        self._columns = self.columns()
 
 
 class DeltaRefTable(Table):
@@ -2228,6 +2249,8 @@ class DeltaRefTable(Table):
         self.constraints = set([
             PrimaryKey(name, columns=('ref',))
         ])
+
+        self._columns = self.columns()
 
 
 class DeltaLogTable(Table):
@@ -2249,6 +2272,8 @@ class DeltaLogTable(Table):
             PrimaryKey(name, columns=('id',))
         ])
 
+        self._columns = self.columns()
+
 
 class ModuleTable(Table):
     def __init__(self, name=None):
@@ -2263,6 +2288,8 @@ class ModuleTable(Table):
         self.constraints = set([
             PrimaryKey(name, columns=('name',)),
         ])
+
+        self._columns = self.columns()
 
 
 class MetaObjectTable(Table):
@@ -2283,6 +2310,8 @@ class MetaObjectTable(Table):
             UniqueConstraint(name, columns=('name',))
         ])
 
+        self._columns = self.columns()
+
 
 class AtomTable(MetaObjectTable):
     def __init__(self):
@@ -2302,6 +2331,8 @@ class AtomTable(MetaObjectTable):
             UniqueConstraint(('caos', 'atom'), columns=('name',))
         ])
 
+        self._columns = self.columns()
+
 
 class ConceptTable(MetaObjectTable):
     def __init__(self):
@@ -2317,6 +2348,8 @@ class ConceptTable(MetaObjectTable):
             PrimaryKey(('caos', 'concept'), columns=('id',)),
             UniqueConstraint(('caos', 'concept'), columns=('name',))
         ])
+
+        self._columns = self.columns()
 
 
 class LinkTable(MetaObjectTable):
@@ -2341,6 +2374,8 @@ class LinkTable(MetaObjectTable):
             UniqueConstraint(('caos', 'link'), columns=('name',))
         ])
 
+        self._columns = self.columns()
+
 
 class LinkPropertyTable(MetaObjectTable):
     def __init__(self):
@@ -2361,6 +2396,8 @@ class LinkPropertyTable(MetaObjectTable):
             PrimaryKey(('caos', 'link_property'), columns=('id',)),
             UniqueConstraint(('caos', 'link_property'), columns=('name',))
         ])
+
+        self._columns = self.columns()
 
 
 class Feature:
@@ -2621,15 +2658,21 @@ class TableExists(Condition):
 
 
 class CreateTable(SchemaObjectOperation):
-    def __init__(self, table, *, conditions=None, neg_conditions=None, priority=0):
+    def __init__(self, table, temporary=False, *, conditions=None, neg_conditions=None, priority=0):
         super().__init__(table.name, conditions=conditions, neg_conditions=neg_conditions,
                          priority=priority)
         self.table = table
+        self.temporary = temporary
 
     def code(self, context):
         elems = [c.code(context) for c in self.table.columns(only_self=True)]
         elems += [c.code(context) for c in self.table.constraints]
-        code = 'CREATE TABLE %s (%s)' % (common.qname(*self.table.name), ', '.join(c for c in elems))
+
+        name = common.qname(*self.table.name)
+        cols = ', '.join(c for c in elems)
+        temp = 'TEMPORARY ' if self.temporary else ''
+
+        code = 'CREATE %sTABLE %s (%s)' % (temp, name, cols)
 
         if self.table.bases:
             code += ' INHERITS (' + ','.join(common.qname(*b) for b in self.table.bases) + ')'
@@ -2929,9 +2972,76 @@ class AlterTableRenameColumn(AlterTableBase):
         return code
 
 
-class FunctionExists(Condition):
-    def __init__(self, name):
+class AlterFunctionRename(CommandGroup):
+    def __init__(self, name, args, new_name, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+
+        if name[0] != new_name[0]:
+            cmd = AlterFunctionSetSchema(name, args, new_name[0])
+            self.add_command(cmd)
+            name = (new_name[0], name[1])
+
+        if name[1] != new_name[1]:
+            cmd = AlterFunctionRenameTo(name, args, new_name[1])
+            self.add_command(cmd)
+
+
+class AlterFunctionSetSchema(DDLOperation):
+    def __init__(self, name, args, new_schema, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
         self.name = name
+        self.args = args
+        self.new_schema = new_schema
+
+    def code(self, context):
+        code = 'ALTER FUNCTION %s(%s) SET SCHEMA %s' % \
+                (common.qname(*self.name),
+                 ', '.join(common.quote_ident(a) for a in self.args),
+                 common.quote_ident(self.new_schema))
+        return code
+
+
+class AlterFunctionRenameTo(DDLOperation):
+    def __init__(self, name, args, new_name, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+        self.name = name
+        self.args = args
+        self.new_name = new_name
+
+    def code(self, context):
+        code = 'ALTER FUNCTION %s(%s) RENAME TO %s' % \
+                (common.qname(*self.name),
+                 ', '.join(common.quote_ident(a) for a in self.args),
+                 common.quote_ident(self.new_name))
+        return code
+
+
+class DropFunction(DDLOperation):
+    def __init__(self, name, args, *, conditions=None, neg_conditions=None, priority=0):
+        self.conditional = False
+        c = []
+        for cond in conditions:
+            if isinstance(cond, FunctionExists) and cond.name == name and cond.args == args:
+                self.conditional = True
+            else:
+                c.append(cond)
+        conditions = c
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+        self.name = name
+        self.args = args
+
+    def code(self, context):
+        code = 'DROP FUNCTION%s %s(%s)' % \
+                (' IF EXISTS' if self.conditional else '',
+                 common.qname(*self.name),
+                 ', '.join(common.quote_ident(a) for a in self.args))
+        return code
+
+
+class FunctionExists(Condition):
+    def __init__(self, name, args=None):
+        self.name = name
+        self.args = args
 
     def code(self, context):
         code = '''SELECT
@@ -2940,9 +3050,15 @@ class FunctionExists(Condition):
                         pg_catalog.pg_proc p
                         INNER JOIN pg_catalog.pg_namespace ns ON (ns.oid = p.pronamespace)
                     WHERE
-                        p.proname = $2 and ns.nspname = $1'''
+                        p.proname = $2 AND ns.nspname = $1
+                        AND ($3::text[] IS NULL
+                             OR $3::text[] = ARRAY(SELECT
+                                                      format_type(t, NULL)::text
+                                                    FROM
+                                                      unnest(p.proargtypes) t))
+                '''
 
-        return code, self.name
+        return code, self.name + (self.args,)
 
 
 class Comment(DDLOperation):
