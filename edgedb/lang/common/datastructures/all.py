@@ -331,9 +331,36 @@ class RecordBase:
             raise AttributeError('%s has no attribute %s' % (self.__class__.__name__, name))
         super().__setattr__(name, value)
 
+    def __eq__(self, tup):
+        if not isinstance(tup, tuple):
+            return NotImplemented
+
+        return tuple(self) == tup
+
+    def __getitem__(self, index):
+        return getattr(self, self.__class__._fields___[index])
+
     def __iter__(self):
         for name in self.__class__._fields___:
+            yield getattr(self, name)
+
+    def __len__(self):
+        return len(self.__class__._fields___)
+
+    def items(self):
+        for name in self.__class__._fields___:
             yield name, getattr(self, name)
+
+    def keys(self):
+        return iter(self.__class__._fields___)
+
+    def __str__(self):
+        f = ', '.join(str(v) for v in self)
+        if len(self) == 1:
+            f += ','
+        return '(%s)' % f
+
+    __repr__ = __str__
 
 
 class NoDefault:

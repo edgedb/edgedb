@@ -1839,7 +1839,7 @@ class Update(DMLOperation):
 
         self.table = table
         self.record = record
-        self.fields = [f for f, v in record if v is not Default]
+        self.fields = [f for f, v in record.items() if v is not Default]
         self.condition = condition
         self.returning = returning
         self.cols = {c.name: c.type for c in self.table.columns(writable_only=True)}
