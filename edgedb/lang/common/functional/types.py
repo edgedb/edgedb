@@ -121,6 +121,18 @@ class TypeChecker(Checker):
         return inspect.isclass(target)
 
 
+class CombinedChecker(Checker):
+    __slots__ = ('checkers',)
+
+    def __init__(self, *checkers):
+        assert all(isinstance(checker, Checker) for checker in checkers)
+        self.checkers = checkers
+
+    def check(self, value, func, arg_name):
+        for checker in self.checkers:
+            checker.check(value, func, arg_name)
+
+
 class FunctionValidator:
     MAX_REPR_LEN = 100
 
