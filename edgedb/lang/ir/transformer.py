@@ -374,7 +374,7 @@ class TreeTransformer:
             if len(e.paths) > 1:
                 expr = caos_ast.BinOp(left=left, op=expr.op, right=right, aggregates=expr.aggregates)
             else:
-                expr = next(iter(expr.paths))
+                expr = next(iter(e.paths))
 
         elif isinstance(expr, caos_ast.PathCombination):
             expr = self.flatten_and_unify_path_combination(expr, deep=True)

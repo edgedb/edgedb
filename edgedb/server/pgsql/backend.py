@@ -42,7 +42,8 @@ from . import astexpr
 from . import parser
 from . import types
 from . import transformer
-from .session import Session
+from . import pool
+from . import session
 
 
 class Query:
@@ -92,8 +93,7 @@ class CaosQLCursor:
     def __init__(self, session):
         self.session = session
         self.realm = session.realm
-        self.connection = session.connection
-        self.cursor = CompatCursor(self.connection)
+        self.connection = session.get_connection()
         self.transformer = CaosTreeTransformer()
         self.current_portal = None
 
@@ -138,9 +138,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     """, re.X)
 
 
-    def __init__(self, deltarepo, connection):
-        self.connection = connection
-        delta_cmds.EnableHstoreFeature.init_hstore(connection)
+    def __init__(self, deltarepo, connector):
+        self.connection_pool = pool.ConnectionPool(connector)
+        self.connection = connector(pool=self.connection_pool)
+        self.connection.connect()
+        delta_cmds.EnableHstoreFeature.init_hstore(self.connection)
 
         self.modules = self.read_modules()
         self.link_cache = {}
@@ -159,12 +161,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         self.meta = proto.RealmMeta(load_builtins=False)
 
-        repo = deltarepo(connection)
+        repo = deltarepo(self.connection)
         super().__init__(repo)
 
 
-    def session(self, realm, entity_cache):
-        return Session(realm, connection=self.connection.clone(), entity_cache=entity_cache)
+    def get_session_pool(self, realm):
+        return session.SessionPool(self, realm)
 
 
     def free_resources(self):
@@ -296,7 +298,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 atom_link_map[link_name] = attribute_map[col_name]
 
         links = {k: row[i] for k, i in atom_link_map.items()}
-
         concept = session.schema.get(concept_name)
         return session._merge(links['semantix.caos.builtins.id'], concept, links)
 
@@ -432,12 +433,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             rec = table.record(**attrs)
 
             returning = ['"semantix.caos.builtins.id"']
-            if issubclass(cls, cls._metadata.realm.schema.semantix.caos.builtins.Object):
+            if issubclass(cls, session.schema.semantix.caos.builtins.Object):
                 returning.extend(('"semantix.caos.builtins.ctime"',
                                   '"semantix.caos.builtins.mtime"'))
 
             if id is not None:
-                if issubclass(cls, cls._metadata.realm.schema.semantix.caos.builtins.Object):
+                if issubclass(cls, session.schema.semantix.caos.builtins.Object):
                     setattr(rec, 'semantix.caos.builtins.mtime', now)
 
                 cmd = delta_cmds.Update(table=table, record=rec,
@@ -446,7 +447,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             else:
                 setattr(rec, 'semantix.caos.builtins.id', idquery)
 
-                if issubclass(cls, cls._metadata.realm.schema.semantix.caos.builtins.Object):
+                if issubclass(cls, session.schema.semantix.caos.builtins.Object):
                     setattr(rec, 'semantix.caos.builtins.ctime', now)
                     setattr(rec, 'semantix.caos.builtins.mtime', now)
 
@@ -467,7 +468,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     (concept, id[0], (data['name'] if 'name' in data else '')))
             """
 
-            if issubclass(cls, cls._metadata.realm.schema.semantix.caos.builtins.Object):
+            if issubclass(cls, session.schema.semantix.caos.builtins.Object):
                 updates = {'id': id[0], 'ctime': id[1], 'mtime': id[2]}
             else:
                 updates = {'id': id[0]}

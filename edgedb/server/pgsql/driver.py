@@ -18,6 +18,8 @@ from postgresql.python.functools import Composition as compose
 from semantix.caos.objects.datetime import TimeDelta, DateTime, Time
 from semantix.caos.objects import numeric
 
+from semantix.caos.backends import pool as caos_pool
+
 from . import session as pg_caos_session
 
 
@@ -52,6 +54,7 @@ def resolve(typid):
 class TypeIO(pq3.TypeIO):
     def __init__(self, database):
         super().__init__(database)
+        self._pool = database._pool
 
     def resolve(self, typid, from_resolution_of=(), builtins=resolve, quote_ident=quote_ident):
         return super().resolve(typid, from_resolution_of, builtins, quote_ident)
@@ -59,7 +62,11 @@ class TypeIO(pq3.TypeIO):
     def RowTypeFactory(self, attribute_map={}, _Row=pg_types.Row.from_sequence,
                        composite_relid = None):
 
-        session = pg_caos_session.Session.from_connection(self.database)
+        if self._pool:
+            session = self._pool.get_holder(self.database)
+        else:
+            session = None
+
         if session:
             backend = session.realm.backend('data')
             source = backend.source_name_from_relid(composite_relid)
@@ -68,18 +75,65 @@ class TypeIO(pq3.TypeIO):
         return partial(_Row, attribute_map)
 
 
+class Connection(pq3.Connection, caos_pool.Connection):
+    def __init__(self, connector, pool=None):
+        caos_pool.Connection.__init__(self, pool)
+        pq3.Connection.__init__(self, connector)
+
+    def reset(self):
+        if self.state in ('failed', 'negotiating', 'busy'):
+            self.execute('ROLLBACK')
+        self.execute("SET SESSION AUTHORIZATION DEFAULT;")
+        self.execute("CLOSE ALL;")
+        self.execute("RESET ALL;")
+        self.execute("UNLISTEN *;")
+        self.execute("SELECT pg_advisory_unlock_all();")
+        self.execute("DISCARD PLANS;")
+        self.execute("DISCARD TEMP;")
+
+
+class SocketConnector:
+    pass
+
+
+class IP4(pq3.IP4, SocketConnector):
+    pass
+
+
+class IP6(pq3.IP6, SocketConnector):
+    pass
+
+
+class Host(pq3.Host, SocketConnector):
+    pass
+
+
+class Unix(pq3.Unix, SocketConnector):
+    pass
+
+
 class Driver(pq3.Driver):
     def __init__(self):
-        super().__init__(typio=TypeIO)
+        super().__init__(typio=TypeIO, connection=Connection)
+
+    def ip4(self, **kw):
+        return IP4(driver = self, **kw)
+
+    def ip6(self, **kw):
+        return IP6(driver = self, **kw)
+
+    def host(self, **kw):
+        return Host(driver = self, **kw)
+
+    def unix(self, **kw):
+        return Unix(driver = self, **kw)
+
 
 driver = Driver()
 
 
-def connect(iri):
+def connector(iri):
     params = postgresql.iri.parse(iri)
     settings = params.setdefault('settings', {})
     settings['standard_conforming_strings'] = 'on'
-    connection = driver.fit(**params)()
-    connection.connect()
-
-    return connection
+    return driver.fit(**params)

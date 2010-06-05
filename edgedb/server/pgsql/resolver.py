@@ -22,7 +22,7 @@ class BackendResolver(BackendResolverHelper):
     def resolve(self, url):
         url = urllib.parse.urlunsplit(url)
         try:
-            connection = driver.connect(url)
+            connector = driver.connector(url)
         except postgresql.exceptions.ClientCannotConnectError as e:
             raise BackendResolverError(msg='could not connect to caos backend at %s' % url,
                                        hint='check that the database server is running, is accessible and '\
@@ -30,4 +30,4 @@ class BackendResolver(BackendResolverHelper):
                                        details=str(e)) from e
 
         return BackendShell(backend_class=Backend, delta_repo_class=MetaDeltaRepository,
-                            connection=connection)
+                            connector=connector)

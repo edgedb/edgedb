@@ -6,6 +6,7 @@
 ##
 
 
+from semantix.utils import abc
 from semantix.caos import proto, delta
 
 
@@ -132,5 +133,7 @@ class MetaBackend:
         return delta
 
 
-class DataBackend:
-    pass
+class DataBackend(metaclass=abc.AbstractMeta):
+    @abc.abstractmethod
+    def get_session_pool(self, realm):
+        pass

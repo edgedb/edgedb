@@ -6,15 +6,20 @@
 ##
 
 
-from semantix.caos.backends import MetaBackend
+from semantix.caos.backends import MetaBackend, DataBackend
 from semantix.caos.proto import RealmMeta
 from semantix.caos.delta import DeltaSet
 from semantix.caos import session
 
 
+class SessionPool(session.SessionPool):
+    def create(self):
+        return Session(self.realm, pool=self)
+
+
 class Session(session.Session):
-    def __init__(self, realm, entity_cache):
-        super().__init__(realm, entity_cache)
+    def __init__(self, realm, pool):
+        super().__init__(realm, entity_cache=session.WeakEntityCache, pool=pool)
         self.xact = []
 
     def in_transaction(self):
@@ -37,8 +42,47 @@ class Session(session.Session):
         super().rollback_all()
         self.xact[:] = []
 
+    def load(self, id, concept=None):
+        raise NotImplementedError
 
-class Backend(MetaBackend):
+    def _store_entity(self, entity):
+        raise NotImplementedError
+
+    def _delete_entities(self, entity):
+        raise NotImplementedError
+
+    def _store_links(self, source, targets, link_name, merge=False):
+        raise NotImplementedError
+
+    def _delete_links(self, source, targets, link_name):
+        raise NotImplementedError
+
+    def _load_link(self, link):
+        raise NotImplementedError
+
+    def load_link(self, link):
+        raise NotImplementedError
+
+    def start_batch(self, batch):
+        raise NotImplementedError
+
+    def commit_batch(self, batch):
+        raise NotImplementedError
+
+    def close_batch(self, batch):
+        raise NotImplementedError
+
+    def _store_entity_batch(self, entities, batch):
+        raise NotImplementedError
+
+    def _store_link_batch(self, links, batch):
+        raise NotImplementedError
+
+    def sync(self):
+        raise NotImplementedError
+
+
+class Backend(MetaBackend, DataBackend):
     def __init__(self, deltarepo):
         super().__init__(deltarepo())
         self.meta = RealmMeta(load_builtins=False)
@@ -57,5 +101,5 @@ class Backend(MetaBackend):
     def getmeta(self):
         return self.meta
 
-    def session(self, realm, entity_cache):
-        return Session(realm, entity_cache=entity_cache)
+    def get_session_pool(self, realm):
+        return SessionPool(realm)
