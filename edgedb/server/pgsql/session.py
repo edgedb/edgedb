@@ -76,17 +76,20 @@ class Session(session.Session):
 
     def load(self, id, concept=None):
         if not concept:
-            concept_name = self.data_backend.concept_name_from_id(id, session=self)
+            concept_name = self.backend.concept_name_from_id(id, session=self)
             concept = self.schema.get(concept_name)
         else:
             concept_name = concept._metadata.name
 
-        links = self.data_backend.load_entity(concept_name, id, session=self)
+        links = self.backend.load_entity(concept_name, id, session=self)
 
         if not links:
             return None
 
         return self._load(id, concept, links)
+
+    def sequence_next(self, seqcls):
+        return self.backend.sequence_next(seqcls)
 
     def start_batch(self, batch):
         super().start_batch(batch)

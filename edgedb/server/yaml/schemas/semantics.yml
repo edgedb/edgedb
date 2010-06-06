@@ -79,6 +79,12 @@ mapping:
                               sequence:
                                 - *DEFAULT_ITEM
 
+                    "attributes":
+                        type: map
+                        mapping:
+                            =:
+                                type: scalar
+
                     "mods": &ATOM_MODS
                         type: seq
                         sequence:

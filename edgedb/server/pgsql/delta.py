@@ -15,6 +15,7 @@ from semantix import caos
 from semantix.caos import proto
 from semantix.caos import delta as delta_cmds
 from semantix.caos.caosql import expr as caosql_expr
+from semantix.caos import objects as caos_objects
 
 from semantix.caos.backends.pgsql import common, Config
 
@@ -167,6 +168,15 @@ class CommandGroup(Command):
             result = [c.execute(context) for c in self.commands]
 
         return result
+
+    def dump(self):
+        result = [repr(self)]
+
+        for op in self.commands:
+            result.extend('  %s' % l for l in op.dump().split('\n'))
+
+        return '\n'.join(result)
+
 
 
 class PrototypeMetaCommand(MetaCommand, delta_cmds.PrototypeCommand):
@@ -392,6 +402,10 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
         if not atom.automatic:
             self.pgops.add(CreateDomain(name=new_domain_name, base=base))
 
+            if atom.issubclass(meta, caos_objects.sequence.Sequence):
+                seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
+                self.pgops.add(CreateSequence(name=seq_name))
+
             for mod in mods:
                 self.pgops.add(AlterDomainAddConstraint(name=new_domain_name, constraint=mod))
 
@@ -449,6 +463,12 @@ class RenameAtom(AtomMetaCommand, adapts=delta_cmds.RenameAtom):
         updaterec = self.table.record(name=str(self.new_name))
         condition = [('name', str(self.prototype_name))]
         self.pgops.add(Update(table=self.table, record=updaterec, condition=condition))
+
+        if not proto.automatic and proto.issubclass(meta, caos_objects.sequence.Sequence):
+            seq_name = common.atom_name_to_sequence_name(self.prototype_name, catenate=False)
+            new_seq_name = common.atom_name_to_sequence_name(self.new_name, catenate=False)
+
+            self.pgops.add(RenameSequence(name=seq_name, new_name=new_seq_name))
 
         return proto
 
@@ -573,6 +593,10 @@ class DeleteAtom(AtomMetaCommand, adapts=delta_cmds.DeleteAtom):
         cond = DomainExists(old_domain_name)
         ops.add(DropDomain(name=old_domain_name, conditions=[cond], priority=3))
         ops.add(Delete(table=AtomTable(), condition=[('name', str(self.prototype_name))]))
+
+        if not atom.automatic and atom.issubclass(meta, caos_objects.sequence.Sequence):
+            seq_name = common.atom_name_to_sequence_name(self.prototype_name, catenate=False)
+            self.pgops.add(DropSequence(name=seq_name))
 
         return atom
 
@@ -1829,7 +1853,7 @@ class Insert(DMLOperation):
         return (code, vals)
 
     def __repr__(self):
-        vals = (('(%s)' % ', '.join('%s=%r' % (col, v) for col, v in row)) for row in self.records)
+        vals = (('(%s)' % ', '.join('%s=%r' % (col, v) for col, v in row.items())) for row in self.records)
         return '<caos.sync.%s %s (%s)>' % (self.__class__.__name__, self.table.name, ', '.join(vals))
 
 
@@ -2323,7 +2347,8 @@ class AtomTable(MetaObjectTable):
             Column(name='automatic', type='boolean', required=True, default=False),
             Column(name='base', type='text', required=True),
             Column(name='mods', type='caos.hstore'),
-            Column(name='default', type='text')
+            Column(name='default', type='text'),
+            Column(name='attributes', type='caos.hstore')
         ])
 
         self.constraints = set([
@@ -2505,6 +2530,78 @@ class SchemaObjectOperation(DDLOperation):
 
     def __repr__(self):
         return '<caos.sync.%s %s>' % (self.__class__.__name__, self.name)
+
+
+class CreateSequence(SchemaObjectOperation):
+    def __init__(self, name):
+        super().__init__(name)
+
+    def code(self, context):
+        return 'CREATE SEQUENCE %s' % common.qname(*self.name)
+
+
+class RenameSequence(CommandGroup):
+    def __init__(self, name, new_name, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+
+        self.name = name
+        self.new_name = new_name
+
+        if name[0] != new_name[0]:
+            cmd = AlterSequenceSetSchema(name, new_name[0])
+            self.add_command(cmd)
+            name = (new_name[0], name[1])
+
+        if name[1] != new_name[1]:
+            cmd = AlterSequenceRenameTo(name, new_name[1])
+            self.add_command(cmd)
+
+    def __repr__(self):
+        return '<%s.%s "%s.%s" to "%s.%s">' % (self.__class__.__module__, self.__class__.__name__,
+                                               self.name[0], self.name[1], self.new_name[0],
+                                               self.new_name[1])
+
+
+class AlterSequenceSetSchema(DDLOperation):
+    def __init__(self, name, new_schema, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+        self.name = name
+        self.new_schema = new_schema
+
+    def code(self, context):
+        code = 'ALTER SEQUENCE %s SET SCHEMA %s' % \
+                (common.qname(*self.name),
+                 common.quote_ident(self.new_schema))
+        return code
+
+    def __repr__(self):
+        return '<%s.%s "%s.%s" to "%s">' % (self.__class__.__module__, self.__class__.__name__,
+                                               self.name[0], self.name[1], self.new_schema)
+
+
+class AlterSequenceRenameTo(DDLOperation):
+    def __init__(self, name, new_name, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+        self.name = name
+        self.new_name = new_name
+
+    def code(self, context):
+        code = 'ALTER SEQUENCE %s RENAME TO %s' % \
+                (common.qname(*self.name),
+                 common.quote_ident(self.new_name))
+        return code
+
+    def __repr__(self):
+        return '<%s.%s "%s.%s" to "%s">' % (self.__class__.__module__, self.__class__.__name__,
+                                               self.name[0], self.name[1], self.new_name)
+
+
+class DropSequence(SchemaObjectOperation):
+    def __init__(self, name):
+        super().__init__(name)
+
+    def code(self, context):
+        return 'DROP SEQUENCE %s' % common.qname(*self.name)
 
 
 class DomainExists(Condition):

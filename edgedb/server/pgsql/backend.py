@@ -22,6 +22,7 @@ from semantix.utils.nlang import morphology
 from semantix.utils import datastructures
 
 from semantix import caos
+from semantix.caos import objects as caos_objects
 
 from semantix.caos import backends
 from semantix.caos import proto
@@ -1005,6 +1006,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                                                            domain_name='%_domain')
         domains = {(d['schema'], d['name']): self.normalize_domain_descr(d) for d in domains}
 
+        seqs = introspection.sequences.SequencesList(self.connection).fetch(
+                                                schema_name='caos%', sequence_pattern='%_sequence')
+        seqs = {(s['schema'], s['name']): s for s in seqs}
+
+        seen_seqs = set()
+
         atom_list = datasources.meta.atoms.AtomList(self.connection).fetch()
 
         for row in atom_list:
@@ -1027,7 +1034,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                          'is_abstract': row['is_abstract'],
                          'base': row['base'],
                          'mods': row['mods'],
-                         'default': row['default']
+                         'default': row['default'],
+                         'attributes': row['attributes'] or {}
                          }
 
             if atom_data['default']:
@@ -1037,7 +1045,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             atom = proto.Atom(name=name, base=base, default=atom_data['default'],
                               title=atom_data['title'], description=atom_data['description'],
                               automatic=atom_data['automatic'],
-                              is_abstract=atom_data['is_abstract'])
+                              is_abstract=atom_data['is_abstract'],
+                              attributes=atom_data['attributes'])
 
             # Copy mods from parent (row['mods'] does not contain any inherited mods)
             atom.acquire_parent_data(meta)
@@ -1056,7 +1065,22 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 for mod in mods:
                     atom.add_mod(mod)
 
+            if atom.issubclass(meta, caos_objects.sequence.Sequence):
+                seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
+                if seq_name not in seqs:
+                    msg = 'internal metadata incosistency'
+                    details = 'Missing sequence for sequence atom "%s"' % atom.name
+                    raise caos.MetaError(msg, details=details)
+                seen_seqs.add(seq_name)
+
             meta.add(atom)
+
+        extra_seqs = set(seqs) - seen_seqs
+        if extra_seqs:
+            msg = 'internal metadata incosistency'
+            details = 'Extraneous sequences exist: %s' \
+                        % (', '.join(common.qname(*t) for t in extra_seqs))
+            raise caos.MetaError(msg, details=details)
 
 
     def order_atoms(self, meta):
@@ -1582,6 +1606,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             d['default'] = self.interpret_constant(d['default'])
 
         return d
+
+
+    def sequence_next(self, seqcls):
+        name = common.atom_name_to_sequence_name(seqcls._metadata.name)
+        name = postgresql.string.quote_literal(name)
+        return self.runquery("SELECT nextval(%s)" % name, compat=False, return_stmt=True).first()
 
 
     @debug

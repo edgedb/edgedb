@@ -17,6 +17,7 @@ from . import common
 base_type_name_map = {
     caos.Name('semantix.caos.builtins.str'): 'text',
     caos.Name('semantix.caos.builtins.int'): 'bigint',
+    caos.Name('semantix.caos.builtins.sequence'): 'text',
     caos.Name('semantix.caos.builtins.decimal'): 'numeric',
     caos.Name('semantix.caos.builtins.bool'): 'boolean',
     caos.Name('semantix.caos.builtins.float'): 'double precision',

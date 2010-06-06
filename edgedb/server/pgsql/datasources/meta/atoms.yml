@@ -24,6 +24,7 @@ source: |
             c.is_abstract AS is_abstract,
             c.base AS base,
             c.mods AS mods,
-            c.default AS default
+            c.default AS default,
+            c.attributes AS attributes
         FROM
             caos.atom c

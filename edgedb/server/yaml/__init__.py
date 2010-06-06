@@ -294,6 +294,7 @@ class Atom(Prototype, adapts=proto.Atom):
         proto.Atom.__init__(self, name=default_name, backend=None, base=data['extends'],
                             default=default, title=data['title'],
                             description=data['description'], is_abstract=data['abstract'],
+                            attributes=data.get('attributes'),
                             _setdefaults_=False, _relaxrequired_=True)
         self._mods = data.get('mods')
 
@@ -321,6 +322,9 @@ class Atom(Prototype, adapts=proto.Atom):
         if data.mods:
             result['mods'] = sorted(list(itertools.chain.from_iterable(data.mods.values())),
                                     key=lambda i: i.__class__.mod_name)
+
+        if data.attributes:
+            result['attributes'] = dict(data.attributes)
 
         return result
 

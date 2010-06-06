@@ -45,6 +45,9 @@ class Session(session.Session):
     def load(self, id, concept=None):
         raise NotImplementedError
 
+    def sequence_next(self, seqcls):
+        raise NotImplementedError
+
     def _store_entity(self, entity):
         raise NotImplementedError
 

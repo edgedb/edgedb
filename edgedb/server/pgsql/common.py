@@ -67,6 +67,10 @@ def atom_name_to_domain_name(name, catenate=True):
     return convert_name(name, 'domain', catenate)
 
 
+def atom_name_to_sequence_name(name, catenate=True):
+    return convert_name(name, 'sequence', catenate)
+
+
 def concept_name_to_table_name(name, catenate=True):
     return convert_name(name, 'data', catenate)
 

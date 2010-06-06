@@ -1,0 +1,42 @@
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%SCHEMA semantix.caos.datasources.schemas.Sql
+%NAME SequencesList
+---
+params:
+    schema_name:
+        type: str
+        default: "public"
+    sequence_pattern:
+        type: str
+
+filters:
+    - format: dict
+
+source: |
+        SELECT
+                c.oid                                 AS oid,
+                c.relname                             AS name,
+                ns.nspname                            AS schema
+            FROM
+                pg_class AS c
+                INNER JOIN pg_namespace AS ns ON ns.oid = c.relnamespace
+            WHERE
+                --
+                -- Limit the schema scope
+                --
+                ns.nspname LIKE %(schema_name)s
+                --
+                -- Only specified sequences
+                --
+                AND c.relname LIKE %(sequence_pattern)s
+                --
+                -- And only actual sequences
+                --
+                AND c.relkind = 'S'
