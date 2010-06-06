@@ -127,7 +127,7 @@ def get_function_class(func):
 
     try:
         module = get_object(func.__module__)
-    except (ImportError, AttributeError):
+    except (ImportError, AttributeError, ValueError, ObjectImportError):
         pass
     else:
         return finder(module)
