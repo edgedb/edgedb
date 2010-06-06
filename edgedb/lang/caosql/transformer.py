@@ -353,20 +353,58 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     raise errors.CaosQLError("complex link expressions are not supported yet")
 
                 newtips = {}
+                sources = set()
 
                 for concept, tip in tips.items():
                     module = link_expr.namespace
-                    link_protos = self._normalize_link(context, concept, link_expr.name, module)
+                    source_and_link = self._normalize_link(context, concept, link_expr.name,
+                                                           module)
 
-                    if not link_protos:
+                    if not source_and_link:
                         raise errors.CaosQLReferenceError('reference to an undefined link "%s"' \
                                                           % link_expr.name)
+
+                    sources, link_protos = source_and_link
 
                     seen_concepts = seen_atoms = False
                     all_links = link_protos[0].name == 'semantix.caos.builtins.link'
 
-                    outbound, inbound = concept.match_links(self.proto_schema, link_protos,
-                                                            direction, skip_atomic=all_links)
+                    inbound = set()
+                    outbound = set()
+                    for source in sources:
+                        out, inb = source.match_links(self.proto_schema, link_protos,
+                                                      direction, skip_atomic=all_links)
+                        outbound.update(out)
+                        inbound.update(inb)
+
+                    if len(sources) > 1 or list(sources)[0] != concept:
+                        newtip = set()
+                        for t in tip:
+                            paths = set(t.rlink.source.disjunction.paths)
+
+                            for source in sources:
+                                link_spec = t.rlink.filter
+                                t_id = tree.transformer.LinearPath(t.id[:-2])
+                                t_id.add(link_spec.labels, link_spec.direction, source)
+
+                                new_target = tree.ast.EntitySet()
+                                new_target.concept = source
+                                new_target.id = t_id
+                                new_target.users = t.users.copy()
+
+                                newtip.add(new_target)
+
+                                link = tree.ast.EntityLink(source=t.rlink.source,
+                                                           target=new_target,
+                                                           filter=link_spec,
+                                                           link_proto=t.rlink.link_proto)
+
+                                new_target.rlink = link
+                                paths.add(link)
+
+                            paths.remove(t.rlink)
+                            t.rlink.source.disjunction.paths = frozenset(paths)
+                            tip = newtip
 
                     links = {caos_types.OutboundDirection: outbound,
                              caos_types.InboundDirection: inbound}
@@ -466,12 +504,9 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                             id = entset.id
 
                         link_proto = next(iter(link.filter.labels))
-                        prop_protos = self._normalize_link(context, link_proto, link_expr.name,
-                                                           module, type=caos_proto.LinkProperty)
-
-                        if not prop_protos:
-                            raise errors.CaosQLError('reference to an undefined link property "%s"'\
-                                                     % link_expr.name)
+                        sources, prop_protos = self._normalize_link(context, link_proto,
+                                                                    link_expr.name, module,
+                                                                    type=caos_proto.LinkProperty)
 
                         for prop_proto in prop_protos:
                             propref = tree.ast.LinkPropRefSimple(name=prop_proto.name, ref=link,
@@ -488,25 +523,37 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
     def _normalize_link(self, context, concept, link, namespace, type=caos_types.ProtoLink):
         if link == '%':
             links = [self.proto_schema.get(name='semantix.caos.builtins.link')]
+            sources = [concept]
         else:
             if not namespace:
                 assert '%' not in link
                 linkset = concept.get_attr(self.proto_schema, link)
 
                 if not linkset:
-                    raise errors.CaosQLReferenceError('"%s" is not a valid pointer of "%s"' \
-                                                      % (link, concept.name))
+                    children, link_name = concept.get_closest_children_defining_pointer(
+                                                                            self.proto_schema, link)
 
-                if linkset:
-                    if isinstance(linkset, caos_types.ProtoLinkSet):
-                        links = [self.proto_schema.get(linkset.first.base[0], type=type)]
-                    else:
-                        links = [self.proto_schema.get(linkset.base[0], type=type)]
+                    if not children:
+                        raise errors.CaosQLReferenceError('"%s" is not a valid pointer of "%s"' \
+                                                          % (link, concept.name))
+
+                    sources = children
+                    links = [self.proto_schema.get(link_name, type=type)]
+
+                else:
+                    links = [self.proto_schema.get(linkset.normal_name(), type=type)]
+                    sources = [concept]
+
             else:
                 name = caos_name.Name(name=link, module=namespace)
                 links = self.proto_schema.match(name=name, module_aliases=context.current.namespaces,
                                                 type=type)
-        return links
+                if not links:
+                    raise errors.CaosQLReferenceError('no valid pointers of "%s" match "%s"' \
+                                                      % (concept.name, link))
+                sources = [concept]
+
+        return sources, links
 
     def _normalize_concept(self, context, concept, namespace):
         if concept == '%':
