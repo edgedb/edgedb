@@ -9,6 +9,9 @@
 import uuid
 
 
+from semantix.caos import types as caos_types
+
+
 def check_type(variable, type):
     if not isinstance(type, str):
         raise Exception('check_type: type parameter must be string')
@@ -55,6 +58,9 @@ class Datasource(object):
     def describe_output(self):
         raise NotImplementedError
 
+    def check_type(self, value, type):
+        return check_type(value, type)
+
     def _filter_params(self, params, filters=None):
         if self.params is None:
             return {}
@@ -66,7 +72,7 @@ class Datasource(object):
 
             if name in params:
                 value = params[name]
-                if not check_type(value, config['type']):
+                if not self.check_type(value, config['type']):
                     raise DatasourceError('datatype check failed, param: @name=%s, @value=%s, expected type: %s' %
                                           (name, value, config['type']))
             else:
@@ -85,3 +91,18 @@ class Datasource(object):
 
     def fetch(self, *, _filters=None, _sort=None, **params):
         raise NotImplementedError
+
+
+class CaosDatasource(Datasource):
+    def __init__(self, session):
+        super().__init__()
+        self.session = session
+
+    def check_type(self, value, type):
+        type = self.session.schema.get(type)
+        if isinstance(value, type):
+            return True
+        elif isinstance(type, caos_types.AtomClass) and issubclass(type, value.__class__):
+            return True
+        return False
+
