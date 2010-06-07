@@ -557,6 +557,8 @@ class TreeTransformer:
                                                              right_link.propfilter, op=ast.ops.AND)
 
                 left_link.proprefs.update(right_link.proprefs)
+                if right_link.target:
+                    left_link.target = right_link.target
 
             if left and right:
                 self.fixup_refs([right], left)
@@ -598,7 +600,10 @@ class TreeTransformer:
                         left.disjunction.update(conjunction)
                     left.conjunction.paths = frozenset()
 
-            result = left
+            if isinstance(left, caos_ast.EntitySet) or isinstance(right, caos_ast.EntityLink):
+                result = left
+            else:
+                result = right
         else:
             result = caos_ast.Disjunction(paths=frozenset((left, right)))
 
@@ -717,6 +722,8 @@ class TreeTransformer:
                                                              right_link.propfilter, op=ast.ops.AND)
 
                 left_link.proprefs.update(right_link.proprefs)
+                if right_link.target:
+                    left_link.target = right_link.target
 
             if right_set and left_set:
                 self.fixup_refs([right_set], left_set)
@@ -759,7 +766,10 @@ class TreeTransformer:
                             left_set.disjunction = first_conj
                             left_set.conjunction = caos_ast.Conjunction()
 
-            result = left
+            if isinstance(left, caos_ast.EntitySet) or isinstance(right, caos_ast.EntityLink):
+                result = left
+            else:
+                result = right
 
         else:
             result = caos_ast.Conjunction(paths=frozenset({left, right}))
