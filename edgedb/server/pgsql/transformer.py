@@ -182,8 +182,7 @@ class PgSQLExprTransformer(ast.visitor.NodeVisitor):
 
 
 class CaosExprTransformer(tree.transformer.TreeTransformer):
-    def _relation_from_concepts(self, context, node):
-        concept = node.concept
+    def _table_from_concept(self, context, concept, node):
         table_schema_name, table_name = common.concept_name_to_table_name(concept.name, catenate=False)
         concept_table = pgsql.ast.TableNode(name=table_name,
                                             schema=table_schema_name,
@@ -191,6 +190,33 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                                             alias=context.current.genalias(hint=table_name),
                                             caosnode=node)
         return concept_table
+
+
+    def _relation_from_concepts(self, context, node):
+        if node.conceptfilter:
+            union = pgsql.ast.UnionNode(caosnode=node, concepts=frozenset(node.conceptfilter))
+            tabname = common.concept_name_to_table_name(node.concept.name, catenate=False)
+            for concept, only in node.conceptfilter.items():
+                table = self._table_from_concept(context, concept, node)
+                qry = pgsql.ast.SelectQueryNode()
+                qry.fromlist.append(table)
+                qry.from_only = only
+                qry.targets.append(pgsql.ast.StarIndirectionNode())
+
+                union.queries.append(qry)
+
+            if len(union.queries) == 1:
+                relation = union.queries[0]
+                relation.alias = context.current.genalias(hint=tabname[1])
+            else:
+                union.alias = context.current.genalias(hint=tabname[1])
+                relation = union
+        else:
+            concept = node.concept
+            concept_table = self._table_from_concept(context, concept, node)
+            relation = concept_table
+
+        return relation
 
     def _relation_from_link(self, context, node):
         link_proto = next(iter(node.filter.labels))

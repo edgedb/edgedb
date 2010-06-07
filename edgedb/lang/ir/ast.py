@@ -228,6 +228,7 @@ class Conjunction(PathCombination):
 
 class EntitySet(Base):
     __fields = ['id', 'anchor', ('concept', caos_types.ProtoNode), 'atom',
+                ('conceptfilter', dict),
                 'filter',
                 ('conjunction', Conjunction),
                 ('disjunction', Disjunction),

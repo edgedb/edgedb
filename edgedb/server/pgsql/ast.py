@@ -78,6 +78,7 @@ class TableNode(RelationNode):
 class SelectQueryNode(RelationNode):
     __fields = ['distinct', ('fromlist', list), ('targets', list),
                 'where', 'where_weak', 'where_strong',
+                ('from_only', bool),
                 ('orderby', list), 'offset', 'limit', ('groupby', list), 'having',
                 ('ctes', datastructures.OrderedSet),
                 ('concept_node_map', dict), ('link_node_map', dict), ('linkmap', dict)]

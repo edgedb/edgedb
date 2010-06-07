@@ -63,6 +63,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.indentation += 1
             self.new_lines = 1
             self.write('FROM')
+            if node.from_only:
+                self.write(' ONLY')
             self.new_lines = 1
             self.indentation += 1
             count = len(node.fromlist)
@@ -361,6 +363,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write('::')
         self.visit(node.type)
 
-
     def visit_TypeNode(self, node):
         self.write(node.name)
+
+    def visit_StarIndirectionNode(self, node):
+        self.write('*')

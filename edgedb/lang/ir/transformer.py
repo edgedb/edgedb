@@ -586,6 +586,9 @@ class TreeTransformer:
                 left.joins.discard(left)
 
                 if merge_filters:
+                    left.conceptfilter.update(right.conceptfilter)
+
+                if merge_filters:
                     left.conjunction = self.intersect_paths(left.conjunction,
                                                             right.conjunction, merge_filters)
 
@@ -739,6 +742,7 @@ class TreeTransformer:
                 left_set.users.update(right_set.users)
                 left_set.joins.update(right_set.joins)
                 left_set.joins.discard(left_set)
+                left_set.conceptfilter.update(right_set.conceptfilter)
 
                 disjunction = self.intersect_paths(left_set.disjunction,
                                                    right_set.disjunction, merge_filters)
@@ -934,6 +938,7 @@ class TreeTransformer:
                  and our_node.anchor == other_node.anchor
                  and (ignore_filters or (not our_node.filter and not other_node.filter
                                          and not our_node.conjunction.paths
+                                         and our_node.conceptfilter == other_node.conceptfilter
                                          and not other_node.conjunction.paths))))
               and (not link or (link.filter == other_link.filter)))
 
@@ -1416,7 +1421,17 @@ class TreeTransformer:
                 result = caos_ast.AtomicRefExpr(expr=newbinop(left, right))
 
             elif op in (ast.ops.IS, ast.ops.IS_NOT):
-                assert False
+                if isinstance(right, caos_types.ProtoConcept):
+                    if op == ast.ops.IS:
+                        assert False
+                    elif op == ast.ops.IS_NOT:
+                        if left.concept == right:
+                            result = caos_ast.Constant(value=False)
+                        else:
+                            filtered = left.concept.filter_children(lambda i: i != right)
+                            if filtered[left.concept]:
+                                left.conceptfilter = filtered
+                        result = left
             else:
                 result = newbinop(left, right)
 
