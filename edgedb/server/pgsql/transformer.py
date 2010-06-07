@@ -860,6 +860,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 args = list(reversed(args))
             elif expr.name == ('agg', 'count'):
                 name = 'count'
+            elif expr.name == ('math', 'abs'):
+                name = 'abs'
             elif isinstance(expr.name, tuple):
                 assert False, 'unsupported function %s' % (expr.name,)
             else:
