@@ -109,8 +109,8 @@ class Session(session.Session):
     def _store_link_batch(self, links, batch):
         self.backend.store_link_batch(links, self, id(batch))
 
-    def sync(self):
-        self.do_sync()
+    def sync(self, skipbatch=False):
+        self.do_sync(skipbatch=skipbatch)
 
     def release(self):
         super().release()
