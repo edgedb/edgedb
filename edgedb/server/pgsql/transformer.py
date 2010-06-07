@@ -692,7 +692,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                                          not isinstance(right_type[1], caos_types.ProtoObject)):
                                 right_type = common.py_type_to_pg_type(right_type)
 
-                            if left_type == 'text' and right_type == 'text' and op == ast.ops.ADD:
+                            if left_type in ('text', 'varchar') and \
+                                    right_type in ('text', 'varchar') and op == ast.ops.ADD:
                                 op = '||'
 
                         result = pgsql.ast.BinOpNode(op=op, left=left, right=right)
