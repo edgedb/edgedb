@@ -10,6 +10,7 @@ import os
 import re
 import collections
 import itertools
+import uuid
 
 import postgresql
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
@@ -689,7 +690,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             concept_id = concept_map[concept_proto.name]
 
             for entity in entities:
-                id = entity.id or idquery
+                if not entity.id:
+                    updates = {'id': uuid.uuid1()}
+                    entity._instancedata.update(entity, updates, register_changes=False, allow_ro=True)
+
+                id = entity.id
                 rec = table.record()
                 for link_name, col_name in attrmap.items():
                     setattr(rec, col_name, getattr(entity, link_name))
