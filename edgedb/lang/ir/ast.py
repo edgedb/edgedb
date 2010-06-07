@@ -30,7 +30,7 @@ class Base(ast.AST):
     def merge_refs_from(self, node):
         refs = set()
 
-        if isinstance(node, EntitySet):
+        if isinstance(node, (EntitySet, EntityLink)):
             refs.add(node)
 
         for ref in refs:
@@ -234,6 +234,12 @@ class EntitySet(Base):
                 ('rlink', EntityLink, None, False),
                 ('atomrefs', set), ('metarefs', set), ('users', set),
                 ('joins', set, set, False)]
+
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+
+        if name == 'rlink':
+            value.backrefs.add(self)
 
 
 class Constant(Base): __fields = ['value', 'index', 'expr', 'type']

@@ -103,7 +103,7 @@ class TreeTransformer:
             self.extract_prefixes(expr.ref, prefixes)
             self.extract_prefixes(expr.expr, prefixes)
 
-        elif isinstance(expr, caos_ast.AtomicRefExpr):
+        elif isinstance(expr, (caos_ast.AtomicRefExpr, caos_ast.LinkPropRefExpr)):
             self.extract_prefixes(expr.expr, prefixes)
 
         elif isinstance(expr, caos_ast.FunctionCall):
@@ -598,13 +598,7 @@ class TreeTransformer:
                         left.disjunction.update(conjunction)
                     left.conjunction.paths = frozenset()
 
-                result = left
-            elif left:
-                result = left
-            elif right:
-                result = right
-            else:
-                result = left_link
+            result = left
         else:
             result = caos_ast.Disjunction(paths=frozenset((left, right)))
 
@@ -765,13 +759,8 @@ class TreeTransformer:
                             left_set.disjunction = first_conj
                             left_set.conjunction = caos_ast.Conjunction()
 
-                result = left
-            elif left_set:
-                result = left
-            elif right_set:
-                result = right
-            else:
-                result = left_link
+            result = left
+
         else:
             result = caos_ast.Conjunction(paths=frozenset({left, right}))
 
@@ -888,27 +877,50 @@ class TreeTransformer:
         if isinstance(our, caos_ast.EntityLink):
             link = our
             our_node = our.target
+            if our_node is None:
+                our_id = caos_utils.LinearPath(our.source.id)
+                our_id.add(link.filter.labels, link.filter.direction, None)
+                our_node = our.source
+            else:
+                our_id = our_node.id
         else:
             link = None
             our_node = our
-
+            our_id = our.id
 
         if isinstance(other, caos_ast.EntityLink):
             other_link = other
             other_node = other.target
+            if other_node is None:
+                other_node = other.source
+                other_id = caos_utils.LinearPath(other.source.id)
+                other_id.add(other_link.filter.labels, other_link.filter.direction, None)
+            else:
+                other_id = other_node.id
         else:
             other_link = None
             other_node = other
+            other_id = other.id
+
+        if our_id[-1] is None and other_id[-1] is not None:
+            other_id = caos_utils.LinearPath(other_id)
+            other_id[-1] = None
+
+        if other_id[-1] is None and our_id[-1] is not None:
+            our_id = caos_utils.LinearPath(our_id)
+            our_id[-1] = None
+
 
         """LOG [caos.graph.merge] MATCH PREFIXES
         print(' ' * self.nest, our, other, ignore_filters)
-        print(' ' * self.nest, '   PATHS: ', our_node.id if our_node else None)
-        print(' ' * self.nest, '      *** ', other_node.id if other_node else None)
+        print(' ' * self.nest, '   PATHS: ', our_id)
+        print(' ' * self.nest, '      *** ', other_id)
+        print(' ' * self.nest, '       EQ ', our_id == other_id)
         """
 
         ok = ((our_node is None and other_node is None) or
               (our_node is not None and other_node is not None and
-                (our_node.id == other_node.id
+                (our_id == other_id
                  and our_node.anchor == other_node.anchor
                  and (ignore_filters or (not our_node.filter and not other_node.filter
                                          and not our_node.conjunction.paths
@@ -1020,7 +1032,8 @@ class TreeTransformer:
                                         concept=parent_path.concept, users=parent_path.users,
                                         joins=parent_path.joins)
             link = caos_ast.EntityLink(filter=path.rlink.filter, source=parent, target=current,
-                                       link_proto=path.rlink.link_proto)
+                                       link_proto=path.rlink.link_proto,
+                                       propfilter=path.rlink.propfilter)
             parent.disjunction = caos_ast.Disjunction(paths=frozenset((link,)))
             current.rlink = link
             current = parent
