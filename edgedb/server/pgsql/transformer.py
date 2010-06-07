@@ -36,18 +36,28 @@ class Alias(str):
 
 
 class TransformerContextLevel(object):
-    def __init__(self, prevlevel=None):
+    def __init__(self, prevlevel=None, mode=None):
         if prevlevel is not None:
-            self.vars = prevlevel.vars.copy()
-            self.ctes = prevlevel.ctes.copy()
-            self.aliascnt = prevlevel.aliascnt.copy()
-            self.ctemap = prevlevel.ctemap.copy()
-            self.concept_node_map = prevlevel.concept_node_map.copy()
-            self.link_node_map = prevlevel.concept_node_map.copy()
+            if mode == TransformerContext.NEW_TRANSPARENT:
+                self.vars = prevlevel.vars
+                self.ctes = prevlevel.ctes
+                self.aliascnt = prevlevel.aliascnt
+                self.ctemap = prevlevel.ctemap
+                self.concept_node_map = prevlevel.concept_node_map
+                self.link_node_map = prevlevel.link_node_map
+            else:
+                self.vars = prevlevel.vars.copy()
+                self.ctes = prevlevel.ctes.copy()
+                self.aliascnt = prevlevel.aliascnt.copy()
+                self.ctemap = prevlevel.ctemap.copy()
+                self.concept_node_map = prevlevel.concept_node_map.copy()
+                self.link_node_map = prevlevel.link_node_map.copy()
+
             self.argmap = prevlevel.argmap
             self.location = 'query'
             self.append_graphs = False
             self.ignore_cardinality = prevlevel.ignore_cardinality
+            self.in_aggregate = prevlevel.in_aggregate
             self.query = prevlevel.query
             self.realm = prevlevel.realm
         else:
@@ -61,6 +71,7 @@ class TransformerContextLevel(object):
             self.location = 'query'
             self.append_graphs = False
             self.ignore_cardinality = False
+            self.in_aggregate = False
             self.query = pgsql.ast.SelectQueryNode()
             self.realm = None
 
@@ -82,14 +93,14 @@ class TransformerContextLevel(object):
 
 
 class TransformerContext(object):
-    CURRENT, ALTERNATE, NEW = range(0, 3)
+    CURRENT, ALTERNATE, NEW, NEW_TRANSPARENT = range(0, 4)
 
     def __init__(self):
         self.stack = []
         self.push()
 
     def push(self, mode=None):
-        level = TransformerContextLevel(self.current)
+        level = TransformerContextLevel(self.current, mode)
 
         if mode == TransformerContext.ALTERNATE:
             pass
@@ -491,6 +502,18 @@ class CaosTreeTransformer(CaosExprTransformer):
         if isinstance(ref, pgsql.ast.SelectExprNode):
             ref = ref.expr
 
+        if context.current.in_aggregate:
+            # Cast atom refs to the base type in aggregate expressions, since
+            # PostgreSQL does not create array types for custom domains and will
+            # fail to process a query with custom domains appearing as array elements.
+            #
+            link = caos_node.concept.get_attr(context.current.realm.meta, link_name)
+            pgtype = types.pg_type_from_atom(context.current.realm.meta, link.first.target,
+                                             topbase=True)
+            pgtype = pgsql.ast.TypeNode(name=pgtype)
+            ref = pgsql.ast.TypeCastNode(expr=ref, type=pgtype)
+
+
         return ref
 
     def _process_constant(self, context, expr):
@@ -773,6 +796,17 @@ class CaosTreeTransformer(CaosExprTransformer):
             if isinstance(fieldref, pgsql.ast.SelectExprNode):
                 fieldref = fieldref.expr
 
+            if context.current.in_aggregate:
+                # Cast prop refs to the base type in aggregate expressions, since
+                # PostgreSQL does not create array types for custom domains and will
+                # fail to process a query with custom domains appearing as array elements.
+                #
+                prop = expr.ref.link_proto.get_attr(context.current.realm.meta, expr.name)
+                pgtype = types.pg_type_from_atom(context.current.realm.meta, prop.target,
+                                                 topbase=True)
+                pgtype = pgsql.ast.TypeNode(name=pgtype)
+                fieldref = pgsql.ast.TypeCastNode(expr=fieldref, type=pgtype)
+
             result = fieldref
 
         elif isinstance(expr, tree.ast.ExistPred):
@@ -810,7 +844,12 @@ class CaosTreeTransformer(CaosExprTransformer):
             result = pgsql.ast.FunctionCallNode(name='ts_headline', args=[lang, vector, query])
 
         else:
-            args = [self._process_expr(context, a, cte) for a in expr.args]
+            if expr.aggregates:
+                with context(context.NEW_TRANSPARENT):
+                    context.current.in_aggregate = True
+                    args = [self._process_expr(context, a, cte) for a in expr.args]
+            else:
+                args = [self._process_expr(context, a, cte) for a in expr.args]
 
             if expr.name == ('agg', 'sum'):
                 name = 'sum'
