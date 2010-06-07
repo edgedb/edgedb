@@ -357,6 +357,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.expr)
         if node.direction:
             self.write(' ' + node.direction)
+            if node.direction == 'desc':
+                self.write(' NULLS LAST')
 
     def visit_TypeCastNode(self, node):
         self.visit(node.expr)
