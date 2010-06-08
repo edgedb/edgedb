@@ -19,7 +19,7 @@ class CycleError(Exception):
     pass
 
 
-def sort(graph, return_record=False):
+def sort(graph, return_record=False, root_only=False):
     adj = defaultdict(OrderedSet)
     radj = defaultdict(OrderedSet)
 
@@ -57,7 +57,12 @@ def sort(graph, return_record=False):
             visiting.remove(item)
             visited.add(item)
 
-    for item in graph:
+    if root_only:
+        items = set(graph) - set(radj)
+    else:
+        items = graph
+
+    for item in items:
         visit(item)
 
     if return_record:
