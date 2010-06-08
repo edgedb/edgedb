@@ -6,94 +6,75 @@
 ##
 
 
+from collections import defaultdict, OrderedDict
+
+from semantix.utils.datastructures import OrderedSet
+
+
 class UnresolvedReferenceError(Exception):
     pass
 
-class LoopError(Exception):
+
+class CycleError(Exception):
     pass
 
-def _dfs(visited, v, a, list, root, item, parent = None, allow_loops = False):
-    if visited[item]:
-        if not allow_loops:
-            raise LoopError("detected dependency loop: %s included from %s" % (item, parent))
-        else:
-            return
 
-    visited[item] = True
-
-    if item in a:
-        for next in a[item]:
-            if next != item:
-                _dfs(visited, v, a, list, root, next, item, allow_loops)
-
-    visited[item] = False
-
-    if item not in list:
-        list.append(item)
-
-def dfs(adj, radj, root, allow_loops=False):
-    visited = dict(zip(radj.keys(), (False,) * len(radj.keys())))
-    list = []
-
-    _dfs(visited, radj.keys(), adj, list, root, root, None, allow_loops)
-
-    return list
-
-def normalize(graph, merger, allow_loops=False, allow_unresolved=False):
-    # TODO: Use tarjan algorithm here to properly determine cycles
-
-    # Adjacency matrix
-    adj = dict(zip(graph.keys(), (list() for i in range(len(graph)))))
-
-    # Reverse adjacency matrix
-    radj = dict(zip(graph.keys(), (list() for i in range(len(graph)))))
+def sort(graph, return_record=False):
+    adj = defaultdict(OrderedSet)
+    radj = defaultdict(OrderedSet)
 
     for item_name, item in graph.items():
         if "merge" in item:
             for merge in item["merge"]:
                 if merge in graph:
-                    adj[item_name].append(merge)
-                    radj[merge].append(item_name)
-                elif not allow_unresolved:
-                    raise UnresolvedReferenceError("reference to an undefined item %s in %s" % (merge, item_name))
+                    adj[item_name].add(merge)
+                    radj[merge].add(item_name)
+                else:
+                    raise UnresolvedReferenceError("reference to an undefined item %s in %s" \
+                                                   % (merge, item_name))
 
         if "deps" in item:
             for dep in item["deps"]:
                 if dep in graph:
-                    adj[item_name].append(dep)
-                    radj[dep].append(item_name)
-                elif not allow_unresolved:
-                    raise UnresolvedReferenceError("reference to an undefined item %s in %s" % (dep, item_name))
+                    adj[item_name].add(dep)
+                    radj[dep].add(item_name)
+                else:
+                    raise UnresolvedReferenceError("reference to an undefined item %s in %s" \
+                                                   % (dep, item_name))
 
-    if not allow_loops:
-        for item in graph:
-            dfs(adj, radj, item)
-
+    visiting = set()
+    visited = set()
     sorted = []
 
-    for item_name, item_deps in radj.items():
-        if len(item_deps) == 0:
-            sorted += dfs(adj, radj, item_name, allow_loops)
+    def visit(item):
+        if item in visiting:
+            raise CycleError("detected cycle")
+        if item not in visited:
+            visiting.add(item)
+            for n in adj[item]:
+                visit(n)
+            sorted.append(item)
+            visiting.remove(item)
+            visited.add(item)
 
-    merged = {}
+    for item in graph:
+        visit(item)
 
-    for item_name in sorted:
-        item = graph[item_name]
+    if return_record:
+        return ((item, graph[item]) for item in sorted)
+    else:
+        return (graph[item]["item"] for item in sorted)
 
-        if "merge" in item:
-            for merge in item["merge"]:
-                if merge in graph:
-                    merger(item["item"], merged[merge])
 
-        if item_name not in merged:
-            merged[item_name] = item["item"]
+def normalize(graph, merger):
+    merged = OrderedDict()
 
-    result = []
-    added = {}
+    for name, item in sort(graph, return_record=True):
+        merge = item.get("merge")
+        if merge:
+            for m in merge:
+                merger(item["item"], merged[m])
 
-    for item_name in sorted:
-        if item_name not in added:
-            result.append(merged[item_name])
-        added[item_name] = True
+        merged.setdefault(name, item["item"])
 
-    return result
+    return merged.values()
