@@ -624,11 +624,7 @@ class LinkList(LangObject, list):
                     link.mods = info.get('mods')
                     link.context = self.context
 
-                    constraints = info.get('constraints')
-                    if constraints:
-                        for constraint in constraints:
-                            link.add_constraint(constraint)
-
+                    link._constraints = info.get('constraints')
                     link._properties = props
 
                     self.append(link)
@@ -874,7 +870,25 @@ class MetaSet(LangObject):
             if not link.generic() and not link.atomic():
                 base = globalmeta.get(link.normal_name())
                 if base.is_atom:
-                    raise caos.MetaError('%s link target conflict (atom/concept)' % link.name)
+                    raise caos.MetaError('%s link target conflict (atom/concept)' % \
+                                         link.normal_name())
+
+            constraints = getattr(link, '_constraints', ())
+            if not link.generic() and constraints:
+                for constraint in constraints:
+                    if isinstance(constraint, proto.LinkConstraintUnique):
+                        if link.atomic():
+                            if len(constraint.values) > 1 \
+                                    or isinstance(list(constraint.values)[0], str):
+                                raise caos.MetaError(('invalid value for atomic link "%s" '
+                                                      'unique constraint') % link.normal_name())
+                        else:
+                            if not isinstance(list(constraint.values)[0], str):
+                                raise caos.MetaError(('invalid value for non-atomic link "%s" '
+                                                      'unique constraint, expecting an expression')\
+                                                      % link.normal_name())
+
+                    link.add_constraint(constraint)
 
             if link.base:
                 g[link.name]['merge'].extend(link.base)

@@ -75,6 +75,9 @@ class ObjectMeta(Adapter):
             else:
                 yaml.add_multi_representer(cls, representer, Dumper=dumper.Dumper)
 
+    def get_adaptee(cls):
+        return cls._adapts
+
 
 class Object(meta.Object, metaclass=ObjectMeta):
     @classmethod

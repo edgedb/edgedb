@@ -297,24 +297,6 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
 
         return rec, updates
 
-    @classmethod
-    def get_atom_host_and_pointer(cls, atom, meta, context):
-        if context:
-            concept = context.get(delta_cmds.ConceptCommandContext)
-            link = context.get(delta_cmds.LinkCommandContext)
-        else:
-            concept = link = None
-
-        if concept and link:
-            host, pointer = concept, link
-        elif link:
-            property = context.get(delta_cmds.LinkPropertyCommandContext)
-            host, pointer = link, property
-        else:
-            host = pointer = None
-
-        return host, pointer
-
     def alter_atom_type(self, atom, meta, host, pointer, new_type, intent):
 
         users = []
@@ -370,24 +352,6 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
         if intent == 'drop' or (intent == 'alter' and not simple_alter):
             self.pgops.add(DropDomain(domain_name))
 
-    @classmethod
-    def get_mod_constraint(cls, atom, meta, context, mod, original=False):
-        host, pointer = cls.get_atom_host_and_pointer(atom, meta, context)
-
-        if original:
-            host_proto, pointer_proto = host.original_proto, pointer.original_proto
-        else:
-            host_proto, pointer_proto = host.proto, pointer.proto
-
-        column_name = common.caos_name_to_pg_name(pointer_proto.normal_name())
-        prefix = (host_proto.name, pointer_proto.normal_name())
-        table_name = common.get_table_name(host_proto, catenate=False)
-        constraint = AtomModTableConstraint(table_name=table_name,
-                                            column_name=column_name,
-                                            prefix=prefix,
-                                            mod=mod)
-        return constraint
-
 
 class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
     def apply(self, meta, context=None):
@@ -423,14 +387,14 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
                     self.pgops.add(AlterDomainAlterDefault(name=new_domain_name,
                                                            default=default.new_value[0].value))
         else:
-            host, pointer = self.get_atom_host_and_pointer(atom, meta, context)
+            source, pointer = CompositePrototypeMetaCommand.get_source_and_pointer_ctx(meta, context)
 
             # Skip inherited links
-            if pointer.proto.source.name == host.proto.name:
-                alter_table = host.op.get_alter_table(context)
+            if pointer.proto.source.name == source.proto.name:
+                alter_table = source.op.get_alter_table(context)
 
                 for mod in mods:
-                    constraint = self.get_mod_constraint(atom, meta, context, mod)
+                    constraint = source.op.get_pointer_constraint(meta, context, mod)
                     op = AlterTableAddConstraint(constraint=constraint)
                     alter_table.add_operation(op)
 
@@ -500,7 +464,7 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
         new_type = None
         type_intent = 'alter'
 
-        host, pointer = cls.get_atom_host_and_pointer(new_atom, meta, context)
+        source, pointer = CompositePrototypeMetaCommand.get_source_and_pointer_ctx(meta, context)
 
         if new_atom.automatic:
             if old_mods_encoded and not old_mods and new_mods:
@@ -522,11 +486,11 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
             # to use the new one, and then the old domain dropped.  Obviously this
             # recurses down to every child domain.
             #
-            host_proto = host.proto if host else None
+            source_proto = source.proto if source else None
             pointer_proto = pointer.proto if pointer else None
 
             if in_place:
-                op.alter_atom_type(new_atom, meta, host_proto, pointer_proto, new_type,
+                op.alter_atom_type(new_atom, meta, source_proto, pointer_proto, new_type,
                                    intent=type_intent)
 
         if type_intent != 'drop':
@@ -546,15 +510,15 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
                         op.pgops.add(AlterDomainAlterDefault(name=domain_name, default=new_default))
 
             if new_atom.automatic:
-                alter_table = host.op.get_alter_table(context)
+                alter_table = source.op.get_alter_table(context)
 
                 for mod in old_mods - new_mods:
-                    constraint = cls.get_mod_constraint(old_atom, meta, context, mod)
+                    constraint = source.op.get_pointer_constraint(meta, context, mod)
                     op = AlterTableDropConstraint(constraint=constraint)
                     alter_table.add_operation(op)
 
                 for mod in new_mods - old_mods:
-                    constraint = cls.get_mod_constraint(new_atom, meta, context, mod)
+                    constraint = source.op.get_pointer_constraint(meta, context, mod)
                     op = AlterTableAddConstraint(constraint=constraint)
                     alter_table.add_operation(op)
 
@@ -567,10 +531,10 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
         else:
             # We need to drop orphan constraints
             if old_atom.automatic:
-                alter_table = host.op.get_alter_table(context)
+                alter_table = source.op.get_alter_table(context)
 
                 for mod in old_mods:
-                    constraint = cls.get_mod_constraint(old_atom, meta, context, mod)
+                    constraint = source.op.get_pointer_constraint(meta, context, mod)
                     op = AlterTableDropConstraint(constraint=constraint)
                     alter_table.add_operation(op)
 
@@ -708,6 +672,50 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             new_name = SourceIndexCommand.get_index_name(source_context.proto, index)
 
             self.pgops.add(RenameIndex(old_name=(source_table[0], old_name), new_name=new_name))
+
+    @classmethod
+    def get_source_and_pointer_ctx(cls, meta, context):
+        if context:
+            concept = context.get(delta_cmds.ConceptCommandContext)
+            link = context.get(delta_cmds.LinkCommandContext)
+        else:
+            concept = link = None
+
+        if concept and link:
+            source, pointer = concept, link
+        elif link:
+            property = context.get(delta_cmds.LinkPropertyCommandContext)
+            source, pointer = link, property
+        else:
+            source = pointer = None
+
+        return source, pointer
+
+    @classmethod
+    def get_pointer_constraint(cls, meta, context, constraint, original=False):
+        host, pointer = cls.get_source_and_pointer_ctx(meta, context)
+
+        if original:
+            host_proto, pointer_proto = host.original_proto, pointer.original_proto
+        else:
+            host_proto, pointer_proto = host.proto, pointer.proto
+
+        column_name = common.caos_name_to_pg_name(pointer_proto.normal_name())
+        prefix = (host_proto.name, pointer_proto.normal_name())
+        table_name = common.get_table_name(host_proto, catenate=False)
+
+        if isinstance(constraint, proto.AtomMod):
+            constraint = AtomModTableConstraint(table_name=table_name,
+                                                column_name=column_name,
+                                                prefix=prefix,
+                                                mod=constraint)
+        else:
+            constraint = PointerConstraintTableConstraint(table_name=table_name,
+                                                          column_name=column_name,
+                                                          prefix=prefix,
+                                                          constraint=constraint)
+
+        return constraint
 
 
 class SourceIndexCommand(PrototypeMetaCommand):
@@ -849,39 +857,56 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
 
     def adjust_link_constraints(self, meta, context, concept, link):
         target = link.target
+
+        concept_context = context.get(delta_cmds.ConceptCommandContext)
+        alter_table = concept_context.op.get_alter_table(context)
+        table = common.get_table_name(concept, catenate=False)
+
+        drop_constraints = {}
+
+        for op in alter_table(TableConstraintCommand):
+            if isinstance(op, AlterTableDropConstraint):
+                name = op.constraint.raw_constraint_name()
+                drop_constraints[name] = op
+
         if target.automatic:
-
-            concept_context = context.get(delta_cmds.ConceptCommandContext)
-            alter_table = concept_context.op.get_alter_table(context)
-            table = common.get_table_name(concept, catenate=False)
-
-            drop_constraints = {}
-
-            for op in alter_table(TableConstraintCommand):
-                if isinstance(op, AlterTableDropConstraint):
-                    name = op.constraint.raw_constraint_name()
-                    drop_constraints[name] = op
-
             # We need to establish fake AlterLink context here since
             # atom mod constraint ops need it.
             link_op = AlterLink(prototype_name=link.name, prototype_class=proto.Link)
             with context(delta_cmds.LinkCommandContext(link_op, link)):
                 for mod in target.effective_local_mods.values():
-                    old_constraint = AtomMetaCommand.get_mod_constraint(target, meta,
-                                                                        context,
-                                                                        mod, original=True)
+                    old_constraint = self.get_pointer_constraint(meta, context, mod,
+                                                                 original=True)
 
                     if old_constraint.raw_constraint_name() in drop_constraints:
                         # No need to rename constraints that are to be dropped
                         continue
 
-                    new_constraint = AtomMetaCommand.get_mod_constraint(target, meta,
-                                                                        context, mod)
+                    new_constraint = self.get_pointer_constraint(meta, context, mod)
 
                     op = AlterTableRenameConstraint(table_name=table,
                                                     constraint=old_constraint,
                                                     new_constraint=new_constraint)
                     self.pgops.add(op)
+
+        if not link.generic() and link.atomic():
+            link_op = AlterLink(prototype_name=link.name, prototype_class=proto.Link)
+            with context(delta_cmds.LinkCommandContext(link_op, link)):
+                for constraint in link.constraints.values():
+                    if isinstance(constraint, proto.LinkConstraintUnique):
+                        old_constraint = self.get_pointer_constraint(meta, context, constraint,
+                                                                     original=True)
+
+                        if old_constraint.raw_constraint_name() in drop_constraints:
+                            # No need to rename constraints that are to be dropped
+                            continue
+
+                        new_constraint = self.get_pointer_constraint(meta, context, constraint)
+
+                        op = AlterTableRenameConstraint(table_name=table,
+                                                        constraint=old_constraint,
+                                                        new_constraint=new_constraint)
+                        self.pgops.add(op)
 
 
 class AlterConcept(ConceptMetaCommand, adapts=delta_cmds.AlterConcept):
@@ -1081,6 +1106,11 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
 
             constraints = {}
             for constraint in link.constraints.values():
+                if not link.generic() and link.atomic() \
+                                and isinstance(constraint, proto.LinkConstraintUnique):
+                    # Unique constraints on atomic links are represented as table constraints
+                    continue
+
                 cls = constraint.__class__.get_canonical_class()
                 key = '%s.%s' % (cls.__module__, cls.__name__)
                 constraints[key] = yaml.Language.dump(constraint.values)
@@ -1321,6 +1351,16 @@ class CreateLinkConstraint(LinkConstraintMetaCommand, adapts=delta_cmds.CreateLi
     def apply(self, meta, context=None):
         constraint = delta_cmds.CreateLinkConstraint.apply(self, meta, context)
         LinkConstraintMetaCommand.apply(self, meta, context)
+
+        source, pointer = CompositePrototypeMetaCommand.get_source_and_pointer_ctx(meta, context)
+
+        if not pointer.proto.generic() and pointer.proto.atomic():
+            if isinstance(constraint, proto.LinkConstraintUnique):
+                alter_table = source.op.get_alter_table(context)
+                constr = source.op.get_pointer_constraint(meta, context, constraint)
+                op = AlterTableAddConstraint(constraint=constr)
+                alter_table.add_operation(op)
+
         return constraint
 
 
@@ -1328,6 +1368,17 @@ class DeleteLinkConstraint(LinkConstraintMetaCommand, adapts=delta_cmds.DeleteLi
     def apply(self, meta, context=None):
         constraint = delta_cmds.DeleteLinkConstraint.apply(self, meta, context)
         LinkConstraintMetaCommand.apply(self, meta, context)
+
+        source, pointer = CompositePrototypeMetaCommand.get_source_and_pointer_ctx(meta, context)
+
+        if not pointer.proto.generic() and pointer.proto.atomic():
+            if isinstance(constraint, proto.LinkConstraintUnique):
+                alter_table = source.op.get_alter_table(context)
+                constr = source.op.get_pointer_constraint(meta, context, constraint)
+                op = AlterTableDropConstraint(constraint=constr)
+                alter_table.add_operation(op)
+
+
         return constraint
 
 
@@ -1996,50 +2047,11 @@ class UniqueConstraint(TableConstraint):
         return code
 
 
-class AtomModConstraint(TableConstraint):
-    def __init__(self, table_name, column_name, prefix, mod):
+class TableClassConstraint(TableConstraint):
+    def __init__(self, table_name, column_name, prefix, constrobj):
         super().__init__(table_name, column_name)
-
         self.prefix = prefix if isinstance(prefix, tuple) else (prefix,)
-        self.mod = mod
-
-    def raw_constraint_name(self):
-        cls = self.mod.__class__.get_canonical_class()
-        name = '%s::%s.%s::atom_mod' % (':'.join(str(p) for p in self.prefix),
-                                        cls.__module__, cls.__name__)
-        return name
-
-    def constraint_name(self):
-        name = self.raw_constraint_name()
-        name = common.caos_name_to_pg_name(name)
-        return common.quote_ident(name)
-
-    def constraint_code(self, context, value_holder='VALUE'):
-        ql = postgresql.string.quote_literal
-        value_holder = common.quote_ident(value_holder)
-
-        if isinstance(self.mod, proto.AtomModRegExp):
-            expr = ['%s ~ %s' % (value_holder, ql(re)) for re in self.mod.values]
-            expr = ' AND '.join(expr)
-        elif isinstance(self.mod, proto.AtomModMaxLength):
-            expr = 'length(%s::text) <= %s' % (value_holder, str(self.mod.value))
-        elif isinstance(self.mod, proto.AtomModMinLength):
-            expr = 'length(%s::text) >= %s' % (value_holder, str(self.mod.value))
-        elif isinstance(self.mod, proto.AtomModMaxValue):
-            expr = '%s <= %s' % (value_holder, ql(str(self.mod.value)))
-        elif isinstance(self.mod, proto.AtomModMaxExValue):
-            expr = '%s < %s' % (value_holder, ql(str(self.mod.value)))
-        elif isinstance(self.mod, proto.AtomModMinValue):
-            expr = '%s >= %s' % (value_holder, ql(str(self.mod.value)))
-        elif isinstance(self.mod, proto.AtomModMinExValue):
-            expr = '%s > %s' % (value_holder, ql(str(self.mod.value)))
-
-        return 'CHECK (%s)' % expr
-
-
-class AtomModTableConstraint(AtomModConstraint):
-    def __init__(self, table_name, column_name, prefix, mod):
-        super().__init__(table_name, column_name, prefix, mod)
+        self.constrobj = constrobj
 
     def code(self, context):
         return 'CONSTRAINT %s %s' % (self.constraint_name(),
@@ -2049,6 +2061,17 @@ class AtomModTableConstraint(AtomModConstraint):
         text = self.raw_constraint_name()
         cmd = Comment(object=self, text=text)
         return [cmd]
+
+    def raw_constraint_name(self):
+        cls = self.constrobj.__class__.get_canonical_class()
+        name = '%s::%s.%s::%s' % (':'.join(str(p) for p in self.prefix),
+                                  cls.__module__, cls.__name__, self.suffix)
+        return name
+
+    def constraint_name(self):
+        name = self.raw_constraint_name()
+        name = common.caos_name_to_pg_name(name)
+        return common.quote_ident(name)
 
     def rename_code(self, context, new_constraint):
         return '''UPDATE
@@ -2076,6 +2099,55 @@ class AtomModTableConstraint(AtomModConstraint):
     def __repr__(self):
         return '<%s.%s "%s" "%r">' % (self.__class__.__module__, self.__class__.__name__,
                                       self.column_name, self.mod)
+
+
+class AtomModTableConstraint(TableClassConstraint):
+    def __init__(self, table_name, column_name, prefix, mod):
+        super().__init__(table_name, column_name, prefix, mod)
+        self.mod = mod
+        self.suffix = 'atom_mod'
+
+    def constraint_code(self, context, value_holder='VALUE'):
+        ql = postgresql.string.quote_literal
+        value_holder = common.quote_ident(value_holder)
+
+        if isinstance(self.mod, proto.AtomModRegExp):
+            expr = ['%s ~ %s' % (value_holder, ql(re)) for re in self.mod.values]
+            expr = ' AND '.join(expr)
+        elif isinstance(self.mod, proto.AtomModMaxLength):
+            expr = 'length(%s::text) <= %s' % (value_holder, str(self.mod.value))
+        elif isinstance(self.mod, proto.AtomModMinLength):
+            expr = 'length(%s::text) >= %s' % (value_holder, str(self.mod.value))
+        elif isinstance(self.mod, proto.AtomModMaxValue):
+            expr = '%s <= %s' % (value_holder, ql(str(self.mod.value)))
+        elif isinstance(self.mod, proto.AtomModMaxExValue):
+            expr = '%s < %s' % (value_holder, ql(str(self.mod.value)))
+        elif isinstance(self.mod, proto.AtomModMinValue):
+            expr = '%s >= %s' % (value_holder, ql(str(self.mod.value)))
+        elif isinstance(self.mod, proto.AtomModMinExValue):
+            expr = '%s > %s' % (value_holder, ql(str(self.mod.value)))
+        else:
+            assert False, 'unexpected mod type: "%r"' % self.mod
+
+        return 'CHECK (%s)' % expr
+
+
+class PointerConstraintTableConstraint(TableClassConstraint):
+    def __init__(self, table_name, column_name, prefix, constraint):
+        super().__init__(table_name, column_name, prefix, constraint)
+        self.constraint = constraint
+        self.suffix = 'link_constr'
+
+    def constraint_code(self, context, value_holder='VALUE'):
+        ql = postgresql.string.quote_literal
+        value_holder = common.quote_ident(value_holder)
+
+        if isinstance(self.constraint, proto.LinkConstraintUnique):
+            expr = 'UNIQUE (%s)' % common.quote_ident(self.column_name)
+        else:
+            assert False, 'unexpected constraint type: "%r"' % self.constr
+
+        return expr
 
 
 class Column(DBObject):

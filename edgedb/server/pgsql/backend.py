@@ -139,6 +139,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         ^(?P<concept_name>[.\w]+):(?P<link_name>[.\w]+)::(?P<constraint_class>[.\w]+)::atom_mod$
     """, re.X)
 
+    link_constraint_name_re = re.compile(r"""
+        ^(?P<concept_name>[.\w]+):(?P<link_name>[.\w]+)::(?P<constraint_class>[.\w]+)::link_constr$
+    """, re.X)
+
 
     def __init__(self, deltarepo, connector):
         self.connection_pool = pool.ConnectionPool(connector)
@@ -457,7 +461,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                 cmd = delta_cmds.Insert(table=table, records=[rec], returning=returning)
 
-            rows = cmd.execute(context)
+            try:
+                rows = cmd.execute(context)
+            except postgresql.exceptions.UniqueError as e:
+                err = 'unique constraint violation when storing "%r"' % entity
+                raise caos.error.StorageLinkUniqueConstraintViolation(err) from e
 
             id = list(rows)
             if not id:
@@ -1191,7 +1199,28 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return value
 
 
-    def interpret_constraint(self, constraint_class, expr, name):
+    def read_table_constraints(self, suffix, interpreter):
+        constraints = {}
+        constraints_ds = introspection.tables.TableConstraints(self.connection)
+
+        for row in constraints_ds.fetch(schema_pattern='caos%',
+                                        constraint_pattern='%%::%s' % suffix):
+            concept_constr = constraints[tuple(row['table_name'])] = {}
+
+            for link_name, mod in interpreter(row):
+                idx = datastructures.OrderedIndex(key=lambda i: i.get_canonical_class())
+                link_mods = concept_constr.setdefault(link_name, idx)
+                cls = mod.get_canonical_class()
+                try:
+                    existing_mod = link_mods[cls]
+                    existing_mod.merge(mod)
+                except KeyError:
+                    link_mods.add(mod)
+
+        return constraints
+
+
+    def interpret_mod_constraint(self, constraint_class, expr, name):
 
         try:
             expr_tree = self.parser.parse(expr)
@@ -1226,44 +1255,68 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return constraint_data
 
 
-    def interpret_table_constraint(self, name, expr):
+    def interpret_table_mod_constraint(self, name, expr):
         m = self.mod_constraint_name_re.match(name)
         if not m:
             raise caos.MetaError('could not interpret table constraint %s' % name)
 
         link_name = m.group('link_name')
         constraint_class = helper.get_object(m.group('constraint_class'))
-        constraint_data = self.interpret_constraint(constraint_class, expr, name)
+        constraint_data = self.interpret_mod_constraint(constraint_class, expr, name)
 
         return link_name, constraint_class(constraint_data)
 
 
-    def interpret_table_constraints(self, constr):
+    def interpret_table_mod_constraints(self, constr):
         cs = zip(constr['constraint_names'], constr['constraint_expressions'],
                  constr['constraint_descriptions'])
 
         for name, expr, description in cs:
-            yield self.interpret_table_constraint(description, expr)
+            yield self.interpret_table_mod_constraint(description, expr)
 
 
-    def read_table_constraints(self):
-        constraints = {}
-        constraints_ds = introspection.tables.TableConstraints(self.connection)
+    def read_table_mod_constraints(self):
+        return self.read_table_constraints('atom_mod', self.interpret_table_mod_constraints)
 
-        for row in constraints_ds.fetch(schema_pattern='caos%', constraint_pattern='%::atom_mod'):
-            concept_constr = constraints[tuple(row['table_name'])] = {}
 
-            for link_name, mod in self.interpret_table_constraints(row):
-                idx = datastructures.OrderedIndex(key=lambda i: i.get_canonical_class())
-                link_mods = concept_constr.setdefault(link_name, idx)
-                cls = mod.get_canonical_class()
-                try:
-                    existing_mod = link_mods[cls]
-                    existing_mod.merge(mod)
-                except KeyError:
-                    link_mods.add(mod)
+    def interpret_table_link_constraint(self, name, expr, columns):
+        m = self.link_constraint_name_re.match(name)
+        if not m:
+            raise caos.MetaError('could not interpret table constraint %s' % name)
 
-        return constraints
+        link_name = m.group('link_name')
+        constraint_class = helper.get_object(m.group('constraint_class'))
+
+        if issubclass(constraint_class, proto.LinkConstraintUnique):
+            col_name = common.caos_name_to_pg_name(link_name)
+            if len(columns) != 1 or not col_name in columns:
+                msg = 'internal metadata inconsistency'
+                details = ('Link constraint "%s" expected to have exactly one column "%s" '
+                           'in the expression, got: %s') % (name, col_name,
+                                                            ','.join('"%s"' % c for c in columns))
+                raise caos.MetaError(msg, details=details)
+
+            constraint_data = {True}
+        else:
+            msg = 'internal metadata inconsistency'
+            details = 'Link constraint "%s" has an unexpected class "%s"' % \
+                      (name, m.group('constraint_class'))
+            raise caos.MetaError(msg, details=details)
+
+        return link_name, constraint_class(constraint_data)
+
+
+    def interpret_table_link_constraints(self, constr):
+        cs = zip(constr['constraint_names'], constr['constraint_expressions'],
+                 constr['constraint_descriptions'], constr['constraint_columns'])
+
+        for name, expr, description, cols in cs:
+            cols = cols.split('~~~~')
+            yield self.interpret_table_link_constraint(description, expr, cols)
+
+
+    def read_table_link_constraints(self):
+        return self.read_table_constraints('link_constr', self.interpret_table_link_constraints)
 
 
     def read_pointer_target_column(self, meta, source, pointer_name, constraints_cache):
@@ -1306,7 +1359,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         links_list = datasources.meta.links.ConceptLinks(self.connection).fetch()
         links_list = {caos.Name(r['name']): r for r in links_list}
 
-        concept_constraints = self.read_table_constraints()
+        concept_constraints = self.read_table_mod_constraints()
+        link_constraints = self.read_table_link_constraints()
 
         concept_indexes = self.read_search_indexes()
 
@@ -1338,9 +1392,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             description = r['description']
             source = meta.get(r['source']) if r['source'] else None
             link_search = None
+            constraints = []
 
             if r['default']:
                 r['default'] = self.unpack_default(r['default'])
+
+            if r['constraints']:
+                for cls, val in r['constraints'].items():
+                    constraint = helper.get_object(cls)(next(iter(yaml.Language.load(val))))
+                    constraints.append(constraint)
 
             if r['source_id'] and r['is_atom']:
                 target = self.read_pointer_target_column(meta, source, bases[0], concept_constraints)
@@ -1355,6 +1415,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     if col_search_index:
                         weight = col_search_index[('default', 'english')]
                         link_search = proto.LinkSearchConfiguration(weight=weight)
+
+                constr = link_constraints.get((concept_schema, concept_table))
+                if constr:
+                    constraints.extend(constr.get(bases[0]))
             else:
                 target = meta.get(r['target']) if r['target'] else None
 
@@ -1370,10 +1434,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if link_search:
                 link.search = link_search
 
-            if r['constraints']:
-                for cls, val in r['constraints'].items():
-                    constraint = helper.get_object(cls)(next(iter(yaml.Language.load(val))))
-                    link.add_constraint(constraint)
+            for constraint in constraints:
+                link.add_constraint(constraint)
 
             if source:
                 source.add_link(link)
@@ -1416,7 +1478,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def read_link_properties(self, meta):
         link_props = datasources.meta.links.LinkProperties(self.connection).fetch()
         link_props = {caos.Name(r['name']): r for r in link_props}
-        link_constraints = self.read_table_constraints()
+        link_constraints = self.read_table_mod_constraints()
 
         for name, r in link_props.items():
             bases = ()
@@ -1596,7 +1658,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                          (constr_name, constr_expr))
 
                 constr_type = helper.get_object(constr_type)
-                constr_data = self.interpret_constraint(constr_type, constr_expr, constr_name)
+                constr_data = self.interpret_mod_constraint(constr_type, constr_expr, constr_name)
                 constraints.append(constr_type(constr_data))
 
             d['constraints'] = constraints
