@@ -1483,7 +1483,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                 constr = link_constraints.get((concept_schema, concept_table))
                 if constr:
-                    constraints.extend(constr.get(bases[0]))
+                    link_constr = constr.get(bases[0])
+                    if link_constr:
+                        constraints.extend(link_constr)
             else:
                 target = meta.get(r['target']) if r['target'] else None
 
