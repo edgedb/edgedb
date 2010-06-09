@@ -143,6 +143,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         ^(?P<concept_name>[.\w]+):(?P<link_name>[.\w]+)::(?P<constraint_class>[.\w]+)::link_constr$
     """, re.X)
 
+    error_res = {
+        postgresql.exceptions.UniqueError: collections.OrderedDict((
+            ('link_mapping',
+             re.compile(r'^duplicate key value violates unique constraint "(?P<constr_name>.*_link_mapping_idx)"$')),
+            ('link_constraint',
+             re.compile(r'^duplicate key value violates unique constraint "(?P<constr_name>.*)"$'))
+        ))
+    }
+
 
     def __init__(self, deltarepo, connector):
         self.connection_pool = pool.ConnectionPool(connector)
@@ -159,6 +168,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.domain_to_atom_map = {}
         self.column_cache = {}
         self.table_id_to_proto_name_cache = {}
+
+        self._table_mods_constraints_cache = None
+        self._table_link_constraints_cache = None
 
         self.parser = parser.PgSQLParser()
         self.search_idx_expr = astexpr.TextSearchExpr()
@@ -278,6 +290,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.domain_to_atom_map.clear()
         self.column_cache.clear()
         self.table_id_to_proto_name_cache.clear()
+        self._table_mods_constraints_cache = None
+        self._table_link_constraints_cache = None
 
 
     def concept_name_from_id(self, id, session):
@@ -412,6 +426,39 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return cols_names, cols
 
 
+    def _interpret_db_error(self, err, source, pointer=None):
+        if isinstance(err, postgresql.exceptions.UniqueError):
+            eres = self.error_res[postgresql.exceptions.UniqueError]
+
+            error_info = None
+
+            for type, ere in eres.items():
+                m = ere.match(err.message)
+                if m:
+                    error_info = (type, m.group('constr_name'))
+                    break
+            else:
+                return caos.error.UninterpretedStorageError
+
+            error_type, error_data = error_info
+
+            if error_type == 'link_mapping':
+                err = 'link mapping cardinality violation'
+                errcls = caos.error.LinkMappingCardinalityViolationError
+                return errcls(err, source=source, pointer=pointer)
+
+            elif error_type == 'link_constraint':
+                constraint, pointer_name = self.constraint_from_pg_name(error_data)
+
+                msg = 'unique link constraint violation'
+                pointer = caos.concept.link(getattr(source.__class__, str(pointer_name)))
+
+                errcls = caos.error.LinkUniqueConstraintViolationError
+                return errcls(msg=msg, source=source, pointer=pointer, constraint=constraint)
+        else:
+            return caos.error.UninterpretedStorageError
+
+
     @debug
     def store_entity(self, entity, session):
         cls = entity.__class__
@@ -463,9 +510,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             try:
                 rows = cmd.execute(context)
-            except postgresql.exceptions.UniqueError as e:
-                err = 'unique constraint violation when storing "%r"' % entity
-                raise caos.error.StorageLinkUniqueConstraintViolation(err) from e
+            except postgresql.exceptions.Error as e:
+                raise self._interpret_db_error(e, entity) from e
 
             id = list(rows)
             if not id:
@@ -864,12 +910,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 for cmd in cmds:
                     cmd.execute(context)
             except postgresql.exceptions.UniqueError as e:
-                err = '"%s" link cardinality violation' % link_name
-                detail = 'SOURCE: %s(%s)\nTARGETS: %s' % \
-                         (source.__class__._metadata.name, source.id,
-                          list((t.__class__._metadata.name, t.id) for t in targets))
-                ex = caos.error.StorageLinkMappingCardinalityViolation(err, details=detail)
-                raise ex from e
+                raise self._interpret_db_error(e, source, link_cls) from e
 
 
     def store_link_batch(self, links, session, batch_id):
@@ -1201,13 +1242,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def read_table_constraints(self, suffix, interpreter):
         constraints = {}
+        index_by_pg_name = {}
         constraints_ds = introspection.tables.TableConstraints(self.connection)
 
         for row in constraints_ds.fetch(schema_pattern='caos%',
                                         constraint_pattern='%%::%s' % suffix):
             concept_constr = constraints[tuple(row['table_name'])] = {}
 
-            for link_name, mod in interpreter(row):
+            for pg_name, (link_name, mod) in interpreter(row):
                 idx = datastructures.OrderedIndex(key=lambda i: i.get_canonical_class())
                 link_mods = concept_constr.setdefault(link_name, idx)
                 cls = mod.get_canonical_class()
@@ -1216,8 +1258,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     existing_mod.merge(mod)
                 except KeyError:
                     link_mods.add(mod)
+                index_by_pg_name[pg_name] = mod, link_name
 
-        return constraints
+        return constraints, index_by_pg_name
 
 
     def interpret_mod_constraint(self, constraint_class, expr, name):
@@ -1272,11 +1315,20 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                  constr['constraint_descriptions'])
 
         for name, expr, description in cs:
-            yield self.interpret_table_mod_constraint(description, expr)
+            yield name, self.interpret_table_mod_constraint(description, expr)
 
 
     def read_table_mod_constraints(self):
-        return self.read_table_constraints('atom_mod', self.interpret_table_mod_constraints)
+        if self._table_mods_constraints_cache is None:
+            mods, index = self.read_table_constraints('atom_mod',
+                                                      self.interpret_table_mod_constraints)
+            self._table_mods_constraints_cache = (mods, index)
+
+        return self._table_mods_constraints_cache
+
+
+    def get_table_mod_constraints(self):
+        return self.read_table_mod_constraints()[0]
 
 
     def interpret_table_link_constraint(self, name, expr, columns):
@@ -1312,11 +1364,24 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         for name, expr, description, cols in cs:
             cols = cols.split('~~~~')
-            yield self.interpret_table_link_constraint(description, expr, cols)
+            yield name, self.interpret_table_link_constraint(description, expr, cols)
 
 
     def read_table_link_constraints(self):
-        return self.read_table_constraints('link_constr', self.interpret_table_link_constraints)
+        if self._table_link_constraints_cache is None:
+            constraints, index = self.read_table_constraints('link_constr',
+                                                             self.interpret_table_link_constraints)
+            self._table_link_constraints_cache = (constraints, index)
+
+        return self._table_link_constraints_cache
+
+
+    def get_table_link_constraints(self):
+        return self.read_table_link_constraints()[0]
+
+
+    def constraint_from_pg_name(self, pg_name):
+        return self.read_table_link_constraints()[1].get(pg_name)
 
 
     def read_pointer_target_column(self, meta, source, pointer_name, constraints_cache):
@@ -1359,8 +1424,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         links_list = datasources.meta.links.ConceptLinks(self.connection).fetch()
         links_list = {caos.Name(r['name']): r for r in links_list}
 
-        concept_constraints = self.read_table_mod_constraints()
-        link_constraints = self.read_table_link_constraints()
+        concept_constraints = self.get_table_mod_constraints()
+        link_constraints = self.get_table_link_constraints()
 
         concept_indexes = self.read_search_indexes()
 
@@ -1478,7 +1543,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def read_link_properties(self, meta):
         link_props = datasources.meta.links.LinkProperties(self.connection).fetch()
         link_props = {caos.Name(r['name']): r for r in link_props}
-        link_constraints = self.read_table_mod_constraints()
+        link_constraints = self.get_table_mod_constraints()
 
         for name, r in link_props.items():
             bases = ()
