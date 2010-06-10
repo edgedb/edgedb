@@ -215,7 +215,7 @@ class AlterDefault(Command, adapts=delta.AlterDefault):
         super().construct()
 
 
-class AtomModCommand(PrototypeCommand, adapts=delta.AtomModCommand):
+class AtomConstraintCommand(PrototypeCommand, adapts=delta.AtomConstraintCommand):
     pass
 
 
@@ -235,15 +235,15 @@ class CreateAtom(CreateNamedPrototype, adapts=delta.CreateAtom):
     pass
 
 
-class CreateAtomMod(AtomModCommand, CreateSimplePrototype, adapts=delta.CreateAtomMod):
+class CreateAtomConstraint(AtomConstraintCommand, CreateSimplePrototype, adapts=delta.CreateAtomConstraint):
     pass
 
 
-class AlterAtomMod(AtomModCommand, CreateSimplePrototype, adapts=delta.AlterAtomMod):
+class AlterAtomConstraint(AtomConstraintCommand, CreateSimplePrototype, adapts=delta.AlterAtomConstraint):
     pass
 
 
-class DeleteAtomMod(AtomModCommand, adapts=delta.DeleteAtomMod):
+class DeleteAtomConstraint(AtomConstraintCommand, adapts=delta.DeleteAtomConstraint):
     pass
 
 

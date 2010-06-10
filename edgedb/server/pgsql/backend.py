@@ -135,8 +135,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         .*_(?P<language>\w+)_(?P<index_class>\w+)_search_idx$
     """, re.X)
 
-    mod_constraint_name_re = re.compile(r"""
-        ^(?P<concept_name>[.\w]+):(?P<link_name>[.\w]+)::(?P<constraint_class>[.\w]+)::atom_mod$
+    atom_constraint_name_re = re.compile(r"""
+        ^(?P<concept_name>[.\w]+):(?P<link_name>[.\w]+)::(?P<constraint_class>[.\w]+)::atom_constr$
     """, re.X)
 
     link_constraint_name_re = re.compile(r"""
@@ -169,12 +169,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.column_cache = {}
         self.table_id_to_proto_name_cache = {}
 
-        self._table_mods_constraints_cache = None
+        self._table_atom_constraints_cache = None
         self._table_link_constraints_cache = None
 
         self.parser = parser.PgSQLParser()
         self.search_idx_expr = astexpr.TextSearchExpr()
-        self.atom_mod_exprs = {}
+        self.atom_constr_exprs = {}
         self.constant_expr = None
 
         self.meta = proto.RealmMeta(load_builtins=False)
@@ -290,7 +290,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.domain_to_atom_map.clear()
         self.column_cache.clear()
         self.table_id_to_proto_name_cache.clear()
-        self._table_mods_constraints_cache = None
+        self._table_atom_constraints_cache = None
         self._table_link_constraints_cache = None
 
 
@@ -1087,7 +1087,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                          'automatic': row['automatic'],
                          'is_abstract': row['is_abstract'],
                          'base': row['base'],
-                         'mods': row['mods'],
+                         'constraints': row['constraints'],
                          'default': row['default'],
                          'attributes': row['attributes'] or {}
                          }
@@ -1102,22 +1102,22 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                               is_abstract=atom_data['is_abstract'],
                               attributes=atom_data['attributes'])
 
-            # Copy mods from parent (row['mods'] does not contain any inherited mods)
+            # Copy constraints from parent (row['constraints'] does not contain any inherited constraints)
             atom.acquire_parent_data(meta)
 
             if domain['constraints']:
-                mods = atom.normalize_mods(meta, domain['constraints'])
-                for mod in mods:
-                    atom.add_mod(mod)
+                constraints = atom.normalize_constraints(meta, domain['constraints'])
+                for constraint in constraints:
+                    atom.add_constraint(constraint)
 
-            if row['mods']:
-                mods = []
-                for cls, val in row['mods'].items():
-                    mods.append(helper.get_object(cls)(next(iter(yaml.Language.load(val)))))
+            if row['constraints']:
+                constraints = []
+                for cls, val in row['constraints'].items():
+                    constraints.append(helper.get_object(cls)(next(iter(yaml.Language.load(val)))))
 
-                mods = atom.normalize_mods(meta, mods)
-                for mod in mods:
-                    atom.add_mod(mod)
+                constraints = atom.normalize_constraints(meta, constraints)
+                for constraint in constraints:
+                    atom.add_constraint(constraint)
 
             if atom.issubclass(meta, caos_objects.sequence.Sequence):
                 seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
@@ -1249,21 +1249,21 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                         constraint_pattern='%%::%s' % suffix):
             concept_constr = constraints[tuple(row['table_name'])] = {}
 
-            for pg_name, (link_name, mod) in interpreter(row):
+            for pg_name, (link_name, constraint) in interpreter(row):
                 idx = datastructures.OrderedIndex(key=lambda i: i.get_canonical_class())
-                link_mods = concept_constr.setdefault(link_name, idx)
-                cls = mod.get_canonical_class()
+                link_constraints = concept_constr.setdefault(link_name, idx)
+                cls = constraint.get_canonical_class()
                 try:
-                    existing_mod = link_mods[cls]
-                    existing_mod.merge(mod)
+                    existing_constraint = link_constraints[cls]
+                    existing_constraint.merge(constraint)
                 except KeyError:
-                    link_mods.add(mod)
-                index_by_pg_name[pg_name] = mod, link_name
+                    link_constraints.add(constraint)
+                index_by_pg_name[pg_name] = constraint, link_name
 
         return constraints, index_by_pg_name
 
 
-    def interpret_mod_constraint(self, constraint_class, expr, name):
+    def interpret_atom_constraint(self, constraint_class, expr, name):
 
         try:
             expr_tree = self.parser.parse(expr)
@@ -1272,9 +1272,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             details = 'Syntax error when parsing expression: %s' % e.args[0]
             raise caos.MetaError(msg, details=details) from e
 
-        pattern = self.atom_mod_exprs.get(constraint_class)
+        pattern = self.atom_constr_exprs.get(constraint_class)
         if not pattern:
-            adapter = astexpr.AtomModAdapterMeta.get_adapter(constraint_class)
+            adapter = astexpr.AtomConstraintAdapterMeta.get_adapter(constraint_class)
 
             if not adapter:
                 msg = 'could not interpret constraint %s' % name
@@ -1284,7 +1284,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 raise caos.MetaError(msg, details=details, hint=hint)
 
             pattern = adapter()
-            self.atom_mod_exprs[constraint_class] = pattern
+            self.atom_constr_exprs[constraint_class] = pattern
 
         constraint_data = pattern.match(expr_tree)
 
@@ -1298,37 +1298,37 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return constraint_data
 
 
-    def interpret_table_mod_constraint(self, name, expr):
-        m = self.mod_constraint_name_re.match(name)
+    def interpret_table_atom_constraint(self, name, expr):
+        m = self.atom_constraint_name_re.match(name)
         if not m:
             raise caos.MetaError('could not interpret table constraint %s' % name)
 
         link_name = m.group('link_name')
         constraint_class = helper.get_object(m.group('constraint_class'))
-        constraint_data = self.interpret_mod_constraint(constraint_class, expr, name)
+        constraint_data = self.interpret_atom_constraint(constraint_class, expr, name)
 
         return link_name, constraint_class(constraint_data)
 
 
-    def interpret_table_mod_constraints(self, constr):
+    def interpret_table_atom_constraints(self, constr):
         cs = zip(constr['constraint_names'], constr['constraint_expressions'],
                  constr['constraint_descriptions'])
 
         for name, expr, description in cs:
-            yield name, self.interpret_table_mod_constraint(description, expr)
+            yield name, self.interpret_table_atom_constraint(description, expr)
 
 
-    def read_table_mod_constraints(self):
-        if self._table_mods_constraints_cache is None:
-            mods, index = self.read_table_constraints('atom_mod',
-                                                      self.interpret_table_mod_constraints)
-            self._table_mods_constraints_cache = (mods, index)
+    def read_table_atom_constraints(self):
+        if self._table_atom_constraints_cache is None:
+            constraints, index = self.read_table_constraints('atom_constr',
+                                                             self.interpret_table_atom_constraints)
+            self._table_atom_constraints_cache = (constraints, index)
 
-        return self._table_mods_constraints_cache
+        return self._table_atom_constraints_cache
 
 
-    def get_table_mod_constraints(self):
-        return self.read_table_mod_constraints()[0]
+    def get_table_atom_constraints(self):
+        return self.read_table_atom_constraints()[0]
 
 
     def interpret_table_link_constraint(self, name, expr, columns):
@@ -1405,10 +1405,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             col_type_schema = col['column_type_schema']
             col_type = col['column_type']
 
-        mods = constraints.get(pointer_name) if constraints else None
+        constraints = constraints.get(pointer_name) if constraints else None
 
         target = self.atom_from_pg_type(col_type, col_type_schema,
-                                        mods, col['column_default'], meta,
+                                        constraints, col['column_default'], meta,
                                         caos.Name(name=derived_atom_name,
                                                   module=source.name.module))
 
@@ -1424,7 +1424,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         links_list = datasources.meta.links.ConceptLinks(self.connection).fetch()
         links_list = {caos.Name(r['name']): r for r in links_list}
 
-        concept_constraints = self.get_table_mod_constraints()
+        concept_constraints = self.get_table_atom_constraints()
         link_constraints = self.get_table_link_constraints()
 
         concept_indexes = self.read_search_indexes()
@@ -1545,7 +1545,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def read_link_properties(self, meta):
         link_props = datasources.meta.links.LinkProperties(self.connection).fetch()
         link_props = {caos.Name(r['name']): r for r in link_props}
-        link_constraints = self.get_table_mod_constraints()
+        link_constraints = self.get_table_atom_constraints()
 
         for name, r in link_props.items():
             bases = ()
@@ -1713,9 +1713,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return links
 
     def normalize_domain_descr(self, d):
-        if d['constraint_names'] is not None:
-            constraints = []
+        constraints = []
 
+        if d['constraint_names'] is not None:
             for constr_name, constr_expr in zip(d['constraint_names'], d['constraints']):
                 m = self.constraint_type_re.match(constr_name)
                 if m:
@@ -1725,16 +1725,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                          (constr_name, constr_expr))
 
                 constr_type = helper.get_object(constr_type)
-                constr_data = self.interpret_mod_constraint(constr_type, constr_expr, constr_name)
+                constr_data = self.interpret_atom_constraint(constr_type, constr_expr, constr_name)
                 constraints.append(constr_type(constr_data))
 
             d['constraints'] = constraints
 
         if d['basetype'] is not None:
-            result = self.pg_type_to_atom_name_and_mods(d['basetype_full'])
+            result = self.pg_type_to_atom_name_and_constraints(d['basetype_full'])
             if result:
-                base, mods = result
-                constraints.extend(mods)
+                base, constr = result
+                constraints.extend(constr)
 
         if d['default'] is not None:
             d['default'] = self.interpret_constant(d['default'])
@@ -1784,7 +1784,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return bases
 
 
-    def pg_type_to_atom_name_and_mods(self, type_expr):
+    def pg_type_to_atom_name_and_constraints(self, type_expr):
         m = self.typlen_re.match(type_expr)
         if m:
             typmod = m.group('length').split(',')
@@ -1797,14 +1797,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         if typeconv:
             if isinstance(typeconv, caos.Name):
                 name = typeconv
-                mods = ()
+                constraints = ()
             else:
-                name, mods = typeconv(typname, typmod)
-            return name, mods
+                name, constraints = typeconv(typname, typmod)
+            return name, constraints
         return None
 
 
-    def atom_from_pg_type(self, type_expr, atom_schema, atom_mods, atom_default, meta, derived_name):
+    def atom_from_pg_type(self, type_expr, atom_schema, atom_constraints, atom_default, meta, derived_name):
 
         domain_name = type_expr.split('.')[-1]
         atom_name = self.domain_to_atom_map.get((atom_schema, domain_name))
@@ -1817,29 +1817,29 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         if not atom:
             atom = meta.get(derived_name, None)
 
-        if not atom or atom_mods:
+        if not atom or atom_constraints:
 
-            typeconv = self.pg_type_to_atom_name_and_mods(type_expr)
+            typeconv = self.pg_type_to_atom_name_and_constraints(type_expr)
             if typeconv:
-                name, mods = typeconv
+                name, constraints = typeconv
                 atom = meta.get(name)
 
-                mods = set(mods)
-                if atom_mods:
-                    mods.update(atom_mods)
+                constraints = set(constraints)
+                if atom_constraints:
+                    constraints.update(atom_constraints)
 
                 atom.acquire_parent_data(meta)
             else:
-                mods = set(atom_mods) if atom_mods else {}
+                constraints = set(atom_constraints) if atom_constraints else {}
 
-            if atom_mods:
+            if atom_constraints:
                 atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,
                                   automatic=True)
 
-                mods = atom.normalize_mods(meta, mods)
+                constraints = atom.normalize_constraints(meta, constraints)
 
-                for mod in mods:
-                    atom.add_mod(mod)
+                for constraint in constraints:
+                    atom.add_constraint(constraint)
 
                 atom.acquire_parent_data(meta)
 

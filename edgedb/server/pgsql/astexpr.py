@@ -116,15 +116,15 @@ class TextSearchExpr:
             return None
 
 
-class AtomModAdapterMeta(type(proto.AtomMod), adapter.Adapter):
+class AtomConstraintAdapterMeta(type(proto.AtomConstraint), adapter.Adapter):
     pass
 
 
-class AtomModExpr(metaclass=AtomModAdapterMeta):
+class AtomConstraintExpr(metaclass=AtomConstraintAdapterMeta):
     pass
 
 
-class AtomModLengthExpr(AtomModExpr, adapts=proto.AtomModLength):
+class AtomConstraintLengthExpr(AtomConstraintExpr, adapts=proto.AtomConstraintLength):
     def __init__(self):
         self.pattern = None
 
@@ -155,7 +155,7 @@ class AtomModLengthExpr(AtomModExpr, adapts=proto.AtomModLength):
             return None
 
 
-class AtomModComparisonExpr(AtomModExpr, adapts=proto.AtomModComparison):
+class AtomConstraintComparisonExpr(AtomConstraintExpr, adapts=proto.AtomConstraintComparison):
     def __init__(self):
         self.pattern = None
 
@@ -205,7 +205,7 @@ class AtomModComparisonExpr(AtomModExpr, adapts=proto.AtomModComparison):
             return None
 
 
-class AtomModRegExpExpr(AtomModExpr, adapts=proto.AtomModRegExp):
+class AtomConstraintRegExpExpr(AtomConstraintExpr, adapts=proto.AtomConstraintRegExp):
     def __init__(self):
         self.pattern = None
 

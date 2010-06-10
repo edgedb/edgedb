@@ -23,7 +23,7 @@ source: |
             c.automatic AS automatic,
             c.is_abstract AS is_abstract,
             c.base AS base,
-            c.mods AS mods,
+            c.constraints AS constraints,
             c.default AS default,
             c.attributes AS attributes
         FROM

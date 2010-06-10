@@ -44,12 +44,12 @@ base_type_name_map_r = {
 }
 
 
-def get_atom_base_and_mods(meta, atom, own_only=True):
-    mods = set()
-    extramods = set()
-    mods_encoded = ()
+def get_atom_base_and_constraints(meta, atom, own_only=True):
+    constraints = set()
+    extraconstraints = set()
+    constraints_encoded = ()
 
-    atom_mods = atom.effective_local_mods if own_only else atom.mods
+    atom_constraints = atom.effective_local_constraints if own_only else atom.constraints
 
     if proto.Atom.is_prototype(atom.base):
         # Base is another atom prototype, check if it is fundamental,
@@ -57,7 +57,7 @@ def get_atom_base_and_mods(meta, atom, own_only=True):
         base = base_type_name_map.get(atom.base)
         if base:
             if not isinstance(base, str):
-                base, mods_encoded = base(meta.get(atom.base), atom_mods)
+                base, constraints_encoded = base(meta.get(atom.base), atom_constraints)
         else:
             base = common.atom_name_to_domain_name(atom.base)
     else:
@@ -71,29 +71,29 @@ def get_atom_base_and_mods(meta, atom, own_only=True):
             base = base_type_name_map[base_type]
 
         if not isinstance(base, str):
-            base, mods_encoded = base(meta.get(atom.name), atom_mods)
+            base, constraints_encoded = base(meta.get(atom.name), atom_constraints)
 
-    directly_supported_mods = (proto.AtomModMaxLength, proto.AtomModMinLength,
-                               proto.AtomModRegExp, proto.AtomModMaxValue,
-                               proto.AtomModMaxExValue, proto.AtomModMinValue,
-                               proto.AtomModMinExValue)
+    directly_supported_constraints = (proto.AtomConstraintMaxLength, proto.AtomConstraintMinLength,
+                               proto.AtomConstraintRegExp, proto.AtomConstraintMaxValue,
+                               proto.AtomConstraintMaxExValue, proto.AtomConstraintMinValue,
+                               proto.AtomConstraintMinExValue)
 
-    for mod in atom_mods.values():
-        if mod in mods_encoded:
+    for constraint in atom_constraints.values():
+        if constraint in constraints_encoded:
             continue
-        elif isinstance(mod, directly_supported_mods):
-            mods.add(mod)
+        elif isinstance(constraint, directly_supported_constraints):
+            constraints.add(constraint)
         else:
-            extramods.add(mod)
+            extraconstraints.add(constraint)
 
-    return base, mods_encoded, mods, extramods
+    return base, constraints_encoded, constraints, extraconstraints
 
 
 def pg_type_from_atom(meta, atom, topbase=False):
     if topbase:
         base = atom.get_topmost_base(meta, top_prototype=True)
     else:
-        base, _, mods, _ = get_atom_base_and_mods(meta, atom)
+        base, _, constraints, _ = get_atom_base_and_constraints(meta, atom)
 
     if topbase:
         column_type = base_type_name_map.get(base.name)

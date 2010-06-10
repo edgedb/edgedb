@@ -162,65 +162,65 @@ class QueryDefaultSpec(DefaultSpec, adapts=proto.QueryDefaultSpec):
         return {'query': str(data.value)}
 
 
-class AtomMod(LangObject, ignore_aliases=True):
+class AtomConstraint(LangObject, ignore_aliases=True):
     pass
 
 
-class AtomModMinLength(AtomMod, adapts=proto.AtomModMinLength):
+class AtomConstraintMinLength(AtomConstraint, adapts=proto.AtomConstraintMinLength):
     def construct(self):
-        proto.AtomModMinLength.__init__(self, self.data['min-length'], context=self.context)
+        proto.AtomConstraintMinLength.__init__(self, self.data['min-length'], context=self.context)
 
     @classmethod
     def represent(cls, data):
         return {'min-length': data.value}
 
 
-class AtomModMinValue(AtomMod, adapts=proto.AtomModMinValue):
+class AtomConstraintMinValue(AtomConstraint, adapts=proto.AtomConstraintMinValue):
     def construct(self):
-        proto.AtomModMinValue.__init__(self, self.data['min-value'], context=self.context)
+        proto.AtomConstraintMinValue.__init__(self, self.data['min-value'], context=self.context)
 
     @classmethod
     def represent(cls, data):
         return {'min-value': data.value}
 
 
-class AtomModMinExValue(AtomMod, adapts=proto.AtomModMinExValue):
+class AtomConstraintMinExValue(AtomConstraint, adapts=proto.AtomConstraintMinExValue):
     def construct(self):
-        proto.AtomModMinExValue.__init__(self, self.data['min-value-ex'], context=self.context)
+        proto.AtomConstraintMinExValue.__init__(self, self.data['min-value-ex'], context=self.context)
 
     @classmethod
     def represent(cls, data):
         return {'min-value-ex': data.value}
 
 
-class AtomModMaxLength(AtomMod, adapts=proto.AtomModMaxLength):
+class AtomConstraintMaxLength(AtomConstraint, adapts=proto.AtomConstraintMaxLength):
     def construct(self):
-        proto.AtomModMaxLength.__init__(self, self.data['max-length'], context=self.context)
+        proto.AtomConstraintMaxLength.__init__(self, self.data['max-length'], context=self.context)
 
     @classmethod
     def represent(cls, data):
         return {'max-length': data.value}
 
 
-class AtomModMaxValue(AtomMod, adapts=proto.AtomModMaxValue):
+class AtomConstraintMaxValue(AtomConstraint, adapts=proto.AtomConstraintMaxValue):
     def construct(self):
-        proto.AtomModMaxValue.__init__(self, self.data['max-value'], context=self.context)
+        proto.AtomConstraintMaxValue.__init__(self, self.data['max-value'], context=self.context)
 
     @classmethod
     def represent(cls, data):
         return {'max-value': data.value}
 
 
-class AtomModMaxExValue(AtomMod, adapts=proto.AtomModMaxExValue):
+class AtomConstraintMaxExValue(AtomConstraint, adapts=proto.AtomConstraintMaxExValue):
     def construct(self):
-        proto.AtomModMaxValue.__init__(self, self.data['max-value-ex'], context=self.context)
+        proto.AtomConstraintMaxValue.__init__(self, self.data['max-value-ex'], context=self.context)
 
     @classmethod
     def represent(cls, data):
         return {'max-value-ex': data.value}
 
 
-class AtomModPrecision(AtomMod, adapts=proto.AtomModPrecision):
+class AtomConstraintPrecision(AtomConstraint, adapts=proto.AtomConstraintPrecision):
     def construct(self):
         if isinstance(self.data['precision'], int):
             precision = (int(self.data['precision']), 0)
@@ -232,7 +232,7 @@ class AtomModPrecision(AtomMod, adapts=proto.AtomModPrecision):
                 raise ValueError('Scale must be strictly less than total numeric precision')
 
             precision = (precision, scale)
-        proto.AtomModPrecision.__init__(self, precision, context=self.context)
+        proto.AtomConstraintPrecision.__init__(self, precision, context=self.context)
 
     @classmethod
     def represent(cls, data):
@@ -242,7 +242,7 @@ class AtomModPrecision(AtomMod, adapts=proto.AtomModPrecision):
             return {'precision': list(data.value)}
 
 
-class AtomModRounding(AtomMod, adapts=proto.AtomModRounding):
+class AtomConstraintRounding(AtomConstraint, adapts=proto.AtomConstraintRounding):
     map = {
         'ceiling': decimal.ROUND_CEILING,
         'down': decimal.ROUND_DOWN,
@@ -257,25 +257,25 @@ class AtomModRounding(AtomMod, adapts=proto.AtomModRounding):
     rmap = dict(zip(map.values(), map.keys()))
 
     def construct(self):
-        proto.AtomModRounding.__init__(self, self.map[self.data['rounding']], context=self.context)
+        proto.AtomConstraintRounding.__init__(self, self.map[self.data['rounding']], context=self.context)
 
     @classmethod
     def represent(cls, data):
         return {'rounding': cls.rmap[data.value]}
 
 
-class AtomModExpr(AtomMod, adapts=proto.AtomModExpr):
+class AtomConstraintExpr(AtomConstraint, adapts=proto.AtomConstraintExpr):
     def construct(self):
-        proto.AtomModExpr.__init__(self, [self.data['expr'].strip(' \n')], context=self.context)
+        proto.AtomConstraintExpr.__init__(self, [self.data['expr'].strip(' \n')], context=self.context)
 
     @classmethod
     def represent(cls, data):
         return {'expr': next(iter(data.values))}
 
 
-class AtomModRegExp(AtomMod, adapts=proto.AtomModRegExp):
+class AtomConstraintRegExp(AtomConstraint, adapts=proto.AtomConstraintRegExp):
     def construct(self):
-        proto.AtomModRegExp.__init__(self, [self.data['regexp']], context=self.context)
+        proto.AtomConstraintRegExp.__init__(self, [self.data['regexp']], context=self.context)
 
     @classmethod
     def represent(self, data):
@@ -296,7 +296,7 @@ class Atom(Prototype, adapts=proto.Atom):
                             description=data['description'], is_abstract=data['abstract'],
                             attributes=data.get('attributes'),
                             _setdefaults_=False, _relaxrequired_=True)
-        self._mods = data.get('mods')
+        self._constraints = data.get('constraints')
 
     @classmethod
     def represent(cls, data):
@@ -319,9 +319,9 @@ class Atom(Prototype, adapts=proto.Atom):
         if data.is_abstract:
             result['abstract'] = data.is_abstract
 
-        if data.mods:
-            result['mods'] = sorted(list(itertools.chain.from_iterable(data.mods.values())),
-                                    key=lambda i: i.__class__.mod_name)
+        if data.constraints:
+            result['constraints'] = sorted(list(itertools.chain.from_iterable(data.constraints.values())),
+                                           key=lambda i: i.__class__.constraint_name)
 
         if data.attributes:
             result['attributes'] = dict(data.attributes)
@@ -420,14 +420,14 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
                                         title=info['title'], description=info['description'],
                                         readonly=info['readonly'], default=default,
                                         _setdefaults_=False, _relaxrequired_=True)
-            self.mods = info.get('mods')
+            self.constraints = info.get('constraints')
 
     @classmethod
     def represent(cls, data):
         result = {}
 
-        if data.target and data.target.mods and data.target.automatic:
-            result['mods'] = list(itertools.chain.from_iterable(data.target.mods.values()))
+        if data.target and data.target.constraints and data.target.automatic:
+            result['constraints'] = list(itertools.chain.from_iterable(data.target.constraints.values()))
 
         if data.title:
             result['title'] = data.title
@@ -510,7 +510,7 @@ class LinkDef(Prototype, adapts=proto.Link):
             result['mapping'] = data.mapping
 
         if isinstance(data.target, proto.Atom) and data.target.automatic:
-            result['mods'] = list(itertools.chain.from_iterable(data.target.mods.values()))
+            result['constraints'] = list(itertools.chain.from_iterable(data.target.constraints.values()))
 
         if data.required:
             result['required'] = data.required
@@ -621,7 +621,6 @@ class LinkList(LangObject, list):
                     if search and search.weight is not None:
                         link.search = search
 
-                    link.mods = info.get('mods')
                     link.context = self.context
 
                     link._constraints = info.get('constraints')
@@ -721,11 +720,11 @@ class MetaSet(LangObject):
         g = {}
 
         for atom in globalmeta('atom', include_automatic=True, include_builtin=True):
-            mods = getattr(atom, '_mods', None)
-            if mods:
-                atom.normalize_mods(globalmeta, mods)
-                for mod in mods:
-                    atom.add_mod(mod)
+            constraints = getattr(atom, '_constraints', None)
+            if constraints:
+                atom.normalize_constraints(globalmeta, constraints)
+                for constraint in constraints:
+                    atom.add_constraint(constraint)
 
             g[atom.name] = {"item": atom, "merge": [], "deps": []}
 
@@ -851,11 +850,15 @@ class MetaSet(LangObject):
                 if property.target:
                     property.target = globalmeta.get(property.target)
 
-                    mods = getattr(property, 'mods', None)
-                    if mods:
+                    constraints = getattr(property, 'constraints', None)
+                    if constraints:
+                        atom_constraints = [c for c in constraints if isinstance(c, proto.AtomConstraint)]
+                    else:
+                        atom_constraints = None
+                    if atom_constraints:
                         # Got an inline atom definition.
                         atom = self.genatom(globalmeta, link, property.target.name, property_name,
-                                                                                    mods)
+                                                                                 atom_constraints)
                         globalmeta.add(atom)
                         property.target = atom
 
@@ -875,7 +878,8 @@ class MetaSet(LangObject):
 
             constraints = getattr(link, '_constraints', ())
             if not link.generic() and constraints:
-                for constraint in constraints:
+                link_constraints = [c for c in constraints if isinstance(c, proto.LinkConstraint)]
+                for constraint in link_constraints:
                     if isinstance(constraint, proto.LinkConstraintUnique):
                         if link.atomic():
                             if len(constraint.values) > 1 \
@@ -1013,11 +1017,15 @@ class MetaSet(LangObject):
                         if link_name in link_target_types and link_target_types[link_name] != 'atom':
                             raise caos.MetaError('%s link is already defined as a link to non-atom')
 
-                        mods = getattr(link, 'mods', None)
-                        if mods:
+                        constraints = getattr(link, '_constraints', None)
+                        if constraints:
+                            atom_constraints = [c for c in constraints if isinstance(c, proto.AtomConstraint)]
+                        else:
+                            atom_constraints = None
+                        if atom_constraints:
                             # Got an inline atom definition.
                             atom = self.genatom(globalmeta, concept, link.target.name, link_name,
-                                                                                       mods)
+                                                                                atom_constraints)
                             globalmeta.add(atom)
                             link.target = atom
 
@@ -1051,13 +1059,13 @@ class MetaSet(LangObject):
         return concepts
 
 
-    def genatom(self, meta, host, base, link_name, mods):
+    def genatom(self, meta, host, base, link_name, constraints):
         atom_name = Atom.gen_atom_name(host, link_name)
         atom = proto.Atom(name=caos.Name(name=atom_name, module=host.name.module),
                           base=base, automatic=True, backend=None)
-        atom.normalize_mods(meta, mods)
-        for mod in mods:
-            atom.add_mod(mod)
+        atom.normalize_constraints(meta, constraints)
+        for constraint in constraints:
+            atom.add_constraint(constraint)
         return atom
 
 

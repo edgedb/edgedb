@@ -257,23 +257,23 @@ class AlterDefault(MetaCommand, adapts=delta_cmds.AlterDefault):
     pass
 
 
-class CreateAtomMod(PrototypeMetaCommand, adapts=delta_cmds.CreateAtomMod):
+class CreateAtomConstraint(PrototypeMetaCommand, adapts=delta_cmds.CreateAtomConstraint):
     def apply(self, meta, context=None):
-        result = delta_cmds.CreateAtomMod.apply(self, meta, context)
+        result = delta_cmds.CreateAtomConstraint.apply(self, meta, context)
         PrototypeMetaCommand.apply(self, meta, context)
         return result
 
 
-class AlterAtomMod(PrototypeMetaCommand, adapts=delta_cmds.AlterAtomMod):
+class AlterAtomConstraint(PrototypeMetaCommand, adapts=delta_cmds.AlterAtomConstraint):
     def apply(self, meta, context=None):
-        result = delta_cmds.AlterAtomMod.apply(self, meta, context)
+        result = delta_cmds.AlterAtomConstraint.apply(self, meta, context)
         PrototypeMetaCommand.apply(self, meta, context)
         return result
 
 
-class DeleteAtomMod(PrototypeMetaCommand, adapts=delta_cmds.DeleteAtomMod):
+class DeleteAtomConstraint(PrototypeMetaCommand, adapts=delta_cmds.DeleteAtomConstraint):
     def apply(self, meta, context=None):
-        result = delta_cmds.DeleteAtomMod.apply(self, meta, context)
+        result = delta_cmds.DeleteAtomConstraint.apply(self, meta, context)
         PrototypeMetaCommand.apply(self, meta, context)
         return result
 
@@ -311,20 +311,20 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
 
         domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
 
-        base, mods_encoded, new_mods, _ = types.get_atom_base_and_mods(meta, atom)
+        base, constraints_encoded, new_constraints, _ = types.get_atom_base_and_constraints(meta, atom)
 
         target_type = new_type
 
         if intent == 'alter':
-            simple_alter = atom.automatic and not new_mods
+            simple_alter = atom.automatic and not new_constraints
             if not simple_alter:
                 new_name = domain_name[0], domain_name[1] + '_tmp'
                 self.pgops.add(RenameDomain(domain_name, new_name))
                 target_type = common.qname(*domain_name)
 
                 self.pgops.add(CreateDomain(name=domain_name, base=new_type))
-                for mod in new_mods:
-                    self.pgops.add(AlterDomainAddConstraint(name=domain_name, constraint=mod))
+                for constraint in new_constraints:
+                    self.pgops.add(AlterDomainAddConstraint(name=domain_name, constraint=constraint))
 
                 domain_name = new_name
         elif intent == 'create':
@@ -359,7 +359,7 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
         AtomMetaCommand.apply(self, meta, context)
 
         new_domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
-        base, _, mods, extramods = types.get_atom_base_and_mods(meta, atom)
+        base, _, constraints, extraconstraints = types.get_atom_base_and_constraints(meta, atom)
 
         updates = self.create_object(atom)
 
@@ -370,8 +370,8 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
                 seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
                 self.pgops.add(CreateSequence(name=seq_name))
 
-            for mod in mods:
-                self.pgops.add(AlterDomainAddConstraint(name=new_domain_name, constraint=mod))
+            for constraint in constraints:
+                self.pgops.add(AlterDomainAddConstraint(name=new_domain_name, constraint=constraint))
 
             default = list(self(delta_cmds.AlterDefault))
 
@@ -393,22 +393,22 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
             if pointer.proto.source.name == source.proto.name:
                 alter_table = source.op.get_alter_table(context)
 
-                for mod in mods:
-                    constraint = source.op.get_pointer_constraint(meta, context, mod)
+                for constraint in constraints:
+                    constraint = source.op.get_pointer_constraint(meta, context, constraint)
                     op = AlterTableAddConstraint(constraint=constraint)
                     alter_table.add_operation(op)
 
 
-        if extramods:
+        if extraconstraints:
             values = {}
 
-            for mod in extramods:
-                cls = mod.__class__.get_canonical_class()
+            for constraint in extraconstraints:
+                cls = constraint.__class__.get_canonical_class()
                 key = '%s.%s' % (cls.__module__, cls.__name__)
-                values[key] = yaml.Language.dump(mod.get_value())
+                values[key] = yaml.Language.dump(constraint.get_value())
 
             rec = self.table.record()
-            rec.mods = values
+            rec.constraints = values
             condition = [('name', str(atom.name))]
             self.pgops.add(Update(table=self.table, record=rec, condition=condition))
 
@@ -456,8 +456,8 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
     @classmethod
     def alter_atom(cls, op, meta, context, old_atom, new_atom, in_place=True, updates=None):
 
-        old_base, old_mods_encoded, old_mods, _ = types.get_atom_base_and_mods(meta, old_atom)
-        base, mods_encoded, new_mods, _ = types.get_atom_base_and_mods(meta, new_atom)
+        old_base, old_constraints_encoded, old_constraints, _ = types.get_atom_base_and_constraints(meta, old_atom)
+        base, constraints_encoded, new_constraints, _ = types.get_atom_base_and_constraints(meta, new_atom)
 
         domain_name = common.atom_name_to_domain_name(new_atom.name, catenate=False)
 
@@ -467,10 +467,10 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
         source, pointer = CompositePrototypeMetaCommand.get_source_and_pointer_ctx(meta, context)
 
         if new_atom.automatic:
-            if old_mods_encoded and not old_mods and new_mods:
+            if old_constraints_encoded and not old_constraints and new_constraints:
                 new_type = common.qname(*domain_name)
                 type_intent = 'create'
-            elif old_mods_encoded and old_mods and not new_mods:
+            elif old_constraints_encoded and old_constraints and not new_constraints:
                 new_type = base
                 type_intent = 'drop'
         elif old_atom.automatic:
@@ -512,29 +512,29 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
             if new_atom.automatic:
                 alter_table = source.op.get_alter_table(context)
 
-                for mod in old_mods - new_mods:
-                    constraint = source.op.get_pointer_constraint(meta, context, mod)
+                for constraint in old_constraints - new_constraints:
+                    constraint = source.op.get_pointer_constraint(meta, context, constraint)
                     op = AlterTableDropConstraint(constraint=constraint)
                     alter_table.add_operation(op)
 
-                for mod in new_mods - old_mods:
-                    constraint = source.op.get_pointer_constraint(meta, context, mod)
+                for constraint in new_constraints - old_constraints:
+                    constraint = source.op.get_pointer_constraint(meta, context, constraint)
                     op = AlterTableAddConstraint(constraint=constraint)
                     alter_table.add_operation(op)
 
             else:
-                for mod in old_mods - new_mods:
-                    op.pgops.add(AlterDomainDropConstraint(name=domain_name, constraint=mod))
+                for constraint in old_constraints - new_constraints:
+                    op.pgops.add(AlterDomainDropConstraint(name=domain_name, constraint=constraint))
 
-                for mod in new_mods - old_mods:
-                    op.pgops.add(AlterDomainAddConstraint(name=domain_name, constraint=mod))
+                for constraint in new_constraints - old_constraints:
+                    op.pgops.add(AlterDomainAddConstraint(name=domain_name, constraint=constraint))
         else:
             # We need to drop orphan constraints
             if old_atom.automatic:
                 alter_table = source.op.get_alter_table(context)
 
-                for mod in old_mods:
-                    constraint = source.op.get_pointer_constraint(meta, context, mod)
+                for constraint in old_constraints:
+                    constraint = source.op.get_pointer_constraint(meta, context, constraint)
                     op = AlterTableDropConstraint(constraint=constraint)
                     alter_table.add_operation(op)
 
@@ -704,11 +704,11 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         prefix = (host_proto.name, pointer_proto.normal_name())
         table_name = common.get_table_name(host_proto, catenate=False)
 
-        if isinstance(constraint, proto.AtomMod):
-            constraint = AtomModTableConstraint(table_name=table_name,
+        if isinstance(constraint, proto.AtomConstraint):
+            constraint = AtomConstraintTableConstraint(table_name=table_name,
                                                 column_name=column_name,
                                                 prefix=prefix,
-                                                mod=constraint)
+                                                constraint=constraint)
         else:
             constraint = PointerConstraintTableConstraint(table_name=table_name,
                                                           column_name=column_name,
@@ -838,7 +838,7 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
 
         # Need to update all bits that reference concept name
 
-        # Atom mods
+        # Atom constraints
         for linkset in proto.own_pointers.values():
             for link in linkset:
                 if link.atomic():
@@ -871,18 +871,18 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
 
         if target.automatic:
             # We need to establish fake AlterLink context here since
-            # atom mod constraint ops need it.
+            # atom constraint constraint ops need it.
             link_op = AlterLink(prototype_name=link.name, prototype_class=proto.Link)
             with context(delta_cmds.LinkCommandContext(link_op, link)):
-                for mod in target.effective_local_mods.values():
-                    old_constraint = self.get_pointer_constraint(meta, context, mod,
+                for constraint in target.effective_local_constraints.values():
+                    old_constraint = self.get_pointer_constraint(meta, context, constraint,
                                                                  original=True)
 
                     if old_constraint.raw_constraint_name() in drop_constraints:
                         # No need to rename constraints that are to be dropped
                         continue
 
-                    new_constraint = self.get_pointer_constraint(meta, context, mod)
+                    new_constraint = self.get_pointer_constraint(meta, context, constraint)
 
                     op = AlterTableRenameConstraint(table_name=table,
                                                     constraint=old_constraint,
@@ -1389,7 +1389,7 @@ class LinkPropertyMetaCommand(NamedPrototypeMetaCommand, PointerMetaCommand):
 
     def record_metadata(self, pointer, old_pointer, meta, context):
         rec = super().record_metadata(pointer, old_pointer, meta, context)
-        if rec.base:
+        if rec and rec.base:
             if isinstance(rec.base, caos.Name):
                 rec.base = str(rec.base)
             else:
@@ -2098,36 +2098,36 @@ class TableClassConstraint(TableConstraint):
 
     def __repr__(self):
         return '<%s.%s "%s" "%r">' % (self.__class__.__module__, self.__class__.__name__,
-                                      self.column_name, self.mod)
+                                      self.column_name, self.constrobj)
 
 
-class AtomModTableConstraint(TableClassConstraint):
-    def __init__(self, table_name, column_name, prefix, mod):
-        super().__init__(table_name, column_name, prefix, mod)
-        self.mod = mod
-        self.suffix = 'atom_mod'
+class AtomConstraintTableConstraint(TableClassConstraint):
+    def __init__(self, table_name, column_name, prefix, constraint):
+        super().__init__(table_name, column_name, prefix, constraint)
+        self.constraint = constraint
+        self.suffix = 'atom_constr'
 
     def constraint_code(self, context, value_holder='VALUE'):
         ql = postgresql.string.quote_literal
         value_holder = common.quote_ident(value_holder)
 
-        if isinstance(self.mod, proto.AtomModRegExp):
-            expr = ['%s ~ %s' % (value_holder, ql(re)) for re in self.mod.values]
+        if isinstance(self.constraint, proto.AtomConstraintRegExp):
+            expr = ['%s ~ %s' % (value_holder, ql(re)) for re in self.constraint.values]
             expr = ' AND '.join(expr)
-        elif isinstance(self.mod, proto.AtomModMaxLength):
-            expr = 'length(%s::text) <= %s' % (value_holder, str(self.mod.value))
-        elif isinstance(self.mod, proto.AtomModMinLength):
-            expr = 'length(%s::text) >= %s' % (value_holder, str(self.mod.value))
-        elif isinstance(self.mod, proto.AtomModMaxValue):
-            expr = '%s <= %s' % (value_holder, ql(str(self.mod.value)))
-        elif isinstance(self.mod, proto.AtomModMaxExValue):
-            expr = '%s < %s' % (value_holder, ql(str(self.mod.value)))
-        elif isinstance(self.mod, proto.AtomModMinValue):
-            expr = '%s >= %s' % (value_holder, ql(str(self.mod.value)))
-        elif isinstance(self.mod, proto.AtomModMinExValue):
-            expr = '%s > %s' % (value_holder, ql(str(self.mod.value)))
+        elif isinstance(self.constraint, proto.AtomConstraintMaxLength):
+            expr = 'length(%s::text) <= %s' % (value_holder, str(self.constraint.value))
+        elif isinstance(self.constraint, proto.AtomConstraintMinLength):
+            expr = 'length(%s::text) >= %s' % (value_holder, str(self.constraint.value))
+        elif isinstance(self.constraint, proto.AtomConstraintMaxValue):
+            expr = '%s <= %s' % (value_holder, ql(str(self.constraint.value)))
+        elif isinstance(self.constraint, proto.AtomConstraintMaxExValue):
+            expr = '%s < %s' % (value_holder, ql(str(self.constraint.value)))
+        elif isinstance(self.constraint, proto.AtomConstraintMinValue):
+            expr = '%s >= %s' % (value_holder, ql(str(self.constraint.value)))
+        elif isinstance(self.constraint, proto.AtomConstraintMinExValue):
+            expr = '%s > %s' % (value_holder, ql(str(self.constraint.value)))
         else:
-            assert False, 'unexpected mod type: "%r"' % self.mod
+            assert False, 'unexpected constraint type: "%r"' % self.constraint
 
         return 'CHECK (%s)' % expr
 
@@ -2418,7 +2418,7 @@ class AtomTable(MetaObjectTable):
         self.__columns = datastructures.OrderedSet([
             Column(name='automatic', type='boolean', required=True, default=False),
             Column(name='base', type='text', required=True),
-            Column(name='mods', type='caos.hstore'),
+            Column(name='constraints', type='caos.hstore'),
             Column(name='default', type='text'),
             Column(name='attributes', type='caos.hstore')
         ])
@@ -2778,20 +2778,20 @@ class AlterDomainAlterConstraint(AlterDomain):
         return common.quote_ident('%s.%s' % (canonical.__module__, canonical.__name__))
 
     def constraint_code(self, constraint):
-        if isinstance(constraint, proto.AtomModRegExp):
+        if isinstance(constraint, proto.AtomConstraintRegExp):
             expr = ['VALUE ~ %s' % postgresql.string.quote_literal(re) for re in constraint.values]
             expr = ' AND '.join(expr)
-        elif isinstance(constraint, proto.AtomModMaxLength):
+        elif isinstance(constraint, proto.AtomConstraintMaxLength):
             expr = 'length(VALUE::text) <= ' + str(constraint.value)
-        elif isinstance(constraint, proto.AtomModMinLength):
+        elif isinstance(constraint, proto.AtomConstraintMinLength):
             expr = 'length(VALUE::text) >= ' + str(constraint.value)
-        elif isinstance(constraint, proto.AtomModMaxValue):
+        elif isinstance(constraint, proto.AtomConstraintMaxValue):
             expr = 'VALUE <= ' + postgresql.string.quote_literal(str(constraint.value))
-        elif isinstance(constraint, proto.AtomModMaxExValue):
+        elif isinstance(constraint, proto.AtomConstraintMaxExValue):
             expr = 'VALUE < ' + postgresql.string.quote_literal(str(constraint.value))
-        elif isinstance(constraint, proto.AtomModMinValue):
+        elif isinstance(constraint, proto.AtomConstraintMinValue):
             expr = 'VALUE >= ' + postgresql.string.quote_literal(str(constraint.value))
-        elif isinstance(constraint, proto.AtomModMinExValue):
+        elif isinstance(constraint, proto.AtomConstraintMinExValue):
             expr = 'VALUE > ' + postgresql.string.quote_literal(str(constraint.value))
 
         return 'CHECK (%s)' % expr

@@ -85,69 +85,69 @@ mapping:
                             =:
                                 type: scalar
 
-                    "mods": &ATOM_MODS
+                    "constraints": &ATOM_CONSTRAINTS
                         type: seq
                         sequence:
                           - type: choice
                             choice:
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomModMaxLength
+                                  object: semantix.caos.backends.yaml.AtomConstraintMaxLength
                                   max-length: 1
                                   min-length: 1
                                   mapping:
                                     "max-length":
                                         type: int
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomModMaxValue
+                                  object: semantix.caos.backends.yaml.AtomConstraintMaxValue
                                   max-length: 1
                                   min-length: 1
                                   mapping:
                                     "max-value":
                                         type: any
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomModMaxExValue
+                                  object: semantix.caos.backends.yaml.AtomConstraintMaxExValue
                                   max-length: 1
                                   min-length: 1
                                   mapping:
                                     "max-value-ex":
                                         type: any
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomModMinLength
+                                  object: semantix.caos.backends.yaml.AtomConstraintMinLength
                                   max-length: 1
                                   min-length: 1
                                   mapping:
                                     "min-length":
                                         type: int
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomModMinValue
+                                  object: semantix.caos.backends.yaml.AtomConstraintMinValue
                                   max-length: 1
                                   min-length: 1
                                   mapping:
                                     "min-value":
                                         type: any
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomModMinExValue
+                                  object: semantix.caos.backends.yaml.AtomConstraintMinExValue
                                   max-length: 1
                                   min-length: 1
                                   mapping:
                                     "min-value-ex":
                                         type: any
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomModRegExp
+                                  object: semantix.caos.backends.yaml.AtomConstraintRegExp
                                   max-length: 1
                                   min-length: 1
                                   mapping:
                                     "regexp":
                                         type: str
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomModExpr
+                                  object: semantix.caos.backends.yaml.AtomConstraintExpr
                                   max-length: 1
                                   min-length: 1
                                   mapping:
                                     "expr":
                                         type: str
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomModPrecision
+                                  object: semantix.caos.backends.yaml.AtomConstraintPrecision
                                   max-length: 1
                                   min-length: 1
                                   mapping:
@@ -161,7 +161,7 @@ mapping:
                                                 - type: int
                                             - type: int
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomModRounding
+                                  object: semantix.caos.backends.yaml.AtomConstraintRounding
                                   max-length: 1
                                   min-length: 1
                                   mapping:
@@ -263,8 +263,8 @@ mapping:
                                                     default: False
                                                 "readonly":
                                                     type: bool
-                                                "mods":
-                                                    *ATOM_MODS
+                                                "constraints":
+                                                    *ATOM_CONSTRAINTS
                                                 "default":
                                                     *DEFAULT
 
@@ -336,29 +336,31 @@ mapping:
                                                   default: null
                                               "mapping":
                                                   *LINK_MAPPING
-                                              "mods":
-                                                  *ATOM_MODS
+                                              "constraints":
+                                                  type: choice
+                                                  choice:
+                                                    - *ATOM_CONSTRAINTS
+                                                    - type: seq
+                                                      sequence:
+                                                        - type: choice
+                                                          choice:
+                                                            - type: map
+                                                              max-length: 1
+                                                              min-length: 1
+                                                              object: semantix.caos.backends.yaml.LinkConstraintUnique
+                                                              mapping:
+                                                                "unique":
+                                                                   type: choice
+                                                                   required: True
+                                                                   choice:
+                                                                        - type: bool
+                                                                        - type: str
+
                                               "comparison":
                                                   type: str
                                                   enum: [cidirect, fuzzy]
                                               "default":
                                                   *DEFAULT
-                                              "constraints":
-                                                  type: seq
-                                                  sequence:
-                                                    - type: choice
-                                                      choice:
-                                                        - type: map
-                                                          max-length: 1
-                                                          min-length: 1
-                                                          object: semantix.caos.backends.yaml.LinkConstraintUnique
-                                                          mapping:
-                                                            "unique":
-                                                               type: choice
-                                                               required: True
-                                                               choice:
-                                                                    - type: bool
-                                                                    - type: str
                                               "properties":
                                                   type: map
                                                   mapping:
