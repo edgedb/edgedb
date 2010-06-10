@@ -549,16 +549,16 @@ class LinkSet(Prototype, adapts=proto.LinkSet):
         return result
 
 
-class LinkConstraint(LangObject, adapts=proto.LinkConstraint, ignore_aliases=True):
+class PointerConstraint(LangObject, adapts=proto.PointerConstraint, ignore_aliases=True):
     @classmethod
     def represent(cls, data):
         return {cls.constraint_name: next(iter(data.values))}
 
 
-class LinkConstraintUnique(LinkConstraint, adapts=proto.LinkConstraintUnique):
+class PointerConstraintUnique(PointerConstraint, adapts=proto.PointerConstraintUnique):
     def construct(self):
         values = {self.data[self.__class__.constraint_name]}
-        proto.LinkConstraintUnique.__init__(self, values, context=self.context)
+        proto.PointerConstraintUnique.__init__(self, values, context=self.context)
 
 
 class LinkSearchConfiguration(LangObject, adapts=proto.LinkSearchConfiguration, ignore_aliases=True):
@@ -878,9 +878,9 @@ class MetaSet(LangObject):
 
             constraints = getattr(link, '_constraints', ())
             if not link.generic() and constraints:
-                link_constraints = [c for c in constraints if isinstance(c, proto.LinkConstraint)]
+                link_constraints = [c for c in constraints if isinstance(c, proto.PointerConstraint)]
                 for constraint in link_constraints:
-                    if isinstance(constraint, proto.LinkConstraintUnique):
+                    if isinstance(constraint, proto.PointerConstraintUnique):
                         if link.atomic():
                             if len(constraint.values) > 1 \
                                     or isinstance(list(constraint.values)[0], str):

@@ -347,7 +347,7 @@ mapping:
                                                             - type: map
                                                               max-length: 1
                                                               min-length: 1
-                                                              object: semantix.caos.backends.yaml.LinkConstraintUnique
+                                                              object: semantix.caos.backends.yaml.PointerConstraintUnique
                                                               mapping:
                                                                 "unique":
                                                                    type: choice

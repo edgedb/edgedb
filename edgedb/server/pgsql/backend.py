@@ -453,7 +453,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 msg = 'unique link constraint violation'
                 pointer = caos.concept.link(getattr(source.__class__, str(pointer_name)))
 
-                errcls = caos.error.LinkUniqueConstraintViolationError
+                errcls = caos.error.PointerConstraintUniqueViolationError
                 return errcls(msg=msg, source=source, pointer=pointer, constraint=constraint)
         else:
             return caos.error.UninterpretedStorageError
@@ -1339,7 +1339,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         link_name = m.group('link_name')
         constraint_class = helper.get_object(m.group('constraint_class'))
 
-        if issubclass(constraint_class, proto.LinkConstraintUnique):
+        if issubclass(constraint_class, proto.PointerConstraintUnique):
             col_name = common.caos_name_to_pg_name(link_name)
             if len(columns) != 1 or not col_name in columns:
                 msg = 'internal metadata inconsistency'

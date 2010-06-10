@@ -223,7 +223,7 @@ class SourceIndexCommand(PrototypeCommand, adapts=delta.SourceIndexCommand):
     pass
 
 
-class LinkConstraintCommand(PrototypeCommand, adapts=delta.LinkConstraintCommand):
+class PointerConstraintCommand(PrototypeCommand, adapts=delta.PointerConstraintCommand):
     pass
 
 
@@ -321,12 +321,12 @@ class DeleteLink(DeleteNamedPrototype, adapts=delta.DeleteLink):
     pass
 
 
-class CreateLinkConstraint(LinkConstraintCommand, CreateSimplePrototype,
-                           adapts=delta.CreateLinkConstraint):
+class CreatePointerConstraint(PointerConstraintCommand, CreateSimplePrototype,
+                           adapts=delta.CreatePointerConstraint):
     pass
 
 
-class DeleteLinkConstraint(LinkConstraintCommand, adapts=delta.DeleteLinkConstraint):
+class DeletePointerConstraint(PointerConstraintCommand, adapts=delta.DeletePointerConstraint):
     pass
 
 

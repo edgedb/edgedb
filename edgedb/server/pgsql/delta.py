@@ -893,7 +893,7 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
             link_op = AlterLink(prototype_name=link.name, prototype_class=proto.Link)
             with context(delta_cmds.LinkCommandContext(link_op, link)):
                 for constraint in link.constraints.values():
-                    if isinstance(constraint, proto.LinkConstraintUnique):
+                    if isinstance(constraint, proto.PointerConstraintUnique):
                         old_constraint = self.get_pointer_constraint(meta, context, constraint,
                                                                      original=True)
 
@@ -1107,7 +1107,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
             constraints = {}
             for constraint in link.constraints.values():
                 if not link.generic() and link.atomic() \
-                                and isinstance(constraint, proto.LinkConstraintUnique):
+                                and isinstance(constraint, proto.PointerConstraintUnique):
                     # Unique constraints on atomic links are represented as table constraints
                     continue
 
@@ -1343,19 +1343,19 @@ class DeleteLinkSet(PrototypeMetaCommand, adapts=delta_cmds.DeleteLinkSet):
         return result
 
 
-class LinkConstraintMetaCommand(PrototypeMetaCommand):
+class PointerConstraintMetaCommand(PrototypeMetaCommand):
     pass
 
 
-class CreateLinkConstraint(LinkConstraintMetaCommand, adapts=delta_cmds.CreateLinkConstraint):
+class CreatePointerConstraint(PointerConstraintMetaCommand, adapts=delta_cmds.CreatePointerConstraint):
     def apply(self, meta, context=None):
-        constraint = delta_cmds.CreateLinkConstraint.apply(self, meta, context)
-        LinkConstraintMetaCommand.apply(self, meta, context)
+        constraint = delta_cmds.CreatePointerConstraint.apply(self, meta, context)
+        PointerConstraintMetaCommand.apply(self, meta, context)
 
         source, pointer = CompositePrototypeMetaCommand.get_source_and_pointer_ctx(meta, context)
 
         if not pointer.proto.generic() and pointer.proto.atomic():
-            if isinstance(constraint, proto.LinkConstraintUnique):
+            if isinstance(constraint, proto.PointerConstraintUnique):
                 alter_table = source.op.get_alter_table(context)
                 constr = source.op.get_pointer_constraint(meta, context, constraint)
                 op = AlterTableAddConstraint(constraint=constr)
@@ -1364,15 +1364,15 @@ class CreateLinkConstraint(LinkConstraintMetaCommand, adapts=delta_cmds.CreateLi
         return constraint
 
 
-class DeleteLinkConstraint(LinkConstraintMetaCommand, adapts=delta_cmds.DeleteLinkConstraint):
+class DeletePointerConstraint(PointerConstraintMetaCommand, adapts=delta_cmds.DeletePointerConstraint):
     def apply(self, meta, context=None):
-        constraint = delta_cmds.DeleteLinkConstraint.apply(self, meta, context)
-        LinkConstraintMetaCommand.apply(self, meta, context)
+        constraint = delta_cmds.DeletePointerConstraint.apply(self, meta, context)
+        PointerConstraintMetaCommand.apply(self, meta, context)
 
         source, pointer = CompositePrototypeMetaCommand.get_source_and_pointer_ctx(meta, context)
 
         if not pointer.proto.generic() and pointer.proto.atomic():
-            if isinstance(constraint, proto.LinkConstraintUnique):
+            if isinstance(constraint, proto.PointerConstraintUnique):
                 alter_table = source.op.get_alter_table(context)
                 constr = source.op.get_pointer_constraint(meta, context, constraint)
                 op = AlterTableDropConstraint(constraint=constr)
@@ -2142,7 +2142,7 @@ class PointerConstraintTableConstraint(TableClassConstraint):
         ql = postgresql.string.quote_literal
         value_holder = common.quote_ident(value_holder)
 
-        if isinstance(self.constraint, proto.LinkConstraintUnique):
+        if isinstance(self.constraint, proto.PointerConstraintUnique):
             expr = 'UNIQUE (%s)' % common.quote_ident(self.column_name)
         else:
             assert False, 'unexpected constraint type: "%r"' % self.constr
