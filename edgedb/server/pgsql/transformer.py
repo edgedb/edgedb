@@ -154,7 +154,7 @@ class PgSQLExprTransformer(ast.visitor.NodeVisitor):
             for l in local_to_source.pointers.values():
                 name = l.normal_name()
                 colname = common.caos_name_to_pg_name(l.normal_name())
-                source = context.current.source.get_pointer_origin(schema, name)
+                source = context.current.source.get_pointer_origin(schema, name, farthest=True)
                 context.current.attmap[colname] = (name, source)
 
         return self._process_expr(context, tree)

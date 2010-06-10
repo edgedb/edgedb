@@ -87,8 +87,8 @@ class _PrependSource(ast.visitor.NodeVisitor):
             else:
                 link = caosql_ast.LinkExprNode(expr=pointer_node)
 
-            source = caosql_ast.PathStepNode(expr=self.source.name.name,
-                                             namespace=self.source.name.module)
+            source = self.source.get_pointer_origin(self.schema, prototype.name, farthest=True)
+            source = caosql_ast.PathStepNode(expr=source.name.name, namespace=source.name.module)
             node.steps[0] = source
             node.steps.insert(1, link)
             offset = 2
