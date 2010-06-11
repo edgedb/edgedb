@@ -79,6 +79,9 @@ class Importer(importlib.abc.Finder, importlib.abc.Loader):
                 new_mod = imp.new_module(fullname)
 
             sys.modules[fullname] = new_mod
+        else:
+            for k in new_mod.__odict__.keys():
+                del new_mod.__dict__[k]
 
         new_mod.__file__ = filename
         if is_package:
