@@ -158,6 +158,8 @@ class CommandGroup(Command):
     def add_command(self, cmd):
         self.commands.append(cmd)
 
+    def add_commands(self, cmds):
+        self.commands.extend(cmds)
 
     def execute(self, context):
         result = None
@@ -177,6 +179,8 @@ class CommandGroup(Command):
 
         return '\n'.join(result)
 
+    def __iter__(self):
+        return iter(self.commands)
 
 
 class PrototypeMetaCommand(MetaCommand, delta_cmds.PrototypeCommand):
@@ -456,8 +460,10 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
     @classmethod
     def alter_atom(cls, op, meta, context, old_atom, new_atom, in_place=True, updates=None):
 
-        old_base, old_constraints_encoded, old_constraints, _ = types.get_atom_base_and_constraints(meta, old_atom)
-        base, constraints_encoded, new_constraints, _ = types.get_atom_base_and_constraints(meta, new_atom)
+        old_base, old_constraints_encoded, old_constraints, _ = \
+                                                types.get_atom_base_and_constraints(meta, old_atom)
+        base, constraints_encoded, new_constraints, _ = \
+                                                types.get_atom_base_and_constraints(meta, new_atom)
 
         domain_name = common.atom_name_to_domain_name(new_atom.name, catenate=False)
 
@@ -604,18 +610,41 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.table_name = None
-        self.alter_table = None
+        self.alter_tables = {}
         self.update_search_indexes = None
+        self.pointer_constraints = {}
+        self.abstract_pointer_constraints = {}
+        self.dropped_pointer_constraints = {}
 
-    def get_alter_table(self, context):
-        if self.alter_table is None:
+    def get_alter_table(self, context, priority=0, force_new=False):
+        alter_table = self.alter_tables.get(priority)
+        if alter_table is None or force_new:
             if not self.table_name:
                 assert self.__class__.context_class
                 ctx = context.get(self.__class__.context_class)
                 assert ctx
                 self.table_name = common.get_table_name(ctx.proto, catenate=False)
-            self.alter_table = AlterTable(self.table_name)
-        return self.alter_table
+            alter_table = AlterTable(self.table_name, priority=priority)
+            self.alter_tables.setdefault(priority, []).append(alter_table)
+        else:
+            alter_table = alter_table[-1]
+
+        return alter_table
+
+    def attach_alter_table(self, context, priority=None, clear=True):
+        if priority:
+            alter_tables = list(self.alter_tables.get(priority))
+            if alter_tables and clear:
+                self.alter_tables[priority][:] = ()
+        else:
+            alter_tables = list(itertools.chain.from_iterable(self.alter_tables.values()))
+            if alter_tables:
+                if clear:
+                    self.alter_tables.clear()
+                alter_tables = sorted(alter_tables, key=lambda i: i.priority)
+
+        if alter_tables:
+            self.pgops.update(alter_tables)
 
     def rename(self, old_name, new_name):
         old_table_name = common.concept_name_to_table_name(old_name, catenate=False)
@@ -638,8 +667,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                          common.caos_name_to_pg_name(new_name.name + '_batch_merger'))
 
         cond = FunctionExists(old_func_name, args=('text',),)
-        cmd = AlterFunctionRename(old_func_name, args=('text',), new_name=new_func_name,
-                                  conditions=(cond,))
+        cmd = RenameFunction(old_func_name, args=('text',), new_name=new_func_name,
+                             conditions=(cond,))
         self.pgops.add(cmd)
 
     def delete(self, proto, meta, context):
@@ -692,17 +721,19 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         return source, pointer
 
     @classmethod
-    def get_pointer_constraint(cls, meta, context, constraint, original=False):
-        host, pointer = cls.get_source_and_pointer_ctx(meta, context)
+    def get_pointer_constraint(cls, meta, context, constraint, original=False,
+                                                               source=None, pointer_name=None):
+        if not source:
+            host, pointer = cls.get_source_and_pointer_ctx(meta, context)
 
-        if original:
-            host_proto, pointer_proto = host.original_proto, pointer.original_proto
-        else:
-            host_proto, pointer_proto = host.proto, pointer.proto
+            if original:
+                source, pointer_name = host.original_proto, pointer.original_proto.normal_name()
+            else:
+                source, pointer_name = host.proto, pointer.proto.normal_name()
 
-        column_name = common.caos_name_to_pg_name(pointer_proto.normal_name())
-        prefix = (host_proto.name, pointer_proto.normal_name())
-        table_name = common.get_table_name(host_proto, catenate=False)
+        column_name = common.caos_name_to_pg_name(pointer_name)
+        prefix = (source.name, pointer_name)
+        table_name = common.get_table_name(source, catenate=False)
 
         if isinstance(constraint, proto.AtomConstraint):
             constraint = AtomConstraintTableConstraint(table_name=table_name,
@@ -716,6 +747,289 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                                                           constraint=constraint)
 
         return constraint
+
+    def apply_inherited_deltas(self, source, meta, context):
+        top_ctx = context.get(delta_cmds.RealmCommandContext)
+
+        if isinstance(source, caos.types.ProtoConcept):
+            cmd_class = delta_cmds.ConceptCommand
+        else:
+            cmd_class = delta_cmds.LinkCommand
+
+        proto_idx = {cmd.prototype: cmd for cmd in top_ctx.op(cmd_class)
+                                        if getattr(cmd, 'prototype', None)}
+
+        for pointer_name in source.pointers:
+            if pointer_name not in source.own_pointers:
+                # Get the nearest source defining the pointer, i. e., the source
+                # that has pointer_name in its own_pointers index.
+                #
+                origin = source.get_pointer_origin(meta, pointer_name)
+                origin_op = proto_idx.get(origin)
+                if origin_op:
+                    # Replicate each pointer origin constraint operation.
+                    # Usually, the origin operation will iterate through children and
+                    # replicate the constraint creation itself, but it is obviously
+                    # unable to do so for children that appear after the parent operation
+                    # is applied, so we must fill the gap here.
+                    #
+                    for constr in origin_op.pointer_constraints.get(pointer_name, {}).values():
+                        self.add_pointer_constraint(source, pointer_name,
+                                                    constr, meta, context)
+                    abstract_constr = origin_op.abstract_pointer_constraints.get(pointer_name, {})
+                    if abstract_constr:
+                        for constr in abstract_constr.values():
+                            self.add_pointer_constraint(source, pointer_name,
+                                                        constr, meta, context)
+
+    def adjust_pointer_constraints(self, meta, context, source):
+
+        for pointer in (p for p in source.pointers.values() if p.atomic()):
+            if isinstance(pointer, proto.LinkSet):
+                pointer = pointer.first
+
+            target = pointer.target
+
+            pointer_name = pointer.normal_name()
+
+            if isinstance(source, caos.types.ProtoConcept):
+                ctx_class = delta_cmds.ConceptCommandContext
+                ptr_ctx_class = delta_cmds.LinkCommandContext
+                ptr_op_class = delta_cmds.AlterLink
+            elif isinstance(source, caos.types.ProtoLink):
+                ctx_class = delta_cmds.LinkCommandContext
+                ptr_ctx_class = delta_cmds.LinkPropertyCommandContext
+                ptr_op_class = delta_cmds.AlterLinkProperty
+            else:
+                assert False
+
+            source_context = context.get(ctx_class)
+            alter_table = source_context.op.get_alter_table(context)
+            table = common.get_table_name(source, catenate=False)
+
+            if pointer_name in source.own_pointers:
+                drop_constraints = {}
+
+                for op in alter_table(TableConstraintCommand):
+                    if isinstance(op, AlterTableDropConstraint):
+                        name = op.constraint.raw_constraint_name()
+                        drop_constraints[name] = op
+
+                ptr_op = ptr_op_class(prototype_name=pointer.name,
+                                      prototype_class=pointer.__class__.get_canonical_class())
+
+
+                if target.automatic:
+                    # We need to establish fake AlterLink context here since
+                    # atom constraint constraint ops need it.
+                    with context(ptr_ctx_class(ptr_op, pointer)):
+                        for constraint in target.effective_local_constraints.values():
+                            old_constraint = self.get_pointer_constraint(meta, context, constraint,
+                                                                         original=True)
+
+                            if old_constraint.raw_constraint_name() in drop_constraints:
+                                # No need to rename constraints that are to be dropped
+                                continue
+
+                            new_constraint = self.get_pointer_constraint(meta, context, constraint)
+
+                            op = AlterTableRenameConstraint(table_name=table,
+                                                            constraint=old_constraint,
+                                                            new_constraint=new_constraint)
+                            self.pgops.add(op)
+
+            if not pointer.generic():
+                orig_source = source_context.original_proto
+
+                ptr_op = ptr_op_class(prototype_name=pointer.name,
+                                      prototype_class=pointer.__class__.get_canonical_class())
+
+                with context(ptr_ctx_class(ptr_op, pointer)):
+                    for constraint in pointer.constraints.values():
+                        if isinstance(constraint, proto.PointerConstraintUnique):
+                            old_constraint = self.get_pointer_constraint(meta, context,
+                                                                         constraint,
+                                                                         original=True)
+
+                            if old_constraint.raw_constraint_name() in drop_constraints:
+                                # No need to rename constraints that are to be dropped
+                                continue
+
+                            new_constraint = self.get_pointer_constraint(meta, context,
+                                                                         constraint)
+
+                            op = self.rename_pointer_constraint(orig_source, source, pointer_name,
+                                                                old_constraint, new_constraint,
+                                                                meta, context)
+                            self.pgops.add(op)
+
+
+    def add_pointer_constraint(self, source, pointer_name, constraint, meta, context):
+        constr_key = persistent_hash(constraint)
+        self_constrs = self.pointer_constraints.get(pointer_name)
+
+        if not self_constrs or constr_key not in self_constrs:
+            alter_table = self.get_alter_table(context, priority=2)
+            constr = self.get_pointer_constraint(meta, context, constraint,
+                                                 source=source, pointer_name=pointer_name)
+            op = AlterTableAddConstraint(constraint=constr)
+            alter_table.add_operation(op)
+
+            constraint_origins = source.get_constraint_origins(meta, pointer_name, constraint)
+            assert constraint_origins
+
+            self.pgops.add(self.create_unique_constraint_trigger(source, pointer_name, constr,
+                                                                 constraint_origins, meta, context))
+
+            self.pointer_constraints.setdefault(pointer_name, {})[constr_key] = constraint
+
+    def del_pointer_constraint(self, source, pointer_name, constraint, meta, context):
+        constr_key = persistent_hash(constraint)
+        self_constrs = self.dropped_pointer_constraints.get(pointer_name)
+
+        if not self_constrs or constr_key not in self_constrs:
+            alter_table = self.get_alter_table(context, priority=2)
+            constr = self.get_pointer_constraint(meta, context, constraint,
+                                                 source=source, pointer_name=pointer_name)
+            op = AlterTableDropConstraint(constraint=constr)
+            alter_table.add_operation(op)
+
+            constraint_origins = source.get_constraint_origins(meta, pointer_name, constraint)
+            assert constraint_origins
+
+            self.pgops.add(self.drop_unique_constraint_trigger(source, pointer_name, constr,
+                                                               meta, context))
+
+            self.dropped_pointer_constraints.setdefault(pointer_name, {})[constr_key] = constraint
+
+    def rename_pointer_constraint(self, orig_source, source, pointer_name,
+                                        old_constraint, new_constraint, meta, context):
+
+        table = common.get_table_name(source, catenate=False)
+
+        result = CommandGroup()
+
+        result.add_command(AlterTableRenameConstraint(table_name=table,
+                                                      constraint=old_constraint,
+                                                      new_constraint=new_constraint))
+
+        ops = self.rename_unique_constraint_trigger(orig_source, source, pointer_name,
+                                                    old_constraint, new_constraint, meta, context)
+
+        result.add_commands(ops)
+
+        return result
+
+    def create_unique_constraint_trigger(self, source, pointer_name, constraint,
+                                               constraint_origins, meta, context, priority=3):
+
+        colname = common.quote_ident(common.caos_name_to_pg_name(pointer_name))
+        if len(constraint_origins) == 1:
+            origin = common.get_table_name(next(iter(constraint_origins)))
+        else:
+            origin = []
+            for o in constraint_origins:
+                origin.append('(SELECT * FROM %s)' % common.get_table_name(o))
+            origin = ' UNION ALL '.join(origin)
+
+        text = '''
+                  BEGIN
+                  PERFORM
+                        TRUE
+                      FROM %(origin)s
+                      WHERE %(colname)s = NEW.%(colname)s;
+                  IF FOUND THEN
+                      RAISE unique_violation
+                          USING
+                              MESSAGE = 'duplicate key value violates unique constraint %(constr)s',
+                              DETAIL = 'Key (%(colname)s)=(' || NEW.%(colname)s || ') already exists.';
+                  END IF;
+                  RETURN NEW;
+                  END;
+               ''' % {'colname': colname,
+                      'origin': origin,
+                      'constr': constraint.constraint_name()}
+
+        schema = common.caos_module_name_to_schema_name(source.name.module)
+        proc_name = constraint.raw_constraint_name() + '_trigproc'
+        proc_name = schema, common.caos_name_to_pg_name(proc_name)
+        table_name = common.get_table_name(source, catenate=False)
+        proc = CreateTriggerFunction(name=proc_name, text=text, volatility='stable')
+
+        trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_instrigger')
+        instrigger = CreateConstraintTrigger(trigger_name=trigger_name,
+                                             table_name=table_name,
+                                             events=('insert',), procedure=proc_name)
+
+        trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_updtrigger')
+        condition = 'OLD.%(colname)s IS DISTINCT FROM NEW.%(colname)s' % {'colname': colname}
+        updtrigger = CreateConstraintTrigger(trigger_name=trigger_name,
+                                             table_name=table_name,
+                                             events=('update',),
+                                             condition=condition, procedure=proc_name)
+
+        result = CommandGroup(priority=priority)
+        result.add_command(proc)
+        result.add_command(instrigger)
+        result.add_command(updtrigger)
+
+        return result
+
+    def drop_unique_constraint_trigger(self, source, pointer_name, constraint, meta, context):
+        schema = common.caos_module_name_to_schema_name(source.name.module)
+        table_name = common.get_table_name(source, catenate=False)
+
+        result = CommandGroup()
+
+        trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_instrigger')
+        result.add_command(DropTrigger(trigger_name=trigger_name, table_name=table_name))
+        trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_updtrigger')
+        result.add_command(DropTrigger(trigger_name=trigger_name, table_name=table_name))
+
+        proc_name = constraint.raw_constraint_name() + '_trigproc'
+        proc_name = schema, common.caos_name_to_pg_name(proc_name)
+        result.add_command(DropFunction(name=proc_name, args=()))
+
+        return result
+
+    def rename_unique_constraint_trigger(self, orig_source, source, pointer_name,
+                                               old_constraint, new_constraint, meta, context):
+
+        result = CommandGroup()
+
+        table_name = common.get_table_name(source, catenate=False)
+        orig_table_name = common.get_table_name(orig_source, catenate=False)
+
+        old_trigger_name = common.caos_name_to_pg_name('%s_instrigger' % \
+                                                       old_constraint.raw_constraint_name())
+        new_trigger_name = common.caos_name_to_pg_name('%s_instrigger' % \
+                                                       new_constraint.raw_constraint_name())
+
+        result.add_command(AlterTriggerRenameTo(trigger_name=old_trigger_name,
+                                                new_trigger_name=new_trigger_name,
+                                                table_name=table_name))
+
+        old_trigger_name = common.caos_name_to_pg_name('%s_updtrigger' % \
+                                                       old_constraint.raw_constraint_name())
+        new_trigger_name = common.caos_name_to_pg_name('%s_updtrigger' % \
+                                                       new_constraint.raw_constraint_name())
+
+        result.add_command(AlterTriggerRenameTo(trigger_name=old_trigger_name,
+                                                new_trigger_name=new_trigger_name,
+                                                table_name=table_name))
+
+        old_proc_name = common.caos_name_to_pg_name('%s_trigproc' % \
+                                                    old_constraint.raw_constraint_name())
+        old_proc_name = orig_table_name[0], old_proc_name
+
+
+        new_proc_name = common.caos_name_to_pg_name('%s_trigproc' % \
+                                                    new_constraint.raw_constraint_name())
+        new_proc_name = table_name[0], new_proc_name
+
+        result.add_command(RenameFunction(name=old_proc_name, args=(), new_name=new_proc_name))
+
+        return result
 
 
 class SourceIndexCommand(PrototypeMetaCommand):
@@ -817,8 +1131,9 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
                  for p in fields['base'][1] if proto.Concept.is_prototype(p))
         concept_table.bases = list(bases)
 
-        if alter_table.ops:
-            self.pgops.add(alter_table)
+        self.apply_inherited_deltas(concept, meta, context)
+
+        self.attach_alter_table(context)
 
         if self.update_search_indexes:
             self.update_search_indexes.apply(meta, context)
@@ -831,89 +1146,32 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
     def apply(self, meta, context=None):
         proto = delta_cmds.RenameConcept.apply(self, meta, context)
         ConceptMetaCommand.apply(self, meta, context)
-        self.rename(self.prototype_name, self.new_name)
 
         concept = context.get(delta_cmds.ConceptCommandContext)
         assert concept
 
+        concept.op.attach_alter_table(context)
+
+        self.rename(self.prototype_name, self.new_name)
+
+        concept.op.table_name = common.concept_name_to_table_name(self.new_name, catenate=False)
+
         # Need to update all bits that reference concept name
 
-        # Atom constraints
-        for linkset in proto.own_pointers.values():
-            for link in linkset:
-                if link.atomic():
-                    self.adjust_link_constraints(meta, context, proto, link)
+        # Constraints
+        self.adjust_pointer_constraints(meta, context, proto)
 
         # Indexes
         self.adjust_indexes(meta, context, proto)
 
-        if concept.op.alter_table.ops:
-            concept.op.pgops.add(concept.op.alter_table)
-
         self.table_name = common.concept_name_to_table_name(self.new_name, catenate=False)
-        concept.op.alter_table = AlterTable(self.table_name)
 
         return proto
-
-    def adjust_link_constraints(self, meta, context, concept, link):
-        target = link.target
-
-        concept_context = context.get(delta_cmds.ConceptCommandContext)
-        alter_table = concept_context.op.get_alter_table(context)
-        table = common.get_table_name(concept, catenate=False)
-
-        drop_constraints = {}
-
-        for op in alter_table(TableConstraintCommand):
-            if isinstance(op, AlterTableDropConstraint):
-                name = op.constraint.raw_constraint_name()
-                drop_constraints[name] = op
-
-        if target.automatic:
-            # We need to establish fake AlterLink context here since
-            # atom constraint constraint ops need it.
-            link_op = AlterLink(prototype_name=link.name, prototype_class=proto.Link)
-            with context(delta_cmds.LinkCommandContext(link_op, link)):
-                for constraint in target.effective_local_constraints.values():
-                    old_constraint = self.get_pointer_constraint(meta, context, constraint,
-                                                                 original=True)
-
-                    if old_constraint.raw_constraint_name() in drop_constraints:
-                        # No need to rename constraints that are to be dropped
-                        continue
-
-                    new_constraint = self.get_pointer_constraint(meta, context, constraint)
-
-                    op = AlterTableRenameConstraint(table_name=table,
-                                                    constraint=old_constraint,
-                                                    new_constraint=new_constraint)
-                    self.pgops.add(op)
-
-        if not link.generic() and link.atomic():
-            link_op = AlterLink(prototype_name=link.name, prototype_class=proto.Link)
-            with context(delta_cmds.LinkCommandContext(link_op, link)):
-                for constraint in link.constraints.values():
-                    if isinstance(constraint, proto.PointerConstraintUnique):
-                        old_constraint = self.get_pointer_constraint(meta, context, constraint,
-                                                                     original=True)
-
-                        if old_constraint.raw_constraint_name() in drop_constraints:
-                            # No need to rename constraints that are to be dropped
-                            continue
-
-                        new_constraint = self.get_pointer_constraint(meta, context, constraint)
-
-                        op = AlterTableRenameConstraint(table_name=table,
-                                                        constraint=old_constraint,
-                                                        new_constraint=new_constraint)
-                        self.pgops.add(op)
 
 
 class AlterConcept(ConceptMetaCommand, adapts=delta_cmds.AlterConcept):
     def apply(self, meta, context=None):
-        table_name = common.concept_name_to_table_name(self.prototype_name, catenate=False)
-        self.alter_table = AlterTable(table_name)
-
+        self.table_name = common.concept_name_to_table_name(self.prototype_name, catenate=False)
         concept = delta_cmds.AlterConcept.apply(self, meta, context=context)
         ConceptMetaCommand.apply(self, meta, context)
 
@@ -929,20 +1187,21 @@ class AlterConcept(ConceptMetaCommand, adapts=delta_cmds.AlterConcept):
                 dropped_bases = set(base_delta[0]) - set(base_delta[1])
                 added_bases = set(base_delta[1]) - set(base_delta[0])
 
+                alter_table = self.get_alter_table(context)
+
                 for dropped_base in dropped_bases:
                     parent_table_name = common.concept_name_to_table_name(
                                             caos.name.Name(dropped_base), catenate=False)
                     op = AlterTableDropParent(parent_name=parent_table_name)
-                    self.alter_table.add_operation(op)
+                    alter_table.add_operation(op)
 
                 for added_base in added_bases:
                     parent_table_name = common.concept_name_to_table_name(
                                             caos.name.Name(added_base), catenate=False)
                     op = AlterTableAddParent(parent_name=parent_table_name)
-                    self.alter_table.add_operation(op)
+                    alter_table.add_operation(op)
 
-        if self.alter_table.ops:
-            self.pgops.add(self.alter_table)
+        self.attach_alter_table(context)
 
         if self.update_search_indexes:
             self.update_search_indexes.apply(meta, context)
@@ -954,7 +1213,6 @@ class AlterConcept(ConceptMetaCommand, adapts=delta_cmds.AlterConcept):
 class DeleteConcept(ConceptMetaCommand, adapts=delta_cmds.DeleteConcept):
     def apply(self, meta, context=None):
         old_table_name = common.concept_name_to_table_name(self.prototype_name, catenate=False)
-        self.alter_table = AlterTable(old_table_name)
 
         concept = delta_cmds.DeleteConcept.apply(self, meta, context)
         ConceptMetaCommand.apply(self, meta, context)
@@ -986,6 +1244,23 @@ class PointerMetaCommand(MetaCommand):
             if concept:
                 return concept
 
+    def pack_constraints(self, pointer, constraints, abstract=False):
+        result = {}
+        for constraint in constraints:
+            if not pointer.generic() and pointer.atomic() \
+                    and isinstance(constraint, proto.PointerConstraintUnique) and not abstract:
+                # Unique constraints on atomic links are represented as table constraints
+                continue
+
+            cls = constraint.__class__.get_canonical_class()
+            key = '%s.%s' % (cls.__module__, cls.__name__)
+            result[key] = yaml.Language.dump(constraint.values)
+
+        if not result:
+            return None
+        else:
+            return result
+
     def record_metadata(self, pointer, old_pointer, meta, context):
         rec, updates = self.fill_record()
 
@@ -1013,6 +1288,15 @@ class PointerMetaCommand(MetaCommand):
             if not rec:
                 rec = self.table.record()
             rec.default = self.pack_default(default[0])
+
+        if not old_pointer or old_pointer.constraints != pointer.constraints:
+            if not rec:
+                rec = self.table.record()
+
+            rec.constraints = self.pack_constraints(pointer, pointer.constraints.values())
+            rec.abstract_constraints = self.pack_constraints(pointer,
+                                                             pointer.abstract_constraints.values(),
+                                                             True)
 
         return rec
 
@@ -1096,28 +1380,6 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.table = LinkTable()
-
-    def record_metadata(self, link, old_link, meta, context):
-        rec = super().record_metadata(link, old_link, meta, context)
-
-        if not old_link or old_link.constraints != link.constraints:
-            if not rec:
-                rec = self.table.record()
-
-            constraints = {}
-            for constraint in link.constraints.values():
-                if not link.generic() and link.atomic() \
-                                and isinstance(constraint, proto.PointerConstraintUnique):
-                    # Unique constraints on atomic links are represented as table constraints
-                    continue
-
-                cls = constraint.__class__.get_canonical_class()
-                key = '%s.%s' % (cls.__module__, cls.__name__)
-                constraints[key] = yaml.Language.dump(constraint.values)
-
-            rec.constraints = constraints
-
-        return rec
 
     def create_table(self, link, meta, context, conditional=False):
         self.table_name = new_table_name = common.link_name_to_table_name(link.name, catenate=False)
@@ -1220,8 +1482,10 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
                 cmd = AlterTableAddColumn(col)
                 concept_alter_table.add_operation((cmd, None, (cond,)))
 
-        if self.alter_table and self.alter_table.ops:
-            self.pgops.add(self.alter_table)
+        if self.has_table(link, meta, context):
+            self.apply_inherited_deltas(link, meta, context)
+
+        self.attach_alter_table(context)
 
         rec = self.record_metadata(link, None, meta, context)
         self.pgops.add(Insert(table=self.table, records=[rec], priority=1))
@@ -1239,12 +1503,14 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
 
         self.rename_pointer(result, meta, context, self.prototype_name, self.new_name)
 
-        if self.alter_table and self.alter_table.ops:
-            self.pgops.add(self.alter_table)
+        self.attach_alter_table(context)
 
         if result.generic():
             # Indexes
             self.adjust_indexes(meta, context, result)
+        else:
+            # Constraints
+            self.adjust_pointer_constraints(meta, context, result)
 
         return result
 
@@ -1262,8 +1528,7 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
                 self.pgops.add(Update(table=self.table, record=rec,
                                       condition=[('name', str(link.name))], priority=1))
 
-            if self.alter_table and self.alter_table.ops:
-                self.pgops.add(self.alter_table)
+            self.attach_alter_table(context)
 
             new_type = None
             for op in self(delta_cmds.AlterPrototypeProperty):
@@ -1299,8 +1564,9 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
             # We don't really care about the type -- we're dropping the thing
             column_type = 'text'
 
+            alter_table = concept.op.get_alter_table(context)
             col = AlterTableDropColumn(Column(name=column_name, type=column_type))
-            concept.op.alter_table.add_operation(col)
+            alter_table.add_operation(col)
 
             if result.mapping != caos.types.ManyToMany:
                 self.schedule_mapping_update(result, meta, context)
@@ -1347,37 +1613,85 @@ class PointerConstraintMetaCommand(PrototypeMetaCommand):
     pass
 
 
-class CreatePointerConstraint(PointerConstraintMetaCommand, adapts=delta_cmds.CreatePointerConstraint):
+class CreatePointerConstraint(PointerConstraintMetaCommand,
+                              adapts=delta_cmds.CreatePointerConstraint):
     def apply(self, meta, context=None):
         constraint = delta_cmds.CreatePointerConstraint.apply(self, meta, context)
         PointerConstraintMetaCommand.apply(self, meta, context)
 
         source, pointer = CompositePrototypeMetaCommand.get_source_and_pointer_ctx(meta, context)
 
-        if not pointer.proto.generic() and pointer.proto.atomic():
-            if isinstance(constraint, proto.PointerConstraintUnique):
-                alter_table = source.op.get_alter_table(context)
-                constr = source.op.get_pointer_constraint(meta, context, constraint)
-                op = AlterTableAddConstraint(constraint=constr)
-                alter_table.add_operation(op)
+        if pointer and not pointer.proto.generic() and pointer.proto.atomic():
+            pointer_name = pointer.proto.normal_name()
+            constr_key = persistent_hash(constraint)
+            ptr_constr = source.op.pointer_constraints.get(pointer_name)
+
+            if (not ptr_constr or constr_key not in ptr_constr) and \
+                                            isinstance(constraint, proto.PointerConstraintUnique):
+
+                ptr = source.proto.pointers.get(pointer_name)
+                if isinstance(ptr, proto.LinkSet):
+                    ptr = ptr.first
+
+                if self.abstract:
+                    # Record abstract constraint in parent op so that potential future children
+                    # see it in apply_inherited_deltas()
+                    #
+                    ac = source.op.abstract_pointer_constraints.setdefault(pointer_name, {})
+                    ac[constr_key] = constraint
+
+                else:
+                    source.op.add_pointer_constraint(source.proto, pointer_name, constraint,
+                                                     meta, context)
+
+
+                for child in source.proto.children(recursive=True):
+                    if isinstance(child, caos.types.ProtoLink) and not child.generic():
+                        continue
+
+                    protoclass = source.proto.__class__.get_canonical_class()
+                    cmd = source.op.__class__(prototype_name=child.name, prototype_class=protoclass)
+
+                    with context(source.op.__class__.context_class(cmd, child)):
+                        cmd.add_pointer_constraint(child, pointer_name, constraint, meta, context)
+                        cmd.attach_alter_table(context)
+                        self.pgops.add(cmd)
 
         return constraint
 
 
 class DeletePointerConstraint(PointerConstraintMetaCommand, adapts=delta_cmds.DeletePointerConstraint):
     def apply(self, meta, context=None):
-        constraint = delta_cmds.DeletePointerConstraint.apply(self, meta, context)
+        source, pointer = CompositePrototypeMetaCommand.get_source_and_pointer_ctx(meta, context)
+        constraint = pointer.proto.constraints.get(self.prototype_class)
+
+        delta_cmds.DeletePointerConstraint.apply(self, meta, context)
         PointerConstraintMetaCommand.apply(self, meta, context)
 
-        source, pointer = CompositePrototypeMetaCommand.get_source_and_pointer_ctx(meta, context)
+        if pointer and not pointer.proto.generic() and pointer.proto.atomic():
+            pointer_name = pointer.proto.normal_name()
+            constr_key = persistent_hash(constraint)
+            ptr_constr = source.op.dropped_pointer_constraints.get(pointer_name)
 
-        if not pointer.proto.generic() and pointer.proto.atomic():
-            if isinstance(constraint, proto.PointerConstraintUnique):
-                alter_table = source.op.get_alter_table(context)
-                constr = source.op.get_pointer_constraint(meta, context, constraint)
-                op = AlterTableDropConstraint(constraint=constr)
-                alter_table.add_operation(op)
+            if (not ptr_constr or constr_key not in ptr_constr) and \
+                                            isinstance(constraint, proto.PointerConstraintUnique):
 
+                if not self.abstract:
+                    # Abstract constraints apply only to children
+                    source.op.del_pointer_constraint(source.proto, pointer_name, constraint, meta,
+                                                     context)
+
+                for child in source.proto.children(recursive=True):
+                    if isinstance(child, caos.types.ProtoLink) and not child.generic():
+                        continue
+
+                    protoclass = source.proto.__class__.get_canonical_class()
+                    cmd = source.op.__class__(prototype_name=child.name, prototype_class=protoclass)
+
+                    with context(source.op.__class__.context_class(cmd, child)):
+                        cmd.del_pointer_constraint(child, pointer_name, constraint, meta, context)
+                        cmd.attach_alter_table(context)
+                        self.pgops.add(cmd)
 
         return constraint
 
@@ -1470,16 +1784,14 @@ class DeleteLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.DeleteLinkPr
         link = context.get(delta_cmds.LinkCommandContext)
 
         if link:
-            link_table_name = common.link_name_to_table_name(link.proto.name, catenate=False)
-            if not link.op.alter_table:
-                link.op.alter_table = AlterTable(link_table_name)
+            alter_table = link.op.get_alter_table(context)
 
             column_name = common.caos_name_to_pg_name(property.normal_name())
             # We don't really care about the type -- we're dropping the thing
             column_type = 'text'
 
             col = AlterTableDropColumn(Column(name=column_name, type=column_type))
-            link.op.alter_table.add_operation(col)
+            alter_table.add_operation(col)
 
         self.pgops.add(Delete(table=self.table, condition=[('name', str(property.name))]))
 
@@ -2136,7 +2448,7 @@ class PointerConstraintTableConstraint(TableClassConstraint):
     def __init__(self, table_name, column_name, prefix, constraint):
         super().__init__(table_name, column_name, prefix, constraint)
         self.constraint = constraint
-        self.suffix = 'link_constr'
+        self.suffix = 'ptr_constr'
 
     def constraint_code(self, context, value_holder='VALUE'):
         ql = postgresql.string.quote_literal
@@ -2463,7 +2775,8 @@ class LinkTable(MetaObjectTable):
             Column(name='is_atom', type='boolean', required=True, default=False),
             Column(name='readonly', type='boolean', required=True, default=False),
             Column(name='default', type='text'),
-            Column(name='constraints', type='caos.hstore')
+            Column(name='constraints', type='caos.hstore'),
+            Column(name='abstract_constraints', type='caos.hstore')
         ])
 
         self.constraints = set([
@@ -2486,7 +2799,9 @@ class LinkPropertyTable(MetaObjectTable):
             Column(name='required', type='boolean', required=True, default=False),
             Column(name='readonly', type='boolean', required=True, default=False),
             Column(name='base', type='text[]'),
-            Column(name='default', type='text')
+            Column(name='default', type='text'),
+            Column(name='constraints', type='caos.hstore'),
+            Column(name='abstract_constraints', type='caos.hstore')
         ])
 
         self.constraints = set([
@@ -2855,8 +3170,8 @@ class DropTable(SchemaObjectOperation):
 
 
 class AlterTableBase(DDLOperation):
-    def __init__(self, name):
-        super().__init__()
+    def __init__(self, name, **kwargs):
+        super().__init__(**kwargs)
         self.name = name
 
     def code(self, context):
@@ -2871,8 +3186,8 @@ class AlterTableFragment(DDLOperation):
 
 
 class AlterTable(AlterTableBase):
-    def __init__(self, name):
-        super().__init__(name)
+    def __init__(self, name, **kwargs):
+        super().__init__(name, **kwargs)
         self.ops = []
 
     def add_operation(self, op):
@@ -3141,7 +3456,43 @@ class AlterTableRenameColumn(AlterTableBase):
         return code
 
 
-class AlterFunctionRename(CommandGroup):
+class CreateFunction(DDLOperation):
+    def __init__(self, name, args, returns, text, language='plpgsql', volatility='volatile',
+                                                                      **kwargs):
+        super().__init__(**kwargs)
+        self.name = name
+        self.args = args
+        self.returns = returns
+        self.text = text
+        self.volatility = volatility
+        self.language = language
+
+    def code(self, context):
+        code = '''CREATE FUNCTION %(name)s(%(args)s)
+                  RETURNS %(return)s
+                  LANGUAGE %(lang)s
+                  %(volatility)s
+                  AS $____funcbody____$
+                      %(text)s
+                  $____funcbody____$;
+               ''' % {
+                   'name': common.qname(*self.name),
+                   'args': ', '.join(common.quote_ident(a) for a in self.args),
+                   'return': common.quote_ident(self.returns),
+                   'lang': self.language,
+                   'volatility': self.volatility,
+                   'text': self.text
+               }
+        return code
+
+
+class CreateTriggerFunction(CreateFunction):
+    def __init__(self, name, text, language='plpgsql', volatility='volatile', **kwargs):
+        super().__init__(name, args=(), returns='trigger', text=text, language=language,
+                         volatility=volatility, **kwargs)
+
+
+class RenameFunction(CommandGroup):
     def __init__(self, name, args, new_name, *, conditions=None, neg_conditions=None, priority=0):
         super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
 
@@ -3188,13 +3539,14 @@ class AlterFunctionRenameTo(DDLOperation):
 class DropFunction(DDLOperation):
     def __init__(self, name, args, *, conditions=None, neg_conditions=None, priority=0):
         self.conditional = False
-        c = []
-        for cond in conditions:
-            if isinstance(cond, FunctionExists) and cond.name == name and cond.args == args:
-                self.conditional = True
-            else:
-                c.append(cond)
-        conditions = c
+        if conditions:
+            c = []
+            for cond in conditions:
+                if isinstance(cond, FunctionExists) and cond.name == name and cond.args == args:
+                    self.conditional = True
+                else:
+                    c.append(cond)
+            conditions = c
         super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
         self.name = name
         self.args = args
@@ -3228,6 +3580,83 @@ class FunctionExists(Condition):
                 '''
 
         return code, self.name + (self.args,)
+
+
+class CreateTrigger(DDLOperation):
+    def __init__(self, trigger_name, *, table_name, events, timing='after', granularity='row',
+                                                            procedure, condition=None, **kwargs):
+        super().__init__(**kwargs)
+
+        self.trigger_name = trigger_name
+        self.table_name = table_name
+        self.events = events
+        self.timing = timing
+        self.granularity = granularity
+        self.procedure = procedure
+        self.condition = condition
+
+    def code(self, context):
+        return '''CREATE TRIGGER %(trigger_name)s %(timing)s %(events)s ON %(table_name)s
+                  FOR EACH %(granularity)s %(condition)s EXECUTE PROCEDURE %(procedure)s
+               ''' % {
+                      'trigger_name': common.quote_ident(self.trigger_name),
+                      'timing': self.timing,
+                      'events': ' OR '.join(self.events),
+                      'table_name': common.qname(*self.table_name),
+                      'granularity': self.granularity,
+                      'condition': ('WHEN (%s)' % self.condition) if self.condition else '',
+                      'procedure': '%s()' % common.qname(*self.procedure)
+                     }
+
+
+class CreateConstraintTrigger(CreateTrigger):
+    def __init__(self, trigger_name, *, table_name, events, procedure, condition=None,
+                                        conditions=None, neg_conditions=None, priority=0):
+
+        super().__init__(trigger_name=trigger_name, table_name=table_name, events=events,
+                         procedure=procedure, condition=condition,
+                         conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+
+    def code(self, context):
+        return '''CREATE CONSTRAINT TRIGGER %(trigger_name)s %(timing)s %(events)s
+                  ON %(table_name)s
+                  FOR EACH %(granularity)s %(condition)s EXECUTE PROCEDURE %(procedure)s
+               ''' % {
+                      'trigger_name': common.quote_ident(self.trigger_name),
+                      'timing': self.timing,
+                      'events': ' OR '.join(self.events),
+                      'table_name': common.qname(*self.table_name),
+                      'granularity': self.granularity,
+                      'condition': ('WHEN (%s)' % self.condition) if self.condition else '',
+                      'procedure': '%s()' % common.qname(*self.procedure)
+                     }
+
+
+class AlterTriggerRenameTo(DDLOperation):
+    def __init__(self, *, trigger_name, new_trigger_name, table_name, **kwargs):
+        super().__init__(**kwargs)
+
+        self.trigger_name = trigger_name
+        self.new_trigger_name = new_trigger_name
+        self.table_name = table_name
+
+    def code(self, context):
+        return 'ALTER TRIGGER %s ON %s RENAME TO %s' % \
+                (common.quote_ident(self.trigger_name), common.qname(*self.table_name),
+                 common.quote_ident(self.new_trigger_name))
+
+
+class DropTrigger(DDLOperation):
+    def __init__(self, trigger_name, *, table_name, **kwargs):
+        super().__init__(**kwargs)
+
+        self.trigger_name = trigger_name
+        self.table_name = table_name
+
+    def code(self, context):
+        return 'DROP TRIGGER %(trigger_name)s ON %(table_name)s' % \
+                {'trigger_name': common.quote_ident(self.trigger_name),
+                 'table_name': common.qname(*self.table_name)}
 
 
 class Comment(DDLOperation):

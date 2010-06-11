@@ -139,15 +139,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         ^(?P<concept_name>[.\w]+):(?P<link_name>[.\w]+)::(?P<constraint_class>[.\w]+)::atom_constr$
     """, re.X)
 
-    link_constraint_name_re = re.compile(r"""
-        ^(?P<concept_name>[.\w]+):(?P<link_name>[.\w]+)::(?P<constraint_class>[.\w]+)::link_constr$
+    ptr_constraint_name_re = re.compile(r"""
+        ^(?P<concept_name>[.\w]+):(?P<link_name>[.\w]+)::(?P<constraint_class>[.\w]+)::ptr_constr$
     """, re.X)
 
     error_res = {
         postgresql.exceptions.UniqueError: collections.OrderedDict((
             ('link_mapping',
              re.compile(r'^duplicate key value violates unique constraint "(?P<constr_name>.*_link_mapping_idx)"$')),
-            ('link_constraint',
+            ('ptr_constraint',
              re.compile(r'^duplicate key value violates unique constraint "(?P<constr_name>.*)"$'))
         ))
     }
@@ -170,7 +170,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.table_id_to_proto_name_cache = {}
 
         self._table_atom_constraints_cache = None
-        self._table_link_constraints_cache = None
+        self._table_ptr_constraints_cache = None
 
         self.parser = parser.PgSQLParser()
         self.search_idx_expr = astexpr.TextSearchExpr()
@@ -291,7 +291,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.column_cache.clear()
         self.table_id_to_proto_name_cache.clear()
         self._table_atom_constraints_cache = None
-        self._table_link_constraints_cache = None
+        self._table_ptr_constraints_cache = None
 
 
     def concept_name_from_id(self, id, session):
@@ -438,7 +438,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     error_info = (type, m.group('constr_name'))
                     break
             else:
-                return caos.error.UninterpretedStorageError
+                return caos.error.UninterpretedStorageError(err.message)
 
             error_type, error_data = error_info
 
@@ -447,16 +447,27 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 errcls = caos.error.LinkMappingCardinalityViolationError
                 return errcls(err, source=source, pointer=pointer)
 
-            elif error_type == 'link_constraint':
-                constraint, pointer_name = self.constraint_from_pg_name(error_data)
+            elif error_type == 'ptr_constraint':
+                constraint, pointer_name, source_table = self.constraint_from_pg_name(error_data)
 
                 msg = 'unique link constraint violation'
-                pointer = caos.concept.link(getattr(source.__class__, str(pointer_name)))
+
+                src_table = common.get_table_name(caos.types.prototype(source.__class__),
+                                                  catenate=False)
+                if source_table == src_table:
+                    pointer = caos.concept.link(getattr(source.__class__, str(pointer_name)))
+                elif pointer:
+                    src_table = common.get_table_name(caos.types.prototype(pointer), catenate=False)
+                    if source_table == src_table:
+                        source = caos.concept.getlink(source,
+                                                      caos.types.prototype(pointer).normal_name(),
+                                                      None)
+                        pointer = getattr(pointer, str(pointer_name))
 
                 errcls = caos.error.PointerConstraintUniqueViolationError
                 return errcls(msg=msg, source=source, pointer=pointer, constraint=constraint)
         else:
-            return caos.error.UninterpretedStorageError
+            return caos.error.UninterpretedStorageError(err.message)
 
 
     @debug
@@ -1251,14 +1262,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             for pg_name, (link_name, constraint) in interpreter(row):
                 idx = datastructures.OrderedIndex(key=lambda i: i.get_canonical_class())
-                link_constraints = concept_constr.setdefault(link_name, idx)
+                ptr_constraints = concept_constr.setdefault(link_name, idx)
                 cls = constraint.get_canonical_class()
                 try:
-                    existing_constraint = link_constraints[cls]
+                    existing_constraint = ptr_constraints[cls]
                     existing_constraint.merge(constraint)
                 except KeyError:
-                    link_constraints.add(constraint)
-                index_by_pg_name[pg_name] = constraint, link_name
+                    ptr_constraints.add(constraint)
+                index_by_pg_name[pg_name] = constraint, link_name, tuple(row['table_name'])
 
         return constraints, index_by_pg_name
 
@@ -1331,8 +1342,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return self.read_table_atom_constraints()[0]
 
 
-    def interpret_table_link_constraint(self, name, expr, columns):
-        m = self.link_constraint_name_re.match(name)
+    def interpret_table_ptr_constraint(self, name, expr, columns):
+        m = self.ptr_constraint_name_re.match(name)
         if not m:
             raise caos.MetaError('could not interpret table constraint %s' % name)
 
@@ -1358,30 +1369,30 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return link_name, constraint_class(constraint_data)
 
 
-    def interpret_table_link_constraints(self, constr):
+    def interpret_table_ptr_constraints(self, constr):
         cs = zip(constr['constraint_names'], constr['constraint_expressions'],
                  constr['constraint_descriptions'], constr['constraint_columns'])
 
         for name, expr, description, cols in cs:
             cols = cols.split('~~~~')
-            yield name, self.interpret_table_link_constraint(description, expr, cols)
+            yield name, self.interpret_table_ptr_constraint(description, expr, cols)
 
 
-    def read_table_link_constraints(self):
-        if self._table_link_constraints_cache is None:
-            constraints, index = self.read_table_constraints('link_constr',
-                                                             self.interpret_table_link_constraints)
-            self._table_link_constraints_cache = (constraints, index)
+    def read_table_ptr_constraints(self):
+        if self._table_ptr_constraints_cache is None:
+            constraints, index = self.read_table_constraints('ptr_constr',
+                                                             self.interpret_table_ptr_constraints)
+            self._table_ptr_constraints_cache = (constraints, index)
 
-        return self._table_link_constraints_cache
+        return self._table_ptr_constraints_cache
 
 
-    def get_table_link_constraints(self):
-        return self.read_table_link_constraints()[0]
+    def get_table_ptr_constraints(self):
+        return self.read_table_ptr_constraints()[0]
 
 
     def constraint_from_pg_name(self, pg_name):
-        return self.read_table_link_constraints()[1].get(pg_name)
+        return self.read_table_ptr_constraints()[1].get(pg_name)
 
 
     def read_pointer_target_column(self, meta, source, pointer_name, constraints_cache):
@@ -1415,6 +1426,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return target
 
 
+    def unpack_constraints(self, meta, constraints):
+        result = []
+        if constraints:
+            for cls, val in constraints.items():
+                constraint = helper.get_object(cls)(next(iter(yaml.Language.load(val))))
+                result.append(constraint)
+        return result
+
+
     def read_links(self, meta):
 
         link_tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
@@ -1422,10 +1442,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         link_tables = {(t['schema'], t['name']): t for t in link_tables}
 
         links_list = datasources.meta.links.ConceptLinks(self.connection).fetch()
-        links_list = {caos.Name(r['name']): r for r in links_list}
+        links_list = collections.OrderedDict((caos.Name(r['name']), r) for r in links_list)
 
         concept_constraints = self.get_table_atom_constraints()
-        link_constraints = self.get_table_link_constraints()
+        ptr_constraints = self.get_table_ptr_constraints()
 
         concept_indexes = self.read_search_indexes()
 
@@ -1457,15 +1477,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             description = r['description']
             source = meta.get(r['source']) if r['source'] else None
             link_search = None
-            constraints = []
+            constraints = self.unpack_constraints(meta, r['constraints'])
+            abstract_constraints = self.unpack_constraints(meta, r['abstract_constraints'])
 
             if r['default']:
                 r['default'] = self.unpack_default(r['default'])
-
-            if r['constraints']:
-                for cls, val in r['constraints'].items():
-                    constraint = helper.get_object(cls)(next(iter(yaml.Language.load(val))))
-                    constraints.append(constraint)
 
             if r['source_id'] and r['is_atom']:
                 target = self.read_pointer_target_column(meta, source, bases[0], concept_constraints)
@@ -1481,7 +1497,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         weight = col_search_index[('default', 'english')]
                         link_search = proto.LinkSearchConfiguration(weight=weight)
 
-                constr = link_constraints.get((concept_schema, concept_table))
+                constr = ptr_constraints.get((concept_schema, concept_table))
                 if constr:
                     link_constr = constr.get(bases[0])
                     if link_constr:
@@ -1503,6 +1519,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             for constraint in constraints:
                 link.add_constraint(constraint)
+
+            for constraint in abstract_constraints:
+                link.add_abstract_constraint(constraint)
+
+            link.acquire_parent_data(meta)
 
             if source:
                 source.add_link(link)
@@ -1544,8 +1565,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def read_link_properties(self, meta):
         link_props = datasources.meta.links.LinkProperties(self.connection).fetch()
-        link_props = {caos.Name(r['name']): r for r in link_props}
-        link_constraints = self.get_table_atom_constraints()
+        link_props = collections.OrderedDict((caos.Name(r['name']), r) for r in link_props)
+        atom_constraints = self.get_table_atom_constraints()
+        ptr_constraints = self.get_table_ptr_constraints()
 
         for name, r in link_props.items():
             bases = ()
@@ -1563,10 +1585,24 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             default = self.unpack_default(r['default']) if r['default'] else None
 
+            constraints = []
+            abstract_constraints = []
+
             if source:
                 # The property is attached to a link, check out link table columns for
                 # target information.
-                target = self.read_pointer_target_column(meta, source, bases[0], link_constraints)
+                target = self.read_pointer_target_column(meta, source, bases[0], atom_constraints)
+
+                constraints = self.unpack_constraints(meta, r['constraints'])
+                abstract_constraints = self.unpack_constraints(meta, r['abstract_constraints'])
+
+                link_table = common.get_table_name(source, catenate=False)
+                constr = ptr_constraints.get(link_table)
+                if constr:
+                    ptr_constr = constr.get(bases[0])
+                    if ptr_constr:
+                        constraints.extend(ptr_constr)
+
             else:
                 target = None
 
@@ -1577,6 +1613,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                       default=default)
 
             if source:
+                if source.generic():
+                    for constraint in constraints:
+                        prop.add_constraint(constraint)
+
+                    for constraint in abstract_constraints:
+                        prop.add_abstract_constraint(constraint)
+
+                prop.acquire_parent_data(meta)
                 source.add_property(prop)
 
             meta.add(prop)
@@ -1611,7 +1655,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         tables = {(t['schema'], t['name']): t for t in tables}
 
         concept_list = datasources.meta.concepts.ConceptList(self.connection).fetch()
-        concept_list = {caos.Name(row['name']): row for row in concept_list}
+        concept_list = collections.OrderedDict((caos.Name(row['name']), row) for row in concept_list)
 
         visited_tables = set()
 

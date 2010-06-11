@@ -264,7 +264,29 @@ mapping:
                                                 "readonly":
                                                     type: bool
                                                 "constraints":
-                                                    *ATOM_CONSTRAINTS
+                                                    type: choice
+                                                    choice:
+                                                       - *ATOM_CONSTRAINTS
+                                                       - &POINTER_CONSTRAINTS
+                                                         type: seq
+                                                         sequence:
+                                                           - type: choice
+                                                             choice:
+                                                               - type: map
+                                                                 max-length: 1
+                                                                 min-length: 1
+                                                                 object: semantix.caos.backends.yaml.PointerConstraintUnique
+                                                                 mapping:
+                                                                   "unique":
+                                                                       type: choice
+                                                                       required: True
+                                                                       choice:
+                                                                           - type: bool
+                                                                           - type: str
+
+                                                "abstract-constraints":
+                                                    *POINTER_CONSTRAINTS
+
                                                 "default":
                                                     *DEFAULT
 
@@ -340,22 +362,9 @@ mapping:
                                                   type: choice
                                                   choice:
                                                     - *ATOM_CONSTRAINTS
-                                                    - type: seq
-                                                      sequence:
-                                                        - type: choice
-                                                          choice:
-                                                            - type: map
-                                                              max-length: 1
-                                                              min-length: 1
-                                                              object: semantix.caos.backends.yaml.PointerConstraintUnique
-                                                              mapping:
-                                                                "unique":
-                                                                   type: choice
-                                                                   required: True
-                                                                   choice:
-                                                                        - type: bool
-                                                                        - type: str
-
+                                                    - *POINTER_CONSTRAINTS
+                                              "abstract-constraints":
+                                                  *POINTER_CONSTRAINTS
                                               "comparison":
                                                   type: str
                                                   enum: [cidirect, fuzzy]

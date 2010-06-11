@@ -420,14 +420,24 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
                                         title=info['title'], description=info['description'],
                                         readonly=info['readonly'], default=default,
                                         _setdefaults_=False, _relaxrequired_=True)
-            self.constraints = info.get('constraints')
+            self._constraints = info.get('constraints')
+            self._abstract_constraints = info.get('abstract-constraints')
 
     @classmethod
     def represent(cls, data):
         result = {}
 
         if data.target and data.target.constraints and data.target.automatic:
-            result['constraints'] = list(itertools.chain.from_iterable(data.target.constraints.values()))
+            items = itertools.chain.from_iterable(data.target.constraints.values())
+            result['constraints'] = list(items)
+
+        if data.local_constraints:
+            constraints = result.setdefault('constraints', [])
+            constraints.extend(itertools.chain.from_iterable(data.local_constraints.values()))
+
+        if data.abstract_constraints:
+            items = itertools.chain.from_iterable(data.local_constraints.values())
+            result['abstract-constraints'] = list(items)
 
         if data.title:
             result['title'] = data.title
@@ -521,9 +531,13 @@ class LinkDef(Prototype, adapts=proto.Link):
         if data.own_pointers:
             result['properties'] = {p.normal_name(): p for p in data.own_pointers.values()}
 
-        if data.constraints:
-            constraints = itertools.chain.from_iterable(data.constraints.values())
-            result['constraints'] = list(constraints)
+        if data.local_constraints:
+            constraints = result.setdefault('constraints', [])
+            constraints.extend(itertools.chain.from_iterable(data.local_constraints.values()))
+
+        if data.abstract_constraints:
+            items = itertools.chain.from_iterable(data.abstract_constraints.values())
+            result['abstract-constraints'] = list(items)
 
         if data.search:
             result['search'] = data.search
@@ -624,6 +638,7 @@ class LinkList(LangObject, list):
                     link.context = self.context
 
                     link._constraints = info.get('constraints')
+                    link._abstract_constraints = info.get('abstract-constraints')
                     link._properties = props
 
                     self.append(link)
@@ -736,6 +751,26 @@ class MetaSet(LangObject):
 
         return topological.normalize(g, merger=proto.Atom.merge)
 
+    def add_pointer_constraints(self, parent, constraints, type, constraint_type='regular'):
+        if constraints:
+            for constraint in constraints:
+                if isinstance(constraint, proto.PointerConstraint):
+                    if isinstance(constraint, proto.PointerConstraintUnique):
+                        if type == 'atom':
+                            if len(constraint.values) > 1 \
+                                    or isinstance(list(constraint.values)[0], str):
+                                raise caos.MetaError(('invalid value for atomic pointer "%s" '
+                                                      'unique constraint') % parent.normal_name())
+                        elif type == 'concept':
+                            if not isinstance(list(constraint.values)[0], str):
+                                raise caos.MetaError(('invalid value for non-atomic pointer "%s" '
+                                                      'unique constraint, expecting an expression')\
+                                                      % parent.normal_name())
+
+                    if constraint_type == 'abstract':
+                        parent.add_abstract_constraint(constraint)
+                    else:
+                        parent.add_constraint(constraint)
 
     def read_link_properties(self, data, globalmeta, localmeta):
         linkprop_ns = localmeta.get_namespace(proto.LinkProperty)
@@ -813,6 +848,11 @@ class MetaSet(LangObject):
                                                             property_qname)
             property.name = caos.Name(name=prop_genname, module=property_qname.module)
             property.source = link
+
+            self.add_pointer_constraints(property, getattr(property, '_constraints', ()), 'atom')
+            self.add_pointer_constraints(property, getattr(property, '_abstract_constraints', ()),
+                                                                     'atom', 'abstract')
+
             globalmeta.add(property)
             localmeta.add(property)
 
@@ -852,7 +892,8 @@ class MetaSet(LangObject):
 
                     constraints = getattr(property, 'constraints', None)
                     if constraints:
-                        atom_constraints = [c for c in constraints if isinstance(c, proto.AtomConstraint)]
+                        atom_constraints = [c for c in constraints.values()
+                                            if isinstance(c, proto.AtomConstraint)]
                     else:
                         atom_constraints = None
                     if atom_constraints:
@@ -877,22 +918,13 @@ class MetaSet(LangObject):
                                          link.normal_name())
 
             constraints = getattr(link, '_constraints', ())
+            type = 'atom' if link.atomic() else 'concept'
             if not link.generic() and constraints:
                 link_constraints = [c for c in constraints if isinstance(c, proto.PointerConstraint)]
-                for constraint in link_constraints:
-                    if isinstance(constraint, proto.PointerConstraintUnique):
-                        if link.atomic():
-                            if len(constraint.values) > 1 \
-                                    or isinstance(list(constraint.values)[0], str):
-                                raise caos.MetaError(('invalid value for atomic link "%s" '
-                                                      'unique constraint') % link.normal_name())
-                        else:
-                            if not isinstance(list(constraint.values)[0], str):
-                                raise caos.MetaError(('invalid value for non-atomic link "%s" '
-                                                      'unique constraint, expecting an expression')\
-                                                      % link.normal_name())
+                self.add_pointer_constraints(link, link_constraints, type)
 
-                    link.add_constraint(constraint)
+            self.add_pointer_constraints(link, getattr(link, '_abstract_constraints', ()),
+                                                             type, 'abstract')
 
             if link.base:
                 g[link.name]['merge'].extend(link.base)

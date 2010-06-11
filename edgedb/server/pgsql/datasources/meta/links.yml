@@ -73,6 +73,7 @@ source: |
             l.is_abstract,
             l.readonly,
             l.constraints,
+            l.abstract_constraints,
             l.default
         FROM
             caos.link l
@@ -122,6 +123,8 @@ source: |
             p.default       AS default,
             p.source_id     AS source_id,
             p.target_id     AS target_id,
+            p.constraints   AS constraints,
+            p.abstract_constraints AS abstract_constraints,
             l.name          AS source,
             a.name          AS target
         FROM
