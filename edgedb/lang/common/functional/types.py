@@ -221,19 +221,26 @@ class FunctionValidator:
 
 
 class checktypes:
-    def __new__(cls, func):
-        if not __debug__:
+    def __new__(cls, func=None, *, force=False):
+        def wrap(func):
+            if inspect.isfunction(func):
+                args_spec = tools.get_argsspec(func)
+                if not args_spec.annotations:
+                    warnings.warn('No annotation for function "%s" while using @checktypes on it' % \
+                                                                                        func.__name__)
+                    return func
+
+            return tools.apply_decorator(func, decorate_function=FunctionValidator.checktypes_function,
+                                         decorate_class=FunctionValidator.checktypes_class)
+
+        if func is None:
+            if __debug__ or force:
+                return wrap
+            return lambda func: func
+        else:
+            if __debug__:
+                return wrap(func)
             return func
-
-        if inspect.isfunction(func):
-            args_spec = tools.get_argsspec(func)
-            if not args_spec.annotations:
-                warnings.warn('No annotation for function "%s" while using @checktypes on it' % \
-                                                                                    func.__name__)
-                return func
-
-        return tools.apply_decorator(func, decorate_function=FunctionValidator.checktypes_function,
-                                     decorate_class=FunctionValidator.checktypes_class)
 
 
 @checktypes
