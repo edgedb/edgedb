@@ -95,7 +95,7 @@ class _Renderer:
                             print(space, end='')
                             line2_len = len(space)
 
-                    default_repr = ' (default: %r)' % value.default
+                    default_repr = ' (default: %s)' % repr(value.default)
                     print(default_repr, end='')
                     if line2_len:
                         line2_len += len(default_repr)
