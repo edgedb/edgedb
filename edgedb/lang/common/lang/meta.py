@@ -5,6 +5,7 @@
 # See LICENSE for details.
 ##
 
+import os
 
 class LanguageMeta(type):
     languages = []
@@ -17,11 +18,16 @@ class LanguageMeta(type):
 
     @staticmethod
     def recognize_file(filename, try_append_extension=False, is_package=False):
+        result = None
+
         for lang in LanguageMeta.languages:
             myfile = lang.recognize_file(filename, try_append_extension, is_package)
             if myfile:
-                return (lang, myfile)
-        return None
+                if (result is not None or
+                    (try_append_extension and os.path.exists(filename + '.py'))): # hardcode .py
+                    raise ImportError('ambigous module import: %s' % filename)
+                result = (lang, myfile)
+        return result
 
 
 class Language(object, metaclass=LanguageMeta):

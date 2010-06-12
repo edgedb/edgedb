@@ -7,9 +7,9 @@
 
 
 import importlib
-from semantix.utils.lang.yaml import YamlImportError
 from semantix.utils.lang.yaml.loader import AttributeMappingNode
 from semantix.utils.lang.yaml.schema import Schema
+from semantix.utils.debug import assert_raises
 
 class DictImportSchema(Schema):
     def check(self, node):
@@ -26,10 +26,5 @@ class TestLangImport(object):
         assert hasattr(mod, 'attr1') and hasattr(mod, 'attr2') and hasattr(mod, 'attr3')
 
     def test_lang_ambiguous_import(self):
-        try:
+        with assert_raises(ImportError):
             from semantix.utils.lang.yaml.tests.testdata.ambig import test
-            print(test)
-        except YamlImportError:
-            pass
-        else:
-            assert False, 'Failed to detect ambiguous yaml/python files'

@@ -13,10 +13,6 @@ from semantix.utils.lang.yaml import loader, dumper
 from semantix.utils.functional import Adapter
 
 
-class YamlImportError(Exception):
-    pass
-
-
 class Language(meta.Language):
     lazyload = False
 
@@ -25,8 +21,6 @@ class Language(meta.Language):
         if is_package:
             filename = os.path.join(filename, '__init__')
         if try_append_extension and os.path.exists(filename + '.yml'):
-            if os.path.exists(filename + '.py'):
-                raise YamlImportError('ambiguous yaml module name: "%s"' % filename)
             return filename + '.yml'
         elif os.path.exists(filename) and filename.endswith('.yml'):
             return filename
