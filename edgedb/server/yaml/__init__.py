@@ -994,7 +994,8 @@ class MetaSet(LangObject):
                             # The only attribute that is used for global definition is the name.
                             link_qname = caos.Name(name=link_name, module=self.module)
                             linkdef = proto.Link(name=link_qname,
-                                                 base=(caos.Name('semantix.caos.builtins.link'),))
+                                                 base=(caos.Name('semantix.caos.builtins.link'),),
+                                                 _setdefaults_=False)
                             target_atom = globalmeta.get(link.target, type=proto.Atom, default=None)
                             linkdef.is_atom = target_atom is not None
                             globalmeta.add(linkdef)

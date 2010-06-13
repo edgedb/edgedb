@@ -260,7 +260,6 @@ mapping:
                                                     type: str
                                                 "required":
                                                     type: bool
-                                                    default: False
                                                 "readonly":
                                                     type: bool
                                                 "constraints":
