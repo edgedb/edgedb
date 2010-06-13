@@ -674,7 +674,7 @@ class MetaSet(LangObject):
         for alias, module in context.document.imports.items():
             localindex.add_module(module.__name__, alias)
 
-        self.caosql_expr = caosql_expr.CaosQLExpression(localindex)
+        self.caosql_expr = caosql_expr.CaosQLExpression(globalindex, localindex.modules)
 
         self.read_atoms(data, globalindex, localindex)
         self.read_link_properties(data, globalindex, localindex)
@@ -1015,6 +1015,7 @@ class MetaSet(LangObject):
                     localmeta.add(link)
                     concept.add_link(link)
 
+        for concept in localmeta('concept', include_builtin=self.include_builtin):
             for index in concept._indexes:
                 expr, tree = self.normalize_index_expr(index.expr, concept, localmeta)
                 index.expr = expr

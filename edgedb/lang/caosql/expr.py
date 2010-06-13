@@ -31,7 +31,7 @@ class CaosQLExpression:
     def normalize_source_expr(self, expr, source):
         tree = self.parser.parse(expr)
 
-        visitor = _PrependSource(source, self.proto_schema)
+        visitor = _PrependSource(source, self.proto_schema, self.module_aliases)
         visitor.visit(tree)
 
         expr = codegen.CaosQLSourceGenerator.to_source(tree)
@@ -55,9 +55,10 @@ class CaosQLExpression:
 
 
 class _PrependSource(ast.visitor.NodeVisitor):
-    def __init__(self, source, schema):
+    def __init__(self, source, schema, module_aliases):
         self.source = source
         self.schema = schema
+        self.module_aliases = module_aliases
 
     def visit_PathNode(self, node):
         step = node.steps[0]
@@ -75,7 +76,7 @@ class _PrependSource(ast.visitor.NodeVisitor):
         prototype = self.schema.get(name, None)
 
         if not prototype:
-            prototype = self.schema.get(name, type=type)
+            prototype = self.schema.get(name, type=type, module_aliases=self.module_aliases)
 
         if not isinstance(prototype, self.source.__class__.get_canonical_class()):
 
@@ -112,7 +113,7 @@ class _PrependSource(ast.visitor.NodeVisitor):
         else:
             type = proto.Link
 
-        prototype = self.schema.get(name, type=type)
+        prototype = self.schema.get(name, type=type, module_aliases=self.module_aliases)
 
         node.expr = prototype.name.name
         node.namespace = prototype.name.module
@@ -132,7 +133,7 @@ class _PrependSource(ast.visitor.NodeVisitor):
         else:
             name = node.expr
 
-        prototype = self.schema.get(name)
+        prototype = self.schema.get(name, module_aliases=self.module_aliases)
 
         node.name = prototype.name.name
         node.namespace = prototype.name.module
