@@ -488,11 +488,13 @@ class BasePythonSourceGenerator(SourceGenerator):
         self.write('}')
 
     def visit_PyIfExp(self, node):
+        self.write('(')
         self.visit(node.body)
         self.write(' if ')
         self.visit(node.test)
         self.write(' else ')
         self.visit(node.orelse)
+        self.write(')')
 
     def visit_PyStarred(self, node):
         self.write('*')
