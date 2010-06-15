@@ -294,6 +294,13 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.right)
         self.write(')')
 
+    def visit_UnaryOpNode(self, node):
+        self.write('(')
+        self.write(str(node.op).upper())
+        self.write(' ')
+        self.visit(node.operand)
+        self.write(')')
+
     def visit_PredicateNode(self, node):
         self.visit(node.expr)
 

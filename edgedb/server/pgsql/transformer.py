@@ -262,6 +262,10 @@ class SimpleExprTransformer(CaosExprTransformer):
             right = self._process_expr(context, expr.right)
             result = pgsql.ast.BinOpNode(left=left, op=expr.op, right=right)
 
+        elif isinstance(expr, tree.ast.UnaryOp):
+            operand = self._process_expr(context, expr.expr)
+            result = pgsql.ast.UnaryOpNode(op=expr.op, operand=operand)
+
         elif isinstance(expr, tree.ast.AtomicRefExpr):
             result = self._process_expr(context, expr.expr)
 
@@ -720,6 +724,10 @@ class CaosTreeTransformer(CaosExprTransformer):
                                 op = '||'
 
                         result = pgsql.ast.BinOpNode(op=op, left=left, right=right)
+
+        elif isinstance(expr, tree.ast.UnaryOp):
+            operand = self._process_expr(context, expr.expr, cte)
+            result = pgsql.ast.UnaryOpNode(op=expr.op, operand=operand)
 
         elif isinstance(expr, tree.ast.Constant):
             result = self._process_constant(context, expr)

@@ -99,6 +99,9 @@ class TreeTransformer:
             self.extract_prefixes(expr.left, prefixes)
             self.extract_prefixes(expr.right, prefixes)
 
+        elif isinstance(expr, caos_ast.UnaryOp):
+            self.extract_prefixes(expr.expr, prefixes)
+
         elif isinstance(expr, (caos_ast.InlineFilter, caos_ast.InlinePropFilter)):
             self.extract_prefixes(expr.ref, prefixes)
             self.extract_prefixes(expr.expr, prefixes)
@@ -264,6 +267,9 @@ class TreeTransformer:
             elif left_aggregates or right_aggregates:
                 raise TreeError('invalid expression mix of aggregates and non-aggregates')
 
+        elif isinstance(expr, caos_ast.UnaryOp):
+            self.reorder_aggregates(expr.expr)
+
         elif isinstance(expr, (caos_ast.AtomicRef, caos_ast.Constant, caos_ast.InlineFilter,
                                caos_ast.EntitySet, caos_ast.InlinePropFilter)):
             pass
@@ -375,6 +381,9 @@ class TreeTransformer:
                 expr = caos_ast.BinOp(left=left, op=expr.op, right=right, aggregates=expr.aggregates)
             else:
                 expr = next(iter(e.paths))
+
+        elif isinstance(expr, caos_ast.UnaryOp):
+            expr.expr = self.merge_paths(expr.expr)
 
         elif isinstance(expr, caos_ast.PathCombination):
             expr = self.flatten_and_unify_path_combination(expr, deep=True)
@@ -1006,6 +1015,9 @@ class TreeTransformer:
             else:
                 return self.flatten_path_combination(combination(paths=frozenset(paths)))
 
+        elif isinstance(path, caos_ast.UnaryOp):
+            return self.extract_paths(path.expr, reverse)
+
         elif isinstance(path, caos_ast.FunctionCall):
             paths = set()
             for p in path.args:
@@ -1443,6 +1455,14 @@ class TreeTransformer:
 
         if not result:
             raise TreeError('Unexpected binop operands: %s, %s' % (left, right))
+
+        return result
+
+    def process_unaryop(self, expr, operator):
+        if isinstance(expr, caos_ast.AtomicRef):
+            result = caos_ast.AtomicRefExpr(expr=caos_ast.UnaryOp(expr=expr, op=operator))
+        else:
+            result = caos_ast.UnaryOp(expr=expr, op=operator)
 
         return result
 

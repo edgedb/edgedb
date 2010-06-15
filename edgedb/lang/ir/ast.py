@@ -252,6 +252,9 @@ class Record(Base): __fields = [('elements', list), 'concept']
 class BinOp(Base):
     __fields = ['left', 'right', 'op', ('aggregates', bool)]
 
+class UnaryOp(Base):
+    __fields = ['expr', 'op', ('aggregates', bool)]
+
 class InlineFilter(Base): __fields  = ['expr', 'ref']
 class InlinePropFilter(Base): __fields  = ['expr', 'ref']
 class ExistPred(Base): __fields = ['expr', 'outer']
