@@ -1444,6 +1444,28 @@ class TreeTransformer:
                             if filtered[left.concept]:
                                 left.conceptfilter = filtered
                         result = left
+
+            elif op in (ast.ops.IN, ast.ops.NOT_IN):
+                if isinstance(right, caos_ast.Constant):
+
+                    id_col = caos_name.Name('semantix.caos.builtins.id')
+
+                    # <Constant> IN <EntitySet> is interpreted as a membership
+                    # check of entity with ID represented by Constant in the EntitySet,
+                    # which is equivalent to <EntitySet>.id = <Constant>
+                    #
+                    if reversed:
+                        membership_op = ast.ops.EQ if op == ast.ops.IN else ast.ops.NE
+                    else:
+                        membership_op = op
+
+                    paths = set()
+                    ref = caos_ast.AtomicRefSimple(ref=left, name=id_col)
+                    expr = caos_ast.BinOp(left=ref, right=right, op=membership_op)
+                    paths.add(caos_ast.AtomicRefExpr(expr=expr))
+
+                    result = caos_ast.Disjunction(paths=frozenset(paths))
+
             else:
                 result = newbinop(left, right)
 
