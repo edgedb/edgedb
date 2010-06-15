@@ -310,16 +310,28 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def entity_from_row(self, session, concept_name, attribute_map, row):
         atom_link_map = {}
 
-        concept = session.realm.meta.get(concept_name)
+        concept_map = self.get_concept_map(session)
 
-        for link_name, link in concept.pointers.items():
-            if link.atomic():
-                col_name = common.caos_name_to_pg_name(link_name)
-                atom_link_map[link_name] = attribute_map[col_name]
+        concept_id = row[attribute_map['concept_id']]
+        real_concept = concept_map[concept_id]
 
-        links = {k: row[i] for k, i in atom_link_map.items()}
+        if real_concept == concept_name:
+            concept = session.realm.meta.get(concept_name)
+
+            for link_name, link in concept.pointers.items():
+                if link.atomic():
+                    col_name = common.caos_name_to_pg_name(link_name)
+                    atom_link_map[link_name] = attribute_map[col_name]
+
+            links = {k: row[i] for k, i in atom_link_map.items()}
+            id = links['semantix.caos.builtins.id']
+        else:
+            id = row[attribute_map[common.caos_name_to_pg_name('semantix.caos.builtins.id')]]
+            links = self.load_entity(real_concept, id, session)
+            concept_name = real_concept
+
         concept = session.schema.get(concept_name)
-        return session._merge(links['semantix.caos.builtins.id'], concept, links)
+        return session._merge(id, concept, links)
 
 
     def load_entity(self, concept, id, session):
@@ -805,6 +817,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             for row in cl_ds.fetch():
                 self.concept_cache[row['name']] = row['id']
+                self.concept_cache[row['id']] = caos.Name(row['name'])
 
         return self.concept_cache
 
