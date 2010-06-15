@@ -782,6 +782,26 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                             self.add_pointer_constraint(source, pointer_name,
                                                         constr, meta, context)
 
+    def create_pointer_constraints(self, source, meta, context):
+        for pointer_name, pointer in source.pointers.items():
+            if pointer_name not in source.own_pointers:
+                if isinstance(pointer, proto.LinkSet):
+                    pointer = pointer.first
+
+                if not pointer.atomic() or pointer.generic():
+                    continue
+
+                constraints = itertools.chain(pointer.constraints.values(),
+                                              pointer.abstract_constraints.values())
+                for constraint in constraints:
+                    if isinstance(constraint, proto.PointerConstraintUnique):
+                        key = persistent_hash(constraint)
+                        try:
+                            existing = self.pointer_constraints[pointer_name][key]
+                        except KeyError:
+                            self.add_pointer_constraint(source, pointer_name, constraint,
+                                                                meta, context)
+
     def adjust_pointer_constraints(self, meta, context, source):
 
         for pointer in (p for p in source.pointers.values() if p.atomic()):
@@ -1132,6 +1152,7 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
         concept_table.bases = list(bases)
 
         self.apply_inherited_deltas(concept, meta, context)
+        self.create_pointer_constraints(concept, meta, context)
 
         self.attach_alter_table(context)
 
@@ -1484,6 +1505,7 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
 
         if self.has_table(link, meta, context):
             self.apply_inherited_deltas(link, meta, context)
+            self.create_pointer_constraints(link, meta, context)
 
         self.attach_alter_table(context)
 
