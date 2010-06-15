@@ -275,3 +275,5 @@ class TextSearchOperator(CaosOperator):
     pass
 
 SEARCH = TextSearchOperator('@@')
+LIKE = CaosOperator('like')
+ILIKE = CaosOperator('ilike')
