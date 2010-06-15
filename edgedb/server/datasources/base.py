@@ -99,6 +99,9 @@ class CaosDatasource(Datasource):
         self.session = session
 
     def check_type(self, value, type):
+        if type == 'any' or value is None:
+            return True
+
         type = self.session.schema.get(type)
         if isinstance(value, type):
             return True
