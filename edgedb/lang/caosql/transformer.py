@@ -11,7 +11,6 @@ import itertools
 from semantix.caos import types as caos_types
 from semantix.caos import tree
 from semantix.caos import name as caos_name
-from semantix.caos import proto as caos_proto
 from semantix.caos.caosql import ast as qlast
 from semantix.caos.caosql import errors
 
@@ -77,7 +76,27 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
         return self._process_expr(caos_tree)
 
     def _process_expr(self, expr):
-        if isinstance(expr, tree.ast.BinOp):
+        if isinstance(expr, tree.ast.GraphExpr):
+            result = qlast.SelectQueryNode()
+
+            result.where = self._process_expr(expr.generator) if expr.generator else None
+            result.groupby = [self._process_expr(e) for e in expr.grouper]
+            result.orderby = [self._process_expr(e) for e in expr.sorter]
+            result.targets = [self._process_expr(e) for e in expr.selector]
+
+        elif isinstance(expr, tree.ast.InlineFilter):
+            result = self._process_expr(expr.expr)
+
+        elif isinstance(expr, tree.ast.Constant):
+            result = qlast.ConstantNode(value=expr.value, index=expr.index)
+
+        elif isinstance(expr, tree.ast.SelectorExpr):
+            result = qlast.SelectExprNode(expr=self._process_expr(expr.expr), alias=expr.name)
+
+        elif isinstance(expr, tree.ast.Record):
+            result = self._process_expr(expr.elements[0].ref)
+
+        elif isinstance(expr, tree.ast.BinOp):
             left = self._process_expr(expr.left)
             right = self._process_expr(expr.right)
             result = qlast.BinOpNode(left=left, op=expr.op, right=right)
@@ -110,6 +129,13 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
             path.steps.extend(reversed(links))
 
             result = path
+
+        elif isinstance(expr, tree.ast.Disjunction):
+            paths = list(expr.paths)
+            if len(paths) == 1:
+                result = self._process_expr(paths[0])
+            else:
+                assert False, "path combinations are not supported yet"
 
         elif isinstance(expr, tree.ast.LinkPropRef):
             path = self._process_expr(expr.ref)
@@ -506,7 +532,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                         link_proto = next(iter(link.filter.labels))
                         sources, prop_protos = self._normalize_link(context, link_proto,
                                                                     link_expr.name, module,
-                                                                    type=caos_proto.LinkProperty)
+                                                                    type=caos_types.ProtoLinkProperty)
 
                         for prop_proto in prop_protos:
                             propref = tree.ast.LinkPropRefSimple(name=prop_proto.name, ref=link,

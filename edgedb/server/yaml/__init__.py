@@ -879,8 +879,10 @@ class MetaSet(LangObject):
                 link.base = (caos.Name('semantix.caos.builtins.link'),)
 
             for index in link._indexes:
-                expr, tree = self.normalize_index_expr(index.expr, link, localmeta)
-                link.add_index(proto.SourceIndex(expr, tree=tree))
+                expr, tree = self.normalize_index_expr(index.expr, link, globalmeta, localmeta)
+                idx = proto.SourceIndex(expr, tree=tree)
+                idx.context = index.context
+                link.add_index(idx)
 
     def order_links(self, globalmeta):
         g = {}
@@ -937,6 +939,8 @@ class MetaSet(LangObject):
             for link in links:
                 for index in link.indexes:
                     csql_expr.check_source_atomic_expr(index.tree, link)
+
+                self.normalize_pointer_defaults(link, globalmeta)
 
         except caosql_exc.CaosQLReferenceError as e:
             raise MetaError(e.args[0], context=index.context) from e
@@ -1017,15 +1021,44 @@ class MetaSet(LangObject):
 
         for concept in localmeta('concept', include_builtin=self.include_builtin):
             for index in concept._indexes:
-                expr, tree = self.normalize_index_expr(index.expr, concept, localmeta)
+                expr, tree = self.normalize_index_expr(index.expr, concept, globalmeta, localmeta)
                 index.expr = expr
                 index.tree = tree
                 concept.add_index(index)
 
 
-    def normalize_index_expr(self, expr, concept, meta):
+    def normalize_index_expr(self, expr, concept, globalmeta, localmeta):
         expr, tree = self.caosql_expr.normalize_source_expr(expr, concept)
         return expr, tree
+
+
+    def normalize_pointer_defaults(self, source, globalmeta):
+        for link_name, links in source.pointers.items():
+            if not isinstance(links, proto.LinkSet):
+                links = [links]
+
+            for link in links:
+                if link.default:
+                    for default in link.default:
+                        if isinstance(default, QueryDefaultSpec):
+                            value, tree = self.caosql_expr.normalize_expr(default.value)
+
+                            first = list(tree.result_types.values())[0][0]
+                            if len(tree.result_types) > 1 or not \
+                                                first.issubclass(globalmeta, link.target):
+                                raise MetaError(('default value query must yield a '
+                                                 'single-column result of type "%s"') %
+                                                 link.target.name, default.context)
+
+                            if not isinstance(link.target, caos.types.ProtoAtom):
+                                if link.mapping not in (caos.types.ManyToOne,
+                                                        caos.types.ManyToMany):
+                                    raise MetaError('concept links with query defaults ' \
+                                                    'must have either a "*1" or "**" mapping',
+                                                     default.context)
+
+                            default.value = value
+                    link.normalize_defaults()
 
 
     def order_concepts(self, globalmeta):
@@ -1086,6 +1119,8 @@ class MetaSet(LangObject):
             for concept in concepts:
                 for index in concept.indexes:
                     csql_expr.check_source_atomic_expr(index.tree, concept)
+
+                self.normalize_pointer_defaults(concept, globalmeta)
 
         except caosql_exc.CaosQLReferenceError as e:
             raise MetaError(e.args[0], context=index.context) from e

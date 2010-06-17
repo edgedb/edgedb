@@ -21,12 +21,19 @@ class CaosQLExpression:
         self.module_aliases = module_aliases
         self.proto_schema = proto_schema
         self.transformer = transformer.CaosqlTreeTransformer(proto_schema, module_aliases)
+        self.reverse_transformer = transformer.CaosqlReverseTransformer()
 
     def process_concept_expr(self, expr, concept):
         tree = self.parser.parse(expr)
         context = transformer.ParseContext()
         context.current.location = 'selector'
         return self.transformer._process_expr(context, tree)
+
+    def normalize_expr(self, expr):
+        tree = self.parser.parse(expr)
+        caos_tree = self.transformer.transform(tree, ())
+        tree = self.reverse_transformer.transform(caos_tree)
+        return codegen.CaosQLSourceGenerator.to_source(tree), caos_tree
 
     def normalize_source_expr(self, expr, source):
         tree = self.parser.parse(expr)

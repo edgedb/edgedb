@@ -20,6 +20,34 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
     def generic_visit(self, node):
         raise CaosQLSourceGeneratorError('No method to generate code for %s' % node.__class__.__name__)
 
+    def visit_SelectQueryNode(self, node):
+        self.write('SELECT ')
+        for i, e in enumerate(node.targets):
+            if i > 0:
+                self.write(', ')
+            self.visit(e)
+        if node.where:
+            self.write(' WHERE ')
+            self.visit(node.where)
+        if node.groupby:
+            self.write(' GROUP BY ')
+            for i, e in enumerate(node.groupby):
+                if i > 0:
+                    self.write(', ')
+                self.visit(e)
+        if node.orderby:
+            self.write(' ORDER BY ')
+            for i, e in enumerate(node.orderby):
+                if i > 0:
+                    self.write(', ')
+                self.visit(e)
+
+    def visit_SelectExprNode(self, node):
+        self.visit(node.expr)
+        if node.alias:
+            self.write(' AS ')
+            self.write(node.alias)
+
     def visit_BinOpNode(self, node):
         self.write('(')
         self.visit(node.left)
@@ -63,3 +91,14 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
             self.write('[%s.%s]' % (node.namespace, node.name))
         else:
             self.write(node.expr)
+
+    def visit_ConstantNode(self, node):
+        if node.value is not None:
+            if isinstance(node.value, str):
+                self.write("'%s'" % node.value)
+            else:
+                self.write("%s" % node.value)
+        elif node.index is not None:
+            self.write('$%s' % node.index)
+        else:
+            self.write('None')
