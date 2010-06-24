@@ -1567,6 +1567,15 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
                              isinstance(self.old_link.target, caos.types.ProtoAtom)):
                 self.alter_host_table_column(link, meta, context, old_type, new_type)
 
+            if isinstance(link.target, caos.types.ProtoAtom) and \
+                    isinstance(self.old_link.target, caos.types.ProtoAtom) and \
+                    link.required != self.old_link.required:
+
+                alter_table = context.get(delta_cmds.ConceptCommandContext).op.get_alter_table(context)
+                column_name = common.caos_name_to_pg_name(link.normal_name())
+                alter_table.add_operation(AlterTableAlterColumnNull(column_name=column_name,
+                                                                    null=not link.required))
+
             if old_link.mapping != link.mapping:
                 self.schedule_mapping_update(link, meta, context)
 
@@ -3393,6 +3402,20 @@ class AlterTableAlterColumnType(AlterTableFragment):
     def __repr__(self):
         return '<%s.%s "%s" to %s>' % (self.__class__.__module__, self.__class__.__name__,
                                        self.column_name, self.new_type)
+
+
+class AlterTableAlterColumnNull(AlterTableFragment):
+    def __init__(self, column_name, null):
+        self.column_name = column_name
+        self.null = null
+
+    def code(self, context):
+        return 'ALTER COLUMN %s %s NOT NULL' % \
+                (common.quote_ident(str(self.column_name)), 'DROP' if self.null else 'SET')
+
+    def __repr__(self):
+        return '<%s.%s "%s" %s NOT NULL>' % (self.__class__.__module__, self.__class__.__name__,
+                                             self.column_name, 'DROP' if self.null else 'SET')
 
 
 class TableConstraintCommand:
