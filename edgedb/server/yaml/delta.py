@@ -180,6 +180,10 @@ class RenameNamedPrototype(NamedPrototypeCommand, adapts=delta.RenameNamedProtot
     pass
 
 
+class RebaseNamedPrototype(NamedPrototypeCommand, adapts=delta.RebaseNamedPrototype):
+    pass
+
+
 class AlterNamedPrototype(NamedPrototypeCommand, adapts=delta.AlterNamedPrototype):
     pass
 
@@ -251,6 +255,10 @@ class RenameAtom(RenameNamedPrototype, adapts=delta.RenameAtom):
     pass
 
 
+class RebaseAtom(RebaseNamedPrototype, adapts=delta.RebaseAtom):
+    pass
+
+
 class AlterAtom(AlterNamedPrototype, adapts=delta.AlterAtom):
     pass
 
@@ -276,6 +284,10 @@ class CreateConcept(CreateNamedPrototype, adapts=delta.CreateConcept):
 
 
 class RenameConcept(RenameNamedPrototype, adapts=delta.RenameConcept):
+    pass
+
+
+class RebaseConcept(RebaseNamedPrototype, adapts=delta.RebaseConcept):
     pass
 
 
@@ -313,6 +325,10 @@ class RenameLink(RenameNamedPrototype, adapts=delta.RenameLink):
     pass
 
 
+class RebaseLink(RebaseNamedPrototype, adapts=delta.RebaseLink):
+    pass
+
+
 class AlterLink(AlterNamedPrototype, adapts=delta.AlterLink):
     pass
 
@@ -335,6 +351,10 @@ class CreateLinkProperty(CreateNamedPrototype, adapts=delta.CreateLinkProperty):
 
 
 class RenameLinkProperty(RenameNamedPrototype, adapts=delta.RenameLinkProperty):
+    pass
+
+
+class RebaseLinkProperty(RebaseNamedPrototype, adapts=delta.RebaseLinkProperty):
     pass
 
 
