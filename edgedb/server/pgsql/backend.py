@@ -1539,8 +1539,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             for constraint in abstract_constraints:
                 link.add_abstract_constraint(constraint)
 
-            link.acquire_parent_data(meta)
-
             if source:
                 source.add_link(link)
                 if isinstance(target, caos.types.ProtoConcept) \
@@ -1548,6 +1546,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     target.add_rlink(link)
 
             meta.add(link)
+
+        for link in meta(type='link', include_automatic=True, include_builtin=True):
+            link.acquire_parent_data(meta)
 
 
     def order_links(self, meta):
