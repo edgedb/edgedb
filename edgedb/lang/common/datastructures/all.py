@@ -9,6 +9,7 @@
 import abc
 import bisect
 import collections
+import sys
 
 from semantix.utils.functional import hybridmethod
 
@@ -500,3 +501,20 @@ class xvalue:
         return '<xvalue "%r"; %s>' % (self.value, attrs)
 
     __str__ = __repr__
+
+
+class StrSingleton(str):
+    def __new__(cls, val=''):
+        name = cls._map.get(val)
+        if name:
+            return sys.modules[cls.__module__].__dict__.get(name, str.__new__(cls, val))
+        else:
+            raise ValueError('invalid value for %s: %s' % (cls.__name__, val))
+
+    @classmethod
+    def keys(cls):
+        return iter(cls._map.values())
+
+    @classmethod
+    def values(cls):
+        return iter(cls._map.keys())

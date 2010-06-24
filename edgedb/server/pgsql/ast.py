@@ -9,6 +9,7 @@
 import weakref
 
 from semantix.utils import datastructures, ast
+from semantix.caos.caosql import ast as caosql_ast
 
 
 class Base(ast.AST):
@@ -170,3 +171,15 @@ IS_DISTINCT = PgSQLOperator('IS DISTINCT')
 IS_NOT_DISTINCT = PgSQLOperator('IS NOT DISTINCT')
 IS_OF = PgSQLOperator('IS OF')
 IS_NOT_OF = PgSQLOperator('IS NOT OF')
+
+
+class SortOrder(datastructures.StrSingleton):
+    _map = {
+        caosql_ast.SortAsc: 'SortAsc',
+        caosql_ast.SortDesc: 'SortDesc',
+        caosql_ast.SortDefault: 'SortDefault'
+    }
+
+SortAsc = SortOrder(caosql_ast.SortAsc)
+SortDesc = SortOrder(caosql_ast.SortDesc)
+SortDefault = SortOrder(caosql_ast.SortDefault)

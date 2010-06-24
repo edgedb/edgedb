@@ -1,5 +1,5 @@
 *_gramtab.py
 *_lextab.py
-parserdef.log
-parserdef.pickle
-parserdef.dot
+pgsql.log
+pgsql.pickle
+pgsql.dot

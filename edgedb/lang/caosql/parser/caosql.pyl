@@ -1,82 +1,187 @@
 code:
     from semantix.caos.caosql.parser.errors import CaosQLSyntaxError
+    from semantix.caos.caosql.parser.keywords import caosql_keywords
+    from semantix.caos.caosql import ast as qlast
 
 definitions:
-    DIGIT               "[0-9]"
-    DIGITS              "{DIGIT}+"
-    LETTER              "[a-zA-Z]"
-    S                   "[[:blank:]]+"
-    OS                  "[[:blank:]]*"
-    NS                  "[^[:blank:]]"
-    NL                  "\r?\n"
-    IDENTIFIER          "[a-zA-Z_][a-zA-Z0-9_]*"
-    NUMBER              "({DIGITS}(\.{DIGITS}?)?)|\.{DIGITS}"
-    LABEL_EXPR          "[A-Za-z0-9%_]+"
-    Literal             "(\"[^\"]*\")|('[^']*')"
+    space               "[ \t\n\r]"
+    horiz_space         "[ \t]"
+    newline             "[\n\r]"
+    non_newline         "[^\n\r]"
+    comment             "--{non_newline}*"
+    whitespace          "{space}+|{comment}"
+
+    special_whitespace      "({space}+|{comment}{newline})"
+    horiz_whitespace        "({horiz_space}|{comment})"
+    whitespace_with_newline "({horiz_whitespace}*{newline}{special_whitespace}*)"
+
+    quote                   "'"
+    quotestop               "{quote}{whitespace}*"
+    quotecontinue           "{quote}{whitespace_with_newline}{quote}"
+    quotefail               "{quote}{whitespace}*-"
+
+    xqstart                 "{quote}"
+    xqdouble                "{quote}{quote}"
+    xqinside                "[^']+"
+
+    self                    "[,\(\)\[\].;\:\+\-\*\/\^\<\>\=]"
+    op_chars                "[\~\!\#\^\&\|\`\?\+\-\*\/\<\>\=]"
+    operator                "{op_chars}+"
+
+# C-style comments
+    xcstart                 "\/\*{op_chars}*"
+    xcstop                  "\*+\/"
+    xcinside                "[^*/]+"
+
+    digit                   "[0-9]"
+    ident_start             "[A-Za-z\200-\377_%]"
+    ident_cont              "[A-Za-z\200-\377_0-9\$%]"
+
+    identifier              "{ident_start}{ident_cont}*"
+
+    integer                 "{digit}+"
+    decimal                 "(({digit}*\.{digit}+)|({digit}+\.{digit}*))"
+    decimalfail             "{digit}+\.\."
+    real                    "({integer}|{decimal})[Ee][\-\+]?{digit}+"
+    realfail1               "({integer}|{decimal})[Ee]"
+    realfail2               "({integer}|{decimal})[Ee][\-\+]"
+
+    dir                     "\<\>"
+    search                  "\@\@"
+
+    other                   "."
 
 
 INITIAL:
-    "{S}"               : "discard"
-    "{NL}"              : self.lineno += 1
-    "[Aa][Ss]"          : return "AS"
-    "[Bb][Yy]"          : return "BY"
-    "[Oo][Rr][Dd][Ee][Rr]"                  : return "ORDER"
-    "[Gg][Rr][Oo][Uu][Pp]"                  : return "GROUP"
-    "[Aa][Ss][Cc]"                          : return "ASC"
-    "[Dd][Ee][Ss][Cc]"                      : return "DESC"
-    "[Ii][Nn][Tt][Ee][Rr][Ss][Ee][Cc][Tt]"  : return "INTERSECT"
-    "[Uu][Nn][Ii][Oo][Nn]"                  : return "UNION"
-    "[Ee][Xx][Cc][Ee][Pp][Tt]"              : return "EXCEPT"
-    "[Ss][Ee][Ll][Ee][Cc][Tt]"              : return "SELECT"
-    "[Ww][Hh][Ee][Rr][Ee]"                  : return "WHERE"
-    "[Dd][Ii][Ss][Tt][Ii][Nn][Cc][Tt]"      : return "DISTINCT"
-    "[Tt][Rr][Uu][Ee]"                      : return "TRUE"
-    "[Ff][Aa][Ll][Ss][Ee]"                  : return "FALSE"
-    "[Uu][Ss][Ii][Nn][Gg]"                  : return "USING"
-    "[Nn][Oo][Nn][Ee]"  : return "NONE"
-    "\("                : return "("
-    "\)"                : return ")"
-    ","                 : return ","
-    "\."                : return "."
-    "@@"                : return "@@"
-    "@"                 : return "@"
-    "#"                 : return "#"
-    "\?"                : return "?"
-    "\*"                : return "*"
-    "\$"                : return "$"
-    "[Aa][Nn][Dd]"      : return "AND"
-    "[Oo][Rr]"          : return "OR"
-    "[Nn][Oo][Tt]"      : return "NOT"
-    "[Ss][Oo][Mm][Ee]"  : return "SOME"
-    "[Aa][Nn][Yy]"      : return "ANY"
-    "[Aa][Ll][Ll]"      : return "ALL"
-    "[Ff][Oo][Rr]"      : return "FOR"
-    "[Ii][Nn]"          : return "IN"
-    "[Ii][Ss]"          : return "IS"
-    "[Ee][Xx][Ii][Ss][Tt][Ss]" : return "EXISTS"
-    "[Mm][Oo][Dd]"      : return "mod"
-    "[Oo][Ff][Ff][Ss][Ee][Tt]" : return "OFFSET"
-    "[Ll][Ii][Mm][Ii][Tt]"     : return "LIMIT"
-    "/"                 : return "/"
-    "-"                 : return "-"
-    "\+"                : return "+"
-    "="                 : return "="
-    "\{"                : return "{"
-    "\}"                : return "}"
-    "\["                : return "["
-    "\]"                : return "]"
-    "<>"                : return "<>"
-    ">"                 : return ">"
-    "<"                 : return "<"
-    ">="                : return ">="
-    "<="                : return "<="
-    "!="                : return "!="
-    ":"                 : return ":"
-    "\|"                : return "|"
-    "{Literal}"         : return "LITERAL"
+    "{whitespace}":
+        return
 
-    "{NUMBER}"          : return "NUMBER"
-    "{IDENTIFIER}"      : return "IDENTIFIER"
-    "{LABEL_EXPR}"      : return "LABEL_EXPR"
+    "{xcstart}":
+        self.xcdepth = 0
+        self.PUSHSTATE(XC)
+        self.PUSHBACK(self.value[2:])
 
-    "."                 : raise CaosQLSyntaxError(token=self.value, lineno=self.lineno)
+    "{xqstart}":
+        self.PUSHSTATE(XQ)
+        self.string = ''
+
+    "{dir}":
+        return self.value
+
+    "{search}":
+        return 'OP'
+
+    "{self}":
+        return self.value[0]
+
+    "{operator}":
+        nchars = len(self.value)
+        slashstar = self.value[:2].find('/*')
+        dashdash = self.value[:2].find('**')
+
+        if slashstar != -1 and dashdash != -1:
+            if slashstar > dashdash:
+                slashstar = dashdash
+        elif slashstar == -1:
+            slashstar = dashdash
+
+        if slashstar != -1:
+            nchars = slashstar
+
+        while nchars > 1 and (self.value[nchars - 1] == '+' or self.value[nchars - 1] == '-'):
+            for ic in range(0, nchars - 2, -1):
+                if self.value[ic] in "~!@#^&|`?%":
+                    break
+
+                if ic >= 0:
+                    break
+                nchars -= 1
+
+        if nchars < len(self.value):
+            self.PUSHBACK(self.value[nchars:])
+            self.value = self.value[:nchars]
+
+            if nchars == 1 and self.value[0] in ',()[].;:+-*/%^<>=':
+                return self.value[0]
+
+        return 'OP'
+
+    "{integer}":
+        self.value = int(self.value)
+        return 'ICONST'
+
+    "{decimal}":
+        return 'FCONST'
+
+    "{decimalfail}":
+        self.PUSHBACK(self.value[-2:])
+        self.value = int(self.value[:-2])
+        return 'ICONST'
+
+    "{real}":
+        return 'FCONST'
+
+    "{realfail1}":
+        self.PUSHBACK(self.value[-1:])
+        self.value = self.value[:-1]
+        return 'FCONST'
+
+    "{realfail2}":
+        self.PUSHBACK(self.value[-2:])
+        self.value = self.value[:-2]
+        return 'FCONST'
+
+    "{identifier}":
+        kw = caosql_keywords.get(self.value.lower())
+        if kw:
+            self.value = self.value.lower()
+            return kw[0]
+        else:
+            return 'IDENT'
+
+    "{other}":
+        return self.value
+
+XC:
+    "{xcstart}":
+        self.xcdepth += 1
+        self.PUSHBACK(self.value[2:])
+
+    "{xcstop}":
+        if self.xcdepth <= 0:
+            self.PUSHSTATE(INITIAL)
+        else:
+            self.xcdepth -= 1
+
+    "{xcinside}":
+        return
+
+    "{op_chars}":
+        return
+
+    "\*+":
+        return
+
+    "<<EOF>>":
+        raise CaosQLSyntaxError("unterminated /* comment", token=self.token, lineno=self.lineno)
+
+XQ:
+    "{quotestop}|{quotefail}":
+        if len(self.value) > 1:
+            self.PUSHBACK(self.value[1:])
+        self.PUSHSTATE(INITIAL)
+        self.value = self.string
+        return 'SCONST'
+
+    "{xqdouble}":
+        self.string += "'"
+
+    "{xqinside}":
+        self.string += self.value
+
+    "{quotecontinue}":
+        return
+
+    "<<EOF>>":
+        raise CaosQLSyntaxError("unterminated quoted string",
+                                token=self.token, lineno=self.lineno)

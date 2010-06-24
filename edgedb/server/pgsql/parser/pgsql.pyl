@@ -16,8 +16,8 @@ code:
     from semantix.caos.backends.pgsql import ast as pgast
 
 definitions:
-    space               "[ \t\n\r\f]"
-    horiz_space         "[ \t\f]"
+    space               "[ \t\n\r]"
+    horiz_space         "[ \t]"
     newline             "[\n\r]"
     non_newline         "[^\n\r]"
     comment             "--{non_newline}*"
@@ -322,7 +322,7 @@ XQ:
         return
 
     "<<EOF>>":
-        raise PgSQLSyntaxError("unterminated quoted string literal",
+        raise PgSQLSyntaxError("unterminated quoted string",
                                token=self.token, lineno=self.lineno)
 
 

@@ -8,15 +8,7 @@
 
 from semantix import SemantixError
 
+from semantix.utils import parsing
 
-class PgSQLParserError(SemantixError):
-    def __init__(self, msg, *, token=None, lineno=None, expr=None):
-        super().__init__(msg)
-
-        self.token = token
-        self.lineno = lineno
-        self.expr = expr
-
-
-    def __str__(self):
-        return "unexpected `%s' on line %d" % (self.token, self.lineno)
+class PgSQLParserError(parsing.ParserError):
+    pass

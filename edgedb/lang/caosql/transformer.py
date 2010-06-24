@@ -620,13 +620,14 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
         result = []
 
-        with context():
-            context.current.location = 'sorter'
-            for sorter in sorters:
-                expr = self._process_expr(context, sorter.path)
-                expr = self.merge_paths(expr)
-                s = tree.ast.SortExpr(expr=expr, direction=sorter.direction)
-                result.append(s)
+        if sorters:
+            with context():
+                context.current.location = 'sorter'
+                for sorter in sorters:
+                    expr = self._process_expr(context, sorter.path)
+                    expr = self.merge_paths(expr)
+                    s = tree.ast.SortExpr(expr=expr, direction=sorter.direction)
+                    result.append(s)
 
         return result
 
@@ -634,11 +635,12 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
         result = []
 
-        with context():
-            context.current.location = 'grouper'
-            for grouper in groupers:
-                expr = self._process_expr(context, grouper)
-                expr = self.merge_paths(expr)
-                result.append(expr)
+        if groupers:
+            with context():
+                context.current.location = 'grouper'
+                for grouper in groupers:
+                    expr = self._process_expr(context, grouper)
+                    expr = self.merge_paths(expr)
+                    result.append(expr)
 
         return result

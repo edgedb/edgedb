@@ -13,32 +13,30 @@
 
 import sys
 
-import Parsing
 
-
-from semantix.utils import ast
+from semantix.utils import ast, parsing
 from .. import ast as pgast
 
 from . import keywords
 from . import error
 
-from . import parsermeta
 
-
-class Token(Parsing.Token, metaclass=parsermeta.TokenMeta):
-    def __init__(self, parser, val):
-        super().__init__(parser)
-        self.val = val
-
-    def __repr__(self):
-        return '<Token %s "%s">' % (self.__class__._token, self.val)
-
-
-class Nonterm(Parsing.Nonterm, metaclass=parsermeta.NontermMeta):
+class TokenMeta(parsing.TokenMeta):
     pass
 
 
-class Precedence(Parsing.Precedence, assoc='fail', metaclass=parsermeta.PrecedenceMeta):
+class Token(parsing.Token, metaclass=TokenMeta):
+    pass
+
+class Nonterm(parsing.Nonterm):
+    pass
+
+
+class PrecedenceMeta(parsing.PrecedenceMeta):
+    pass
+
+
+class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
     pass
 
 
@@ -220,7 +218,7 @@ def _gen_keyword_tokens():
 
     for val, (token, typ) in keywords.pg_keywords.items():
         clsname = 'T_%s' % token
-        cls = parsermeta.TokenMeta(clsname, (Token,), {'__module__': __name__}, token=token)
+        cls = TokenMeta(clsname, (Token,), {'__module__': __name__}, token=token)
         setattr(sys.modules[__name__], clsname, cls)
 _gen_keyword_tokens()
 
@@ -1721,7 +1719,7 @@ class ColLabel(Nonterm):
         self.val = kids[0].val
 
 
-class KeywordMeta(parsermeta.NontermMeta):
+class KeywordMeta(parsing.NontermMeta):
     def __new__(mcls, name, bases, dct, *, type):
         result = super().__new__(mcls, name, bases, dct)
 
