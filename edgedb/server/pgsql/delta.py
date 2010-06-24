@@ -1389,21 +1389,26 @@ class PointerMetaCommand(MetaCommand):
 
         old_target = meta.get(old_type, dropped_atom)
         assert old_target
-        new_atom = meta.get(new_type)
+        new_target = meta.get(new_type)
 
         alter_table = context.get(delta_cmds.ConceptCommandContext).op.get_alter_table(context)
         column_name = common.caos_name_to_pg_name(link.normal_name())
-        target_type = types.pg_type_from_atom(meta, new_atom)
 
-        if isinstance(old_target, caos.types.ProtoAtom):
-            AlterAtom.alter_atom(self, meta, context, old_target, new_atom, in_place=False)
-            alter_type = AlterTableAlterColumnType(column_name, target_type)
-            alter_table.add_operation(alter_type)
+        if isinstance(new_target, caos.types.ProtoAtom):
+            target_type = types.pg_type_from_atom(meta, new_target)
+
+            if isinstance(old_target, caos.types.ProtoAtom):
+                AlterAtom.alter_atom(self, meta, context, old_target, new_target, in_place=False)
+                alter_type = AlterTableAlterColumnType(column_name, target_type)
+                alter_table.add_operation(alter_type)
+            else:
+                cols = self.get_columns(link, meta)
+                ops = [AlterTableAddColumn(col) for col in cols]
+                for op in ops:
+                    alter_table.add_operation(op)
         else:
-            cols = self.get_columns(link, meta)
-            ops = [AlterTableAddColumn(col) for col in cols]
-            for op in ops:
-                alter_table.add_operation(op)
+            col = Column(name=column_name, type='text')
+            alter_table.add_operation(AlterTableDropColumn(col))
 
     def get_columns(self, pointer, meta):
         columns = []
