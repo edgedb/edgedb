@@ -96,7 +96,11 @@ class GraphExpr(Base):
                 'offset', 'limit', ('opselector', list), 'optarget', 'opvalues', 'op']
 
 
-class BaseRef(Base):
+class Path(Base):
+    pass
+
+
+class BaseRef(Path):
     __fields = ['id', ('ref', Base, None, False)]
 
     def __init__(self, **kwargs):
@@ -122,7 +126,7 @@ class AtomicRefSimple(AtomicRef):
     __fields = [('name', caos_name.Name, None), 'caoslink']
 
 
-class BaseRefExpr(Base):
+class BaseRefExpr(Path):
     __fields = ['expr']
 
     def __init__(self, **kwargs):
@@ -190,7 +194,7 @@ class EntityLinkSpec(ast.AST):
         return hash((self.labels, self.direction))
 
 
-class PathCombination(Base):
+class PathCombination(Path):
     __fields = [('paths', frozenset, frozenset, False)]
 
     def __init__(self, **kwargs):
@@ -226,7 +230,7 @@ class Conjunction(PathCombination):
     pass
 
 
-class EntitySet(Base):
+class EntitySet(Path):
     __fields = ['id', 'anchor', ('concept', caos_types.ProtoNode), 'atom',
                 ('conceptfilter', dict),
                 'filter',

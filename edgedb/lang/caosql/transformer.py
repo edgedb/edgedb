@@ -24,6 +24,7 @@ class ParseContextLevel(object):
             self.groupprefixes = prevlevel.groupprefixes
             self.in_aggregate = prevlevel.in_aggregate[:]
             self.arguments = prevlevel.arguments
+            self.proto_schema = prevlevel.proto_schema
         else:
             self.anchors = {}
             self.namespaces = {}
@@ -31,6 +32,7 @@ class ParseContextLevel(object):
             self.groupprefixes = None
             self.in_aggregate = []
             self.arguments = {}
+            self.proto_schema = None
 
 
 class ParseContext(object):
@@ -179,6 +181,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
     def transform(self, caosql_tree, arg_types):
         self.context = context = ParseContext()
+        self.context.current.proto_schema = self.proto_schema
         stree = self._transform_select(context, caosql_tree, arg_types)
 
         return stree

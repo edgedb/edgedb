@@ -66,6 +66,7 @@ class TreeError(Exception):
     pass
 
 
+@checktypes
 class TreeTransformer:
 
     def extract_prefixes(self, expr, prefixes=None):
@@ -229,11 +230,14 @@ class TreeTransformer:
 
         return binop
 
-    def is_aggregated_expr(self, expr):
-        return getattr(expr, 'aggregates', False) or \
-               (isinstance(expr, caos_types.NodeClass) and \
-                    caos_utils.get_path_id(expr) in self.context.current.groupprefixes)
+    def is_aggregated_expr(self, expr, deep=False):
+        agg = getattr(expr, 'aggregates', False) or \
+                   (isinstance(expr, caos_types.NodeClass) and \
+                        caos_utils.get_path_id(expr) in self.context.current.groupprefixes)
 
+        if not agg and deep:
+            return bool(list(ast.find_children(expr, lambda i: getattr(i, 'aggregates', None))))
+        return agg
 
     def reorder_aggregates(self, expr):
         if getattr(expr, 'aggregates', False):
@@ -344,6 +348,10 @@ class TreeTransformer:
         else:
             assert False, "Unexpexted expression: %s" % expr
 
+    def is_weak_op(self, op):
+        return op in (ast.ops.OR, ast.ops.IN, ast.ops.NOT_IN) or \
+               self.context.current.location != 'generator'
+
     def merge_paths(self, expr):
         if isinstance(expr, caos_ast.AtomicRefExpr):
             if self.context.current.location == 'generator':
@@ -368,7 +376,7 @@ class TreeTransformer:
             left = self.merge_paths(expr.left)
             right = self.merge_paths(expr.right)
 
-            if expr.op in (ast.ops.OR, ast.ops.IN, ast.ops.NOT_IN):
+            if self.is_weak_op(expr.op):
                 combination = caos_ast.Disjunction
             else:
                 combination = caos_ast.Conjunction
@@ -381,7 +389,8 @@ class TreeTransformer:
                     paths.add(operand)
 
             e = combination(paths=frozenset(paths))
-            self.flatten_and_unify_path_combination(e, deep=False)
+            merge_filters = self.context.current.location != 'generator'
+            self.flatten_and_unify_path_combination(e, deep=False, merge_filters=merge_filters)
 
             if len(e.paths) > 1:
                 expr = caos_ast.BinOp(left=left, op=expr.op, right=right, aggregates=expr.aggregates)
@@ -978,9 +987,10 @@ class TreeTransformer:
     def fixup_refs(self, refs, newref):
         caos_ast.Base.fixup_refs(refs, newref)
 
-    def extract_paths(self, path, reverse=False):
+    def extract_paths(self, path, reverse=False, resolve_arefs=True):
         if isinstance(path, (caos_ast.EntitySet, caos_ast.InlineFilter, caos_ast.AtomicRef)):
-            if isinstance(path, (caos_ast.InlineFilter, caos_ast.AtomicRef)):
+            if isinstance(path, (caos_ast.InlineFilter, caos_ast.AtomicRef)) and \
+                                                    (resolve_arefs or reverse):
                 result = path.ref
             else:
                 result = path
@@ -990,8 +1000,14 @@ class TreeTransformer:
                     result = result.rlink.source
             return result
 
-        elif isinstance(path, (caos_ast.InlinePropFilter, caos_ast.LinkPropRef)):
-            return self.extract_paths(path.ref, reverse)
+        elif isinstance(path, caos_ast.InlinePropFilter):
+            return self.extract_paths(path.ref, reverse, resolve_arefs)
+
+        elif isinstance(path, caos_ast.LinkPropRef):
+            if resolve_arefs or reverse:
+                return self.extract_paths(path.ref, reverse, resolve_arefs)
+            else:
+                return path
 
         elif isinstance(path, caos_ast.EntityLink):
             if reverse:
@@ -1005,7 +1021,7 @@ class TreeTransformer:
         elif isinstance(path, caos_ast.PathCombination):
             result = set()
             for p in path.paths:
-                normalized = self.extract_paths(p, reverse)
+                normalized = self.extract_paths(p, reverse, resolve_arefs)
                 if normalized:
                     result.add(normalized)
             if len(result) == 1:
@@ -1014,11 +1030,11 @@ class TreeTransformer:
                 return self.flatten_path_combination(path.__class__(paths=frozenset(result)))
 
         elif isinstance(path, caos_ast.BinOp):
-            combination = caos_ast.Disjunction if (path.op == ast.ops.OR) else caos_ast.Conjunction
+            combination = caos_ast.Disjunction if self.is_weak_op(path.op) else caos_ast.Conjunction
 
             paths = set()
             for p in (path.left, path.right):
-                normalized = self.extract_paths(p, reverse)
+                normalized = self.extract_paths(p, reverse, resolve_arefs)
                 if normalized:
                     paths.add(normalized)
 
@@ -1028,15 +1044,18 @@ class TreeTransformer:
                 return self.flatten_path_combination(combination(paths=frozenset(paths)))
 
         elif isinstance(path, caos_ast.UnaryOp):
-            return self.extract_paths(path.expr, reverse)
+            return self.extract_paths(path.expr, reverse, resolve_arefs)
 
         elif isinstance(path, caos_ast.TypeCast):
-            return self.extract_paths(path.expr, reverse)
+            return self.extract_paths(path.expr, reverse, resolve_arefs)
+
+        elif isinstance(path, caos_ast.NoneTest):
+            return self.extract_paths(path.expr, reverse, resolve_arefs)
 
         elif isinstance(path, caos_ast.FunctionCall):
             paths = set()
             for p in path.args:
-                p = self.extract_paths(p, reverse)
+                p = self.extract_paths(p, reverse, resolve_arefs)
                 if p:
                     paths.add(p)
 
@@ -1048,7 +1067,7 @@ class TreeTransformer:
         elif isinstance(path, (caos_ast.Sequence, caos_ast.Record)):
             paths = set()
             for p in path.elements:
-                p = self.extract_paths(p, reverse)
+                p = self.extract_paths(p, reverse, resolve_arefs)
                 if p:
                     paths.add(p)
 
@@ -1190,7 +1209,7 @@ class TreeTransformer:
         """
         pathdict = {}
         for ref in expr.paths:
-            # Check that refs in the operand are all atomic: non-atoms do not coerse
+            # Check that refs in the operand are all atomic: non-atoms do not coerce
             # to literals.
             #
             if not isinstance(ref, typ):
@@ -1201,7 +1220,7 @@ class TreeTransformer:
             else:
                 ref_id = ref.id
 
-            assert not pathdict.get(ref_id)
+            #assert not pathdict.get(ref_id)
             pathdict[ref_id] = ref
         return pathdict
 
@@ -1213,6 +1232,30 @@ class TreeTransformer:
 
         return result
 
+    def is_join(self, left, right, op, reversed):
+        return isinstance(left, caos_ast.Path) and isinstance(right, caos_ast.Path) and \
+               op in (ast.ops.EQ, ast.ops.NE)
+
+    def is_type_check(self, left, right, op, reversed):
+        return not reversed and op in (ast.ops.IS, ast.ops.IS_NOT) and \
+                isinstance(left, caos_ast.Path) and isinstance(right, caos_types.ProtoConcept)
+
+    def is_const_idfilter(self, left, right, op, reversed):
+        return isinstance(left, caos_ast.Path) and isinstance(right, caos_ast.Constant) and \
+                (op in (ast.ops.IN, ast.ops.NOT_IN) or \
+                 (not reversed and op in (ast.ops.EQ, ast.ops.NE)))
+
+    def get_multipath(self, expr:caos_ast.Path):
+        if not isinstance(expr, caos_ast.PathCombination):
+            expr = caos_ast.Disjunction(paths=frozenset((expr,)))
+        return expr
+
+    def path_from_set(self, paths):
+        if len(paths) == 1:
+            return next(iter(paths))
+        else:
+            return caos_ast.Disjunction(paths=frozenset(paths))
+
     def _process_binop(self, left, right, op, reversed=False):
         result = None
 
@@ -1223,127 +1266,143 @@ class TreeTransformer:
             else:
                 return caos_ast.BinOp(left=left, op=operation, right=right)
 
-        if isinstance(left, (caos_ast.AtomicRef, caos_ast.LinkPropRef, caos_ast.Disjunction)):
+        left_paths = self.extract_paths(left, reverse=False, resolve_arefs=False)
+
+        if isinstance(left_paths, caos_ast.Path):
             # If both left and right operands are references to atoms of the same node,
             # or one of the operands is a reference to an atom and other is a constant,
             # then fold the expression into an in-line filter of that node.
             #
-            if not isinstance(left, caos_ast.Disjunction):
-                left_exprs = caos_ast.Disjunction(paths=frozenset({left}))
-            else:
-                left_exprs = left
+
+            left_exprs = self.get_multipath(left_paths)
 
             pathdict = self.check_atomic_disjunction(left_exprs, caos_ast.AtomicRef)
             proppathdict = self.check_atomic_disjunction(left_exprs, caos_ast.LinkPropRef)
 
-            if not pathdict and not proppathdict:
-                if isinstance(right, (caos_ast.Disjunction, caos_ast.EntitySet)):
-                    if isinstance(right, caos_ast.EntitySet):
-                        right_exprs = caos_ast.Disjunction(paths=frozenset({right}))
-                    else:
-                        right_exprs = right
+            is_agg = self.is_aggregated_expr(left, deep=True) or \
+                     self.is_aggregated_expr(right, deep=True)
+
+            if is_agg:
+                result = newbinop(left, right)
+
+            elif not pathdict and not proppathdict:
+
+                if self.is_join(left, right, op, reversed):
+                    # Concept join expression: <path> {==|!=} <path>
+
+                    right_exprs = self.get_multipath(right)
 
                     id_col = caos_name.Name('semantix.caos.builtins.id')
-                    if op in (ast.ops.EQ, ast.ops.NE):
-                        lrefs = [caos_ast.AtomicRefSimple(ref=p, name=id_col)
-                                    for p in left_exprs.paths]
-                        rrefs = [caos_ast.AtomicRefSimple(ref=p, name=id_col)
-                                    for p in right_exprs.paths]
+                    lrefs = [caos_ast.AtomicRefSimple(ref=p, name=id_col)
+                                for p in left_exprs.paths]
+                    rrefs = [caos_ast.AtomicRefSimple(ref=p, name=id_col)
+                                for p in right_exprs.paths]
 
-                        l = caos_ast.Disjunction(paths=frozenset(lrefs))
-                        r = caos_ast.Disjunction(paths=frozenset(rrefs))
-                        result = newbinop(l, r)
+                    l = caos_ast.Disjunction(paths=frozenset(lrefs))
+                    r = caos_ast.Disjunction(paths=frozenset(rrefs))
+                    result = newbinop(l, r)
 
-                        for lset, rset in itertools.product(left_exprs.paths, right_exprs.paths):
-                            lset.joins.add(rset)
-                            rset.backrefs.add(lset)
-                            rset.joins.add(lset)
-                            lset.backrefs.add(rset)
+                    for lset, rset in itertools.product(left_exprs.paths, right_exprs.paths):
+                        lset.joins.add(rset)
+                        rset.backrefs.add(lset)
+                        rset.joins.add(lset)
+                        lset.backrefs.add(rset)
 
-                elif op in (ast.ops.IS, ast.ops.IS_NOT) and \
-                                                        isinstance(right, caos_types.ProtoConcept):
+                elif self.is_type_check(left, right, op, reversed):
+                    # Type check expression: <path> IS [NOT] <concept>
+
                     paths = set()
 
                     for path in left_exprs.paths:
-                        if (op == ast.ops.IS) == (path.concept == right):
-                            paths.add(path)
+                        if op == ast.ops.IS:
+                            if path.concept.issubclass(self.context.current.proto_schema, right):
+                                paths.add(path)
+                        elif op == ast.ops.IS_NOT:
+                            if path.concept != right:
+                                filtered = path.concept.filter_children(lambda i: i != right)
+                                if filtered[path.concept]:
+                                    path.conceptfilter = filtered
+                                paths.add(path)
 
-                    if len(paths) == 1:
-                        result = next(iter(paths))
+                    result = self.path_from_set(paths)
+
+                elif self.is_const_idfilter(left, right, op, reversed):
+                    # Constant id filter expressions:
+                    #       <path> IN <const_id_list>
+                    #       <const_id> IN <path>
+                    #       <path> = <const_id>
+
+                    id_col = caos_name.Name('semantix.caos.builtins.id')
+
+                    # <Constant> IN <EntitySet> is interpreted as a membership
+                    # check of entity with ID represented by Constant in the EntitySet,
+                    # which is equivalent to <EntitySet>.id = <Constant>
+                    #
+                    if reversed:
+                        membership_op = ast.ops.EQ if op == ast.ops.IN else ast.ops.NE
                     else:
-                        result = caos_ast.Disjunction(paths=frozenset(paths))
+                        membership_op = op
 
-                elif op in (ast.ops.IN, ast.ops.NOT_IN):
-                    if isinstance(right, caos_ast.Constant):
+                    paths = set()
+                    for p in left_exprs.paths:
+                        ref = caos_ast.AtomicRefSimple(ref=p, name=id_col)
+                        expr = caos_ast.BinOp(left=ref, right=right, op=membership_op)
+                        paths.add(caos_ast.AtomicRefExpr(expr=expr))
 
-                        id_col = caos_name.Name('semantix.caos.builtins.id')
-
-                        # <Constant> IN <EntitySet> is interpreted as a membership
-                        # check of entity with ID represented by Constant in the EntitySet,
-                        # which is equivalent to <EntitySet>.id = <Constant>
-                        #
-                        if reversed:
-                            membership_op = ast.ops.EQ if op == ast.ops.IN else ast.ops.NE
-                        else:
-                            membership_op = op
-
-                        paths = set()
-                        for p in left_exprs.paths:
-                            ref = caos_ast.AtomicRefSimple(ref=p, name=id_col)
-                            expr = caos_ast.BinOp(left=ref, right=right, op=membership_op)
-                            paths.add(caos_ast.AtomicRefExpr(expr=expr))
-
-                        result = caos_ast.Disjunction(paths=frozenset(paths))
+                    result = self.path_from_set(paths)
 
                 elif op == caos_ast.SEARCH:
                     paths = set()
                     for p in left_exprs.paths:
-                        expr = caos_ast.BinOp(left=p, right=right, op=op)
-                        paths.add(caos_ast.AtomicRefExpr(expr=expr))
+                        searchable = list(p.concept.get_searchable_links())
+                        if not searchable:
+                            err = '%s operator called on concept %s without any search configuration'\
+                                                       % (caos_ast.SEARCH, p.concept.name)
+                            hint = 'Configure search for "%s"' % p.concept.name
+                            raise caos_error.CaosError(err, hint=hint)
 
-                    result = caos_ast.Disjunction(paths=frozenset(paths))
+                        # A SEARCH operation on an entity set is always an inline filter ATM
+                        paths.add(caos_ast.AtomicRefExpr(expr=newbinop(p, right)))
 
-                elif op in (ast.ops.EQ, ast.ops.NE):
-                    if isinstance(right, caos_ast.Constant):
-                        id_col = caos_name.Name('semantix.caos.builtins.id')
-
-                        paths = set()
-                        for p in left_exprs.paths:
-                            ref = caos_ast.AtomicRefSimple(ref=p, name=id_col)
-                            expr = caos_ast.BinOp(left=ref, right=right, op=op)
-                            paths.add(caos_ast.AtomicRefExpr(expr=expr))
-
-                        result = caos_ast.Disjunction(paths=frozenset(paths))
+                    result = self.path_from_set(paths)
 
                 if not result:
                     result = newbinop(left, right)
             else:
+                right_paths = self.extract_paths(right, reverse=False, resolve_arefs=False)
+
                 if isinstance(right, caos_ast.Constant):
                     paths = set()
 
                     if proppathdict:
                         exprnode_type = caos_ast.LinkPropRefExpr
+                        refdict = proppathdict
                     else:
                         exprnode_type = caos_ast.AtomicRefExpr
+                        refdict = pathdict
 
-                    for ref in left_exprs.paths:
-                        if isinstance(ref, exprnode_type) \
-                           and isinstance(op, ast.ops.BooleanOperator):
-                            # We must not inline boolean expressions beyond the original bin-op
-                            result = newbinop(left, right)
-                            break
-                        paths.add(exprnode_type(expr=newbinop(ref, right)))
-                    else:
-                        if len(paths) == 1:
-                            result = next(iter(paths))
+                    if isinstance(left, caos_ast.Path):
+                        # We can only break up paths, and must not pick paths out of other
+                        # expressions
+                        #
+                        for ref in left_exprs.paths:
+                            if isinstance(ref, exprnode_type) \
+                                                and isinstance(op, ast.ops.BooleanOperator):
+                                # We must not inline boolean expressions beyond the original bin-op
+                                result = newbinop(left, right)
+                                break
+                            paths.add(exprnode_type(expr=newbinop(ref, right)))
                         else:
-                            result = caos_ast.Disjunction(paths=frozenset(paths))
+                            result = self.path_from_set(paths)
 
-                elif isinstance(right, (caos_ast.BaseRef, caos_ast.Disjunction)):
-                    if not isinstance(right, caos_ast.Disjunction):
-                        right_exprs = caos_ast.Disjunction(paths=frozenset((right,)))
+                    elif len(refdict) == 1:
+                        # Left operand references a single entity
+                        result = exprnode_type(expr=newbinop(left, right))
                     else:
-                        right_exprs = right
+                        result = newbinop(left, right)
+
+                elif isinstance(right_paths, caos_ast.Path):
+                    right_exprs = self.get_multipath(right_paths)
 
                     rightdict = self.check_atomic_disjunction(right_exprs, caos_ast.AtomicRef)
                     rightpropdict = self.check_atomic_disjunction(right_exprs, caos_ast.LinkPropRef)
@@ -1353,9 +1412,11 @@ class TreeTransformer:
 
                         if proppathdict:
                             exprtype = caos_ast.LinkPropRefExpr
+                            leftdict = proppathdict
                             rightdict = rightpropdict
                         else:
                             exprtype = caos_ast.AtomicRefExpr
+                            leftdict = pathdict
 
 
                         # If both operands are atom references, then we check if the referenced
@@ -1363,30 +1424,45 @@ class TreeTransformer:
                         # into the atom ref for those common concepts only.  If there are no common
                         # concepts, a regular binary operation is returned.
                         #
-                        for ref in left_exprs.paths:
-                            if isinstance(ref, caos_ast.AtomicRef):
-                                left_id = ref.ref.id
+                        if isinstance(left, caos_ast.Path) and isinstance(right, caos_ast.Path):
+                            # We can only break up paths, and must not pick paths out of other
+                            # expressions
+                            #
+
+                            for ref in left_exprs.paths:
+                                if isinstance(ref, caos_ast.AtomicRef):
+                                    left_id = ref.ref.id
+                                else:
+                                    left_id = ref.id
+
+                                right_expr = rightdict.get(left_id)
+
+                                if right_expr:
+                                    right_expr.replace_refs([right_expr.ref], ref.ref, deep=True)
+                                    filterop = newbinop(ref, right_expr)
+                                    paths.add(exprtype(expr=filterop))
+
+                            if paths:
+                                result = self.path_from_set(paths)
                             else:
-                                left_id = ref.id
+                                result = newbinop(left, right)
 
-                            right_expr = rightdict.get(left_id)
+                        elif len(rightdict) == 1 and len(leftdict) == 1 and \
+                                next(iter(leftdict)) == next(iter(rightdict)):
 
-                            if right_expr:
-                                right_expr.replace_refs([right_expr.ref], ref.ref, deep=True)
-                                filterop = newbinop(ref, right_expr)
-                                paths.add(exprtype(expr=filterop))
+                            newref = next(iter(leftdict.values()))
+                            refs = [p.ref for p in right_exprs.paths]
+                            right.replace_refs(refs, newref.ref, deep=True)
+                            # Left and right operand reference the same single path
+                            result = exprtype(expr=newbinop(left, right))
 
-                        if paths:
-                            if len(paths) == 1:
-                                result = next(iter(paths))
-                            else:
-                                result = caos_ast.Disjunction(paths=frozenset(paths))
                         else:
                             result = newbinop(left, right)
                     else:
                         result = newbinop(left, right)
 
-                elif isinstance(right, caos_ast.BinOp) and op == right.op:
+                elif isinstance(right, caos_ast.BinOp) and op == right.op and \
+                                                           isinstance(left, caos_ast.Path):
                     # Got a bin-op, that was not folded into an atom ref.  Re-check it since
                     # we may use operator associativity to fold one of the operands
                     #
@@ -1418,74 +1494,10 @@ class TreeTransformer:
                     result_type = caos_types.TypeRules.get_result(l.type, r.type, op)
                 result = caos_ast.Constant(expr=newbinop(left, right), type=result_type)
 
-        elif isinstance(left, caos_ast.EntitySet):
-            if op in (ast.ops.EQ, ast.ops.NE):
-                # Comparison of two entity sets or a constant and an entity set is
-                # considered to be a comparison of entity ids.
-                #
-                if isinstance(right, caos_ast.EntitySet):
-                    left.joins.add(right)
-                    right.backrefs.add(left)
-                    right.joins.add(left)
-                    left.backrefs.add(right)
-
-                    l = caos_ast.AtomicRefSimple(ref=left, name='semantix.caos.builtin.id')
-                    r = caos_ast.AtomicRefSimple(ref=right, name='semantix.caos.builtin.id')
-                    result = newbinop(l, r)
-
-                elif isinstance(right, caos_ast.Constant):
-                    l = caos_ast.AtomicRefSimple(ref=left, name='semantix.caos.builtin.id')
-                    result = newbinop(l, right)
-
-            elif op == caos_ast.SEARCH:
-                # A SEARCH operation on an entity set is always an inline filter ATM
-                cols = list(left.concept.get_searchable_links())
-                if not cols:
-                    err = '%s operator called on concept %s without any search configuration' \
-                                               % (caos_ast.SEARCH, left.concept.name)
-                    hint = 'Configure search for "%s"' % left.concept.name
-                    raise caos_error.CaosError(err, hint=hint)
-
-                result = caos_ast.AtomicRefExpr(expr=newbinop(left, right))
-
-            elif op in (ast.ops.IS, ast.ops.IS_NOT):
-                if isinstance(right, caos_types.ProtoConcept):
-                    if op == ast.ops.IS:
-                        assert False
-                    elif op == ast.ops.IS_NOT:
-                        if left.concept == right:
-                            result = caos_ast.Constant(value=False)
-                        else:
-                            filtered = left.concept.filter_children(lambda i: i != right)
-                            if filtered[left.concept]:
-                                left.conceptfilter = filtered
-                        result = left
-
-            elif op in (ast.ops.IN, ast.ops.NOT_IN):
-                if isinstance(right, caos_ast.Constant):
-
-                    id_col = caos_name.Name('semantix.caos.builtins.id')
-
-                    # <Constant> IN <EntitySet> is interpreted as a membership
-                    # check of entity with ID represented by Constant in the EntitySet,
-                    # which is equivalent to <EntitySet>.id = <Constant>
-                    #
-                    if reversed:
-                        membership_op = ast.ops.EQ if op == ast.ops.IN else ast.ops.NE
-                    else:
-                        membership_op = op
-
-                    paths = set()
-                    ref = caos_ast.AtomicRefSimple(ref=left, name=id_col)
-                    expr = caos_ast.BinOp(left=ref, right=right, op=membership_op)
-                    paths.add(caos_ast.AtomicRefExpr(expr=expr))
-
-                    result = caos_ast.Disjunction(paths=frozenset(paths))
-
-            else:
-                result = newbinop(left, right)
-
         elif isinstance(left, caos_ast.BinOp):
+            result = newbinop(left, right)
+
+        elif isinstance(left, caos_ast.TypeCast):
             result = newbinop(left, right)
 
         elif isinstance(left, caos_ast.FunctionCall):
