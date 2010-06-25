@@ -313,6 +313,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         concept_map = self.get_concept_map(session)
 
         concept_id = row[attribute_map['concept_id']]
+
+        if concept_id is None:
+            # empty record
+            return None
+
         real_concept = concept_map[concept_id]
 
         if real_concept == concept_name:
