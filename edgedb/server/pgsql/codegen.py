@@ -398,3 +398,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.expr)
         self.write(' THEN ')
         self.visit(node.result)
+
+    def visit_NullTestNode(self, node):
+        self.visit(node.expr)
+        self.write(' IS NULL ')

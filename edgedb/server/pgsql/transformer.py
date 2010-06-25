@@ -729,6 +729,10 @@ class CaosTreeTransformer(CaosExprTransformer):
             operand = self._process_expr(context, expr.expr, cte)
             result = pgsql.ast.UnaryOpNode(op=expr.op, operand=operand)
 
+        elif isinstance(expr, tree.ast.NoneTest):
+            operand = self._process_expr(context, expr.expr, cte)
+            result = pgsql.ast.NullTestNode(expr=operand)
+
         elif isinstance(expr, tree.ast.Constant):
             result = self._process_constant(context, expr)
 

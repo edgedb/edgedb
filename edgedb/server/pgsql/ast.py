@@ -39,6 +39,9 @@ class PostfixOpNode(Base):
 class PredicateNode(Base):
     __fields = [('expr', Base, None)]
 
+class NullTestNode(Base):
+    __fields = [('expr', Base)]
+
 class SelectExprNode(Base):
     __fields = ['expr', 'alias']
 

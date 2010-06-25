@@ -255,6 +255,9 @@ class BinOp(Base):
 class UnaryOp(Base):
     __fields = ['expr', 'op', ('aggregates', bool)]
 
+class NoneTest(Base):
+    __fields = ['expr']
+
 class InlineFilter(Base): __fields  = ['expr', 'ref']
 class InlinePropFilter(Base): __fields  = ['expr', 'ref']
 class ExistPred(Base): __fields = ['expr', 'outer']

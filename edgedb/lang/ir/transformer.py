@@ -116,6 +116,9 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.TypeCast):
             self.extract_prefixes(expr.expr, prefixes)
 
+        elif isinstance(expr, caos_ast.NoneTest):
+            self.extract_prefixes(expr.expr, prefixes)
+
         elif isinstance(expr, (caos_ast.Sequence, caos_ast.Record)):
             for path in expr.elements:
                 self.extract_prefixes(path, prefixes)
@@ -389,6 +392,9 @@ class TreeTransformer:
             expr.expr = self.merge_paths(expr.expr)
 
         elif isinstance(expr, caos_ast.TypeCast):
+            expr.expr = self.merge_paths(expr.expr)
+
+        elif isinstance(expr, caos_ast.NoneTest):
             expr.expr = self.merge_paths(expr.expr)
 
         elif isinstance(expr, caos_ast.PathCombination):
@@ -1493,10 +1499,20 @@ class TreeTransformer:
     def process_unaryop(self, expr, operator):
         if isinstance(expr, caos_ast.AtomicRef):
             result = caos_ast.AtomicRefExpr(expr=caos_ast.UnaryOp(expr=expr, op=operator))
+        elif isinstance(expr, caos_ast.LinkPropRef):
+            result = caos_ast.LinkPropRefExpr(expr=caos_ast.UnaryOp(expr=expr, op=operator))
         else:
             result = caos_ast.UnaryOp(expr=expr, op=operator)
 
         return result
+
+    def process_none_test(self, expr):
+        if isinstance(expr.expr, caos_ast.AtomicRef):
+            expr = caos_ast.AtomicRefExpr(expr=expr)
+        elif isinstance(expr.expr, caos_ast.LinkPropRef):
+            expr = caos_ast.LinkPropRefExpr(expr=expr)
+
+        return expr
 
     def eval_const_bool_expr(self, left, right, op, reversed):
         if op == 'and':
