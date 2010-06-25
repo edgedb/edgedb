@@ -77,7 +77,7 @@ class Datasource(object):
                                           (name, value, config['type']))
             else:
                 if 'default' in config:
-                    value = config['default']
+                    value = self.coerce_default_value(name, config, config['default'])
                 else:
                     raise DatasourceError('expected required param: @name=%s' % name)
 
@@ -91,6 +91,9 @@ class Datasource(object):
 
     def fetch(self, *, _filters=None, _sort=None, **params):
         raise NotImplementedError
+
+    def coerce_default_value(self, name, config, value):
+        return value
 
 
 class CaosDatasource(Datasource):
@@ -109,3 +112,15 @@ class CaosDatasource(Datasource):
             return True
         return False
 
+    def coerce_default_value(self, name, config, value):
+        type = config['type']
+        if type == 'any' or value is None:
+            return value
+        type = self.session.schema.get(type)
+        if isinstance(value, type):
+            return value
+        elif isinstance(type, caos_types.AtomClass):
+            value = type(value)
+        else:
+            raise DatasourceError('could not coerce default value for "%s" parameter' % name)
+        return value
