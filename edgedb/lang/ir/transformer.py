@@ -1386,21 +1386,22 @@ class TreeTransformer:
                     #
                     assert not proppathdict
 
-                    operands = [right.left, right.right]
-                    while operands:
-                        operand = operands.pop()
+                    folded_operand = None
+                    for operand in (right.left, right.right):
                         if isinstance(operand, caos_ast.AtomicRef):
                             operand_id = operand.ref.id
                             ref = pathdict.get(operand_id)
                             if ref:
                                 ref.expr = self.extend_binop(ref.expr, operand, op=op,
                                                                                 reverse=reversed)
+                                folded_operand = operand
                                 break
 
-                    if len(operands) == 2:
-                        result = newbinop(left, right)
+                    if folded_operand:
+                        other_operand = right.left if folded_operand is right.right else right.right
+                        result = newbinop(left, other_operand)
                     else:
-                        result = newbinop(left, operands[0])
+                        result = newbinop(left, right)
 
         elif isinstance(left, caos_ast.Constant):
             if isinstance(right, caos_ast.Constant):
