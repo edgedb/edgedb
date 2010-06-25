@@ -267,6 +267,8 @@ class FunctionCall(Base):
                 ('args', list),
                 ('aggregates', bool)]
 
+class TypeCast(Base):
+    __fields = ['expr', 'type']
 
 class CaosOperator(ast.ops.Operator):
     pass
@@ -275,5 +277,9 @@ class TextSearchOperator(CaosOperator):
     pass
 
 SEARCH = TextSearchOperator('@@')
-LIKE = CaosOperator('like')
-ILIKE = CaosOperator('ilike')
+
+class CaosComparisonOperator(CaosOperator, ast.ops.ComparisonOperator):
+    pass
+
+LIKE = CaosComparisonOperator('like')
+ILIKE = CaosComparisonOperator('ilike')

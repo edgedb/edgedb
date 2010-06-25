@@ -381,3 +381,20 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_StarIndirectionNode(self, node):
         self.write('*')
+
+    def visit_CaseExprNode(self, node):
+        self.write('(CASE ')
+        for arg in node.args:
+            self.visit(arg)
+            self.new_lines = 1
+        if node.default:
+            self.write('ELSE ')
+            self.visit(node.default)
+            self.new_lines = 1
+        self.write('END)')
+
+    def visit_CaseWhenNode(self, node):
+        self.write('WHEN ')
+        self.visit(node.expr)
+        self.write(' THEN ')
+        self.visit(node.result)

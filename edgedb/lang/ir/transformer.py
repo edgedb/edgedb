@@ -113,6 +113,9 @@ class TreeTransformer:
             for arg in expr.args:
                 self.extract_prefixes(arg, prefixes)
 
+        elif isinstance(expr, caos_ast.TypeCast):
+            self.extract_prefixes(expr.expr, prefixes)
+
         elif isinstance(expr, (caos_ast.Sequence, caos_ast.Record)):
             for path in expr.elements:
                 self.extract_prefixes(path, prefixes)
@@ -383,6 +386,9 @@ class TreeTransformer:
                 expr = next(iter(e.paths))
 
         elif isinstance(expr, caos_ast.UnaryOp):
+            expr.expr = self.merge_paths(expr.expr)
+
+        elif isinstance(expr, caos_ast.TypeCast):
             expr.expr = self.merge_paths(expr.expr)
 
         elif isinstance(expr, caos_ast.PathCombination):
@@ -1016,6 +1022,9 @@ class TreeTransformer:
                 return self.flatten_path_combination(combination(paths=frozenset(paths)))
 
         elif isinstance(path, caos_ast.UnaryOp):
+            return self.extract_paths(path.expr, reverse)
+
+        elif isinstance(path, caos_ast.TypeCast):
             return self.extract_paths(path.expr, reverse)
 
         elif isinstance(path, caos_ast.FunctionCall):

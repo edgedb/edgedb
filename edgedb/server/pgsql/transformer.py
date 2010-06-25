@@ -732,6 +732,34 @@ class CaosTreeTransformer(CaosExprTransformer):
         elif isinstance(expr, tree.ast.Constant):
             result = self._process_constant(context, expr)
 
+        elif isinstance(expr, tree.ast.TypeCast):
+            if isinstance(expr.expr, tree.ast.BinOp) and \
+                                        isinstance(expr.expr.op, ast.ops.ComparisonOperator):
+                expr_type = bool
+            elif isinstance(expr.expr, tree.ast.BaseRefExpr) and \
+                        isinstance(expr.expr.expr, tree.ast.BinOp) and \
+                        isinstance(expr.expr.expr.op, ast.ops.ComparisonOperator):
+                expr_type = bool
+            elif isinstance(expr.expr, tree.ast.Constant):
+                expr_type = expr.expr.type
+            else:
+                expr_type = None
+
+            schema = context.current.realm.meta
+            int_proto = schema.get('semantix.caos.builtins.int')
+
+            pg_expr = self._process_expr(context, expr.expr, cte)
+
+            if expr_type and issubclass(expr_type, bool) and expr.type.issubclass(schema, int_proto):
+                when_expr = pgsql.ast.CaseWhenNode(expr=pg_expr,
+                                                   result=pgsql.ast.ConstantNode(value=1))
+                default = pgsql.ast.ConstantNode(value=0)
+                result = pgsql.ast.CaseExprNode(args=[when_expr], default=default)
+            else:
+                type = types.pg_type_from_atom(schema, expr.type, topbase=True)
+                type = pgsql.ast.TypeNode(name=type)
+                result = pgsql.ast.TypeCastNode(expr=pg_expr, type=type)
+
         elif isinstance(expr, tree.ast.Sequence):
             elements = [self._process_expr(context, e, cte) for e in expr.elements]
             result = pgsql.ast.SequenceNode(elements=elements)

@@ -157,20 +157,32 @@ class IndexIndirectionNode(Base):
     __fields = ['lower', 'upper']
 
 
+class CaseExprNode(Base):
+    __fields = ['arg', 'args', 'default']
+
+
+class CaseWhenNode(Base):
+    __fields = ['expr', 'result']
+
+
 class PgSQLOperator(ast.ops.Operator):
     pass
 
 
-LIKE = PgSQLOperator('~~')
-NOT_LIKE = PgSQLOperator('!~~')
-ILIKE = PgSQLOperator('~~*')
-NOT_ILIKE = PgSQLOperator('!~~*')
-SIMILAR_TO = PgSQLOperator('~')
-NOT_SIMILAR_TO = PgSQLOperator('!~')
-IS_DISTINCT = PgSQLOperator('IS DISTINCT')
-IS_NOT_DISTINCT = PgSQLOperator('IS NOT DISTINCT')
-IS_OF = PgSQLOperator('IS OF')
-IS_NOT_OF = PgSQLOperator('IS NOT OF')
+class PgSQLComparisonOperator(PgSQLOperator, ast.ops.ComparisonOperator):
+    pass
+
+
+LIKE = PgSQLComparisonOperator('~~')
+NOT_LIKE = PgSQLComparisonOperator('!~~')
+ILIKE = PgSQLComparisonOperator('~~*')
+NOT_ILIKE = PgSQLComparisonOperator('!~~*')
+SIMILAR_TO = PgSQLComparisonOperator('~')
+NOT_SIMILAR_TO = PgSQLComparisonOperator('!~')
+IS_DISTINCT = PgSQLComparisonOperator('IS DISTINCT')
+IS_NOT_DISTINCT = PgSQLComparisonOperator('IS NOT DISTINCT')
+IS_OF = PgSQLComparisonOperator('IS OF')
+IS_NOT_OF = PgSQLComparisonOperator('IS NOT OF')
 
 
 class SortOrder(datastructures.StrSingleton):
