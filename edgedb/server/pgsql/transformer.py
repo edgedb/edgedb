@@ -880,6 +880,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             result = pgsql.ast.FunctionCallNode(name='ts_headline', args=[lang, vector, query])
 
         else:
+            result = None
             if expr.aggregates:
                 with context(context.NEW_TRANSPARENT):
                     context.current.in_aggregate = True
@@ -898,11 +899,22 @@ class CaosTreeTransformer(CaosExprTransformer):
                 name = 'count'
             elif expr.name == ('math', 'abs'):
                 name = 'abs'
+            elif expr.name == ('datetime', 'to_months'):
+                years = pgsql.ast.FunctionCallNode(name='date_part',
+                                                   args=[pgsql.ast.ConstantNode(value='year'),
+                                                         args[0]])
+                years = pgsql.ast.BinOpNode(left=years, op=ast.ops.MUL,
+                                            right=pgsql.ast.ConstantNode(value=12))
+                months = pgsql.ast.FunctionCallNode(name='date_part',
+                                                    args=[pgsql.ast.ConstantNode(value='month'),
+                                                          args[0]])
+                result = pgsql.ast.BinOpNode(left=years, op=ast.ops.ADD, right=months)
             elif isinstance(expr.name, tuple):
                 assert False, 'unsupported function %s' % (expr.name,)
             else:
                 name = expr.name
-            result = pgsql.ast.FunctionCallNode(name=name, args=args)
+            if not result:
+                result = pgsql.ast.FunctionCallNode(name=name, args=args)
 
         return result
 
