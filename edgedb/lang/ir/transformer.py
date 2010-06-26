@@ -172,6 +172,16 @@ class TreeTransformer:
 
         return expr
 
+    def add_path_user(self, path, user):
+        while path:
+            path.users.add(user)
+            if path.rlink:
+                path.rlink.users.add(user)
+                path = path.rlink.source
+            else:
+                path = None
+        return path
+
     def entityref_to_idref(self, expr, schema, full_record=False):
         p = next(iter(expr.paths))
         if isinstance(p, caos_ast.EntitySet):
@@ -587,6 +597,7 @@ class TreeTransformer:
                                                              right_link.propfilter, op=ast.ops.AND)
 
                 left_link.proprefs.update(right_link.proprefs)
+                left_link.users.update(right_link.users)
                 if right_link.target:
                     left_link.target = right_link.target
 
@@ -755,6 +766,7 @@ class TreeTransformer:
                                                              right_link.propfilter, op=ast.ops.AND)
 
                 left_link.proprefs.update(right_link.proprefs)
+                left_link.users.update(right_link.users)
                 if right_link.target:
                     left_link.target = right_link.target
 
@@ -1094,7 +1106,8 @@ class TreeTransformer:
                                         joins=parent_path.joins)
             link = caos_ast.EntityLink(filter=path.rlink.filter, source=parent, target=current,
                                        link_proto=path.rlink.link_proto,
-                                       propfilter=path.rlink.propfilter)
+                                       propfilter=path.rlink.propfilter,
+                                       users=path.rlink.users.copy())
             parent.disjunction = caos_ast.Disjunction(paths=frozenset((link,)))
             current.rlink = link
             current = parent

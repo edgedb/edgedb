@@ -19,7 +19,7 @@ class ArgListNode(Base):
     __fields = ['name', ('args', list)]
 
 class BinOpNode(Base):
-    __fields = ['left', 'op', 'right', ('aggregates', bool)]
+    __fields = ['left', 'op', 'right', ('aggregates', bool), ('strong', bool)]
 
 class VarNode(Base):
     __fields = ['name']

@@ -169,7 +169,8 @@ class LinkPropRefExpr(LinkPropRef, BaseRefExpr):
 
 
 class EntityLink(Base):
-    __fields = ['filter', 'propfilter', 'source', 'target', 'link_proto', ('proprefs', set)]
+    __fields = ['filter', 'propfilter', 'source', 'target', 'link_proto', ('proprefs', set),
+                ('users', set)]
 
     def replace_refs(self, old, new, deep=False):
         # Since EntityLink can be a member of PathCombination set
