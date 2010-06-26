@@ -1048,7 +1048,8 @@ class CaosTreeTransformer(CaosExprTransformer):
             map_join_type = 'left' if len(labels) > 1 or weak else 'inner'
 
             maps = {}
-            existing_link = step_cte.linkmap.get((link.filter, link.source))
+            tip_anchor = caos_path_tip.anchor if caos_path_tip else None
+            existing_link = step_cte.linkmap.get((link.filter, link.source, tip_anchor))
 
             for label in labels:
                 if existing_link:
@@ -1101,7 +1102,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                     target_bond_expr = cond_expr
 
             if not existing_link:
-                step_cte.linkmap[(link.filter, link.source)] = maps
+                step_cte.linkmap[(link.filter, link.source, tip_anchor)] = maps
 
             if concept_table:
                 join.addbond(caos_path_tip.concept, target_bond_expr)
