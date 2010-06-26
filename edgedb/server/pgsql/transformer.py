@@ -903,6 +903,10 @@ class CaosTreeTransformer(CaosExprTransformer):
                 name = 'count'
             elif expr.name == ('math', 'abs'):
                 name = 'abs'
+            elif expr.name == ('math', 'min'):
+                name = 'least'
+            elif expr.name == ('math', 'max'):
+                name = 'greatest'
             elif expr.name == ('datetime', 'to_months'):
                 years = pgsql.ast.FunctionCallNode(name='date_part',
                                                    args=[pgsql.ast.ConstantNode(value='year'),
