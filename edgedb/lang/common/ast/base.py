@@ -18,12 +18,12 @@ class ASTError(Exception):
 
 
 class Field:
-    def __init__(self, name, type_, default, traverse):
+    def __init__(self, name, type_, default, traverse, child_traverse=None):
         self.name = name
         self.type = type_
         self.default = default
         self.traverse = traverse
-
+        self.child_traverse = child_traverse if child_traverse is not None else traverse
 
 class MetaAST(type):
     def __init__(cls, name, bases, dct):
@@ -40,6 +40,7 @@ class MetaAST(type):
                 field_type = None
                 field_default = None
                 field_traverse = True
+                field_child_traverse = None
 
                 if isinstance(field, tuple):
                     field_name = field[0]
@@ -54,8 +55,12 @@ class MetaAST(type):
                     if len(field) > 3:
                         field_traverse = field[3]
 
+                    if len(field) > 4:
+                        field_child_traverse = field[4]
+
                 if field_name not in fields:
-                    fields[field_name] = Field(field_name, field_type, field_default, field_traverse)
+                    fields[field_name] = Field(field_name, field_type, field_default,
+                                               field_traverse, field_child_traverse)
 
         cls._fields = fields
 

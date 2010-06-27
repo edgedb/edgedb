@@ -31,7 +31,7 @@ def find_children(node, test_func, *args, force_traversal=False, **kwargs):
                     if test_func(n, *args, **kwargs):
                         result.append(n)
 
-                    if field_spec.traverse or force_traversal:
+                    if field_spec.child_traverse or force_traversal:
                         _n = _find_children(n, test_func)
                         if _n is not None:
                             result.extend(_n)
@@ -40,7 +40,7 @@ def find_children(node, test_func, *args, force_traversal=False, **kwargs):
                 if test_func(value, *args, **kwargs):
                     result.append(value)
 
-                if field_spec.traverse or force_traversal:
+                if field_spec.child_traverse or force_traversal:
                     _n = _find_children(value, test_func)
                     if _n is not None:
                         result.extend(_n)
