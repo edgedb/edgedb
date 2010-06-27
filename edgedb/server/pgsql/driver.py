@@ -43,7 +43,8 @@ oid_to_type = {
     postgresql.types.UUIDOID: uuid.UUID,
     postgresql.types.TIMESTAMPTZOID: DateTime,
     postgresql.types.TIMEOID: Time,
-    postgresql.types.NUMERICOID: numeric.Decimal
+    postgresql.types.NUMERICOID: numeric.Decimal,
+    postgresql.types.INTERVALOID: TimeDelta
 }
 
 
