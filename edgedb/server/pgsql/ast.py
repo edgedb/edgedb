@@ -9,6 +9,7 @@
 import weakref
 
 from semantix.utils import datastructures, ast
+from semantix.caos.caosql import ast as caosql_ast
 
 
 class Base(ast.AST):
@@ -18,7 +19,7 @@ class ArgListNode(Base):
     __fields = ['name', ('args', list)]
 
 class BinOpNode(Base):
-    __fields = ['left', 'op', 'right', ('aggregates', bool)]
+    __fields = ['left', 'op', 'right', ('aggregates', bool), ('strong', bool)]
 
 class VarNode(Base):
     __fields = ['name']
@@ -37,6 +38,9 @@ class PostfixOpNode(Base):
 
 class PredicateNode(Base):
     __fields = [('expr', Base, None)]
+
+class NullTestNode(Base):
+    __fields = [('expr', Base)]
 
 class SelectExprNode(Base):
     __fields = ['expr', 'alias']
@@ -156,17 +160,41 @@ class IndexIndirectionNode(Base):
     __fields = ['lower', 'upper']
 
 
+class CaseExprNode(Base):
+    __fields = ['arg', 'args', 'default']
+
+
+class CaseWhenNode(Base):
+    __fields = ['expr', 'result']
+
+
 class PgSQLOperator(ast.ops.Operator):
     pass
 
 
-LIKE = PgSQLOperator('~~')
-NOT_LIKE = PgSQLOperator('!~~')
-ILIKE = PgSQLOperator('~~*')
-NOT_ILIKE = PgSQLOperator('!~~*')
-SIMILAR_TO = PgSQLOperator('~')
-NOT_SIMILAR_TO = PgSQLOperator('!~')
-IS_DISTINCT = PgSQLOperator('IS DISTINCT')
-IS_NOT_DISTINCT = PgSQLOperator('IS NOT DISTINCT')
-IS_OF = PgSQLOperator('IS OF')
-IS_NOT_OF = PgSQLOperator('IS NOT OF')
+class PgSQLComparisonOperator(PgSQLOperator, ast.ops.ComparisonOperator):
+    pass
+
+
+LIKE = PgSQLComparisonOperator('~~')
+NOT_LIKE = PgSQLComparisonOperator('!~~')
+ILIKE = PgSQLComparisonOperator('~~*')
+NOT_ILIKE = PgSQLComparisonOperator('!~~*')
+SIMILAR_TO = PgSQLComparisonOperator('~')
+NOT_SIMILAR_TO = PgSQLComparisonOperator('!~')
+IS_DISTINCT = PgSQLComparisonOperator('IS DISTINCT')
+IS_NOT_DISTINCT = PgSQLComparisonOperator('IS NOT DISTINCT')
+IS_OF = PgSQLComparisonOperator('IS OF')
+IS_NOT_OF = PgSQLComparisonOperator('IS NOT OF')
+
+
+class SortOrder(datastructures.StrSingleton):
+    _map = {
+        caosql_ast.SortAsc: 'SortAsc',
+        caosql_ast.SortDesc: 'SortDesc',
+        caosql_ast.SortDefault: 'SortDefault'
+    }
+
+SortAsc = SortOrder(caosql_ast.SortAsc)
+SortDesc = SortOrder(caosql_ast.SortDesc)
+SortDefault = SortOrder(caosql_ast.SortDefault)

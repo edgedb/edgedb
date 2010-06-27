@@ -313,6 +313,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         concept_map = self.get_concept_map(session)
 
         concept_id = row[attribute_map['concept_id']]
+
+        if concept_id is None:
+            # empty record
+            return None
+
         real_concept = concept_map[concept_id]
 
         if real_concept == concept_name:
@@ -738,6 +743,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             session.connection.execute('TRUNCATE %s' % common.qname(*updates_table.name))
             session.connection.execute('DROP INDEX %s' % common.qname(updates_table.name[0],
                                                                       updates_index_name))
+
+        session.connection.execute('ANALYZE %s' % common.qname(*table))
 
 
     def store_entity_batch(self, entities, session, batch_id):
@@ -1436,7 +1443,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                         caos.Name(name=derived_atom_name,
                                                   module=source.name.module))
 
-        return target
+        return target, col['column_required']
 
 
     def unpack_constraints(self, meta, constraints):
@@ -1496,8 +1503,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if r['default']:
                 r['default'] = self.unpack_default(r['default'])
 
+            required = r['required']
+
             if r['source_id'] and r['is_atom']:
-                target = self.read_pointer_target_column(meta, source, bases[0], concept_constraints)
+                target, required = self.read_pointer_target_column(meta, source, bases[0],
+                                                                   concept_constraints)
 
                 concept_schema, concept_table = common.concept_name_to_table_name(source.name,
                                                                                   catenate=False)
@@ -1520,7 +1530,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             link = proto.Link(name=name, base=bases, source=source, target=target,
                                 mapping=caos.types.LinkMapping(r['mapping']),
-                                required=r['required'],
+                                required=required,
                                 title=title, description=description,
                                 is_abstract=r['is_abstract'],
                                 is_atom=r['is_atom'],
@@ -1536,8 +1546,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             for constraint in abstract_constraints:
                 link.add_abstract_constraint(constraint)
 
-            link.acquire_parent_data(meta)
-
             if source:
                 source.add_link(link)
                 if isinstance(target, caos.types.ProtoConcept) \
@@ -1545,6 +1553,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     target.add_rlink(link)
 
             meta.add(link)
+
+        for link in meta(type='link', include_automatic=True, include_builtin=True):
+            link.acquire_parent_data(meta)
 
 
     def order_links(self, meta):
@@ -1601,10 +1612,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             constraints = []
             abstract_constraints = []
 
+            required = r['required']
+
             if source:
                 # The property is attached to a link, check out link table columns for
                 # target information.
-                target = self.read_pointer_target_column(meta, source, bases[0], atom_constraints)
+                target, required = self.read_pointer_target_column(meta, source, bases[0],
+                                                                   atom_constraints)
 
                 constraints = self.unpack_constraints(meta, r['constraints'])
                 abstract_constraints = self.unpack_constraints(meta, r['abstract_constraints'])
@@ -1620,7 +1634,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 target = None
 
             prop = proto.LinkProperty(name=name, base=bases, source=source, target=target,
-                                      required=r['required'],
+                                      required=required,
                                       title=title, description=description,
                                       readonly=r['readonly'],
                                       default=default)

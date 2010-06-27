@@ -58,8 +58,11 @@ class Datasource(object):
     def describe_output(self):
         raise NotImplementedError
 
-    def check_type(self, value, type):
-        return check_type(value, type)
+    def check_type(self, name, value, type):
+        if check_type(value, type):
+            return value
+        else:
+            raise ValueError('invalid parameter type')
 
     def _filter_params(self, params, filters=None):
         if self.params is None:
@@ -72,12 +75,15 @@ class Datasource(object):
 
             if name in params:
                 value = params[name]
-                if not self.check_type(value, config['type']):
+
+                try:
+                    value = self.check_type(name, value, config['type'])
+                except ValueError as e:
                     raise DatasourceError('datatype check failed, param: @name=%s, @value=%s, expected type: %s' %
-                                          (name, value, config['type']))
+                                          (name, value, config['type'])) from e
             else:
                 if 'default' in config:
-                    value = config['default']
+                    value = self.coerce_default_value(name, config['default'], config['type'])
                 else:
                     raise DatasourceError('expected required param: @name=%s' % name)
 
@@ -92,20 +98,36 @@ class Datasource(object):
     def fetch(self, *, _filters=None, _sort=None, **params):
         raise NotImplementedError
 
+    def coerce_default_value(self, name, value, type):
+        return value
+
 
 class CaosDatasource(Datasource):
     def __init__(self, session):
         super().__init__()
         self.session = session
 
-    def check_type(self, value, type):
-        if type == 'any' or value is None:
-            return True
+    def check_type(self, name, value, typ):
+        if typ == 'any' or value is None:
+            return value
 
+        type = self.session.schema.get(typ)
+
+        if isinstance(value, type):
+            return value
+        elif isinstance(type, caos_types.AtomClass) and issubclass(type, value.__class__):
+            return value
+
+        return self.coerce_default_value(name, value, typ)
+
+    def coerce_default_value(self, name, value, type):
+        if type == 'any' or value is None:
+            return value
         type = self.session.schema.get(type)
         if isinstance(value, type):
-            return True
-        elif isinstance(type, caos_types.AtomClass) and issubclass(type, value.__class__):
-            return True
-        return False
-
+            return value
+        elif isinstance(type, caos_types.AtomClass):
+            value = type(value)
+        else:
+            raise DatasourceError('could not coerce default value for "%s" parameter' % name)
+        return value

@@ -24,6 +24,7 @@ class ParseContextLevel(object):
             self.groupprefixes = prevlevel.groupprefixes
             self.in_aggregate = prevlevel.in_aggregate[:]
             self.arguments = prevlevel.arguments
+            self.proto_schema = prevlevel.proto_schema
         else:
             self.anchors = {}
             self.namespaces = {}
@@ -31,6 +32,7 @@ class ParseContextLevel(object):
             self.groupprefixes = None
             self.in_aggregate = []
             self.arguments = {}
+            self.proto_schema = None
 
 
 class ParseContext(object):
@@ -179,6 +181,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
     def transform(self, caosql_tree, arg_types):
         self.context = context = ParseContext()
+        self.context.current.proto_schema = self.proto_schema
         stree = self._transform_select(context, caosql_tree, arg_types)
 
         return stree
@@ -620,13 +623,14 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
         result = []
 
-        with context():
-            context.current.location = 'sorter'
-            for sorter in sorters:
-                expr = self._process_expr(context, sorter.path)
-                expr = self.merge_paths(expr)
-                s = tree.ast.SortExpr(expr=expr, direction=sorter.direction)
-                result.append(s)
+        if sorters:
+            with context():
+                context.current.location = 'sorter'
+                for sorter in sorters:
+                    expr = self._process_expr(context, sorter.path)
+                    expr = self.merge_paths(expr)
+                    s = tree.ast.SortExpr(expr=expr, direction=sorter.direction)
+                    result.append(s)
 
         return result
 
@@ -634,11 +638,12 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
         result = []
 
-        with context():
-            context.current.location = 'grouper'
-            for grouper in groupers:
-                expr = self._process_expr(context, grouper)
-                expr = self.merge_paths(expr)
-                result.append(expr)
+        if groupers:
+            with context():
+                context.current.location = 'grouper'
+                for grouper in groupers:
+                    expr = self._process_expr(context, grouper)
+                    expr = self.merge_paths(expr)
+                    result.append(expr)
 
         return result

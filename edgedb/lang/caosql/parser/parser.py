@@ -6,33 +6,22 @@
 ##
 
 
-import os
-import pyggy
+from semantix.utils import ast, parsing, debug
 
-from semantix.utils import ast
-
-from .errors import CaosQLSyntaxError
+from semantix.caos.caosql.parser.errors import CaosQLSyntaxError
 from semantix.caos.caosql import ast as qlast, CaosQLQueryError
 
 
-class CaosQLParser(object):
-    def __init__(self):
-        self.lexer, self.ltab = pyggy.getlexer(self.getsrc("caosql.pyl"))
-        self.lexer.lineno = 1
+class CaosQLParser(parsing.Parser):
+    def get_parser_spec_module(self):
+        from . import caosql
+        return caosql
 
-        self.parser, self.ptab = pyggy.getparser(self.getsrc("caosql.pyg"))
-        self.parser.setlexer(self.lexer)
+    def get_debug(self):
+        return 'caos.caosql.parser' in debug.channels
 
-    def parse(self, expr):
-        self.lexer.setinputstr(expr)
-
-        try:
-            tree = self.parser.parse()
-        except pyggy.ParseError as e:
-            raise CaosQLSyntaxError(token=e.tok, expr=e.str, lineno=self.lexer.lineno)
-
-        raw_ast = pyggy.proctree(tree, self.ptab)
-        return ast.fix_parent_links(raw_ast)
+    def get_exception(self, native_err):
+        return CaosQLQueryError(native_err.args[0])
 
     def normalize_select_query(self, query, filters, sort):
         nodetype = type(query)
@@ -74,26 +63,3 @@ class CaosQLParser(object):
             qtree.orderby = newsort
 
         return qtree
-
-    def parsepath(self, path):
-        expr = self.parse(path)
-
-        if not isinstance(expr, qlast.PathNode):
-            raise CaosQLSyntaxError(token=None, expr=path, lineno=0)
-
-        return expr
-
-    def getsrc(self, name):
-        return os.path.join(os.path.dirname(__file__), name)
-
-if __name__ == '__main__':
-    import sys
-
-    parser = CaosQLParser()
-
-    input = sys.stdin.read()
-    result = parser.parse(input)
-
-    import pprint
-    pp = pprint.PrettyPrinter(indent=2)
-    pp.pprint(result)

@@ -8,6 +8,7 @@
 import numbers
 import postgresql.string
 from semantix.caos.backends.pgsql import common
+from . import ast as pgast
 from semantix.utils.ast import codegen
 
 
@@ -363,8 +364,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_SortExprNode(self, node):
         self.visit(node.expr)
         if node.direction:
-            self.write(' ' + node.direction)
-            if node.direction == 'desc':
+            direction = 'ASC' if node.direction == pgast.SortAsc else 'DESC'
+            self.write(' ' + direction)
+            if node.direction == pgast.SortDesc:
                 self.write(' NULLS LAST')
             else:
                 self.write(' NULLS FIRST')
@@ -379,3 +381,24 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_StarIndirectionNode(self, node):
         self.write('*')
+
+    def visit_CaseExprNode(self, node):
+        self.write('(CASE ')
+        for arg in node.args:
+            self.visit(arg)
+            self.new_lines = 1
+        if node.default:
+            self.write('ELSE ')
+            self.visit(node.default)
+            self.new_lines = 1
+        self.write('END)')
+
+    def visit_CaseWhenNode(self, node):
+        self.write('WHEN ')
+        self.visit(node.expr)
+        self.write(' THEN ')
+        self.visit(node.result)
+
+    def visit_NullTestNode(self, node):
+        self.visit(node.expr)
+        self.write(' IS NULL ')

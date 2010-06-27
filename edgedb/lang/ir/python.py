@@ -117,7 +117,11 @@ class CaosToPythonTransformer(ast.visitor.NodeVisitor):
             left = self._process_expr(expr.left)
             right = self._process_expr(expr.right)
             op = _operator_map[expr.op]()
-            result = py_ast.PyBinOp(left=left, right=right, op=op)
+
+            if isinstance(expr.op, ast.ops.ComparisonOperator):
+                result = py_ast.PyCompare(left=left, ops=[op], comparators=[right])
+            else:
+                result = py_ast.PyBinOp(left=left, right=right, op=op)
 
         elif isinstance(expr, caos_ast.Constant):
             if expr.expr:

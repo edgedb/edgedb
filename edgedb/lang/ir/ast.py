@@ -96,7 +96,11 @@ class GraphExpr(Base):
                 'offset', 'limit', ('opselector', list), 'optarget', 'opvalues', 'op']
 
 
-class BaseRef(Base):
+class Path(Base):
+    pass
+
+
+class BaseRef(Path):
     __fields = ['id', ('ref', Base, None, False)]
 
     def __init__(self, **kwargs):
@@ -122,7 +126,7 @@ class AtomicRefSimple(AtomicRef):
     __fields = [('name', caos_name.Name, None), 'caoslink']
 
 
-class BaseRefExpr(Base):
+class BaseRefExpr(Path):
     __fields = ['expr']
 
     def __init__(self, **kwargs):
@@ -165,7 +169,8 @@ class LinkPropRefExpr(LinkPropRef, BaseRefExpr):
 
 
 class EntityLink(Base):
-    __fields = ['filter', 'propfilter', 'source', 'target', 'link_proto', ('proprefs', set)]
+    __fields = ['filter', 'propfilter', 'source', 'target', 'link_proto', ('proprefs', set),
+                ('users', set)]
 
     def replace_refs(self, old, new, deep=False):
         # Since EntityLink can be a member of PathCombination set
@@ -190,7 +195,7 @@ class EntityLinkSpec(ast.AST):
         return hash((self.labels, self.direction))
 
 
-class PathCombination(Base):
+class PathCombination(Path):
     __fields = [('paths', frozenset, frozenset, False)]
 
     def __init__(self, **kwargs):
@@ -226,7 +231,7 @@ class Conjunction(PathCombination):
     pass
 
 
-class EntitySet(Base):
+class EntitySet(Path):
     __fields = ['id', 'anchor', ('concept', caos_types.ProtoNode), 'atom',
                 ('conceptfilter', dict),
                 'filter',
@@ -255,6 +260,9 @@ class BinOp(Base):
 class UnaryOp(Base):
     __fields = ['expr', 'op', ('aggregates', bool)]
 
+class NoneTest(Base):
+    __fields = ['expr']
+
 class InlineFilter(Base): __fields  = ['expr', 'ref']
 class InlinePropFilter(Base): __fields  = ['expr', 'ref']
 class ExistPred(Base): __fields = ['expr', 'outer']
@@ -267,6 +275,8 @@ class FunctionCall(Base):
                 ('args', list),
                 ('aggregates', bool)]
 
+class TypeCast(Base):
+    __fields = ['expr', 'type']
 
 class CaosOperator(ast.ops.Operator):
     pass
@@ -275,5 +285,9 @@ class TextSearchOperator(CaosOperator):
     pass
 
 SEARCH = TextSearchOperator('@@')
-LIKE = CaosOperator('like')
-ILIKE = CaosOperator('ilike')
+
+class CaosComparisonOperator(CaosOperator, ast.ops.ComparisonOperator):
+    pass
+
+LIKE = CaosComparisonOperator('like')
+ILIKE = CaosComparisonOperator('ilike')

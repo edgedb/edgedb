@@ -230,7 +230,6 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
         return relation
 
     def _relation_from_link(self, context, node):
-        link_proto = next(iter(node.filter.labels))
         table_schema_name, table_name = common.link_name_to_table_name(link.name, catenate=False)
         table = pgsql.ast.TableNode(name=table_name,
                                     schema=table_schema_name,
@@ -395,7 +394,8 @@ class CaosTreeTransformer(CaosExprTransformer):
             if cte.where_strong:
                 cte.where = self.extend_predicate(cte.where, cte.where_strong, ast.ops.AND)
             if cte.where_weak:
-                cte.where = self.extend_predicate(cte.where, cte.where_weak, ast.ops.OR)
+                op = ast.ops.AND if getattr(cte.where, 'strong', False) else ast.ops.OR
+                cte.where = self.extend_predicate(cte.where, cte.where_weak, op)
 
     def _process_generator(self, context, generator):
         context.current.location = 'generator'
@@ -729,8 +729,40 @@ class CaosTreeTransformer(CaosExprTransformer):
             operand = self._process_expr(context, expr.expr, cte)
             result = pgsql.ast.UnaryOpNode(op=expr.op, operand=operand)
 
+        elif isinstance(expr, tree.ast.NoneTest):
+            operand = self._process_expr(context, expr.expr, cte)
+            result = pgsql.ast.NullTestNode(expr=operand)
+
         elif isinstance(expr, tree.ast.Constant):
             result = self._process_constant(context, expr)
+
+        elif isinstance(expr, tree.ast.TypeCast):
+            if isinstance(expr.expr, tree.ast.BinOp) and \
+                                        isinstance(expr.expr.op, ast.ops.ComparisonOperator):
+                expr_type = bool
+            elif isinstance(expr.expr, tree.ast.BaseRefExpr) and \
+                        isinstance(expr.expr.expr, tree.ast.BinOp) and \
+                        isinstance(expr.expr.expr.op, ast.ops.ComparisonOperator):
+                expr_type = bool
+            elif isinstance(expr.expr, tree.ast.Constant):
+                expr_type = expr.expr.type
+            else:
+                expr_type = None
+
+            schema = context.current.realm.meta
+            int_proto = schema.get('semantix.caos.builtins.int')
+
+            pg_expr = self._process_expr(context, expr.expr, cte)
+
+            if expr_type and issubclass(expr_type, bool) and expr.type.issubclass(schema, int_proto):
+                when_expr = pgsql.ast.CaseWhenNode(expr=pg_expr,
+                                                   result=pgsql.ast.ConstantNode(value=1))
+                default = pgsql.ast.ConstantNode(value=0)
+                result = pgsql.ast.CaseExprNode(args=[when_expr], default=default)
+            else:
+                type = types.pg_type_from_atom(schema, expr.type, topbase=True)
+                type = pgsql.ast.TypeNode(name=type)
+                result = pgsql.ast.TypeCastNode(expr=pg_expr, type=type)
 
         elif isinstance(expr, tree.ast.Sequence):
             elements = [self._process_expr(context, e, cte) for e in expr.elements]
@@ -852,6 +884,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             result = pgsql.ast.FunctionCallNode(name='ts_headline', args=[lang, vector, query])
 
         else:
+            result = None
             if expr.aggregates:
                 with context(context.NEW_TRANSPARENT):
                     context.current.in_aggregate = True
@@ -870,11 +903,26 @@ class CaosTreeTransformer(CaosExprTransformer):
                 name = 'count'
             elif expr.name == ('math', 'abs'):
                 name = 'abs'
+            elif expr.name == ('math', 'min'):
+                name = 'least'
+            elif expr.name == ('math', 'max'):
+                name = 'greatest'
+            elif expr.name == ('datetime', 'to_months'):
+                years = pgsql.ast.FunctionCallNode(name='date_part',
+                                                   args=[pgsql.ast.ConstantNode(value='year'),
+                                                         args[0]])
+                years = pgsql.ast.BinOpNode(left=years, op=ast.ops.MUL,
+                                            right=pgsql.ast.ConstantNode(value=12))
+                months = pgsql.ast.FunctionCallNode(name='date_part',
+                                                    args=[pgsql.ast.ConstantNode(value='month'),
+                                                          args[0]])
+                result = pgsql.ast.BinOpNode(left=years, op=ast.ops.ADD, right=months)
             elif isinstance(expr.name, tuple):
                 assert False, 'unsupported function %s' % (expr.name,)
             else:
                 name = expr.name
-            result = pgsql.ast.FunctionCallNode(name=name, args=args)
+            if not result:
+                result = pgsql.ast.FunctionCallNode(name=name, args=args)
 
         return result
 
@@ -1004,7 +1052,8 @@ class CaosTreeTransformer(CaosExprTransformer):
             map_join_type = 'left' if len(labels) > 1 or weak else 'inner'
 
             maps = {}
-            existing_link = step_cte.linkmap.get((link.filter, link.source))
+            tip_anchor = caos_path_tip.anchor if caos_path_tip else None
+            existing_link = step_cte.linkmap.get((link.filter, link.source, tip_anchor))
 
             for label in labels:
                 if existing_link:
@@ -1057,7 +1106,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                     target_bond_expr = cond_expr
 
             if not existing_link:
-                step_cte.linkmap[(link.filter, link.source)] = maps
+                step_cte.linkmap[(link.filter, link.source, tip_anchor)] = maps
 
             if concept_table:
                 join.addbond(caos_path_tip.concept, target_bond_expr)
@@ -1264,7 +1313,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         ref = self.get_cte_fieldref_for_set(context, caos_path_tip, field_name,
                                             map=sql_path_tip.concept_node_map)
-        cte.where = pgsql.ast.BinOpNode(left=bond, op=ast.ops.EQ, right=ref)
+        cte.where = pgsql.ast.BinOpNode(left=bond, op=ast.ops.EQ, right=ref, strong=True)
 
         target = pgsql.ast.SelectExprNode(expr=pgsql.ast.ConstantNode(value=True))
         cte.targets.append(target)
@@ -1281,9 +1330,11 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                 if link.target:
                     target_sets = {link.target} | set(link.target.joins)
-                    in_selector = bool(list(filter(lambda i: 'selector' in i.users, target_sets)))
+                    in_selector = bool(list(filter(lambda i: 'selector' in i.users \
+                                                              or 'sorter' in i.users,
+                                                   target_sets)))
                 else:
-                    in_selector = False
+                    in_selector = 'selector' in link.users or 'sorter' in link.users
 
                 cardinality_ok = context.current.ignore_cardinality or \
                                  in_selector or \
