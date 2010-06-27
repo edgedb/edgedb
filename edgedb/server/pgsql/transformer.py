@@ -616,10 +616,12 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         elif isinstance(expr, tree.ast.InlinePropFilter):
             self._process_expr(context, expr.ref.target or expr.ref.source, cte)
+            result = pgsql.ast.IgnoreNode()
 
         elif isinstance(expr, tree.ast.EntitySet):
             root = self.get_caos_path_root(expr)
             self._process_graph(context, cte or context.current.query, root)
+            result = pgsql.ast.IgnoreNode()
 
         elif isinstance(expr, tree.ast.BinOp):
             left_is_universal_set = self.is_universal_set(expr.left)
@@ -682,7 +684,9 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                                                   right, op)
                     right = pgsql.ast.IgnoreNode()
 
-                if isinstance(left, pgsql.ast.IgnoreNode) or isinstance(right, pgsql.ast.IgnoreNode):
+                if isinstance(left, pgsql.ast.IgnoreNode) and isinstance(right, pgsql.ast.IgnoreNode):
+                    result = pgsql.ast.IgnoreNode()
+                elif isinstance(left, pgsql.ast.IgnoreNode) or isinstance(right, pgsql.ast.IgnoreNode):
                     if isinstance(left, pgsql.ast.IgnoreNode):
                         result, from_expr = right, expr.right
                     elif isinstance(right, pgsql.ast.IgnoreNode):
@@ -1328,18 +1332,18 @@ class CaosTreeTransformer(CaosExprTransformer):
             if isinstance(link, tree.ast.EntityLink):
                 link_proto = link.link_proto
 
+                flt = lambda i: set(('selector', 'sorter', 'grouper')) & i.users
                 if link.target:
                     target_sets = {link.target} | set(link.target.joins)
-                    in_selector = bool(list(filter(lambda i: 'selector' in i.users \
-                                                              or 'sorter' in i.users,
-                                                   target_sets)))
+                    target_outside_generator = bool(list(filter(flt, target_sets)))
                 else:
-                    in_selector = 'selector' in link.users or 'sorter' in link.users
+                    target_outside_generator = False
+
+                link_outside_generator = bool(flt(link))
 
                 cardinality_ok = context.current.ignore_cardinality or \
-                                 in_selector or \
-                                 link_proto.mapping in (caos_types.OneToOne,
-                                                        caos_types.ManyToOne)
+                                 target_outside_generator or link_outside_generator or \
+                                 link_proto.mapping in (caos_types.OneToOne, caos_types.ManyToOne)
 
                 if cardinality_ok:
                     sql_path = self.caos_path_to_sql_path(context, cte, parent_cte, link.target,
