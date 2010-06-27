@@ -196,7 +196,7 @@ class EntityLinkSpec(ast.AST):
 
 
 class PathCombination(Path):
-    __fields = [('paths', frozenset, frozenset, False)]
+    __fields = [('paths', frozenset, frozenset, False, True)]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

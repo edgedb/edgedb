@@ -290,6 +290,9 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.UnaryOp):
             self.reorder_aggregates(expr.expr)
 
+        elif isinstance(expr, caos_ast.NoneTest):
+            self.reorder_aggregates(expr.expr)
+
         elif isinstance(expr, (caos_ast.AtomicRef, caos_ast.Constant, caos_ast.InlineFilter,
                                caos_ast.EntitySet, caos_ast.InlinePropFilter)):
             pass
@@ -1527,7 +1530,17 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.LinkPropRef):
             result = caos_ast.LinkPropRefExpr(expr=caos_ast.UnaryOp(expr=expr, op=operator))
         else:
-            result = caos_ast.UnaryOp(expr=expr, op=operator)
+            paths = self.extract_paths(expr, reverse=False, resolve_arefs=False)
+            exprs = self.get_multipath(paths)
+            arefs = self.check_atomic_disjunction(exprs, caos_ast.AtomicRef)
+            proprefs = self.check_atomic_disjunction(exprs, caos_ast.LinkPropRef)
+
+            if arefs and len(arefs) == 1:
+                result = caos_ast.AtomicRefExpr(expr=caos_ast.UnaryOp(expr=expr, op=operator))
+            elif proprefs and len(proprefs) == 1:
+                result = caos_ast.LinkPropRefExpr(expr=caos_ast.UnaryOp(expr=expr, op=operator))
+            else:
+                result = caos_ast.UnaryOp(expr=expr, op=operator)
 
         return result
 
