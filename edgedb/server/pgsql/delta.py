@@ -1091,9 +1091,13 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             for added_ptr in added_inh_ptrs - created_ptrs:
                 ptr = source.pointers[added_ptr]
                 if ptr.atomic():
+                    if isinstance(ptr, caos.proto.LinkSet):
+                        ptr = ptr.first
+
                     col_name = common.caos_name_to_pg_name(added_ptr)
                     col_type = types.pg_type_from_atom(meta, ptr.target)
-                    col = Column(name=col_name, type=col_type)
+                    col_required = ptr.required
+                    col = Column(name=col_name, type=col_type, required=col_required)
                     alter_table.add_operation(AlterTableAddColumn(col))
 
             for dropped_base in dropped_bases:
