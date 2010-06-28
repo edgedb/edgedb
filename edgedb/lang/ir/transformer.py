@@ -515,6 +515,7 @@ class TreeTransformer:
                 """
 
                 result = self.add_paths(result, path, merge_filters=merge_filters)
+                assert result
 
                 """LOG [caos.graph.merge] ADDITION RESULT
                 self.nest -= 2
@@ -528,6 +529,7 @@ class TreeTransformer:
                 """
 
                 result = self.intersect_paths(result, path, merge_filters=merge_filters)
+                assert result
 
                 """LOG [caos.graph.merge] INTERSECTION RESULT
                 self._dump(result)
@@ -647,10 +649,12 @@ class TreeTransformer:
                         left.disjunction.update(conjunction)
                     left.conjunction.paths = frozenset()
 
-            if isinstance(left, caos_ast.EntitySet) or isinstance(right, caos_ast.EntityLink):
-                result = left
+            if isinstance(left, caos_ast.EntitySet):
+                return left
+            elif isinstance(right, caos_ast.EntitySet):
+                return right
             else:
-                result = right
+                return left_link
         else:
             result = caos_ast.Disjunction(paths=frozenset((left, right)))
 
@@ -815,10 +819,12 @@ class TreeTransformer:
                             left_set.disjunction = first_conj
                             left_set.conjunction = caos_ast.Conjunction()
 
-            if isinstance(left, caos_ast.EntitySet) or isinstance(right, caos_ast.EntityLink):
-                result = left
+            if isinstance(left, caos_ast.EntitySet):
+                return left
+            elif isinstance(right, caos_ast.EntitySet):
+                return right
             else:
-                result = right
+                return left_link
 
         else:
             result = caos_ast.Conjunction(paths=frozenset({left, right}))
