@@ -170,6 +170,10 @@ class LanguageAST(AST):
 
         super().__init__(**kwargs)
 
+    def __deepcopy__(self, memo):
+        copied = super().__deepcopy__(memo)
+        copied.source_position = copy.deepcopy(self.source_position)
+        return copied
 
 class ASTBlockNode(AST):
     __fields = [('body', list)]
