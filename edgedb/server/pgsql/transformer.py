@@ -911,6 +911,24 @@ class CaosTreeTransformer(CaosExprTransformer):
                 name = 'least'
             elif expr.name == ('math', 'max'):
                 name = 'greatest'
+            elif expr.name == ('math', 'list_sum'):
+                subq = pgsql.ast.SelectQueryNode()
+                op = pgsql.ast.FunctionCallNode(name='sum', args=[pgsql.ast.FieldRefNode(field='i')])
+                subq.targets.append(op)
+                arr = self._process_expr(context, expr.args[0], cte)
+                if isinstance(arr, pgsql.ast.ConstantNode):
+                    if isinstance(arr.expr, pgsql.ast.SequenceNode):
+                        arr = pgsql.ast.ArrayNode(elements=arr.expr.elements)
+
+                lower = pgsql.ast.BinOpNode(left=self._process_expr(context, expr.args[1], cte),
+                                            op=ast.ops.ADD,
+                                            right=pgsql.ast.ConstantNode(value=1, type='int'))
+                upper = self._process_expr(context, expr.args[2], cte)
+                indirection = pgsql.ast.IndexIndirectionNode(lower=lower, upper=upper)
+                arr = pgsql.ast.IndirectionNode(expr=arr, indirection=indirection)
+                unnest = pgsql.ast.FunctionCallNode(name='unnest', args=[arr])
+                subq.fromlist.append(pgsql.ast.FromExprNode(expr=unnest, alias='i'))
+                result = subq
             elif expr.name == ('datetime', 'to_months'):
                 years = pgsql.ast.FunctionCallNode(name='date_part',
                                                    args=[pgsql.ast.ConstantNode(value='year'),

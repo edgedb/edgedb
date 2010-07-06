@@ -402,3 +402,16 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_NullTestNode(self, node):
         self.visit(node.expr)
         self.write(' IS NULL ')
+
+    def visit_IndirectionNode(self, node):
+        self.write('(')
+        self.visit(node.expr)
+        self.write(')')
+        self.visit(node.indirection)
+
+    def visit_IndexIndirectionNode(self, node):
+        self.write('[')
+        self.visit(node.lower)
+        self.write(':')
+        self.visit(node.upper)
+        self.write(']')
