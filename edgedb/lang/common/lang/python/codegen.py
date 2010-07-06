@@ -396,6 +396,14 @@ class BasePythonSourceGenerator(SourceGenerator):
             self.visit(value)
         self.write('}')
 
+    def visit_PyList(self, node):
+        self.write('[')
+        for idx, value in enumerate(node.elts):
+            if idx:
+                self.write(', ')
+            self.visit(value)
+        self.write(']')
+
     def visit_PyBinOp(self, node):
         self.write('(')
         self.visit(node.left)
