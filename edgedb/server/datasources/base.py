@@ -131,3 +131,15 @@ class CaosDatasource(Datasource):
         else:
             raise DatasourceError('could not coerce default value for "%s" parameter' % name)
         return value
+
+
+class Result:
+    def __init__(self, result, total_records):
+        self.result = result
+        self.total_records = total_records
+
+    def __iter__(self):
+        return iter(self.result)
+
+    def get_total(self):
+        return self.total_records
