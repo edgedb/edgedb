@@ -528,9 +528,9 @@ class CaosTreeTransformer(CaosExprTransformer):
                 item_type = expr.type[1]
                 if isinstance(item_type, caos_types.ProtoAtom):
                     item_type = types.pg_type_from_atom(context.current.realm.meta, item_type)
+                    const_type = '%s[]' % item_type
                 else:
-                    item_type = common.py_type_to_pg_type(expr.type)
-                const_type = '%s[]' % item_type
+                    const_type = common.py_type_to_pg_type(expr.type)
             else:
                 const_type = common.py_type_to_pg_type(expr.type)
         else:
