@@ -81,6 +81,10 @@ class AST(object, metaclass=MetaAST):
                     for v in value:
                         if isinstance(v, AST):
                             v.parent = self
+                elif isinstance(value, dict):
+                    for v in value.values():
+                        if isinstance(v, AST):
+                            v.parent = self
             else:
                 raise ASTError('cannot set attribute "%s" in ast class "%s"' %
                                (arg, self.__class__.__name__))
@@ -166,6 +170,10 @@ class LanguageAST(AST):
 
         super().__init__(**kwargs)
 
+    def __deepcopy__(self, memo):
+        copied = super().__deepcopy__(memo)
+        copied.source_position = copy.deepcopy(self.source_position)
+        return copied
 
 class ASTBlockNode(AST):
     __fields = [('body', list)]
@@ -183,6 +191,12 @@ def fix_parent_links(node):
     for field, value in iter_fields(node):
         if isinstance(value, list):
             for n in value:
+                if isinstance(n, AST):
+                    n.parent = node
+                    fix_parent_links(n)
+
+        elif isinstance(value, dict):
+            for n in value.values():
                 if isinstance(n, AST):
                     n.parent = node
                     fix_parent_links(n)
