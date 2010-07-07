@@ -928,7 +928,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 arr = pgsql.ast.IndirectionNode(expr=arr, indirection=indirection)
                 unnest = pgsql.ast.FunctionCallNode(name='unnest', args=[arr])
                 subq.fromlist.append(pgsql.ast.FromExprNode(expr=unnest, alias='i'))
-                result = subq
+                zero = pgsql.ast.ConstantNode(value=0, type='int')
+                result = pgsql.ast.FunctionCallNode(name='coalesce', args=[subq, zero])
             elif expr.name == ('datetime', 'to_months'):
                 years = pgsql.ast.FunctionCallNode(name='date_part',
                                                    args=[pgsql.ast.ConstantNode(value='year'),
