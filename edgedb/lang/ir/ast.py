@@ -51,7 +51,7 @@ class Base(ast.AST):
         for name, field in self._fields.items():
             value = getattr(self, name)
             if isinstance(value, Base):
-                if deep and field.traverse:
+                if deep and field.child_traverse:
                     value.replace_refs(old, new, deep)
                 if value in old:
                     setattr(self, name, new)
@@ -59,7 +59,7 @@ class Base(ast.AST):
             elif isinstance(value, list):
                 for i, item in enumerate(value):
                     if isinstance(item, Base):
-                        if deep and field.traverse:
+                        if deep and field.child_traverse:
                             item.replace_refs(old, new, deep)
                         if item in old:
                             value[i] = new
@@ -67,7 +67,7 @@ class Base(ast.AST):
             elif isinstance(value, (set, weakref.WeakSet)):
                 for item in value.copy():
                     if isinstance(item, Base):
-                        if deep and field.traverse:
+                        if deep and field.child_traverse:
                             item.replace_refs(old, new, deep)
                         if item in old:
                             value.remove(item)
@@ -77,7 +77,7 @@ class Base(ast.AST):
                 newset = {v for v in value}
                 for item in value:
                     if isinstance(item, Base):
-                        if deep and field.traverse:
+                        if deep and field.child_traverse:
                             item.replace_refs(old, new, deep)
                         if item in old:
                             newset.remove(item)
