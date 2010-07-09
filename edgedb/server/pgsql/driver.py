@@ -94,7 +94,10 @@ class Connection(pq3.Connection, caos_pool.Connection):
 
 
 class SocketConnector:
-    pass
+    @staticmethod
+    def msghook(msg):
+        if msg.message == '=> is deprecated as an operator name':
+            return True
 
 
 class IP4(pq3.IP4, SocketConnector):
