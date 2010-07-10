@@ -81,12 +81,11 @@ class Cursor:
 
 
 class Query:
-    def __init__(self, text, statement, argmap, result_types, argument_types, context=None,
+    def __init__(self, text, argmap, result_types, argument_types, context=None,
                  scrolling_cursor=False, offset=None, limit=None):
         self.text = text
         self.argmap = argmap
         self.context = context
-        self.statement = statement
         self.result_types = result_types
         self.argument_types = argument_types
 
@@ -94,18 +93,39 @@ class Query:
         self.offset = offset
         self.limit = limit
 
+    def describe_output(self):
+        return collections.OrderedDict(self.result_types)
+
+    def describe_arguments(self):
+        return dict(self.argument_types)
+
+    def prepare(self, session):
+        return PreparedQuery(self, session)
+
+
+class PreparedQuery:
+    def __init__(self, query, session):
+        self.statement = session.get_prepared_statement(query.text)
+        self.query = query
+
+    def describe_output(self):
+        return self.query.describe_output()
+
+    def describe_arguments(self):
+        return self.query.describe_arguments()
+
     def __call__(self, *args, **kwargs):
         vars = self.convert_args(args, kwargs)
 
-        if self.scrolling_cursor:
-            if self.limit:
-                limit = vars[self.limit.index]
+        if self.query.scrolling_cursor:
+            if self.query.limit:
+                limit = vars[self.query.limit.index]
                 vars.pop()
             else:
                 limit = None
 
-            if self.offset:
-                offset = vars[self.offset.index]
+            if self.query.offset:
+                offset = vars[self.query.offset.index]
                 vars.pop()
             else:
                 offset = None
@@ -122,31 +142,21 @@ class Query:
         vars = self.convert_args(args, kwargs)
 
         if self.scrolling_cursor:
-            return Cursor(self.statement.declare(*vars), self.offset, self.limit)
+            return Cursor(self.statement.declare(*vars), self.query.offset, self.query.limit)
         else:
             return self.statement.rows(vars)
 
-    def chunks(self, *args, **kwargs):
-        vars = self.convert_args(args, kwargs)
-        return self.statement.chunks(*vars)
-
     def convert_args(self, args, kwargs):
         result = list(args) or []
-        for k in self.argmap:
+        for k in self.query.argmap:
             result.append(kwargs[k])
 
         return result
 
-    def describe_output(self):
-        return collections.OrderedDict(self.result_types)
-
-    def describe_arguments(self):
-        return dict(self.argument_types)
-
     __iter__ = rows
 
 
-class CaosQLCursor:
+class CaosQLAdapter:
     cache = {}
 
     def __init__(self, session):
@@ -156,35 +166,22 @@ class CaosQLCursor:
         self.transformer = CaosTreeTransformer()
         self.current_portal = None
 
-    @debug
-    def prepare(self, query, scrolling_cursor=False):
+    def transform(self, query, scrolling_cursor=False):
         if scrolling_cursor:
             offset = query.offset
             limit = query.limit
         else:
             offset = limit = None
 
-        cache_key = (query, scrolling_cursor)
+        if scrolling_cursor:
+            query.offset = None
+            query.limit = None
 
-        result = self.cache.get(cache_key)
+        qtext, argmap = self.transformer.transform(query, self.realm)
 
-        if not result:
-            if scrolling_cursor:
-                query.offset = None
-                query.limit = None
-
-            qtext, argmap = self.transformer.transform(query, self.realm)
-            ps = self.connection.prepare(qtext)
-            self.cache[cache_key] = (qtext, ps, argmap)
-
-            if scrolling_cursor:
-                query.offset = offset
-                query.limit = limit
-        else:
-            qtext, ps, argmap = result
-            """LOG [cache.caos.query] Cache Hit
-            print(qtext)
-            """
+        if scrolling_cursor:
+            query.offset = offset
+            query.limit = limit
 
         restypes = {}
 
@@ -194,7 +191,7 @@ class CaosQLCursor:
             else:
                 restypes[k] = v
 
-        return Query(text=qtext, statement=ps, argmap=argmap, result_types=restypes,
+        return Query(text=qtext, argmap=argmap, result_types=restypes,
                      argument_types=query.argument_types, scrolling_cursor=scrolling_cursor,
                      offset=offset, limit=limit)
 
@@ -1122,8 +1119,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             assert result == len(target_ids)
 
 
-    def caosqlcursor(self, session):
-        return CaosQLCursor(session)
+    def caosqladapter(self, session):
+        return CaosQLAdapter(session)
 
 
     def read_modules(self):

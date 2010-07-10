@@ -24,10 +24,22 @@ class Session(session.Session):
         super().__init__(realm, entity_cache=session.WeakEntityCache, pool=pool)
         self.backend = backend
         self.xact = []
+        self.prepared_statements = {}
         self.connection = self.backend.connection_pool(self)
 
     def get_connection(self):
         return self.connection
+
+    def get_prepared_statement(self, query):
+        ps = self.prepared_statements.get(self.connection)
+        if ps:
+            ps = ps.get(query)
+
+        if not ps:
+            ps = self.connection.prepare(query)
+            self.prepared_statements.setdefault(self.connection, {})[query] = ps
+
+        return ps
 
     def _new_transaction(self):
         self.get_connection()
@@ -120,3 +132,4 @@ class Session(session.Session):
         super().close()
         self.connection.release()
         self.connection = None
+        self.prepared_statements.clear()

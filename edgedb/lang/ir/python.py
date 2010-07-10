@@ -67,23 +67,23 @@ class PythonQuery:
     def rows(self, **kwargs):
         return [collections.OrderedDict(eval(self.statement, {}, kwargs))]
 
-    def chunks(self, **kwargs):
-        return [collections.OrderedDict(eval(self.statement, {}, kwargs))]
-
     def describe_output(self):
         return collections.OrderedDict(self.result_types)
 
     def describe_arguments(self):
         return dict(self.argument_types)
 
+    def prepare(self, session):
+        return self
+
     __iter__ = rows
 
 
-class Cursor:
+class Adapter:
     def __init__(self):
         self.transformer = CaosToPythonTransformer()
 
-    def prepare(self, tree):
+    def transform(self, tree):
         pytree = self.transformer.transform(tree)
 
         text = py_codegen.BasePythonSourceGenerator.to_source(pytree)
