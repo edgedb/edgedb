@@ -17,30 +17,20 @@ class SessionPool(session.SessionPool):
         return Session(self.realm, pool=self)
 
 
+class Transaction(session.Transaction):
+    def _rollback_impl(self):
+        pass
+
+    def _commit_impl(self):
+        pass
+
+
 class Session(session.Session):
     def __init__(self, realm, pool):
         super().__init__(realm, entity_cache=session.WeakEntityCache, pool=pool)
-        self.xact = []
 
-    def in_transaction(self):
-        return super().in_transaction() and bool(self.xact)
-
-    def begin(self):
-        super().begin()
-        self.xact.append(True)
-
-    def commit(self):
-        super().commit()
-        self.xact.pop()
-
-    def rollback(self):
-        super().rollback()
-        if self.xact:
-            self.xact.pop()
-
-    def rollback_all(self):
-        super().rollback_all()
-        self.xact[:] = []
+    def _transaction(self, parent):
+        return Transaction(self, parent)
 
     def load(self, id, concept=None):
         raise NotImplementedError

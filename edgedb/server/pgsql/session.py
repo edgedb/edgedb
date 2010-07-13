@@ -18,12 +18,26 @@ class SessionPool(session.SessionPool):
         return Session(self.realm, self.backend, pool=self)
 
 
+class Transaction(session.Transaction):
+    def __init__(self, session, parent=None):
+        super().__init__(session, parent=parent)
+        self.xact = self.session.connection.xact()
+        self.xact.begin()
+
+    def _rollback_impl(self):
+        self.xact.rollback()
+        self.xact = None
+
+    def _commit_impl(self):
+        self.xact.commit()
+        self.xact = None
+
+
 class Session(session.Session):
 
     def __init__(self, realm, backend, pool):
         super().__init__(realm, entity_cache=session.WeakEntityCache, pool=pool)
         self.backend = backend
-        self.xact = []
         self.prepared_statements = {}
         self.connection = self.backend.connection_pool(self)
 
@@ -41,34 +55,8 @@ class Session(session.Session):
 
         return ps
 
-    def _new_transaction(self):
-        self.get_connection()
-        xact = self.connection.xact()
-        xact.begin()
-        return xact
-
-    def in_transaction(self):
-        return super().in_transaction() and bool(self.xact)
-
-    def begin(self):
-        super().begin()
-        self.xact.append(self._new_transaction())
-
-    def commit(self):
-        super().commit()
-        xact = self.xact.pop()
-        xact.commit()
-
-    def rollback(self):
-        super().rollback()
-        if self.xact:
-            xact = self.xact.pop()
-            xact.rollback()
-
-    def rollback_all(self):
-        super().rollback_all()
-        while self.xact:
-            self.xact.pop().rollback()
+    def _transaction(self, parent):
+        return Transaction(session=self, parent=parent)
 
     def _store_entity(self, entity):
         self.backend.store_entity(entity, self)
