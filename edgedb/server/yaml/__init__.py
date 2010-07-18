@@ -24,6 +24,7 @@ from semantix.caos import proto
 from semantix.caos import backends
 from semantix.caos import delta as base_delta
 from semantix.caos import objects
+from semantix.caos import query as caos_query
 from semantix.caos.caosql import expr as caosql_expr
 from semantix.caos.caosql import errors as caosql_exc
 
@@ -1155,6 +1156,26 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
     def construct(self):
         if isinstance(self.data, str):
             self.id = self.data
+        elif isinstance(self.data, dict) and 'query' in self.data:
+            query = self.data['query']
+
+            aliases = {alias: mod.__name__ for alias, mod in self.context.document.imports.items()}
+            session = self.context.document.session
+
+            cursor = caos_query.CaosQLCursor(session, aliases)
+            prepared = cursor.prepare(query)
+
+            output = prepared.describe_output()
+
+            assert len(output) == 1, "query expressions must return a single entity"
+            target, is_constant = next(iter(output.values()))
+
+            assert target, "could not determine expression result type: %s" % query
+
+            self.entity = prepared.first()
+
+            assert self.entity, "query returned empty result: %s" % query
+
         else:
             aliases = {alias: mod.__name__ for alias, mod in self.context.document.imports.items()}
             session = self.context.document.session

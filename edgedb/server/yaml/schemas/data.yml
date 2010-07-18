@@ -37,6 +37,14 @@ mapping:
                                         - &ENTITY_SPEC
                                           type: choice
                                           choice:
+                                            - type: map
+                                              max-length: 1
+                                              min-length: 1
+                                              object: semantix.caos.backends.yaml.EntityShell
+                                              mapping:
+                                                "query":
+                                                    type: str
+
                                             - *CONCEPT_DATA
                                             - type: str
                                               object: semantix.caos.backends.yaml.EntityShell
