@@ -173,8 +173,9 @@ class Composer(yaml.composer.Composer):
             if node.import_context and \
                     not isinstance(self.document_context.import_context, node.import_context):
                 self.document_context.import_context = \
-                            node.import_context.from_parent(module.__name__,
+                            node.import_context.from_parent(self.document_context.import_context,
                                                             self.document_context.import_context)
+
 
         node.document_name = getattr(start_document, 'document_name', None)
         node.imports = getattr(start_document, 'imports', None)
