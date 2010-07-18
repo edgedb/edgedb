@@ -29,9 +29,9 @@ class CaosQLExpression:
         context.current.location = 'selector'
         return self.transformer._process_expr(context, tree)
 
-    def normalize_expr(self, expr):
+    def normalize_expr(self, expr, module_aliases=None):
         tree = self.parser.parse(expr)
-        caos_tree = self.transformer.transform(tree, ())
+        caos_tree = self.transformer.transform(tree, (), module_aliases=module_aliases)
         tree = self.reverse_transformer.transform(caos_tree)
         return codegen.CaosQLSourceGenerator.to_source(tree), caos_tree
 

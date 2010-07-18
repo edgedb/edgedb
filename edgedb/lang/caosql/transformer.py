@@ -179,9 +179,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         self.proto_schema = proto_schema
         self.module_aliases = module_aliases
 
-    def transform(self, caosql_tree, arg_types):
+    def transform(self, caosql_tree, arg_types, module_aliases=None):
         self.context = context = ParseContext()
         self.context.current.proto_schema = self.proto_schema
+        self.context.current.module_aliases = module_aliases or self.module_aliases
         stree = self._transform_select(context, caosql_tree, arg_types)
 
         return stree
@@ -195,8 +196,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             for ns in caosql_tree.namespaces:
                 context.current.namespaces[ns.alias] = ns.namespace
 
-        if self.module_aliases:
-            context.current.namespaces.update(self.module_aliases)
+        if context.current.module_aliases:
+            context.current.namespaces.update(context.current.module_aliases)
 
         graph.generator = self._process_select_where(context, caosql_tree.where)
 

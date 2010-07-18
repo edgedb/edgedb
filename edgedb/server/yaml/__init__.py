@@ -1041,7 +1041,12 @@ class MetaSet(LangObject):
                 if link.default:
                     for default in link.default:
                         if isinstance(default, QueryDefaultSpec):
-                            value, tree = self.caosql_expr.normalize_expr(default.value)
+                            module_aliases = {None: str(default.context.document.import_context)}
+                            for alias, module in default.context.document.imports.items():
+                                module_aliases[alias] = module.__name__
+
+                            value, tree = self.caosql_expr.normalize_expr(default.value,
+                                                                          module_aliases)
 
                             first = list(tree.result_types.values())[0][0]
                             if len(tree.result_types) > 1 or not \
