@@ -232,7 +232,7 @@ class Pyexcepthandler(PyAST): __fields = ['type', 'name', ('body', list)]
 
 class Pyarguments(PyAST): __fields = [('args', list), 'vararg', 'varargannotation',
                                       ('kwonlyargs', list), 'kwarg', 'kwargannotation',
-                                      ('defaults', list), 'kw_defaults']
+                                      ('defaults', list), ('kw_defaults', list)]
 
 class Pyarg(PyAST): __fields = ['arg', 'annotation']
 
