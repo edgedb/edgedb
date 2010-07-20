@@ -27,6 +27,7 @@
 ##
 
 
+import itertools
 from .ast import *
 
 
@@ -112,6 +113,20 @@ class BasePythonSourceGenerator(SourceGenerator):
         if node.vararg is not None:
             write_comma()
             self.write('*' + node.vararg)
+
+        if node.kwonlyargs:
+            if not node.vararg:
+                write_comma()
+                self.write('*')
+
+            for arg, default in itertools.zip_longest(node.kwonlyargs, node.kw_defaults):
+                write_comma()
+                self.visit(arg)
+
+                if default is not None:
+                    self.write('=')
+                    self.visit(default)
+
         if node.kwarg is not None:
             write_comma()
             self.write('**' + node.kwarg)

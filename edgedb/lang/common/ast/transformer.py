@@ -59,7 +59,8 @@ class NodeTransformer(NodeVisitor):
                     new_values.append(value)
 
                 for value in new_values:
-                    value.parent = node
+                    if value is not None:
+                        value.parent = node
 
                 setattr(node, field, new_values)
 
