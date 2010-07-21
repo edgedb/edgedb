@@ -237,6 +237,7 @@ class EntitySet(Path):
                 'filter',
                 ('conjunction', Conjunction),
                 ('disjunction', Disjunction),
+                ('reference', Path, None, False),
                 ('rlink', EntityLink, None, False),
                 ('atomrefs', set), ('metarefs', set), ('users', set),
                 ('joins', set, set, False)]

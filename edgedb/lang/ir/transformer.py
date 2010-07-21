@@ -75,6 +75,7 @@ class TreeTransformer:
         if isinstance(expr, caos_ast.PathCombination):
             for path in expr.paths:
                 self.extract_prefixes(path, prefixes)
+
         elif isinstance(expr, (caos_ast.EntitySet, caos_ast.AtomicRefSimple)):
             key = getattr(expr, 'anchor', None) or expr.id
 
@@ -126,8 +127,28 @@ class TreeTransformer:
 
         elif isinstance(expr, caos_ast.Constant):
             pass
+
+        elif isinstance(expr, caos_ast.GraphExpr):
+            pass
+            """
+            if expr.generator:
+                self.extract_prefixes(expr.generator)
+
+            if expr.selector:
+                for e in expr.selector:
+                    self.extract_prefixes(e.expr, prefixes)
+
+            if expr.grouper:
+                for e in expr.grouper:
+                    self.extract_prefixes(e, prefixes)
+
+            if expr.sorter:
+                for e in expr.sorter:
+                    self.extract_prefixes(e, prefixes)
+            """
+
         else:
-            assert False, 'Unexpected node type: %s' % type(expr)
+            assert False, 'unexpected node: "%r"' % expr
 
         return prefixes
 
@@ -147,7 +168,10 @@ class TreeTransformer:
             newrefs = set()
 
             for prefix in aref_prefixes:
-                newref = prefixes[prefix]
+                newref = prefixes.get(prefix)
+
+                if not newref:
+                    continue
 
                 if aref.id:
                     # XXX: not all AtomRefs have a valid id, i.e the ones that have
@@ -164,11 +188,12 @@ class TreeTransformer:
 
                 newrefs.update(newref)
 
-            if len(newrefs) > 1:
-                newrefs = caos_ast.Disjunction(paths=frozenset(newrefs))
-            else:
-                newrefs = next(iter(newrefs))
-            aref.ref = newrefs
+            if newrefs:
+                if len(newrefs) > 1:
+                    newrefs = caos_ast.Disjunction(paths=frozenset(newrefs))
+                else:
+                    newrefs = next(iter(newrefs))
+                aref.ref = newrefs
 
         return expr
 
@@ -313,11 +338,30 @@ class TreeTransformer:
             if has_agg_elems:
                 expr.aggregates = True
 
+        elif isinstance(expr, caos_ast.GraphExpr):
+            pass
+
         else:
             # All other nodes fall through
-            assert False, 'unexpected expression "%r"' % expr
+            assert False, 'unexpected node "%r"' % expr
 
         return expr
+
+
+    def link_subqueries(self, expr, paths):
+        subpaths = self.extract_paths(expr, reverse=True, resolve_arefs=False,
+                                      recurse_subqueries=True)
+
+        if not isinstance(subpaths, caos_ast.EntitySet):
+            self.flatten_path_combination(subpaths, recursive=True)
+            subpaths = subpaths.paths
+        else:
+            subpaths = {subpaths}
+
+        for subpath in subpaths:
+            outer = paths.getlist(subpath.id)
+            if outer and subpath not in outer:
+                subpath.reference = outer[0]
 
 
     def postprocess_expr(self, expr):
@@ -458,16 +502,23 @@ class TreeTransformer:
             else:
                 expr = expr.__class__(elements=elements)
 
+        elif isinstance(expr, caos_ast.GraphExpr):
+            pass
+
         else:
-            assert False, 'unexpected expression "%r"' % expr
+            assert False, 'unexpected node "%r"' % expr
 
         return expr
 
-    def flatten_path_combination(self, expr):
+    def flatten_path_combination(self, expr, recursive=False):
         paths = set()
         for path in expr.paths:
-            if isinstance(path, expr.__class__):
-                paths.update(path.paths)
+            if isinstance(path, expr.__class__) or \
+                        (recursive and isinstance(path, caos_ast.PathCombination)):
+                if recursive:
+                    path.update(self.flatten_path_combination(path, recursive=True))
+                else:
+                    paths.update(path.paths)
             else:
                 paths.add(path)
 
@@ -1012,30 +1063,42 @@ class TreeTransformer:
     def fixup_refs(self, refs, newref):
         caos_ast.Base.fixup_refs(refs, newref)
 
-    def extract_paths(self, path, reverse=False, resolve_arefs=True):
+    def extract_paths(self, path, reverse=False, resolve_arefs=True, recurse_subqueries=False):
         if isinstance(path, caos_ast.GraphExpr):
-            paths = set()
-
-            if path.generator:
-                normalized = self.extract_paths(path.generator, reverse, resolve_arefs)
-                if normalized:
-                    paths.add(normalized)
-
-            for part in ('selector', 'grouper', 'sorter'):
-                e = getattr(path, part)
-                if e:
-                    for p in e:
-                        normalized = self.extract_paths(p, reverse, resolve_arefs)
-                        if normalized:
-                            paths.add(normalized)
-
-            if len(paths) == 1:
-                return next(iter(paths))
+            if not recurse_subqueries:
+                return None
             else:
-                return self.flatten_path_combination(caos_ast.Disjunction(paths=frozenset(paths)))
+                paths = set()
+
+                if recurse_subqueries == 'once':
+                    recurse_subqueries = False
+
+                if path.generator:
+                    normalized = self.extract_paths(path.generator, reverse, resolve_arefs,
+                                                    recurse_subqueries)
+                    if normalized:
+                        paths.add(normalized)
+
+                for part in ('selector', 'grouper', 'sorter'):
+                    e = getattr(path, part)
+                    if e:
+                        for p in e:
+                            normalized = self.extract_paths(p, reverse, resolve_arefs,
+                                                            recurse_subqueries)
+                            if normalized:
+                                paths.add(normalized)
+
+                if len(paths) == 1:
+                    return next(iter(paths))
+                else:
+                    result = caos_ast.Disjunction(paths=frozenset(paths))
+                    return self.flatten_path_combination(result)
 
         elif isinstance(path, caos_ast.SelectorExpr):
-            return self.extract_paths(path.expr, reverse, resolve_arefs)
+            return self.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
+
+        elif isinstance(path, caos_ast.SortExpr):
+            return self.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
 
         elif isinstance(path, (caos_ast.EntitySet, caos_ast.InlineFilter, caos_ast.AtomicRef)):
             if isinstance(path, (caos_ast.InlineFilter, caos_ast.AtomicRef)) and \
@@ -1044,17 +1107,18 @@ class TreeTransformer:
             else:
                 result = path
 
-            if reverse:
-                while result.rlink:
-                    result = result.rlink.source
+            if isinstance(result, caos_ast.EntitySet):
+                if reverse:
+                    while result.rlink:
+                        result = result.rlink.source
             return result
 
         elif isinstance(path, caos_ast.InlinePropFilter):
-            return self.extract_paths(path.ref, reverse, resolve_arefs)
+            return self.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries)
 
         elif isinstance(path, caos_ast.LinkPropRef):
             if resolve_arefs or reverse:
-                return self.extract_paths(path.ref, reverse, resolve_arefs)
+                return self.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries)
             else:
                 return path
 
@@ -1072,7 +1136,7 @@ class TreeTransformer:
         elif isinstance(path, caos_ast.PathCombination):
             result = set()
             for p in path.paths:
-                normalized = self.extract_paths(p, reverse, resolve_arefs)
+                normalized = self.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
                 if normalized:
                     result.add(normalized)
             if len(result) == 1:
@@ -1085,7 +1149,7 @@ class TreeTransformer:
 
             paths = set()
             for p in (path.left, path.right):
-                normalized = self.extract_paths(p, reverse, resolve_arefs)
+                normalized = self.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
                 if normalized:
                     paths.add(normalized)
 
@@ -1095,18 +1159,18 @@ class TreeTransformer:
                 return self.flatten_path_combination(combination(paths=frozenset(paths)))
 
         elif isinstance(path, caos_ast.UnaryOp):
-            return self.extract_paths(path.expr, reverse, resolve_arefs)
+            return self.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
 
         elif isinstance(path, caos_ast.TypeCast):
-            return self.extract_paths(path.expr, reverse, resolve_arefs)
+            return self.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
 
         elif isinstance(path, caos_ast.NoneTest):
-            return self.extract_paths(path.expr, reverse, resolve_arefs)
+            return self.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
 
         elif isinstance(path, caos_ast.FunctionCall):
             paths = set()
             for p in path.args:
-                p = self.extract_paths(p, reverse, resolve_arefs)
+                p = self.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
                 if p:
                     paths.add(p)
 
@@ -1118,7 +1182,7 @@ class TreeTransformer:
         elif isinstance(path, (caos_ast.Sequence, caos_ast.Record)):
             paths = set()
             for p in path.elements:
-                p = self.extract_paths(p, reverse, resolve_arefs)
+                p = self.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
                 if p:
                     paths.add(p)
 
@@ -1130,8 +1194,11 @@ class TreeTransformer:
         elif isinstance(path, caos_ast.Constant):
             return None
 
+        elif isinstance(path, caos_ast.GraphExpr):
+            return None
+
         else:
-            assert False, "Unexpected expression type %s" % path
+            assert False, 'unexpected node "%r"' % path
 
     def copy_path(self, path: (caos_ast.EntitySet, caos_ast.EntityLink)):
         if isinstance(path, caos_ast.EntitySet):
@@ -1577,7 +1644,7 @@ class TreeTransformer:
             result = newbinop(left, right)
 
         if not result:
-            raise TreeError('Unexpected binop operands: %s, %s' % (left, right))
+            raise TreeError('unexpected binop operands: %s, %s' % (left, right))
 
         return result
 

@@ -38,6 +38,14 @@ class Alias(str):
 class TransformerContextLevel(object):
     def __init__(self, prevlevel=None, mode=None):
         if prevlevel is not None:
+            self.argmap = prevlevel.argmap
+            self.location = 'query'
+            self.append_graphs = False
+            self.ignore_cardinality = prevlevel.ignore_cardinality
+            self.in_aggregate = prevlevel.in_aggregate
+            self.query = prevlevel.query
+            self.realm = prevlevel.realm
+
             if mode == TransformerContext.NEW_TRANSPARENT:
                 self.vars = prevlevel.vars
                 self.ctes = prevlevel.ctes
@@ -45,6 +53,19 @@ class TransformerContextLevel(object):
                 self.ctemap = prevlevel.ctemap
                 self.concept_node_map = prevlevel.concept_node_map
                 self.link_node_map = prevlevel.link_node_map
+
+            elif mode == TransformerContext.SUBQUERY:
+                self.vars = {}
+                self.ctes = prevlevel.ctes.copy()
+                self.aliascnt = prevlevel.aliascnt.copy()
+                self.ctemap = prevlevel.ctemap.copy()
+                self.concept_node_map = prevlevel.concept_node_map.copy()
+                self.link_node_map = prevlevel.link_node_map.copy()
+
+                self.ignore_cardinality = False
+                self.in_aggregate = False
+                self.query = pgsql.ast.SelectQueryNode()
+
             else:
                 self.vars = prevlevel.vars.copy()
                 self.ctes = prevlevel.ctes.copy()
@@ -53,13 +74,6 @@ class TransformerContextLevel(object):
                 self.concept_node_map = prevlevel.concept_node_map.copy()
                 self.link_node_map = prevlevel.link_node_map.copy()
 
-            self.argmap = prevlevel.argmap
-            self.location = 'query'
-            self.append_graphs = False
-            self.ignore_cardinality = prevlevel.ignore_cardinality
-            self.in_aggregate = prevlevel.in_aggregate
-            self.query = prevlevel.query
-            self.realm = prevlevel.realm
         else:
             self.vars = {}
             self.ctes = {}
@@ -93,7 +107,7 @@ class TransformerContextLevel(object):
 
 
 class TransformerContext(object):
-    CURRENT, ALTERNATE, NEW, NEW_TRANSPARENT = range(0, 4)
+    CURRENT, ALTERNATE, NEW, NEW_TRANSPARENT, SUBQUERY = range(0, 5)
 
     def __init__(self):
         self.stack = []
@@ -315,7 +329,10 @@ class CaosTreeTransformer(CaosExprTransformer):
     @debug
     def transform(self, query, realm):
         # Transform to sql tree
-        qtree, argmap = self._transform_tree(query, realm)
+        context = TransformerContext()
+        context.current.realm = realm
+        qtree = self._transform_tree(context, query)
+        argmap = context.current.argmap
 
         """LOG [caos.query] SQL Tree
         self._dump(qtree)
@@ -334,11 +351,8 @@ class CaosTreeTransformer(CaosExprTransformer):
     def _dump(self, tree):
         print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*|caosnode)$'))
 
-    def _transform_tree(self, tree, realm):
+    def _transform_tree(self, context, tree):
 
-        context = TransformerContext()
-
-        context.current.realm = realm
         if tree.generator:
             expr = self._process_generator(context, tree.generator)
             if getattr(expr, 'aggregates', False):
@@ -386,7 +400,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         self._postprocess_query(query)
 
-        return query, context.current.argmap
+        return query
 
     def _postprocess_query(self, query):
         ctes = set(ast.find_children(query, lambda i: isinstance(i, pgsql.ast.SelectQueryNode)))
@@ -585,7 +599,11 @@ class CaosTreeTransformer(CaosExprTransformer):
     def _process_expr(self, context, expr, cte=None):
         result = None
 
-        if isinstance(expr, tree.ast.Disjunction):
+        if isinstance(expr, tree.ast.GraphExpr):
+            with context(TransformerContext.SUBQUERY):
+                result = self._transform_tree(context, expr)
+
+        elif isinstance(expr, tree.ast.Disjunction):
             #context.current.append_graphs = True
             variants = [self._process_expr(context, path, cte) for path in expr.paths]
             #context.current.append_graphs = False
@@ -1310,6 +1328,16 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                                   ast.ops.AND)
 
             context.pop()
+
+        if caos_path_tip and caos_path_tip.reference:
+            outer_ref = context.current.concept_node_map[caos_path_tip.reference]
+            outer_ref = outer_ref['semantix.caos.builtins.id'].expr
+
+            field_name = common.caos_name_to_pg_name('semantix.caos.builtins.id')
+            inner_ref = pgsql.ast.FieldRefNode(table=concept_table, field=field_name,
+                                               origin=concept_table, origin_field=field_name)
+            joiner = pgsql.ast.BinOpNode(left=outer_ref, op=ast.ops.EQ, right=inner_ref, strong=True)
+            step_cte.where = self.extend_predicate(step_cte.where, joiner, ast.ops.AND)
 
         if is_root:
             step_cte.fromlist.append(fromnode)
