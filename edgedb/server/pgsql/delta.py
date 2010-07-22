@@ -1071,7 +1071,12 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                      source_ctx.op.has_table(source, meta, context)):
 
             source.acquire_parent_data(meta)
-            orig_source.acquire_parent_data(meta)
+
+            existing_source = meta.get(orig_source.name, None)
+            if existing_source:
+                orig_source = existing_source
+            else:
+                orig_source.acquire_parent_data(meta)
 
             dropped_inh_ptrs = set(orig_source.pointers) - set(source.pointers)
 
