@@ -1353,7 +1353,10 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                 flt = lambda i: set(('selector', 'sorter', 'grouper')) & i.users
                 if link.target:
-                    target_sets = {link.target} | set(link.target.joins)
+                    if link.filter.direction == caos_types.OutboundDirection:
+                        target_sets = {link.target} | set(link.target.joins)
+                    else:
+                        target_sets = {link.source}
                     target_outside_generator = bool(list(filter(flt, target_sets)))
                 else:
                     target_outside_generator = False
@@ -1362,7 +1365,10 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                 cardinality_ok = context.current.ignore_cardinality or \
                                  target_outside_generator or link_outside_generator or \
-                                 link_proto.mapping in (caos_types.OneToOne, caos_types.ManyToOne)
+                                 (link.filter.direction == caos_types.OutboundDirection and
+                                  link_proto.mapping in (caos_types.OneToOne, caos_types.ManyToOne)) or \
+                                 (link.filter.direction == caos_types.InboundDirection and
+                                  link_proto.mapping in (caos_types.OneToOne, caos_types.OneToMany))
 
                 if cardinality_ok:
                     sql_path = self.caos_path_to_sql_path(context, cte, parent_cte, link.target,
