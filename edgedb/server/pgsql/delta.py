@@ -788,7 +788,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 if isinstance(pointer, proto.LinkSet):
                     pointer = pointer.first
 
-                if not pointer.atomic() or pointer.generic():
+                if not pointer.atomic() or pointer.generic() or isinstance(pointer, proto.Computable):
                     continue
 
                 constraints = itertools.chain(pointer.constraints.values(),
@@ -1311,7 +1311,7 @@ class PointerMetaCommand(MetaCommand):
     def get_host(self, meta, context):
         if context:
             link = context.get(delta_cmds.LinkCommandContext)
-            if link and isinstance(self, delta_cmds.LinkPropertyCommand):
+            if link and isinstance(self, (delta_cmds.LinkPropertyCommand, delta_cmds.ComputableCommand)):
                 return link
             concept = context.get(delta_cmds.ConceptCommandContext)
             if concept:
@@ -1902,6 +1902,90 @@ class DeleteLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.DeleteLinkPr
         return property
 
 
+class ComputableMetaCommand(NamedPrototypeMetaCommand, PointerMetaCommand):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.table = ComputableTable()
+
+    def record_metadata(self, pointer, old_pointer, meta, context):
+        rec, updates = self.fill_record()
+
+        if rec:
+            host = self.get_host(meta, context)
+
+            source = updates.get('source')
+            if source:
+                source = source[1]
+            elif host:
+                source = host.proto.name
+
+            if source:
+                rec.source_id = Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
+                                      [str(source)], type='integer')
+
+            target = updates.get('target')
+            if target:
+                rec.target_id = Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
+                                      [str(target[1])],
+                                      type='integer')
+
+        return rec, updates
+
+
+class CreateComputable(ComputableMetaCommand, adapts=delta_cmds.CreateComputable):
+    def apply(self, meta, context):
+        computable = delta_cmds.CreateComputable.apply(self, meta, context)
+        ComputableMetaCommand.apply(self, meta, context)
+
+        source = self.get_host(meta, context)
+
+        with context(self.context_class(self, computable)):
+            rec, updates = self.record_metadata(computable, None, meta, context)
+
+        self.pgops.add(Insert(table=self.table, records=[rec], priority=2))
+
+        return computable
+
+
+class RenameComputable(ComputableMetaCommand, adapts=delta_cmds.RenameComputable):
+    def apply(self, meta, context=None):
+        result = delta_cmds.RenameComputable.apply(self, meta, context)
+        ComputableMetaCommand.apply(self, meta, context)
+
+        rec = self.table.record()
+        rec.name = str(self.new_name)
+        self.pgops.add(Update(table=self.table, record=rec,
+                              condition=[('name', str(self.prototype_name))], priority=1))
+
+        return result
+
+
+class AlterComputable(ComputableMetaCommand, adapts=delta_cmds.AlterComputable):
+    def apply(self, meta, context=None):
+        self.old_computable = old_computable = meta.get(self.prototype_name, type=self.prototype_class).copy()
+        computable = delta_cmds.AlterComputable.apply(self, meta, context)
+        ComputableMetaCommand.apply(self, meta, context)
+
+        with context(self.context_class(self, computable)):
+            rec, updates = self.record_metadata(computable, old_computable, meta, context)
+
+            if rec:
+                self.pgops.add(Update(table=self.table, record=rec,
+                                      condition=[('name', str(computable.name))], priority=1))
+
+        return computable
+
+
+class DeleteComputable(ComputableMetaCommand, adapts=delta_cmds.DeleteComputable):
+    def apply(self, meta, context=None):
+        computable = delta_cmds.DeleteComputable.apply(self, meta, context)
+        ComputableMetaCommand.apply(self, meta, context)
+
+        self.pgops.add(Delete(table=self.table, condition=[('name', str(computable.name))]))
+
+        return computable
+
+
 class LinkSearchConfigurationMetaCommand(PrototypeMetaCommand):
     pass
 
@@ -2219,6 +2303,11 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
         linkproptable = LinkPropertyTable()
         self.pgops.add(CreateTable(table=linkproptable,
                                    neg_conditions=[TableExists(name=linkproptable.name)],
+                                   priority=-1))
+
+        computabletable = ComputableTable()
+        self.pgops.add(CreateTable(table=computabletable,
+                                   neg_conditions=[TableExists(name=computabletable.name)],
                                    priority=-1))
 
         self.update_mapping_indexes = UpdateMappingIndexes()
@@ -2911,6 +3000,27 @@ class LinkPropertyTable(MetaObjectTable):
         self.constraints = set([
             PrimaryKey(('caos', 'link_property'), columns=('id',)),
             UniqueConstraint(('caos', 'link_property'), columns=('name',))
+        ])
+
+        self._columns = self.columns()
+
+
+class ComputableTable(MetaObjectTable):
+    def __init__(self):
+        super().__init__(name=('caos', 'computable'))
+
+        self.bases = [('caos', 'metaobject')]
+
+        self.__columns = datastructures.OrderedSet([
+            Column(name='source_id', type='integer'),
+            Column(name='target_id', type='integer'),
+            Column(name='expression', type='text'),
+            Column(name='is_local', type='bool')
+        ])
+
+        self.constraints = set([
+            PrimaryKey(('caos', 'link'), columns=('id',)),
+            UniqueConstraint(('caos', 'link'), columns=('name',))
         ])
 
         self._columns = self.columns()

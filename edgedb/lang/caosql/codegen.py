@@ -90,7 +90,7 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         if node.namespace:
             self.write('[%s.%s]' % (node.namespace, node.name))
         else:
-            self.write(node.expr)
+            self.write(node.name)
 
     def visit_ConstantNode(self, node):
         if node.value is not None:

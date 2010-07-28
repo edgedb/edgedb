@@ -379,3 +379,19 @@ class AlterLinkSearchConfiguration(LinkSearchConfigurationCommand,
 class DeleteLinkSearchConfiguration(LinkSearchConfigurationCommand,
                                     adapts=delta.DeleteLinkSearchConfiguration):
     pass
+
+
+class CreateComputable(CreateNamedPrototype, adapts=delta.CreateComputable):
+    pass
+
+
+class RenameComputable(RenameNamedPrototype, adapts=delta.RenameComputable):
+    pass
+
+
+class AlterComputable(AlterNamedPrototype, adapts=delta.AlterComputable):
+    pass
+
+
+class DeleteComputable(DeleteNamedPrototype, adapts=delta.DeleteComputable):
+    pass

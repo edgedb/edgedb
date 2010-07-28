@@ -24,7 +24,7 @@ class UnaryOpNode(ast.AST): __fields = ['op', 'operand']
 
 class PostfixOpNode(ast.AST): __fields = ['op', 'operand']
 
-class PathNode(ast.AST): __fields = [('steps', list), 'quantifier', 'var']
+class PathNode(ast.AST): __fields = [('steps', list), 'quantifier', 'var', 'lvar']
 
 class PathDisjunctionNode(ast.AST): __fields = ['left', 'right']
 

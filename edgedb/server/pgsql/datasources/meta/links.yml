@@ -138,3 +138,42 @@ source: |
             AND (%(include_specialized)s::bool OR p.source_id IS NULL)
         ORDER BY
             p.id, p.target_id NULLS FIRST
+
+...
+
+%SCHEMA semantix.caos.datasources.schemas.Sql
+%NAME Computables
+---
+params:
+    source:
+        type: str
+        default: null
+
+    name:
+        type: str
+        default: null
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+            p.id            AS id,
+            p.name          AS name,
+            p.title         AS title,
+            p.description   AS description,
+            p.source_id     AS source_id,
+            p.target_id     AS target_id,
+            s.name          AS source,
+            t.name          AS target,
+            p.expression    AS expression,
+            p.is_local      AS is_local
+        FROM
+            caos.computable p
+            LEFT JOIN caos.metaobject s ON s.id = p.source_id
+            LEFT JOIN caos.metaobject t ON t.id = p.target_id
+        WHERE
+            (%(source)s::text IS NULL OR %(source)s::text = s.name)
+            AND (%(name)s::text IS NULL OR %(name)s::text = p.name)
+        ORDER BY
+            p.id, p.target_id NULLS FIRST

@@ -435,6 +435,10 @@ class TreeTransformer:
             if expr.rlink:
                 self.merge_paths(expr.rlink.source)
 
+        elif isinstance(expr, caos_ast.EntityLink):
+            if expr.source:
+                self.merge_paths(expr.source)
+
         elif isinstance(expr, (caos_ast.InlineFilter, caos_ast.Constant, caos_ast.InlinePropFilter)):
             pass
 
@@ -1009,7 +1013,31 @@ class TreeTransformer:
         caos_ast.Base.fixup_refs(refs, newref)
 
     def extract_paths(self, path, reverse=False, resolve_arefs=True):
-        if isinstance(path, (caos_ast.EntitySet, caos_ast.InlineFilter, caos_ast.AtomicRef)):
+        if isinstance(path, caos_ast.GraphExpr):
+            paths = set()
+
+            if path.generator:
+                normalized = self.extract_paths(path.generator, reverse, resolve_arefs)
+                if normalized:
+                    paths.add(normalized)
+
+            for part in ('selector', 'grouper', 'sorter'):
+                e = getattr(path, part)
+                if e:
+                    for p in e:
+                        normalized = self.extract_paths(p, reverse, resolve_arefs)
+                        if normalized:
+                            paths.add(normalized)
+
+            if len(paths) == 1:
+                return next(iter(paths))
+            else:
+                return self.flatten_path_combination(caos_ast.Disjunction(paths=frozenset(paths)))
+
+        elif isinstance(path, caos_ast.SelectorExpr):
+            return self.extract_paths(path.expr, reverse, resolve_arefs)
+
+        elif isinstance(path, (caos_ast.EntitySet, caos_ast.InlineFilter, caos_ast.AtomicRef)):
             if isinstance(path, (caos_ast.InlineFilter, caos_ast.AtomicRef)) and \
                                                     (resolve_arefs or reverse):
                 result = path.ref
@@ -1032,9 +1060,11 @@ class TreeTransformer:
 
         elif isinstance(path, caos_ast.EntityLink):
             if reverse:
-                result = path.source
-                while result.rlink:
-                    result = result.rlink.source
+                result = path
+                if path.source:
+                    result = path.source
+                    while result.rlink:
+                        result = result.rlink.source
             else:
                 result = path
             return result
@@ -1103,24 +1133,43 @@ class TreeTransformer:
         else:
             assert False, "Unexpected expression type %s" % path
 
-    def copy_path(self, path):
-        result = caos_ast.EntitySet(id=path.id, anchor=path.anchor, concept=path.concept,
-                                    users=path.users, joins=path.joins)
+    def copy_path(self, path: (caos_ast.EntitySet, caos_ast.EntityLink)):
+        if isinstance(path, caos_ast.EntitySet):
+            result = caos_ast.EntitySet(id=path.id, anchor=path.anchor, concept=path.concept,
+                                        users=path.users, joins=path.joins)
+            rlink = path.rlink
+        else:
+            result = None
+            rlink = path
+
         current = result
 
-        while path.rlink:
-            parent_path = path.rlink.source
-            parent = caos_ast.EntitySet(id=parent_path.id, anchor=parent_path.anchor,
-                                        concept=parent_path.concept, users=parent_path.users,
-                                        joins=parent_path.joins)
-            link = caos_ast.EntityLink(filter=path.rlink.filter, source=parent, target=current,
-                                       link_proto=path.rlink.link_proto,
-                                       propfilter=path.rlink.propfilter,
-                                       users=path.rlink.users.copy())
-            parent.disjunction = caos_ast.Disjunction(paths=frozenset((link,)))
-            current.rlink = link
-            current = parent
-            path = parent_path
+        while rlink:
+            link = caos_ast.EntityLink(filter=rlink.filter, target=current,
+                                       link_proto=rlink.link_proto,
+                                       propfilter=rlink.propfilter,
+                                       users=rlink.users.copy(),
+                                       anchor=rlink.anchor)
+
+            if not result:
+                result = link
+
+            parent_path = rlink.source
+
+            if parent_path:
+                parent = caos_ast.EntitySet(id=parent_path.id, anchor=parent_path.anchor,
+                                            concept=parent_path.concept, users=parent_path.users,
+                                            joins=parent_path.joins)
+                parent.disjunction = caos_ast.Disjunction(paths=frozenset((link,)))
+                link.source = parent
+
+                if current:
+                    current.rlink = link
+                current = parent
+                rlink = parent_path.rlink
+
+            else:
+                rlink = None
 
         return result
 
@@ -1513,7 +1562,8 @@ class TreeTransformer:
                 if l.type == r.type:
                     result_type = l.type
                 else:
-                    result_type = caos_types.TypeRules.get_result(l.type, r.type, op)
+                    schema = self.context.current.proto_schema
+                    result_type = caos_types.TypeRules.get_result(op, (l.type, r.type), schema)
                 result = caos_ast.Constant(expr=newbinop(left, right), type=result_type)
 
         elif isinstance(left, caos_ast.BinOp):
@@ -1605,6 +1655,20 @@ class TreeTransformer:
                 else:
                     result = caos_utils.get_prototype_nearest_common_ancestor(targets, schema)
 
+        elif isinstance(expr, caos_ast.LinkPropRefSimple):
+            if isinstance(expr.ref, caos_ast.PathCombination):
+                targets = [t.link_proto for t in expr.ref.paths]
+                link = caos_utils.get_prototype_nearest_common_ancestor(targets, schema)
+            else:
+                link = expr.ref.link_proto
+
+            prop = link.get_attr(schema, expr.name)
+            assert prop, '"%s" is not a property of "%s"' % (expr.name, link.name)
+            result = prop.target
+
+        elif isinstance(expr, caos_ast.BaseRefExpr):
+            result = self.get_expr_type(expr.expr, schema)
+
         elif isinstance(expr, caos_ast.Record):
             result = expr.concept
 
@@ -1617,6 +1681,11 @@ class TreeTransformer:
                 result = expr.value.__class__
             else:
                 result = None
+
+        elif isinstance(expr, caos_ast.BinOp):
+            left_type = self.get_expr_type(expr.left, schema)
+            right_type = self.get_expr_type(expr.right, schema)
+            result = caos_types.TypeRules.get_result(expr.op, (left_type, right_type), schema)
 
         elif isinstance(expr, caos_ast.Disjunction):
             if expr.paths:

@@ -29,9 +29,16 @@ class CaosQLExpression:
         context.current.location = 'selector'
         return self.transformer._process_expr(context, tree)
 
-    def normalize_expr(self, expr, module_aliases=None):
+    def normalize_refs(self, expr, module_aliases=None):
         tree = self.parser.parse(expr)
-        caos_tree = self.transformer.transform(tree, (), module_aliases=module_aliases)
+        tree = self.transformer.normalize_refs(tree, module_aliases=module_aliases)
+        return codegen.CaosQLSourceGenerator.to_source(tree)
+
+    def normalize_expr(self, expr, module_aliases=None, anchors=None):
+        tree = self.parser.parse(expr)
+        tree = self.parser.normalize_select_query(tree)
+        caos_tree = self.transformer.transform(tree, (), module_aliases=module_aliases,
+                                                         anchors=anchors)
         tree = self.reverse_transformer.transform(caos_tree)
         return codegen.CaosQLSourceGenerator.to_source(tree), caos_tree
 
@@ -59,6 +66,22 @@ class CaosQLExpression:
             raise errors.CaosQLReferenceError(msg, details=details)
 
         return processed
+
+    def get_node_references(self, tree):
+        refs = self.transformer.extract_paths(tree, reverse=True, resolve_arefs=True)
+
+        flt = lambda n: isinstance(n, (caos_ast.EntitySet, caos_ast.EntityLink))
+        nodes = ast.find_children(refs, flt)
+
+        result = []
+        if nodes:
+            for node in nodes:
+                if isinstance(node, caos_ast.EntitySet):
+                    result.append(node.concept)
+                else:
+                    result.append(node.link_proto)
+
+        return set(result)
 
 
 class _PrependSource(ast.visitor.NodeVisitor):

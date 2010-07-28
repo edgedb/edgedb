@@ -103,12 +103,15 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
             right = self._process_expr(expr.right)
             result = qlast.BinOpNode(left=left, op=expr.op, right=right)
 
-        elif isinstance(expr, tree.ast.AtomicRef):
+        elif isinstance(expr, tree.ast.AtomicRefSimple):
             path = self._process_expr(expr.ref)
             link = qlast.LinkNode(name=expr.name.name, namespace=expr.name.module)
             link = qlast.LinkExprNode(expr=link)
             path.steps.append(link)
             result = path
+
+        elif isinstance(expr, tree.ast.AtomicRefExpr):
+            result = self._process_expr(expr.expr)
 
         elif isinstance(expr, tree.ast.EntitySet):
             links = []
@@ -139,12 +142,15 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
             else:
                 assert False, "path combinations are not supported yet"
 
-        elif isinstance(expr, tree.ast.LinkPropRef):
+        elif isinstance(expr, tree.ast.LinkPropRefSimple):
             path = self._process_expr(expr.ref)
             link = qlast.LinkNode(name=expr.name.name, namespace=expr.name.module)
             link = qlast.LinkPropExprNode(expr=link)
             path.steps.append(link)
             result = path
+
+        elif isinstance(expr, tree.ast.LinkPropRefExpr):
+            result = self._process_expr(expr.expr)
 
         elif isinstance(expr, tree.ast.EntityLink):
             if expr.source:
@@ -179,13 +185,39 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         self.proto_schema = proto_schema
         self.module_aliases = module_aliases
 
-    def transform(self, caosql_tree, arg_types, module_aliases=None):
+    def transform(self, caosql_tree, arg_types, module_aliases=None, anchors=None):
         self.context = context = ParseContext()
         self.context.current.proto_schema = self.proto_schema
         self.context.current.module_aliases = module_aliases or self.module_aliases
+
+        if anchors:
+            self._populate_anchors(context, anchors)
+
         stree = self._transform_select(context, caosql_tree, arg_types)
 
         return stree
+
+    def normalize_refs(self, caosql_tree, module_aliases):
+        self.context = context = ParseContext()
+        self.context.current.proto_schema = self.proto_schema
+        self.context.current.module_aliases = module_aliases or self.module_aliases
+        return self._normalize_refs(context, caosql_tree)
+
+    def _populate_anchors(self, context, anchors):
+        for anchor, proto in anchors.items():
+            if isinstance(proto, caos_types.ProtoConcept):
+                step = tree.ast.EntitySet()
+                step.concept = proto
+                step.id = tree.transformer.LinearPath([step.concept])
+                step.anchor = anchor
+                # XXX
+                # step.users =
+            else:
+                linkspec = tree.ast.EntityLinkSpec(labels=frozenset((proto,)))
+                step = tree.ast.EntityLink(filter=linkspec, link_proto=proto)
+                step.anchor = anchor
+
+            context.current.anchors[anchor] = step
 
     def _transform_select(self, context, caosql_tree, arg_types):
         self.arg_types = arg_types or {}
@@ -255,6 +287,65 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             else:
                 return None
 
+    def _normalize_refs(self, context, expr):
+        if isinstance(expr, qlast.SelectQueryNode):
+            for attr in ('targets', 'groupby', 'orderby'):
+                items = getattr(expr, attr)
+                if items:
+                    for item in items:
+                        self._normalize_refs(context, item)
+
+            if expr.where:
+                self._normalize_refs(context, expr.where)
+
+        elif isinstance(expr, qlast.SelectExprNode):
+            self._normalize_refs(context, expr.expr)
+
+        elif isinstance(expr, qlast.SortExprNode):
+            self._normalize_refs(context, expr.path)
+
+        elif isinstance(expr, qlast.BinOpNode):
+            self._normalize_refs(context, expr.left)
+            self._normalize_refs(context, expr.right)
+
+        elif isinstance(expr, qlast.PathNode):
+            for node in expr.steps:
+                self._normalize_refs(context, node)
+
+        elif isinstance(expr, qlast.PathStepNode):
+            if expr.expr != 'self':
+                expr.namespace = context.current.module_aliases.get(expr.namespace, expr.namespace)
+
+        elif isinstance(expr, qlast.LinkExprNode):
+            self._normalize_refs(context, expr.expr)
+
+        elif isinstance(expr, qlast.LinkNode):
+            if expr.namespace:
+                expr.namespace = context.current.module_aliases.get(expr.namespace, expr.namespace)
+
+        elif isinstance(expr, qlast.LinkPropExprNode):
+            pass
+
+        elif isinstance(expr, qlast.ConstantNode):
+            pass
+
+        elif isinstance(expr, qlast.SequenceNode):
+            for e in expr.elements:
+                self._normalize_refs(context, e)
+
+        elif isinstance(expr, qlast.FunctionCallNode):
+            for arg in expr.args:
+                self._normalize_refs(context, arg)
+
+        elif isinstance(expr, qlast.PrototypeRefNode):
+            pass
+
+        else:
+            assert False, "Unexpected expr: %s" % expr
+
+        return expr
+
+
     def _process_expr(self, context, expr, *, selector_top_level=False):
         node = None
 
@@ -315,6 +406,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
         for i, node in enumerate(path.steps):
             anchor = None
+            link_anchor = None
 
             if isinstance(node, (qlast.PathNode, qlast.PathStepNode)):
                 if isinstance(node, qlast.PathNode):
@@ -322,6 +414,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                         raise errors.CaosQLError('unsupported subpath expression')
 
                     anchor = node.var.name if node.var else None
+                    link_anchor = node.lvar.name if node.lvar else None
 
                     if anchor in anchors:
                         raise errors.CaosQLError('duplicate anchor: %s' % anchor)
@@ -329,14 +422,14 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     tip = self._get_path_tip(node)
 
                 elif isinstance(node, qlast.PathStepNode):
-                    if node.expr in anchors and (i == 0 or node.epxr.beginswith('#')):
+                    if node.expr in anchors and i == 0:
                         refnode = anchors[node.expr]
 
                         if refnode:
                             if isinstance(refnode, tree.ast.Disjunction):
                                 tips = {}
                                 for p in refnode.paths:
-                                    concept = p.concept
+                                    concept = getattr(p, 'concept', None)
                                     path_copy = self.copy_path(p)
                                     path_copy.users.add(context.current.location)
                                     if concept in tips:
@@ -346,12 +439,15 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                             else:
                                 path_copy = self.copy_path(refnode)
                                 path_copy.users.add(context.current.location)
-                                tips = {refnode.concept: {path_copy}}
+                                concept = getattr(refnode, 'concept', None)
+                                tips = {concept: {path_copy}}
                         continue
 
                     tip = node
             else:
                 tip = node
+
+            tip_is_link = tips and next(iter(tips.keys())) is None
 
             if isinstance(tip, qlast.PathStepNode):
 
@@ -373,7 +469,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 if anchor:
                     anchors[anchor] = step
 
-            elif isinstance(tip, qlast.LinkExprNode):
+            elif isinstance(tip, qlast.LinkExprNode) and not tip_is_link:
                 # LinkExprNode
                 link_expr = tip.expr
 
@@ -454,14 +550,16 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                 else:
                                     assert False
 
+                                anchor_links = []
+
+                                link_spec = tree.ast.EntityLinkSpec(labels=frozenset([link_item]),
+                                                                    direction=dir)
+
                                 if isinstance(target, caos_types.ProtoConcept):
                                     if seen_atoms:
                                         raise errors.CaosQLError('path expression results in an '
                                                                  'invalid atom/concept mix')
                                     seen_concepts = True
-
-                                    link_spec = tree.ast.EntityLinkSpec(labels=frozenset([link_item]),
-                                                                        direction=dir)
 
                                     for t in tip:
                                         target_set = tree.ast.EntitySet()
@@ -473,10 +571,13 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                                         link = tree.ast.EntityLink(source=t, target=target_set,
                                                                    filter=link_spec,
-                                                                   link_proto=link_proto)
+                                                                   link_proto=link_proto,
+                                                                   anchor=link_anchor)
 
                                         t.disjunction.update(link)
                                         target_set.rlink = link
+
+                                        anchor_links.append(link)
 
                                         if target in newtips:
                                             newtips[target].add(target_set)
@@ -497,6 +598,12 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                                                            ref=t, id=atomref_id)
                                         newtips[target].add(atomref)
 
+                                        link = tree.ast.EntityLink(source=t, target=None,
+                                                                   filter=link_spec,
+                                                                   link_proto=link_proto,
+                                                                   anchor=link_anchor)
+                                        anchor_links.append(link)
+
                                 else:
                                     assert False, 'unexpected link target type: %s' % target
 
@@ -512,9 +619,15 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     paths = itertools.chain.from_iterable(newtips.values())
                     anchors[anchor] = tree.ast.Disjunction(paths=frozenset(paths))
 
+                if link_anchor:
+                    if len(anchor_links) > 1:
+                        anchors[link_anchor] = tree.ast.Disjunction(paths=frozenset(anchor_links))
+                    else:
+                        anchors[link_anchor] = anchor_links[0]
+
                 tips = newtips
 
-            elif isinstance(tip, qlast.LinkPropExprNode):
+            elif isinstance(tip, qlast.LinkPropExprNode) or tip_is_link:
                 # LinkExprNode
                 link_expr = tip.expr
 

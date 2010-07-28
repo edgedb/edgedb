@@ -289,6 +289,24 @@ mapping:
                                                 "default":
                                                     *DEFAULT
 
+                    "computables":
+                        &COMPUTABLES
+                        type: map
+                        default: {}
+                        mapping:
+                            =:
+                                type: choice
+                                required: yes
+                                object: semantix.caos.backends.yaml.Computable
+                                choice:
+                                    - type: str
+                                    - type: map
+                                      mapping:
+                                        "expression":
+                                            type: str
+                                        "mapping":
+                                            *LINK_MAPPING
+
                     "indexes":
                         &INDEXES
                         type: seq
@@ -390,6 +408,9 @@ mapping:
                                                             enum: ['A', 'B', 'C', 'D']
                                                             required: True
                                                     - type: bool
+
+                    "computables":
+                        *COMPUTABLES
 
                     "indexes":
                         *INDEXES

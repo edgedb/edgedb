@@ -344,6 +344,7 @@ class Concept(Prototype, adapts=proto.Concept):
                                is_abstract=data.get('abstract'),
                                _setdefaults_=False, _relaxrequired_=True)
         self._links = data.get('links', {})
+        self._computables = data.get('computables', {})
         self._indexes = data.get('indexes') or ()
 
     @classmethod
@@ -362,7 +363,13 @@ class Concept(Prototype, adapts=proto.Concept):
             result['abstract'] = data.is_abstract
 
         if data.own_pointers:
-            result['links'] = dict(data.own_pointers)
+            result['links'] = {}
+            result['computables'] = {}
+            for ptr_name, ptr in data.own_pointers.items():
+                if isinstance(ptr.first, proto.Computable):
+                    result['computables'][ptr_name] = ptr
+                else:
+                    result['links'][ptr_name] = ptr
 
         if data.indexes:
             result['indexes'] = list(sorted(data.indexes, key=lambda i: i.expr))
@@ -495,6 +502,7 @@ class LinkDef(Prototype, adapts=proto.Link):
                             _setdefaults_=False, _relaxrequired_=True)
 
         self._properties = data['properties']
+        self._computables = data.get('computables', {})
         self._indexes = data.get('indexes') or ()
 
     @classmethod
@@ -530,7 +538,13 @@ class LinkDef(Prototype, adapts=proto.Link):
             result['default'] = data.default
 
         if data.own_pointers:
-            result['properties'] = {p.normal_name(): p for p in data.own_pointers.values()}
+            result['properties'] = {}
+            result['computables'] = {}
+            for ptr_name, ptr in data.own_pointers.items():
+                if isinstance(ptr, proto.Computable):
+                    result['computables'][ptr_name] = ptr
+                else:
+                    result['properties'][ptr_name] = ptr
 
         if data.local_constraints:
             constraints = result.setdefault('constraints', [])
@@ -555,12 +569,36 @@ class LinkSet(Prototype, adapts=proto.LinkSet):
         result = {}
 
         for l in data.links:
+            if isinstance(l, proto.Computable):
+                result = Computable.represent(l)
+                break
+
             if isinstance(l.target, proto.Atom) and l.target.automatic:
                 key = l.target.base
             else:
                 key = l.target.name
             result[str(key)] = l
 
+        return result
+
+
+class Computable(Prototype, adapts=proto.Computable):
+    def construct(self):
+        if isinstance(self.data, str):
+            expression = self.data
+        else:
+            expression = self.data['expression']
+
+        proto.Computable.__init__(self, expression=expression,
+                                  name=default_name, source=None,
+                                  _setdefaults_=False,
+                                  _relaxrequired_=True)
+
+    @classmethod
+    def represent(cls, data):
+        result = {}
+
+        result['expression'] = data.expression
         return result
 
 
@@ -688,12 +726,18 @@ class MetaSet(LangObject):
             concepts = self.order_concepts(globalindex)
             links = self.order_links(globalindex)
             linkprops = self.order_link_properties(globalindex)
+            computables = self.order_computables(globalindex)
             atoms = self.order_atoms(globalindex)
 
             for atom in atoms:
                 if self.include_builtin or atom.name.module != 'semantix.caos.builtins':
                     atom.setdefaults()
                     self.finalindex.add(atom)
+
+            for comp in computables:
+                if self.include_builtin or comp.name.module != 'semantix.caos.builtins':
+                    comp.setdefaults()
+                    self.finalindex.add(comp)
 
             for prop in linkprops:
                 if self.include_builtin or prop.name.module != 'semantix.caos.builtins':
@@ -857,7 +901,36 @@ class MetaSet(LangObject):
             globalmeta.add(property)
             localmeta.add(property)
 
-            link.add_property(property)
+            link.add_pointer(property)
+
+    def _read_computables(self, source, globalmeta, localmeta):
+        comp_ns = localmeta.get_namespace(proto.Computable)
+
+        for cname, computable in source._computables.items():
+            computable_qname = comp_ns.normalize_name(cname, default=None)
+
+            if not computable_qname:
+                if not caos.Name.is_qualified(cname):
+                    computable_qname = caos.Name(name=cname, module=self.module)
+                else:
+                    computable_qname = caos.Name(cname)
+
+            if computable_qname in source.own_pointers:
+                raise MetaError('computable "%(name)s" conflicts with "%(name)s" pointer '
+                                'defined in the same source' % {'name': computable_qname},
+                                 computable.context)
+
+            computable_name = proto.Computable.generate_name(source.name, None, cname)
+            computable.source = source
+            computable.name = caos.Name(name=computable_name, module=computable_qname.module)
+            computable.setdefaults()
+            source.add_pointer(computable)
+
+            globalmeta.add(computable)
+            localmeta.add(computable)
+
+    def order_computables(self, globalmeta):
+        return globalmeta('computable', include_automatic=True, include_builtin=True)
 
 
     def read_links(self, data, globalmeta, localmeta):
@@ -878,6 +951,8 @@ class MetaSet(LangObject):
                 link.base = tuple(link_ns.normalize_name(b) for b in link.base)
             elif link.name != 'semantix.caos.builtins.link':
                 link.base = (caos.Name('semantix.caos.builtins.link'),)
+
+            self._read_computables(link, globalmeta, localmeta)
 
             for index in link._indexes:
                 expr, tree = self.normalize_index_expr(index.expr, link, globalmeta, localmeta)
@@ -941,6 +1016,7 @@ class MetaSet(LangObject):
                 for index in link.indexes:
                     csql_expr.check_source_atomic_expr(index.tree, link)
 
+                self.normalize_computables(link, globalmeta)
                 self.normalize_pointer_defaults(link, globalmeta)
 
         except caosql_exc.CaosQLReferenceError as e:
@@ -1018,9 +1094,11 @@ class MetaSet(LangObject):
 
                     globalmeta.add(link)
                     localmeta.add(link)
-                    concept.add_link(link)
+                    concept.add_pointer(link)
 
         for concept in localmeta('concept', include_builtin=self.include_builtin):
+            self._read_computables(concept, globalmeta, localmeta)
+
             for index in concept._indexes:
                 expr, tree = self.normalize_index_expr(index.expr, concept, globalmeta, localmeta)
                 index.expr = expr
@@ -1039,6 +1117,9 @@ class MetaSet(LangObject):
                 links = [links]
 
             for link in links:
+                if isinstance(link, proto.Computable):
+                    continue
+
                 if link.default:
                     for default in link.default:
                         if isinstance(default, QueryDefaultSpec):
@@ -1067,6 +1148,44 @@ class MetaSet(LangObject):
                     link.normalize_defaults()
 
 
+    def normalize_computables(self, source, globalmeta):
+        for link_name, links in source.pointers.items():
+            if not isinstance(links, proto.LinkSet):
+                links = [links]
+
+            for link in links:
+                if not isinstance(link, proto.Computable):
+                    continue
+
+                module_aliases = {None: str(source.context.document.import_context)}
+                for alias, module in source.context.document.imports.items():
+                    module_aliases[alias] = module.__name__
+
+                expression, tree = self.caosql_expr.normalize_expr(link.expression,
+                                                                   module_aliases,
+                                                                   anchors={'self': source})
+                refs = self.caosql_expr.get_node_references(tree)
+
+                expression = self.caosql_expr.normalize_refs(link.expression, module_aliases)
+
+                first = list(tree.result_types.values())[0][0]
+
+                assert first, "Could not determine computable expression result type"
+
+                if len(tree.result_types) > 1:
+                    raise MetaError(('computable expression must yield a '
+                                     'single-column result'), link.context)
+
+                if isinstance(source, proto.Link) and not isinstance(first, proto.Atom):
+                    raise MetaError(('computable expression for link property must yield a '
+                                     'scalar'), link.context)
+
+                link.target = first
+                link.expression = expression
+                link.is_local = len(refs) == 1 and tuple(refs)[0] is source
+                link.is_atom = isinstance(link.target, caos.types.ProtoAtom)
+
+
     def order_concepts(self, globalmeta):
         g = {}
 
@@ -1079,39 +1198,40 @@ class MetaSet(LangObject):
                     if not isinstance(link.source, proto.Prototype):
                         link.source = globalmeta.get(link.source)
 
-                    if not isinstance(link.target, proto.Prototype):
-                        link.target = globalmeta.get(link.target)
-                        if isinstance(link.target, caos.types.ProtoConcept):
-                            link.target.add_rlink(link)
+                    if not isinstance(link, proto.Computable):
+                        if not isinstance(link.target, proto.Prototype):
+                            link.target = globalmeta.get(link.target)
+                            if isinstance(link.target, caos.types.ProtoConcept):
+                                link.target.add_rlink(link)
 
-                    if isinstance(link.target, proto.Atom):
-                        link.is_atom = True
+                        if isinstance(link.target, proto.Atom):
+                            link.is_atom = True
 
-                        if link_name in link_target_types and link_target_types[link_name] != 'atom':
-                            raise caos.MetaError('%s link is already defined as a link to non-atom')
+                            if link_name in link_target_types and link_target_types[link_name] != 'atom':
+                                raise caos.MetaError('%s link is already defined as a link to non-atom')
 
-                        constraints = getattr(link, '_constraints', None)
-                        if constraints:
-                            atom_constraints = [c for c in constraints if isinstance(c, proto.AtomConstraint)]
+                            constraints = getattr(link, '_constraints', None)
+                            if constraints:
+                                atom_constraints = [c for c in constraints if isinstance(c, proto.AtomConstraint)]
+                            else:
+                                atom_constraints = None
+                            if atom_constraints:
+                                # Got an inline atom definition.
+                                atom = self.genatom(globalmeta, concept, link.target.name, link_name,
+                                                                                    atom_constraints)
+                                globalmeta.add(atom)
+                                link.target = atom
+
+                            if link.mapping and link.mapping != caos.types.OneToOne:
+                                raise caos.MetaError('%s: links to atoms can only have a "1 to 1" mapping'
+                                                     % link_name)
+
+                            link_target_types[link_name] = 'atom'
                         else:
-                            atom_constraints = None
-                        if atom_constraints:
-                            # Got an inline atom definition.
-                            atom = self.genatom(globalmeta, concept, link.target.name, link_name,
-                                                                                atom_constraints)
-                            globalmeta.add(atom)
-                            link.target = atom
+                            if link_name in link_target_types and link_target_types[link_name] == 'atom':
+                                raise caos.MetaError('%s link is already defined as a link to atom')
 
-                        if link.mapping and link.mapping != caos.types.OneToOne:
-                            raise caos.MetaError('%s: links to atoms can only have a "1 to 1" mapping'
-                                                 % link_name)
-
-                        link_target_types[link_name] = 'atom'
-                    else:
-                        if link_name in link_target_types and link_target_types[link_name] == 'atom':
-                            raise caos.MetaError('%s link is already defined as a link to atom')
-
-                        link_target_types[link_name] = 'concept'
+                            link_target_types[link_name] = 'concept'
 
             g[concept.name] = {"item": concept, "merge": [], "deps": []}
             if concept.base:
@@ -1127,6 +1247,7 @@ class MetaSet(LangObject):
                     csql_expr.check_source_atomic_expr(index.tree, concept)
 
                 self.normalize_pointer_defaults(concept, globalmeta)
+                self.normalize_computables(concept, globalmeta)
 
         except caosql_exc.CaosQLReferenceError as e:
             raise MetaError(e.args[0], context=index.context) from e

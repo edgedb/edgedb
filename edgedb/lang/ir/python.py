@@ -10,6 +10,7 @@ import collections
 import numbers
 
 from semantix.caos import types as caos_types
+from semantix.caos.tree.transformer import TreeTransformer
 
 from semantix.utils import ast
 
@@ -83,23 +84,26 @@ class Adapter:
     def __init__(self):
         self.transformer = CaosToPythonTransformer()
 
-    def transform(self, tree):
-        pytree = self.transformer.transform(tree)
+    def transform(self, tree, context=None):
+        pytree = self.transformer.transform(tree, context=context)
 
         text = py_codegen.BasePythonSourceGenerator.to_source(pytree)
 
         restypes = collections.OrderedDict()
         for k, v in tree.result_types.items():
+            """
             if isinstance(v[0], caos_types.ProtoNode):
-                restypes[k] = (self.sessions.schema.get(v[0].name), v[1])
+                restypes[k] = (self.session.schema.get(v[0].name), v[1])
             else:
                 restypes[k] = v
+            """
+            restypes[k] = v
 
         return PythonQuery(text, result_types=restypes, argument_types=tree.argument_types)
 
 
-class CaosToPythonTransformer(ast.visitor.NodeVisitor):
-    def transform(self, tree):
+class CaosToPythonTransformer(TreeTransformer):
+    def transform(self, tree, context=None):
         result = py_ast.PyTuple()
         for i, selexpr in enumerate(tree.selector):
             if selexpr.name:
@@ -107,15 +111,15 @@ class CaosToPythonTransformer(ast.visitor.NodeVisitor):
             else:
                 name = py_ast.PyStr(s=str(i))
 
-            pyexpr = self._process_expr(selexpr.expr)
+            pyexpr = self._process_expr(selexpr.expr, context)
             result.elts.append(py_ast.PyTuple(elts=[name, pyexpr]))
 
         return result
 
-    def _process_expr(self, expr):
+    def _process_expr(self, expr, context):
         if isinstance(expr, caos_ast.BinOp):
-            left = self._process_expr(expr.left)
-            right = self._process_expr(expr.right)
+            left = self._process_expr(expr.left, context)
+            right = self._process_expr(expr.right, context)
             op = _operator_map[expr.op]()
 
             if isinstance(expr.op, ast.ops.ComparisonOperator):
@@ -123,9 +127,42 @@ class CaosToPythonTransformer(ast.visitor.NodeVisitor):
             else:
                 result = py_ast.PyBinOp(left=left, right=right, op=op)
 
+        elif isinstance(expr, caos_ast.BaseRefExpr):
+            result = self._process_expr(expr.expr, context)
+
+        elif isinstance(expr, (caos_ast.AtomicRefSimple, caos_ast.LinkPropRefSimple)):
+            path = [expr.name]
+            node = expr.ref
+
+            source = node
+
+            if isinstance(expr, caos_ast.LinkPropRefSimple):
+                node = node.source
+
+            while node:
+                if node.rlink:
+                    path.append(node.rlink.link_proto.name)
+                    node = node.rlink.source
+                else:
+                    source = node
+                    node = None
+
+            if isinstance(expr, caos_ast.LinkPropRefSimple):
+                # XXX
+                source = expr.ref
+
+            assert source.anchor and source.anchor in context
+
+            result = py_ast.PyName(id='__context_%s' % source.anchor)
+
+            for attr in reversed(path):
+                result = py_ast.PyCall(func=py_ast.PyName(id='getattr'),
+                                       args=[result, py_ast.PyStr(s=str(attr))])
+
+
         elif isinstance(expr, caos_ast.Constant):
             if expr.expr:
-                result = self._process_expr(expr.expr)
+                result = self._process_expr(expr.expr, context)
             elif expr.index:
                 result = py_ast.PyName(id=expr.index)
             else:
@@ -135,7 +172,7 @@ class CaosToPythonTransformer(ast.visitor.NodeVisitor):
                     result = py_ast.PyStr(s=expr.value)
 
         elif isinstance(expr, caos_ast.FunctionCall):
-            args = [self._process_expr(a) for a in expr.args]
+            args = [self._process_expr(a, context) for a in expr.args]
 
             func = py_ast.PyName(id=expr.name)
             result = py_ast.PyCall(func=func, args=args)

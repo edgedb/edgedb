@@ -149,7 +149,10 @@ class PreparedQuery:
     def convert_args(self, args, kwargs):
         result = list(args) or []
         for k in self.query.argmap:
-            result.append(kwargs[k])
+            arg = kwargs[k]
+            if isinstance(arg, caos.concept.Concept):
+                arg = arg.id
+            result.append(arg)
 
         return result
 
@@ -166,7 +169,7 @@ class CaosQLAdapter:
         self.transformer = CaosTreeTransformer()
         self.current_portal = None
 
-    def transform(self, query, scrolling_cursor=False):
+    def transform(self, query, scrolling_cursor=False, context=None):
         if scrolling_cursor:
             offset = query.offset
             limit = query.limit
@@ -272,9 +275,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 self.read_concepts(self.meta)
                 self.read_links(self.meta)
                 self.read_link_properties(self.meta)
+                self.read_computables(self.meta)
 
                 self.order_atoms(self.meta)
                 self.order_link_properties(self.meta)
+                self.order_computables(self.meta)
                 self.order_links(self.meta)
                 self.order_concepts(self.meta)
 
@@ -581,7 +586,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             for link_name, link_cls in cls:
                 if isinstance(link_cls, caos.types.AtomClass) and \
                                                     link_name != 'semantix.caos.builtins.id':
-                    attrs[common.caos_name_to_pg_name(link_name)] = links[link_name]
+                    if not isinstance(link_cls._class_metadata.link, caos.types.ComputableClass):
+                        attrs[common.caos_name_to_pg_name(link_name)] = links[link_name]
 
             rec = table.record(**attrs)
 
@@ -934,7 +940,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 assert False
 
             for pointer_name, pointer in pointers.items():
-                if pointer.atomic():
+                if pointer.atomic() and not isinstance(pointer, caos.types.ProtoComputable):
                     col_type = types.pg_type_from_atom(session.realm.meta, pointer.target,
                                                        topbase=True)
                     col_name = common.caos_name_to_pg_name(pointer_name)
@@ -985,7 +991,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             attrs = {}
             for prop_name, prop_cls in link_cls:
-                attrs[common.caos_name_to_pg_name(prop_name)] = getattr(link_obj, str(prop_name))
+                if not isinstance(prop_cls._class_metadata.link, caos.types.ComputableClass):
+                    attrs[common.caos_name_to_pg_name(prop_name)] = getattr(link_obj, str(prop_name))
 
             rec = table.record(**attrs)
 
@@ -1619,7 +1626,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 link.add_abstract_constraint(constraint)
 
             if source:
-                source.add_link(link)
+                source.add_pointer(link)
                 if isinstance(target, caos.types.ProtoConcept) \
                         and source.name.module != 'semantix.caos.builtins':
                     target.add_rlink(link)
@@ -1720,7 +1727,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         prop.add_abstract_constraint(constraint)
 
                 prop.acquire_parent_data(meta)
-                source.add_property(prop)
+                source.add_pointer(prop)
 
             meta.add(prop)
 
@@ -1734,6 +1741,32 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 g[prop.name]['merge'].extend(prop.base)
 
         topological.normalize(g, merger=proto.LinkProperty.merge)
+
+
+    def read_computables(self, meta):
+
+        comp_list = datasources.meta.links.Computables(self.connection).fetch()
+        comp_list = collections.OrderedDict((caos.Name(r['name']), r) for r in comp_list)
+
+        for name, r in comp_list.items():
+            title = self.hstore_to_word_combination(r['title'])
+            description = r['description']
+            source = meta.get(r['source'])
+            target = meta.get(r['target'])
+            expression = r['expression']
+            is_local = r['is_local']
+
+            computable = proto.Computable(name=name, source=source, target=target,
+                                          title=title, description=description,
+                                          is_local=is_local,
+                                          expression=expression)
+
+            source.add_pointer(computable)
+            meta.add(computable)
+
+
+    def order_computables(self, meta):
+        pass
 
 
     def get_table_columns(self, table_name):
