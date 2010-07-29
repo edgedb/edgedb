@@ -940,6 +940,11 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                     args=[pgsql.ast.ConstantNode(value='month'),
                                                           args[0]])
                 result = pgsql.ast.BinOpNode(left=years, op=ast.ops.ADD, right=months)
+
+            elif expr.name == ('datetime', 'current_time'):
+                result = pgsql.ast.FunctionCallNode(name='current_time', noparens=True)
+            elif expr.name == ('datetime', 'current_datetime'):
+                result = pgsql.ast.FunctionCallNode(name='current_timestamp', noparens=True)
             elif isinstance(expr.name, tuple):
                 assert False, 'unsupported function %s' % (expr.name,)
             else:

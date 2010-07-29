@@ -128,7 +128,7 @@ class SortExprNode(Base):
     __fields = ['expr', 'direction']
 
 class FunctionCallNode(Base):
-    __fields = ['name', ('args', list), 'over', ('aggregate', bool)]
+    __fields = ['name', ('args', list), 'over', ('aggregate', bool), ('noparens', bool)]
 
 class IgnoreNode(Base):
     pass

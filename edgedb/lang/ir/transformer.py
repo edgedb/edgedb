@@ -1208,11 +1208,12 @@ class TreeTransformer:
         elif node.name[0] == 'agg':
             node.aggregates = True
 
-        for arg in node.args:
-            if not isinstance(arg, caos_ast.Constant):
-                break
-        else:
-            node = caos_ast.Constant(expr=node, type=node.args[0].type)
+        if node.args:
+            for arg in node.args:
+                if not isinstance(arg, caos_ast.Constant):
+                    break
+            else:
+                node = caos_ast.Constant(expr=node, type=node.args[0].type)
 
         return node
 
