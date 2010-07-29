@@ -272,6 +272,7 @@ class SelectorExpr(Base): __fields = ['expr', 'name']
 class UpdateExpr(Base): __fields = ['expr', 'value']
 class FunctionCall(Base):
     __fields = ['name',
+                'result_type',
                 ('args', list),
                 ('aggregates', bool)]
 

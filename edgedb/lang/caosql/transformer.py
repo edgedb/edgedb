@@ -95,6 +95,9 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
         elif isinstance(expr, tree.ast.SelectorExpr):
             result = qlast.SelectExprNode(expr=self._process_expr(expr.expr), alias=expr.name)
 
+        elif isinstance(expr, tree.ast.FunctionCall):
+            result = qlast.FunctionCallNode(func=expr.name, args=expr.args)
+
         elif isinstance(expr, tree.ast.Record):
             result = self._process_expr(expr.elements[0].ref)
 

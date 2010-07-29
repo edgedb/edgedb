@@ -1673,6 +1673,10 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.Record):
             result = expr.concept
 
+        elif isinstance(expr, caos_ast.FunctionCall):
+            argtypes = tuple(self.get_expr_type(arg, schema) for arg in expr.args)
+            result = caos_types.TypeRules.get_result(expr.name, argtypes, schema)
+
         elif isinstance(expr, caos_ast.Constant):
             #assert expr.type is not None or expr.value is not None
 

@@ -102,3 +102,16 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
             self.write('$%s' % node.index)
         else:
             self.write('None')
+
+    def visit_FunctionCallNode(self, node):
+        if isinstance(node.func, tuple):
+            self.write(':'.join(node.func))
+
+        self.write('(')
+
+        for i, arg in enumerate(node.args):
+            if i > 0:
+                self.write(', ')
+            self.visit(arg)
+
+        self.write(')')

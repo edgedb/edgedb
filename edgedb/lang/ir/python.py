@@ -59,14 +59,17 @@ class PythonQuery:
         self.argument_types = argument_types
         self.record = datastructures.Record('pyquery_result', self.result_types, None)
 
+        from semantix import caos
+        self.globals = {'caos': caos}
+
     def __call__(self, **kwargs):
-        return [self.record(**dict(eval(self.statement, {}, kwargs)))]
+        return [self.record(**dict(eval(self.statement, self.globals, kwargs)))]
 
     def first(self, **kwargs):
-        return eval(self.statement, {}, kwargs)[0][1]
+        return eval(self.statement, self.globals, kwargs)[0][1]
 
     def rows(self, **kwargs):
-        return [collections.OrderedDict(eval(self.statement, {}, kwargs))]
+        return [collections.OrderedDict(eval(self.statement, self.globals, kwargs))]
 
     def describe_output(self):
         return collections.OrderedDict(self.result_types)
@@ -160,6 +163,12 @@ class CaosToPythonTransformer(TreeTransformer):
                                        args=[result, py_ast.PyStr(s=str(attr))])
 
 
+        elif isinstance(expr, caos_ast.Disjunction):
+            if len(expr.paths) == 1:
+                result = self._process_expr(next(iter(expr.paths)), context)
+            else:
+                assert False, 'unsupported path combination: "%r"' % expr
+
         elif isinstance(expr, caos_ast.Constant):
             if expr.expr:
                 result = self._process_expr(expr.expr, context)
@@ -174,7 +183,16 @@ class CaosToPythonTransformer(TreeTransformer):
         elif isinstance(expr, caos_ast.FunctionCall):
             args = [self._process_expr(a, context) for a in expr.args]
 
-            func = py_ast.PyName(id=expr.name)
+            if expr.name == ('datetime', 'current_datetime'):
+                funcpath = ('caos', 'objects', 'datetime', 'DateTime', 'now')
+            elif not isinstance(expr.name, tuple):
+                funcpath = [expr.name]
+            else:
+                assert False, 'unsupported function: "%r"' % expr.name
+
+            func = py_ast.PyName(id=funcpath[0])
+            for step in funcpath[1:]:
+                func = py_ast.PyAttribute(value=func, attr=step)
             result = py_ast.PyCall(func=func, args=args)
 
         else:
