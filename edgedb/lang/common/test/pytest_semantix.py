@@ -41,26 +41,64 @@ class LoggingPrintHandler(logging.Handler):
 test_patterns = []
 test_skipped_patterns = []
 
-class PyTestColorizerPatcher:
+
+BaseReprExceptionInfo = __import__('py._code.code', None, None, ['ReprExceptionInfo']).ReprExceptionInfo
+
+class ReprExceptionInfo(BaseReprExceptionInfo):
+    def __init__(self, einfos):
+        super().__init__(*einfos[-1])
+        self.einfos = einfos
+
+    def toterminal(self, tw):
+        for tb, crash in reversed(self.einfos):
+            tb.toterminal(tw)
+        for name, content, sep in self.sections:
+            tw.sep(sep, name)
+            tw.line(content)
+
+class PyTestPatcher:
     target = None
-    old_method = None
+    old_get_source = None
+    old_repr_excinfo = None
 
     @classmethod
     def patch(cls):
         cls.target = __import__('py._code.code', None, None, ['FormattedExcinfo']).FormattedExcinfo
-        cls.old_method = cls.target.get_source
+        cls.old_get_source = cls.target.get_source
 
         def get_source(self, *args, **kwargs):
-            lst = cls.old_method(self, *args, **kwargs)
+            lst = cls.old_get_source(self, *args, **kwargs)
             return highlight('\n'.join(lst), 'python').split('\n')
 
         cls.target.get_source = get_source
 
+        cls.old_repr_excinfo = cls.target.repr_excinfo
+
+        def repr_excinfo(self, excinfo):
+            einfos = []
+
+            einfo = excinfo
+
+            while einfo:
+                einfos.append((self.repr_traceback(einfo), einfo._getreprcrash()))
+                if einfo.value.__cause__:
+                    cause = einfo.value.__cause__
+                    einfo = py.code.ExceptionInfo((type(cause), cause, cause.__traceback__))
+                else:
+                    einfo = None
+
+            return ReprExceptionInfo(einfos)
+
+        cls.target.repr_excinfo = repr_excinfo
+
+
     @classmethod
     def unpatch(cls):
-        if cls.old_method and cls.target:
-            cls.target.get_source = cls.old_method
-            cls.old_method = None
+        if cls.old_get_source and cls.target:
+            cls.target.get_source = cls.old_get_source
+            cls.target.repr_excinfo = cls.old_repr_excinfo
+            cls.old_get_source = None
+            cls.old_repr_excinfo = None
 
 
 def pytest_addoption(parser):
@@ -76,7 +114,7 @@ def pytest_configure(config):
     global test_patterns, test_skipped_patterns, semantix_debug
 
     if config.option.colorize:
-        PyTestColorizerPatcher.patch()
+        PyTestPatcher.patch()
         logging.getLogger("semantix").addHandler(LoggingPrintHandler(True))
     else:
         logging.getLogger("semantix").addHandler(LoggingPrintHandler(False))
@@ -109,7 +147,7 @@ def pytest_configure(config):
 
 def pytest_unconfigure(config):
     if config.option.colorize:
-        PyTestColorizerPatcher.unpatch()
+        PyTestPatcher.unpatch()
 
 
 def pytest_pycollect_makeitem(__multicall__, collector, name, obj):
