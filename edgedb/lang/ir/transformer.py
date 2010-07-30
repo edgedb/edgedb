@@ -1677,6 +1677,13 @@ class TreeTransformer:
             argtypes = tuple(self.get_expr_type(arg, schema) for arg in expr.args)
             result = caos_types.TypeRules.get_result(expr.name, argtypes, schema)
 
+            if result is None:
+                fcls = caos_types.FunctionMeta.get_function_class(expr.name)
+                if fcls:
+                    signature = fcls.get_signature(argtypes)
+                    if signature and signature[2]:
+                        result = schema.get(signature[2])
+
         elif isinstance(expr, caos_ast.Constant):
             #assert expr.type is not None or expr.value is not None
 

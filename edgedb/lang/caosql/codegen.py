@@ -106,6 +106,8 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
     def visit_FunctionCallNode(self, node):
         if isinstance(node.func, tuple):
             self.write(':'.join(node.func))
+        else:
+            self.write(node.func)
 
         self.write('(')
 

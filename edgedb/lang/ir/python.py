@@ -185,6 +185,8 @@ class CaosToPythonTransformer(TreeTransformer):
 
             if expr.name == ('datetime', 'current_datetime'):
                 funcpath = ('caos', 'objects', 'datetime', 'DateTime', 'now')
+            elif expr.name == 'coalesce':
+                funcpath = ('caos', 'expr', 'ops', 'Coalesce', 'call')
             elif not isinstance(expr.name, tuple):
                 funcpath = [expr.name]
             else:
