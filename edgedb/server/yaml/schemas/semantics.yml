@@ -302,6 +302,10 @@ mapping:
                                     - type: str
                                     - type: map
                                       mapping:
+                                        "title":
+                                            *TEXT_WITH_GRAM_CATEGORIES
+                                        "description":
+                                            type: str
                                         "expression":
                                             type: str
                                         "mapping":

@@ -585,12 +585,14 @@ class LinkSet(Prototype, adapts=proto.LinkSet):
 class Computable(Prototype, adapts=proto.Computable):
     def construct(self):
         if isinstance(self.data, str):
-            expression = self.data
+            data = {'expression': self.data}
         else:
-            expression = self.data['expression']
+            data = self.data
 
-        proto.Computable.__init__(self, expression=expression,
+        proto.Computable.__init__(self, expression=data.get('expression'),
                                   name=default_name, source=None,
+                                  title=data.get('title'),
+                                  description=data.get('description'),
                                   _setdefaults_=False,
                                   _relaxrequired_=True)
 
