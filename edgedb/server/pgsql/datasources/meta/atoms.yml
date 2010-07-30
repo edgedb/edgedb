@@ -28,3 +28,5 @@ source: |
             c.attributes AS attributes
         FROM
             caos.atom c
+        ORDER BY
+            c.id
