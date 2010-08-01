@@ -1348,32 +1348,38 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         return cte
 
+    def _check_join_cardinality(self, context, link):
+        link_proto = link.link_proto
+
+        flt = lambda i: set(('selector', 'sorter', 'grouper')) & i.users
+        if link.target:
+            if link.filter.direction == caos_types.OutboundDirection:
+                target_sets = {link.target} | set(link.target.joins)
+            else:
+                target_sets = {link.source}
+            target_outside_generator = bool(list(filter(flt, target_sets)))
+        else:
+            target_outside_generator = False
+
+        link_outside_generator = bool(flt(link))
+
+        cardinality_ok = context.current.ignore_cardinality or \
+                         target_outside_generator or link_outside_generator or \
+                         (link.filter.direction == caos_types.OutboundDirection and
+                          link_proto.mapping in (caos_types.OneToOne, caos_types.ManyToOne)) or \
+                         (link.filter.direction == caos_types.InboundDirection and
+                          link_proto.mapping in (caos_types.OneToOne, caos_types.OneToMany))
+
+        return cardinality_ok
+
     def _process_conjunction(self, context, cte, sql_path_tip, caos_path_tip, conjunction,
                                                                parent_cte, weak=False):
         sql_path = sql_path_tip
 
         for link in conjunction.paths:
             if isinstance(link, tree.ast.EntityLink):
-                link_proto = link.link_proto
 
-                flt = lambda i: set(('selector', 'sorter', 'grouper')) & i.users
-                if link.target:
-                    if link.filter.direction == caos_types.OutboundDirection:
-                        target_sets = {link.target} | set(link.target.joins)
-                    else:
-                        target_sets = {link.source}
-                    target_outside_generator = bool(list(filter(flt, target_sets)))
-                else:
-                    target_outside_generator = False
-
-                link_outside_generator = bool(flt(link))
-
-                cardinality_ok = context.current.ignore_cardinality or \
-                                 target_outside_generator or link_outside_generator or \
-                                 (link.filter.direction == caos_types.OutboundDirection and
-                                  link_proto.mapping in (caos_types.OneToOne, caos_types.ManyToOne)) or \
-                                 (link.filter.direction == caos_types.InboundDirection and
-                                  link_proto.mapping in (caos_types.OneToOne, caos_types.OneToMany))
+                cardinality_ok = self._check_join_cardinality(context, link)
 
                 if cardinality_ok:
                     sql_path = self.caos_path_to_sql_path(context, cte, parent_cte, link.target,
@@ -1398,10 +1404,48 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         return sql_path
 
-
-    def _process_path(self, context, root_cte, sql_path_tip, caos_path_tip, weak=False):
+    def _process_disjunction(self, context, cte, sql_path_tip, caos_path_tip, disjunction):
+        need_union = False
         sql_paths = []
 
+        for link in disjunction.paths:
+            if isinstance(link, tree.ast.EntityLink):
+
+                if self._check_join_cardinality(context, link):
+                    sql_path = self.caos_path_to_sql_path(context, cte, sql_path_tip,
+                                                          link.target, sql_path_tip, link,
+                                                          weak=True)
+                    sql_path = self._process_path(context, cte, sql_path, link.target, weak=True)
+                    sql_paths.append(sql_path)
+                else:
+                    cte = self.init_filter_cte(context, sql_path_tip, caos_path_tip)
+                    pred = pgsql.ast.ExistsNode(expr=cte)
+                    op = ast.ops.OR
+                    sql_path_tip.where = self.extend_predicate(sql_path_tip.where, pred, op)
+
+                    with context(TransformerContext.NEW):
+                        context.current.ignore_cardinality = True
+                        sql_path = self.caos_path_to_sql_path(context, cte, cte, link.target,
+                                                              sql_path_tip, link, weak=True)
+
+                        self._process_path(context, cte, sql_path, link.target, weak=True)
+
+            elif isinstance(link, tree.ast.Conjunction):
+                sql_path = self._process_conjunction(context, cte, sql_path_tip,
+                                                     caos_path_tip, link, None, weak=True)
+                sql_paths.append(sql_path)
+                need_union = True
+            else:
+                assert False, 'unexpected expression type in disjunction path: %s' % link
+
+        if need_union:
+            result = self.unify_paths(context, sql_paths)
+        else:
+            result = sql_path_tip
+
+        return result
+
+    def _process_path(self, context, root_cte, sql_path_tip, caos_path_tip, weak=False):
         if not sql_path_tip and isinstance(caos_path_tip, tree.ast.EntitySet):
             # Bootstrap the SQL path
             sql_path_tip = self.caos_path_to_sql_path(context, root_cte,
@@ -1435,27 +1479,10 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         if disjunction and disjunction.paths:
             if isinstance(caos_path_tip, tree.ast.EntitySet):
-                need_union = False
-                for link in disjunction.paths:
-                    if isinstance(link, tree.ast.EntityLink):
-                        sql_path = self.caos_path_to_sql_path(context, root_cte, sql_path_tip,
-                                                              link.target, sql_path_tip, link,
-                                                              weak=True)
-                        sql_path = self._process_path(context, root_cte, sql_path, link.target, weak=True)
-                        sql_paths.append(sql_path)
-                    elif isinstance(link, tree.ast.Conjunction):
-                        sql_path = self._process_conjunction(context, root_cte, sql_path_tip,
-                                                             caos_path_tip, link, None, weak=True)
-                        sql_paths.append(sql_path)
-                        need_union = True
-                    else:
-                        assert False, 'unexpected expression type in disjunction path: %s' % link
-
-                if need_union:
-                    result = self.unify_paths(context, sql_paths)
-                else:
-                    result = sql_path_tip
+                result = self._process_disjunction(context, root_cte, sql_path_tip, caos_path_tip,
+                                                   disjunction)
             else:
+                sql_paths = []
                 for link in disjunction.paths:
                     if isinstance(link, (tree.ast.EntitySet, tree.ast.PathCombination)):
                         sql_path = self._process_path(context, root_cte, None, link)
