@@ -907,6 +907,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 name = 'count'
             elif expr.name == ('math', 'abs'):
                 name = 'abs'
+            elif expr.name == ('math', 'round'):
+                name = 'round'
             elif expr.name == ('math', 'min'):
                 name = 'least'
             elif expr.name == ('math', 'max'):
