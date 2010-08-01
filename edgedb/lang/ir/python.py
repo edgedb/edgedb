@@ -59,8 +59,9 @@ class PythonQuery:
         self.argument_types = argument_types
         self.record = datastructures.Record('pyquery_result', self.result_types, None)
 
+        import semantix
         from semantix import caos
-        self.globals = {'caos': caos}
+        self.globals = {'caos': caos, 'semantix': semantix}
 
     def __call__(self, **kwargs):
         return [self.record(**dict(eval(self.statement, self.globals, kwargs)))]
@@ -144,7 +145,7 @@ class CaosToPythonTransformer(TreeTransformer):
 
             while node:
                 if node.rlink:
-                    path.append(node.rlink.link_proto.name)
+                    path.append(node.rlink.link_proto.normal_name())
                     node = node.rlink.source
                 else:
                     source = node
@@ -183,14 +184,16 @@ class CaosToPythonTransformer(TreeTransformer):
         elif isinstance(expr, caos_ast.FunctionCall):
             args = [self._process_expr(a, context) for a in expr.args]
 
-            if expr.name == ('datetime', 'current_datetime'):
+            fcls = caos_types.FunctionMeta.get_function_class(expr.name)
+
+            if fcls and hasattr(fcls, 'call'):
+                funcpath = fcls.__module__.split('.') + [fcls.__name__, 'call']
+            elif expr.name == ('datetime', 'current_datetime'):
                 funcpath = ('caos', 'objects', 'datetime', 'DateTime', 'now')
-            elif expr.name == 'coalesce':
-                funcpath = ('caos', 'expr', 'ops', 'Coalesce', 'call')
             elif not isinstance(expr.name, tuple):
                 funcpath = [expr.name]
             else:
-                assert False, 'unsupported function: "%r"' % expr.name
+                assert False, 'unsupported function: "%r"' % (expr.name,)
 
             func = py_ast.PyName(id=funcpath[0])
             for step in funcpath[1:]:
