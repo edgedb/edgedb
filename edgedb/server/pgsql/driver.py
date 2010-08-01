@@ -16,7 +16,7 @@ from postgresql.string import quote_ident
 from postgresql.python.functools import Composition as compose
 
 from semantix.caos.objects.datetime import TimeDelta, DateTime, Time
-from semantix.caos.objects import numeric
+from semantix.caos.objects import numeric, string
 
 from semantix.caos.backends import pool as caos_pool
 
@@ -44,7 +44,8 @@ oid_to_type = {
     postgresql.types.TIMESTAMPTZOID: DateTime,
     postgresql.types.TIMEOID: Time,
     postgresql.types.NUMERICOID: numeric.Decimal,
-    postgresql.types.INTERVALOID: TimeDelta
+    postgresql.types.INTERVALOID: TimeDelta,
+    postgresql.types.TEXTOID: string.Str
 }
 
 
