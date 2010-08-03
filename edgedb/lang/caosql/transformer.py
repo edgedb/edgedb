@@ -399,6 +399,9 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             node = self.proto_schema.get(name=name, module_aliases=context.current.namespaces,
                                          type=caos_types.ProtoNode)
 
+        elif isinstance(expr, qlast.UnaryOpNode):
+            node = self.process_unaryop(self._process_expr(context, expr.operand), expr.op)
+
         else:
             assert False, "Unexpected expr: %s" % expr
 
