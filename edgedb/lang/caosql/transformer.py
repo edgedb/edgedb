@@ -13,6 +13,7 @@ from semantix.caos import tree
 from semantix.caos import name as caos_name
 from semantix.caos.caosql import ast as qlast
 from semantix.caos.caosql import errors
+from semantix.caos.caosql import parser as caosql_parser
 
 
 class ParseContextLevel(object):
@@ -188,17 +189,25 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
     def __init__(self, proto_schema, module_aliases=None):
         self.proto_schema = proto_schema
         self.module_aliases = module_aliases
+        self.parser = caosql_parser.CaosQLParser()
 
-    def transform(self, caosql_tree, arg_types, module_aliases=None, anchors=None):
+    def _init_context(self, arg_types, module_aliases, anchors):
         self.context = context = ParseContext()
         self.context.current.proto_schema = self.proto_schema
         self.context.current.module_aliases = module_aliases or self.module_aliases
 
         if anchors:
             self._populate_anchors(context, anchors)
+        return context
 
+    def transform(self, caosql_tree, arg_types, module_aliases=None, anchors=None):
+        context = self._init_context(arg_types, module_aliases, anchors)
         stree = self._transform_select(context, caosql_tree, arg_types)
+        return stree
 
+    def transform_fragment(self, caosql_tree, arg_types, module_aliases=None, anchors=None):
+        context = self._init_context(arg_types, module_aliases, anchors)
+        stree = self._process_expr(context, caosql_tree)
         return stree
 
     def normalize_refs(self, caosql_tree, module_aliases):
@@ -209,7 +218,9 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
     def _populate_anchors(self, context, anchors):
         for anchor, proto in anchors.items():
-            if isinstance(proto, caos_types.ProtoConcept):
+            if isinstance(proto, tree.ast.EntitySet):
+                step = proto
+            elif isinstance(proto, caos_types.ProtoConcept):
                 step = tree.ast.EntitySet()
                 step.concept = proto
                 step.id = tree.transformer.LinearPath([step.concept])
@@ -551,6 +562,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                     target = link_item.source
                                 assert target
 
+                                if isinstance(link_item, caos_types.ProtoComputable):
+                                    newtips[target] = {self.link_computable(link_item, tip)}
+                                    continue
+
                                 if not link_item.generic():
                                     link_proto = link_item
                                     link_item = self.proto_schema.get(link_item.normal_name())
@@ -768,3 +783,9 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     result.append(expr)
 
         return result
+
+    def link_computable(self, computable_proto, path_tip):
+        path_tip = next(iter(path_tip))
+        anchors = {'self': path_tip}
+        caosql_tree = self.parser.parse(computable_proto.expression)
+        return self.transform_fragment(caosql_tree, (), anchors=anchors)

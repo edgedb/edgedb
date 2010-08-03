@@ -220,7 +220,7 @@ class TreeTransformer:
 
             if full_record:
                 for link_name, link in concept.pointers.items():
-                    if link.atomic():
+                    if link.atomic() and not isinstance(link.first, caos_types.ProtoComputable):
                         link_proto = schema.get(link_name)
                         target_proto = link_proto.target
                         id = LinearPath(ref.id)

@@ -905,6 +905,25 @@ class MetaSet(LangObject):
 
             link.add_pointer(property)
 
+    def _create_base_link(self, link, link_qname, globalmeta, localmeta, type=None):
+        type = type or proto.Link
+
+        base = 'semantix.caos.builtins.link' if type is proto.Link else \
+               'semantix.caos.builtins.link_property'
+
+        linkdef = type(name=link_qname,
+                       base=(caos.Name(base),),
+                       _setdefaults_=False)
+        if isinstance(link.target, str):
+            target = globalmeta.get(link.target)
+        else:
+            target = link.target
+        linkdef.is_atom = isinstance(target, proto.Atom)
+        globalmeta.add(linkdef)
+        if localmeta:
+            localmeta.add(linkdef)
+        return linkdef
+
     def _read_computables(self, source, globalmeta, localmeta):
         comp_ns = localmeta.get_namespace(proto.Computable)
 
@@ -1076,13 +1095,7 @@ class MetaSet(LangObject):
                             # If the name is not fully qualified, assume inline link definition.
                             # The only attribute that is used for global definition is the name.
                             link_qname = caos.Name(name=link_name, module=self.module)
-                            linkdef = proto.Link(name=link_qname,
-                                                 base=(caos.Name('semantix.caos.builtins.link'),),
-                                                 _setdefaults_=False)
-                            target_atom = globalmeta.get(link.target, type=proto.Atom, default=None)
-                            linkdef.is_atom = target_atom is not None
-                            globalmeta.add(linkdef)
-                            localmeta.add(linkdef)
+                            self._create_base_link(link, link_qname, globalmeta, localmeta)
                         else:
                             link_qname = caos.Name(link_name)
 
@@ -1186,6 +1199,14 @@ class MetaSet(LangObject):
                 link.expression = expression
                 link.is_local = len(refs) == 1 and tuple(refs)[0] is source
                 link.is_atom = isinstance(link.target, caos.types.ProtoAtom)
+
+                type = proto.Link if isinstance(source, proto.Concept) else proto.LinkProperty
+                parent_link = globalmeta.get(link.normal_name(), type=type, default=None)
+                if not parent_link:
+                    parent_link = self._create_base_link(link, link.normal_name(),
+                                                         globalmeta, localmeta=None, type=type)
+
+                link.base = (parent_link.name,)
 
 
     def order_concepts(self, globalmeta):

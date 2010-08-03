@@ -401,7 +401,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             concept = session.realm.meta.get(concept_name)
 
             for link_name, link in concept.pointers.items():
-                if link.atomic():
+                if link.atomic() and not isinstance(link.first, caos.types.ProtoComputable):
                     col_name = common.caos_name_to_pg_name(link_name)
                     atom_link_map[link_name] = attribute_map[col_name]
 
@@ -1755,11 +1755,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             target = meta.get(r['target'])
             expression = r['expression']
             is_local = r['is_local']
+            bases = (proto.Link.normalize_name(name),)
 
             computable = proto.Computable(name=name, source=source, target=target,
                                           title=title, description=description,
                                           is_local=is_local,
-                                          expression=expression)
+                                          expression=expression,
+                                          base=bases)
 
             source.add_pointer(computable)
             meta.add(computable)

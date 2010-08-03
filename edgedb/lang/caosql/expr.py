@@ -42,6 +42,10 @@ class CaosQLExpression:
         tree = self.reverse_transformer.transform(caos_tree)
         return codegen.CaosQLSourceGenerator.to_source(tree), caos_tree
 
+    def transform_expr_fragment(self, expr, anchors):
+        tree = self.parser.parse(expr)
+        return self.transformer.transform_fragment(tree, (), anchors=anchors)
+
     def normalize_source_expr(self, expr, source):
         tree = self.parser.parse(expr)
 
