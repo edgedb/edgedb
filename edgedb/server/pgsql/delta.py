@@ -827,14 +827,14 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             alter_table = source_context.op.get_alter_table(context)
             table = common.get_table_name(source, catenate=False)
 
+            drop_constraints = {}
+
+            for op in alter_table(TableConstraintCommand):
+                if isinstance(op, AlterTableDropConstraint):
+                    name = op.constraint.raw_constraint_name()
+                    drop_constraints[name] = op
+
             if pointer_name in source.own_pointers:
-                drop_constraints = {}
-
-                for op in alter_table(TableConstraintCommand):
-                    if isinstance(op, AlterTableDropConstraint):
-                        name = op.constraint.raw_constraint_name()
-                        drop_constraints[name] = op
-
                 ptr_op = ptr_op_class(prototype_name=pointer.name,
                                       prototype_class=pointer.__class__.get_canonical_class())
 
