@@ -17,7 +17,6 @@ from semantix.utils.functional.types import Checker, FunctionValidator, checktyp
 from semantix.exceptions import SemantixError
 from semantix.utils.lang import yaml
 from semantix.utils.config.schema import Schema
-from semantix.rendering.css.compiler.ast import Combinator
 
 
 __all__ = ['ConfigError', 'ConfigRequiredValueError', 'config', 'configurable', 'cvalue']
