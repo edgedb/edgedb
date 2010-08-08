@@ -119,6 +119,9 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
             result = super().__new__(cls)
             super().__init__(result, **intervals)
 
+        else:
+            raise ValueError("invalid timedelta value: '%s'" % value)
+
         return result
 
     def __init__(self, *args, **kwargs):
