@@ -50,7 +50,9 @@ BINOP_SYMBOLS = {
     PyBitXor:     '^',
     PyPow:        '**',
     PyAnd:        'and',
-    PyOr:        'or'
+    PyOr:         'or',
+    PyIs:         'is',
+    PyIsNot:      'is not'
 }
 
 CMPOP_SYMBOLS = {
