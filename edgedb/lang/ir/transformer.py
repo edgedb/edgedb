@@ -1627,11 +1627,15 @@ class TreeTransformer:
         elif isinstance(left, caos_ast.Constant):
             if isinstance(right, caos_ast.Constant):
                 l, r = (right, left) if reversed else (left, right)
-                if l.type == r.type:
-                    result_type = l.type
+
+                schema = self.context.current.proto_schema
+                if isinstance(op, ast.ops.ComparisonOperator):
+                    result_type = schema.get('semantix.caos.builtins.bool')
                 else:
-                    schema = self.context.current.proto_schema
-                    result_type = caos_types.TypeRules.get_result(op, (l.type, r.type), schema)
+                    if l.type == r.type:
+                        result_type = l.type
+                    else:
+                        result_type = caos_types.TypeRules.get_result(op, (l.type, r.type), schema)
                 result = caos_ast.Constant(expr=newbinop(left, right), type=result_type)
 
         elif isinstance(left, caos_ast.BinOp):
@@ -1762,9 +1766,12 @@ class TreeTransformer:
                 result = None
 
         elif isinstance(expr, caos_ast.BinOp):
-            left_type = self.get_expr_type(expr.left, schema)
-            right_type = self.get_expr_type(expr.right, schema)
-            result = caos_types.TypeRules.get_result(expr.op, (left_type, right_type), schema)
+            if isinstance(expr.op, ast.ops.ComparisonOperator):
+                result = schema.get('semantix.caos.builtins.bool')
+            else:
+                left_type = self.get_expr_type(expr.left, schema)
+                right_type = self.get_expr_type(expr.right, schema)
+                result = caos_types.TypeRules.get_result(expr.op, (left_type, right_type), schema)
 
         elif isinstance(expr, caos_ast.Disjunction):
             if expr.paths:
