@@ -1761,7 +1761,11 @@ class TreeTransformer:
             if expr.type:
                 result = expr.type
             elif expr.value is not None:
-                result = expr.value.__class__
+                if isinstance(expr.value.__class__, caos_types.NodeClass):
+                    result = caos_types.prototype(expr.value.__class__)
+                else:
+                    result = caos_types.BaseTypeMeta.type_to_caos_builtin(expr.value.__class__)
+                    result = schema.get(result)
             else:
                 result = None
 

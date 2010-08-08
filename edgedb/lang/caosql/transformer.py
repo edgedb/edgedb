@@ -384,10 +384,13 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                                full_record=selector_top_level)
 
         elif isinstance(expr, qlast.ConstantNode):
-            type = self.arg_types.get(expr.index)
-            node = tree.ast.Constant(value=expr.value, index=expr.index, type=type)
-            if expr.index:
+            if expr.index is not None:
+                type = self.arg_types.get(expr.index)
+                node = tree.ast.Constant(value=expr.value, index=expr.index, type=type)
                 context.current.arguments[expr.index] = type
+            else:
+                type = self.get_expr_type(expr, self.proto_schema)
+                node = tree.ast.Constant(value=expr.value, index=expr.index, type=type)
 
         elif isinstance(expr, qlast.SequenceNode):
             elements=[self._process_expr(context, e) for e in expr.elements]
