@@ -21,6 +21,7 @@ source: |
             c.title AS title,
             c.description AS description,
             c.is_abstract AS is_abstract,
+            c.is_final AS is_final,
             c.custombases AS custombases
         FROM
             caos.concept c

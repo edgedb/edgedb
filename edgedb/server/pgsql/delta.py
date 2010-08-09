@@ -2902,6 +2902,7 @@ class MetaObjectTable(Table):
             Column(name='id', type='serial', required=True, readonly=True),
             Column(name='name', type='text', required=True),
             Column(name='is_abstract', type='boolean', required=True, default=False),
+            Column(name='is_final', type='boolean', required=True, default=False),
             Column(name='title', type='caos.hstore'),
             Column(name='description', type='text')
         ])

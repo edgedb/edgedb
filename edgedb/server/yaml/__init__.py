@@ -295,6 +295,7 @@ class Atom(Prototype, adapts=proto.Atom):
         proto.Atom.__init__(self, name=default_name, backend=None, base=data['extends'],
                             default=default, title=data['title'],
                             description=data['description'], is_abstract=data['abstract'],
+                            is_final=data['final'],
                             attributes=data.get('attributes'),
                             _setdefaults_=False, _relaxrequired_=True)
         self._constraints = data.get('constraints')
@@ -320,6 +321,9 @@ class Atom(Prototype, adapts=proto.Atom):
         if data.is_abstract:
             result['abstract'] = data.is_abstract
 
+        if data.is_final:
+            result['final'] = data.is_final
+
         if data.constraints:
             result['constraints'] = sorted(list(itertools.chain.from_iterable(data.constraints.values())),
                                            key=lambda i: i.__class__.constraint_name)
@@ -341,7 +345,7 @@ class Concept(Prototype, adapts=proto.Concept):
         proto.Concept.__init__(self, name=default_name, backend=None,
                                base=tuple(extends) if extends else tuple(),
                                title=data.get('title'), description=data.get('description'),
-                               is_abstract=data.get('abstract'),
+                               is_abstract=data.get('abstract'), is_final=data.get('final'),
                                _setdefaults_=False, _relaxrequired_=True)
         self._links = data.get('links', {})
         self._computables = data.get('computables', {})
@@ -361,6 +365,9 @@ class Concept(Prototype, adapts=proto.Concept):
 
         if data.is_abstract:
             result['abstract'] = data.is_abstract
+
+        if data.is_final:
+            result['final'] = data.is_final
 
         if data.own_pointers:
             result['links'] = {}
@@ -495,7 +502,7 @@ class LinkDef(Prototype, adapts=proto.Link):
         proto.Link.__init__(self, name=default_name, backend=None,
                             base=tuple(extends) if extends else tuple(),
                             title=data['title'], description=data['description'],
-                            is_abstract=data.get('abstract'),
+                            is_abstract=data.get('abstract'), is_final=data.get('final'),
                             readonly=data.get('readonly'),
                             mapping=data.get('mapping'),
                             default=default,
@@ -521,6 +528,9 @@ class LinkDef(Prototype, adapts=proto.Link):
 
         if data.is_abstract:
             result['abstract'] = data.is_abstract
+
+        if data.is_final:
+            result['final'] = data.is_final
 
         if data.readonly:
             result['readonly'] = data.readonly
@@ -759,6 +769,14 @@ class MetaSet(LangObject):
                     self.finalindex.add(concept)
 
 
+    def _check_base(self, element, base_name, globalmeta):
+        base = globalmeta.get(base_name, type=element.__class__.get_canonical_class(),
+                              include_pyobjects=True)
+        if isinstance(base, caos.types.ProtoObject) and base.is_final:
+            raise MetaError('"%s" is final and cannot be inherited from' % base.name,
+                            element.context)
+
+
     def read_atoms(self, data, globalmeta, localmeta):
         backend = None
 
@@ -774,6 +792,7 @@ class MetaSet(LangObject):
             if atom.base:
                 try:
                     atom.base = ns.normalize_name(atom.base, include_pyobjects=True)
+                    self._check_base(atom, atom.base, globalmeta)
                 except caos.MetaError as e:
                     raise MetaError(e, atom.context) from e
 
@@ -1026,6 +1045,9 @@ class MetaSet(LangObject):
                                                              type, 'abstract')
 
             if link.base:
+                for base_name in link.base:
+                    self._check_base(link, base_name, globalmeta)
+
                 g[link.name]['merge'].extend(link.base)
 
         links = topological.normalize(g, merger=proto.Link.merge)
@@ -1258,6 +1280,8 @@ class MetaSet(LangObject):
 
             g[concept.name] = {"item": concept, "merge": [], "deps": []}
             if concept.base:
+                for base_name in concept.base:
+                    self._check_base(concept, base_name, globalmeta)
                 g[concept.name]["merge"].extend(concept.base)
 
         concepts = topological.normalize(g, merger=proto.Concept.merge)

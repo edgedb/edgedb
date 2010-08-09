@@ -56,6 +56,10 @@ mapping:
                         type: bool
                         default: null
 
+                    "final":
+                        type: bool
+                        default: null
+
                     "default": &DEFAULT
                         type: choice
                         choice:
@@ -223,6 +227,10 @@ mapping:
                     "abstract":
                         type: bool
 
+                    "final":
+                        type: bool
+                        default: null
+
                     "readonly":
                         type: bool
 
@@ -331,6 +339,10 @@ mapping:
                         *TEXT_WITH_GRAM_CATEGORIES
 
                     "abstract":
+                        type: bool
+                        default: null
+
+                    "final":
                         type: bool
                         default: null
 

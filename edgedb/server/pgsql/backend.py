@@ -1196,6 +1196,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                          'description': row['description'],
                          'automatic': row['automatic'],
                          'is_abstract': row['is_abstract'],
+                         'is_final': row['is_final'],
                          'base': row['base'],
                          'constraints': row['constraints'],
                          'default': row['default'],
@@ -1210,6 +1211,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                               title=atom_data['title'], description=atom_data['description'],
                               automatic=atom_data['automatic'],
                               is_abstract=atom_data['is_abstract'],
+                              is_final=atom_data['is_final'],
                               attributes=atom_data['attributes'])
 
             # Copy constraints from parent (row['constraints'] does not contain any inherited constraints)
@@ -1612,6 +1614,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                 required=required,
                                 title=title, description=description,
                                 is_abstract=r['is_abstract'],
+                                is_final=r['is_final'],
                                 is_atom=r['is_atom'],
                                 readonly=r['readonly'],
                                 default=r['default'])
@@ -1801,6 +1804,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                        'title': self.hstore_to_word_combination(row['title']),
                        'description': row['description'],
                        'is_abstract': row['is_abstract'],
+                       'is_final': row['is_final'],
                        'custombases': row['custombases']}
 
 
@@ -1822,6 +1826,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             concept = proto.Concept(name=name, base=bases, title=concept['title'],
                                     description=concept['description'],
                                     is_abstract=concept['is_abstract'],
+                                    is_final=concept['is_final'],
                                     custombases=tuple(concept['custombases']))
 
             meta.add(concept)
