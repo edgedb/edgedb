@@ -26,6 +26,7 @@ class CaosQLParser(parsing.Parser):
 
     def normalize_select_query(self, query, filters=None, sort=None, context=None):
         nodetype = type(query)
+        arg_types = {}
 
         qtree = query
 
@@ -105,6 +106,7 @@ class CaosQLParser(parsing.Parser):
 
                 if qtree.where:
                     const = qlast.ConstantNode(value=None, index='__filter%s' % name)
+                    arg_types['__filter%s' % name] = value.__class__
                     left = qtree.where
                     right = qlast.BinOpNode(left=target, right=const, op=ast.ops.EQ)
                     qtree.where = qlast.BinOpNode(left=left, right=right, op=ast.ops.AND)
@@ -123,4 +125,4 @@ class CaosQLParser(parsing.Parser):
 
             qtree.orderby = newsort
 
-        return qtree
+        return qtree, arg_types

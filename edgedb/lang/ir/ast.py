@@ -9,9 +9,14 @@
 import itertools
 import weakref
 
+from semantix.exceptions import SemantixError
 from semantix.utils import ast
 from semantix.caos import name as caos_name
 from semantix.caos import types as caos_types
+
+
+class ASTError(SemantixError):
+    pass
 
 
 class Base(ast.AST):
@@ -249,7 +254,34 @@ class EntitySet(Path):
             value.backrefs.add(self)
 
 
-class Constant(Base): __fields = ['value', 'index', 'expr', 'type']
+class Constant(Base):
+    __fields = ['value', 'index', 'expr', 'type']
+
+    def __init__(self, **kwargs):
+        self._check_type(kwargs.get('expr'), kwargs.get('type'))
+        super().__init__(**kwargs)
+
+    def __setattr__(self, name, value):
+        if name in ('expr', 'type'):
+            expr = value if name == 'expr' else self.expr
+            type = value if name == 'value' else self.type
+            self._check_type(expr, type)
+
+    def _check_type(self, expr, type):
+        if not type:
+            if not expr:
+                raise ASTError('simple constants must have type information')
+
+        else:
+            if isinstance(type, tuple):
+                item_type = type[1]
+            else:
+                item_type = type
+
+            if not isinstance(item_type, caos_types.ProtoObject):
+                raise ASTError(('unexpected constant type representation, '
+                                'expected ProtoObject, got "%r"') % (type,))
+
 
 class Sequence(Base): __fields = [('elements', list)]
 

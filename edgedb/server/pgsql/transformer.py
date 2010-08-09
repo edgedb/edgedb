@@ -537,11 +537,16 @@ class CaosTreeTransformer(CaosExprTransformer):
     def _process_constant(self, context, expr):
         if expr.type:
             if isinstance(expr.type, caos_types.ProtoAtom):
-                const_type = types.pg_type_from_atom(context.current.realm.meta, expr.type)
+                const_type = types.pg_type_from_atom(context.current.realm.meta, expr.type, topbase=True)
+            elif isinstance(expr.type, caos_types.ProtoConcept):
+                const_type = common.get_table_name(expr.type, catenate=True)
             elif isinstance(expr.type, tuple):
                 item_type = expr.type[1]
                 if isinstance(item_type, caos_types.ProtoAtom):
-                    item_type = types.pg_type_from_atom(context.current.realm.meta, item_type)
+                    item_type = types.pg_type_from_atom(context.current.realm.meta, item_type, topbase=True)
+                    const_type = '%s[]' % item_type
+                elif isinstance(item_type, caos_types.ProtoConcept):
+                    item_type = common.get_table_name(item_type, catenate=True)
                     const_type = '%s[]' % item_type
                 else:
                     const_type = common.py_type_to_pg_type(expr.type)

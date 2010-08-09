@@ -10,7 +10,7 @@ class Operator:
     cache = {}
     funcmap = {}
 
-    def __new__(cls, val='', *, funcname=None):
+    def __new__(cls, val='', *, funcname=None, rfuncname=None):
         result = Operator.cache.get((cls, val))
 
         if not result:
@@ -20,9 +20,12 @@ class Operator:
             if funcname:
                 Operator.funcmap[funcname] = result
 
+            if rfuncname:
+                Operator.funcmap[rfuncname] = (result, 'reversed')
+
         return result
 
-    def __init__(self, val, *, funcname=None):
+    def __init__(self, val, *, funcname=None, rfuncname=None):
         self.val = val
 
     def __str__(self):
@@ -55,12 +58,12 @@ class BinaryArithmeticOperator(ArithmeticOperator):
     pass
 
 
-ADD = BinaryArithmeticOperator('+', funcname='__add__')
-SUB = BinaryArithmeticOperator('-', funcname='__sub__')
-MUL = BinaryArithmeticOperator('*', funcname='__mul__')
-DIV = BinaryArithmeticOperator('/', funcname='__truediv__')
-POW = BinaryArithmeticOperator('^', funcname='__pow__')
-MOD = BinaryArithmeticOperator('%', funcname='__mod__')
+ADD = BinaryArithmeticOperator('+', funcname='__add__', rfuncname='__radd__')
+SUB = BinaryArithmeticOperator('-', funcname='__sub__', rfuncname='__rsub__')
+MUL = BinaryArithmeticOperator('*', funcname='__mul__', rfuncname='__rmul__')
+DIV = BinaryArithmeticOperator('/', funcname='__truediv__', rfuncname='__rtruediv__')
+POW = BinaryArithmeticOperator('^', funcname='__pow__', rfuncname='__rpow__')
+MOD = BinaryArithmeticOperator('%', funcname='__mod__', rfuncname='__rmod__')
 
 
 class UnaryArithmeticOperator(ArithmeticOperator):

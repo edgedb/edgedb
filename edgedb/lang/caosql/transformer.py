@@ -258,12 +258,12 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         if caosql_tree.offset:
             graph.offset = tree.ast.Constant(value=caosql_tree.offset.value,
                                              index=caosql_tree.offset.index,
-                                             type=int)
+                                             type=context.current.proto_schema.get('int'))
 
         if caosql_tree.limit:
             graph.limit = tree.ast.Constant(value=caosql_tree.limit.value,
                                              index=caosql_tree.limit.index,
-                                             type=int)
+                                             type=context.current.proto_schema.get('int'))
 
         # Merge selector and sorter disjunctions first
         paths = [s.expr for s in graph.selector] + [s.expr for s in graph.sorter] + \
@@ -386,10 +386,11 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         elif isinstance(expr, qlast.ConstantNode):
             if expr.index is not None:
                 type = self.arg_types.get(expr.index)
+                type = caos_types.normalize_type(type, self.proto_schema)
                 node = tree.ast.Constant(value=expr.value, index=expr.index, type=type)
                 context.current.arguments[expr.index] = type
             else:
-                type = self.get_expr_type(expr, self.proto_schema)
+                type = caos_types.normalize_type(expr.value.__class__, self.proto_schema)
                 node = tree.ast.Constant(value=expr.value, index=expr.index, type=type)
 
         elif isinstance(expr, qlast.SequenceNode):

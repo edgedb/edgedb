@@ -1680,31 +1680,6 @@ class TreeTransformer:
 
         return expr
 
-    def eval_const_bool_expr(self, left, right, op, reversed):
-        if op == 'and':
-            if not left.value:
-                return caos_ast.Constant(value=False)
-            else:
-                return right
-        elif op == 'or':
-            if left.value:
-                return caos_ast.Constant(value=True)
-            else:
-                return right
-
-    def eval_const_expr(self, left, right, op, reversed):
-        if isinstance(op, ast.ops.BooleanOperator):
-            return self.eval_const_bool_expr(left, right, op, reversed)
-        elif op == '=':
-            op = '=='
-
-        if reversed:
-            params = (right.value, op, left.value)
-        else:
-            params = (left.value, op, right.value)
-
-        return caos_ast.Constant(value=eval('%r %s %r' % params))
-
     def get_expr_type(self, expr, schema):
         if isinstance(expr, caos_ast.MetaRef):
             result = str
@@ -1756,18 +1731,10 @@ class TreeTransformer:
                         result = schema.get(signature[2])
 
         elif isinstance(expr, caos_ast.Constant):
-            #assert expr.type is not None or expr.value is not None
-
-            if expr.type:
-                result = expr.type
-            elif expr.value is not None:
-                if isinstance(expr.value.__class__, caos_types.NodeClass):
-                    result = caos_types.prototype(expr.value.__class__)
-                else:
-                    result = caos_types.BaseTypeMeta.type_to_caos_builtin(expr.value.__class__)
-                    result = schema.get(result)
+            if expr.expr:
+                result = self.get_expr_type(expr.expr, schema)
             else:
-                result = None
+                result = expr.type
 
         elif isinstance(expr, caos_ast.BinOp):
             if isinstance(expr.op, ast.ops.ComparisonOperator):
@@ -1776,6 +1743,9 @@ class TreeTransformer:
                 left_type = self.get_expr_type(expr.left, schema)
                 right_type = self.get_expr_type(expr.right, schema)
                 result = caos_types.TypeRules.get_result(expr.op, (left_type, right_type), schema)
+                if result is None:
+                    result = caos_types.TypeRules.get_result((expr.op, 'reversed'),
+                                                             (right_type, left_type), schema)
 
         elif isinstance(expr, caos_ast.Disjunction):
             if expr.paths:

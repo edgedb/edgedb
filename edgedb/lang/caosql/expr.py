@@ -36,7 +36,7 @@ class CaosQLExpression:
 
     def normalize_expr(self, expr, module_aliases=None, anchors=None):
         tree = self.parser.parse(expr)
-        tree = self.parser.normalize_select_query(tree)
+        tree, arg_types = self.parser.normalize_select_query(tree)
         caos_tree = self.transformer.transform(tree, (), module_aliases=module_aliases,
                                                          anchors=anchors)
         tree = self.reverse_transformer.transform(caos_tree)
