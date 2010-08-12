@@ -62,7 +62,7 @@ ADD = BinaryArithmeticOperator('+', funcname='__add__', rfuncname='__radd__')
 SUB = BinaryArithmeticOperator('-', funcname='__sub__', rfuncname='__rsub__')
 MUL = BinaryArithmeticOperator('*', funcname='__mul__', rfuncname='__rmul__')
 DIV = BinaryArithmeticOperator('/', funcname='__truediv__', rfuncname='__rtruediv__')
-POW = BinaryArithmeticOperator('^', funcname='__pow__', rfuncname='__rpow__')
+POW = BinaryArithmeticOperator('**', funcname='__pow__', rfuncname='__rpow__')
 MOD = BinaryArithmeticOperator('%', funcname='__mod__', rfuncname='__rmod__')
 
 

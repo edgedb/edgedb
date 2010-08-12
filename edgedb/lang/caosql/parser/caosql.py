@@ -72,7 +72,7 @@ class P_ADD_OP(Precedence, assoc='left', tokens=('PLUS', 'MINUS')):
 class P_MUL_OP(Precedence, assoc='left', tokens=('STAR', 'SLASH', 'MOD')):
     pass
 
-class P_POW_OP(Precedence, assoc='left', tokens=('CIRCUM',)):
+class P_POW_OP(Precedence, assoc='left', tokens=('STARSTAR',)):
     pass
 
 
@@ -153,6 +153,9 @@ class T_DOLLAR(Token, lextoken='$'):
     pass
 
 class T_CIRCUM(Token, lextoken='^'):
+    pass
+
+class T_STARSTAR(Token, lextoken='**'):
     pass
 
 class T_LANGBRACKET_RANGBRACKET(Token, lextoken='<>'):
@@ -566,7 +569,7 @@ class Expr(Nonterm):
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.MOD, right=kids[2].val)
 
     def reduce_pow(self, *kids):
-        "%reduce Expr CIRCUM Expr"
+        "%reduce Expr STARSTAR Expr"
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.POW, right=kids[2].val)
 
     def reduce_lt(self, *kids):

@@ -48,6 +48,7 @@ definitions:
 
     dir                     "\<\>"
     search                  "\@\@"
+    starstar                "\*\*"
 
     other                   "."
 
@@ -70,6 +71,9 @@ INITIAL:
 
     "{search}":
         return 'OP'
+
+    "{starstar}":
+        return '**'
 
     "{self}":
         return self.value[0]
