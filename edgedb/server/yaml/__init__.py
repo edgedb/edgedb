@@ -933,11 +933,15 @@ class MetaSet(LangObject):
         linkdef = type(name=link_qname,
                        base=(caos.Name(base),),
                        _setdefaults_=False)
-        if isinstance(link.target, str):
-            target = globalmeta.get(link.target)
+        if link.target is not None:
+            if isinstance(link.target, str):
+                target = globalmeta.get(link.target)
+            else:
+                target = link.target
+            linkdef.is_atom = isinstance(target, proto.Atom)
         else:
-            target = link.target
-        linkdef.is_atom = isinstance(target, proto.Atom)
+            linkdef.is_atom = None
+
         globalmeta.add(linkdef)
         if localmeta:
             localmeta.add(linkdef)
@@ -965,6 +969,14 @@ class MetaSet(LangObject):
             computable.name = caos.Name(name=computable_name, module=computable_qname.module)
             computable.setdefaults()
             source.add_pointer(computable)
+
+            super = globalmeta.get(computable.normal_name(), default=None)
+            if super is None:
+                type = proto.Link if isinstance(source, proto.Concept) else proto.LinkProperty
+                super = self._create_base_link(computable, computable.normal_name(), globalmeta,
+                                               localmeta, type=type)
+
+            computable.base = (super.name,)
 
             globalmeta.add(computable)
             localmeta.add(computable)
@@ -1223,12 +1235,9 @@ class MetaSet(LangObject):
                 link.is_atom = isinstance(link.target, caos.types.ProtoAtom)
 
                 type = proto.Link if isinstance(source, proto.Concept) else proto.LinkProperty
-                parent_link = globalmeta.get(link.normal_name(), type=type, default=None)
-                if not parent_link:
-                    parent_link = self._create_base_link(link, link.normal_name(),
-                                                         globalmeta, localmeta=None, type=type)
-
-                link.base = (parent_link.name,)
+                super = globalmeta.get(link.base[0], type=type)
+                if super.is_atom is None:
+                    super.is_atom = link.is_atom
 
 
     def order_concepts(self, globalmeta):
