@@ -7,6 +7,7 @@
 
 
 from semantix.caos import session
+from semantix.utils.debug import debug
 
 
 class SessionPool(session.SessionPool):
@@ -22,13 +23,28 @@ class Transaction(session.Transaction):
     def __init__(self, session, parent=None):
         super().__init__(session, parent=parent)
         self.xact = self.session.connection.xact()
+        self._begin_impl()
+
+    @debug
+    def _begin_impl(self):
+        """LOG [caos.sql]
+        print('BEGIN %r' % self.xact)
+        """
         self.xact.begin()
 
+    @debug
     def _rollback_impl(self):
+        """LOG [caos.sql]
+        print('ROLLBACK %r' % self.xact)
+        """
         self.xact.rollback()
         self.xact = None
 
+    @debug
     def _commit_impl(self):
+        """LOG [caos.sql]
+        print('COMMIT %r' % self.xact)
+        """
         self.xact.commit()
         self.xact = None
 
