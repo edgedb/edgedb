@@ -300,6 +300,7 @@ mapping:
                     "computables":
                         &COMPUTABLES
                         type: map
+                        ordered: True
                         default: {}
                         mapping:
                             =:
