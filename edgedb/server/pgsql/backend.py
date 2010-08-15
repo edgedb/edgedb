@@ -1117,7 +1117,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                   ''' % table
             params = (source.id,)
 
-        result = self.runquery(qry, *params,
+        result = self.runquery(qry, params,
                                connection=session.connection,
                                compat=False, return_stmt=True)
         result = result.first(*params)
