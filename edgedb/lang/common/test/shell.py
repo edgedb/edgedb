@@ -14,16 +14,20 @@ from semantix.utils import shell
 
 
 class TestCommand(shell.Command, name='test', expose=True):
-    def get_parser(self, subparsers):
-        parser = super().get_parser(subparsers)
+    def get_parser(self, subparsers, **kwargs):
+        parser = super().get_parser(subparsers, description='Collect and execute project tests.')
 
-        parser.add_argument('--keep-going', action='store_true', default=False)
-        parser.add_argument('--color', action='store_true', default=True)
-        parser.add_argument('--no-color', dest='color', action='store_false')
-        parser.add_argument('--no-magic', dest='magic', action='store_false', default=True)
-        parser.add_argument('--skip', dest='skipped', action='append')
-        parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', default=False)
-        parser.add_argument('tests', nargs='*')
+        parser.add_argument('--skip', dest='skipped', action='append', metavar='SKIP_PATTERN',
+                            help='a pattern specifying tests to be excluded from the test run')
+        parser.add_argument('--keep-going', action='store_true', default=False,
+                            help='do not stop at the first failed test')
+        parser.add_argument('--no-magic', dest='magic', action='store_false', default=True,
+                            help='disable py.test magic')
+        parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', default=False,
+                            help='enable verbose output')
+        parser.add_argument('tests', nargs='*',
+                            help=('a pattern specifying tests to be included in the test run; '
+                                  'if not specified, all tests will be run'))
 
         return parser
 

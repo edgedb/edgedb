@@ -91,8 +91,8 @@ class Command(CommandBase, name=None):
     def __init__(self, subparsers):
         self.get_parser(subparsers)
 
-    def get_parser(self, subparsers):
-        parser = subparsers.add_parser(self.__class__._command_name)
+    def get_parser(self, subparsers, **kwargs):
+        parser = subparsers.add_parser(self.__class__._command_name, **kwargs)
         return parser
 
     def __call__(self, args):
