@@ -6,12 +6,15 @@
 ##
 
 
+from semantix.utils import helper
+
 from . import types, error
 
 class Schema(object):
     @classmethod
     def prepare_class(cls, context, data):
         cls.__dct = data
+        cls._context = context
 
     def __init__(self):
         self.refs = {}
@@ -21,6 +24,17 @@ class Schema(object):
         if isinstance(dct, type) and issubclass(dct, Schema):
             # This happens when top-level anchor is assigned to the schema
             dct = dct.__dct
+
+        elif isinstance(dct, str):
+            # Reference to an external schema
+            head, dot, tail = dct.partition('.')
+
+            imported = self.__class__._context.document.imports.get(head)
+            if imported:
+                head = imported.__name__
+
+            schema = helper.get_object(head + '.' + tail)
+            dct = schema.__dct
 
         dct_id = id(dct)
         dct_type = dct['type']

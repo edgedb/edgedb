@@ -1,0 +1,20 @@
+##
+# Copyright (c) 2008-2010 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%SCHEMA semantix.utils.lang.yaml.schema.Schema
+%IMPORT semantix.utils.lang.yaml.validator.tests.ymls.imported AS imported
+%NAME Schema
+---
+
+type: map
+mapping:
+    test0:
+        imported.Common
+
+    test3:
+        type: str

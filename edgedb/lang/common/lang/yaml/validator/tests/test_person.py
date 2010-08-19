@@ -13,7 +13,7 @@ from semantix.utils.lang.yaml.validator.tests.base import SchemaTest, raises, re
 class TestPerson(SchemaTest):
     @staticmethod
     def setup_class(cls):
-        cls.schema = cls.get_schema('ymls/person.yml')
+        cls.schema = cls.get_schema('person.Schema')
 
     @raises(validator.SchemaValidationError, 'list expected')
     def test_validator_root_sequence(self):

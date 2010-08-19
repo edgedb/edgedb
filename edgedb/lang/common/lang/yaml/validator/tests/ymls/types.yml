@@ -6,6 +6,10 @@
 ##
 
 
+%SCHEMA semantix.utils.lang.yaml.schema.Schema
+%NAME Schema
+---
+
 type: map
 mapping:
     int: { type: int }

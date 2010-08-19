@@ -14,7 +14,7 @@ from semantix.utils.lang.yaml.validator.tests.base import SchemaTest, raises, re
 class TestChoice(SchemaTest):
     @staticmethod
     def setup_class(cls):
-        cls.schema = cls.get_schema('ymls/choice.yml')
+        cls.schema = cls.get_schema('choice.Schema')
 
     @raises(validator.SchemaValidationError, 'Choice block errors')
     def test_validator_choice1(self):

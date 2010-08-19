@@ -8,6 +8,7 @@
 
 import os
 
+from semantix.utils import helper
 from semantix.utils import lang
 from semantix.utils.lang import meta
 from semantix.utils.lang.yaml import loader
@@ -65,8 +66,5 @@ class SchemaTest(object):
         return loader.Loader(str).get_single_node()
 
     @staticmethod
-    def get_schema(file):
-        schema = type(file, (lang.yaml.validator.Schema,), {})
-        schema_data = lang.load(os.path.join(os.path.dirname(__file__), file))
-        schema.prepare_class(None, next(schema_data))
-        return schema()
+    def get_schema(clsname):
+        return helper.get_object('semantix.utils.lang.yaml.validator.tests.ymls.' + clsname)()

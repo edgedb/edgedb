@@ -15,7 +15,7 @@ from semantix.utils.lang.yaml.validator.tests.base import SchemaTest, raises, re
 class TestTypes(SchemaTest):
     @staticmethod
     def setup_class(cls):
-        cls.schema = cls.get_schema('ymls/types.yml')
+        cls.schema = cls.get_schema('types.Schema')
 
     @raises(validator.SchemaValidationError, 'expected integer')
     def test_validator_types_int_fail1(self):

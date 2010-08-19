@@ -68,7 +68,7 @@ class CustomValidator(Object):
 class TestObject(SchemaTest):
     @staticmethod
     def setup_class(cls):
-        cls.schema = cls.get_schema('ymls/object.yml')
+        cls.schema = cls.get_schema('object.Schema')
 
     @result(key='test1', value=A(name='testname', description='testdescription'))
     def test_validator_object(self):
