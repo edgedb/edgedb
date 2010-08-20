@@ -11,6 +11,7 @@ from .import_ import ImportContext
 
 # Import languages to register them
 from semantix.utils.lang import yaml
+from semantix.utils.lang import python
 
 
 class SemantixLangLoaderError(Exception):

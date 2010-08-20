@@ -5,33 +5,56 @@
 # See LICENSE for details.
 ##
 
+
 import os
+
 
 class LanguageMeta(type):
     languages = []
 
-    def __new__(cls, name, bases, dct):
+    def __new__(cls, name, bases, dct, *, register=True):
         lang = super(LanguageMeta, cls).__new__(cls, name, bases, dct)
-        if 'recognize_file' in dct:
+        if register:
             LanguageMeta.languages.append(lang)
         return lang
+
+    def __init__(cls, name, bases, dct, *, register=True):
+        super().__init__(name, bases, dct)
 
     @staticmethod
     def recognize_file(filename, try_append_extension=False, is_package=False):
         result = None
 
         for lang in LanguageMeta.languages:
-            myfile = lang.recognize_file(filename, try_append_extension, is_package)
-            if myfile:
-                if (result is not None or
-                    (try_append_extension and os.path.exists(filename + '.py'))): # hardcode .py
-                    raise ImportError('ambigous module import: %s' % filename)
-                result = (lang, myfile)
+            file_ = lang.recognize_file(filename, try_append_extension, is_package)
+            if file_:
+                if result is not None:
+                    raise ImportError('ambiguous module import: %s, languages in conflict: %s' % \
+                                                (filename, (lang, result[0])))
+                result = (lang, file_)
+
         return result
 
 
-class Language(object, metaclass=LanguageMeta):
+class Language(object, metaclass=LanguageMeta, register=False):
     lazyload = False
+    loader = None
+    file_extensions = ()
+
+    @classmethod
+    def recognize_file(cls, filename, try_append_extension=False, is_package=False):
+        if is_package:
+            filename = os.path.join(filename, '__init__')
+
+        if try_append_extension:
+            for ext in cls.file_extensions:
+                if os.path.exists(filename + '.' + ext):
+                    return filename + '.' + ext
+
+        elif os.path.exists(filename):
+            for ext in cls.file_extensions:
+                if filename.endswith('.' + ext):
+                    return filename
 
 
 class SourcePoint(object):

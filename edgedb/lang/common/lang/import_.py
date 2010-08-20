@@ -9,11 +9,13 @@
 import sys
 import os
 import imp
+import importlib._bootstrap
 import importlib.abc
 import collections
 import types
 
 from .meta import LanguageMeta, DocumentContext
+from semantix.utils.lang import python
 
 
 class ImportContext(str):
@@ -66,6 +68,9 @@ class Importer(importlib.abc.Finder, importlib.abc.Loader):
 
     def load_module(self, fullname):
         language, filename, is_package = self.module_file_map[fullname]
+
+        if language.loader:
+            return language.loader(fullname, filename, is_package).load_module(fullname)
 
         new_mod = sys.modules.get(fullname)
         lazy = False

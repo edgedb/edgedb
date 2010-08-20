@@ -14,16 +14,7 @@ from semantix.utils.functional import Adapter
 
 
 class Language(meta.Language):
-    lazyload = False
-
-    @classmethod
-    def recognize_file(cls, filename, try_append_extension=False, is_package=False):
-        if is_package:
-            filename = os.path.join(filename, '__init__')
-        if try_append_extension and os.path.exists(filename + '.yml'):
-            return filename + '.yml'
-        elif os.path.exists(filename) and filename.endswith('.yml'):
-            return filename
+    file_extensions = ('yml',)
 
     @classmethod
     def load(cls, stream, context=None):
