@@ -2449,13 +2449,21 @@ class Update(DMLOperation):
 
             placeholders.append('%s = %s' % (e(f), expr))
 
-        where = ' AND '.join('%s IS NOT DISTINCT FROM $%d' % (e(c[0]), ci + i) \
-                             for ci, c in enumerate(self.condition))
+        cond = []
+        for field, value in self.condition:
+            field = e(field)
+
+            if value is None:
+                cond.append('%s IS NULL' % field)
+            else:
+                cond.append('%s = $%d' % (field, i))
+                vals.append(value)
+                i += 1
+
+        where = ' AND '.join(cond)
 
         code = 'UPDATE %s SET %s WHERE %s' % \
                 (common.qname(*self.table.name), ', '.join(placeholders), where)
-
-        vals += [c[1] for c in self.condition]
 
         if self.returning:
             code += ' RETURNING ' + ', '.join(self.returning)
