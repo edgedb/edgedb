@@ -9,7 +9,6 @@
 from semantix.caos.proto import ImportContext
 from semantix.utils.lang.yaml.loader import AttributeMappingNode
 from .semantics import Semantics
-from .data import Data
 from .delta import Delta
 
 
