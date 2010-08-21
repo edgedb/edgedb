@@ -64,6 +64,10 @@ class Rectangle:
     def children(self):
         return self._children
 
+    @children.setter
+    def children(self, children):
+        self._children = set(children)
+
     def add_child(self, child):
         self._children.add(child)
 
