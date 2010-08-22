@@ -40,6 +40,7 @@ class Language(object, metaclass=LanguageMeta, register=False):
     lazyload = False
     loader = None
     file_extensions = ()
+    proxy_module_cls = None
 
     @classmethod
     def recognize_file(cls, filename, try_append_extension=False, is_package=False):

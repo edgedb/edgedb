@@ -9,13 +9,11 @@
 import sys
 import os
 import imp
-import importlib._bootstrap
 import importlib.abc
 import collections
 import types
 
 from .meta import LanguageMeta, DocumentContext
-from semantix.utils.lang import python
 
 
 class ImportContext(str):
@@ -34,6 +32,18 @@ class ImportContext(str):
 
 class Module(types.ModuleType):
     pass
+
+
+class ProxyModule:
+    def __init__(self, name, module):
+        self.__name__ = name
+        self.__wrapped__ = module
+
+    def __getattribute__(self, name):
+        wrapped = object.__getattribute__(self, '__wrapped__')
+        if name == '__wrapped__':
+            return wrapped
+        return getattr(wrapped, name)
 
 
 class LazyModule(types.ModuleType):
@@ -72,14 +82,17 @@ class Importer(importlib.abc.Finder, importlib.abc.Loader):
         if language.loader:
             return language.loader(fullname, filename, is_package).load_module(fullname)
 
-        new_mod = sys.modules.get(fullname)
-        lazy = False
+        orig_mod = new_mod = sys.modules.get(fullname)
+        lazy = language.lazyload
         reload = new_mod is not None
+        proxied = language.proxy_module_cls and isinstance(orig_mod, language.proxy_module_cls)
+
+        if proxied:
+            new_mod = orig_mod.__wrapped__
 
         if not reload:
-            if language.lazyload:
+            if lazy:
                 new_mod = LazyModule(fullname)
-                lazy = True
             else:
                 new_mod = imp.new_module(fullname)
 
@@ -100,7 +113,7 @@ class Importer(importlib.abc.Finder, importlib.abc.Loader):
         new_mod.__loader__ = self
         new_mod._language_ = language
 
-        if not lazy:
+        if not lazy or reload:
             context = DocumentContext(module=new_mod, import_context=fullname)
 
             with open(filename) as stream:
@@ -118,4 +131,33 @@ class Importer(importlib.abc.Finder, importlib.abc.Loader):
                     raise ImportError('unable to import "%s" (%s: %s)' \
                                       % (fullname, type(error).__name__, error)) from error
 
-        return new_mod
+        result_mod = new_mod
+
+        if language.proxy_module_cls:
+            assert issubclass(language.proxy_module_cls, ProxyModule)
+
+            if proxied:
+                orig_mod.__wrapped__ = new_mod
+                result_mod = orig_mod
+            else:
+                result_mod = language.proxy_module_cls(fullname, new_mod)
+
+        sys.modules[fullname] = result_mod
+        return result_mod
+
+
+def reload(module):
+    if isinstance(module, ProxyModule):
+        sys.modules[module.__name__] = module.__wrapped__
+
+        new_mod = imp.reload(module.__wrapped__)
+        if isinstance(new_mod, ProxyModule):
+            module.__wrapped__ = new_mod.__wrapped__
+        else:
+            module.__wrapped__ = new_mod
+
+        sys.modules[module.__name__] = module
+        return module
+
+    else:
+        return imp.reload(module)
