@@ -34,24 +34,33 @@ class Module(types.ModuleType):
     pass
 
 
-class ProxyModule:
+class BaseProxyModule:
     def __init__(self, name, module):
         self.__name__ = name
         self.__wrapped__ = module
 
+
+class LightProxyModule(BaseProxyModule):
+    """Light ProxyModule object, does not keep track of wrapped
+    module's attributes, so if there are any references to them in
+    the code then it may be broken after reload.
+    """
+
+    def __setattr__(self, name, value):
+        if name not in ('__name__', '__wrapped__'):
+            return setattr(self.__wrapped__, name, value)
+        else:
+            return object.__setattr__(self, name, value)
+
     def __getattribute__(self, name):
+        if name in ('__name__', '__repr__', '__wrapped__'):
+            return object.__getattribute__(self, name)
+
         wrapped = object.__getattribute__(self, '__wrapped__')
-        if name == '__wrapped__':
-            return wrapped
         return getattr(wrapped, name)
 
-
-class LazyModule(types.ModuleType):
-    def __getattribute__(self, name):
-        self.__class__ = Module
-        # Reload the module
-        self.__loader__.load_module(self.__name__)
-        return getattr(self, name)
+    def __repr__(self):
+        return '<%s "%s">' % (object.__getattribute__(self, '__class__').__name__, self.__name__)
 
 
 class Importer(importlib.abc.Finder, importlib.abc.Loader):
@@ -83,19 +92,14 @@ class Importer(importlib.abc.Finder, importlib.abc.Loader):
             return language.loader(fullname, filename, is_package).load_module(fullname)
 
         orig_mod = new_mod = sys.modules.get(fullname)
-        lazy = language.lazyload
         reload = new_mod is not None
-        proxied = language.proxy_module_cls and isinstance(orig_mod, language.proxy_module_cls)
+        proxied = language.proxy_module_cls and isinstance(orig_mod, BaseProxyModule)
 
         if proxied:
             new_mod = orig_mod.__wrapped__
 
         if not reload:
-            if lazy:
-                new_mod = LazyModule(fullname)
-            else:
-                new_mod = imp.new_module(fullname)
-
+            new_mod = imp.new_module(fullname)
             sys.modules[fullname] = new_mod
         else:
             for k in new_mod.__odict__.keys():
@@ -113,28 +117,26 @@ class Importer(importlib.abc.Finder, importlib.abc.Loader):
         new_mod.__loader__ = self
         new_mod._language_ = language
 
-        if not lazy or reload:
-            context = DocumentContext(module=new_mod, import_context=fullname)
+        context = DocumentContext(module=new_mod, import_context=fullname)
 
-            with open(filename) as stream:
-                try:
-                    attributes = language.load_dict(stream, context=context)
+        with open(filename) as stream:
+            try:
+                attributes = language.load_dict(stream, context=context)
 
-                    for attribute_name, attribute_value in attributes:
-                        attribute_name = str(attribute_name)
-                        new_mod.__odict__[attribute_name] = attribute_value
-                        setattr(new_mod, attribute_name, attribute_value)
+                for attribute_name, attribute_value in attributes:
+                    attribute_name = str(attribute_name)
+                    new_mod.__odict__[attribute_name] = attribute_value
+                    setattr(new_mod, attribute_name, attribute_value)
 
-                except Exception as error:
-                    if not reload:
-                        del sys.modules[fullname]
-                    raise ImportError('unable to import "%s" (%s: %s)' \
-                                      % (fullname, type(error).__name__, error)) from error
+            except Exception as error:
+                if not reload:
+                    del sys.modules[fullname]
+                raise ImportError('unable to import "%s" (%s: %s)' \
+                                  % (fullname, type(error).__name__, error)) from error
 
         result_mod = new_mod
-
         if language.proxy_module_cls:
-            assert issubclass(language.proxy_module_cls, ProxyModule)
+            assert issubclass(language.proxy_module_cls, BaseProxyModule)
 
             if proxied:
                 orig_mod.__wrapped__ = new_mod
@@ -147,11 +149,11 @@ class Importer(importlib.abc.Finder, importlib.abc.Loader):
 
 
 def reload(module):
-    if isinstance(module, ProxyModule):
+    if isinstance(module, BaseProxyModule):
         sys.modules[module.__name__] = module.__wrapped__
 
         new_mod = imp.reload(module.__wrapped__)
-        if isinstance(new_mod, ProxyModule):
+        if isinstance(new_mod, BaseProxyModule):
             module.__wrapped__ = new_mod.__wrapped__
         else:
             module.__wrapped__ = new_mod

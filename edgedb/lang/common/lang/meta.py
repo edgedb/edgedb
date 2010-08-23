@@ -37,7 +37,6 @@ class LanguageMeta(type):
 
 
 class Language(object, metaclass=LanguageMeta, register=False):
-    lazyload = False
     loader = None
     file_extensions = ()
     proxy_module_cls = None
