@@ -52,7 +52,7 @@ class _Config:
             return_cvalue = True
 
         if name not in self.__dict__:
-            raise ConfigError('%s.%s config property does not exist' % (self._name, name))
+            raise AttributeError('%s.%s config property does not exist' % (self._name, name))
 
         if name in self.__dict__ and isinstance(self.__dict__[name], cvalue) and not return_cvalue:
             return self.__dict__[name]._get_value()

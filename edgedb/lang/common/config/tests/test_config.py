@@ -151,7 +151,7 @@ class TestUtilsConfig(object):
         def test5(test=cvalue(1.0)):
             pass
 
-        with assert_raises(ConfigError):
+        with assert_raises(AttributeError):
             config.semantix.utils.config.tests.test_config.test5.fuuuu
 
     def test_utils_config_reuse(self):
@@ -168,7 +168,7 @@ class TestUtilsConfig(object):
 
         test7()
 
-        with assert_raises(ConfigError):
+        with assert_raises(AttributeError):
             config.semantix.utils.config.tests.test_config.test7.flag
 
     def test_utils_config_defaults_validation(self):
@@ -459,7 +459,7 @@ class TestUtilsConfig(object):
     def test_utils_config_loadflow(self):
         set_value('semantix.utils.config.tests.test_config.YML.foo', 33)
 
-        with assert_raises(ConfigError):
+        with assert_raises(AttributeError):
             config.semantix.utils.config.tests.test_config.YML.foo
 
         @configurable
