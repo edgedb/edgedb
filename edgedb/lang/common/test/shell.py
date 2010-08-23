@@ -17,6 +17,8 @@ class TestCommand(shell.Command, name='test', expose=True):
     def get_parser(self, subparsers, **kwargs):
         parser = super().get_parser(subparsers, description='Collect and execute project tests.')
 
+        parser.add_argument('-s', '--shell', dest='shell', action='store_true',
+                            help='start the interactive python shell on error', default=False)
         parser.add_argument('--skip', dest='skipped', action='append', metavar='SKIP_PATTERN',
                             help='a pattern specifying tests to be excluded from the test run')
         parser.add_argument('--keep-going', action='store_true', default=False,
@@ -35,6 +37,9 @@ class TestCommand(shell.Command, name='test', expose=True):
         test_args = []
 
         test_args.extend(('-p', 'semantix', '-s'))
+
+        if args.shell:
+            test_args.append('--shell')
 
         if args.debug:
             test_args.extend('--semantix-debug=%s' % d for d in args.debug)

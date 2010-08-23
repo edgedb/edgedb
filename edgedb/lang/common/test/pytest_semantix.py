@@ -25,6 +25,52 @@ setattr(logging, '_logging_on', _logging_on)
 setattr(logging, '_logging_off', _logging_off)
 
 
+class ShellInvoker:
+    def pytest_runtest_makereport(self, item, call):
+        if call.excinfo:
+            import code, traceback
+            from semantix.utils import helper
+
+            tb = call.excinfo._excinfo[2]
+            while tb.tb_next:
+                print(tb.tb_frame.f_locals)
+                tb = tb.tb_next
+
+            frame = tb.tb_frame
+
+            dct = { '__frame__' : frame , '__excinfo__' : call.excinfo._excinfo }
+            dct.update(frame.f_globals)
+            dct.update(frame.f_locals)
+
+            shell = code.InteractiveConsole(locals=dct)
+            message = "Exception occurred: entering python shell.\n\nTraceback:\n"
+            message += ''.join(traceback.format_stack(frame))
+
+            try:
+                code_ctx = helper.dump_code_context(frame.f_code.co_filename,
+                                                    tb.tb_lineno, dump_range=6)
+
+                message += '\n\nCode Context (%s:%d):\n' % (frame.f_code.co_filename, tb.tb_lineno)
+                message += code_ctx
+
+            except Exception:
+                pass
+
+            message += '\n\nException: %s' % call.excinfo._excinfo[1]
+
+            message += '\n\nLocals: %.500r' % frame.f_locals
+            message += '\n\nCurrent frame and exception are stored in the "__frame__" and ' \
+                       '"__excinfo__" variables.'
+            message += '\nGood luck.\n'
+
+            try:
+                import readline
+            except ImportError:
+                pass
+
+            shell.interact(message)
+
+
 class LoggingPrintHandler(logging.Handler):
     def __init__(self, colorize, *args, **kwargs):
         self.colorize = colorize
@@ -105,6 +151,7 @@ def pytest_addoption(parser):
     parser.addoption("--semantix-debug", dest="semantix_debug", action="append")
     parser.addoption("--tests", dest="test_patterns", action="append")
     parser.addoption("--skip-tests", dest="test_skipped_patterns", action="append")
+    parser.addoption("--shell", dest="shell_on_ex", action="store_true", default=False)
 
     group = parser.getgroup("terminal reporting")
     group._addoption('--colorize', default=False, action='store_true', dest='colorize')
@@ -112,6 +159,9 @@ def pytest_addoption(parser):
 
 def pytest_configure(config):
     global test_patterns, test_skipped_patterns, semantix_debug
+
+    if config.option.shell_on_ex:
+        config.pluginmanager.register(ShellInvoker(), 'shell')
 
     if config.option.colorize:
         PyTestPatcher.patch()
