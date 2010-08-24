@@ -318,7 +318,10 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.NoneTest):
             self.reorder_aggregates(expr.expr)
 
-        elif isinstance(expr, (caos_ast.AtomicRef, caos_ast.Constant, caos_ast.InlineFilter,
+        elif isinstance(expr, caos_ast.TypeCast):
+            self.reorder_aggregates(expr.expr)
+
+        elif isinstance(expr, (caos_ast.BaseRef, caos_ast.Constant, caos_ast.InlineFilter,
                                caos_ast.EntitySet, caos_ast.InlinePropFilter)):
             pass
 
@@ -411,7 +414,7 @@ class TreeTransformer:
 
     def merge_paths(self, expr):
         if isinstance(expr, caos_ast.AtomicRefExpr):
-            if self.context.current.location == 'generator':
+            if self.context.current.location == 'generator' and expr.inline:
                 expr.ref.filter = self.extend_binop(expr.ref.filter, expr.expr)
                 self.merge_paths(expr.ref)
                 expr = caos_ast.InlineFilter(expr=expr.ref.filter, ref=expr.ref)
@@ -419,7 +422,7 @@ class TreeTransformer:
                 self.merge_paths(expr.expr)
 
         elif isinstance(expr, caos_ast.LinkPropRefExpr):
-            if self.context.current.location == 'generator':
+            if self.context.current.location == 'generator' and expr.inline:
                 expr.ref.propfilter = self.extend_binop(expr.ref.propfilter, expr.expr)
                 if expr.ref.target:
                     self.merge_paths(expr.ref.target)
@@ -1395,11 +1398,23 @@ class TreeTransformer:
         else:
             return caos_ast.Disjunction(paths=frozenset(paths))
 
+    def uninline(self, expr):
+        cc = ast.visitor.find_children(expr, lambda i: isinstance(i, caos_ast.BaseRefExpr))
+        for node in cc:
+            node.inline = False
+        if isinstance(expr, caos_ast.BaseRefExpr):
+            expr.inline = False
+
     def _process_binop(self, left, right, op, reversed=False):
         result = None
 
-        def newbinop(left, right, operation=None):
+        def newbinop(left, right, operation=None, uninline=False):
             operation = operation or op
+
+            if uninline and not isinstance(operation, ast.ops.BooleanOperator):
+                self.uninline(left)
+                self.uninline(right)
+
             if reversed:
                 return caos_ast.BinOp(left=right, op=operation, right=left)
             else:
@@ -1422,7 +1437,7 @@ class TreeTransformer:
                      self.is_aggregated_expr(right, deep=True)
 
             if is_agg:
-                result = newbinop(left, right)
+                result = newbinop(left, right, uninline=True)
 
             elif not pathdict and not proppathdict:
 
@@ -1506,7 +1521,7 @@ class TreeTransformer:
                     result = self.path_from_set(paths)
 
                 if not result:
-                    result = newbinop(left, right)
+                    result = newbinop(left, right, uninline=True)
             else:
                 right_paths = self.extract_paths(right, reverse=False, resolve_arefs=False)
 
@@ -1528,7 +1543,7 @@ class TreeTransformer:
                             if isinstance(ref, exprnode_type) \
                                                 and isinstance(op, ast.ops.BooleanOperator):
                                 # We must not inline boolean expressions beyond the original bin-op
-                                result = newbinop(left, right)
+                                result = newbinop(left, right, uninline=True)
                                 break
                             paths.add(exprnode_type(expr=newbinop(ref, right)))
                         else:
@@ -1538,7 +1553,7 @@ class TreeTransformer:
                         # Left operand references a single entity
                         result = exprnode_type(expr=newbinop(left, right))
                     else:
-                        result = newbinop(left, right)
+                        result = newbinop(left, right, uninline=True)
 
                 elif isinstance(right_paths, caos_ast.Path):
                     right_exprs = self.get_multipath(right_paths)
@@ -1584,7 +1599,7 @@ class TreeTransformer:
                             if paths:
                                 result = self.path_from_set(paths)
                             else:
-                                result = newbinop(left, right)
+                                result = newbinop(left, right, uninline=True)
 
                         elif len(rightdict) == 1 and len(leftdict) == 1 and \
                                 next(iter(leftdict)) == next(iter(rightdict)):
@@ -1596,9 +1611,9 @@ class TreeTransformer:
                             result = exprtype(expr=newbinop(left, right))
 
                         else:
-                            result = newbinop(left, right)
+                            result = newbinop(left, right, uninline=True)
                     else:
-                        result = newbinop(left, right)
+                        result = newbinop(left, right, uninline=True)
 
                 elif isinstance(right, caos_ast.BinOp) and op == right.op and \
                                                            isinstance(left, caos_ast.Path):
@@ -1622,7 +1637,7 @@ class TreeTransformer:
                         other_operand = right.left if folded_operand is right.right else right.right
                         result = newbinop(left, other_operand)
                     else:
-                        result = newbinop(left, right)
+                        result = newbinop(left, right, uninline=True)
 
         elif isinstance(left, caos_ast.Constant):
             if isinstance(right, caos_ast.Constant):
@@ -1639,13 +1654,13 @@ class TreeTransformer:
                 result = caos_ast.Constant(expr=newbinop(left, right), type=result_type)
 
         elif isinstance(left, caos_ast.BinOp):
-            result = newbinop(left, right)
+            result = newbinop(left, right, uninline=True)
 
         elif isinstance(left, caos_ast.TypeCast):
-            result = newbinop(left, right)
+            result = newbinop(left, right, uninline=True)
 
         elif isinstance(left, caos_ast.FunctionCall):
-            result = newbinop(left, right)
+            result = newbinop(left, right, uninline=True)
 
         if not result:
             raise TreeError('unexpected binop operands: %s, %s' % (left, right))

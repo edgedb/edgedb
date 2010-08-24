@@ -132,7 +132,7 @@ class AtomicRefSimple(AtomicRef):
 
 
 class BaseRefExpr(Path):
-    __fields = ['expr']
+    __fields = ['expr', ('inline', bool, True)]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
