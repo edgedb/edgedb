@@ -519,7 +519,8 @@ class TreeTransformer:
             if isinstance(path, expr.__class__) or \
                         (recursive and isinstance(path, caos_ast.PathCombination)):
                 if recursive:
-                    path.update(self.flatten_path_combination(path, recursive=True))
+                    self.flatten_path_combination(path, recursive=True)
+                    paths.update(path.paths)
                 else:
                     paths.update(path.paths)
             else:
