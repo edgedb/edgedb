@@ -1084,7 +1084,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
             created_ptrs = set()
             for ptr in source_ctx.op(ptr_cmd):
-                created_ptrs.add(ptr_cmd.prototype_name)
+                created_ptrs.add(ptr.prototype_name)
 
             added_inh_ptrs = set(source.pointers) - set(orig_source.pointers)
 
