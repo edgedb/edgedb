@@ -629,7 +629,10 @@ class CaosTreeTransformer(CaosExprTransformer):
                 if len(variants) == 1:
                     result = variants[0]
                 else:
-                    result = pgsql.ast.FunctionCallNode(name='coalesce', args=variants)
+                    result = pgsql.ast.BinOpNode(left=variants[0], op=ast.ops.AND,
+                                                 right=variants[1])
+                    for v in variants[2:]:
+                        result = pgsql.ast.BinOpNode(left=result, op=ast.ops.AND, right=v)
             else:
                 result = pgsql.ast.IgnoreNode()
 
@@ -877,7 +880,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             result = fieldref
 
         elif isinstance(expr, tree.ast.ExistPred):
-            result = self._process_expr(context, expr.expr, cte)
+            result = pgsql.ast.ExistsNode(expr=self._process_expr(context, expr.expr, cte))
 
         else:
             assert False, "Unexpected expression: %s" % expr

@@ -104,6 +104,9 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.UnaryOp):
             self.extract_prefixes(expr.expr, prefixes)
 
+        elif isinstance(expr, caos_ast.ExistPred):
+            self.extract_prefixes(expr.expr, prefixes)
+
         elif isinstance(expr, (caos_ast.InlineFilter, caos_ast.InlinePropFilter)):
             self.extract_prefixes(expr.ref, prefixes)
             self.extract_prefixes(expr.expr, prefixes)
@@ -315,6 +318,9 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.UnaryOp):
             self.reorder_aggregates(expr.expr)
 
+        elif isinstance(expr, caos_ast.ExistPred):
+            self.reorder_aggregates(expr.expr)
+
         elif isinstance(expr, caos_ast.NoneTest):
             self.reorder_aggregates(expr.expr)
 
@@ -370,13 +376,14 @@ class TreeTransformer:
     def postprocess_expr(self, expr):
         paths = self.extract_paths(expr, reverse=True)
 
-        if isinstance(paths, caos_ast.PathCombination):
-            paths = paths.paths
-        else:
-            paths = {paths}
+        if paths:
+            if isinstance(paths, caos_ast.PathCombination):
+                paths = paths.paths
+            else:
+                paths = {paths}
 
-        for path in paths:
-            self._postprocess_expr(path)
+            for path in paths:
+                self._postprocess_expr(path)
 
     def _postprocess_expr(self, expr):
         if isinstance(expr, caos_ast.EntitySet):
@@ -458,6 +465,9 @@ class TreeTransformer:
                 expr = next(iter(e.paths))
 
         elif isinstance(expr, caos_ast.UnaryOp):
+            expr.expr = self.merge_paths(expr.expr)
+
+        elif isinstance(expr, caos_ast.ExistPred):
             expr.expr = self.merge_paths(expr.expr)
 
         elif isinstance(expr, caos_ast.TypeCast):
@@ -1165,6 +1175,9 @@ class TreeTransformer:
         elif isinstance(path, caos_ast.UnaryOp):
             return self.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
 
+        elif isinstance(path, caos_ast.ExistPred):
+            return self.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
+
         elif isinstance(path, caos_ast.TypeCast):
             return self.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
 
@@ -1657,10 +1670,16 @@ class TreeTransformer:
         elif isinstance(left, caos_ast.BinOp):
             result = newbinop(left, right, uninline=True)
 
+        elif isinstance(left, caos_ast.UnaryOp):
+            result = newbinop(left, right, uninline=True)
+
         elif isinstance(left, caos_ast.TypeCast):
             result = newbinop(left, right, uninline=True)
 
         elif isinstance(left, caos_ast.FunctionCall):
+            result = newbinop(left, right, uninline=True)
+
+        elif isinstance(left, caos_ast.ExistPred):
             result = newbinop(left, right, uninline=True)
 
         if not result:
