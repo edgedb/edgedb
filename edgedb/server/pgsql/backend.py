@@ -380,8 +380,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                    WHERE e."semantix.caos.builtins.id" = $1
                 ''' % (common.concept_name_to_table_name(concept))
         ps = session.connection.prepare(query)
-        concept = caos.Name(ps.first(id))
-        return concept
+        concept_name = ps.first(id)
+        if concept_name:
+            concept_name = caos.Name(ps.first(id))
+        return concept_name
 
 
     def entity_from_row(self, session, concept_name, attribute_map, row):

@@ -93,6 +93,8 @@ class Session(session.Session):
     def load(self, id, concept=None):
         if not concept:
             concept_name = self.backend.concept_name_from_id(id, session=self)
+            if not concept_name:
+                return None
             concept = self.schema.get(concept_name)
         else:
             concept_name = concept._metadata.name
