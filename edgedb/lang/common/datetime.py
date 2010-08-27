@@ -137,7 +137,7 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
         return ' '.join(s)
 
     def __hash__(self):
-        return hash((self.weekday, self.year, self.months, self.days, self.hours,
+        return hash((self.weekday, self.years, self.months, self.days, self.hours,
                      self.minutes, self.seconds, self.leapdays, self.year, self.month,
                      self.day, self.hour, self.minute, self.second, self.microsecond))
 
