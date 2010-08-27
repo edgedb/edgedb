@@ -768,11 +768,13 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         elif isinstance(expr, tree.ast.TypeCast):
             if isinstance(expr.expr, tree.ast.BinOp) and \
-                                        isinstance(expr.expr.op, ast.ops.ComparisonOperator):
+                                        isinstance(expr.expr.op, (ast.ops.ComparisonOperator,
+                                                                  ast.ops.EquivalenceOperator)):
                 expr_type = bool
             elif isinstance(expr.expr, tree.ast.BaseRefExpr) and \
                         isinstance(expr.expr.expr, tree.ast.BinOp) and \
-                        isinstance(expr.expr.expr.op, ast.ops.ComparisonOperator):
+                        isinstance(expr.expr.expr.op, (ast.ops.ComparisonOperator,
+                                                       ast.ops.EquivalenceOperator)):
                 expr_type = bool
             elif isinstance(expr.expr, tree.ast.Constant):
                 expr_type = expr.expr.type

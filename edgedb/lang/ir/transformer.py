@@ -1658,7 +1658,7 @@ class TreeTransformer:
                 l, r = (right, left) if reversed else (left, right)
 
                 schema = self.context.current.proto_schema
-                if isinstance(op, ast.ops.ComparisonOperator):
+                if isinstance(op, (ast.ops.ComparisonOperator, ast.ops.EquivalenceOperator)):
                     result_type = schema.get('semantix.caos.builtins.bool')
                 else:
                     if l.type == r.type:
@@ -1772,7 +1772,7 @@ class TreeTransformer:
                 result = expr.type
 
         elif isinstance(expr, caos_ast.BinOp):
-            if isinstance(expr.op, ast.ops.ComparisonOperator):
+            if isinstance(expr.op, (ast.ops.ComparisonOperator, ast.ops.EquivalenceOperator)):
                 result = schema.get('semantix.caos.builtins.bool')
             else:
                 left_type = self.get_expr_type(expr.left, schema)
