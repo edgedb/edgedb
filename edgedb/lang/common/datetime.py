@@ -175,7 +175,7 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
 
 class Time(TimeDelta):
     def __new__(cls, value=None, *, format=None):
-        if isinstance(value, datetime.time):
+        if isinstance(value, (Time, datetime.time)):
             d = value
         elif isinstance(value, str):
             try:
