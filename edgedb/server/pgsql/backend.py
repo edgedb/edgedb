@@ -688,15 +688,20 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         vals = ','.join('batch.%s' % common.qname(col) for col in columns.keys())
 
         if isinstance(prototype, caos.types.ProtoConcept):
-            keys = ('semantix.caos.builtins.id', 'concept_id')
+            condkeys = keys = ('semantix.caos.builtins.id', 'concept_id')
             key = common.concept_name_to_table_name(caos.Name('semantix.caos.builtins.BaseObject'))
         elif isinstance(prototype, caos.types.ProtoLink):
             keys = ('source_id', 'target_id', 'link_type_id')
+            if prototype.atomic():
+                condkeys = ('source_id', 'link_type_id')
+            else:
+                condkeys = keys
+
             key = common.link_name_to_table_name(caos.Name('semantix.caos.builtins.link'))
 
         key_condition = '(%s) = (%s)' % \
-                            (','.join('t.%s' % common.quote_ident(k) for k in keys),
-                             ','.join('batch.%s' % common.quote_ident(k) for k in keys))
+                            (','.join('t.%s' % common.quote_ident(k) for k in condkeys),
+                             ','.join('batch.%s' % common.quote_ident(k) for k in condkeys))
 
         qry = text % {'table_name': common.qname(*table_name), 'batch_prefix': batch_prefix,
                       'cols': cols, 'key_condition': key_condition,
@@ -704,7 +709,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                       'keys': ','.join('t.%s' % common.quote_ident(k) for k in keys),
                       'vals': vals, 'key': key}
 
-        session.connection.execute(qry)
+        self.execquery(qry, session.connection)
 
         return func_name
 
@@ -761,8 +766,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             batch_table, updates_table, merger = self.get_batch_instruments(prototype, session,
                                                                             batch_id)
 
-            session.connection.execute('DROP TABLE %s' % common.qname(*batch_table.name))
-            session.connection.execute('DROP TABLE %s' % common.qname(*updates_table.name))
+            self.execquery('DROP TABLE %s' % common.qname(*batch_table.name), session.connection)
+            self.execquery('DROP TABLE %s' % common.qname(*updates_table.name), session.connection)
 
         self.batch_instrument_cache.pop(batch_id, None)
         del self.batches[batch_id]
@@ -778,11 +783,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         cols = ','.join(common.qname(col) for col in columns.keys())
 
         if isinstance(prototype, caos.types.ProtoConcept):
-            keys = ('semantix.caos.builtins.id', 'concept_id')
+            condkeys = keys = ('semantix.caos.builtins.id', 'concept_id')
         elif isinstance(prototype, caos.types.ProtoLink):
             keys = ('source_id', 'target_id', 'link_type_id')
+            if prototype.atomic():
+                condkeys = ('source_id', 'link_type_id')
+            else:
+                condkeys = keys
 
         keys = ', '.join(common.quote_ident(k) for k in keys)
+        condkeys = ', '.join(common.quote_ident(k) for k in condkeys)
 
         batch_index_name = common.caos_name_to_pg_name(batch_table.name[1] + '_key_idx')
         updates_index_name = common.caos_name_to_pg_name(updates_table.name[1] + '_key_idx')
@@ -791,40 +801,42 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                {'batch_table': common.qname(*batch_table.name), 'keys': keys,
                 'batch_index_name': common.quote_ident(batch_index_name)}
 
-        session.connection.execute(qry)
+        self.execquery(qry, session.connection)
 
         with session.connection.xact():
-            session.connection.execute('LOCK TABLE %s IN ROW EXCLUSIVE MODE' % common.qname(*table))
+            self.execquery('LOCK TABLE %s IN ROW EXCLUSIVE MODE' % common.qname(*table),
+                           session.connection)
 
-            qry = '''INSERT INTO %(tab)s (SELECT * FROM %(proc_name)s('%(batch_id)x'))''' \
+            qry = '''INSERT INTO %(tab)s (%(keys)s) (SELECT * FROM %(proc_name)s('%(batch_id)x'))''' \
                   % {'tab': common.qname(*updates_table.name),
                      'proc_name': merger_func,
+                     'keys': keys,
                      'batch_id': batch_id}
-            session.connection.execute(qry)
+            self.execquery(qry, session.connection)
 
             qry = 'CREATE UNIQUE INDEX %(updates_index_name)s ON %(batch_table)s (%(keys)s)' % \
                    {'batch_table': common.qname(*updates_table.name), 'keys': keys,
                     'updates_index_name': common.quote_ident(updates_index_name)}
-            session.connection.execute(qry)
+            self.execquery(qry, session.connection)
 
             qry = '''INSERT INTO %(table_name)s (%(cols)s)
                      (SELECT * FROM %(batch_table)s
-                      WHERE (%(keys)s) NOT IN (SELECT * FROM %(updated)s))
+                      WHERE (%(condkeys)s) NOT IN (SELECT %(condkeys)s FROM %(updated)s))
                   ''' % {'table_name': common.qname(*table),
                          'cols': cols,
                          'batch_table': common.qname(*batch_table.name),
-                         'keys': keys,
+                         'condkeys': condkeys,
                          'updated': common.qname(*updates_table.name)}
-            session.connection.execute(qry)
+            self.execquery(qry, session.connection)
 
-            session.connection.execute('TRUNCATE %s' % common.qname(*batch_table.name))
-            session.connection.execute('DROP INDEX %s' % common.qname(batch_table.name[0],
-                                                                      batch_index_name))
-            session.connection.execute('TRUNCATE %s' % common.qname(*updates_table.name))
-            session.connection.execute('DROP INDEX %s' % common.qname(updates_table.name[0],
-                                                                      updates_index_name))
+            self.execquery('TRUNCATE %s' % common.qname(*batch_table.name), session.connection)
+            self.execquery('DROP INDEX %s' % common.qname(batch_table.name[0], batch_index_name),
+                           session.connection)
+            self.execquery('TRUNCATE %s' % common.qname(*updates_table.name), session.connection)
+            self.execquery('DROP INDEX %s' % common.qname(updates_table.name[0], updates_index_name),
+                           session.connection)
 
-        session.connection.execute('ANALYZE %s' % common.qname(*table))
+        self.execquery('ANALYZE %s' % common.qname(*table), session.connection)
 
 
     def store_entity_batch(self, entities, session, batch_id):
@@ -1955,6 +1967,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 return ps.rows(*params)
             else:
                 return ps.rows()
+
+
+    @debug
+    def execquery(self, query, connection=None):
+        connection = connection or self.connection
+        """LOG [caos.sql] Issued SQL
+        print(query)
+        """
+        connection.execute(query)
 
 
     def pg_table_inheritance_to_bases(self, table_name, schema_name, table_to_name_map):
