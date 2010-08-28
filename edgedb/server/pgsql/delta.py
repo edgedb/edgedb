@@ -1356,6 +1356,12 @@ class PointerMetaCommand(MetaCommand):
                                       [str(target[1])],
                                       type='integer')
 
+            if rec.base:
+                if isinstance(rec.base, caos.Name):
+                    rec.base = str(rec.base)
+                else:
+                    rec.base = tuple(str(b) for b in rec.base)
+
         default = list(self(delta_cmds.AlterDefault))
         if default:
             if not rec:
@@ -1804,15 +1810,6 @@ class LinkPropertyMetaCommand(NamedPrototypeMetaCommand, PointerMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.table = LinkPropertyTable()
-
-    def record_metadata(self, pointer, old_pointer, meta, context):
-        rec, updates = super().record_metadata(pointer, old_pointer, meta, context)
-        if rec and rec.base:
-            if isinstance(rec.base, caos.Name):
-                rec.base = str(rec.base)
-            else:
-                rec.base = tuple(str(b) for b in rec.base)
-        return rec, updates
 
 
 class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkProperty):
@@ -2976,6 +2973,7 @@ class LinkTable(MetaObjectTable):
             Column(name='required', type='boolean', required=True, default=False),
             Column(name='is_atom', type='boolean', required=True, default=False),
             Column(name='readonly', type='boolean', required=True, default=False),
+            Column(name='base', type='text[]'),
             Column(name='default', type='text'),
             Column(name='constraints', type='caos.hstore'),
             Column(name='abstract_constraints', type='caos.hstore')

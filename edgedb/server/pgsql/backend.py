@@ -1570,23 +1570,18 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         for name, r in links_list.items():
             bases = tuple()
 
-            if not r['source_id'] and not r['is_atom']:
+            if r['source_id']:
+                bases = (proto.Link.normalize_name(name),)
+            elif r['base']:
+                bases = tuple(caos.Name(b) for b in r['base'])
+            elif name != 'semantix.caos.builtins.link':
+                bases = (caos.Name('semantix.caos.builtins.link'),)
+
+            if not r['source_id']:
                 link_table_name = common.link_name_to_table_name(name, catenate=False)
                 t = link_tables.get(link_table_name)
-                if not t:
-                    raise caos.MetaError(('internal inconsistency: record for link %s exists but '
-                                          'the table is missing') % name)
-
-                self.table_id_to_proto_name_cache[t['oid']] = name
-
-                bases = self.pg_table_inheritance_to_bases(t['name'], t['schema'],
-                                                           table_to_name_map)
-
-            else:
-                if r['source_id']:
-                    bases = (proto.Link.normalize_name(name),)
-                else:
-                    bases = (caos.Name('semantix.caos.builtins.link'),)
+                if t:
+                    self.table_id_to_proto_name_cache[t['oid']] = name
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']

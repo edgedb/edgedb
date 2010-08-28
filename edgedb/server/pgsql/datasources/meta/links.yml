@@ -65,6 +65,7 @@ source: |
             l.target_id,
             tc.name AS target,
             l.name AS name,
+            l.base AS base,
             l.mapping,
             l.required,
             l.title,
