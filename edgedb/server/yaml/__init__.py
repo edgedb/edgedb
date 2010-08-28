@@ -33,8 +33,8 @@ from .common import StructMeta
 
 
 class MetaError(caos.MetaError):
-    def __init__(self, error, context=None):
-        super().__init__(error)
+    def __init__(self, msg, *, hint=None, details=None, context=None):
+        super().__init__(msg, hint=hint, details=details)
         self.context = context
 
     def __str__(self):
@@ -774,7 +774,7 @@ class MetaSet(LangObject):
                               include_pyobjects=True)
         if isinstance(base, caos.types.ProtoObject) and base.is_final:
             raise MetaError('"%s" is final and cannot be inherited from' % base.name,
-                            element.context)
+                            context=element.context)
 
 
     def read_atoms(self, data, globalmeta, localmeta):
@@ -794,7 +794,7 @@ class MetaSet(LangObject):
                     atom.base = ns.normalize_name(atom.base, include_pyobjects=True)
                     self._check_base(atom, atom.base, globalmeta)
                 except caos.MetaError as e:
-                    raise MetaError(e, atom.context) from e
+                    raise MetaError(e, context=atom.context) from e
 
 
     def order_atoms(self, globalmeta):
@@ -962,7 +962,7 @@ class MetaSet(LangObject):
             if computable_qname in source.own_pointers:
                 raise MetaError('computable "%(name)s" conflicts with "%(name)s" pointer '
                                 'defined in the same source' % {'name': computable_qname},
-                                 computable.context)
+                                 context=computable.context)
 
             computable_name = proto.Computable.generate_name(source.name, None, cname)
             computable.source = source
@@ -1044,8 +1044,8 @@ class MetaSet(LangObject):
             if not link.generic() and not link.atomic():
                 base = globalmeta.get(link.normal_name())
                 if base.is_atom:
-                    raise caos.MetaError('%s link target conflict (atom/concept)' % \
-                                         link.normal_name())
+                    raise MetaError('%s link target conflict (atom/concept)' % link.normal_name(),
+                                    context=link.context)
 
             constraints = getattr(link, '_constraints', ())
             type = 'atom' if link.atomic() else 'concept'
@@ -1062,7 +1062,12 @@ class MetaSet(LangObject):
 
                 g[link.name]['merge'].extend(link.base)
 
-        links = topological.normalize(g, merger=proto.Link.merge)
+        try:
+            links = topological.normalize(g, merger=proto.Link.merge)
+        except caos.MetaError as e:
+            if e.context:
+                raise MetaError(e.msg, hint=e.hint, details=e.details, context=e.context.context) from e
+            raise
 
         csql_expr = caosql_expr.CaosQLExpression(globalmeta)
 
@@ -1184,14 +1189,14 @@ class MetaSet(LangObject):
                                                 first.issubclass(globalmeta, link.target):
                                 raise MetaError(('default value query must yield a '
                                                  'single-column result of type "%s"') %
-                                                 link.target.name, default.context)
+                                                 link.target.name, context=default.context)
 
                             if not isinstance(link.target, caos.types.ProtoAtom):
                                 if link.mapping not in (caos.types.ManyToOne,
                                                         caos.types.ManyToMany):
                                     raise MetaError('concept links with query defaults ' \
                                                     'must have either a "*1" or "**" mapping',
-                                                     default.context)
+                                                     context=default.context)
 
                             default.value = value
                     link.normalize_defaults()
@@ -1223,11 +1228,11 @@ class MetaSet(LangObject):
 
                 if len(tree.result_types) > 1:
                     raise MetaError(('computable expression must yield a '
-                                     'single-column result'), link.context)
+                                     'single-column result'), context=link.context)
 
                 if isinstance(source, proto.Link) and not isinstance(first, proto.Atom):
                     raise MetaError(('computable expression for link property must yield a '
-                                     'scalar'), link.context)
+                                     'scalar'), context=link.context)
 
                 link.target = first
                 link.expression = expression
@@ -1261,6 +1266,14 @@ class MetaSet(LangObject):
                         if isinstance(link.target, proto.Atom):
                             link.is_atom = True
 
+                            parent = globalmeta.get(link.normal_name())
+
+                            if parent.is_atom is None:
+                                parent.is_atom = True
+                            elif not parent.is_atom:
+                                raise MetaError('%s link target conflict (atom/concept)' % link.normal_name(),
+                                                context=link.context)
+
                             if link_name in link_target_types and link_target_types[link_name] != 'atom':
                                 raise caos.MetaError('%s link is already defined as a link to non-atom')
 
@@ -1283,7 +1296,8 @@ class MetaSet(LangObject):
                             link_target_types[link_name] = 'atom'
                         else:
                             if link_name in link_target_types and link_target_types[link_name] == 'atom':
-                                raise caos.MetaError('%s link is already defined as a link to atom')
+                                raise MetaError('%s link target conflict (atom/concept)' % link.normal_name(),
+                                                context=link.context)
 
                             link_target_types[link_name] = 'concept'
 
