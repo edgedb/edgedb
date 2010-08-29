@@ -153,9 +153,7 @@ class AST(object, metaclass=MetaAST):
         copied = self.__class__()
         for field, value in iter_fields(self):
             if isinstance(value, list):
-                new_value = []
-                for subval in value:
-                    new_value.append(copy.deepcopy(subval, memo))
+                new_value = [copy.deepcopy(subval, memo) for subval in value]
                 setattr(copied, field, new_value)
             else:
                 setattr(copied, field, copy.deepcopy(value, memo))
