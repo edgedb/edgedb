@@ -913,7 +913,30 @@ class CaosTreeTransformer(CaosExprTransformer):
         elif expr.name == ('search', 'headline'):
             vector, query = self._text_search_args(context, *expr.args, tsvector=False)
             lang = pgsql.ast.ConstantNode(value='english')
-            result = pgsql.ast.FunctionCallNode(name='ts_headline', args=[lang, vector, query])
+
+            args=[lang, vector, query]
+
+            if expr.kwargs:
+                for i, (name, value) in enumerate(expr.kwargs.items()):
+                    value = self._process_expr(context, value, cte)
+                    left = pgsql.ast.ConstantNode(value=str(name))
+                    right = pgsql.ast.ConstantNode(value='=')
+                    left = pgsql.ast.BinOpNode(left=left, op='||', right=right)
+                    right = pgsql.ast.FunctionCallNode(name='quote_ident', args=[value])
+                    value = pgsql.ast.BinOpNode(left=left, op='||', right=right)
+
+                    if i == 0:
+                        options = value
+                    else:
+                        left = options
+                        right = pgsql.ast.ConstantNode(value=',')
+                        left = pgsql.ast.BinOpNode(left=left, op='||', right=right)
+                        right = value
+                        options = pgsql.ast.BinOpNode(left=left, op='||', right=right)
+
+                args.append(options)
+
+            result = pgsql.ast.FunctionCallNode(name='ts_headline', args=args)
 
         else:
             result = None

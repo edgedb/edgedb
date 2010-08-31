@@ -225,7 +225,7 @@ class TreeTransformer:
                 for link_name, link in concept.pointers.items():
                     if link.atomic() and not isinstance(link.first, caos_types.ProtoComputable):
                         link_proto = schema.get(link_name)
-                        target_proto = link_proto.target
+                        target_proto = link.first.target
                         id = LinearPath(ref.id)
                         id.add(link_proto, caos_types.OutboundDirection, target_proto)
                         elements.append(caos_ast.AtomicRefSimple(ref=ref, name=link_name, id=id))
@@ -503,7 +503,8 @@ class TreeTransformer:
             args = []
             for arg in expr.args:
                 args.append(self.merge_paths(arg))
-            expr = expr.__class__(name=expr.name, args=args, aggregates=expr.aggregates)
+            expr = expr.__class__(name=expr.name, args=args, aggregates=expr.aggregates,
+                                  kwargs=expr.kwargs)
 
         elif isinstance(expr, (caos_ast.Sequence, caos_ast.Record)):
             elements = []
@@ -1287,7 +1288,8 @@ class TreeTransformer:
             ref.atomrefs.update(cols)
 
             node = caos_ast.FunctionCall(name=node.name,
-                                         args=[caos_ast.Sequence(elements=cols), node.args[1]])
+                                         args=[caos_ast.Sequence(elements=cols), node.args[1]],
+                                         kwargs=node.kwargs)
 
         elif node.name[0] == 'agg':
             node.aggregates = True

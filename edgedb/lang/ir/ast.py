@@ -307,6 +307,7 @@ class FunctionCall(Base):
     __fields = ['name',
                 'result_type',
                 ('args', list),
+                ('kwargs', dict),
                 ('aggregates', bool)]
 
 class TypeCast(Base):
