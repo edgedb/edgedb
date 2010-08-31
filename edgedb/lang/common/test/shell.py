@@ -17,6 +17,8 @@ class TestCommand(shell.Command, name='test', expose=True):
     def get_parser(self, subparsers, **kwargs):
         parser = super().get_parser(subparsers, description='Collect and execute project tests.')
 
+        parser.add_argument('-i', '--pdb', dest='pdb', action='store_true',
+                            help='start PDB (python debugger) on error', default=False)
         parser.add_argument('-s', '--shell', dest='shell', action='store_true',
                             help='start the interactive python shell on error', default=False)
         parser.add_argument('--skip', dest='skipped', action='append', metavar='SKIP_PATTERN',
@@ -40,6 +42,9 @@ class TestCommand(shell.Command, name='test', expose=True):
 
         if args.shell:
             test_args.append('--shell')
+
+        if args.pdb:
+            test_args.append('--pdb')
 
         if args.debug:
             test_args.extend('--semantix-debug=%s' % d for d in args.debug)
