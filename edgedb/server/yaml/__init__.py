@@ -1370,7 +1370,6 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
         else:
             aliases = {alias: mod.__name__ for alias, mod in self.context.document.imports.items()}
             session = self.context.document.session
-            factory = session.realm.getfactory(module_aliases=aliases, session=session)
 
             concept, data = next(iter(self.data.items()))
 
@@ -1388,7 +1387,7 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
                 else:
                     links[link_name] = linkval
 
-            self.entity = factory(concept)(**links)
+            self.entity = session.schema.get(concept, aliases=aliases)(**links)
             for (link_name, target), link_properties in props.items():
                 linkcls = caos.concept.getlink(self.entity, link_name, target)
                 linkcls.update(**link_properties)
