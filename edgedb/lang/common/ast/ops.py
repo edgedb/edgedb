@@ -6,7 +6,7 @@
 ##
 
 
-class Operator:
+class Operator(str):
     cache = {}
     funcmap = {}
 
@@ -14,7 +14,7 @@ class Operator:
         result = Operator.cache.get((cls, val))
 
         if not result:
-            result = super().__new__(cls)
+            result = super().__new__(cls, val)
             Operator.cache[cls, val] = result
 
             if funcname:
@@ -28,11 +28,11 @@ class Operator:
     def __init__(self, val, *, funcname=None, rfuncname=None):
         self.val = val
 
-    def __str__(self):
-        return self.val
-
     def __repr__(self):
         return '<%s.%s "%s">' % (self.__class__.__module__, self.__class__.__name__, self.val)
+
+    def __hash__(self):
+        return object.__hash__(self)
 
     @classmethod
     def funcname_to_op(cls, funcname):
