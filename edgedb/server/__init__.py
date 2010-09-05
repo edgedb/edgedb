@@ -135,5 +135,5 @@ class MetaBackend:
 
 class DataBackend(metaclass=abc.AbstractMeta):
     @abc.abstractmethod
-    def get_session_pool(self, realm):
+    def get_session_pool(self, realm, async=False):
         pass

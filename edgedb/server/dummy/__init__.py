@@ -94,5 +94,5 @@ class Backend(MetaBackend, DataBackend):
     def getmeta(self):
         return self.meta
 
-    def get_session_pool(self, realm):
+    def get_session_pool(self, realm, async=False):
         return SessionPool(realm)

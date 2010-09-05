@@ -6,6 +6,9 @@
 ##
 
 
+import postgresql
+import postgresql.protocol.xact3
+
 from semantix.caos import session
 from semantix.utils.debug import debug
 
@@ -17,6 +20,11 @@ class SessionPool(session.SessionPool):
 
     def create(self):
         return Session(self.realm, self.backend, pool=self)
+
+
+class AsyncSessionPool(SessionPool):
+    def create(self):
+        return AsyncSession(self.realm, self.backend, pool=self)
 
 
 class Transaction(session.Transaction):
@@ -50,11 +58,13 @@ class Transaction(session.Transaction):
 
 
 class Session(session.Session):
-
     def __init__(self, realm, backend, pool):
         super().__init__(realm, entity_cache=session.WeakEntityCache, pool=pool)
         self.backend = backend
         self.prepared_statements = {}
+        self.init_connection()
+
+    def init_connection(self):
         self.connection = self.backend.connection_pool(self)
 
     def get_connection(self):
@@ -130,12 +140,25 @@ class Session(session.Session):
     def sync(self, skipbatch=False):
         self.do_sync(skipbatch=skipbatch)
 
-    def release(self):
-        super().release()
+    def interrupt(self):
+        if self.connection.pq.xact and \
+           self.connection.pq.xact.state != postgresql.protocol.xact3.Complete:
+            try:
+                self.connection.interrupt()
+                self.connection.pq.complete()
+            except postgresql.exceptions.QueryCanceledError:
+                pass
+
+    def _release_cleanup(self):
         self.connection.reset()
 
     def close(self):
-        super().close()
         self.connection.release()
         self.connection = None
         self.prepared_statements.clear()
+        super().close()
+
+
+class AsyncSession(Session):
+    def init_connection(self):
+        self.connection = self.backend.async_connection_pool(self)

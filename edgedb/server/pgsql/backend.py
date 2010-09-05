@@ -228,8 +228,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     }
 
 
-    def __init__(self, deltarepo, connector):
+    def __init__(self, deltarepo, connector_factory):
+        connector = connector_factory()
+        async_connector = connector_factory(async=True)
+
         self.connection_pool = pool.ConnectionPool(connector)
+        self.async_connection_pool = pool.ConnectionPool(async_connector)
+
         self.connection = connector(pool=self.connection_pool)
         self.connection.connect()
         delta_cmds.EnableHstoreFeature.init_hstore(self.connection)
@@ -258,8 +263,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         super().__init__(repo)
 
 
-    def get_session_pool(self, realm):
-        return session.SessionPool(self, realm)
+    def get_session_pool(self, realm, async=False):
+        if async:
+            return session.AsyncSessionPool(self, realm)
+        else:
+            return session.SessionPool(self, realm)
 
 
     def free_resources(self):
@@ -421,6 +429,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def load_entity(self, concept, id, session):
         query = 'SELECT * FROM %s WHERE "semantix.caos.builtins.id" = $1' % \
                                                 (common.concept_name_to_table_name(concept))
+
         ps = session.connection.prepare(query)
         result = ps.first(id)
 
