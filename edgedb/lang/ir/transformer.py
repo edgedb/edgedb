@@ -1784,6 +1784,10 @@ class TreeTransformer:
                     result = caos_types.TypeRules.get_result((expr.op, 'reversed'),
                                                              (right_type, left_type), schema)
 
+        elif isinstance(expr, caos_ast.UnaryOp):
+            operand_type = self.get_expr_type(expr.expr, schema)
+            result = caos_types.TypeRules.get_result(expr.op, (operand_type,), schema)
+
         elif isinstance(expr, caos_ast.Disjunction):
             if expr.paths:
                 result = self.get_expr_type(next(iter(expr.paths)), schema)
