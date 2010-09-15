@@ -998,6 +998,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 result = pgsql.ast.FunctionCallNode(name='current_time', noparens=True)
             elif expr.name == ('datetime', 'current_datetime'):
                 result = pgsql.ast.FunctionCallNode(name='current_timestamp', noparens=True)
+            elif expr.name == ('str', 'replace'):
+                name = 'replace'
             elif isinstance(expr.name, tuple):
                 assert False, 'unsupported function %s' % (expr.name,)
             else:
