@@ -228,12 +228,19 @@ class TreeTransformer:
                         target_proto = link.first.target
                         id = LinearPath(ref.id)
                         id.add(link_proto, caos_types.OutboundDirection, target_proto)
-                        elements.append(caos_ast.AtomicRefSimple(ref=ref, name=link_name, id=id))
+                        el = caos_ast.AtomicRefSimple(ref=ref, name=link_name, id=id)
+
+                        if link.first.loading == caos_types.LazyLoading:
+                            el = caos_ast.Constant(value=None,
+                                                   type=target_proto,
+                                                   substitute_for=el.name)
+
+                        elements.append(el)
 
                 metaref = caos_ast.MetaRef(name='id', ref=ref)
 
                 for p in expr.paths:
-                    p.atomrefs.update(elements)
+                    p.atomrefs.update((e for e in elements if isinstance(e, caos_ast.AtomicRefSimple)))
                     p.metarefs.add(metaref)
 
                 elements.append(metaref)

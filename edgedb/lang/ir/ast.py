@@ -255,7 +255,7 @@ class EntitySet(Path):
 
 
 class Constant(Base):
-    __fields = ['value', 'index', 'expr', 'type']
+    __fields = ['value', 'index', 'expr', 'type', 'substitute_for']
 
     def __init__(self, **kwargs):
         self._check_type(kwargs.get('expr'), kwargs.get('type'))

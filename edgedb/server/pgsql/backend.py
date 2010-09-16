@@ -437,9 +437,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             concept_proto = session.realm.meta.get(concept)
             ret = {}
 
-            for link_name in concept_proto.pointers:
+            for link_name, linkset in concept_proto.pointers.items():
 
-                if link_name != 'semantix.caos.builtins.id':
+                if linkset.atomic() and not isinstance(linkset.first, caos.types.ProtoComputable) \
+                            and link_name != 'semantix.caos.builtins.id' \
+                            and linkset.first.loading != caos.types.LazyLoading:
                     colname = common.caos_name_to_pg_name(link_name)
 
                     try:
@@ -452,18 +454,30 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             return None
 
 
-    def load_link(self, source, target, link, session):
+    def load_link(self, source, target, link, pointers, session):
         proto_link = caos.types.prototype(link.__class__)
         table = common.link_name_to_table_name(proto_link.normal_name(), catenate=True)
 
+        if pointers:
+            protopointers = [caos.types.prototype(p) for p in pointers]
+            pointers = {p.normal_name(): p for p in protopointers}
+        else:
+            pointers = {n: p for n, p in proto_link.pointers.items()
+                             if p.loading != caos.types.LazyLoading}
+
+        targets = []
+
+        for prop_name in pointers:
+            targets.append(common.qname('l', common.caos_name_to_pg_name(prop_name)))
+
         query = '''SELECT
-                       l.*
+                       %s
                    FROM
                        %s AS l
                    WHERE
                        l.source_id = $1
                        AND l.target_id IS NOT DISTINCT FROM $2
-                       AND l.link_type_id = $3''' % table
+                       AND l.link_type_id = $3''' % (', '.join(targets), table)
 
         ps = session.connection.prepare(query)
         if isinstance(target.__class__, caos.types.AtomClass):
@@ -480,7 +494,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             result = result[0]
             ret = {}
 
-            for propname in proto_link.pointers:
+            for propname in pointers:
                 colname = common.caos_name_to_pg_name(propname)
                 ret[str(propname)] = result[colname]
 
@@ -1627,6 +1641,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             else:
                 target = meta.get(r['target']) if r['target'] else None
 
+            loading = caos.types.PointerLoading(r['loading']) if r['loading'] else None
             link = proto.Link(name=name, base=bases, source=source, target=target,
                                 mapping=caos.types.LinkMapping(r['mapping']),
                                 required=required,
@@ -1635,6 +1650,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                 is_final=r['is_final'],
                                 is_atom=r['is_atom'],
                                 readonly=r['readonly'],
+                                loading=loading,
                                 default=r['default'])
 
             if link_search:
@@ -1733,10 +1749,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             else:
                 target = None
 
+            loading = caos.types.PointerLoading(r['loading']) if r['loading'] else None
             prop = proto.LinkProperty(name=name, base=bases, source=source, target=target,
                                       required=required,
                                       title=title, description=description,
                                       readonly=r['readonly'],
+                                      loading=loading,
                                       default=default)
 
             if source:

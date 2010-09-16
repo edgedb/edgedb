@@ -567,6 +567,10 @@ class CaosTreeTransformer(CaosExprTransformer):
             else:
                 index = expr.index
             result = pgsql.ast.ConstantNode(value=expr.value, index=index, type=const_type)
+
+            if expr.substitute_for:
+                result.origin_field = common.caos_name_to_pg_name(expr.substitute_for)
+
         return result
 
     def _text_search_refs(self, context, vector):

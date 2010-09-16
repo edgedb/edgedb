@@ -119,6 +119,15 @@ class LinkMapping(LangObject, adapts=caos.types.LinkMapping, ignore_aliases=True
         return str(data)
 
 
+class PointerLoading(LangObject, adapts=caos.types.PointerLoading, ignore_aliases=True):
+    def __new__(cls, context, data):
+        return caos.types.PointerLoading.__new__(cls, data)
+
+    @classmethod
+    def represent(cls, data):
+        return str(data)
+
+
 class LinkSearchWeight(LangObject, adapts=caos.types.LinkSearchWeight, ignore_aliases=True):
     def __new__(cls, context, data):
         return caos.types.LinkSearchWeight.__new__(cls, data)
@@ -416,6 +425,7 @@ class LinkPropertyDef(Prototype, proto.LinkProperty):
         proto.LinkProperty.__init__(self, name=default_name, title=data['title'],
                                     base=tuple(extends) if extends else tuple(),
                                     description=data['description'], readonly=data['readonly'],
+                                    loading=data['loading'],
                                     _setdefaults_=False, _relaxrequired_=True)
 
 
@@ -434,6 +444,7 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
             proto.LinkProperty.__init__(self, name=default_name, target=atom_name,
                                         title=info['title'], description=info['description'],
                                         readonly=info['readonly'], default=default,
+                                        loading=info['loading'],
                                         _setdefaults_=False, _relaxrequired_=True)
             self._constraints = info.get('constraints')
             self._abstract_constraints = info.get('abstract-constraints')
@@ -505,6 +516,7 @@ class LinkDef(Prototype, adapts=proto.Link):
                             is_abstract=data.get('abstract'), is_final=data.get('final'),
                             readonly=data.get('readonly'),
                             mapping=data.get('mapping'),
+                            loading=data.get('loading'),
                             default=default,
                             _setdefaults_=False, _relaxrequired_=True)
 
@@ -534,6 +546,9 @@ class LinkDef(Prototype, adapts=proto.Link):
 
         if data.readonly:
             result['readonly'] = data.readonly
+
+        if data.loading:
+            result['loading'] = data.loading
 
         if data.mapping:
             result['mapping'] = data.mapping
@@ -679,6 +694,7 @@ class LinkList(LangObject, list):
                     link = proto.Link(name=default_name, target=t, mapping=info['mapping'],
                                       required=info['required'], title=info['title'],
                                       description=info['description'], readonly=info['readonly'],
+                                      loading=info['loading'],
                                       default=default,
                                       _setdefaults_=False, _relaxrequired_=True)
 

@@ -74,6 +74,7 @@ source: |
             l.is_abstract,
             l.is_final,
             l.readonly,
+            l.loading,
             l.constraints,
             l.abstract_constraints,
             l.default
@@ -122,6 +123,7 @@ source: |
             p.description   AS description,
             p.required      AS required,
             p.readonly      AS readonly,
+            p.loading       AS loading,
             p.default       AS default,
             p.source_id     AS source_id,
             p.target_id     AS target_id,
