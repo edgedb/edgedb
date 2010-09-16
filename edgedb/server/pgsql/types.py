@@ -25,7 +25,8 @@ base_type_name_map = {
     caos.Name('semantix.caos.builtins.uuid'): 'uuid',
     caos.Name('semantix.caos.builtins.datetime'): 'timestamp with time zone',
     caos.Name('semantix.caos.builtins.time'): 'time without time zone',
-    caos.Name('semantix.caos.builtins.timedelta'): 'interval'
+    caos.Name('semantix.caos.builtins.timedelta'): 'interval',
+    caos.Name('semantix.caos.builtins.bytes'): 'bytea'
 }
 
 base_type_name_map_r = {
@@ -41,7 +42,8 @@ base_type_name_map_r = {
     'uuid': caos.Name('semantix.caos.builtins.uuid'),
     'timestamp with time zone': caos.Name('semantix.caos.builtins.datetime'),
     'time without time zone': caos.Name('semantix.caos.builtins.time'),
-    'interval': caos.Name('semantix.caos.builtins.timedelta')
+    'interval': caos.Name('semantix.caos.builtins.timedelta'),
+    'bytea': caos.Name('semantix.caos.builtins.bytes')
 }
 
 
