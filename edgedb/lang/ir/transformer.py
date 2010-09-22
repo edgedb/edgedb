@@ -1784,7 +1784,7 @@ class TreeTransformer:
             if result is None:
                 fcls = caos_types.FunctionMeta.get_function_class(expr.name)
                 if fcls:
-                    signature = fcls.get_signature(argtypes)
+                    signature = fcls.get_signature(argtypes, schema=schema)
                     if signature and signature[2]:
                         result = schema.get(signature[2])
 

@@ -951,7 +951,14 @@ class CaosTreeTransformer(CaosExprTransformer):
             else:
                 args = [self._process_expr(context, a, cte) for a in expr.args]
 
-            if expr.name == ('agg', 'sum'):
+            if expr.name == 'if':
+                cond = self._process_expr(context, expr.args[0], cte)
+                pos = self._process_expr(context, expr.args[1], cte)
+                neg = self._process_expr(context, expr.args[2], cte)
+                when_expr = pgsql.ast.CaseWhenNode(expr=cond,
+                                                   result=pos)
+                result = pgsql.ast.CaseExprNode(args=[when_expr], default=neg)
+            elif expr.name == ('agg', 'sum'):
                 name = 'sum'
             elif expr.name == ('agg', 'list'):
                 name = 'array_agg'
