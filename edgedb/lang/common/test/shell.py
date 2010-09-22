@@ -74,5 +74,6 @@ class TestCommand(shell.Command, name='test', expose=True):
         # This ugliness is required due to py.test braindead plugin lookup: there is
         # no way to specify a plugin with full package path, only a name _suffix_
         sys.path.insert(0, path)
-        py.test.cmdline.main(test_args)
+        result = py.test.cmdline.main(test_args)
         sys.path.remove(path)
+        return result

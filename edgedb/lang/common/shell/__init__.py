@@ -80,7 +80,7 @@ class CommandGroup(CommandBase, name=None):
 
     def __call__(self, args):
         self.check_requirements()
-        self._command_submap[getattr(args, self.__class__._command_name + '_subcommand')](args)
+        return self._command_submap[getattr(args, self.__class__._command_name + '_subcommand')](args)
 
     def __iter__(self):
         for cmd in self.__class__._commands:
@@ -117,6 +117,7 @@ class MainCommand(CommandGroup, name='__main__'):
         color = None if args.color == 'auto' else args.color == 'always'
         term = terminal.Terminal(sys.stdout.fileno(), colors=color)
         args.color = term.has_colors()
+        result = 0
 
         if args.debug:
             debug.channels.update(args.debug)
@@ -127,11 +128,11 @@ class MainCommand(CommandGroup, name='__main__'):
                 ep = super().__call__
                 cProfile.runctx('ep(args)', globals=globals(), locals=locals(), filename=args.profile)
             else:
-                super().__call__(args)
+                result = super().__call__(args)
         except SemantixError as e:
             raise
 
-        return 0
+        return result
 
     @classmethod
     def main(cls, argv):
