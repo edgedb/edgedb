@@ -48,6 +48,10 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
             self.write(' AS ')
             self.write(node.alias)
 
+    def visit_UnaryOpNode(self, node):
+        self.write(node.op)
+        self.visit(node.operand)
+
     def visit_BinOpNode(self, node):
         self.write('(')
         self.visit(node.left)

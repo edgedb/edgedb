@@ -103,6 +103,10 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
         elif isinstance(expr, tree.ast.Record):
             result = self._process_expr(expr.elements[0].ref)
 
+        elif isinstance(expr, tree.ast.UnaryOp):
+            operand = self._process_expr(expr.expr)
+            result = qlast.UnaryOpNode(op=expr.op, operand=operand)
+
         elif isinstance(expr, tree.ast.BinOp):
             left = self._process_expr(expr.left)
             right = self._process_expr(expr.right)
@@ -318,6 +322,9 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
         elif isinstance(expr, qlast.SortExprNode):
             self._normalize_refs(context, expr.path)
+
+        elif isinstance(expr, qlast.UnaryOpNode):
+            self._normalize_refs(context, expr.operand)
 
         elif isinstance(expr, qlast.BinOpNode):
             self._normalize_refs(context, expr.left)

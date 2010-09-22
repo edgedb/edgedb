@@ -131,6 +131,12 @@ class CaosToPythonTransformer(TreeTransformer):
             else:
                 result = py_ast.PyBinOp(left=left, right=right, op=op)
 
+        elif isinstance(expr, caos_ast.UnaryOp):
+            operand = self._process_expr(expr.expr, context)
+            op = _operator_map[expr.op]()
+
+            result = py_ast.PyUnaryOp(op=op, operand=operand)
+
         elif isinstance(expr, caos_ast.BaseRefExpr):
             result = self._process_expr(expr.expr, context)
 
