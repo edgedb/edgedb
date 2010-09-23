@@ -1011,6 +1011,10 @@ class CaosTreeTransformer(CaosExprTransformer):
                 result = pgsql.ast.FunctionCallNode(name='current_timestamp', noparens=True)
             elif expr.name == ('str', 'replace'):
                 name = 'replace'
+            elif expr.name == ('str', 'lower'):
+                name = 'lower'
+            elif expr.name == ('str', 'upper'):
+                name = 'upper'
             elif isinstance(expr.name, tuple):
                 assert False, 'unsupported function %s' % (expr.name,)
             else:
