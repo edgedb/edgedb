@@ -1542,13 +1542,13 @@ class TreeTransformer:
 
                     result = self.path_from_set(paths)
 
-                elif op == caos_ast.SEARCH:
+                elif isinstance(op, caos_ast.TextSearchOperator):
                     paths = set()
                     for p in left_exprs.paths:
                         searchable = list(p.concept.get_searchable_links())
                         if not searchable:
                             err = '%s operator called on concept %s without any search configuration'\
-                                                       % (caos_ast.SEARCH, p.concept.name)
+                                                       % (op, p.concept.name)
                             hint = 'Configure search for "%s"' % p.concept.name
                             raise caos_error.CaosError(err, hint=hint)
 

@@ -320,6 +320,7 @@ class TextSearchOperator(CaosOperator):
     pass
 
 SEARCH = TextSearchOperator('@@')
+SEARCHEX = TextSearchOperator('@@!')
 
 class CaosComparisonOperator(CaosOperator, ast.ops.ComparisonOperator):
     pass

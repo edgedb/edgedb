@@ -577,7 +577,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         for link_name, link in vector.concept.get_searchable_links():
             yield tree.ast.AtomicRefSimple(ref=vector, name=link_name, caoslink=link.first)
 
-    def _text_search_args(self, context, vector, query, tsvector=True):
+    def _text_search_args(self, context, vector, query, tsvector=True, extended=False):
         empty_str = pgsql.ast.ConstantNode(value='')
         sep_str = pgsql.ast.ConstantNode(value='; ')
         lang_const = pgsql.ast.ConstantNode(value='english')
@@ -601,7 +601,11 @@ class CaosTreeTransformer(CaosExprTransformer):
             cols = pgsql.ast.FunctionCallNode(name='array_to_string', args=[cols, sep_str])
 
         query = self._process_expr(context, query)
-        query = pgsql.ast.FunctionCallNode(name='plainto_tsquery', args=[query])
+
+        if extended:
+            query = pgsql.ast.FunctionCallNode(name='to_tsquery', args=[query])
+        else:
+            query = pgsql.ast.FunctionCallNode(name='plainto_tsquery', args=[query])
 
         return cols, query
 
@@ -676,9 +680,10 @@ class CaosTreeTransformer(CaosExprTransformer):
             else:
                 right = self._process_expr(context, expr.right, cte)
 
-            if expr.op == tree.ast.SEARCH:
-                vector, query = self._text_search_args(context, expr.left, expr.right)
-                result = pgsql.ast.BinOpNode(left=vector, right=query, op=expr.op)
+            if isinstance(expr.op, tree.ast.TextSearchOperator):
+                vector, query = self._text_search_args(context, expr.left, expr.right,
+                                                       extended=expr.op == tree.ast.SEARCHEX)
+                result = pgsql.ast.BinOpNode(left=vector, right=query, op=tree.ast.SEARCH)
             else:
                 context.current.append_graphs = False
 
@@ -911,17 +916,21 @@ class CaosTreeTransformer(CaosExprTransformer):
 
     def _process_function(self, context, expr, cte):
         if expr.name == ('search', 'rank'):
-            vector, query = self._text_search_args(context, *expr.args)
+            vector, query = self._text_search_args(context, *expr.args,
+                                                   extended=expr.kwargs.get('extended'))
             result = pgsql.ast.FunctionCallNode(name='ts_rank_cd', args=[vector, query])
 
         elif expr.name == ('search', 'headline'):
-            vector, query = self._text_search_args(context, *expr.args, tsvector=False)
+            kwargs = expr.kwargs.copy()
+            extended = kwargs.pop('extended', False)
+            vector, query = self._text_search_args(context, *expr.args, tsvector=False,
+                                                   extended=extended)
             lang = pgsql.ast.ConstantNode(value='english')
 
             args=[lang, vector, query]
 
-            if expr.kwargs:
-                for i, (name, value) in enumerate(expr.kwargs.items()):
+            if kwargs:
+                for i, (name, value) in enumerate(kwargs.items()):
                     value = self._process_expr(context, value, cte)
                     left = pgsql.ast.ConstantNode(value=str(name))
                     right = pgsql.ast.ConstantNode(value='=')
