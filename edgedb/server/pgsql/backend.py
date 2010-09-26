@@ -1119,8 +1119,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                     records.append(rec)
 
-            cmd = delta_cmds.Insert(table=table, records=records)
-            cmd.execute(context)
+            if records:
+                cmd = delta_cmds.Insert(table=table, records=records)
+                cmd.execute(context)
 
 
     @debug
