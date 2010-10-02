@@ -1063,14 +1063,17 @@ class MetaSet(LangObject):
                     raise MetaError('%s link target conflict (atom/concept)' % link.normal_name(),
                                     context=link.context)
 
-            constraints = getattr(link, '_constraints', ())
-            type = 'atom' if link.atomic() else 'concept'
-            if not link.generic() and constraints:
-                link_constraints = [c for c in constraints if isinstance(c, proto.PointerConstraint)]
-                self.add_pointer_constraints(link, link_constraints, type)
+            if not link.generic():
+                type = 'atom' if link.atomic() else 'concept'
 
-            self.add_pointer_constraints(link, getattr(link, '_abstract_constraints', ()),
-                                                             type, 'abstract')
+                constraints = getattr(link, '_constraints', ())
+                if constraints:
+                    link_constraints = [c for c in constraints if isinstance(c, proto.PointerConstraint)]
+                    self.add_pointer_constraints(link, link_constraints, type)
+
+                aconstraints = getattr(link, '_abstract_constraints', ())
+                if aconstraints:
+                    self.add_pointer_constraints(link, aconstraints, type, 'abstract')
 
             if link.base:
                 for base_name in link.base:
