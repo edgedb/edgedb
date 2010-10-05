@@ -221,7 +221,8 @@ def pytest_pycollect_makeitem(__multicall__, collector, name, obj):
                 if p.match(name):
                     func = getattr(func, '__func__', func)
                     setattr(func, 'testmask', py.test.mark.Marker('testmask'))
-                    result.keywords['testmask'] = True
+                    if hasattr(result, 'keywords'):
+                        result.keywords['testmask'] = True
                     break
 
         elif test_skipped_patterns:
