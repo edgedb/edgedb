@@ -169,7 +169,7 @@ class CaosQLAdapter:
         self.transformer = CaosTreeTransformer()
         self.current_portal = None
 
-    def transform(self, query, scrolling_cursor=False, context=None):
+    def transform(self, query, scrolling_cursor=False, context=None, *, proto_schema):
         if scrolling_cursor:
             offset = query.offset
             limit = query.limit

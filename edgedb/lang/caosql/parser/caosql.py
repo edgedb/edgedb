@@ -620,19 +620,21 @@ class Expr(Nonterm):
 
     def reduce_Expr_LIKE_Expr(self, *kids):
         "%reduce Expr LIKE Expr"
-        self.val = qlast.BinOpNode(left=kids[0].val, op=qlast.LIKE, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=caos_ast.LIKE, right=kids[2].val)
 
     def reduce_Expr_NOT_LIKE_Expr(self, *kids):
         "%reduce Expr NOT LIKE Expr"
-        self.val = qlast.BinOpNode(left=kids[0].val, op=qlast.NOT_LIKE, right=kids[3].val)
+        val = qlast.BinOpNode(left=kids[0].val, op=caos_ast.LIKE, right=kids[2].val)
+        self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=val)
 
     def reduce_Expr_ILIKE_Expr(self, *kids):
         "%reduce Expr ILIKE Expr"
-        self.val = qlast.BinOpNode(left=kids[0].val, op=qlast.ILIKE, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=caos_ast.ILIKE, right=kids[2].val)
 
     def reduce_Expr_NOT_ILIKE_Expr(self, *kids):
         "%reduce Expr NOT ILIKE Expr"
-        self.val = qlast.BinOpNode(left=kids[0].val, op=qlast.NOT_ILIKE, right=kids[3].val)
+        val = qlast.BinOpNode(left=kids[0].val, op=caos_ast.ILIKE, right=kids[2].val)
+        self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=val)
 
     def reduce_Expr_IS_NONE(self, *kids):
         "%reduce Expr IS NONE"

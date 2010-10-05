@@ -58,6 +58,7 @@ class PythonQuery:
         self.result_types = result_types
         self.argument_types = argument_types
         self.record = datastructures.Record('pyquery_result', self.result_types, None)
+        self.query = self
 
         import semantix
         from semantix import caos
@@ -88,8 +89,8 @@ class Adapter:
     def __init__(self):
         self.transformer = CaosToPythonTransformer()
 
-    def transform(self, tree, context=None):
-        pytree = self.transformer.transform(tree, context=context)
+    def transform(self, tree, context=None, *, proto_schema):
+        pytree = self.transformer.transform(tree, context=context, proto_schema=proto_schema)
 
         text = py_codegen.BasePythonSourceGenerator.to_source(pytree)
 
@@ -106,8 +107,15 @@ class Adapter:
         return PythonQuery(text, result_types=restypes, argument_types=tree.argument_types)
 
 
+class CaosToPythonTransformerContext:
+    def __init__(self, proto_schema, context=None):
+        self.proto_schema = proto_schema
+        self.name_context = context
+
+
 class CaosToPythonTransformer(TreeTransformer):
-    def transform(self, tree, context=None):
+    def transform(self, tree, proto_schema, context=None):
+        context = CaosToPythonTransformerContext(proto_schema=proto_schema, context=context)
         result = py_ast.PyTuple()
         for i, selexpr in enumerate(tree.selector):
             if selexpr.name:
@@ -124,12 +132,20 @@ class CaosToPythonTransformer(TreeTransformer):
         if isinstance(expr, caos_ast.BinOp):
             left = self._process_expr(expr.left, context)
             right = self._process_expr(expr.right, context)
-            op = _operator_map[expr.op]()
 
-            if isinstance(expr.op, ast.ops.ComparisonOperator):
-                result = py_ast.PyCompare(left=left, ops=[op], comparators=[right])
+            if expr.op == caos_ast.LIKE:
+                f = caos_ast.FunctionCall(name=('str', 'like'), args=[expr.left, expr.right])
+                result = self._process_expr(f, context)
+            elif expr.op == caos_ast.ILIKE:
+                f = caos_ast.FunctionCall(name=('str', 'ilike'), args=[expr.left, expr.right])
+                result = self._process_expr(f, context)
             else:
-                result = py_ast.PyBinOp(left=left, right=right, op=op)
+                op = _operator_map[expr.op]()
+
+                if isinstance(expr.op, ast.ops.ComparisonOperator):
+                    result = py_ast.PyCompare(left=left, ops=[op], comparators=[right])
+                else:
+                    result = py_ast.PyBinOp(left=left, right=right, op=op)
 
         elif isinstance(expr, caos_ast.UnaryOp):
             operand = self._process_expr(expr.expr, context)
@@ -161,7 +177,7 @@ class CaosToPythonTransformer(TreeTransformer):
                 # XXX
                 source = expr.ref
 
-            assert source.anchor and source.anchor in context
+            assert source.anchor and source.anchor in context.name_context
 
             result = py_ast.PyName(id='__context_%s' % source.anchor)
 
