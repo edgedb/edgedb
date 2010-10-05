@@ -1024,6 +1024,10 @@ class CaosTreeTransformer(CaosExprTransformer):
                 name = 'lower'
             elif expr.name == ('str', 'upper'):
                 name = 'upper'
+            elif expr.name == ('str', 'strpos'):
+                r = pgsql.ast.FunctionCallNode(name='strpos', args=args)
+                result = pgsql.ast.BinOpNode(left=r, right=pgsql.ast.ConstantNode(value=1),
+                                             op=ast.ops.SUB)
             elif isinstance(expr.name, tuple):
                 assert False, 'unsupported function %s' % (expr.name,)
             else:
