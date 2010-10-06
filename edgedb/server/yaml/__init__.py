@@ -954,9 +954,6 @@ class MetaSet(LangObject):
                 target = globalmeta.get(link.target)
             else:
                 target = link.target
-            linkdef.is_atom = isinstance(target, proto.Atom)
-        else:
-            linkdef.is_atom = None
 
         globalmeta.add(linkdef)
         if localmeta:
@@ -1055,11 +1052,14 @@ class MetaSet(LangObject):
             if link.target and not isinstance(link.target, proto.Prototype):
                 link.target = globalmeta.get(link.target)
 
+            if link.target:
+                link.is_atom = isinstance(link.target, proto.Atom)
+
             g[link.name] = {"item": link, "merge": [], "deps": []}
 
             if not link.generic() and not link.atomic():
                 base = globalmeta.get(link.normal_name())
-                if base.is_atom:
+                if [l for l in base.children() if not l.generic() and l.atomic()]:
                     raise MetaError('%s link target conflict (atom/concept)' % link.normal_name(),
                                     context=link.context)
 
@@ -1259,9 +1259,6 @@ class MetaSet(LangObject):
                 link.is_atom = isinstance(link.target, caos.types.ProtoAtom)
 
                 type = proto.Link if isinstance(source, proto.Concept) else proto.LinkProperty
-                super = globalmeta.get(link.base[0], type=type)
-                if super.is_atom is None:
-                    super.is_atom = link.is_atom
 
 
     def order_concepts(self, globalmeta):
@@ -1287,9 +1284,7 @@ class MetaSet(LangObject):
 
                             parent = globalmeta.get(link.normal_name())
 
-                            if parent.is_atom is None:
-                                parent.is_atom = True
-                            elif not parent.is_atom:
+                            if [l for l in parent.children() if not l.generic() and not l.atomic()]:
                                 raise MetaError('%s link target conflict (atom/concept)' % link.normal_name(),
                                                 context=link.context)
 

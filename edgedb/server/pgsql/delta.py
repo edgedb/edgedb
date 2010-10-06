@@ -788,7 +788,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 if isinstance(pointer, proto.LinkSet):
                     pointer = pointer.first
 
-                if not pointer.atomic() or pointer.generic() or isinstance(pointer, proto.Computable):
+                if pointer.generic() or not pointer.atomic() or isinstance(pointer, proto.Computable):
                     continue
 
                 constraints = itertools.chain(pointer.constraints.values(),
@@ -1510,7 +1510,11 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         self.table_name = new_table_name
 
     def has_table(self, link, meta, context):
-        return (not link.atomic() or link.pointers) and link.generic()
+        if link.generic():
+            nonatomic = (l for l in link.children() if not l.generic() and not l.atomic())
+            return bool(link.pointers or bool(nonatomic))
+        else:
+            return False
 
     def provide_table(self, link, meta, context):
         if self.has_table(link, meta, context):
@@ -1552,7 +1556,7 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
         #
         self.provide_table(link, meta, context)
 
-        if link.atomic() and not link.generic():
+        if not link.generic() and link.atomic():
             concept = context.get(delta_cmds.ConceptCommandContext)
             assert concept, "Link command must be run in Concept command context"
 
@@ -1575,7 +1579,7 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
         rec, updates = self.record_metadata(link, None, meta, context)
         self.pgops.add(Insert(table=self.table, records=[rec], priority=1))
 
-        if link.mapping != caos.types.ManyToMany:
+        if not link.generic() and link.mapping != caos.types.ManyToMany:
             self.schedule_mapping_update(link, meta, context)
 
         return link
@@ -1655,7 +1659,7 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
                 alter_table.add_operation(AlterTableAlterColumnNull(column_name=column_name,
                                                                     null=not link.required))
 
-            if old_link.mapping != link.mapping:
+            if not link.generic() and old_link.mapping != link.mapping:
                 self.schedule_mapping_update(link, meta, context)
 
         return link
@@ -1666,7 +1670,7 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
         result = delta_cmds.DeleteLink.apply(self, meta, context)
         LinkMetaCommand.apply(self, meta, context)
 
-        if result.atomic() and not result.generic():
+        if not result.generic() and result.atomic():
             concept = context.get(delta_cmds.ConceptCommandContext)
 
             name = result.normal_name()
@@ -1678,10 +1682,11 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
             col = AlterTableDropColumn(Column(name=column_name, type=column_type))
             alter_table.add_operation(col)
 
-            if result.mapping != caos.types.ManyToMany:
+            if not result.generic() and result.mapping != caos.types.ManyToMany:
                 self.schedule_mapping_update(result, meta, context)
 
-        elif not result.atomic() and result.generic():
+        elif result.generic() and \
+                            [l for l in result.children() if not l.generic() and not l.atomic()]:
             old_table_name = common.link_name_to_table_name(result.name, catenate=False)
             self.pgops.add(DropTable(name=old_table_name))
             self.cancel_mapping_update(result, meta, context)
@@ -2971,7 +2976,7 @@ class LinkTable(MetaObjectTable):
             Column(name='target_id', type='integer'),
             Column(name='mapping', type='char(2)', required=True),
             Column(name='required', type='boolean', required=True, default=False),
-            Column(name='is_atom', type='boolean', required=True, default=False),
+            Column(name='is_atom', type='boolean'),
             Column(name='readonly', type='boolean', required=True, default=False),
             Column(name='loading', type='text'),
             Column(name='base', type='text[]'),

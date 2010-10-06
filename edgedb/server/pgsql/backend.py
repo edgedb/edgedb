@@ -715,16 +715,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             key = common.concept_name_to_table_name(caos.Name('semantix.caos.builtins.BaseObject'))
         elif isinstance(prototype, caos.types.ProtoLink):
             keys = ('source_id', 'target_id', 'link_type_id')
-            if prototype.atomic():
-                condkeys = ('source_id', 'link_type_id')
-            else:
-                condkeys = keys
-
+            condkeys = ('source_id', ("coalesce(%(tab)s.target_id, ''00000000-0000-0000-0000-000000000000'')",), 'link_type_id')
             key = common.link_name_to_table_name(caos.Name('semantix.caos.builtins.link'))
 
-        key_condition = '(%s) = (%s)' % \
-                            (','.join('t.%s' % common.quote_ident(k) for k in condkeys),
-                             ','.join('batch.%s' % common.quote_ident(k) for k in condkeys))
+        def _format_row(tabname, cols):
+            return ','.join(('%s.%s' % (tabname, common.quote_ident(k))) if not isinstance(k, tuple)
+                            else (k[0] % {'tab': tabname}) for k in cols)
+
+        key_condition = '(%s) = (%s)' % (_format_row('t', condkeys), _format_row('batch', condkeys))
 
         qry = text % {'table_name': common.qname(*table_name), 'batch_prefix': batch_prefix,
                       'cols': cols, 'key_condition': key_condition,
@@ -809,13 +807,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             condkeys = keys = ('semantix.caos.builtins.id', 'concept_id')
         elif isinstance(prototype, caos.types.ProtoLink):
             keys = ('source_id', 'target_id', 'link_type_id')
-            if prototype.atomic():
-                condkeys = ('source_id', 'link_type_id')
-            else:
-                condkeys = keys
+            condkeys = ('source_id', ("coalesce(target_id, '00000000-0000-0000-0000-000000000000')",), 'link_type_id')
 
         keys = ', '.join(common.quote_ident(k) for k in keys)
-        condkeys = ', '.join(common.quote_ident(k) for k in condkeys)
+        condkeys = ', '.join(common.quote_ident(k) if not isinstance(k, tuple) else k[0]
+                             for k in condkeys)
 
         batch_index_name = common.caos_name_to_pg_name(batch_table.name[1] + '_key_idx')
         updates_index_name = common.caos_name_to_pg_name(updates_table.name[1] + '_key_idx')
@@ -1649,7 +1645,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                 title=title, description=description,
                                 is_abstract=r['is_abstract'],
                                 is_final=r['is_final'],
-                                is_atom=r['is_atom'],
+                                is_atom=r['is_atom'] if target else None,
                                 readonly=r['readonly'],
                                 loading=loading,
                                 default=r['default'])
