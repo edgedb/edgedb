@@ -28,6 +28,10 @@ class MetaDeltaRepository:
         raise NotImplementedError
 
     def write_delta(self, delta_obj):
+        delta_set = delta.DeltaSet(deltas=[delta_obj])
+        return self.write_delta_set(delta_set)
+
+    def write_delta_set(self, delta_set):
         raise NotImplementedError
 
     def get_delta(self, id='HEAD'):
@@ -101,7 +105,8 @@ class MetaDeltaRepository:
             checksum = v2_meta.get_checksum()
 
             return delta.Delta(parent_id=parent_id, checksum=checksum,
-                               comment=comment, deltas=[d])
+                               comment=comment, deltas=[d],
+                               formatver=delta.Delta.CURRENT_FORMAT_VERSION)
         else:
             return None
 

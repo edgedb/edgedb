@@ -33,6 +33,9 @@ mapping:
             "comment":
                 type: str
 
+            "formatver":
+                type: int
+
             "deltas":
                 type: seq
                 required: yes

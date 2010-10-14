@@ -20,6 +20,10 @@ class MetaDeltaRepository(backends.MetaDeltaRepository):
     def write_delta(self, d):
         self.deltas.add(d)
 
+    def write_delta_set(self, dset):
+        for d in dset.deltas:
+            self.write_delta(d)
+
     def load_delta(self, delta_id):
         return self.deltas[delta_id]
 

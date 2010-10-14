@@ -68,7 +68,7 @@ class StructMeta(StructMeta):
     def adapt_value(mcls, field, value):
         """Tries to coerce the value into the type of the field"""
 
-        if not isinstance(value, field.type):
+        if value is not None and not isinstance(value, field.type):
             adapter = yaml.ObjectMeta.get_adapter(field.type[0])
             if adapter:
                 resolver = getattr(adapter, 'resolve', None)

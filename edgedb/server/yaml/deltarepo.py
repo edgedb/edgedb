@@ -29,9 +29,8 @@ class MetaDeltaRepository(backends.MetaDeltaRepository):
         delta = self.load_from_string(data)
         return delta
 
-    def write_delta(self, delta_obj):
-        path = self.get_delta_file_path(delta_obj.id)
-        delta_set = base_delta.DeltaSet(deltas=[delta_obj])
+    def write_delta_set(self, delta_set):
+        path = self.get_delta_file_path(next(iter(delta_set.deltas)).id)
         with open(path, 'w') as f:
             f.write(self.dump_delta_set(delta_set))
 
@@ -97,7 +96,8 @@ class MetaDeltaRepository(backends.MetaDeltaRepository):
             return mod
 
     def dump_delta(self, delta):
-        delta_obj = base_delta.Delta(parent_id=None, comment=None, checksum=0, deltas=[delta])
+        delta_obj = base_delta.Delta(parent_id=None, comment=None, checksum=0, deltas=[delta],
+                                     formatver=base_delta.Delta.CURRENT_FORMAT_VERSION)
         delta_set = base_delta.DeltaSet([delta_obj])
         return self.dump_delta_set(delta_set)
 
