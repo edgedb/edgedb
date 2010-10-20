@@ -1086,7 +1086,16 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             for ptr in source_ctx.op(ptr_cmd):
                 created_ptrs.add(ptr.prototype_name)
 
-            added_inh_ptrs = set(source.pointers) - set(orig_source.pointers)
+            inherited_aptrs = set()
+
+            for base in source.base:
+                base = meta.get(base)
+
+                for ptr in base.pointers.values():
+                    if ptr.atomic():
+                        inherited_aptrs.add(ptr.name)
+
+            added_inh_ptrs = inherited_aptrs - set(orig_source.pointers)
 
             for added_ptr in added_inh_ptrs - created_ptrs:
                 ptr = source.pointers[added_ptr]
