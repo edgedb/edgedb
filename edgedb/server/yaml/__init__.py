@@ -1368,7 +1368,7 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
             session = self.context.document.session
 
             cursor = caos_query.CaosQLCursor(session, aliases)
-            prepared = cursor.prepare(query)
+            prepared = cursor.prepare(query, proto_schema=session.realm.meta)
 
             output = prepared.describe_output()
 
