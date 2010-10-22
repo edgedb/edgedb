@@ -1553,8 +1553,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         constraints = constraints.get(pointer_name) if constraints else None
 
+        if col['column_default'] is not None:
+            atom_default = self.interpret_constant(col['column_default'])
+        else:
+            atom_default = None
+
         target = self.atom_from_pg_type(col_type, col_type_schema,
-                                        constraints, col['column_default'], meta,
+                                        constraints, atom_default, meta,
                                         caos.Name(name=derived_atom_name,
                                                   module=source.name.module))
 
@@ -1568,6 +1573,44 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 constraint = helper.get_object(cls)(next(iter(yaml.Language.load(val))))
                 result.append(constraint)
         return result
+
+
+    def verify_ptr_const_defaults(self, meta, ptr_name, target_atom, tab_default, schema_defaults):
+        if schema_defaults:
+            ld = list(filter(lambda d: isinstance(d, proto.LiteralDefaultSpec), schema_defaults))
+        else:
+            ld = ()
+
+        if tab_default is None:
+            if ld:
+                msg = 'internal metadata inconsistency'
+                details = ('Literal default for pointer "%s" is present in the schema, but not '
+                           'in the table') % ptr_name
+                raise caos.MetaError(msg, details=details)
+            else:
+                return
+
+        typ = target_atom.get_topmost_base(meta)
+        default = self.interpret_constant(tab_default)
+        table_default = typ(default)
+
+        if tab_default is not None and not schema_defaults:
+            msg = 'internal metadata inconsistency'
+            details = ('Literal default for pointer "%s" is present in the table, but not '
+                       'in schema declaration') % ptr_name
+            raise caos.MetaError(msg, details=details)
+
+        if not ld:
+            msg = 'internal metadata inconsistency'
+            details = ('Literal default for pointer "%s" is present in the table, but '
+                       'there are no literal defaults for the link') % ptr_name
+            raise caos.MetaError(msg, details=details)
+
+        if ld[0].value != table_default:
+            msg = 'internal metadata inconsistency'
+            details = ('Value mismatch in literal default pointer link "%s": %r in the '
+                       'table vs. %r in the schema') % (ptr_name, table_default, ld[0].value)
+            raise caos.MetaError(msg, details=details)
 
 
     def read_links(self, meta):
@@ -1698,6 +1741,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         caosql_tree = reverse_caosql_transformer.transform(caos_tree)
                         expr = caosql_codegen.CaosQLSourceGenerator.to_source(caosql_tree)
                         link.add_index(proto.SourceIndex(expr=expr))
+            elif link.atomic():
+                source_table_name = common.get_table_name(link.source, catenate=False)
+                cols = self.get_table_columns(source_table_name)
+                col_name = common.caos_name_to_pg_name(link.normal_name())
+                col = cols[col_name]
+                self.verify_ptr_const_defaults(meta, link.name, link.target,
+                                               col['column_default'], link.default)
 
 
     def read_link_properties(self, meta):
@@ -1742,7 +1792,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     ptr_constr = constr.get(bases[0])
                     if ptr_constr:
                         constraints.extend(ptr_constr)
-
             else:
                 target = None
 
@@ -1777,6 +1826,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 g[prop.name]['merge'].extend(prop.base)
 
         topological.normalize(g, merger=proto.LinkProperty.merge)
+
+        for prop in meta(type='link_property', include_automatic=True, include_builtin=True):
+            if not prop.generic() and prop.source.generic():
+                source_table_name = common.get_table_name(prop.source, catenate=False)
+                cols = self.get_table_columns(source_table_name)
+                col_name = common.caos_name_to_pg_name(prop.normal_name())
+                col = cols[col_name]
+                self.verify_ptr_const_defaults(meta, prop.name, prop.target,
+                                               col['column_default'], prop.default)
 
 
     def read_computables(self, meta):
@@ -2058,6 +2116,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 constraints = set(atom_constraints) if atom_constraints else {}
 
             if atom_constraints:
+                if atom_default is not None:
+                    base = meta.get(atom.name)
+                    typ = base.get_topmost_base(meta)
+                    atom_default = [proto.LiteralDefaultSpec(value=typ(atom_default))]
+
                 atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,
                                   automatic=True)
 

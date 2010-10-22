@@ -223,7 +223,7 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeC
         return rec, updates
 
     def pack_default(self, alter_default):
-        if alter_default.new_value:
+        if alter_default.new_value is not None:
             return yaml.Language.dump(alter_default.new_value)
         else:
             result = None
@@ -258,7 +258,11 @@ class AlterPrototypeProperty(MetaCommand, adapts=delta_cmds.AlterPrototypeProper
 
 
 class AlterDefault(MetaCommand, adapts=delta_cmds.AlterDefault):
-    pass
+    def apply(self, meta, context):
+        result = delta_cmds.AlterDefault.apply(self, meta, context)
+        MetaCommand.apply(self, meta, context)
+
+        return result
 
 
 class CreateAtomConstraint(PrototypeMetaCommand, adapts=delta_cmds.CreateAtomConstraint):
@@ -387,7 +391,7 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
                     # defaults based on queries has no sense on the database level
                     # since the database forbids queries for DEFAULT and pre-calculating
                     # the value does not make sense either since the whole point of
-                    # query defaults is to be default.
+                    # query defaults is for them to be dynamic.
                     self.pgops.add(AlterDomainAlterDefault(name=new_domain_name,
                                                            default=default.new_value[0].value))
         else:
@@ -616,16 +620,17 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         self.abstract_pointer_constraints = {}
         self.dropped_pointer_constraints = {}
 
-    def get_alter_table(self, context, priority=0, force_new=False):
-        alter_table = self.alter_tables.get(priority)
+    def get_alter_table(self, context, priority=0, force_new=False, contained=False):
+        key = (priority, contained)
+        alter_table = self.alter_tables.get(key)
         if alter_table is None or force_new:
             if not self.table_name:
                 assert self.__class__.context_class
                 ctx = context.get(self.__class__.context_class)
                 assert ctx
                 self.table_name = common.get_table_name(ctx.proto, catenate=False)
-            alter_table = AlterTable(self.table_name, priority=priority)
-            self.alter_tables.setdefault(priority, []).append(alter_table)
+            alter_table = AlterTable(self.table_name, priority=priority, contained=contained)
+            self.alter_tables.setdefault(key, []).append(alter_table)
         else:
             alter_table = alter_table[-1]
 
@@ -781,6 +786,27 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                         for constr in abstract_constr.values():
                             self.add_pointer_constraint(source, pointer_name,
                                                         constr, meta, context)
+
+    def affirm_pointer_defaults(self, source, meta, context):
+        for pointer_name, pointer in source.pointers.items():
+            if isinstance(pointer, proto.LinkSet):
+                pointer = pointer.first
+
+            if pointer.generic() or not pointer.atomic() or \
+                    isinstance(pointer, proto.Computable) or not pointer.default:
+                continue
+
+            default = None
+            ld = list(filter(lambda i: isinstance(i, proto.LiteralDefaultSpec),
+                             pointer.default))
+            if ld:
+                default = ld[0].value
+
+            if default is not None:
+                alter_table = self.get_alter_table(context, priority=3, contained=True)
+                column_name = common.caos_name_to_pg_name(pointer_name)
+                alter_table.add_operation(AlterTableAlterColumnDefault(column_name=column_name,
+                                                                       default=default))
 
     def create_pointer_constraints(self, source, meta, context):
         for pointer_name, pointer in source.pointers.items():
@@ -1222,6 +1248,8 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
         self.apply_inherited_deltas(concept, meta, context)
         self.create_pointer_constraints(concept, meta, context)
 
+        self.affirm_pointer_defaults(concept, meta, context)
+
         self.attach_alter_table(context)
 
         if self.update_search_indexes:
@@ -1429,7 +1457,46 @@ class PointerMetaCommand(MetaCommand):
             col = Column(name=column_name, type='text')
             alter_table.add_operation(AlterTableDropColumn(col))
 
-    def get_columns(self, pointer, meta):
+    def get_pointer_default(self, pointer, meta, context):
+        default = list(self(delta_cmds.AlterDefault))
+        default_value = None
+
+        if default:
+            default = default[0]
+            if default.new_value:
+                ld = list(filter(lambda i: isinstance(i, proto.LiteralDefaultSpec),
+                                 default.new_value))
+                if ld:
+                    default_value = postgresql.string.quote_literal(str(ld[0].value))
+
+        return default_value
+
+    def alter_pointer_default(self, pointer, meta, context):
+        default = list(self(delta_cmds.AlterDefault))
+        if default:
+            default = default[0]
+
+            new_default = None
+            have_new_default = True
+
+            if not default.new_value:
+                new_default = None
+            else:
+                ld = list(filter(lambda i: isinstance(i, proto.LiteralDefaultSpec),
+                                 default.new_value))
+                if ld:
+                    new_default = ld[0].value
+                else:
+                    have_new_default = False
+
+            if have_new_default:
+                concept_op = context.get(delta_cmds.ConceptCommandContext).op
+                alter_table = concept_op.get_alter_table(context, contained=True, priority=3)
+                column_name = common.caos_name_to_pg_name(pointer.normal_name())
+                alter_table.add_operation(AlterTableAlterColumnDefault(column_name=column_name,
+                                                                       default=new_default))
+
+    def get_columns(self, pointer, meta, default=None):
         columns = []
 
         if pointer.atomic():
@@ -1442,7 +1509,8 @@ class PointerMetaCommand(MetaCommand):
             column_name = common.caos_name_to_pg_name(name)
 
             columns.append(Column(name=column_name, type=column_type,
-                                  required=pointer.required))
+                                  required=pointer.required,
+                                  default=default))
 
         return columns
 
@@ -1569,7 +1637,9 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
             concept = context.get(delta_cmds.ConceptCommandContext)
             assert concept, "Link command must be run in Concept command context"
 
-            cols = self.get_columns(link, meta)
+            default_value = self.get_pointer_default(link, meta, context)
+
+            cols = self.get_columns(link, meta, default_value)
             table_name = common.get_table_name(concept.proto, catenate=False)
             concept_alter_table = concept.op.get_alter_table(context)
 
@@ -1578,6 +1648,9 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
                 cond = ColumnExists(table_name=table_name, column_name=col.name)
                 cmd = AlterTableAddColumn(col)
                 concept_alter_table.add_operation((cmd, None, (cond,)))
+
+        if link.generic():
+            self.affirm_pointer_defaults(link, meta, context)
 
         if self.has_table(link, meta, context):
             self.apply_inherited_deltas(link, meta, context)
@@ -1667,6 +1740,9 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
                 column_name = common.caos_name_to_pg_name(link.normal_name())
                 alter_table.add_operation(AlterTableAlterColumnNull(column_name=column_name,
                                                                     null=not link.required))
+
+            if isinstance(link.target, caos.types.ProtoAtom):
+                self.alter_pointer_default(link, meta, context)
 
             if not link.generic() and old_link.mapping != link.mapping:
                 self.schedule_mapping_update(link, meta, context)
@@ -1837,7 +1913,9 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
             link.op.provide_table(link.proto, meta, context)
             alter_table = link.op.get_alter_table(context)
 
-            cols = self.get_columns(property, meta)
+            default_value = self.get_pointer_default(property, meta, context)
+
+            cols = self.get_columns(property, meta, default_value)
             for col in cols:
                 # The column may already exist as inherited from parent table
                 cond = ColumnExists(table_name=alter_table.name, column_name=col.name)
@@ -1887,6 +1965,8 @@ class AlterLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.AlterLinkProp
 
             if new_type:
                 self.alter_host_table_column(prop, meta, context, old_type, new_type)
+
+            self.alter_pointer_default(prop, meta, context)
 
         return prop
 
@@ -3407,12 +3487,13 @@ class DropTable(SchemaObjectOperation):
 
 
 class AlterTableBase(DDLOperation):
-    def __init__(self, name, **kwargs):
+    def __init__(self, name, contained=False, **kwargs):
         super().__init__(**kwargs)
         self.name = name
+        self.contained = contained
 
     def code(self, context):
-        return 'ALTER TABLE %s' % common.qname(*self.name)
+        return 'ALTER TABLE %s%s' % ('ONLY ' if self.contained else '', common.qname(*self.name))
 
     def __repr__(self):
         return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__, self.name)
@@ -3622,6 +3703,26 @@ class AlterTableAlterColumnNull(AlterTableFragment):
     def __repr__(self):
         return '<%s.%s "%s" %s NOT NULL>' % (self.__class__.__module__, self.__class__.__name__,
                                              self.column_name, 'DROP' if self.null else 'SET')
+
+
+class AlterTableAlterColumnDefault(AlterTableFragment):
+    def __init__(self, column_name, default):
+        self.column_name = column_name
+        self.default = default
+
+    def code(self, context):
+        if self.default is None:
+            return 'ALTER COLUMN %s DROP DEFAULT' % (common.quote_ident(str(self.column_name)),)
+        else:
+            return 'ALTER COLUMN %s SET DEFAULT %s' % \
+                    (common.quote_ident(str(self.column_name)),
+                     postgresql.string.quote_literal(str(self.default)))
+
+    def __repr__(self):
+        return '<%s.%s "%s" %s DEFAULT%s>' % (self.__class__.__module__, self.__class__.__name__,
+                                              self.column_name,
+                                              'DROP' if self.default is None else 'SET',
+                                              '' if self.default is None else ' %r' % self.default)
 
 
 class TableConstraintCommand:

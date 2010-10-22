@@ -1042,7 +1042,7 @@ class MetaSet(LangObject):
                     if atom_constraints:
                         # Got an inline atom definition.
                         atom = self.genatom(globalmeta, link, property.target.name, property_name,
-                                                                                 atom_constraints)
+                                            constraints=atom_constraints, default=property.default)
                         globalmeta.add(atom)
                         property.target = atom
 
@@ -1299,7 +1299,8 @@ class MetaSet(LangObject):
                             if atom_constraints:
                                 # Got an inline atom definition.
                                 atom = self.genatom(globalmeta, concept, link.target.name, link_name,
-                                                                                    atom_constraints)
+                                                    constraints=atom_constraints,
+                                                    default=link.default)
                                 globalmeta.add(atom)
                                 link.target = atom
 
@@ -1339,10 +1340,10 @@ class MetaSet(LangObject):
         return concepts
 
 
-    def genatom(self, meta, host, base, link_name, constraints):
+    def genatom(self, meta, host, base, link_name, constraints, default):
         atom_name = Atom.gen_atom_name(host, link_name)
         atom = proto.Atom(name=caos.Name(name=atom_name, module=host.name.module),
-                          base=base, automatic=True, backend=None)
+                          base=base, automatic=True, backend=None, default=default)
         atom.normalize_constraints(meta, constraints)
         for constraint in constraints:
             atom.add_constraint(constraint)
