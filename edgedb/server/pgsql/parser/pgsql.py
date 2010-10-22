@@ -1662,7 +1662,7 @@ class AexprConst(Nonterm):
 
     def reduce_FALSE_P(self, *kids):
         "%reduce FALSE_P"
-        self.val = pgast.ConstantNode(value=True)
+        self.val = pgast.ConstantNode(value=False)
 
     def reduce_NULL_P(self, *kids):
         "%reduce NULL_P"
