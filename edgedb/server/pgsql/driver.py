@@ -48,13 +48,12 @@ def timestamptz_pack(x,
                      seconds_in_day=pg_datetime_io.seconds_in_day,
                      pg_epoch_datetime_utc=pg_datetime_io.pg_epoch_datetime_utc,
                      UTC=pg_datetime_io.UTC):
-    x = (x.astimezone(UTC) - pg_epoch_datetime_utc)
-    if isinstance(x, sx_datetime.TimeDelta):
-        months, days, seconds, microseconds = x.to_months_days_seconds_microseconds()
-        if months:
-            raise CaosError('cannot pack relative timedelta: %s' % x)
-    else:
-        days, seconds, microseconds = x.days, x.seconds, x.microseconds
+    x = x.astimezone(UTC)
+    x = datetime.datetime(x.year, x.month, x.day, x.hour, x.minute, x.second, x.microsecond,
+                          x.tzinfo)
+
+    x = x - pg_epoch_datetime_utc
+    days, seconds, microseconds = x.days, x.seconds, x.microseconds
     return ((days * seconds_in_day) + seconds, microseconds)
 
 
