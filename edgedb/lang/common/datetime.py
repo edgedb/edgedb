@@ -172,6 +172,35 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
         microseconds = self.microseconds
         return months, days, seconds, microseconds
 
+    def _time_part(self):
+        return self.hours * 3600 + self.minutes * 60 + self.seconds, self.microseconds
+
+    def reduce(self, repr='days'):
+        """
+        Reduce timedelta to a single floating point number of a given denomination
+        """
+
+        seconds, us = self._time_part()
+        day_fraction = seconds / 86400
+        days = self.years * 365 + self.months * 12 + self.leapdays
+
+        if repr == 'years':
+            res = self.years + (self.months + (self.leapdays + self.days + day_fraction) / 30) / 12
+        elif repr == 'months':
+            res = self.years * 12 + self.months + ((self.leapdays + self.days + day_fraction) / 30)
+        elif repr == 'days':
+            res = days + day_fraction
+        elif repr == 'hours':
+            res = days * 24 + seconds / 3600
+        elif repr == 'minutes':
+            res = days * 1440 + seconds / 60
+        elif repr == 'seconds':
+            res = days * 1440 * 60 + seconds + us / (10 ** -6)
+        else:
+            raise ValueError('unsupported representation mode for reduce(): %s' % repr)
+
+        return res
+
 
 class Time(TimeDelta):
     def __new__(cls, value=None, *, format=None):
