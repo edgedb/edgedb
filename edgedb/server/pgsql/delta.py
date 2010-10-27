@@ -592,7 +592,7 @@ class UpdateSearchIndexes(MetaCommand):
 
             for link_name in names:
                 for link in self.host.pointers[link_name]:
-                    if link.search:
+                    if getattr(link, 'search', None):
                         column_name = common.caos_name_to_pg_name(link_name)
                         columns.append(TextSearchIndexColumn(column_name, link.search.weight,
                                                              'english'))
