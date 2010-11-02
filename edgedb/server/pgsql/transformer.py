@@ -727,14 +727,16 @@ class CaosTreeTransformer(CaosExprTransformer):
                     elif isinstance(right, pgsql.ast.IgnoreNode):
                         result, from_expr = left, expr.left
 
-                    if getattr(from_expr, 'aggregates', False):
+                    if context.current.location in ('generator', 'nodefilter', 'linkfilter') and \
+                            getattr(from_expr, 'aggregates', False):
                         context.current.query.having = result
                         result = pgsql.ast.IgnoreNode()
                 else:
                     left_aggregates = getattr(expr.left, 'aggregates', False)
                     op_aggregates = getattr(expr, 'aggregates', False)
 
-                    if left_aggregates and not op_aggregates:
+                    if context.current.location in ('generator', 'nodefilter', 'linkfilter') and \
+                                                            left_aggregates and not op_aggregates:
                         context.current.query.having = left
                         result = right
                     else:
