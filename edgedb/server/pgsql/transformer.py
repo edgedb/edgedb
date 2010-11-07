@@ -609,6 +609,10 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         return cols, query
 
+    def _sort_paths(self, paths):
+        sorted_paths = sorted(paths, key=lambda i: 1 if isinstance(i, tree.ast.EntitySet) else 2)
+        return list(sorted_paths)
+
     def _process_expr(self, context, expr, cte=None):
         result = None
 
@@ -618,7 +622,8 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         elif isinstance(expr, tree.ast.Disjunction):
             #context.current.append_graphs = True
-            variants = [self._process_expr(context, path, cte) for path in expr.paths]
+            sorted_paths = self._sort_paths(expr.paths)
+            variants = [self._process_expr(context, path, cte) for path in sorted_paths]
             #context.current.append_graphs = False
 
             variants = [v for v in variants if v and not isinstance(v, pgsql.ast.IgnoreNode)]
@@ -631,7 +636,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 result = pgsql.ast.IgnoreNode()
 
         elif isinstance(expr, tree.ast.Conjunction):
-            variants = [self._process_expr(context, path, cte) for path in expr.paths]
+            sorted_paths = self._sort_paths(expr.paths)
+            variants = [self._process_expr(context, path, cte) for path in sorted_paths]
             variants = [v for v in variants if v and not isinstance(v, pgsql.ast.IgnoreNode)]
             if variants:
                 if len(variants) == 1:
