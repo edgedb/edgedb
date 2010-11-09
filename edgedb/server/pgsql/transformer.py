@@ -328,23 +328,28 @@ class SimpleExprTransformer(CaosExprTransformer):
 class CaosTreeTransformer(CaosExprTransformer):
     @debug
     def transform(self, query, realm):
-        # Transform to sql tree
-        context = TransformerContext()
-        context.current.realm = realm
-        qtree = self._transform_tree(context, query)
-        argmap = context.current.argmap
+        try:
+            # Transform to sql tree
+            context = TransformerContext()
+            context.current.realm = realm
+            qtree = self._transform_tree(context, query)
+            argmap = context.current.argmap
 
-        """LOG [caos.query] SQL Tree
-        self._dump(qtree)
-        """
+            """LOG [caos.query] SQL Tree
+            self._dump(qtree)
+            """
 
-        # Generate query text
-        qtext = pgsql.codegen.SQLSourceGenerator.to_source(qtree)
+            # Generate query text
+            qtext = pgsql.codegen.SQLSourceGenerator.to_source(qtree)
 
-        """LOG [caos.query] SQL Query
-        from semantix.utils.debug import highlight
-        print(highlight(qtext, 'sql'))
-        """
+            """LOG [caos.query] SQL Query
+            from semantix.utils.debug import highlight
+            print(highlight(qtext, 'sql'))
+            """
+        except Exception as e:
+            err = tree.transformer.InternalTreeTransformerError(e.args[0])
+            err.tree_context = tree.transformer.TreeTransformerExceptionContext(tree=query)
+            raise err from e
 
         return qtext, argmap
 
