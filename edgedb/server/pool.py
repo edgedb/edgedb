@@ -11,7 +11,7 @@ import time
 from semantix.caos.error import CaosError
 from semantix.utils import config
 
-from semantix.caos import pool
+from semantix.spin.pools import connection as connection_pool
 
 
 class PoolError(CaosError):
@@ -23,7 +23,7 @@ class ConnectionOvercommitError(PoolError):
 
 
 @config.configurable
-class ConnectionPool(pool.LimitedPool):
+class ConnectionPool(connection_pool.LimitedPool):
     max_hold_time = config.cvalue(default=0,
                                   doc=("Maximum time in seconds a connection can be held before the"
                                        " pool will be allowed to forcibly recover the connection."
