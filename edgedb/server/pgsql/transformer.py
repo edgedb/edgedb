@@ -609,8 +609,14 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         return cols, query
 
+    def _path_weight(self, path):
+        if isinstance(path, (tree.ast.ExistPred, tree.ast.GraphExpr)):
+            return 2
+        else:
+            return 1
+
     def _sort_paths(self, paths):
-        sorted_paths = sorted(paths, key=lambda i: 1 if isinstance(i, tree.ast.EntitySet) else 2)
+        sorted_paths = sorted(paths, key=self._path_weight)
         return list(sorted_paths)
 
     def _process_expr(self, context, expr, cte=None):
