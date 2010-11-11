@@ -82,7 +82,10 @@ class Decorator(BaseDecorator, metaclass=abc.AbstractMeta):
             if target not in Decorator._cache:
                 Decorator._cache[target] = {}
 
-            wrapper = functools.partial(method, target)
+            targetref = weakref.ref(target)
+            def wrapper(*args, **kwargs):
+                return method(targetref(), *args, **kwargs)
+
             decorate(wrapper, self._func_)
 
             Decorator._cache[target][self, self.__name__] = wrapper
