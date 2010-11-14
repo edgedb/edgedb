@@ -6,6 +6,7 @@
 ##
 
 
+import os
 import py
 import re
 import logging
@@ -79,9 +80,9 @@ class LoggingPrintHandler(logging.Handler):
     def emit(self, record):
         if getattr(logging, '_semantix_logging_running'):
             if self.colorize:
-                print(terminal.colorize('LOGGER', 'white', 'red'), record)
+                print(terminal.colorize('LOGGER', 'white', 'red'), os.getpid(), record)
             else:
-                print('LOGGER', record)
+                print('LOGGER', os.getpid(), record)
 
 
 test_patterns = []

@@ -26,7 +26,9 @@ class TestCommand(shell.Command, name='test', expose=True):
         parser.add_argument('--keep-going', action='store_true', default=False,
                             help='do not stop at the first failed test')
         parser.add_argument('--no-magic', dest='magic', action='store_false', default=True,
-                            help='disable py.test magic')
+                            help='don\'t reinterpret asserts, no traceback cutting')
+        parser.add_argument('--no-assert', dest='asserts', action='store_false', default=True,
+                            help='disable python assert expression reinterpretation')
         parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', default=False,
                             help='enable verbose output')
         parser.add_argument('tests', nargs='*',
@@ -62,6 +64,9 @@ class TestCommand(shell.Command, name='test', expose=True):
 
         if not args.magic:
             test_args.append('--nomagic')
+
+        if not args.asserts:
+            test_args.append('--no-assert')
 
         if not args.keep_going:
             test_args.append('-x')
