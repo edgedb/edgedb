@@ -21,6 +21,8 @@ class AbstractMeta(type):
     """
 
     def __init__(cls, name, bases, dct):
+        super().__init__(name, bases, dct)
+
         abstracts = {name for name, value in dct.items() \
                                                 if getattr(value, '__isabstractmethod__', False)}
 
