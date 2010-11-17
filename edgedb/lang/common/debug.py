@@ -64,8 +64,9 @@ class debug(object):
         sourceloc = inspect.getsourcelines(func)[1]
         orig_file = inspect.getsourcefile(func)
 
-        if source.startswith('@'):
-            source = source[source.find('\ndef ') +1:]
+        func_start = source.find('\ndef ') + 1
+        sourceloc += source[:func_start].count('\n')
+        source = source[func_start:]
 
         tree = ast.parse(source, filename=orig_file)
         ast.increment_lineno(tree, sourceloc - 1)
