@@ -53,6 +53,7 @@ class DateTime(datetime.datetime):
 class TimeDelta(dateutil.relativedelta.relativedelta):
     _interval_tokens = {'year': 'years', 'years': 'years',
                         'month': 'months', 'months': 'months',
+                        'mon': 'months',
                         'week': 'weeks', 'weeks': 'weeks',
                         'day': 'days', 'days': 'days',
                         'hour': 'hours', 'hours': 'hours',
