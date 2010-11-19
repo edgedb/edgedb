@@ -1606,10 +1606,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                        'there are no literal defaults for the link') % ptr_name
             raise caos.MetaError(msg, details=details)
 
-        if ld[0].value != table_default:
+        schema_value = typ(ld[0].value)
+
+        if schema_value != table_default:
             msg = 'internal metadata inconsistency'
             details = ('Value mismatch in literal default pointer link "%s": %r in the '
-                       'table vs. %r in the schema') % (ptr_name, table_default, ld[0].value)
+                       'table vs. %r in the schema') % (ptr_name, table_default, schema_value)
             raise caos.MetaError(msg, details=details)
 
 
