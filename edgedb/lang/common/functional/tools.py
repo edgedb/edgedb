@@ -59,12 +59,36 @@ class BaseDecorator:
         self._func_ = func
 
 
+_marker = object()
 class Decorator(BaseDecorator, metaclass=abc.AbstractMeta):
     _cache = weakref.WeakKeyDictionary()
 
-    def __init__(self, func):
+    def __new__(cls, func=_marker, *args, __completed__=False, **kwargs):
+        if __completed__ or (not args and not kwargs and hasattr(func, '__call__')):
+            return super().__new__(cls)
+
+        if func is not _marker:
+            args = (func,) + args
+
+        return cls.decorate(args, kwargs)
+
+    @classmethod
+    def decorate(cls, args, kwargs):
+        def wrap(func):
+            return cls(func, *args, __completed__=True, **kwargs)
+
+        return wrap
+
+    def __init__(self, func, *args, __completed__=None, **kwargs):
         BaseDecorator.__init__(self, func)
+
+        if args or kwargs:
+            self.handle_args(*args, **kwargs)
+
         decorate(self, func)
+
+    def handle_args(self, *args, **kwargs):
+        raise SemantixError('decorator %r does not support any arguments' % self.__class__.__name__)
 
     def __get__(self, obj, cls=None):
         if obj:

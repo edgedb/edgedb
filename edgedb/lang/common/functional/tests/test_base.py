@@ -7,6 +7,8 @@
 
 
 from semantix.utils import functional
+from semantix.utils.debug import assert_raises
+from semantix.exceptions import SemantixError
 
 
 class TestUtilsFunctional(object):
@@ -80,6 +82,41 @@ class TestUtilsFunctional(object):
 
         assert hasattr(Test3.test2, '__name__') and Test3.test2.__name__ == 'test2'
 
+
+        class dec4(functional.Decorator):
+            def __call__(self): pass
+
+        with assert_raises(SemantixError, error_re='does not support any arguments'):
+            @dec4(1)
+            def test(): pass
+
+
+        CHK = 0
+        class dec5(functional.Decorator):
+            def handle_args(self, foo=None, *, bar=None):
+                nonlocal CHK
+                if foo:
+                    assert foo == 42
+                if bar:
+                    assert bar == 100500
+                CHK += 1
+            def __call__(self):
+                return self._func_()
+
+        @dec5(42)
+        def test(): return 42
+        assert test() == 42
+        assert CHK == 1
+
+        @dec5(42, bar=100500)
+        def test(): return 43
+        assert test() == 43
+        assert CHK == 2
+
+        @dec5()
+        def test(): return 44
+        assert test() == 44
+        assert CHK == 2
 
     def test_utils_functional_cachedproperty(self):
         CHK = 0
