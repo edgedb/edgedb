@@ -11,7 +11,7 @@ import re
 import ast
 import contextlib
 
-from semantix.utils.functional import decorate
+from semantix.utils.functional import decorate, callable
 
 
 enabled = __debug__
@@ -230,14 +230,14 @@ def timeit(target):
             return new_func
 
         def __call__(self, *args):
-            if len(args) == 1 and hasattr(args[0], '__call__'):
+            if len(args) == 1 and callable(args[0]):
                 return self.decorate(args[0])
             else:
                 raise Exception("Invalid arguments")
 
     if target and isinstance(target, str):
         return Timer(target)
-    elif target and hasattr(target, '__call__'):
+    elif target and callable(target):
         return Timer(repr(target)).decorate(target)
     else:
         raise Exception("Invalid arguments")

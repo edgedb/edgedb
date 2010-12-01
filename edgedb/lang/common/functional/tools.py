@@ -16,7 +16,7 @@ from semantix.exceptions import SemantixError
 
 
 __all__ = ['descent_decoration', 'get_argsspec', 'apply_decorator', 'decorate', 'isdecorated',
-           'Decorator', 'BaseDecorator', 'NonDecoratable']
+           'Decorator', 'BaseDecorator', 'NonDecoratable', 'callable']
 
 
 class NonDecoratable:
@@ -48,6 +48,10 @@ def decorate(wrapper, wrapped):
             setattr(wrapper, '_func_', wrapped)
 
 
+def callable(obj):
+    return any('__call__' in cls.__dict__ for cls in type(obj).__mro__)
+
+
 def isdecorated(func):
     return (isinstance(func, types.FunctionType) and hasattr(func, '_args_spec_') \
                                                             and hasattr(func, '_func_')) \
@@ -64,7 +68,7 @@ class Decorator(BaseDecorator, metaclass=abc.AbstractMeta):
     _cache = weakref.WeakKeyDictionary()
 
     def __new__(cls, func=_marker, *args, __completed__=False, **kwargs):
-        if __completed__ or (not args and not kwargs and hasattr(func, '__call__')):
+        if __completed__ or (not args and not kwargs and callable(func)):
             return super().__new__(cls)
 
         if func is not _marker:
