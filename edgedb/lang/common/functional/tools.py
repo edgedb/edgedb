@@ -69,19 +69,23 @@ class Decorator(BaseDecorator, metaclass=abc.AbstractMeta):
 
     def __new__(cls, func=_marker, *args, __completed__=False, **kwargs):
         if __completed__ or (not args and not kwargs and callable(func)):
+            try:
+                decorated = cls.decorate(func, *args, **kwargs)
+            except NotImplementedError:
+                pass
+            else:
+                if decorated is not None:
+                    return decorated
             return super().__new__(cls)
 
         if func is not _marker:
             args = (func,) + args
 
-        return cls.decorate(args, kwargs)
+        return (lambda func: cls(func, *args, __completed__=True, **kwargs))
 
     @classmethod
-    def decorate(cls, args, kwargs):
-        def wrap(func):
-            return cls(func, *args, __completed__=True, **kwargs)
-
-        return wrap
+    def decorate(cls, func, *args, **kwargs):
+        raise NotImplementedError
 
     def __init__(self, func, *args, __completed__=None, **kwargs):
         BaseDecorator.__init__(self, func)

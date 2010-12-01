@@ -6,6 +6,7 @@
 ##
 
 
+import types
 from semantix.utils import functional
 from semantix.utils.debug import assert_raises
 from semantix.exceptions import SemantixError
@@ -117,6 +118,32 @@ class TestUtilsFunctional(object):
         def test(): return 44
         assert test() == 44
         assert CHK == 2
+
+
+        CHK = 0
+        class dec6(functional.Decorator):
+            @classmethod
+            def decorate(cls, func, a, b=None):
+                nonlocal CHK
+                assert isinstance(func, types.FunctionType) and func.__name__ == 'test'
+                assert a == 42
+                if b:
+                    assert b == 100500
+                CHK += 1
+                return lambda: func() + 1
+
+        @dec6(42)
+        def test():
+            return 7
+        assert CHK == 1
+        assert test() == 8
+
+        @dec6(42, b=100500)
+        def test():
+            return 7
+        assert CHK == 2
+        assert test() == 8
+
 
     def test_utils_functional_callable(self):
         assert functional.callable(functional.callable)
