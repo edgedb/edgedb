@@ -48,7 +48,7 @@ class Scanner(yaml.scanner.Scanner):
         return result
 
     def crange(self, c1, c2):
-        return [chr(o) for o in range(ord(c1), ord(c2))]
+        return [chr(o) for o in range(ord(c1), ord(c2) + 1)]
 
     def scan_directive(self):
         start_mark = self.get_mark()
