@@ -6,31 +6,33 @@
 ##
 
 
+import abc
+import sys
 import types
 import inspect
-import functools
 import weakref
 
-from semantix.utils import abc
 from semantix.exceptions import SemantixError
 
 
-__all__ = ['descent_decoration', 'get_argsspec', 'apply_decorator', 'decorate', 'isdecorated',
-           'Decorator', 'BaseDecorator', 'NonDecoratable', 'callable']
+__all__ = ['get_argsspec', 'apply_decorator', 'decorate', 'isdecorated',
+           'Decorator', 'BaseDecorator', 'NonDecoratable', 'callable',
+           'unwrap']
 
 
 class NonDecoratable:
     pass
 
 
-def decorate(wrapper, wrapped):
+WRAPPER_ASSIGNMENTS = ('__module__', '__name__', '__doc__', '__annotations__')
+def decorate(wrapper, wrapped, *, assigned=WRAPPER_ASSIGNMENTS):
     if isinstance(wrapped, type) and issubclass(wrapped, NonDecoratable):
-        raise SemantixError('Unable to decorate %r as a subclass of NonDecoratable' % wrapped)
+        raise TypeError('Unable to decorate %r as a subclass of NonDecoratable' % wrapped)
 
     elif isinstance(wrapped, NonDecoratable):
-        raise SemantixError('Unable to decorate %r as an instance of NonDecoratable' % wrapped)
+        raise TypeError('Unable to decorate %r as an instance of NonDecoratable' % wrapped)
 
-    for attr in ('__module__', '__name__', '__doc__'):
+    for attr in assigned:
         if hasattr(wrapped, attr):
             setattr(wrapper, attr, getattr(wrapped, attr))
 
@@ -38,14 +40,8 @@ def decorate(wrapper, wrapped):
         if wrapped.__dict__:
             wrapper.__dict__.update(wrapped.__dict__)
 
-        if hasattr(wrapped, '_args_spec_'):
-            setattr(wrapper, '_args_spec_', wrapped._args_spec_)
-
-        else:
-            setattr(wrapper, '_args_spec_', inspect.getfullargspec(wrapped))
-
-        if not hasattr(wrapper, '_func_'):
-            setattr(wrapper, '_func_', wrapped)
+    wrapper.__wrapped__ = wrapped
+    return wrapper
 
 
 def callable(obj):
@@ -53,21 +49,35 @@ def callable(obj):
 
 
 def isdecorated(func):
-    return (isinstance(func, types.FunctionType) and hasattr(func, '_args_spec_') \
-                                                            and hasattr(func, '_func_')) \
-            or isinstance(func, BaseDecorator)
+    return callable(func) and (isinstance(func, BaseDecorator) or hasattr(func, '__wrapped__'))
 
 
-class BaseDecorator:
+class BaseDecorator(metaclass=abc.ABCMeta):
     def __init__(self, func):
-        self._func_ = func
+        self.__wrapped__ = func
+
+BaseDecorator.register(staticmethod)
+BaseDecorator.register(classmethod)
 
 
 _marker = object()
-class Decorator(BaseDecorator, metaclass=abc.AbstractMeta):
+class Decorator(BaseDecorator):
     _cache = weakref.WeakKeyDictionary()
 
     def __new__(cls, func=_marker, *args, __completed__=False, **kwargs):
+        if not __completed__ and func is not _marker and callable(func) and (args or kwargs):
+            original_function = unwrap(func, True)
+            frame = sys._getframe(1)
+            try:
+                while frame and frame.f_code.co_filename != original_function.__code__.co_filename:
+                    frame = frame.f_back
+
+                if frame and frame.f_lineno >= original_function.__code__.co_firstlineno:
+                    __completed__ = True
+
+            finally:
+                del frame
+
         if __completed__ or (not args and not kwargs and callable(func)):
             try:
                 decorated = cls.decorate(func, *args, **kwargs)
@@ -118,7 +128,7 @@ class Decorator(BaseDecorator, metaclass=abc.AbstractMeta):
             def wrapper(*args, **kwargs):
                 return method(targetref(), *args, **kwargs)
 
-            decorate(wrapper, self._func_)
+            decorate(wrapper, self.__wrapped__)
 
             Decorator._cache[target][self, self.__name__] = wrapper
             return wrapper
@@ -134,42 +144,33 @@ class Decorator(BaseDecorator, metaclass=abc.AbstractMeta):
         return self(cls, *args, **kwargs)
 
 
+def unwrap(func, deep=False):
+    def _unwrap(func):
+        if not isdecorated(func):
+            raise TypeError('function %r is not decorated' % func)
+
+        try:
+            return func.__wrapped__
+        except AttributeError:
+            try:
+                return func.__func__
+            except AttributeError:
+                pass
+
+        raise TypeError('unable to unwrap decorated function %r' % func)
+
+    if deep:
+        while isdecorated(func):
+            func = _unwrap(func)
+        return func
+
+    return _unwrap(func)
+
+
 def get_argsspec(func):
-    try:
-        return getattr(func, '_args_spec_')
-    except AttributeError:
-        return inspect.getfullargspec(func)
-
-
-def descent_decoration(obj, *, on_function=None, on_class=None, _short=False):
-    assert on_function or on_class
-
-    if inspect.isfunction(obj):
-        if _short:
-            on_function(obj)
-        else:
-            if hasattr(obj, '_func_') and on_function:
-                on_function(obj._func_)
-        return
-
-    if inspect.isclass(obj) and on_class:
-        on_class(obj)
-        return
-
-    if isinstance(obj, classmethod) or isinstance(obj, staticmethod):
-        descent_decoration(obj.__func__, on_function=on_function, on_class=on_class, _short=True)
-        return
-
-    if isinstance(obj, property):
-        for name in 'fget', 'fset', 'fdel':
-            _obj = getattr(obj, name, None)
-            if _obj:
-                descent_decoration(_obj, on_function=on_function, on_class=on_class, _short=True)
-        return
-
-    if isinstance(obj, BaseDecorator):
-        descent_decoration(obj._func_, on_function=on_function, on_class=on_class, _short=True)
-        return
+    if isdecorated(func):
+        func = unwrap(func, True)
+    return inspect.getfullargspec(func)
 
 
 def apply_decorator(func, *, decorate_function=None, decorate_class=None):
@@ -186,11 +187,13 @@ def apply_decorator(func, *, decorate_function=None, decorate_class=None):
             raise TypeError('Unable to decorate class %s' % func.__name__)
 
     if isinstance(func, classmethod):
-        return classmethod(apply_decorator(func.__func__, decorate_function=decorate_function,
+        return classmethod(apply_decorator(func.__func__,
+                                           decorate_function=decorate_function,
                                            decorate_class=decorate_class))
 
     if isinstance(func, staticmethod):
-        return staticmethod(apply_decorator(func.__func__, decorate_function=decorate_function,
+        return staticmethod(apply_decorator(func.__func__,
+                                            decorate_function=decorate_function,
                                             decorate_class=decorate_class))
 
     if isinstance(func, property):
@@ -198,7 +201,8 @@ def apply_decorator(func, *, decorate_function=None, decorate_class=None):
         for name in 'fget', 'fset', 'fdel':
             f = getattr(func, name, None)
             if f:
-                f = apply_decorator(f, decorate_function=decorate_function,
+                f = apply_decorator(f,
+                                    decorate_function=decorate_function,
                                     decorate_class=decorate_class)
             funcs.append(f)
         return property(*funcs)
@@ -207,9 +211,10 @@ def apply_decorator(func, *, decorate_function=None, decorate_class=None):
         top = func
         while isinstance(func, BaseDecorator):
             host = func
-            func = func._func_
-        host._func_ = apply_decorator(host._func_, decorate_function=decorate_function,
-                                      decorate_class=decorate_class)
+            func = func.__wrapped__
+        host.__wrapped__ = apply_decorator(host.__wrapped__,
+                                           decorate_function=decorate_function,
+                                           decorate_class=decorate_class)
         return top
 
     return func

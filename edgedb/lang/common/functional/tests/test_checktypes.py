@@ -90,11 +90,11 @@ class TestUtilsFunctionalChecktypes:
     def test_utils_functional_checktypes_class_decorator(self):
         class dec(functional.Decorator):
             def __call__(self, *args, **kwargs):
-                return self._func_(*args, **kwargs) + 1
+                return self.__wrapped__(*args, **kwargs) + 1
 
         class dec2(functional.Decorator):
             def __call__(self, *args, **kwargs):
-                return self._func_(*args, **kwargs) + 10
+                return self.__wrapped__(*args, **kwargs) + 10
 
         with warnings.catch_warnings(record=True) as w:
             @functional.checktypes

@@ -7,16 +7,19 @@
 
 
 import types
+import functools
+
 from semantix.utils import functional
 from semantix.utils.debug import assert_raises
 from semantix.exceptions import SemantixError
+from semantix.utils.functional.tests import base
 
 
 class TestUtilsFunctional(object):
     def test_utils_functional_decorator(self):
         class dec1(functional.Decorator):
             def __call__(self, *args, **kwargs):
-                return self._func_(*args, **kwargs) + 1
+                return self.__wrapped__(*args, **kwargs) + 1
 
         @dec1
         def test1(a, b=None):
@@ -57,7 +60,7 @@ class TestUtilsFunctional(object):
 
         class dec2(dec1):
             def instance_call(self, instance, a):
-                return self._func_(instance, a*2)
+                return self.__wrapped__(instance, a*2)
 
         class Test2(Test1):
             @dec2
@@ -69,7 +72,7 @@ class TestUtilsFunctional(object):
 
         class dec3(dec1):
             def class_call(self, cls, a):
-                return self._func_(cls, a*2)
+                return self.__wrapped__(cls, a*2)
 
         class Test3(Test2):
             @dec3
@@ -93,7 +96,12 @@ class TestUtilsFunctional(object):
 
 
         CHK = 0
+        TOT = 0
         class dec5(functional.Decorator):
+            @classmethod
+            def decorate(cls, func, *args, **kwargs):
+                nonlocal TOT
+                TOT += 1
             def handle_args(self, foo=None, *, bar=None):
                 nonlocal CHK
                 if foo:
@@ -102,47 +110,83 @@ class TestUtilsFunctional(object):
                     assert bar == 100500
                 CHK += 1
             def __call__(self):
-                return self._func_()
+                return self.__wrapped__()
 
         @dec5(42)
         def test(): return 42
+        assert TOT == 1
         assert test() == 42
         assert CHK == 1
 
         @dec5(42, bar=100500)
         def test(): return 43
+        assert TOT == 2
         assert test() == 43
         assert CHK == 2
 
         @dec5()
         def test(): return 44
+        assert TOT == 3
         assert test() == 44
+        assert CHK == 2
+
+        @dec5
+        def test(): return 45
+        assert TOT == 4
+        assert test() == 45
         assert CHK == 2
 
 
         CHK = 0
         class dec6(functional.Decorator):
             @classmethod
-            def decorate(cls, func, a, b=None):
+            def decorate(cls, func, a=None, *, b=None):
                 nonlocal CHK
                 assert isinstance(func, types.FunctionType) and func.__name__ == 'test'
-                assert a == 42
+                if a:
+                    assert a == 42
                 if b:
                     assert b == 100500
                 CHK += 1
                 return lambda: func() + 1
 
         @dec6(42)
-        def test():
-            return 7
+        def test(): return 7
         assert CHK == 1
         assert test() == 8
 
         @dec6(42, b=100500)
-        def test():
-            return 7
+        @base.wrap
+        def test(): return 7
         assert CHK == 2
         assert test() == 8
+
+        @dec6()
+        @base.wrap
+        def test(): return 8
+        assert CHK == 3
+        assert test() == 9
+
+        @dec6
+        @base.wrap
+        def test(): return 8
+        assert CHK == 4
+        assert test() == 9
+
+
+        dec7 = functools.partial(dec6, b=100500)
+
+        @dec7()
+        @base.wrap
+        def test(): return 8
+        assert CHK == 5
+        assert test() == 9
+
+        @dec7
+        @base.wrap
+        def test(): return 8
+        assert CHK == 6
+        assert test() == 9
 
 
     def test_utils_functional_callable(self):

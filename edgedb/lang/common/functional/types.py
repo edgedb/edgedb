@@ -12,7 +12,6 @@ import warnings
 import itertools
 
 from semantix.exceptions import SemantixError
-import semantix.utils.functional
 from . import tools
 
 
@@ -215,7 +214,6 @@ class FunctionValidator:
                                             decorate_class=cls.checktypes_class)
             if patched is not object:
                 setattr(target_cls, name, patched)
-                applied = True
 
         return target_cls
 

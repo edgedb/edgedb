@@ -14,7 +14,7 @@ __all__ = ['hybridmethod', 'cachedproperty']
 
 class hybridmethod(Decorator):
     def __call__(self, *args, **kwargs):
-        return self._func_(*args, **kwargs)
+        return self.__wrapped__(*args, **kwargs)
 
 
 class cachedproperty(BaseDecorator):
@@ -24,6 +24,6 @@ class cachedproperty(BaseDecorator):
 
     def __get__(self, obj, cls=None):
         assert obj
-        value = self._func_(obj)
+        value = self.__wrapped__(obj)
         obj.__dict__[self.__name__] = value
         return value

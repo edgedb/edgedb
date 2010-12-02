@@ -95,10 +95,7 @@ def get_function_class(func):
                         return obj
 
                 if isinstance(item, types.FunctionType) and tools.isdecorated(item):
-                    current = item
-                    while current and tools.isdecorated(current):
-                        current = current._func_
-                    if current is func:
+                    if tools.unwrap(item, True) is func:
                         return obj
 
                 try:

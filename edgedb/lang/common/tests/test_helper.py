@@ -47,7 +47,7 @@ class TestHelper:
         assert helper.get_function_class(Foo.saved[0]) is Foo
         assert helper.get_function_class(Foo.classbar) is Foo
         assert helper.get_function_class(Foo.saved[1]) is Foo
-        assert helper.get_function_class(Foo.typesbar._func_) is Foo
+        assert helper.get_function_class(Foo.typesbar.__wrapped__) is Foo
 
         foo = Foo()
         assert helper.get_function_class(foo.bar) is Foo
@@ -55,4 +55,4 @@ class TestHelper:
         assert helper.get_function_class(foo.saved[0]) is Foo
         assert helper.get_function_class(foo.classbar) is Foo
         assert helper.get_function_class(foo.saved[1]) is Foo
-        assert helper.get_function_class(foo.typesbar._func_) is Foo
+        assert helper.get_function_class(foo.typesbar.__wrapped__) is Foo
