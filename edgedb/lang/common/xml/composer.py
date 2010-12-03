@@ -104,7 +104,16 @@ class Composer:
                 result += '>'
                 open = False
 
-            result += str(body)
+            # XXX Rewrite this.
+            #
+            body = str(body)
+            if '<![CDATA[' not in body and ('<' in body or '>' in body):
+                if ']]>' in body:
+                    body = body.replace(']]>', ']] >')
+                body = '<![CDATA[' + body + ']]>'
+            else:
+                body = escape(body)
+            result += body
 
         if children:
             if open:

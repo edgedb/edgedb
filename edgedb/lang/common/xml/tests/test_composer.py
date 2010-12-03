@@ -48,6 +48,15 @@ class TestXMLComposer:
         tag = ('foo', 'bar')
         assert XML1.compose(tag) == '<foo>bar</foo>'
 
+        tag = ('foo', 'bar<p>')
+        assert XML1.compose(tag) == '<foo><![CDATA[bar<p>]]></foo>'
+
+        tag = ('foo', 'bar<p>&')
+        assert XML1.compose(tag) == '<foo><![CDATA[bar<p>&]]></foo>'
+
+        tag = ('foo', 'bar&')
+        assert XML1.compose(tag) == '<foo>bar&amp;</foo>'
+
         tag = ('foo', 123)
         assert XML1.compose(tag) == '<foo>123</foo>'
 
