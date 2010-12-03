@@ -1771,14 +1771,14 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
             col = AlterTableDropColumn(Column(name=column_name, type=column_type))
             alter_table.add_operation(col)
 
-            if not result.generic() and result.mapping != caos.types.ManyToMany:
-                self.schedule_mapping_update(result, meta, context)
-
         elif result.generic() and \
                             [l for l in result.children() if not l.generic() and not l.atomic()]:
             old_table_name = common.link_name_to_table_name(result.name, catenate=False)
             self.pgops.add(DropTable(name=old_table_name))
             self.cancel_mapping_update(result, meta, context)
+
+        if not result.generic() and result.mapping != caos.types.ManyToMany:
+            self.schedule_mapping_update(result, meta, context)
 
         self.pgops.add(Delete(table=self.table, condition=[('name', str(result.name))]))
 
