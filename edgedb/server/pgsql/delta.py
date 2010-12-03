@@ -1099,15 +1099,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             source.acquire_parent_data(meta)
             orig_source.acquire_parent_data(meta)
 
-            dropped_inh_ptrs = set(orig_source.pointers) - set(source.pointers)
-
-            for dropped_ptr in dropped_inh_ptrs:
-                ptr = orig_source.pointers[dropped_ptr]
-                if ptr.atomic():
-                    col_name = common.caos_name_to_pg_name(dropped_ptr)
-                    col = Column(name=col_name, type="text")
-                    alter_table.add_operation(AlterTableDropColumn(col))
-
             created_ptrs = set()
             for ptr in source_ctx.op(ptr_cmd):
                 created_ptrs.add(ptr.prototype_name)
@@ -1119,9 +1110,9 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
                 for ptr in base.pointers.values():
                     if ptr.atomic():
-                        inherited_aptrs.add(ptr.name)
+                        inherited_aptrs.add(ptr.normal_name())
 
-            added_inh_ptrs = inherited_aptrs - set(orig_source.pointers)
+            added_inh_ptrs = inherited_aptrs - {p.normal_name() for p in orig_source.pointers.values()}
 
             for added_ptr in added_inh_ptrs - created_ptrs:
                 ptr = source.pointers[added_ptr]
@@ -1135,10 +1126,23 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                     col = Column(name=col_name, type=col_type, required=col_required)
                     alter_table.add_operation(AlterTableAddColumn(col))
 
-            for dropped_base in dropped_bases:
-                parent_table_name = nameconv(caos.name.Name(dropped_base), catenate=False)
-                op = AlterTableDropParent(parent_name=parent_table_name)
-                alter_table.add_operation(op)
+            if dropped_bases:
+                for dropped_base in dropped_bases:
+                    parent_table_name = nameconv(caos.name.Name(dropped_base), catenate=False)
+                    op = AlterTableDropParent(parent_name=parent_table_name)
+                    alter_table.add_operation(op)
+
+                alter_table = source_ctx.op.get_alter_table(context, force_new=True)
+
+                dropped_inh_ptrs = {p.normal_name() for p in orig_source.pointers.values()} - \
+                                   {p.normal_name() for p in source.pointers.values()}
+
+                for dropped_ptr in dropped_inh_ptrs:
+                    ptr = orig_source.pointers[dropped_ptr]
+                    if ptr.atomic():
+                        col_name = common.caos_name_to_pg_name(dropped_ptr)
+                        col = Column(name=col_name, type="text")
+                        alter_table.add_operation(AlterTableDropColumn(col))
 
             for added_base in added_bases:
                 parent_table_name = nameconv(caos.name.Name(added_base), catenate=False)
