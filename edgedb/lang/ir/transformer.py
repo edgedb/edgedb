@@ -179,6 +179,9 @@ class TreeTransformer:
                     self.extract_prefixes(e, prefixes)
             """
 
+        elif isinstance(expr, caos_ast.SubgraphRef):
+            self.extract_prefixes(expr.ref, prefixes)
+
         else:
             assert False, 'unexpected node: "%r"' % expr
 
@@ -386,6 +389,9 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.GraphExpr):
             pass
 
+        elif isinstance(expr, caos_ast.SubgraphRef):
+            pass
+
         else:
             # All other nodes fall through
             assert False, 'unexpected node "%r"' % expr
@@ -567,6 +573,9 @@ class TreeTransformer:
                 expr = expr.__class__(elements=elements)
 
         elif isinstance(expr, caos_ast.GraphExpr):
+            pass
+
+        elif isinstance(expr, caos_ast.SubgraphRef):
             pass
 
         else:
@@ -1159,6 +1168,9 @@ class TreeTransformer:
                     result = caos_ast.Disjunction(paths=frozenset(paths))
                     return self.flatten_path_combination(result)
 
+        elif isinstance(path, caos_ast.SubgraphRef):
+            return self.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries)
+
         elif isinstance(path, caos_ast.SelectorExpr):
             return self.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
 
@@ -1260,9 +1272,6 @@ class TreeTransformer:
                 return caos_ast.Disjunction(paths=frozenset(paths))
 
         elif isinstance(path, caos_ast.Constant):
-            return None
-
-        elif isinstance(path, caos_ast.GraphExpr):
             return None
 
         else:

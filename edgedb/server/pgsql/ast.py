@@ -49,7 +49,8 @@ class FromExprNode(Base):
     __fields = ['expr', 'alias']
 
 class RelationNode(Base):
-    __fields = [('concepts', frozenset), 'alias', ('_bonds', dict), 'caosnode']
+    __fields = [('concepts', frozenset), 'alias', ('_bonds', dict), 'caosnode',
+                ('outerbonds', list), ('aggregates', bool)]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

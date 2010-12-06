@@ -53,6 +53,8 @@ class TransformerContextLevel(object):
                 self.ctemap = prevlevel.ctemap
                 self.concept_node_map = prevlevel.concept_node_map
                 self.link_node_map = prevlevel.link_node_map
+                self.subquery_map = prevlevel.subquery_map
+                self.direct_subquery_ref = prevlevel.direct_subquery_ref
 
             elif mode == TransformerContext.SUBQUERY:
                 self.vars = {}
@@ -65,6 +67,8 @@ class TransformerContextLevel(object):
                 self.ignore_cardinality = False
                 self.in_aggregate = False
                 self.query = pgsql.ast.SelectQueryNode()
+                self.subquery_map = {}
+                self.direct_subquery_ref = False
 
             else:
                 self.vars = prevlevel.vars.copy()
@@ -73,6 +77,8 @@ class TransformerContextLevel(object):
                 self.ctemap = prevlevel.ctemap.copy()
                 self.concept_node_map = prevlevel.concept_node_map.copy()
                 self.link_node_map = prevlevel.link_node_map.copy()
+                self.subquery_map = prevlevel.subquery_map
+                self.direct_subquery_ref = False
 
         else:
             self.vars = {}
@@ -88,6 +94,8 @@ class TransformerContextLevel(object):
             self.in_aggregate = False
             self.query = pgsql.ast.SelectQueryNode()
             self.realm = None
+            self.subquery_map = {}
+            self.direct_subquery_ref = False
 
     def genalias(self, alias=None, hint=None):
         if alias is None:
@@ -403,11 +411,11 @@ class CaosTreeTransformer(CaosExprTransformer):
         else:
             query = context.current.query
 
-        self._postprocess_query(query)
+        self._postprocess_query(context, query)
 
         return query
 
-    def _postprocess_query(self, query):
+    def _postprocess_query(self, context, query):
         ctes = set(ast.find_children(query, lambda i: isinstance(i, pgsql.ast.SelectQueryNode)))
         for cte in ctes:
             if cte.where_strong:
@@ -415,6 +423,33 @@ class CaosTreeTransformer(CaosExprTransformer):
             if cte.where_weak:
                 op = ast.ops.AND if getattr(cte.where, 'strong', False) else ast.ops.OR
                 cte.where = self.extend_predicate(cte.where, cte.where_weak, op)
+
+        outerbonds = getattr(query, 'outerbonds', ())
+        for outer_ref, inner_ref in outerbonds:
+            query.targets.append(inner_ref)
+
+            if query.aggregates:
+                query.groupby.append(inner_ref.expr)
+
+        if context.current.subquery_map:
+            from_expr = query.fromlist[0]
+            join_point = from_expr.expr
+
+            for subquery in context.current.subquery_map.values():
+                condition = None
+
+                for outer_ref, inner_ref in subquery.outerbonds:
+                    left = outer_ref.expr
+                    right = pgsql.ast.FieldRefNode(table=subquery, field=inner_ref.alias,
+                                                   origin=inner_ref.expr.origin,
+                                                   origin_field=inner_ref.expr.origin_field)
+                    comparison = pgsql.ast.BinOpNode(left=left, op=ast.ops.EQ, right=right)
+                    condition = self.extend_binop(condition, comparison)
+
+                join_point = pgsql.ast.JoinNode(type='left', left=join_point, right=subquery,
+                                                condition=condition)
+
+            from_expr.expr = join_point
 
     def _process_generator(self, context, generator):
         context.current.location = 'generator'
@@ -630,6 +665,32 @@ class CaosTreeTransformer(CaosExprTransformer):
         if isinstance(expr, tree.ast.GraphExpr):
             with context(TransformerContext.SUBQUERY):
                 result = self._transform_tree(context, expr)
+
+        elif isinstance(expr, tree.ast.SubgraphRef):
+            subgraph = expr.ref
+
+            if context.current.direct_subquery_ref:
+                subquery = self._process_expr(context, subgraph, cte)
+                condition = None
+
+                for outer_ref, inner_ref in subquery.outerbonds:
+                    left = outer_ref.expr
+                    right = inner_ref.expr
+                    comparison = pgsql.ast.BinOpNode(left=left, op=ast.ops.EQ, right=right)
+                    condition = self.extend_binop(condition, comparison)
+
+                subquery.where = self.extend_binop(subquery.where, condition)
+
+                result = subquery
+            else:
+                subquery = context.current.subquery_map.get(subgraph)
+                if subquery is None:
+                    subquery = self._process_expr(context, subgraph, cte)
+                    subquery.alias = context.current.genalias(hint='sq')
+                    context.current.subquery_map[subgraph] = subquery
+
+                result = pgsql.ast.FieldRefNode(table=subquery, field=expr.name,
+                                                origin=subquery, origin_field=expr.name)
 
         elif isinstance(expr, tree.ast.Disjunction):
             #context.current.append_graphs = True
@@ -910,7 +971,11 @@ class CaosTreeTransformer(CaosExprTransformer):
             result = fieldref
 
         elif isinstance(expr, tree.ast.ExistPred):
-            result = pgsql.ast.ExistsNode(expr=self._process_expr(context, expr.expr, cte))
+            with context(TransformerContext.NEW_TRANSPARENT):
+                context.current.direct_subquery_ref = True
+                expr = self._process_expr(context, expr.expr, cte)
+
+            result = pgsql.ast.ExistsNode(expr=expr)
 
         else:
             assert False, "Unexpected expression: %s" % expr
@@ -975,6 +1040,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             if expr.aggregates:
                 with context(context.NEW_TRANSPARENT):
                     context.current.in_aggregate = True
+                    context.current.query.aggregates = True
                     args = [self._process_expr(context, a, cte) for a in expr.args]
             else:
                 args = [self._process_expr(context, a, cte) for a in expr.args]
@@ -1413,13 +1479,12 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         if caos_path_tip and caos_path_tip.reference:
             outer_ref = context.current.concept_node_map[caos_path_tip.reference]
-            outer_ref = outer_ref['semantix.caos.builtins.id'].expr
+            outer_ref = outer_ref['semantix.caos.builtins.id']
 
-            field_name = common.caos_name_to_pg_name('semantix.caos.builtins.id')
-            inner_ref = pgsql.ast.FieldRefNode(table=concept_table, field=field_name,
-                                               origin=concept_table, origin_field=field_name)
-            joiner = pgsql.ast.BinOpNode(left=outer_ref, op=ast.ops.EQ, right=inner_ref, strong=True)
-            step_cte.where = self.extend_predicate(step_cte.where, joiner, ast.ops.AND)
+            inner_ref = context.current.concept_node_map[caos_path_tip]
+            inner_ref = inner_ref['semantix.caos.builtins.id']
+
+            context.current.query.outerbonds.append((outer_ref, inner_ref))
 
         if is_root:
             step_cte.fromlist.append(fromnode)

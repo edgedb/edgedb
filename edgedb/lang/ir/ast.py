@@ -98,11 +98,16 @@ class Base(ast.AST):
 
 class GraphExpr(Base):
     __fields = ['generator', ('selector', list), ('grouper', list), ('sorter', list),
-                'offset', 'limit', ('opselector', list), 'optarget', 'opvalues', 'op']
+                'offset', 'limit', ('opselector', list), 'optarget', 'opvalues', 'op',
+                ('subgraphs', set)]
 
 
 class Path(Base):
     pass
+
+
+class SubgraphRef(Path):
+    __fields = [('name', str, None), ('ref', Base, None, False)]
 
 
 class BaseRef(Path):
