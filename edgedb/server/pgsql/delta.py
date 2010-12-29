@@ -1205,7 +1205,9 @@ class DeleteSourceIndex(SourceIndexCommand, adapts=delta_cmds.DeleteSourceIndex)
             #
             table_name = common.get_table_name(source.proto, catenate=False)
             index_name = self.get_index_name(source.proto, index)
-            self.pgops.add(DropIndex((table_name[0], index_name), priority=3))
+            index_exists = IndexExists((table_name[0], index_name))
+            self.pgops.add(DropIndex((table_name[0], index_name), priority=3,
+                                     conditions=(index_exists,)))
 
         return index
 
