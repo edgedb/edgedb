@@ -1527,13 +1527,13 @@ class PointerMetaCommand(MetaCommand):
 
             host = self.get_host(meta, context)
 
-            if host and pointer.atomic() and new_name != new_name:
+            if host and pointer.atomic() and old_name != new_name:
                 table_name = common.get_table_name(host.proto, catenate=False)
 
-                prototype_name = common.caos_name_to_pg_name(new_name)
-                new_name = common.caos_name_to_pg_name(new_name)
+                old_col_name = common.caos_name_to_pg_name(old_name)
+                new_col_name = common.caos_name_to_pg_name(new_name)
 
-                rename = AlterTableRenameColumn(table_name, prototype_name, new_name)
+                rename = AlterTableRenameColumn(table_name, old_col_name, new_col_name)
                 self.pgops.add(rename)
 
         rec = self.table.record()
