@@ -1598,7 +1598,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                     cte = self.init_filter_cte(context, sql_path_tip, caos_path_tip)
                     pred = pgsql.ast.ExistsNode(expr=cte)
                     op = ast.ops.OR
-                    sql_path_tip.where = self.extend_predicate(sql_path_tip.where, pred, op)
+                    sql_path_tip.where_weak = self.extend_predicate(sql_path_tip.where_weak, pred, op)
 
                     with context(TransformerContext.NEW):
                         context.current.ignore_cardinality = True

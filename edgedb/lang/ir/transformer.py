@@ -430,12 +430,14 @@ class TreeTransformer:
     def _postprocess_expr(self, expr):
         if isinstance(expr, caos_ast.EntitySet):
             if self.context.current.location == 'generator':
-                if len(expr.disjunction.paths) == 1 and len(expr.conjunction.paths) == 0:
+                if len(expr.disjunction.paths) == 1 and len(expr.conjunction.paths) == 0 \
+                                                    and not expr.disjunction.fixed:
                     # Generator by default produces strong paths, that must limit every other
                     # path in the query.  However, to accommodate for possible disjunctions
                     # in generator expressions, links are put into disjunction.  If, in fact,
                     # there was not disjunctive expressions in generator, the link must
-                    # be turned into conjunction.
+                    # be turned into conjunction, but only if the disjunction was not merged
+                    # from a weak binary op, like OR.
                     #
                     expr.conjunction = caos_ast.Conjunction(paths=expr.disjunction.paths)
                     expr.disjunction = caos_ast.Disjunction()
@@ -485,7 +487,9 @@ class TreeTransformer:
             left = self.merge_paths(expr.left)
             right = self.merge_paths(expr.right)
 
-            if self.is_weak_op(expr.op):
+            weak_op = self.is_weak_op(expr.op)
+
+            if weak_op:
                 combination = caos_ast.Disjunction
             else:
                 combination = caos_ast.Conjunction
@@ -498,7 +502,9 @@ class TreeTransformer:
                     paths.add(operand)
 
             e = combination(paths=frozenset(paths))
-            merge_filters = self.context.current.location != 'generator'
+            merge_filters = self.context.current.location != 'generator' or weak_op
+            if merge_filters:
+                merge_filters = expr.op
             self.flatten_and_unify_path_combination(e, deep=False, merge_filters=merge_filters)
 
             if len(e.paths) > 1:
@@ -712,6 +718,12 @@ class TreeTransformer:
         if left is right:
             return left
 
+        if merge_filters:
+            if isinstance(merge_filters, ast.ops.Operator) and self.is_weak_op(merge_filters):
+                merge_op = ast.ops.OR
+            else:
+                merge_op = ast.ops.AND
+
         match = self.match_prefixes(left, right, ignore_filters=merge_filters)
         if match:
             if isinstance(left, caos_ast.EntityLink):
@@ -728,7 +740,7 @@ class TreeTransformer:
                 self.fixup_refs([right_link], left_link)
                 if merge_filters and right_link.propfilter:
                     left_link.propfilter = self.extend_binop(left_link.propfilter,
-                                                             right_link.propfilter, op=ast.ops.AND)
+                                                             right_link.propfilter, op=merge_op)
 
                 left_link.proprefs.update(right_link.proprefs)
                 left_link.users.update(right_link.users)
@@ -754,6 +766,10 @@ class TreeTransformer:
 
                 left.disjunction = self.add_paths(left.disjunction,
                                                   right.disjunction, merge_filters)
+
+                if merge_filters and merge_op == ast.ops.OR:
+                    left.disjunction.fixed = True
+
                 left.atomrefs.update(right.atomrefs)
                 left.metarefs.update(right.metarefs)
                 left.users.update(right.users)
@@ -770,7 +786,7 @@ class TreeTransformer:
                     # If greedy disjunction merging is requested, we must also try to
                     # merge disjunctions.
                     paths = frozenset(left.conjunction.paths) | frozenset(left.disjunction.paths)
-                    self.unify_paths(paths, caos_ast.Conjunction, reverse=False, merge_filters=True)
+                    self.unify_paths(paths, caos_ast.Conjunction, reverse=False, merge_filters=merge_filters)
                     left.disjunction.paths = left.disjunction.paths - left.conjunction.paths
                 else:
                     conjunction = self.add_paths(left.conjunction, right.conjunction, merge_filters)
