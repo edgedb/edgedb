@@ -3786,7 +3786,7 @@ class AlterTableSetSchema(AlterTableBase):
 
     def code(self, context):
         code = super().code(context)
-        code += ' SET SCHEMA %s ' % common.quote_ident(self.new_name)
+        code += ' SET SCHEMA %s ' % common.quote_ident(self.schema)
         return code
 
 
