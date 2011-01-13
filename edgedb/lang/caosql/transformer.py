@@ -17,16 +17,30 @@ from semantix.caos.caosql import parser as caosql_parser
 
 
 class ParseContextLevel(object):
-    def __init__(self, prevlevel=None):
+    def __init__(self, prevlevel=None, mode=None):
         if prevlevel is not None:
-            self.anchors = prevlevel.anchors
-            self.namespaces = prevlevel.namespaces
-            self.location = prevlevel.location
-            self.groupprefixes = prevlevel.groupprefixes
-            self.in_aggregate = prevlevel.in_aggregate[:]
-            self.arguments = prevlevel.arguments
-            self.proto_schema = prevlevel.proto_schema
+            if mode == ParseContext.SUBQUERY:
+                self.graph = None
+                self.anchors = {}
+                self.namespaces = prevlevel.namespaces.copy()
+                self.location = None
+                self.groupprefixes = None
+                self.in_aggregate = []
+                self.arguments = prevlevel.arguments
+                self.proto_schema = prevlevel.proto_schema
+                self.module_aliases = prevlevel.module_aliases
+            else:
+                self.graph = prevlevel.graph
+                self.anchors = prevlevel.anchors
+                self.namespaces = prevlevel.namespaces
+                self.location = prevlevel.location
+                self.groupprefixes = prevlevel.groupprefixes
+                self.in_aggregate = prevlevel.in_aggregate[:]
+                self.arguments = prevlevel.arguments
+                self.proto_schema = prevlevel.proto_schema
+                self.module_aliases = prevlevel.module_aliases
         else:
+            self.graph = None
             self.anchors = {}
             self.namespaces = {}
             self.location = None
@@ -34,15 +48,18 @@ class ParseContextLevel(object):
             self.in_aggregate = []
             self.arguments = {}
             self.proto_schema = None
+            self.module_aliases = None
 
 
 class ParseContext(object):
+    CURRENT, NEW, SUBQUERY = range(0, 3)
+
     def __init__(self):
         self.stack = []
         self.push()
 
-    def push(self):
-        level = ParseContextLevel(self.current)
+    def push(self, mode=None):
+        level = ParseContextLevel(self.current, mode)
         self.stack.append(level)
 
         return level
@@ -50,8 +67,10 @@ class ParseContext(object):
     def pop(self):
         self.stack.pop()
 
-    def __call__(self):
-        return ParseContextWrapper(self)
+    def __call__(self, mode=None):
+        if not mode:
+            mode = ParseContext.NEW
+        return ParseContextWrapper(self, mode)
 
     def _current(self):
         if len(self.stack) > 0:
@@ -63,12 +82,16 @@ class ParseContext(object):
 
 
 class ParseContextWrapper(object):
-    def __init__(self, context):
+    def __init__(self, context, mode):
         self.context = context
+        self.mode = mode
 
     def __enter__(self):
-        self.context.push()
-        return self.context
+        if self.mode == ParseContext.CURRENT:
+            return self.context
+        else:
+            self.context.push()
+            return self.context
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.context.pop()
@@ -292,6 +315,9 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         graph.result_types = self.get_selector_types(graph.selector, self.proto_schema)
         graph.argument_types = self.context.current.arguments
 
+        path_idx = self.build_paths_index(graph)
+        self.link_subqueries(graph, path_idx)
+
         return graph
 
     def _process_select_where(self, context, where):
@@ -371,7 +397,14 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
     def _process_expr(self, context, expr, *, selector_top_level=False):
         node = None
 
-        if isinstance(expr, qlast.BinOpNode):
+        if isinstance(expr, qlast.SelectQueryNode):
+            with self.context(ParseContext.SUBQUERY):
+                node = self._transform_select(context, expr, self.arg_types)
+
+            context.current.graph.subgraphs.add(node)
+            node = tree.ast.SubgraphRef(ref=node, name='*')
+
+        elif isinstance(expr, qlast.BinOpNode):
             left = self._process_expr(context, expr.left)
             right = self._process_expr(context, expr.right)
             node = self.process_binop(left, right, expr.op)
@@ -423,6 +456,9 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
         elif isinstance(expr, qlast.UnaryOpNode):
             node = self.process_unaryop(self._process_expr(context, expr.operand), expr.op)
+
+        elif isinstance(expr, qlast.ExistsPredicateNode):
+            node = tree.ast.ExistPred(expr=self._process_expr(context, expr.expr))
 
         else:
             assert False, "Unexpected expr: %s" % expr

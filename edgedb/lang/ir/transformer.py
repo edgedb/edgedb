@@ -399,20 +399,39 @@ class TreeTransformer:
         return expr
 
 
+    def build_paths_index(self, graph):
+        paths = self.extract_paths(graph, reverse=True, resolve_arefs=False,
+                                   recurse_subqueries='once')
+
+        if isinstance(paths, caos_ast.PathCombination):
+            self.flatten_path_combination(paths, recursive=True)
+            paths = paths.paths
+        else:
+            paths = [paths]
+
+        path_idx = datastructures.Multidict()
+        for path in paths:
+            if isinstance(path, caos_ast.EntitySet):
+                path_idx.add(path.id, path)
+
+        return path_idx
+
+
     def link_subqueries(self, expr, paths):
         subpaths = self.extract_paths(expr, reverse=True, resolve_arefs=False,
                                       recurse_subqueries=True)
 
-        if not isinstance(subpaths, caos_ast.EntitySet):
+        if isinstance(subpaths, caos_ast.PathCombination):
             self.flatten_path_combination(subpaths, recursive=True)
             subpaths = subpaths.paths
         else:
             subpaths = {subpaths}
 
         for subpath in subpaths:
-            outer = paths.getlist(subpath.id)
-            if outer and subpath not in outer:
-                subpath.reference = outer[0]
+            if isinstance(subpath, caos_ast.EntitySet):
+                outer = paths.getlist(subpath.id)
+                if outer and subpath not in outer:
+                    subpath.reference = outer[0]
 
 
     def postprocess_expr(self, expr):

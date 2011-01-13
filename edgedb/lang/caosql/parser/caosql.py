@@ -534,8 +534,7 @@ class Expr(Nonterm):
 
     def reduce_EXISTS_SelectWithParens(self, *kids):
         "%reduce EXISTS SelectWithParens"
-        self.val = kids[1].val
-        raise CaosQLSyntaxError('subqueries are not supported yet')
+        self.val = qlast.ExistsPredicateNode(expr=kids[1].val)
 
     def reduce_Sequence(self, *kids):
         assert False
