@@ -90,10 +90,18 @@ class Datasource(object):
             filtered[name] = value
 
         if filters:
-            for name, value in filters.items():
-                filtered['__filter%s' % name] = value
+            extra_filters = filters.copy()
 
-        return filtered
+            for name, value in filters.items():
+                if name not in self.params:
+                    filtered['__filter%s' % name] = value
+                else:
+                    filtered[name] = self.check_type(name, value, self.params[name]['type'])
+                    del extra_filters[name]
+        else:
+            extra_filters = None
+
+        return filtered, extra_filters
 
     def fetch(self, *, _filters=None, _sort=None, **params):
         raise NotImplementedError

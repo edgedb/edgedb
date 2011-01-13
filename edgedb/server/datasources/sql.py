@@ -26,7 +26,7 @@ class Sql(Datasource):
     @debug
     def fetch(self, **params):
         cursor = CompatCursor(self.connection)
-        params = self._filter_params(params)
+        params, extra_filters = self._filter_params(params)
 
         key = None
         if self.caching:

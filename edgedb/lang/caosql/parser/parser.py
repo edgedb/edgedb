@@ -24,7 +24,8 @@ class CaosQLParser(parsing.Parser):
     def get_exception(self, native_err):
         return CaosQLQueryError(native_err.args[0])
 
-    def normalize_select_query(self, query, filters=None, sort=None, context=None):
+    def normalize_select_query(self, query, filters=None, sort=None, limit=None, offset=None,
+                                     context=None):
         nodetype = type(query)
         arg_types = {}
 
@@ -104,12 +105,14 @@ class CaosQLParser(parsing.Parser):
                     err = 'filters reference column %s which is not in query targets' % name
                     raise CaosQLQueryError(err)
 
+                const = qlast.ConstantNode(value=None, index='__filter%s' % name)
+                arg_types['__filter%s' % name] = value.__class__
+
+                filter_expr = qlast.BinOpNode(left=target, right=const, op=ast.ops.EQ)
                 if qtree.where:
-                    const = qlast.ConstantNode(value=None, index='__filter%s' % name)
-                    arg_types['__filter%s' % name] = value.__class__
-                    left = qtree.where
-                    right = qlast.BinOpNode(left=target, right=const, op=ast.ops.EQ)
-                    qtree.where = qlast.BinOpNode(left=left, right=right, op=ast.ops.AND)
+                    qtree.where = qlast.BinOpNode(left=qtree.where, right=filter_expr, op=ast.ops.AND)
+                else:
+                    qtree.where = filter_expr
 
         if sort:
             targets = {t.alias: t.expr for t in qtree.targets}
@@ -124,5 +127,13 @@ class CaosQLParser(parsing.Parser):
                 newsort.append(qlast.SortExprNode(path=target, direction=direction))
 
             qtree.orderby = newsort
+
+        if limit:
+            qtree.limit = qlast.ConstantNode(value=None, index='__limit')
+            arg_types['__limit'] = int
+
+        if offset:
+            qtree.offset = qlast.ConstantNode(value=None, index='__offset')
+            arg_types['__offset'] = int
 
         return qtree, arg_types
