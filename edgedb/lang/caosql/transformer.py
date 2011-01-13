@@ -548,25 +548,11 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                 for concept, tip in tips.items():
                     module = link_expr.namespace
-                    source_and_link = self._normalize_link(context, concept, link_expr.name,
-                                                           module)
-
-                    if not source_and_link:
-                        raise errors.CaosQLReferenceError('reference to an undefined link "%s"' \
-                                                          % link_expr.name)
-
-                    sources, link_protos = source_and_link
+                    sources, link_protos, outbound, inbound = self._normalize_link(context, concept,
+                                                                                   link_expr.name,
+                                                                                   direction, module)
 
                     seen_concepts = seen_atoms = False
-                    all_links = link_protos[0].name == 'semantix.caos.builtins.link'
-
-                    inbound = set()
-                    outbound = set()
-                    for source in sources:
-                        out, inb = source.match_links(self.proto_schema, link_protos,
-                                                      direction, skip_atomic=all_links)
-                        outbound.update(out)
-                        inbound.update(inb)
 
                     if len(sources) > 1 or list(sources)[0] != concept:
                         newtip = set()
@@ -716,9 +702,12 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                             id = entset.id
 
                         link_proto = next(iter(link.filter.labels))
-                        sources, prop_protos = self._normalize_link(context, link_proto,
-                                                                    link_expr.name, module,
-                                                                    type=caos_types.ProtoLinkProperty)
+                        sources, prop_protos, outbound, inbound = \
+                                self._normalize_link(context, link_proto,
+                                                     link_expr.name,
+                                                     caos_types.OutboundDirection,
+                                                     module,
+                                                     type=caos_types.ProtoLinkProperty)
 
                         for prop_proto in prop_protos:
                             propref = tree.ast.LinkPropRefSimple(name=prop_proto.name, ref=link,
@@ -732,40 +721,65 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         paths = itertools.chain.from_iterable(tips.values())
         return tree.ast.Disjunction(paths=frozenset(paths))
 
-    def _normalize_link(self, context, concept, link, namespace, type=caos_types.ProtoLink):
-        if link == '%':
-            links = [self.proto_schema.get(name='semantix.caos.builtins.link')]
+    def _normalize_link(self, context, concept, link, direction, namespace, type=caos_types.ProtoLink):
+
+        if direction == caos_types.InboundDirection and link != '%':
+            if namespace:
+                link_name = caos_name.Name(name=link, module=namespace)
+            else:
+                link_name = link
+
+            outbound, inbound = concept.match_links_by_name(self.proto_schema, [link_name],
+                                                            direction)
+
             sources = [concept]
+            links = {self.proto_schema.get(l.normal_name(), type=type) for l in
+                     itertools.chain(outbound, inbound)}
         else:
-            if not namespace:
-                assert '%' not in link
-                linkset = concept.get_attr(self.proto_schema, link)
+            if link == '%':
+                links = [self.proto_schema.get(name='semantix.caos.builtins.link')]
+                sources = [concept]
+            else:
+                if not namespace:
+                    assert '%' not in link
+                    linkset = concept.get_attr(self.proto_schema, link)
 
-                if not linkset:
-                    children, link_name = concept.get_closest_children_defining_pointer(
-                                                                            self.proto_schema, link)
+                    if not linkset:
+                        children, link_name = concept.get_closest_children_defining_pointer(
+                                                                                self.proto_schema, link)
 
-                    if not children:
-                        raise errors.CaosQLReferenceError('"%s" is not a valid pointer of "%s"' \
-                                                          % (link, concept.name))
+                        if not children:
+                            raise errors.CaosQLReferenceError('"%s" is not a valid pointer of "%s"' \
+                                                              % (link, concept.name))
 
-                    sources = children
-                    links = [self.proto_schema.get(link_name, type=type)]
+                        sources = children
+                        links = [self.proto_schema.get(link_name, type=type)]
+
+                    else:
+                        links = [self.proto_schema.get(linkset.normal_name(), type=type)]
+                        sources = [concept]
 
                 else:
-                    links = [self.proto_schema.get(linkset.normal_name(), type=type)]
+                    name = caos_name.Name(name=link, module=namespace)
+                    links = self.proto_schema.match(name=name, module_aliases=context.current.namespaces,
+                                                    type=type)
+                    if not links:
+                        raise errors.CaosQLReferenceError('no valid pointers of "%s" match "%s"' \
+                                                          % (concept.name, link))
                     sources = [concept]
 
-            else:
-                name = caos_name.Name(name=link, module=namespace)
-                links = self.proto_schema.match(name=name, module_aliases=context.current.namespaces,
-                                                type=type)
-                if not links:
-                    raise errors.CaosQLReferenceError('no valid pointers of "%s" match "%s"' \
-                                                      % (concept.name, link))
-                sources = [concept]
+            all_links = links[0].name == 'semantix.caos.builtins.link'
 
-        return sources, links
+            inbound = set()
+            outbound = set()
+
+            if issubclass(type, caos_types.ProtoLink):
+                for source in sources:
+                    out, inb = source.match_links(self.proto_schema, links, direction, skip_atomic=all_links)
+                    outbound.update(out)
+                    inbound.update(inb)
+
+        return sources, links, outbound, inbound
 
     def _normalize_concept(self, context, concept, namespace):
         if concept == '%':
