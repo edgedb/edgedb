@@ -57,8 +57,10 @@ class Cursor:
 
     def seek(self, offset, whence='set'):
         if whence == 'set':
-            result = self.dbcursor.seek(offset, 'ABSOLUTE')
-            self.cursor_pos = result
+            if offset != self.cursor_pos:
+                self.dbcursor.seek(0, 'ABSOLUTE')
+                result = self.dbcursor.seek(offset, 'FORWARD')
+                self.cursor_pos = result
         elif whence == 'cur':
             result = self.dbcursor.seek(offset, 'FORWARD')
             self.cursor_pos += result
@@ -71,11 +73,31 @@ class Cursor:
     def tell(self):
         return self.cursor_pos
 
+    def count(self, total=False):
+        current = self.tell()
+
+        if total:
+            self.seek(0)
+            result = self.seek(0, 'end')
+        else:
+            offset = self.offset if self.offset is not None else 0
+            limit = self.limit if self.limit else 'ALL'
+
+            self.seek(offset)
+            result = self.seek(limit, 'cur')
+            result -= offset
+
+        self.seek(current)
+        return result
+
     def __iter__(self):
         if self.offset:
-            self.seek(self.offset, 'set')
+            self.seek(self.offset)
+            offset = self.offset
+        else:
+            offset = 0
 
-        while self.limit is None or self.cursor_pos <= self.limit:
+        while self.limit is None or self.cursor_pos < offset + self.limit:
             self.cursor_pos += 1
             yield next(self.dbcursor)
 
