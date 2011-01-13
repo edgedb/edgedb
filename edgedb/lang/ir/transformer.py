@@ -1576,7 +1576,12 @@ class TreeTransformer:
                     # Type check expression: <path> IS [NOT] <concept>
 
                     paths = set()
+                    backrefs = set()
 
+                    # XXX: this should be turned into a proper filter
+                    # and moved to postprocessing stage after all merging
+                    # was complete.
+                    #
                     for path in left_exprs.paths:
                         if op == ast.ops.IS:
                             if path.concept.issubclass(self.context.current.proto_schema, right):
@@ -1587,6 +1592,13 @@ class TreeTransformer:
                                 if filtered[path.concept]:
                                     path.conceptfilter = filtered
                                 paths.add(path)
+
+                        for backref in path.backrefs:
+                            if isinstance(backref, caos_ast.PathCombination):
+                                backrefs.add(backref)
+
+                    for backref in backrefs:
+                        backref.paths = frozenset(paths)
 
                     result = self.path_from_set(paths)
 
