@@ -355,7 +355,11 @@ class CaosTreeTransformer(CaosExprTransformer):
             print(highlight(qtext, 'sql'))
             """
         except Exception as e:
-            err = tree.transformer.InternalTreeTransformerError(e.args[0])
+            try:
+                args = [e.args[0]]
+            except (AttributeError, KeyError):
+                args = []
+            err = tree.transformer.InternalTreeTransformerError(*args)
             err.tree_context = tree.transformer.TreeTransformerExceptionContext(tree=query)
             raise err from e
 
