@@ -136,19 +136,17 @@ class PreparedQuery:
     def describe_arguments(self):
         return self.query.describe_arguments()
 
-    def __call__(self, *args, **kwargs):
-        vars = self.convert_args(args, kwargs)
+    def __call__(self, **kwargs):
+        vars = self.convert_args(kwargs)
 
         if self.query.scrolling_cursor:
             if self.query.limit:
-                limit = vars[self.query.limit.index]
-                vars.pop()
+                limit = kwargs.pop(self.query.limit.index)
             else:
                 limit = None
 
             if self.query.offset:
-                offset = vars[self.query.offset.index]
-                vars.pop()
+                offset = kwargs.pop(self.query.offset.index)
             else:
                 offset = None
 
@@ -156,20 +154,20 @@ class PreparedQuery:
         else:
             return self.statement(*vars)
 
-    def first(self, *args, **kwargs):
-        vars = self.convert_args(args, kwargs)
+    def first(self, **kwargs):
+        vars = self.convert_args(kwargs)
         return self.statement.first(*vars)
 
-    def rows(self, *args, **kwargs):
-        vars = self.convert_args(args, kwargs)
+    def rows(self, **kwargs):
+        vars = self.convert_args(kwargs)
 
         if self.scrolling_cursor:
             return Cursor(self.statement.declare(*vars), self.query.offset, self.query.limit)
         else:
             return self.statement.rows(vars)
 
-    def convert_args(self, args, kwargs):
-        result = list(args) or []
+    def convert_args(self, kwargs):
+        result = []
         for k in self.query.argmap:
             arg = kwargs[k]
             if isinstance(arg, caos.concept.Concept):
