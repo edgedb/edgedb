@@ -448,7 +448,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                    origin=inner_ref.expr.origin,
                                                    origin_field=inner_ref.expr.origin_field)
                     comparison = pgsql.ast.BinOpNode(left=left, op=ast.ops.EQ, right=right)
-                    condition = self.extend_binop(condition, comparison)
+                    condition = self.extend_binop(condition, comparison, cls=pgsql.ast.BinOpNode)
 
                 join_point = pgsql.ast.JoinNode(type='left', left=join_point, right=subquery,
                                                 condition=condition)
@@ -681,9 +681,9 @@ class CaosTreeTransformer(CaosExprTransformer):
                     left = outer_ref.expr
                     right = inner_ref.expr
                     comparison = pgsql.ast.BinOpNode(left=left, op=ast.ops.EQ, right=right)
-                    condition = self.extend_binop(condition, comparison)
+                    condition = self.extend_binop(condition, comparison, cls=pgsql.ast.BinOpNode)
 
-                subquery.where = self.extend_binop(subquery.where, condition)
+                subquery.where = self.extend_binop(subquery.where, condition, cls=pgsql.ast.BinOpNode)
 
                 result = subquery
             else:

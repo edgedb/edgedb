@@ -294,16 +294,16 @@ class TreeTransformer:
         else:
             print('None')
 
-    def extend_binop(self, binop, *exprs, op=ast.ops.AND, reversed=False):
+    def extend_binop(self, binop, *exprs, op=ast.ops.AND, reversed=False, cls=caos_ast.BinOp):
         exprs = list(exprs)
         binop = binop or exprs.pop(0)
 
         for expr in exprs:
             if expr is not binop:
                 if reversed:
-                    binop = caos_ast.BinOp(right=binop, op=op, left=expr)
+                    binop = cls(right=binop, op=op, left=expr)
                 else:
-                    binop = caos_ast.BinOp(left=binop, op=op, right=expr)
+                    binop = cls(left=binop, op=op, right=expr)
 
         return binop
 
