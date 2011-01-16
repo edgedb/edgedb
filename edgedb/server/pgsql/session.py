@@ -36,14 +36,14 @@ class Transaction(session.Transaction):
     @debug
     def _begin_impl(self):
         """LOG [caos.sql]
-        print('BEGIN %r' % self.xact)
+        print('BEGIN %r[%d]' % (self.xact, len(list(self.chain()))))
         """
         self.xact.begin()
 
     @debug
     def _rollback_impl(self):
         """LOG [caos.sql]
-        print('ROLLBACK %r' % self.xact)
+        print('ROLLBACK %r[%d]' % (self.xact, len(list(self.chain()))))
         """
         self.xact.rollback()
         self.xact = None
@@ -51,7 +51,7 @@ class Transaction(session.Transaction):
     @debug
     def _commit_impl(self):
         """LOG [caos.sql]
-        print('COMMIT %r' % self.xact)
+        print('COMMIT %r[%d]' % (self.xact, len(list(self.chain()))))
         """
         self.xact.commit()
         self.xact = None
