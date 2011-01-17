@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2011 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -625,33 +625,39 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         idquery = delta_cmds.Query(text='caos.uuid_generate_v1mc()', params=(), type='uuid')
         now = delta_cmds.Query(text="'NOW'", params=(), type='timestamptz')
 
+        is_object = issubclass(cls, session.schema.semantix.caos.builtins.Object)
+
         with connection.xact():
 
             attrs = {}
             for link_name, link_cls in cls:
                 if isinstance(link_cls, caos.types.AtomClass) and \
                                                     link_name != 'semantix.caos.builtins.id':
-                    if not isinstance(link_cls._class_metadata.link, caos.types.ComputableClass):
+                    if not isinstance(link_cls._class_metadata.link, caos.types.ComputableClass) \
+                                                                        and link_name in links:
                         attrs[common.caos_name_to_pg_name(link_name)] = links[link_name]
 
             rec = table.record(**attrs)
 
             returning = ['"semantix.caos.builtins.id"']
-            if issubclass(cls, session.schema.semantix.caos.builtins.Object):
+            if is_object:
                 returning.extend(('"semantix.caos.builtins.ctime"',
                                   '"semantix.caos.builtins.mtime"'))
 
             if id is not None:
-                if issubclass(cls, session.schema.semantix.caos.builtins.Object):
+                condition = [('semantix.caos.builtins.id', id)]
+
+                if is_object:
                     setattr(rec, 'semantix.caos.builtins.mtime', now)
+                    condition.append(('semantix.caos.builtins.mtime', entity.mtime))
 
                 cmd = delta_cmds.Update(table=table, record=rec,
-                                        condition=[('semantix.caos.builtins.id', id)],
+                                        condition=condition,
                                         returning=returning)
             else:
                 setattr(rec, 'semantix.caos.builtins.id', idquery)
 
-                if issubclass(cls, session.schema.semantix.caos.builtins.Object):
+                if is_object:
                     setattr(rec, 'semantix.caos.builtins.ctime', now)
                     setattr(rec, 'semantix.caos.builtins.mtime', now)
 
@@ -666,8 +672,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             id = list(rows)
             if not id:
-                err = 'could not store "%s" entity' % concept
-                raise caos.error.StorageError(err)
+                err = 'session state of "%s"(%s) conflicts with persistent state' % \
+                      (prototype.name, entity.id)
+                raise caos.session.StaleEntityStateError(err, entity=entity)
+
             id = id[0]
 
             """LOG [caos.sync]
@@ -675,7 +683,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     (concept, id[0], (data['name'] if 'name' in data else '')))
             """
 
-            if issubclass(cls, session.schema.semantix.caos.builtins.Object):
+            if is_object:
                 updates = {'id': id[0], 'ctime': id[1], 'mtime': id[2]}
             else:
                 updates = {'id': id[0]}
@@ -929,13 +937,36 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def delete_entities(self, entities, session):
         key = lambda i: i.__class__._metadata.name
         result = set()
+        modstat_t = common.qname(*delta_cmds.EntityModStatType().name)
+
         for concept, entities in itertools.groupby(sorted(entities, key=key), key=key):
             table = common.concept_name_to_table_name(concept)
-            query = '''DELETE FROM %s WHERE "semantix.caos.builtins.id" = any($1)
-                       RETURNING "semantix.caos.builtins.id"''' % table
 
-            result.update(self.runquery(query, ([e.id for e in entities],), session.connection,
-                                                                            compat=False))
+            bunch = {(e.id, e.mtime): e for e in entities}
+
+            query = '''DELETE FROM %s
+                       WHERE
+                           ("semantix.caos.builtins.id", "semantix.caos.builtins.mtime")
+                           = any($1::%s[])
+                       RETURNING
+                           "semantix.caos.builtins.id", "semantix.caos.builtins.mtime"
+                    ''' % (table, modstat_t)
+
+            deleted = list(self.runquery(query, (bunch,), session.connection, compat=False))
+
+            if len(deleted) < len(bunch):
+                # Not everything was removed
+                diff = set(bunch) - set(deleted)
+
+                first = next(iter(diff))
+                entity = bunch[first]
+                prototype = caos.types.prototype(entity.__class__)
+
+                err = 'session state of "%s"(%s) conflicts with persistent state' % \
+                      (prototype.name, entity.id)
+                raise caos.session.StaleEntityStateError(err, entity=entity)
+
+            result.update(deleted)
         return result
 
 

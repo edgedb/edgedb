@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2011 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -2407,6 +2407,12 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
                                    neg_conditions=[TableExists(name=computabletable.name)],
                                    priority=-1))
 
+        entity_modstat_type = EntityModStatType()
+        self.pgops.add(CreateCompositeType(type=entity_modstat_type,
+                                neg_conditions=[CompositeTypeExists(name=entity_modstat_type.name)],
+                                priority=-1))
+
+
         self.update_mapping_indexes = UpdateMappingIndexes()
 
         delta_cmds.AlterRealm.apply(self, meta, context)
@@ -2908,22 +2914,28 @@ class MappingIndex(Index):
                   'pred': predicate}
 
 
-class Table(DBObject):
+class CompositeDBObject(DBObject):
     def __init__(self, name):
         super().__init__()
-
         self.name = name
-        self.__columns = datastructures.OrderedSet()
-        self._columns = []
-        self.constraints = set()
-        self.bases = set()
-        self.data = []
 
     @property
     def record(self):
         return datastructures.Record(self.__class__.__name__ + '_record',
                                      [c.name for c in self._columns],
                                      default=Default)
+
+
+class Table(CompositeDBObject):
+    def __init__(self, name):
+        super().__init__(name)
+
+        self.__columns = datastructures.OrderedSet()
+        self._columns = []
+
+        self.constraints = set()
+        self.bases = set()
+        self.data = []
 
     def columns(self, writable_only=False, only_self=False):
         cols = []
@@ -3133,6 +3145,21 @@ class ComputableTable(MetaObjectTable):
         ])
 
         self._columns = self.columns()
+
+
+class CompositeType(CompositeDBObject):
+    def columns(self):
+        return self.__columns
+
+
+class EntityModStatType(CompositeType):
+    def __init__(self):
+        super().__init__(name=('caos', 'entity_modstat_rec_t'))
+
+        self._columns = datastructures.OrderedSet([
+            Column(name='semantix.caos.builtins.id', type='uuid'),
+            Column(name='semantix.caos.builtins.mtime', type='timestamptz'),
+        ])
 
 
 class Feature:
@@ -3562,6 +3589,43 @@ class AlterTable(AlterTableBase):
 
     def __call__(self, typ):
         return filter(lambda i: isinstance(i, typ), self.ops)
+
+
+class CompositeTypeExists(Condition):
+    def __init__(self, name):
+        self.name = name
+
+    def code(self, context):
+        code = '''SELECT
+                        typname
+                    FROM
+                        pg_catalog.pg_type typ
+                        INNER JOIN pg_catalog.pg_namespace nsp ON nsp.oid = typ.typnamespace
+                    WHERE
+                        nsp.nspname = $1 AND typ.typname = $2'''
+        return code, self.name
+
+
+class CreateCompositeType(SchemaObjectOperation):
+    def __init__(self, type, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(type.name, conditions=conditions, neg_conditions=neg_conditions,
+                         priority=priority)
+        self.type = type
+
+    def code(self, context):
+        elems = [c.code(context) for c in self.type._columns]
+
+        name = common.qname(*self.type.name)
+        cols = ', '.join(c for c in elems)
+
+        code = 'CREATE TYPE %s AS (%s)' % (name, cols)
+
+        return code
+
+
+class DropCompositeType(SchemaObjectOperation):
+    def code(self, context):
+        return 'DROP TYPE %s' % common.qname(*self.name)
 
 
 class IndexExists(Condition):
