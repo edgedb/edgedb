@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2011 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -423,7 +423,8 @@ class CaosTreeTransformer(CaosExprTransformer):
         ctes = set(ast.find_children(query, lambda i: isinstance(i, pgsql.ast.SelectQueryNode)))
         for cte in ctes:
             if cte.where_strong:
-                cte.where = self.extend_predicate(cte.where, cte.where_strong, ast.ops.AND)
+                cte.where = self.extend_predicate(cte.where, cte.where_strong, ast.ops.AND,
+                                                  strong=getattr(cte.where_strong, 'strong', False))
             if cte.where_weak:
                 op = ast.ops.AND if getattr(cte.where, 'strong', False) else ast.ops.OR
                 cte.where = self.extend_predicate(cte.where, cte.where_weak, op)
@@ -1421,16 +1422,26 @@ class CaosTreeTransformer(CaosExprTransformer):
             # Switch context to node filter and make the concept table available for
             # atoms in filter expression to reference.
             #
+
+            weak_filter = weak
+
+            parent_expr = caos_path_tip.filter.parent
+
+            if isinstance(parent_expr, tree.ast.InlineFilter):
+                expr = parent_expr.parent
+                if isinstance(expr, tree.ast.BinOp):
+                    weak_filter = expr.op in (ast.ops.OR, ast.ops.IN, ast.ops.NOT_IN)
+
             context.push()
             context.current.location = 'nodefilter'
             context.current.concept_node_map[caos_path_tip] = {'data': concept_table}
             expr = self._process_expr(context, caos_path_tip.filter)
             if expr:
-                expr = pgsql.ast.PredicateNode(expr=expr)
-                if weak:
+                if weak_filter:
                     step_cte.where_weak = self.extend_predicate(step_cte.where_weak, expr, ast.ops.OR)
                 else:
-                    step_cte.where_strong = self.extend_predicate(step_cte.where_strong, expr, ast.ops.AND)
+                    step_cte.where_strong = self.extend_predicate(step_cte.where_strong, expr, ast.ops.AND,
+                                                                  strong=True)
 
             context.pop()
 
@@ -1501,10 +1512,12 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         return step_cte
 
-    def extend_predicate(self, predicate, expr, op=ast.ops.AND):
+    def extend_predicate(self, predicate, expr, op=ast.ops.AND, strong=False):
         if predicate is not None:
-            return pgsql.ast.BinOpNode(op=op, left=predicate, right=expr)
+            return pgsql.ast.BinOpNode(op=op, left=predicate, right=expr, strong=strong)
         else:
+            if isinstance(expr, pgsql.ast.BinOpNode):
+                expr.strong = strong
             return expr
 
     def init_filter_cte(self, context, sql_path_tip, caos_path_tip):
