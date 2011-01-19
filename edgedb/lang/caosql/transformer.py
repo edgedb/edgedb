@@ -29,6 +29,7 @@ class ParseContextLevel(object):
                 self.arguments = prevlevel.arguments
                 self.proto_schema = prevlevel.proto_schema
                 self.module_aliases = prevlevel.module_aliases
+                self.aliascnt = prevlevel.aliascnt.copy()
             else:
                 self.graph = prevlevel.graph
                 self.anchors = prevlevel.anchors
@@ -39,6 +40,7 @@ class ParseContextLevel(object):
                 self.arguments = prevlevel.arguments
                 self.proto_schema = prevlevel.proto_schema
                 self.module_aliases = prevlevel.module_aliases
+                self.aliascnt = prevlevel.aliascnt
         else:
             self.graph = None
             self.anchors = {}
@@ -49,6 +51,20 @@ class ParseContextLevel(object):
             self.arguments = {}
             self.proto_schema = None
             self.module_aliases = None
+            self.aliascnt = {}
+
+    def genalias(self, hint=None):
+        if hint is None:
+            hint = 'a'
+
+        if hint not in self.aliascnt:
+            self.aliascnt[hint] = 1
+        else:
+            self.aliascnt[hint] += 1
+
+        alias = hint + str(self.aliascnt[hint])
+
+        return alias
 
 
 class ParseContext(object):
@@ -402,7 +418,12 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 node = self._transform_select(context, expr, self.arg_types)
 
             context.current.graph.subgraphs.add(node)
-            node = tree.ast.SubgraphRef(ref=node, name='*')
+
+            if len(node.selector) > 1:
+                err = ('subquery must return only one column')
+                raise errors.CaosQLError(err)
+
+            node = tree.ast.SubgraphRef(ref=node, name=node.selector[0].name)
 
         elif isinstance(expr, qlast.BinOpNode):
             left = self._process_expr(context, expr.left)
@@ -800,7 +821,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             for target in targets:
                 expr = self._process_expr(context, target.expr, selector_top_level=True)
                 expr = self.merge_paths(expr)
-                t = tree.ast.SelectorExpr(expr=expr, name=target.alias)
+                alias = target.alias or context.current.genalias()
+                t = tree.ast.SelectorExpr(expr=expr, name=alias)
                 selector.append(t)
 
         return selector

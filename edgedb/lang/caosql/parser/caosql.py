@@ -219,8 +219,8 @@ class Result(Nonterm):
 
 
 class Stmt(Nonterm):
-    def reduce_SelectStmt(self, *kids):
-        "%reduce SelectStmt"
+    def reduce_SelectNoParens(self, *kids):
+        "%reduce SelectNoParens"
         self.val = kids[0].val
 
 
@@ -525,12 +525,9 @@ class Expr(Nonterm):
         "%reduce FuncExpr"
         self.val = kids[0].val
 
-    """
     def reduce_SelectWithParens(self, *kids):
-        "%reduce SelectWithParens"
+        "%reduce SelectWithParens [P_UMINUS]"
         self.val = kids[0].val
-        raise CaosQLSyntaxError('subqueries are not supported yet')
-    """
 
     def reduce_EXISTS_SelectWithParens(self, *kids):
         "%reduce EXISTS SelectWithParens"
