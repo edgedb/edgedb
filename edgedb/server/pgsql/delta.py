@@ -2561,6 +2561,10 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
                                      neg_conditions=[TypeExists(('caos', 'hstore'))],
                                      priority=-2))
 
+        self.pgops.add(EnableFeature(feature=FuzzystrmatchFeature(),
+                                     neg_conditions=[FunctionExists(('caos', 'levenshtein'))],
+                                     priority=-2))
+
         deltalogtable = DeltaLogTable()
         self.pgops.add(CreateTable(table=deltalogtable,
                                    neg_conditions=[TableExists(name=deltalogtable.name)],
@@ -3695,6 +3699,13 @@ class HstoreFeature(Feature):
             db.typio.identify(contrib_hstore='caos.hstore')
         except postgresql.exceptions.SchemaNameError:
             pass
+
+
+class FuzzystrmatchFeature(Feature):
+    source = '%(pgpath)s/contrib/fuzzystrmatch.sql'
+
+    def __init__(self, schema='caos'):
+        super().__init__(name='fuzzystrmatch', schema=schema)
 
 
 class EnableFeature(DDLOperation):
