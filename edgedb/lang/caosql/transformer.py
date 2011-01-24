@@ -423,7 +423,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 err = ('subquery must return only one column')
                 raise errors.CaosQLError(err)
 
-            node = tree.ast.SubgraphRef(ref=node, name=node.selector[0].name)
+            refname = node.selector[0].name or node.selector[0].autoname
+            node = tree.ast.SubgraphRef(ref=node, name=refname)
 
         elif isinstance(expr, qlast.BinOpNode):
             left = self._process_expr(context, expr.left)
@@ -821,8 +822,11 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             for target in targets:
                 expr = self._process_expr(context, target.expr, selector_top_level=True)
                 expr = self.merge_paths(expr)
-                alias = target.alias or context.current.genalias()
-                t = tree.ast.SelectorExpr(expr=expr, name=alias)
+                if target.alias:
+                    params = {'name': target.alias}
+                else:
+                    params = {'autoname': context.current.genalias()}
+                t = tree.ast.SelectorExpr(expr=expr, **params)
                 selector.append(t)
 
         return selector

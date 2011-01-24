@@ -468,7 +468,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         context.current.location = 'selector'
         for expr in selector:
             target = pgsql.ast.SelectExprNode(expr=self._process_expr(context, expr.expr),
-                                              alias=expr.name)
+                                              alias=expr.name or expr.autoname)
             query.targets.append(target)
 
     def _process_sorter(self, context, sorter):

@@ -306,7 +306,7 @@ class InlinePropFilter(Base): __fields  = ['expr', 'ref']
 class ExistPred(Base): __fields = ['expr', 'outer']
 class AtomicExistPred(ExistPred): pass
 class SortExpr(Base): __fields = ['expr', 'direction']
-class SelectorExpr(Base): __fields = ['expr', 'name']
+class SelectorExpr(Base): __fields = ['expr', 'name', 'autoname']
 class UpdateExpr(Base): __fields = ['expr', 'value']
 class FunctionCall(Base):
     __fields = ['name',
