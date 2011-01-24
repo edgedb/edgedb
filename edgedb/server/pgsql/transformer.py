@@ -357,7 +357,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         except Exception as e:
             try:
                 args = [e.args[0]]
-            except (AttributeError, KeyError):
+            except (AttributeError, IndexError):
                 args = []
             err = tree.transformer.InternalTreeTransformerError(*args)
             err.tree_context = tree.transformer.TreeTransformerExceptionContext(tree=query)
