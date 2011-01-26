@@ -748,6 +748,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         if direction == caos_types.InboundDirection and link != '%':
             if namespace:
                 link_name = caos_name.Name(name=link, module=namespace)
+                link = self.proto_schema.get(link_name, module_aliases=context.current.namespaces)
+                link_name = link.normal_name()
             else:
                 link_name = link
 
