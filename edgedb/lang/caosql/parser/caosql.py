@@ -684,12 +684,12 @@ class InExpr(Nonterm):
 
 
 class IsExpr(Nonterm):
-    def reduce_LPAREN_NodeNameList_RPAREN(self, *kids):
-        "%reduce LPAREN NodeNameList RPAREN"
+    def reduce_LPAREN_FqNodeNameList_RPAREN(self, *kids):
+        "%reduce LPAREN FqNodeNameList RPAREN"
         self.val = kids[1].val
 
-    def reduce_NodeName(self, *kids):
-        "%reduce NodeName"
+    def reduce_FqNodeName(self, *kids):
+        "%reduce FqNodeName"
         self.val = kids[0].val
 
 
@@ -994,6 +994,16 @@ class FqNodeName(Nonterm):
     def reduce_FqName(self, *kids):
         "%reduce FqName"
         self.val = qlast.PrototypeRefNode(module='.'.join(kids[0].val[:-1]), name=kids[0].val[-1])
+
+
+class FqNodeNameList(Nonterm):
+    def reduce_FqNodeName(self, *kids):
+        "%reduce FqNodeName"
+        self.val = [kids[0].val]
+
+    def reduce_FqNodeNameList_COMMA_FqNodeName(self, *kids):
+        "%reduce FqNodeNameList COMMA FqNodeName"
+        self.val = kids[0].val + [kids[2].val]
 
 
 class NodeName(Nonterm):
