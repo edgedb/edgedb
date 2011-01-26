@@ -1555,10 +1555,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         flt = lambda i: set(('selector', 'sorter', 'grouper')) & i.users
         if link.target:
-            if link.filter.direction == caos_types.OutboundDirection:
-                target_sets = {link.target} | set(link.target.joins)
-            else:
-                target_sets = {link.source}
+            target_sets = {link.target} | set(link.target.joins)
             target_outside_generator = bool(list(filter(flt, target_sets)))
         else:
             target_outside_generator = False
