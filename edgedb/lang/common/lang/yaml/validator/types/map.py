@@ -30,14 +30,18 @@ class MappingType(CompositeType):
         for key, value in keys.items():
             self.keys[key] = {}
 
-            self.keys[key]['required'] = 'required' in value and value['required']
-            self.keys[key]['unique'] = 'unique' in value and value['unique']
+            if isinstance(value, dict):
+                self.keys[key]['required'] = 'required' in value and value['required']
+                self.keys[key]['unique'] = 'unique' in value and value['unique']
 
-            if self.keys[key]['unique']:
-                self.unique_base[key] = {}
+                if self.keys[key]['unique']:
+                    self.unique_base[key] = {}
 
-            if 'default' in value:
-                self.keys[key]['default'] = value['default']
+                if 'default' in value:
+                    self.keys[key]['default'] = value['default']
+            else:
+                self.keys[key]['required'] = False
+                self.keys[key]['unique'] = False
 
             self.keys[key]['type'] = self.schema._build(value)
 
