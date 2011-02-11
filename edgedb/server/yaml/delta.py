@@ -10,8 +10,7 @@ from semantix import caos
 from semantix.caos import delta, proto
 from semantix.utils import datastructures, helper
 from semantix.utils.lang import yaml
-
-from .common import StructMeta
+from semantix.utils.lang.yaml.struct import StructMeta
 
 
 class DeltaMeta(type(yaml.Object), delta.DeltaMeta, StructMeta):

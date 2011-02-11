@@ -15,6 +15,8 @@ import decimal
 
 from semantix.utils import lang
 from semantix.utils.lang import yaml
+from semantix.utils.lang.yaml import protoschema as yaml_protoschema
+from semantix.utils.lang.yaml.struct import StructMeta
 from semantix.utils.nlang import morphology
 from semantix.utils.algos.persistent_hash import persistent_hash
 from semantix.utils.algos import topological
@@ -29,20 +31,10 @@ from semantix.caos.caosql import expr as caosql_expr
 from semantix.caos.caosql import errors as caosql_exc
 
 from . import delta
-from .common import StructMeta
 
 
-class MetaError(caos.MetaError):
-    def __init__(self, msg, *, hint=None, details=None, context=None):
-        super().__init__(msg, hint=hint, details=details)
-        self.context = context
-
-    def __str__(self):
-        result = super().__str__()
-        if self.context and self.context.start:
-            result += '\ncontext: %s, line %d, column %d' % \
-                        (self.context.name, self.context.start.line, self.context.start.column)
-        return result
+class MetaError(yaml_protoschema.SchemaError, caos.MetaError):
+    pass
 
 
 class LangObjectMeta(type(yaml.Object), type(proto.Prototype)):
@@ -711,78 +703,58 @@ class LinkList(LangObject, list):
                     self.append(link)
 
 
-class MetaSet(LangObject):
-    def construct(self):
-        data = self.data
-        context = self.context
+class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
+    def read_elements(self, data, globalschema, localschema):
+        self.caosql_expr = caosql_expr.CaosQLExpression(globalschema, localschema.modules)
+        self.read_atoms(data, globalschema, localschema)
+        self.read_link_properties(data, globalschema, localschema)
+        self.read_links(data, globalschema, localschema)
+        self.read_concepts(data, globalschema, localschema)
 
-        if context.document.import_context.builtin:
-            self.include_builtin = True
-            realm_meta_class = proto.BuiltinRealmMeta
-        else:
-            self.include_builtin = False
-            realm_meta_class = proto.RealmMeta
 
-        self.toplevel = context.document.import_context.toplevel
-        globalindex = context.document.import_context.metaindex
+    def order_elements(self, globalschema):
+        # The final pass on may produce additional objects,
+        # thus, it has to be performed in reverse order.
+        concepts = self.order_concepts(globalschema)
+        links = self.order_links(globalschema)
+        linkprops = self.order_link_properties(globalschema)
+        computables = self.order_computables(globalschema)
+        atoms = self.order_atoms(globalschema)
 
-        localindex = realm_meta_class()
-        self.module = data.get('module', None)
-        if not self.module:
-            self.module = context.document.module.__name__
-        localindex.add_module(self.module, None)
+        for atom in atoms:
+            if self.include_builtin or atom.name.module != 'semantix.caos.builtins':
+                atom.setdefaults()
+                self.finalschema.add(atom)
 
-        if self.toplevel and self.module and caos.Name.is_qualified(self.module):
-            main_module = caos.Name(self.module)
-        else:
-            main_module = None
-        self.finalindex = realm_meta_class(main_module=main_module)
+        for comp in computables:
+            if self.include_builtin or comp.name.module != 'semantix.caos.builtins':
+                comp.setdefaults()
+                self.finalschema.add(comp)
 
-        for alias, module in context.document.imports.items():
-            localindex.add_module(module.__name__, alias)
+        for prop in linkprops:
+            if self.include_builtin or prop.name.module != 'semantix.caos.builtins':
+                prop.setdefaults()
+                self.finalschema.add(prop)
 
-        self.caosql_expr = caosql_expr.CaosQLExpression(globalindex, localindex.modules)
+        for link in links:
+            if self.include_builtin or link.name.module != 'semantix.caos.builtins':
+                link.setdefaults()
+                link.materialize(self.finalschema)
+                self.finalschema.add(link)
 
-        self.read_atoms(data, globalindex, localindex)
-        self.read_link_properties(data, globalindex, localindex)
-        self.read_links(data, globalindex, localindex)
-        self.read_concepts(data, globalindex, localindex)
+        for concept in concepts:
+            if self.include_builtin or concept.name.module != 'semantix.caos.builtins':
+                concept.setdefaults()
+                concept.materialize(self.finalschema)
+                self.finalschema.add(concept)
 
-        if self.toplevel:
-            # The final pass on may produce additional objects,
-            # thus, it has to be performed in reverse order.
-            concepts = self.order_concepts(globalindex)
-            links = self.order_links(globalindex)
-            linkprops = self.order_link_properties(globalindex)
-            computables = self.order_computables(globalindex)
-            atoms = self.order_atoms(globalindex)
 
-            for atom in atoms:
-                if self.include_builtin or atom.name.module != 'semantix.caos.builtins':
-                    atom.setdefaults()
-                    self.finalindex.add(atom)
+    def get_proto_schema_class(self, builtin):
+        return proto.BuiltinRealmMeta if builtin else proto.RealmMeta
 
-            for comp in computables:
-                if self.include_builtin or comp.name.module != 'semantix.caos.builtins':
-                    comp.setdefaults()
-                    self.finalindex.add(comp)
 
-            for prop in linkprops:
-                if self.include_builtin or prop.name.module != 'semantix.caos.builtins':
-                    prop.setdefaults()
-                    self.finalindex.add(prop)
-
-            for link in links:
-                if self.include_builtin or link.name.module != 'semantix.caos.builtins':
-                    link.setdefaults()
-                    link.materialize(self.finalindex)
-                    self.finalindex.add(link)
-
-            for concept in concepts:
-                if self.include_builtin or concept.name.module != 'semantix.caos.builtins':
-                    concept.setdefaults()
-                    concept.materialize(self.finalindex)
-                    self.finalindex.add(concept)
+    def get_schema_name_class(self):
+        return caos.Name
 
 
     def _check_base(self, element, base_name, globalmeta):
@@ -1348,10 +1320,6 @@ class MetaSet(LangObject):
         for constraint in constraints:
             atom.add_constraint(constraint)
         return atom
-
-
-    def items(self):
-        return itertools.chain([('_index_', self.finalindex), ('_module_', self.module)])
 
 
 class EntityShell(LangObject, adapts=caos.concept.EntityShell):
