@@ -93,8 +93,8 @@ class Session(session.Session):
     def _store_links(self, source, targets, link_name, merge=False):
         self.backend.store_links(source, targets, link_name, self, merge=merge)
 
-    def _delete_links(self, source, targets, link_name):
-        self.backend.delete_links(source, targets, link_name, self)
+    def _delete_links(self, link_name, endpoints):
+        self.backend.delete_links(link_name, endpoints, self)
 
     def _load_link(self, link, pointers):
         return self.backend.load_link(link._instancedata.source, link._instancedata.target, link,

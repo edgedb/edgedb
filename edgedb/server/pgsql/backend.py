@@ -10,9 +10,12 @@ import os
 import re
 import collections
 import itertools
+import struct
 import uuid
 
 import postgresql
+import postgresql.copyman
+from postgresql.types.io import lib as pg_io_lib
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
 from semantix.utils import ast, helper
@@ -221,6 +224,128 @@ class CaosQLAdapter:
                      offset=offset, limit=limit)
 
 
+class BinaryCopyProducer(postgresql.copyman.IteratorProducer):
+
+    def row_pack(self, seq, oid_pack=pg_io_lib.oid_pack,
+                            long_pack=pg_io_lib.long_pack,
+                            null_sequence=pg_io_lib.null_sequence):
+        return b''.join([
+            # (null_seq or data)
+            (y is None and null_sequence or (long_pack(len(y)) + y))
+            for x, y in seq
+        ])
+
+    def __init__(self, backend, session, table, proto, data):
+        self.backend = backend
+        self.table = table
+        self.data = data
+        self.typid = backend.typrelid_for_source_name(proto.name)
+        self.pack = session.connection.typio.resolve_pack(self.typid)
+        self.session = session
+        self.proto = proto
+
+        super().__init__(self._iterator())
+
+    def _iterator(self):
+        tlen = struct.pack('!h', self.colcount)
+        trail = struct.pack('!h', -1)
+        yield (b'PGCOPY\n\377\r\n\0', struct.pack('!ii', 0, 0))
+
+        for tup in self.data_feed():
+            row = self.pack(tup, pack=self.row_pack)
+            yield (tlen, row,)
+
+        yield (trail,)
+
+
+class SourceCopyProducer(BinaryCopyProducer):
+    def __init__(self, backend, session, table, source, data):
+        source_proto = caos.types.prototype(source)
+
+        super().__init__(backend, session, table, source_proto, data)
+
+        self.attrmap = {}
+
+        for ptr_name, ptr_cls in source:
+            if isinstance(ptr_cls, caos.types.AtomClass):
+                self.attrmap[common.caos_name_to_pg_name(ptr_name)] = str(ptr_name)
+
+
+class EntityCopyProducer(SourceCopyProducer):
+    def __init__(self, backend, session, table, source, data):
+        super().__init__(backend, session, table, source, data)
+        self.colcount = len(self.attrmap) + 1
+        self.now = backend.runquery('SELECT CURRENT_TIMESTAMP', (), return_stmt=True).first()
+        concept_map = backend.get_concept_map(session)
+        self.source_id = concept_map[caos.types.prototype(source).name]
+
+    def data_feed(self):
+        updates = {}
+
+        for entity in self.data:
+            tup = []
+            updates.clear()
+
+            if not entity.id:
+                updates['id'] = uuid.uuid1()
+                updates['ctime'] = self.now
+
+            updates['mtime'] = self.now
+
+            entity._instancedata.update(entity, updates, register_changes=False, allow_ro=True)
+
+            for column in self.table:
+                if column.name == 'concept_id':
+                    tup.append(self.source_id)
+                else:
+                    link_name = self.attrmap[column.name]
+                    tup.append(getattr(entity, link_name))
+
+            yield tup
+
+
+class LinkCopyProducer(SourceCopyProducer):
+    def __init__(self, backend, session, table, source, data):
+        super().__init__(backend, session, table, source, data)
+        self.link_map = self.backend.get_link_map(self.session)
+        self.colcount = len(self.attrmap) + 3
+
+    def data_feed(self):
+        for link_name, source, targets in self.data:
+            link = getattr(source.__class__, str(link_name))
+
+            if isinstance(link, caos.types.NodeClass):
+                link_names = [(link, link._class_metadata.full_link_name)]
+            else:
+                link_names = [(l.target, l._metadata.name) for l in link]
+
+            for target in targets:
+                tup = []
+
+                for t, full_link_name in link_names:
+                    if isinstance(target, t):
+                        break
+                else:
+                    assert False, "No link found"
+
+                linkobj = caos.concept.getlink(source, link_name, target)
+                link_id = self.link_map[full_link_name]
+
+                for column in self.table:
+                    colname = column.name
+                    if colname == 'link_type_id':
+                        tup.append(link_id)
+                    elif colname == 'source_id':
+                        tup.append(source.id)
+                    elif colname == 'target_id':
+                        id = target.id if not isinstance(target, caos.atom.Atom) else None
+                        tup.append(id)
+                    else:
+                        tup.append(getattr(linkobj, self.attrmap[colname]))
+
+                yield tup
+
+
 class Backend(backends.MetaBackend, backends.DataBackend):
 
     typlen_re = re.compile(r"(?P<type>.*) \( (?P<length>\d+ (?:\s*,\s*(\d+))*) \)$",
@@ -273,6 +398,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.domain_to_atom_map = {}
         self.column_cache = {}
         self.table_id_to_proto_name_cache = {}
+        self.proto_name_to_table_id_cache = {}
 
         self._table_atom_constraints_cache = None
         self._table_ptr_constraints_cache = None
@@ -446,6 +572,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.domain_to_atom_map.clear()
         self.column_cache.clear()
         self.table_id_to_proto_name_cache.clear()
+        self.proto_name_to_table_id_cache.clear()
         self._table_atom_constraints_cache = None
         self._table_ptr_constraints_cache = None
 
@@ -938,10 +1065,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def store_entity_batch(self, entities, session, batch_id):
-
-        concept_map = self.get_concept_map(session)
-        idquery = delta_cmds.Query(text='caos.uuid_generate_v1mc()', params=(), type='uuid')
-        now = delta_cmds.Query(text="'NOW'", params=(), type='timestamptz')
         context = delta_cmds.CommandContext(session.connection)
 
         key = lambda i: i.__class__._metadata.name
@@ -952,37 +1075,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             self.batches.setdefault(batch_id, {}).setdefault('objects', set()).add(concept_proto)
 
-            attrmap = {}
+            producer = EntityCopyProducer(self, session, table, concept, entities)
 
-            for link_name, link_cls in concept:
-                if isinstance(link_cls, caos.types.AtomClass) and \
-                                                    link_name != 'semantix.caos.builtins.id':
-                    attrmap[str(link_name)] = common.caos_name_to_pg_name(link_name)
-
-            records = []
-
-            concept_id = concept_map[concept_proto.name]
-
-            for entity in entities:
-                if not entity.id:
-                    updates = {'id': uuid.uuid1()}
-                    entity._instancedata.update(entity, updates, register_changes=False, allow_ro=True)
-
-                id = entity.id
-                rec = table.record()
-                for link_name, col_name in attrmap.items():
-                    setattr(rec, col_name, getattr(entity, link_name))
-                rec.concept_id = concept_id
-
-                setattr(rec, 'semantix.caos.builtins.id', id)
-                setattr(rec, 'semantix.caos.builtins.ctime', now)
-                setattr(rec, 'semantix.caos.builtins.mtime', now)
-
-                records.append(rec)
-
-            cmd = delta_cmds.Insert(table=table, records=records)
+            cmd = delta_cmds.CopyFrom(table=table, producer=producer, format='binary')
             cmd.execute(context)
-
 
     @debug
     def delete_entities(self, entities, session):
@@ -1045,6 +1141,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def source_name_from_relid(self, table_oid):
         self.getmeta()
         return self.table_id_to_proto_name_cache.get(table_oid)
+
+
+    def typrelid_for_source_name(self, source_name):
+        self.getmeta()
+        return self.proto_name_to_table_id_cache.get(source_name)
 
 
     def get_table(self, prototype, session):
@@ -1159,8 +1260,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def store_link_batch(self, links, session, batch_id):
-
-        link_map = self.get_link_map(session)
         context = delta_cmds.CommandContext(session.connection)
 
         def flatten_links(links):
@@ -1177,89 +1276,45 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             self.batches.setdefault(batch_id, {'objects': set()})['objects'].add(link_proto)
 
-            attrmap = {}
-
-            for prop_name, prop_cls in link:
-                attrmap[str(prop_name)] = common.caos_name_to_pg_name(prop_name)
-
-            records = []
-
-            for link_name, source, targets in pairs:
-                link = getattr(source.__class__, str(link_name))
-
-                if isinstance(link, caos.types.NodeClass):
-                    link_names = [(link, link._class_metadata.full_link_name)]
-                else:
-                    link_names = [(l.target, l._metadata.name) for l in link]
-
-                for target in targets:
-                    for t, full_link_name in link_names:
-                        if isinstance(target, t):
-                            break
-                    else:
-                        assert False, "No link found"
-
-                    link_id = link_map[full_link_name]
-
-                    rec = table.record()
-                    linkobj = caos.concept.getlink(source, link_name, target)
-                    for prop_name, col_name in attrmap.items():
-                        setattr(rec, col_name, getattr(linkobj, prop_name))
-
-                    rec.link_type_id = link_id
-                    rec.source_id = linkobj._instancedata.source.id
-
-                    target = linkobj._instancedata.target
-                    if isinstance(target, caos.atom.Atom):
-                        rec.target_id = None
-                    else:
-                        rec.target_id = target.id
-
-                    records.append(rec)
-
-            if records:
-                cmd = delta_cmds.Insert(table=table, records=records)
-                cmd.execute(context)
+            producer = LinkCopyProducer(self, session, table, link, pairs)
+            cmd = delta_cmds.CopyFrom(table=table, producer=producer, format='binary')
+            cmd.execute(context)
 
 
     @debug
-    def delete_links(self, source, targets, link_name, session):
+    def delete_links(self, link_name, endpoints, session):
         table = common.link_name_to_table_name(link_name)
 
-        if targets:
-            target_ids = list(t.id for t in targets)
+        complete_source_ids = [s.id for s, t in endpoints if t is None]
+        partial_endpoints = [(s.id, t.id) for s, t in endpoints if t is not None]
 
-            assert len(list(filter(lambda i: i is not None, target_ids)))
+        count = 0
 
-            """LOG [caos.sync]
-            print('Deleting link %s[%s][%s]---{%s}-->[[%s]]' % \
-                  (source.__class__._metadata.name, source.id,
-                   (source.name if hasattr(source, 'name') else ''), link_name,
-                   ','.join(target_ids)
-                  )
-                 )
-            """
+        if complete_source_ids:
+            qry = '''DELETE FROM %s WHERE source_id = any($1)''' % table
+            params = (complete_source_ids,)
 
+            result = self.runquery(qry, params,
+                                   connection=session.connection,
+                                   compat=False, return_stmt=True)
+            count += result.first(*params)
+
+        if partial_endpoints:
             qry = '''DELETE FROM %s
-                     WHERE
-                         source_id = $1
-                         AND target_id = any($2)
+                     WHERE (source_id, target_id) = any($1::caos.link_endpoints_rec_t[])
                   ''' % table
-            params = (source.id, target_ids)
-        else:
-            qry = '''DELETE FROM %s
-                     WHERE
-                         source_id = $1
-                  ''' % table
-            params = (source.id,)
+            params = (partial_endpoints,)
 
-        result = self.runquery(qry, params,
-                               connection=session.connection,
-                               compat=False, return_stmt=True)
-        result = result.first(*params)
+            result = self.runquery(qry, params,
+                                   connection=session.connection,
+                                   compat=False, return_stmt=True)
+            partial_count = result.first(*params)
 
-        if targets:
-            assert result == len(target_ids)
+            assert partial_count == len(partial_endpoints)
+
+            count += partial_count
+
+        return count
 
 
     def caosqladapter(self, session):
@@ -1766,6 +1821,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 t = link_tables.get(link_table_name)
                 if t:
                     self.table_id_to_proto_name_cache[t['oid']] = name
+                    self.proto_name_to_table_id_cache[name] = t['typoid']
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
@@ -2029,6 +2085,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 raise caos.MetaError(msg, details=details)
 
             self.table_id_to_proto_name_cache[table['oid']] = name
+            self.proto_name_to_table_id_cache[name] = table['typoid']
 
             visited_tables.add(table_name)
 

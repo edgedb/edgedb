@@ -120,11 +120,13 @@ filters:
 source: |
         SELECT
                 c.oid                                 AS oid,
+                typ.oid                               AS typoid,
                 c.relname                             AS name,
                 ns.nspname                            AS schema
             FROM
                 pg_class AS c
                 INNER JOIN pg_namespace AS ns ON ns.oid = c.relnamespace
+                INNER JOIN pg_type AS typ ON typ.typrelid = c.oid
             WHERE
                 --
                 -- Limit the schema scope

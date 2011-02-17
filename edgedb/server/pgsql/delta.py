@@ -32,7 +32,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 1
+BACKEND_FORMAT_VERSION = 2
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -2456,6 +2456,10 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
                                 neg_conditions=[CompositeTypeExists(name=entity_modstat_type.name)],
                                 priority=-1))
 
+        link_endpoints_type = LinkEndpointsType()
+        self.pgops.add(CreateCompositeType(type=link_endpoints_type,
+                                neg_conditions=[CompositeTypeExists(name=link_endpoints_type.name)],
+                                priority=-1))
 
         self.update_mapping_indexes = UpdateMappingIndexes()
 
@@ -2520,6 +2524,20 @@ class UpgradeBackend(MetaCommand):
             cmd = EnableFeature(feature=feature())
             ins = cmd.extra(context)[0]
             ins.execute(context)
+
+    def update_to_version_2(self, context):
+        """
+        Backend format 2 adds LinkEndpointsType required for improved link deletion
+        procedure.
+        """
+        group = CommandGroup()
+
+        link_endpoints_type = LinkEndpointsType()
+        cond = CompositeTypeExists(name=link_endpoints_type.name)
+        cmd = CreateCompositeType(type=link_endpoints_type, neg_conditions=[cond])
+        group.add_command(cmd)
+
+        group.execute(context)
 
     @classmethod
     def update_backend_info(cls):
@@ -2708,6 +2726,27 @@ class Delete(DMLOperation):
     def __repr__(self):
         where = ','.join('%s=%s' % (c[0], c[1]) for c in self.condition)
         return '<caos.sync.%s %s (%s)>' % (self.__class__.__name__, self.table.name, where)
+
+
+class CopyFrom(DMLOperation):
+    def __init__(self, table, producer, *, format='text', priority=0):
+        super().__init__(priority=priority)
+
+        self.table = table
+        self.producer = producer
+        self.format = format
+
+    def code(self, context):
+        code = 'COPY %s FROM STDIN WITH (FORMAT "%s")' % (common.qname(*self.table.name), self.format)
+        return code, ()
+
+    def execute(self, context):
+        code, vars = self.code(context)
+        receive_stmt = context.db.prepare(code)
+        receiver = postgresql.copyman.StatementReceiver(receive_stmt)
+
+        cm = postgresql.copyman.CopyManager(self.producer, receiver)
+        cm.run()
 
 
 class DBObject:
@@ -3041,6 +3080,9 @@ class Table(CompositeDBObject):
                     cols.extend(columns)
         return cols
 
+    def __iter__(self):
+        return iter(self._columns)
+
     def add_columns(self, iterable):
         self.__columns.update(iterable)
         self._columns = self.columns()
@@ -3280,6 +3322,16 @@ class EntityModStatType(CompositeType):
         self._columns = datastructures.OrderedSet([
             Column(name='semantix.caos.builtins.id', type='uuid'),
             Column(name='semantix.caos.builtins.mtime', type='timestamptz'),
+        ])
+
+
+class LinkEndpointsType(CompositeType):
+    def __init__(self):
+        super().__init__(name=('caos', 'link_endpoints_rec_t'))
+
+        self._columns = datastructures.OrderedSet([
+            Column(name='source_id', type='uuid'),
+            Column(name='target_id', type='uuid'),
         ])
 
 

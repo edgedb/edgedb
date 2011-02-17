@@ -47,7 +47,7 @@ class Session(session.Session):
     def _store_links(self, source, targets, link_name, merge=False):
         raise NotImplementedError
 
-    def _delete_links(self, source, targets, link_name):
+    def _delete_links(self, link_name, endpoints):
         raise NotImplementedError
 
     def _load_link(self, link):
