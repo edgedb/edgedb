@@ -513,13 +513,9 @@ class Expr(Nonterm):
         "%reduce Constant"
         self.val = kids[0].val
 
-    def reduce_LPAREN_ExprList_RPAREN(self, *kids):
-        "%reduce LPAREN ExprList RPAREN"
+    def reduce_LPAREN_Expr_RPAREN(self, *kids):
+        "%reduce LPAREN Expr RPAREN"
         self.val = kids[1].val
-        if len(self.val) == 1:
-            self.val = self.val[0]
-        else:
-            self.val = qlast.SequenceNode(elements=self.val)
 
     def reduce_FuncExpr(self, *kids):
         "%reduce FuncExpr"
@@ -533,8 +529,9 @@ class Expr(Nonterm):
         "%reduce EXISTS SelectWithParens"
         self.val = qlast.ExistsPredicateNode(expr=kids[1].val)
 
-    def reduce_Sequence(self, *kids):
-        assert False
+    def reduce_LPAREN_Sequence_RPAREN(self, *kids):
+        "%reduce LPAREN Sequence RPAREN"
+        self.val = kids[1].val
 
     def reduce_unary_plus(self, *kids):
         "%reduce PLUS Expr [P_UMINUS]"
@@ -659,6 +656,12 @@ class Expr(Nonterm):
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.NOT_IN, right=kids[3].val)
 
 
+class Sequence(Nonterm):
+    def reduce_Expr_COMMA_ExprList(self, *kids):
+        "%reduce Expr COMMA ExprList"
+        self.val = qlast.SequenceNode(elements=[kids[0].val] + kids[2].val)
+
+
 class ExprList(Nonterm):
     def reduce_Expr(self, *kids):
         "%reduce Expr"
@@ -672,7 +675,7 @@ class ExprList(Nonterm):
 class InExpr(Nonterm):
     def reduce_LPAREN_ExprList_RPAREN(self, *kids):
         "%reduce LPAREN ExprList RPAREN"
-        self.val = kids[1].val
+        self.val = qlast.SequenceNode(elements=kids[1].val)
 
     def reduce_Path(self, *kids):
         "%reduce Path"
