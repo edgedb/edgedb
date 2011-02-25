@@ -36,12 +36,16 @@ base_type_name_map_r = {
     'numeric': caos.Name('semantix.caos.builtins.decimal'),
     'integer': caos.Name('semantix.caos.builtins.int'),
     'bigint': caos.Name('semantix.caos.builtins.int'),
+    'int8': caos.Name('semantix.caos.builtins.int'),
     'smallint': caos.Name('semantix.caos.builtins.int'),
     'boolean': caos.Name('semantix.caos.builtins.bool'),
+    'bool': caos.Name('semantix.caos.builtins.bool'),
     'double precision': caos.Name('semantix.caos.builtins.float'),
     'uuid': caos.Name('semantix.caos.builtins.uuid'),
     'timestamp with time zone': caos.Name('semantix.caos.builtins.datetime'),
+    'timestamptz': caos.Name('semantix.caos.builtins.datetime'),
     'time without time zone': caos.Name('semantix.caos.builtins.time'),
+    'time': caos.Name('semantix.caos.builtins.time'),
     'interval': caos.Name('semantix.caos.builtins.timedelta'),
     'bytea': caos.Name('semantix.caos.builtins.bytes')
 }

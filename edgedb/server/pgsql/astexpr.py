@@ -116,6 +116,37 @@ class TextSearchExpr:
             return None
 
 
+class TypeExpr:
+    def __init__(self):
+        self.pattern = None
+
+    def get_pattern(self):
+        if self.pattern is None:
+            self.pattern = pgastmatch.TypeCastNode(
+                                type=astmatch.group('value', pgastmatch.TypeNode()))
+        return self.pattern
+
+    def match(self, tree):
+        m = astmatch.match(self.get_pattern(), tree)
+        if m:
+            if m.value[0].node.typmods:
+                typmods = []
+
+                for tm in m.value[0].node.typmods:
+                    if isinstance(tm, pgast.FieldRefNode):
+                        typmods.append(tm.field)
+                    else:
+                        typmods.append(tm.value)
+            else:
+                typmods = None
+            typname = m.value[0].node.name
+            if isinstance(typname, list):
+                typname = tuple(typname)
+            return (typname, typmods)
+        else:
+            return None
+
+
 class AtomConstraintAdapterMeta(type(proto.AtomConstraint), adapter.Adapter):
     pass
 

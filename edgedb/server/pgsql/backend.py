@@ -277,6 +277,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         self.parser = parser.PgSQLParser()
         self.search_idx_expr = astexpr.TextSearchExpr()
+        self.type_expr = astexpr.TypeExpr()
         self.atom_constr_exprs = {}
         self.constant_expr = None
 
@@ -1653,7 +1654,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             col_type = col['column_type_formatted']
         else:
             col_type_schema = col['column_type_schema']
-            col_type = col['column_type']
+            col_type = col['column_type_formatted'] or col['column_type']
 
         constraints = constraints.get(pointer_name) if constraints else None
 
@@ -2111,7 +2112,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             d['constraints'] = constraints
 
         if d['basetype'] is not None:
-            result = self.pg_type_to_atom_name_and_constraints(d['basetype_full'])
+            typname, typmods = self.parse_pg_type(d['basetype_full'])
+            result = self.pg_type_to_atom_name_and_constraints(typname, typmods)
             if result:
                 base, constr = result
                 constraints.extend(constr)
@@ -2173,29 +2175,31 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return bases
 
 
-    def pg_type_to_atom_name_and_constraints(self, type_expr):
-        m = self.typlen_re.match(type_expr)
-        if m:
-            typmod = m.group('length').split(',')
-            typname = m.group('type').strip()
-        else:
-            typmod = None
-            typname = type_expr
+    def parse_pg_type(self, type_expr):
+        tree = self.parser.parse('None::' + type_expr)
+        typname, typmods = self.type_expr.match(tree)
+        return typname, typmods
 
+
+    def pg_type_to_atom_name_and_constraints(self, typname, typmods):
         typeconv = types.base_type_name_map_r.get(typname)
         if typeconv:
             if isinstance(typeconv, caos.Name):
                 name = typeconv
                 constraints = ()
             else:
-                name, constraints = typeconv(typname, typmod)
+                name, constraints = typeconv(self.connection, typname, *typmods)
             return name, constraints
         return None
 
 
     def atom_from_pg_type(self, type_expr, atom_schema, atom_constraints, atom_default, meta, derived_name):
 
-        domain_name = type_expr.split('.')[-1]
+        typname, typmods = self.parse_pg_type(type_expr)
+        if isinstance(typname, tuple):
+            domain_name = typname[-1]
+        else:
+            domain_name = typname
         atom_name = self.domain_to_atom_map.get((atom_schema, domain_name))
 
         if atom_name:
@@ -2208,7 +2212,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         if not atom or atom_constraints:
 
-            typeconv = self.pg_type_to_atom_name_and_constraints(type_expr)
+            typeconv = self.pg_type_to_atom_name_and_constraints(typname, typmods)
             if typeconv:
                 name, constraints = typeconv
                 atom = meta.get(name)

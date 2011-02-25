@@ -557,7 +557,7 @@ class Numeric(Nonterm):
 
     def reduce_BOOLEAN_P(self, *kids):
         "%reduce BOOLEAN_P"
-        self.val = pgast.TypeNode(name='bool', typmods=kids[1].val)
+        self.val = pgast.TypeNode(name='bool')
 
 
 class opt_float(Nonterm):
