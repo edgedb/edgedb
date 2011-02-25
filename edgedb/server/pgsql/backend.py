@@ -253,6 +253,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         async_connector = connector_factory(async=True)
 
         self.features = None
+        self.backend_info = None
 
         self.connection_pool = pool.ConnectionPool(connector, backend=self)
         self.async_connection_pool = pool.ConnectionPool(async_connector, backend=self)
@@ -288,10 +289,32 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def init_connection(self, connection):
         if self.features is None:
             self.features = self.read_features()
+        if self.backend_info is None:
+            self.backend_info = self.read_backend_info()
 
+        if self.backend_info['format_version'] < delta_cmds.BACKEND_FORMAT_VERSION:
+            self.upgrade_backend(connection)
+        elif self.backend_info['format_version'] > delta_cmds.BACKEND_FORMAT_VERSION:
+            msg = 'unsupported backend format version: %d' % self.backend_info['format_version']
+            details = 'The largest supported backend format version is %d' \
+                        % delta_cmds.BACKEND_FORMAT_VERSION
+            raise caos.MetaError(msg, details=details)
+
+        self.init_features(connection)
+
+
+    def init_features(self, connection):
         for feature_class_name in self.features.values():
             feature_class = helper.get_object(feature_class_name)
             feature_class.init_feature(connection)
+
+
+    def upgrade_backend(self, connection):
+        with self.connection.xact() as xact:
+            context = delta_cmds.CommandContext(connection)
+            upgrade = delta_cmds.UpgradeBackend(self.backend_info)
+            upgrade.execute(context)
+            self.backend_info = self.read_backend_info()
 
 
     def get_session_pool(self, realm, async=False):
@@ -1269,6 +1292,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             return {f['name']: f['class_name'] for f in features}
         except (postgresql.exceptions.SchemaNameError, postgresql.exceptions.UndefinedTableError):
             return {}
+
+
+    def read_backend_info(self):
+        try:
+            return datasources.meta.backend_info.BackendInfo(self.connection).fetch()[0]
+        except postgresql.exceptions.SchemaNameError:
+            return {'format_version': delta_cmds.BACKEND_FORMAT_VERSION}
+        except postgresql.exceptions.UndefinedTableError:
+            return {'format_version': 0}
 
 
     def read_atoms(self, meta):

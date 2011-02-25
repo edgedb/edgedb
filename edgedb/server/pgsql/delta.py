@@ -32,6 +32,9 @@ from . import transformer
 from . import types
 
 
+BACKEND_FORMAT_VERSION = 1
+
+
 class CommandMeta(delta_cmds.CommandMeta):
     pass
 
@@ -2359,6 +2362,11 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
                                    neg_conditions=[TableExists(name=featuretable.name)],
                                    priority=-3))
 
+        backendinfotable = BackendInfoTable()
+        self.pgops.add(CreateTable(table=backendinfotable,
+                                   neg_conditions=[TableExists(name=backendinfotable.name)],
+                                   priority=-3))
+
         self.pgops.add(EnableFeature(feature=UuidFeature(),
                                      neg_conditions=[FunctionExists(('caos', 'uuid_nil'))],
                                      priority=-2))
@@ -2426,6 +2434,8 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
         self.update_mapping_indexes.apply(meta, context)
         self.pgops.append(self.update_mapping_indexes)
 
+        self.pgops.append(UpgradeBackend.update_backend_info())
+
     def is_material(self):
         return True
 
@@ -2448,6 +2458,44 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
                 if not queue:
                     queues[op.priority] = queue = []
                 queue.append(op)
+
+
+class UpgradeBackend(MetaCommand):
+    def __init__(self, backend_info, **kwargs):
+        super().__init__(**kwargs)
+
+        self.actual_version = backend_info['format_version']
+        self.current_version = BACKEND_FORMAT_VERSION
+
+    def execute(self, context):
+        for version in range(self.actual_version, self.current_version):
+            getattr(self, 'update_to_version_%d' % (version + 1))(context)
+        op = self.update_backend_info()
+        op.execute(context)
+
+    def update_to_version_1(self, context):
+        featuretable = FeatureTable()
+        ct = CreateTable(table=featuretable,
+                         neg_conditions=[TableExists(name=featuretable.name)])
+        ct.execute(context)
+
+        backendinfotable = BackendInfoTable()
+        ct = CreateTable(table=backendinfotable,
+                         neg_conditions=[TableExists(name=backendinfotable.name)])
+        ct.execute(context)
+
+        # Version 0 did not have feature registry, fix that up
+        for feature in (UuidFeature, HstoreFeature):
+            cmd = EnableFeature(feature=feature())
+            ins = cmd.extra(context)[0]
+            ins.execute(context)
+
+    @classmethod
+    def update_backend_info(cls):
+        backendinfotable = BackendInfoTable()
+        record = backendinfotable.record()
+        record.format_version = BACKEND_FORMAT_VERSION
+        return Merge(table=backendinfotable, record=record, condition=None)
 
 
 #
@@ -2557,20 +2605,23 @@ class Update(DMLOperation):
 
             placeholders.append('%s = %s' % (e(f), expr))
 
-        cond = []
-        for field, value in self.condition:
-            field = e(field)
+        if self.condition:
+            cond = []
+            for field, value in self.condition:
+                field = e(field)
 
-            if value is None:
-                cond.append('%s IS NULL' % field)
-            else:
-                cond.append('%s = $%d' % (field, i))
-                vals.append(value)
-                i += 1
+                if value is None:
+                    cond.append('%s IS NULL' % field)
+                else:
+                    cond.append('%s = $%d' % (field, i))
+                    vals.append(value)
+                    i += 1
 
-        where = ' AND '.join(cond)
+            where = 'WHERE ' +  ' AND '.join(cond)
+        else:
+            where = ''
 
-        code = 'UPDATE %s SET %s WHERE %s' % \
+        code = 'UPDATE %s SET %s %s' % \
                 (common.qname(*self.table.name), ', '.join(placeholders), where)
 
         if self.returning:
@@ -2587,9 +2638,14 @@ class Update(DMLOperation):
 class Merge(Update):
     def code(self, context):
         code = super().code(context)
-        cols = (common.quote_ident(c[0]) for c in self.condition)
-        result = (code[0] + ' RETURNING %s' % (','.join(cols)), code[1])
-        return result
+        if self.condition:
+            cols = (common.quote_ident(c[0]) for c in self.condition)
+            returning = ','.join(cols)
+        else:
+            returning = '*'
+
+        code = (code[0] + ' RETURNING %s' % returning, code[1])
+        return code
 
     def execute(self, context):
         result = super().execute(context)
@@ -3164,6 +3220,18 @@ class FeatureTable(Table):
 
         self.constraints = set([
             PrimaryKey(name, columns=('name',)),
+        ])
+
+        self._columns = self.columns()
+
+
+class BackendInfoTable(Table):
+    def __init__(self, name=None):
+        name = name or ('caos', 'backend_info')
+        super().__init__(name=name)
+
+        self.__columns = datastructures.OrderedSet([
+            Column(name='format_version', type='int', required=True),
         ])
 
         self._columns = self.columns()

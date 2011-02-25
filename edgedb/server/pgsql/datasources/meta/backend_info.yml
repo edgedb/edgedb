@@ -1,0 +1,21 @@
+##
+# Copyright (c) 2008-2011 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%SCHEMA semantix.caos.datasources.schemas.Sql
+%NAME BackendInfo
+---
+params:
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+            format_version
+        FROM
+            caos.backend_info
