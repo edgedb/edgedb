@@ -87,6 +87,11 @@ class Connection(pq3.Connection, caos_pool.Connection):
         caos_pool.Connection.__init__(self, pool)
         pq3.Connection.__init__(self, connector)
 
+    def connect(self):
+        super().connect()
+        if self._pool:
+            self._pool.backend.init_connection(self)
+
     def reset(self):
         if self.state in ('failed', 'negotiating', 'busy'):
             self.execute('ROLLBACK')

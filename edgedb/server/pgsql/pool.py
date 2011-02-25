@@ -10,9 +10,10 @@ from semantix.caos.backends import pool
 
 
 class ConnectionPool(pool.ConnectionPool):
-    def __init__(self, connector):
+    def __init__(self, connector, backend):
         super().__init__()
         self.connector = connector
+        self.backend = backend
 
     def create(self):
         c = self.connector(pool=self)

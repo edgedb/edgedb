@@ -8,5 +8,6 @@
 
 from . import atoms
 from . import concepts
+from . import features
 from . import links
 from . import modules

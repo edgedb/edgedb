@@ -2352,15 +2352,20 @@ class CommandContext(delta_cmds.CommandContext):
 
 class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
     def apply(self, meta, context):
-        self.pgops.add(CreateSchema(name='caos', priority=-2))
+        self.pgops.add(CreateSchema(name='caos', priority=-3))
+
+        featuretable = FeatureTable()
+        self.pgops.add(CreateTable(table=featuretable,
+                                   neg_conditions=[TableExists(name=featuretable.name)],
+                                   priority=-3))
 
         self.pgops.add(EnableFeature(feature=UuidFeature(),
                                      neg_conditions=[FunctionExists(('caos', 'uuid_nil'))],
                                      priority=-2))
 
-        self.pgops.add(EnableHstoreFeature(feature=HstoreFeature(),
-                                           neg_conditions=[TypeExists(('caos', 'hstore'))],
-                                           priority=-2))
+        self.pgops.add(EnableFeature(feature=HstoreFeature(),
+                                     neg_conditions=[TypeExists(('caos', 'hstore'))],
+                                     priority=-2))
 
         deltalogtable = DeltaLogTable()
         self.pgops.add(CreateTable(table=deltalogtable,
@@ -3147,6 +3152,23 @@ class ComputableTable(MetaObjectTable):
         self._columns = self.columns()
 
 
+class FeatureTable(Table):
+    def __init__(self, name=None):
+        name = name or ('caos', 'feature')
+        super().__init__(name=name)
+
+        self.__columns = datastructures.OrderedSet([
+            Column(name='name', type='text', required=True),
+            Column(name='class_name', type='text', required=True)
+        ])
+
+        self.constraints = set([
+            PrimaryKey(name, columns=('name',)),
+        ])
+
+        self._columns = self.columns()
+
+
 class CompositeType(CompositeDBObject):
     def columns(self):
         return self.__columns
@@ -3168,15 +3190,23 @@ class Feature:
         self.schema = schema
 
     def code(self, context):
-        pgpath = Config.pg_install_path
-        source = self.source % {'pgpath': pgpath}
-        source = source % {'version': '%s.%s' % context.db.version_info[:2]}
+        source = self.get_source(context)
 
         with open(source, 'r') as f:
             code = re.sub(r'SET\s+search_path\s*=\s*[^;]+;',
                           'SET search_path = %s;' % common.quote_ident(self.schema),
                           f.read())
         return code
+
+    def get_source(self, context):
+        pgpath = Config.pg_install_path
+        source = self.source % {'pgpath': pgpath}
+        source = source % {'version': '%s.%s' % context.db.version_info[:2]}
+        return source
+
+    @classmethod
+    def init_feature(cls, db):
+        pass
 
 
 class TypeExists(Condition):
@@ -3207,6 +3237,13 @@ class HstoreFeature(Feature):
     def __init__(self, schema='caos'):
         super().__init__(name='hstore', schema=schema)
 
+    @classmethod
+    def init_feature(cls, db):
+        try:
+            db.typio.identify(contrib_hstore='caos.hstore')
+        except postgresql.exceptions.SchemaNameError:
+            pass
+
 
 class EnableFeature(DDLOperation):
     def __init__(self, feature, *, conditions=None, neg_conditions=None, priority=0):
@@ -3218,21 +3255,20 @@ class EnableFeature(DDLOperation):
     def code(self, context):
         return self.feature.code(context)
 
-    def __repr__(self):
-        return '<caos.sync.%s %s>' % (self.__class__.__name__, self.feature.name)
+    def extra(self, context, *args, **kwargs):
+        table = FeatureTable()
+        record = table.record()
+        record.name = self.feature.name
+        record.class_name = '%s.%s' % (self.feature.__class__.__module__,
+                                       self.feature.__class__.__name__)
+        return [Insert(table, records=[record])]
 
-
-class EnableHstoreFeature(EnableFeature):
     def execute(self, context):
         super().execute(context)
-        self.init_hstore(context.db)
+        self.feature.init_feature(context.db)
 
-    @classmethod
-    def init_hstore(cls, db):
-        try:
-            db.typio.identify(contrib_hstore='caos.hstore')
-        except postgresql.exceptions.SchemaNameError:
-            pass
+    def __repr__(self):
+        return '<caos.sync.%s %s>' % (self.__class__.__name__, self.feature.name)
 
 
 class SchemaExists(Condition):

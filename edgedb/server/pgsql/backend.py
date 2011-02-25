@@ -252,14 +252,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         connector = connector_factory()
         async_connector = connector_factory(async=True)
 
-        self.connection_pool = pool.ConnectionPool(connector)
-        self.async_connection_pool = pool.ConnectionPool(async_connector)
+        self.features = None
+
+        self.connection_pool = pool.ConnectionPool(connector, backend=self)
+        self.async_connection_pool = pool.ConnectionPool(async_connector, backend=self)
 
         self.connection = connector(pool=self.connection_pool)
         self.connection.connect()
-        delta_cmds.EnableHstoreFeature.init_hstore(self.connection)
 
         self.modules = self.read_modules()
+        self.features = self.read_features()
         self.link_cache = {}
         self.concept_cache = {}
         self.table_cache = {}
@@ -281,6 +283,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         repo = deltarepo(self.connection)
         super().__init__(repo)
+
+
+    def init_connection(self, connection):
+        if self.features is None:
+            self.features = self.read_features()
+
+        for feature_class_name in self.features.values():
+            feature_class = helper.get_object(feature_class_name)
+            feature_class.init_feature(connection)
 
 
     def get_session_pool(self, realm, async=False):
@@ -381,6 +392,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if meta.get_checksum() != d.checksum:
                 xact.rollback()
                 self.modules = self.read_modules()
+                self.features = self.read_features()
                 raise base_delta.DeltaChecksumError('could not apply delta correctly: '
                                                     'checksums do not match')
 
@@ -388,6 +400,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def invalidate_meta_cache(self):
         self.meta = proto.RealmMeta(load_builtins=False)
         self.modules = self.read_modules()
+        self.features = self.read_features()
         self.link_cache.clear()
         self.concept_cache.clear()
         self.table_cache.clear()
@@ -1248,6 +1261,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             return set(modules.values()) | {'caos'}
 
         return {}
+
+
+    def read_features(self):
+        try:
+            features = datasources.meta.features.FeatureList(self.connection).fetch()
+            return {f['name']: f['class_name'] for f in features}
+        except (postgresql.exceptions.SchemaNameError, postgresql.exceptions.UndefinedTableError):
+            return {}
 
 
     def read_atoms(self, meta):
