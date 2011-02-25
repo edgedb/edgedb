@@ -6,6 +6,7 @@
 ##
 
 
+import itertools
 import hashlib
 import base64
 
@@ -14,6 +15,7 @@ import postgresql
 from semantix.caos import proto
 
 from . import driver
+from .driver import io as custom_type_io
 
 
 def quote_ident(text):
@@ -99,7 +101,7 @@ def py_type_to_pg_type(typ):
 
         _type_index = {}
 
-        for mod in postgresql.types.io.io_modules:
+        for mod in itertools.chain(postgresql.types.io.io_modules, custom_type_io.io_modules):
             mod = postgresql.types.io.load(mod)
 
             oid_to_type = getattr(mod, 'oid_to_type', None)
