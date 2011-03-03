@@ -7,13 +7,14 @@
 
 
 from semantix import SemantixError
+from semantix.utils.parsing import ParserError
 
 
 class CaosQLError(SemantixError):
     pass
 
 
-class CaosQLQueryError(CaosQLError):
+class CaosQLQueryError(ParserError, CaosQLError):
     pass
 
 

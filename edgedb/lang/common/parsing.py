@@ -11,8 +11,11 @@ import sys
 
 import Parsing
 import pyggy
+import pyggy.lexer
 
-from semantix import SemantixError
+from semantix.exceptions import SemantixError, ExceptionContext
+from semantix.utils.lang import meta as lang_meta
+from semantix.utils.datastructures import xvalue
 
 
 class TokenMeta(type):
@@ -55,9 +58,10 @@ class TokenMeta(type):
 
 
 class Token(Parsing.Token, metaclass=TokenMeta):
-    def __init__(self, parser, val):
+    def __init__(self, parser, val, context=None):
         super().__init__(parser)
         self.val = val
+        self.context = context
 
     def __repr__(self):
         return '<Token %s "%s">' % (self.__class__._token, self.val)
@@ -125,23 +129,92 @@ class Precedence(Parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
     pass
 
 
+class SourcePoint(lang_meta.SourcePoint):
+    pass
+
+
+class ParserContext(lang_meta.SourceContext, ExceptionContext):
+    title = 'Parser Context'
+
+    def render(self):
+        buf = []
+        prefix = '%s line=%d col=%d: ' % (self.name, self.start.line, self.start.column)
+        snippet, offset = self.get_line_snippet(self.start, max_length=80 - len(prefix))
+        errpos = ' ' * (len(prefix) + offset) + '^'
+        prefix += snippet + '\n'
+        buf.append(prefix)
+        buf.append(errpos)
+        return buf
+
+    def get_line_snippet(self, point, max_length):
+        if point.line > 1:
+            linestart = self.buffer.rfind('\n', point.start.pointer)
+        else:
+            linestart = 0
+
+        before = min(max_length // 2, point.pointer - linestart)
+        after = max_length - before
+
+        start = point.pointer - before
+        end = point.pointer + after
+        return self.buffer[start:end], before
+
+
 class ParserError(SemantixError):
-    def __init__(self, msg, *, token=None, lineno=None, expr=None):
-        super().__init__(msg)
+    def __init__(self, msg=None, *, hint=None, details=None, token=None, lineno=None, expr=None,
+                               context=None):
+        if msg is None:
+            msg = 'syntax error at or near "%s"' % token
+        super().__init__(msg, hint=hint, details=details)
 
         self.token = token
         self.lineno = lineno
         self.expr = expr
+        self.context = context
 
 
-    def __str__(self):
-        return "unexpected `%s' on line %d" % (self.token, self.lineno)
+class Lexer(pyggy.lexer.lexer):
+    def __init__(self, lexspec):
+        super().__init__(lexspec)
+        self.lineno = 1
+        self.offset = 0
+        self.column = 1
+        self.lineoffset = 0
+
+    def nextch(self):
+        self.offset += 1
+        return super().nextch()
+
+    def setinputstr(self, str) :
+        self.inputstr = str
+        super().setinputstr(str)
+
+    def PUSHBACK(self, backupdata):
+        self.offset -= len(backupdata)
+        super().PUSHBACK(backupdata)
+
+    def newline(self):
+        self.lineno += 1
+        self.lineoffset = self.offset
+        self.column = 1
+
+    def context(self):
+        value = self.value.value if isinstance(self.value, xvalue) else self.value
+        value_len = len(str(value))
+
+        start_offset = self.offset - value_len
+        column = start_offset - self.lineoffset
+        start = SourcePoint(line=self.lineno, column=column, pointer=start_offset)
+        end = SourcePoint(line=self.lineno, column=self.column + value_len, pointer=self.offset)
+        context = ParserContext(name='<string>', buffer=self.inputstr, start=start, end=end)
+        return context
 
 
 class Parser:
-    def __init__(self):
+    def __init__(self, **parser_data):
         self.lexer = None
         self.parser = None
+        self.parser_data = parser_data
 
     def cleanup(self):
         self.__class__.parser_spec = None
@@ -152,8 +225,8 @@ class Parser:
     def get_debug(self):
         return False
 
-    def get_exception(self, native_err):
-        return ParserError(native_err.args[0])
+    def get_exception(self, native_err, context):
+        return ParserError(native_err.args[0], context=context)
 
     def get_specs(self):
         mod = self.get_parser_spec_module()
@@ -176,8 +249,9 @@ class Parser:
             self.get_specs()
 
         if not self.parser:
-            self.lexer = pyggy.lexer.lexer(self.__class__.lexer_spec)
+            self.lexer = Lexer(self.__class__.lexer_spec)
             self.parser = Parsing.Lr(self.__class__.parser_spec)
+            self.parser.parser_data = self.parser_data
 
         self.parser.reset()
         self.lexer.setinputstr(input)
@@ -190,7 +264,8 @@ class Parser:
             tok = self.lexer.token()
 
             while tok:
-                token = mod.TokenMeta.for_lex_token(tok)(self.parser, self.lexer.value)
+                token = mod.TokenMeta.for_lex_token(tok)(self.parser, self.lexer.value,
+                                                         self.lexer.context())
 
                 self.parser.token(token)
                 tok = self.lexer.token()
@@ -198,6 +273,6 @@ class Parser:
             self.parser.eoi()
 
         except Parsing.SyntaxError as e:
-            raise self.get_exception(e) from e
+            raise self.get_exception(e, context=self.lexer.context()) from e
 
         return self.parser.start[0].val

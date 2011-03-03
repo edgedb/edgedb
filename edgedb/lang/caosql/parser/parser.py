@@ -21,8 +21,8 @@ class CaosQLParser(parsing.Parser):
     def get_debug(self):
         return 'caos.caosql.parser' in debug.channels
 
-    def get_exception(self, native_err):
-        return CaosQLQueryError(native_err.args[0])
+    def get_exception(self, native_err, context):
+        return CaosQLQueryError(native_err.args[0], context=context)
 
     def normalize_select_query(self, query, filters=None, sort=None, limit=None, offset=None,
                                      context=None):
