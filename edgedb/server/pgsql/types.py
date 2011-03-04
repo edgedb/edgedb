@@ -41,6 +41,7 @@ base_type_name_map_r = {
     'boolean': caos.Name('semantix.caos.builtins.bool'),
     'bool': caos.Name('semantix.caos.builtins.bool'),
     'double precision': caos.Name('semantix.caos.builtins.float'),
+    'float8': caos.Name('semantix.caos.builtins.float'),
     'uuid': caos.Name('semantix.caos.builtins.uuid'),
     'timestamp with time zone': caos.Name('semantix.caos.builtins.datetime'),
     'timestamptz': caos.Name('semantix.caos.builtins.datetime'),
