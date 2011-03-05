@@ -109,7 +109,8 @@ class Query:
         self.argmap = argmap
         self.context = context
         self.result_types = result_types
-        self.argument_types = argument_types
+        self.argument_types = collections.OrderedDict((k, argument_types[k]) for k in argmap
+                                                      if k in argument_types)
 
         self.scrolling_cursor = scrolling_cursor
         self.offset = offset
@@ -119,7 +120,7 @@ class Query:
         return collections.OrderedDict(self.result_types)
 
     def describe_arguments(self):
-        return dict(self.argument_types)
+        return collections.OrderedDict(self.argument_types)
 
     def prepare(self, session):
         return PreparedQuery(self, session)
