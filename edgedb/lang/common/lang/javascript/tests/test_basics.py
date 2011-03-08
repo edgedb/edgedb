@@ -15,21 +15,24 @@ class TestJavaScriptParsing(metaclass=MetaTestJavascript):
         """print(1, "hello", -2.3e-4);"""
 
     def test_utils_lang_javascript_literals2(self):
-        r"""print("Hello\tworld\r!\nblah\b\101\x61\u0061");"""
+        r"""print("'\"Hello\tworld\r!\nblah\b\101\x61\u0061");"""
 
-    def test_utils_lang_javascript_1(self):
+    def test_utils_lang_javascript_literals3(self):
+        r"""print('\'"Hello\tworld\r!\nblah\b\101\x61\u0061');"""
+
+    def test_utils_lang_javascript_basic1(self):
         """print(1);"""
 
-    def test_utils_lang_javascript_2(self):
+    def test_utils_lang_javascript_basic2(self):
         """print(1+2);"""
 
-    def test_utils_lang_javascript_3(self):
+    def test_utils_lang_javascript_basic3(self):
         """print(("aa",print("foo"),3,true,1+4));"""
 
-    def test_utils_lang_javascript_4(self):
+    def test_utils_lang_javascript_basic4(self):
         """;;;;for(var i=0; i<3; print(i++));;;;;;;"""
 
-    def test_utils_lang_javascript_5(self):
+    def test_utils_lang_javascript_basic5(self):
         """var a,b,c=[,,7,,,8];print(1,2,3,4,"aa",a,b,c);"""
 
     def test_utils_lang_javascript_object1(self):
@@ -78,12 +81,11 @@ class TestJavaScriptParsing(metaclass=MetaTestJavascript):
         """print({get : 2}.get);"""
 
     def test_utils_lang_javascript_object9(self):
-        """new {
-        };"""
+        """new {};"""
 
     def test_utils_lang_javascript_object10(self):
         """new {
-        a:1};"""
+    a : 1};"""
 
     def test_utils_lang_javascript_object11(self):
         """print({a: "test"} ["a"]);"""
@@ -93,13 +95,11 @@ class TestJavaScriptParsing(metaclass=MetaTestJavascript):
 
     def test_utils_lang_javascript_object13(self):
         """print({
-    a: 2
-}(2));"""
+    a : 2}(2));"""
 
     def test_utils_lang_javascript_object14(self):
         """print({
-    a: 2
-}++);"""
+    a : 2}++);"""
 
     def test_utils_lang_javascript_object15(self):
         """print(delete {

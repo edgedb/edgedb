@@ -5,6 +5,7 @@
 # See LICENSE for details.
 ##
 
+
 import pyggy
 
 l,tab = pyggy.getlexer("semantix/utils/lang/javascript/parser/js.pyl", debug = 1)

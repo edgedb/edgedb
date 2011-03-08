@@ -21,17 +21,3 @@ class JSParser(parsing.Parser):
 #    def get_exception(self, native_err):
 #        return PgSQLParserError(native_err.args[0])
 
-
-#jsparser = JSParser()
-#test = "var a=3,s='aaa',q=true, w={get a(){}, set a(r){}};"
-#tree = jsparser.parse(test)
-#print(test)
-#print(ast.dump.pretty_dump(tree, colorize=True))
-#
-#while True:
-#    code = input("Just type some JS code (or '#exit'):")
-#    if code == '#exit':
-#        break
-#    else:
-#        tree = JSParser().parse(code)
-#        print(ast.dump.pretty_dump(tree, colorize=True))

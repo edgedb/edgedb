@@ -10,9 +10,7 @@ from semantix.utils import ast
 
 
 class Base(ast.AST):
-#    __fields = [('inparen', bool, False)]
-    def __init__(self, *args, **kwargs):
-        self.inparen = False
+    __fields = [('inparen', bool, False)]
 
     def countIN(self):
         count = 0
@@ -32,6 +30,7 @@ class Base(ast.AST):
                 elif isinstance(attr, list):
                     count += sum([x.count() for x in attr if isinstance(x, Base)])
         return count
+
 
 class StatementNode(Base):
     __fields = ['statement']
