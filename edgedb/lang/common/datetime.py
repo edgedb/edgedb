@@ -11,6 +11,7 @@ import dateutil.parser
 import dateutil.relativedelta
 import dateutil.tz
 import re
+import time
 
 from semantix.utils import config
 
@@ -21,20 +22,30 @@ class DateTime(datetime.datetime):
     local_tz = None
 
     def __new__(cls, value=None):
+        tzinfo = None
+
         if isinstance(value, datetime.datetime):
-            d = value
+            args = [value.year, value.month, value.day, value.hour, value.minute, value.second,
+                    value.microsecond]
+            tzinfo = value.tzinfo
+        elif isinstance(value, time.struct_time):
+            args = [value.tm_year, value.tm_mon, value.tm_mday, value.tm_hour, value.tm_min,
+                    value.tm_sec, 0]
         elif isinstance(value, str):
             try:
-                d = dateutil.parser.parse(value)
+                dt = dateutil.parser.parse(value)
+                args = [dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond]
+                tzinfo = dt.tzinfo
             except ValueError as e:
                 raise ValueError("invalid value for DateTime object: %s" % value) from e
         else:
             raise ValueError("invalid value for DateTime object: %s" % value)
 
-        tzinfo = d.tzinfo or cls.get_tz()
+        if tzinfo is None:
+            tzinfo = cls.get_tz()
 
-        return super().__new__(cls, d.year, d.month, d.day, d.hour, d.minute, d.second,
-                                    d.microsecond, tzinfo)
+        args.append(tzinfo)
+        return super().__new__(cls, *args)
 
     @classmethod
     def get_tz(cls):
