@@ -1619,10 +1619,17 @@ class TreeTransformer:
                     else:
                         membership_op = op
 
+                    if isinstance(right.type, caos_types.ProtoConcept):
+                        id_t = self.context.current.proto_schema.get('uuid')
+                        const_filter = caos_ast.Constant(value=right.value, index=right.index,
+                                                         expr=right.expr, type=id_t)
+                    else:
+                        const_filter = right
+
                     paths = set()
                     for p in left_exprs.paths:
                         ref = caos_ast.AtomicRefSimple(ref=p, name=id_col)
-                        expr = caos_ast.BinOp(left=ref, right=right, op=membership_op)
+                        expr = caos_ast.BinOp(left=ref, right=const_filter, op=membership_op)
                         paths.add(caos_ast.AtomicRefExpr(expr=expr))
 
                     result = self.path_from_set(paths)
