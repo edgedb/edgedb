@@ -11,6 +11,7 @@ import sys
 
 import py
 from semantix.utils import shell
+from semantix.utils.test import Exceptions as ExceptionConfig
 
 
 class TestCommand(shell.Command, name='test', expose=True):
@@ -31,6 +32,7 @@ class TestCommand(shell.Command, name='test', expose=True):
                             help='disable python assert expression reinterpretation')
         parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', default=False,
                             help='enable verbose output')
+        parser.add_argument('--tb', dest='traceback_style', default=ExceptionConfig.traceback_style)
         parser.add_argument('tests', nargs='*',
                             help=('a pattern specifying tests to be included in the test run; '
                                   'if not specified, all tests will be run'))
@@ -73,6 +75,8 @@ class TestCommand(shell.Command, name='test', expose=True):
 
         if args.verbose:
             test_args.append('-v')
+
+        test_args.append('--traceback-style=%s' % args.traceback_style)
 
         path = os.path.dirname(os.path.abspath(__file__))
 

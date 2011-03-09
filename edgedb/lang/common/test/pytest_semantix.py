@@ -9,8 +9,10 @@
 import os
 import py
 import re
+import sys
 import logging
 
+from semantix.exceptions import SemantixError
 from semantix.utils.debug import highlight
 from semantix.utils.io import terminal
 
@@ -87,21 +89,40 @@ class LoggingPrintHandler(logging.Handler):
 
 test_patterns = []
 test_skipped_patterns = []
+traceback_style = 'long'
 
 
 BaseReprExceptionInfo = __import__('py._code.code', None, None, ['ReprExceptionInfo']).ReprExceptionInfo
 
 class ReprExceptionInfo(BaseReprExceptionInfo):
     def __init__(self, einfos):
-        super().__init__(*einfos[-1])
+        super().__init__(*einfos[-1][:2])
         self.einfos = einfos
+        self.term = terminal.Terminal(fd=sys.stderr, colors=True)
 
     def toterminal(self, tw):
-        for tb, crash in reversed(self.einfos):
+        for tb, crash, contexts in reversed(self.einfos):
             tb.toterminal(tw)
+
+            tw.sep('~', 'Semantix Exception Contexts')
+            if contexts:
+                for context in contexts:
+                    context.print(self.term)
+
         for name, content, sep in self.sections:
             tw.sep(sep, name)
             tw.line(content)
+
+
+BaseExceptionInfo = __import__('py._code.code', None, None, ['ExceptionInfo']).ExceptionInfo
+
+class ExceptionInfo(BaseExceptionInfo):
+    def getrepr(self, showlocals=False, style='long', abspath=False, tbfilter=True, funcargs=False):
+        global traceback_style
+        style = traceback_style
+        return super(showlocals=showlocals, style=style, abspath=abspath, tbfilter=tbfilter,
+                     funcargs=funcargs)
+
 
 class PyTestPatcher:
     target = None
@@ -111,7 +132,9 @@ class PyTestPatcher:
     @classmethod
     def patch(cls):
         cls.target = __import__('py._code.code', None, None, ['FormattedExcinfo']).FormattedExcinfo
+        cls.target2 = __import__('py._code.code', None, None, ['ExceptionInfo']).ExceptionInfo
         cls.old_get_source = cls.target.get_source
+        cls.old_getrepr = cls.target2.getrepr
 
         def get_source(self, *args, **kwargs):
             lst = cls.old_get_source(self, *args, **kwargs)
@@ -124,19 +147,29 @@ class PyTestPatcher:
         def repr_excinfo(self, excinfo):
             einfos = []
 
-            einfo = excinfo
+            einfo = ExceptionInfo(excinfo._excinfo)
 
             while einfo:
-                einfos.append((self.repr_traceback(einfo), einfo._getreprcrash()))
+                contexts = SemantixError.iter_contexts(einfo.value)
+                einfos.append((self.repr_traceback(einfo), einfo._getreprcrash(), contexts))
                 if einfo.value.__cause__:
                     cause = einfo.value.__cause__
-                    einfo = py.code.ExceptionInfo((type(cause), cause, cause.__traceback__))
+                    einfo = ExceptionInfo((type(cause), cause, cause.__traceback__))
                 else:
                     einfo = None
 
             return ReprExceptionInfo(einfos)
 
+        def getrepr(self, showlocals=False,
+                    style='long',
+                    abspath=False, tbfilter=True, funcargs=False):
+            global traceback_style
+            style = traceback_style
+            return cls.old_getrepr(self, showlocals=showlocals, style=style, abspath=abspath,
+                                   tbfilter=tbfilter, funcargs=funcargs)
+
         cls.target.repr_excinfo = repr_excinfo
+        cls.target2.getrepr = getrepr
 
 
     @classmethod
@@ -146,6 +179,9 @@ class PyTestPatcher:
             cls.target.repr_excinfo = cls.old_repr_excinfo
             cls.old_get_source = None
             cls.old_repr_excinfo = None
+        if cls.old_getrepr and cls.target2:
+            cls.target2.getrepr = cls.old_getrepr
+            cls.old_getrepr = None
 
 
 def pytest_addoption(parser):
@@ -153,13 +189,14 @@ def pytest_addoption(parser):
     parser.addoption("--tests", dest="test_patterns", action="append")
     parser.addoption("--skip-tests", dest="test_skipped_patterns", action="append")
     parser.addoption("--shell", dest="shell_on_ex", action="store_true", default=False)
+    parser.addoption('--traceback-style', dest="traceback_style", default="extended")
 
     group = parser.getgroup("terminal reporting")
     group._addoption('--colorize', default=False, action='store_true', dest='colorize')
 
 
 def pytest_configure(config):
-    global test_patterns, test_skipped_patterns, semantix_debug
+    global test_patterns, test_skipped_patterns, semantix_debug, traceback_style
 
     if config.option.shell_on_ex:
         config.pluginmanager.register(ShellInvoker(), 'shell')
@@ -183,6 +220,10 @@ def pytest_configure(config):
         for t in tp:
             patterns.extend(t.split(","))
         test_skipped_patterns = [re.compile(p) for p in patterns]
+
+    tbs = config.getvalue('traceback_style')
+    if tbs:
+        traceback_style = tbs
 
     sd = config.getvalue('semantix_debug')
     if sd:
