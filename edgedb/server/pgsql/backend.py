@@ -28,6 +28,7 @@ from semantix.caos import objects as caos_objects
 from semantix.caos import backends
 from semantix.caos import proto
 from semantix.caos import delta as base_delta
+from semantix.caos import debug as caos_debug
 
 from semantix.caos.caosql import transformer as caosql_transformer
 from semantix.caos.caosql import codegen as caosql_codegen
@@ -416,10 +417,18 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             meta = self.getmeta()
             if meta.get_checksum() != d.checksum:
                 xact.rollback()
-                self.modules = self.read_modules()
-                self.features = self.read_features()
-                raise base_delta.DeltaChecksumError('could not apply delta correctly: '
-                                                    'checksums do not match')
+                self.invalidate_meta_cache()
+                expected_meta = self.getmeta()
+                delta.apply(expected_meta)
+                details = ('Schema checksum verification failed (expected "%x", got "%x") when '
+                           'applying delta "%x".' % (d.checksum, meta.get_checksum(), deltas[-1].id))
+                hint = 'This usually indicates a bug in backend delta adapter.'
+                raise base_delta.DeltaChecksumError('failed to apply schema delta'
+                                                    'checksums do not match',
+                                                    details=details, hint=hint,
+                                                    schema1=expected_meta, schema2=meta,
+                                                    schema1_title='Expected Schema',
+                                                    schema2_title='Schema in Backend')
 
 
     def invalidate_meta_cache(self):
