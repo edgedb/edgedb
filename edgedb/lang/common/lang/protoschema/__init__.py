@@ -9,11 +9,12 @@
 import builtins
 import collections
 import importlib
+import operator
 import re
 
 from semantix import SemantixError
 from semantix.utils import lang
-from semantix.utils.datastructures import OrderedSet
+from semantix.utils.datastructures import OrderedSet, ExtendedSet
 from semantix.utils import abc
 from semantix.utils.functional import hybridmethod
 
@@ -58,6 +59,11 @@ class ImportContext(lang.ImportContext):
 
 
 default_err = object()
+
+
+class PrototypeSet(ExtendedSet):
+    def __init__(self, *args, key=operator.attrgetter('name'), **kwargs):
+        super().__init__(*args, key=key, **kwargs)
 
 
 class PrototypeClass(type):
@@ -124,9 +130,7 @@ class Namespace:
             return self.lookup_qname(name)
 
     def lookup_qname(self, name):
-        module = self.index_by_module.get(name.module)
-        if module:
-            return module.get(name.name)
+        return self.index_by_name.get(name)
 
     def normalize_name(self, name, module_aliases=None, default=default_err,
                              include_pyobjects=False):
@@ -212,10 +216,7 @@ class ProtoSchemaIterator:
             itertype = index.index_by_type.get(type)
 
             if itertype:
-                if sourceset:
-                    sourceset = itertype & sourceset
-                else:
-                    sourceset = itertype
+                sourceset = itertype
             else:
                 sourceset = OrderedSet()
 
@@ -233,7 +234,8 @@ class ProtoSchemaIterator:
         return self
 
     def __next__(self):
-        return next(self.iter)
+        result = self.index.get_object_by_key(next(self.iter))
+        return result
 
 
 class ProtoSchema:
@@ -250,15 +252,23 @@ class ProtoSchema:
     def get_schema_name(self):
         return SchemaName
 
+    def get_object_key(self, obj):
+        return obj.__class__.get_canonical_class(), obj.name
+
+    def get_object_by_key(self, key):
+        cls, name = key
+        obj = self.get_namespace(cls).lookup_qname(name)
+        assert obj, 'Could not find "%s" object named "%s"' % (cls, name)
+        return obj
+
     def __init__(self, load_builtins=True, main_module=None):
-        # XXX: TODO: refactor this ugly index explosion into a single smart and efficient one
         self.index = OrderedSet()
         self.index_by_type = {}
+        self.index_builtin = OrderedSet()
 
         self.namespaces = {}
-
-        self.index_builtin = OrderedSet()
         self.modules = {}
+
         self.main_module = main_module
         self.rmodules = set()
         self.checksum = None
@@ -273,8 +283,8 @@ class ProtoSchema:
     def _init_builtin(self):
         module = self.ImportContext(name=self.builtins_module, toplevel=True, builtin=True)
         builtins = importlib.import_module(module)
-        for obj in builtins._index_.index:
-            self.add(obj)
+        for key in builtins._index_.index:
+            self.add(builtins._index_.get_object_by_key(key))
 
     def add(self, obj):
         ns = self.get_namespace(obj)
@@ -284,21 +294,26 @@ class ProtoSchema:
         # Invalidate checksum
         self.checksum = None
 
-        self.index.add(obj)
-
-        idx_by_type = self.index_by_type.setdefault(obj._type, OrderedSet())
-        idx_by_type.add(obj)
-
         ns.add(obj)
 
-        if obj.name.module == self.builtins_module:
-            self.index_builtin.add(obj)
+        key = self.get_object_key(obj)
+        self.index.add(key)
 
-    def delete(self, obj):
+        idx_by_type = self.index_by_type.setdefault(obj._type, OrderedSet())
+        idx_by_type.add(key)
+
+        if obj.name.module == self.builtins_module:
+            self.index_builtin.add(key)
+
+    def discard(self, obj):
         existing = self.get_namespace(obj).discard(obj)
         if existing:
             self._delete(existing)
-        else:
+        return existing
+
+    def delete(self, obj):
+        existing = self.discard(obj)
+        if existing is None:
             raise self.SchemaError('object "%s" is not present in the index' % obj.name)
 
         return existing
@@ -310,9 +325,10 @@ class ProtoSchema:
         self.add(obj)
 
     def _delete(self, obj):
-        self.index.remove(obj)
-        self.index_builtin.discard(obj)
-        self.index_automatic.discard(obj)
+        key = self.get_object_key(obj)
+        self.index.remove(key)
+        self.index_builtin.discard(key)
+        self.index_by_type[obj.__class__._type].remove(key)
 
     def add_module(self, module, alias):
         existing = self.modules.get(alias)

@@ -369,11 +369,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     @debug
     def apply_synchronization_plan(self, plans):
         """LOG [caos.delta.plan] PgSQL Adapted Delta Plan
-        for plan in plans:
+        for plan, delta in plans:
             print(plan.dump())
         """
-        for plan in plans:
-            plan.execute(delta_cmds.CommandContext(self.connection))
+        for plan, delta in plans:
+            try:
+                plan.execute(delta_cmds.CommandContext(self.connection))
+            except Exception as e:
+                msg = 'failed to apply delta {:032x} to data backend'.format(delta.id)
+                raise base_delta.DeltaError(msg, delta=delta) from e
 
 
     def apply_delta(self, delta):
@@ -388,7 +392,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         for d in deltas:
             plan = self.process_delta(d.deltas[0], meta)
-            plans.append(plan)
+            plans.append((plan, d))
 
         table = delta_cmds.DeltaLogTable()
         records = []
@@ -401,7 +405,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                   )
             records.append(rec)
 
-        plans.append(delta_cmds.Insert(table, records=records))
+        plans.append((delta_cmds.Insert(table, records=records), None))
 
         table = delta_cmds.DeltaRefTable()
         rec = table.record(
@@ -409,7 +413,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 ref='HEAD'
               )
         condition = [('ref', str('HEAD'))]
-        plans.append(delta_cmds.Merge(table, record=rec, condition=condition))
+        plans.append((delta_cmds.Merge(table, record=rec, condition=condition), None))
 
         with self.connection.xact() as xact:
             self.apply_synchronization_plan(plans)

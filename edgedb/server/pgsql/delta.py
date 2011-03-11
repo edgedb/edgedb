@@ -48,7 +48,11 @@ class MetaCommand(delta_cmds.Command, metaclass=CommandMeta):
         for op in self.ops:
             self.pgops.add(op)
 
+    @debug
     def execute(self, context):
+        """LINE [caos.delta.execute] EXECUTING
+        repr(self)
+        """
         for op in sorted(self.pgops, key=lambda i: i.priority, reverse=True):
             op.execute(context)
 
@@ -75,15 +79,15 @@ class BaseCommand:
     @debug
     def execute(self, context):
         code, vars = self.get_code_and_vars(context)
-        """LOG [caos.meta.sync.cmd] Sync command:
-        print(self)
-        """
-
-        """LOG [caos.sql] Sync command code:
-        print(code, vars)
-        """
 
         if code:
+            """LOG [caos.sql] Sync command code:
+            print(code, vars)
+            """
+
+            """LINE [caos.delta.execute] EXECUTING
+            repr(self)
+            """
             result = context.db.prepare(code)(*vars)
             extra = self.extra(context)
             if extra:
@@ -117,15 +121,15 @@ class Command(BaseCommand):
         if ok:
             code, vars = self.get_code_and_vars(context)
 
-            """LOG [caos.delta.cmd] Sync command:
-            print(self)
-            """
-
-            """LOG [caos.sql] Sync command code:
-            print(code, vars)
-            """
-
             if code:
+                """LOG [caos.sql] Sync command code:
+                print(code, vars)
+                """
+
+                """LINE [caos.delta.execute] EXECUTING
+                repr(self)
+                """
+
                 if vars is not None:
                     result = context.db.prepare(code)(*vars)
                 else:
@@ -623,17 +627,18 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         self.abstract_pointer_constraints = {}
         self.dropped_pointer_constraints = {}
 
-    def get_alter_table(self, context, priority=0, force_new=False, contained=False):
+    def get_alter_table(self, context, priority=0, force_new=False, contained=False, manual=False):
         key = (priority, contained)
         alter_table = self.alter_tables.get(key)
-        if alter_table is None or force_new:
+        if alter_table is None or force_new or manual:
             if not self.table_name:
                 assert self.__class__.context_class
                 ctx = context.get(self.__class__.context_class)
                 assert ctx
                 self.table_name = common.get_table_name(ctx.proto, catenate=False)
             alter_table = AlterTable(self.table_name, priority=priority, contained=contained)
-            self.alter_tables.setdefault(key, []).append(alter_table)
+            if not manual:
+                self.alter_tables.setdefault(key, []).append(alter_table)
         else:
             alter_table = alter_table[-1]
 
@@ -932,24 +937,35 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
             self.pointer_constraints.setdefault(pointer_name, {})[constr_key] = constraint
 
-    def del_pointer_constraint(self, source, pointer_name, constraint, meta, context):
+    def del_pointer_constraint(self, source, pointer_name, constraint, meta, context,
+                               conditional=False):
         constr_key = persistent_hash(constraint)
         self_constrs = self.dropped_pointer_constraints.get(pointer_name)
 
         if not self_constrs or constr_key not in self_constrs:
-            alter_table = self.get_alter_table(context, priority=2)
+            alter_table = self.get_alter_table(context, priority=2, force_new=conditional,
+                                               manual=conditional)
             constr = self.get_pointer_constraint(meta, context, constraint,
                                                  source=source, pointer_name=pointer_name)
             op = AlterTableDropConstraint(constraint=constr)
             alter_table.add_operation(op)
 
-            constraint_origins = source.get_constraint_origins(meta, pointer_name, constraint)
-            assert constraint_origins
+            if not conditional:
+                constraint_origins = source.get_constraint_origins(meta, pointer_name, constraint)
+                assert constraint_origins
 
-            self.pgops.add(self.drop_unique_constraint_trigger(source, pointer_name, constr,
-                                                               meta, context))
+            drop_trig = self.drop_unique_constraint_trigger(source, pointer_name, constr,
+                                                            meta, context)
 
-            self.dropped_pointer_constraints.setdefault(pointer_name, {})[constr_key] = constraint
+            if conditional:
+                cond = self.unique_constraint_trigger_exists(source, pointer_name, constr,
+                                                             meta, context)
+                op = CommandGroup(conditions=[cond])
+                op.add_commands([alter_table, drop_trig])
+                self.pgops.add(op)
+            else:
+                self.pgops.add(drop_trig)
+                self.dropped_pointer_constraints.setdefault(pointer_name, {})[constr_key] = constraint
 
     def rename_pointer_constraint(self, orig_source, source, pointer_name,
                                         old_constraint, new_constraint, meta, context):
@@ -1023,6 +1039,12 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         result.add_command(updtrigger)
 
         return result
+
+    def unique_constraint_trigger_exists(self, source, pointer_name, constraint, meta, context):
+        schema = common.caos_module_name_to_schema_name(source.name.module)
+        proc_name = constraint.raw_constraint_name() + '_trigproc'
+        proc_name = schema, common.caos_name_to_pg_name(proc_name)
+        return FunctionExists(proc_name)
 
     def drop_unique_constraint_trigger(self, source, pointer_name, constraint, meta, context):
         schema = common.caos_module_name_to_schema_name(source.name.module)
@@ -1849,6 +1871,13 @@ class CreatePointerConstraint(PointerConstraintMetaCommand,
                     ac = source.op.abstract_pointer_constraints.setdefault(pointer_name, {})
                     ac[constr_key] = constraint
 
+                    # Need to clean up any non-abstract constraints of this type in case
+                    # the constraint was altered from non-abstract to abstract.
+                    #
+                    # XXX: This will go away once AlterConstraint is implemented properly
+                    #
+                    source.op.del_pointer_constraint(source.proto, pointer_name, constraint,
+                                                     meta, context, conditional=True)
                 else:
                     source.op.add_pointer_constraint(source.proto, pointer_name, constraint,
                                                      meta, context)
@@ -1862,6 +1891,8 @@ class CreatePointerConstraint(PointerConstraintMetaCommand,
                     cmd = source.op.__class__(prototype_name=child.name, prototype_class=protoclass)
 
                     with context(source.op.__class__.context_class(cmd, child)):
+                        # XXX: This can lead to duplicate constraint errors if the child has
+                        # been created in the same sync session.
                         cmd.add_pointer_constraint(child, pointer_name, constraint, meta, context)
                         cmd.attach_alter_table(context)
                         self.pgops.add(cmd)
@@ -2631,7 +2662,7 @@ class Update(DMLOperation):
 
     def __repr__(self):
         expr = ','.join('%s=%s' % (f, getattr(self.record, f)) for f in self.fields)
-        where = ','.join('%s=%s' % (c[0], c[1]) for c in self.condition)
+        where = ','.join('%s=%s' % (c[0], c[1]) for c in self.condition) if self.condition else ''
         return '<caos.sync.%s %s %s (%s)>' % (self.__class__.__name__, self.table.name, expr, where)
 
 
