@@ -1122,6 +1122,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 name = 'rpad'
                 # rpad expects the second argument to be int, so force cast it
                 args[1] = pgsql.ast.TypeCastNode(expr=args[1], type=pgsql.ast.TypeNode(name='int'))
+            elif expr.name in (('str', 'trim'), ('str', 'ltrim'), ('str', 'rtrim')):
+                name = expr.name[1]
             elif expr.name == ('str', 'strpos'):
                 r = pgsql.ast.FunctionCallNode(name='strpos', args=args)
                 result = pgsql.ast.BinOpNode(left=r, right=pgsql.ast.ConstantNode(value=1),
