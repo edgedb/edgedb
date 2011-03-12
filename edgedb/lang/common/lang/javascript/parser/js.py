@@ -10,11 +10,8 @@ import sys
 
 from semantix.utils import parsing
 
-#import ast as jsast
 from .. import ast as jsast
-
 from . import keywords
-#import keywords
 
 # wrapping the Parsing classes?
 

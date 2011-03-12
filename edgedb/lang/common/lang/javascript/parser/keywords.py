@@ -6,8 +6,8 @@
 ##
 
 
-keyword_types = range(4)
-RESERVED_KEYWORD, FUTURE_RESERVED_WORD, NULL, BOOL = keyword_types
+keyword_types = range(5)
+RESERVED_KEYWORD, FUTURE_RESERVED_WORD, FUTURE_STRICT_RESERVED_WORD, NULL, BOOL = keyword_types
 
 # keyword dict needed
 js_keywords = {
@@ -50,15 +50,15 @@ js_keywords = {
     "export" : FUTURE_RESERVED_WORD,
     "import" : FUTURE_RESERVED_WORD,
 
-    "implements" : FUTURE_RESERVED_WORD,
-    "let" : FUTURE_RESERVED_WORD,
-    "private" : FUTURE_RESERVED_WORD,
-    "public" : FUTURE_RESERVED_WORD,
-    "interface" : FUTURE_RESERVED_WORD,
-    "package" : FUTURE_RESERVED_WORD,
-    "protected" : FUTURE_RESERVED_WORD,
-    "static" : FUTURE_RESERVED_WORD,
-    "yield" : FUTURE_RESERVED_WORD
+    "implements" : FUTURE_STRICT_RESERVED_WORD,
+    "let" : FUTURE_STRICT_RESERVED_WORD,
+    "private" : FUTURE_STRICT_RESERVED_WORD,
+    "public" : FUTURE_STRICT_RESERVED_WORD,
+    "interface" : FUTURE_STRICT_RESERVED_WORD,
+    "package" : FUTURE_STRICT_RESERVED_WORD,
+    "protected" : FUTURE_STRICT_RESERVED_WORD,
+    "static" : FUTURE_STRICT_RESERVED_WORD,
+    "yield" : FUTURE_STRICT_RESERVED_WORD
     }
 
 
