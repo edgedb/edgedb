@@ -42,7 +42,8 @@ class TestCommand(shell.Command, name='test', expose=True):
     def __call__(self, args):
         test_args = []
 
-        test_args.extend(('-p', 'semantix', '-s'))
+        # both full and short plugin name are listed for before/after pytest-2.0 compatibility
+        test_args.extend(('-p', 'semantix.utils.test.pytest_semantix', '-p', 'semantix', '-s'))
 
         if args.shell:
             test_args.append('--shell')
@@ -82,6 +83,7 @@ class TestCommand(shell.Command, name='test', expose=True):
 
         # This ugliness is required due to py.test braindead plugin lookup: there is
         # no way to specify a plugin with full package path, only a name _suffix_
+        # This has been fixed in pytest-2.0
         sys.path.insert(0, path)
         result = py.test.cmdline.main(test_args)
         sys.path.remove(path)
