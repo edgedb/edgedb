@@ -1901,11 +1901,11 @@ class FunctionExpression(Nonterm):
 
     def reduce_function_without_id_and_parameters(self, *kids):
         "%reduce FUNCTION LPAREN RPAREN LCBRACKET FunctionBody RCBRACKET"
-        self.val = jsast.FunctionNode(name=None, param=None, body=kids[4].val)
+        self.val = jsast.FunctionNode(name=None, param=[], body=kids[4].val)
 
     def reduce_function_with_name_and_without_parameters(self, *kids):
         "%reduce FUNCTION ID LPAREN RPAREN LCBRACKET FunctionBody RCBRACKET"
-        self.val = jsast.FunctionNode(name=kids[1].val, param=None, body=kids[5].val)
+        self.val = jsast.FunctionNode(name=kids[1].val, param=[], body=kids[5].val)
 
     def reduce_function_without_name_and_with_parameters(self, *kids):
         "%reduce FUNCTION LPAREN FormalParameterList RPAREN LCBRACKET FunctionBody RCBRACKET"
@@ -1938,7 +1938,7 @@ class FunctionBody(Nonterm):
 
     def reduce_SourceElements(self, *kids):
         "%reduce SourceElements"
-        self.val = jsast.StatementBlockNode(statements=kids[0].val.code);
+        self.val = jsast.StatementBlockNode(statements=kids[0].val.code)
 #        self.val = kids[0].val
 
 

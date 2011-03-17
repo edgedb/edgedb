@@ -164,8 +164,11 @@ print(---a);"""
     def test_utils_lang_javascript_binexpr7(self):
         """var a = 3; print(16 | false == 0 <= 1 + 2 / 5 - a * 4 + 6.7 % 3);"""
 
-    def test_utils_lang_javascript_ifexpr(self):
+    def test_utils_lang_javascript_ifexpr1(self):
         """var a = -4; a*=3; print(a > 0 ? "positive" : "negative");"""
+
+    def test_utils_lang_javascript_ifexpr2(self):
+        """var a = -4; a*=3; print(a = 0 ? "positive" : "negative");"""
 
     def test_utils_lang_javascript_throw(self):
         """throw "oops!";"""

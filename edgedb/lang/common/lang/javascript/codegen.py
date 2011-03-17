@@ -135,7 +135,9 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.write('new ')
         self.visit(node.expression)
         if node.arguments:
-            self.visit(node.arguments)
+            self.write('(')
+            self._visit_list(node.arguments)
+            self.write(')')
 
     def visit_SBracketExpressionNode(self, node):
         self.visit(node.list)
@@ -156,14 +158,18 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.visit(node.expression)
 
     def visit_InstanceOfNode(self, node):
+        self.write('(')
         self.visit(node.expression)
         self.write(' instanceof ')
         self.visit(node.type)
+        self.write(')')
 
     def visit_InNode(self, node):
+        self.write('(')
         self.visit(node.expression)
         self.write(' in ')
         self.visit(node.container)
+        self.write(')')
 
     def visit_SimplePropertyNode(self, node):
         self.newline()
@@ -219,16 +225,20 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.write("if (")
         self.visit(node.ifclause)
         self.write(")")
-        self.newline()
         if node.thenclause:
+            self.indentation += 1
+            self.newline()
             self.visit(node.thenclause)
+            self.indentation -= 1
         else:
             self.write(";")
             self.newline()
         if node.elseclause:
             self.write("else")
+            self.indentation += 1
             self.newline()
             self.visit(node.elseclause)
+            self.indentation -= 1
 
     def visit_DoNode(self, node):
         self.write("do")
