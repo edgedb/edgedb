@@ -142,36 +142,16 @@ class PreparedQuery:
         return self.query.describe_arguments()
 
     def __call__(self, **kwargs):
-        vars = self.convert_args(kwargs)
-
-        if self.query.scrolling_cursor:
-            if self.query.limit:
-                limit = kwargs.pop(self.query.limit.index)
-            else:
-                limit = None
-
-            if self.query.offset:
-                offset = kwargs.pop(self.query.offset.index)
-            else:
-                offset = None
-
-            return Cursor(self.statement.declare(*vars), offset, limit)
-        else:
-            return self.statement(*vars)
-
-    def first(self, **kwargs):
-        vars = self.convert_args(kwargs)
-        return self.statement.first(*vars)
+        return self._iterator(self.statement, **kwargs)
 
     def rows(self, **kwargs):
-        vars = self.convert_args(kwargs)
+        return self._iterator(self.statement.rows, **kwargs)
 
-        if self.scrolling_cursor:
-            return Cursor(self.statement.declare(*vars), self.query.offset, self.query.limit)
-        else:
-            return self.statement.rows(vars)
+    def first(self, **kwargs):
+        vars = self._convert_args(kwargs)
+        return self.statement.first(*vars)
 
-    def convert_args(self, kwargs):
+    def _convert_args(self, kwargs):
         result = []
         for k in self.query.argmap:
             arg = kwargs[k]
@@ -180,6 +160,27 @@ class PreparedQuery:
             result.append(arg)
 
         return result
+
+    def _iterator(self, native_callback, **kwargs):
+        vars = self._convert_args(kwargs)
+
+        if self.query.scrolling_cursor:
+            return self._cursor_iterator(vars, **kwargs)
+        else:
+            return native_callback(*vars)
+
+    def _cursor_iterator(self, vars, **kwargs):
+        if self.query.limit:
+            limit = kwargs.pop(self.query.limit.index)
+        else:
+            limit = None
+
+        if self.query.offset:
+            offset = kwargs.pop(self.query.offset.index)
+        else:
+            offset = None
+
+        return Cursor(self.statement.declare(*vars), offset, limit)
 
     __iter__ = rows
 
