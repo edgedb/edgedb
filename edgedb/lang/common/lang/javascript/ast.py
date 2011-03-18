@@ -12,10 +12,10 @@ from semantix.utils import ast
 class Base(ast.AST):
     pass
 
-class ProgramNode(Base):
-    __fields = [('code', list)]
-
 class StatementNode(Base):
+    __fields = ['statement']
+
+class BlockNode(Base):
     __fields = ['statement']
 
 class VarDeclarationNode(Base):
@@ -41,6 +41,9 @@ class ArrayLiteralNode(Base):
 class ObjectLiteralNode(Base):
     __fields = [('properties', list)]
 
+class RegExpNode(Base):
+    __fields = ['regexp']
+
 class IDNode(Base):
     __fields = ['name']
 
@@ -49,9 +52,6 @@ class ThisNode(Base):
 
 class NullNode(Base):
     pass
-
-class ParenthesisNode(Base):
-    __fields = ['expression']
 
 class ExpressionListNode(Base):
     __fields = [('expressions', list)]
@@ -65,11 +65,14 @@ class PostfixExpressionNode(Base):
 class BinExpressionNode(Base):
     __fields = ['left', 'op', 'right']
 
-class ConditionalExpressionNode(Base):
-    __fields = ['condition', 'true', 'false']
-
 class AssignmentExpressionNode(BinExpressionNode):
     pass
+
+class DotExpressionNode(Base):
+    __fields = ['left', 'right']
+
+class ConditionalExpressionNode(Base):
+    __fields = ['condition', 'true', 'false']
 
 class CallNode(Base):
     __fields = ['call', ('arguments', list)]
@@ -101,11 +104,70 @@ class SimplePropertyNode(Base):
     __fields = ['name', 'value']
 
 class GetPropertyNode(Base):
-    __fields = ['name', 'function']
+    __fields = ['name', 'functionbody']
 
 class SetPropertyNode(Base):
-    __fields = ['name', 'param', 'function']
+    __fields = ['name', 'param', 'functionbody']
 
 # function
-class FunctionBodyNode(Base):
-    __fields = ['body']
+class FunctionNode(Base):
+    __fields = ['name', ('param', list), 'body']
+
+#class FunctionBodyNode(Base):
+#    __fields = ['body']
+
+# Statements
+
+class SourceElementsNode(Base):
+    __fields = [('code', list)]
+
+class StatementBlockNode(Base):
+    __fields = [('statements', list)]
+
+class IfNode(Base):
+    __fields = ['ifclause', 'thenclause', 'elseclause']
+
+class DoNode(Base):
+    __fields = ['statement', 'expression']
+
+class WhileNode(Base):
+    __fields = ['expression', 'statement']
+
+class ForNode(Base):
+    __fields = ['part1', 'part2', 'part3', 'statement']
+
+class ForInNode(Base):
+    __fields = ['init', 'array', 'statement']
+
+class WithNode(Base):
+    __fields = ['expression', 'statement']
+
+class ContinueNode(Base):
+    __fields = ['id']
+
+class BreakNode(Base):
+    __fields = ['id']
+
+class ReturnNode(Base):
+    __fields = ['expression']
+
+class LabelNode(Base):
+    __fields = ['id', 'statement']
+
+class SwitchNode(Base):
+    __fields = ['expression', 'cases']
+
+class CaseNode(Base):
+    __fields = ['case', 'statements']
+
+class DefaultNode(Base):
+    __fields = ['statements']
+
+class ThrowNode(Base):
+    __fields = ['expression']
+
+class TryNode(Base):
+    __fields = ['tryblock', 'catchid', 'catchblock', 'finallyblock']
+
+class DebuggerNode(Base):
+    pass

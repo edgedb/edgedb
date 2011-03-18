@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.debug import assert_raises
+from semantix.utils.debug import assert_raises, ErrorExpected
 
 
 class TestAssertRaises:
@@ -36,7 +36,7 @@ class TestAssertRaises:
                                error_re='invalid literal for int\(\) with base \d+'):
                 int('g', base)
 
-        with assert_raises(AssertionError):
+        with assert_raises(ErrorExpected):
             # Let it test itself :) int(10) does not raise
             with assert_raises(ValueError):
                 int(10)

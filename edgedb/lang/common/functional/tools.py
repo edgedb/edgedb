@@ -24,7 +24,7 @@ class NonDecoratable:
     pass
 
 
-WRAPPER_ASSIGNMENTS = ('__module__', '__name__', '__doc__', '__annotations__')
+WRAPPER_ASSIGNMENTS = {'__module__', '__name__', '__doc__', '__annotations__'}
 def decorate(wrapper, wrapped, *, assigned=WRAPPER_ASSIGNMENTS):
     if isinstance(wrapped, type) and issubclass(wrapped, NonDecoratable):
         raise TypeError('Unable to decorate %r as a subclass of NonDecoratable' % wrapped)

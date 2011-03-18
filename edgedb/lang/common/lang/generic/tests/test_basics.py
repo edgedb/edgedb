@@ -44,6 +44,12 @@ class TestPYJSFoundation(GenericLangTestSuite):
         a = [1, 2, 3, 4, 5]
         return a[1:3], a[:], a[::-1], a[:-2]
 
+    def test_utils_lang_generic_var_swap(self):
+        a = 1
+        b = 2
+        a, b = b, a
+        return a, b
+
     def test_utils_lang_generic_assignment_unpack(self):
         a, b, (c, d, (e, *f)), *g = (1, 2, (3, 4, (5, 4, 5, 6)), 4)
 

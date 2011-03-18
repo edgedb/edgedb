@@ -19,6 +19,7 @@ channels = set()
 
 class DebugDecoratorParseError(Exception): pass
 
+
 def _indent_code(source, absolute=None, relative=None):
     def _calc_tab_size(str):
         count = 0
@@ -163,6 +164,9 @@ def highlight(code, lang=None):
     return h(code, get_lexer_by_name(lang), TerminalFormatter(bg='dark', style='native'))
 
 
+class ErrorExpected(Exception): pass
+
+
 @contextlib.contextmanager
 def assert_raises(exception_cls, *, cause=None, error_re=None):
     try:
@@ -176,8 +180,13 @@ def assert_raises(exception_cls, *, cause=None, error_re=None):
 
             assert err_re.search(ex.args[0]) or \
                    (cause is not None and err_re.search(ex.__cause__.args[0]))
+
+    except Exception as ex:
+        raise ErrorExpected('%s was expected to be raised, got %s' % \
+                                    (exception_cls.__name__, ex.__class__.__name__)) from ex
+
     else:
-        assert False, '%s was expected to be raised' % exception_cls.__name__
+        raise ErrorExpected('%s was expected to be raised' % exception_cls.__name__)
 
 
 def timeit(target):
