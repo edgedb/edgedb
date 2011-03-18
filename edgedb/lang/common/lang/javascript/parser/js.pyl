@@ -1,0 +1,188 @@
+##
+# Copyright (c) 2008-2011 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+code:
+    from semantix.utils.lang.javascript.parser.keywords import js_keywords
+
+    # initialize the line counter to 1
+    linenumber = 1
+
+definitions:
+    # eventually we might also want <VT> <FF> <NBSP>
+    whitespace          "[\t ]"
+    lineterminator      "[\r\n]|\r\n"
+
+    # comment components
+    scomment_notterm  "[^\r\n]"
+    mcomment_notstar_notslash   "[^\*/\r\n]"
+    mcomment_notstar            "[^\*\r\n]"
+
+    # operators
+    operator   "<|>|<=|>=|==|!=|===|!==|\+|-|\*|%|\+\+|--|<<|>>|>>>|&|\||\^|!|~|&&|\|\||\?|=|\+=|-=|\*=|%=|<<=|>>=|>>>=|&=|\|=|\^=|/|/="
+
+    # identifier
+    id  "[$_A-Za-z]+[$_A-Za-z0-9]*"
+
+    # numbers
+    decdigit        "[0-9]"
+    decdigitnonzero "[1-9]"
+    hexdigit        "[0-9a-fA-F]"
+    intpart         "{decdigitnonzero}{decdigit}*|0"
+    exppart         "[eE]([\+\-])?{decdigit}*"
+
+    # a number can only be followed by certain chars, definitely no more digits or identifiers
+    afternumber     "[^$_A-Za-z0-9\.]"
+
+    # string literals
+    doublestringchar    "[^\"\\\r\n]"
+    singlestringchar    "[^\'\\\r\n]"
+    linecont            "\\{lineterminator}"
+    hexescapesequence   "\\x{hexdigit}{hexdigit}"
+    uniescapesequence   "\\u{hexdigit}{hexdigit}{hexdigit}{hexdigit}"
+    octescapesequence   "\\([0-7]|[0-7][0-7]|[0-3][0-7][0-7])"
+    escapechar          "\\[\'\"\\bnfrtv]"
+
+    # regular expression literals
+
+
+INITIAL:
+    # whitespace
+    "{whitespace}+":
+        return #"WSPACE"
+    "{lineterminator}":
+        global linenumber
+        linenumber+=1
+
+    # comments
+    "//":
+        self.PUSHSTATE(SINGLELINECOMMENT)
+    "/\*+\*/":
+        return # empty multiline comment, just consume it
+    "/\*+":
+        self.PUSHSTATE(MULTILINECOMMENT)
+
+    # operators, separators, etc.
+    "{operator}":   return self.value
+    "\{":    return "LCBRACKET"
+    "\}":    return "RCBRACKET"
+    "\[":    return "LSBRACKET"
+    "\]":    return "RSBRACKET"
+    "\(":    return "LPAREN"
+    "\)":    return "RPAREN"
+    "\.[^0-9]":
+        # this is not a dot in the numeric literal
+        # so we need to push back the last char
+        self.PUSHBACK(self.value[-1:])
+        return "DOT"
+    ";":    return "SEMICOLON"
+    ":":    return "COLON"
+    ",":    return "COMMA"
+
+    # identifiers, reserved words
+    "{id}":
+        kw = js_keywords.get(self.value)
+        if kw:
+            return kw[0]
+        else:
+            return 'ID'
+
+    # string literals
+    "\"":
+        self.string = ""
+        self.PUSHSTATE(DOUBLEQUOTE)
+    "\'":
+        self.string = ""
+        self.PUSHSTATE(SINGLEQUOTE)
+
+    # decimal literals
+    # need to make sure they aren't spliced with anything weird like letters or "."
+    # so we'll need to push one symbol back
+    "{intpart}{afternumber}":
+        self.PUSHBACK(self.value[-1:])
+        self.value = self.value[:-1]
+        self.value = int(self.value)
+        return "NUMBER"
+    "{intpart}\.{decdigit}*{exppart}?{afternumber}":
+        self.PUSHBACK(self.value[-1:])
+        self.value = self.value[:-1]
+        self.value = float(self.value)
+        return "NUMBER"
+    "\.{decdigit}+{exppart}?{afternumber}":
+        self.PUSHBACK(self.value[-1:])
+        self.value = self.value[:-1]
+        self.value = float(self.value)
+        return "NUMBER"
+    "{intpart}{exppart}{afternumber}":
+        self.PUSHBACK(self.value[-1:])
+        self.value = self.value[:-1]
+        self.value = float(self.value)
+        return "NUMBER"
+
+    # hex literals
+    "0x{hexdigit}+{afternumber}":
+        self.PUSHBACK(self.value[-1:])
+        self.value = self.value[:-1]
+        self.value = int(self.value, 16)
+        return "NUMBER"
+
+
+SINGLELINECOMMENT:
+    "{scomment_notterm}*":
+        return #"COMMENT"
+    "{lineterminator}":
+        self.POPSTATE()
+        global linenumber
+        linenumber+=1
+
+MULTILINECOMMENT:
+    "({mcomment_notstar}*(\*+{mcomment_notstar_notslash})*)*\**{lineterminator}":
+        global linenumber
+        linenumber+=1
+        return #"COMMENT"
+    "({mcomment_notstar}*(\*+{mcomment_notstar_notslash})*)*":
+        return #"COMMENT" # this is the last line of comment
+    "\**/":
+        self.POPSTATE()
+
+DOUBLEQUOTE:
+    "{doublestringchar}+":
+        self.string += self.value
+    "{linecont}":
+        # just consume it and keep reading the string
+        global linenumber
+        linenumber+=1
+    "{hexescapesequence}|{uniescapesequence}|{octescapesequence}|{escapechar}":
+        # convert the escape sequence
+        self.string += bytes(self.value, "utf-8").decode("unicode_escape")
+    "\\":
+        # some non-escape character after "\", just consume "\"
+        return
+    "\"":
+        self.POPSTATE()
+        self.value = self.string
+        return "STRING"
+
+SINGLEQUOTE:
+    "{singlestringchar}+":
+        self.string += self.value
+    "{linecont}":
+        # just consume it and keep reading the string
+        global linenumber
+        linenumber+=1
+    "{hexescapesequence}|{uniescapesequence}|{octescapesequence}|{escapechar}":
+        # convert the escape sequence
+        self.string += bytes(self.value, "utf-8").decode("unicode_escape")
+    "\\":
+        # some non-escape character after "\", just consume "\"
+        return
+    "\'":
+        self.POPSTATE()
+        self.value = self.string
+        return "STRING"
+
+#REGEXP:
