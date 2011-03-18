@@ -36,11 +36,9 @@ definitions:
     decdigit        "[0-9]"
     decdigitnonzero "[1-9]"
     hexdigit        "[0-9a-fA-F]"
+    octdigit        "[0-7]"
     intpart         "{decdigitnonzero}{decdigit}*|0"
     exppart         "[eE]([\+\-])?{decdigit}*"
-
-    # a number can only be followed by certain chars, definitely no more digits or identifiers
-    afternumber     "[^$_A-Za-z0-9\.]"
 
     # string literals
     doublestringchar    "[^\"\\\r\n]"
@@ -130,11 +128,11 @@ INITIAL:
         global regexp_possible
         regexp_possible = False
         return "RPAREN"
-    "\.[^0-9]":
+    "\.":
         global regexp_possible
         # this is not a dot in the numeric literal
         # so we need to push back the last char
-        self.PUSHBACK(self.value[-1:])
+        #self.PUSHBACK(self.value[-1:])
         regexp_possible = False
         return "DOT"
     ";":
@@ -172,43 +170,31 @@ INITIAL:
     # decimal literals
     # need to make sure they aren't spliced with anything weird like letters or "."
     # so we'll need to push one symbol back
-    "{intpart}{afternumber}":
+    "{intpart}(\.{decdigit}*)?{exppart}?":
         global regexp_possible
-        self.PUSHBACK(self.value[-1:])
-        self.value = self.value[:-1]
-        self.value = int(self.value)
+        self.value = int(self.value) if self.value.isdecimal() else float(self.value)
         regexp_possible = False
         return "NUMBER"
-    "{intpart}\.{decdigit}*{exppart}?{afternumber}":
+    "\.{decdigit}+{exppart}?":
         global regexp_possible
-        self.PUSHBACK(self.value[-1:])
-        self.value = self.value[:-1]
-        self.value = float(self.value)
-        regexp_possible = False
-        return "NUMBER"
-    "\.{decdigit}+{exppart}?{afternumber}":
-        global regexp_possible
-        self.PUSHBACK(self.value[-1:])
-        self.value = self.value[:-1]
-        self.value = float(self.value)
-        regexp_possible = False
-        return "NUMBER"
-    "{intpart}{exppart}{afternumber}":
-        global regexp_possible
-        self.PUSHBACK(self.value[-1:])
-        self.value = self.value[:-1]
         self.value = float(self.value)
         regexp_possible = False
         return "NUMBER"
 
     # hex literals
-    "0x{hexdigit}+{afternumber}":
+    "0x{hexdigit}+":
         global regexp_possible
-        self.PUSHBACK(self.value[-1:])
-        self.value = self.value[:-1]
         self.value = int(self.value, 16)
         regexp_possible = False
         return "NUMBER"
+
+    # octal literals
+    "0{octdigit}+":
+        global regexp_possible
+        self.value = int(self.value, 8)
+        regexp_possible = False
+        return "NUMBER"
+
 
 SINGLELINECOMMENT:
     "{scomment_notterm}*":

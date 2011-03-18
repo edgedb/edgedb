@@ -20,6 +20,9 @@ class TestJavaScriptParsing(metaclass=MetaTestJavascript):
     def test_utils_lang_javascript_literals3(self):
         r"""print('\'"Hello\tworld\r!\nblah\b\101\x61\u0061');"""
 
+    def test_utils_lang_javascript_literals4(self):
+        r"""print([1,2,'a']);"""
+
     def test_utils_lang_javascript_basic1(self):
         """print(1);"""
 
