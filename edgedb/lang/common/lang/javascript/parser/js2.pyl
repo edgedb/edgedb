@@ -21,7 +21,7 @@ code:
     #  - line (starting line counter)
     #  - col (starting col counter)
 
-    pyggy.lexer.lexer.no_newline = False
+    #pyggy.lexer.lexer.no_newline = False
     pyggy.lexer.lexer.regexp_possible = True
     pyggy.lexer.lexer.line = 1
     pyggy.lexer.lexer.col = 0
@@ -77,8 +77,8 @@ INITIAL:
     "{lineterminator}":
         self.col = 0
         self.line += 1
-        if self.no_newline:
-            return '#ERR#'
+        #if self.no_newline:
+        #    return '#ERR#'
 
     # comments
     "//":
@@ -191,16 +191,16 @@ SINGLELINECOMMENT:
         self.col = 0
         self.line += 1
         self.POPSTATE()
-        if self.no_newline:
-            return '#ERR#'
+        #if self.no_newline:
+        #    return '#ERR#'
 
 
 MULTILINECOMMENT:
     "{lineterminator}":
         self.col = 0
         self.line += 1
-        if self.no_newline:
-            return '#ERR#'
+        #if self.no_newline:
+        #    return '#ERR#'
 
     "{mcomment_notstar_notslash}+":
         self.col += len(self.value)

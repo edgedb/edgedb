@@ -9,7 +9,8 @@
 from .base2 import MetaTestJavascript, jxfail
 from semantix.utils.lang.javascript.parser.jsparser2 import\
     UnknownToken, UnexpectedToken, UnknownOperator, MissingToken,\
-    SecondDefaultToken, IllegalBreak, IllegalContinue, UndefinedLabel, DuplicateLabel
+    SecondDefaultToken, IllegalBreak, IllegalContinue, UndefinedLabel, DuplicateLabel,\
+    UnexpectedNewline
 
 
 class TestJavaScriptParsing(metaclass=MetaTestJavascript):
@@ -48,6 +49,9 @@ class TestJavaScriptParsing(metaclass=MetaTestJavascript):
 
     def test_utils_lang_javascript2_basic5(self):
         """var a,b,c=[,,7,,,8];print(1,2,3,4,"aa",a,b,c);"""
+
+    def test_utils_lang_javascript2_basic6(self):
+        """a=b=c=d='hello'; print(a,b,c,d);"""
 
     def test_utils_lang_javascript2_object1(self):
         """var a = {do : 1}; print(a.do);"""
@@ -251,6 +255,13 @@ foo();
             foo();
         }
         bar();
+        """
+
+    def test_utils_lang_javascript2_function6(self):
+        """function foo(a, b) {
+            return a + b;
+        }
+        print(foo('fu','bar'));
         """
 
     def test_utils_lang_javascript2_dowhile1(self):
@@ -619,3 +630,172 @@ foo();
         A: var a = {get A () {while (true) { print('obj'); break A; }}};
         a.A;
         """
+
+    @jxfail(MissingToken)
+    def test_utils_lang_javascript2_label10(self):
+        """(a): print('foo');"""
+
+    @jxfail(MissingToken)
+    def test_utils_lang_javascript2_label11(self):
+        """b+a: print('foo');"""
+
+    @jxfail(MissingToken)
+    def test_utils_lang_javascript2_label12(self):
+        """10: print('foo');"""
+
+    def test_utils_lang_javascript2_semicolon1(self):
+        "print('hello')"
+
+    @jxfail(UnexpectedToken)
+    def test_utils_lang_javascript2_semicolon2(self):
+        "if (true)"
+
+    def test_utils_lang_javascript2_semicolon3(self):
+        """
+        for (
+            a=1;
+            a<3;
+            a++) print(a)
+        """
+
+    @jxfail(MissingToken)
+    def test_utils_lang_javascript2_semicolon4(self):
+        """
+        for (
+            a=1
+            a<3;
+            a++) print(a)
+        """
+
+    def test_utils_lang_javascript2_semicolon5(self):
+        """{print('hello')}"""
+
+    @jxfail(UnexpectedToken)
+    def test_utils_lang_javascript2_semicolon6(self):
+        """print('hello')}"""
+
+    def test_utils_lang_javascript2_semicolon7(self):
+        """
+        { 1
+        2 } 3
+        print('hello');
+        """
+
+    def test_utils_lang_javascript2_semicolon8(self):
+        """{1+2}print('hello')"""
+
+    @jxfail(UnexpectedToken)
+    def test_utils_lang_javascript2_semicolon9(self):
+        """{if (true)}"""
+
+    @jxfail(MissingToken)
+    def test_utils_lang_javascript2_semicolon10(self):
+        """
+        for (print('wrong');true
+        ) break;
+        """
+
+    @jxfail(UnexpectedToken)
+    def test_utils_lang_javascript2_semicolon11(self):
+        """
+        print('right')
+        if (false)
+        else print('wrong')
+        """
+
+    def test_utils_lang_javascript2_semicolon12(self):
+        """
+        function b (bar) { print(bar); return {foo : function () {print('foo')} } }
+        d = c = 'bar'
+        a = 1 + b
+        (d+c).foo()
+        """
+
+    @jxfail(UnexpectedNewline)
+    def test_utils_lang_javascript2_semicolon13(self):
+        """
+        throw
+        'wrong';
+        """
+
+    def test_utils_lang_javascript2_semicolon14(self):
+        """function foo(){
+        return
+                'foo'
+        }
+        print(foo());
+        """
+
+    def test_utils_lang_javascript2_semicolon15(self):
+        """a:{
+            a = 'hello'
+            print(a);
+            while (true)
+                break
+                        a;
+            print('world');
+            }
+        """
+
+    def test_utils_lang_javascript2_semicolon16(self):
+        """a:{
+            a = 'hello'
+            print(a);
+            while (true)
+                break    a;
+            print('world');
+            }
+        """
+
+    def test_utils_lang_javascript2_semicolon17(self):
+        """
+        a = 'hello'
+        a: while (a) {
+            print(a);
+            while (a) {
+                a = false
+                continue
+                        a;
+            }
+            print('odd');
+        }
+        """
+
+    def test_utils_lang_javascript2_semicolon18(self):
+        """
+        a = 'hello'
+        a: while (a) {
+            print(a);
+            while (a) {
+                a = false
+                continue a;
+            }
+            print('odd');
+        }
+        """
+
+    def test_utils_lang_javascript2_semicolon19(self):
+        """a=b=1;
+        a
+        ++
+        b
+        print(a,b);
+        """
+
+    def test_utils_lang_javascript2_semicolon20(self):
+        """a=b=1;
+        a++
+        ++
+        b
+        print(a,b);
+        """
+
+    def test_utils_lang_javascript2_semicolon21(self):
+        """a=b=1;
+        a
+        +
+        ++
+        b
+        print(a,b);
+        """
+

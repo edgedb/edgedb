@@ -11,8 +11,8 @@ import sys
 import tokenize
 import pyggy
 
-from semantix.utils import parsing, ast
-from semantix.utils.lang.javascript.codegen import JavascriptSourceGenerator
+#from semantix.utils import parsing, ast
+#from semantix.utils.lang.javascript.codegen import JavascriptSourceGenerator
 
 from .. import ast as jsast
 from . import keywords
@@ -31,23 +31,23 @@ class UnknownToken(ParseError):
 class UnexpectedToken(ParseError):
     def __init__(self, token):
         super().__init__("Syntax error: unexpected token %r (line %i, column %i)." %
-                         (token.value, token.start[0], token.start[1]))
+                         (token.string, token.start[0], token.start[1]))
 
 
 class UnknownOperator(ParseError):
     def __init__(self, token):
         super().__init__("Syntax error: unknown operator %r on line %i, column %i." %
-                         (token.value, token.start[0], token.start[1]))
+                         (token.string, token.start[0], token.start[1]))
 
 
 class MissingToken(ParseError):
     def __init__(self, token, expected):
         if len(expected) == 1:
             super().__init__("Syntax error: unexpected token %r instead of %r (line %i, column %i)." %
-                             (token.value, expected[0], token.start[0], token.start[1]))
+                             (token.string, expected[0], token.start[0], token.start[1]))
         else:
             super().__init__("Syntax error: unexpected token %r instead of one of %s (line %i, column %i)." %
-                             (token.value, list(expected), token.start[0], token.start[1]))
+                             (token.string, list(expected), token.start[0], token.start[1]))
 
 
 class SecondDefaultToken(ParseError):
@@ -71,12 +71,17 @@ class IllegalContinue(ParseError):
 class UndefinedLabel(ParseError):
     def __init__(self, token):
         super().__init__("Syntax error: undefined label %r (line %i, column %i)." %
-                         (token.value, token.start[0], token.start[1]))
+                         (token.string, token.start[0], token.start[1]))
 
 class DuplicateLabel(ParseError):
     def __init__(self, token):
         super().__init__("Syntax error: duplicate label %r (line %i, column %i)." %
-                         (token.value, token.start[0], token.start[1]))
+                         (token.string, token.start[0], token.start[1]))
+
+class UnexpectedNewline(ParseError):
+    def __init__(self, token):
+        super().__init__("Syntax error: unexpected line break after %r (line %i, column %i)." %
+                         (token.string, token.end[0], token.end[1]))
 
 # decorator for adding methods to tokens... ugly as hack
 def method(cls):
@@ -152,26 +157,8 @@ OP = {
     }
 
 class Token(tokenize.TokenInfo):
-#    id = None # node/token type name
-#    value = None # used by literals
     parser = None
     rbp, lbp = 0, 0
-
-    @property
-    def id(self): return self[0]
-
-    @id.setter
-    def id(self, val): self[0] = val
-
-    @property
-    def value(self): return self[1]
-
-    @property
-    def start(self): return self[2]
-
-    @property
-    def end(self): return self[3]
-
 
     def nud(self):
         raise UnexpectedToken(self)
@@ -183,21 +170,21 @@ class Token(tokenize.TokenInfo):
 class UnaryRight():
     def nud(self):
         operand = self.parser.parse_assignment_expression(self.rbp)
-        return jsast.PrefixExpressionNode(op=self.value, expression=operand)
+        return jsast.PrefixExpressionNode(op=self.string, expression=operand)
 
 class UnaryLeft():
     def led(self, left):
-        return jsast.PostfixExpressionNode(op=self.value, expression=left)
+        return jsast.PostfixExpressionNode(op=self.string, expression=left)
 
 class BinaryLeft():
     def led(self, left):
         right = self.parser.parse_assignment_expression(self.lbp)
-        return jsast.BinExpressionNode(left=left, op=self.value, right=right)
+        return jsast.BinExpressionNode(left=left, op=self.string, right=right)
 
 class Assign():
     def led(self, left):
-        right = self.parser.parse_assignment_expression(self.lbp)
-        return jsast.BinExpressionNode(left=left, op=self.value, right=right)
+        right = self.parser.parse_assignment_expression(self.lbp - 1)
+        return jsast.BinExpressionNode(left=left, op=self.string, right=right)
 
 
 PREC = [
@@ -218,7 +205,6 @@ PREC = [
     ((BinaryLeft,), ('OR', )),
     ((),            ('HOOK', )),
     ((Assign,),     ('ASSIGN', 'PLUSASSIGN', 'MINUSASSIGN', 'MULTASSIGN', 'DIVASSIGN', 'MODASSIGN', 'LSHASSIGN', 'SRSHASSIGN', 'ZRSHASSIGN', 'ANDASSIGN', 'ORASSIGN'))
-#    ((),            ('COMMA', 'RPAREN', 'RSBRACKET', 'RCBRACKET')),
         ]
 
 # create the tokens for various operators
@@ -275,17 +261,17 @@ create_various_Tokens()
 # tokens understood by THIS parser
 @method(Token_ID)
 def nud(self):
-    return jsast.IDNode(name=self.value)
+    return jsast.IDNode(name=self.string)
 
 
 @method(Token_STRING)
 def nud(self):
-    return jsast.StringLiteralNode(value=self.value)
+    return jsast.StringLiteralNode(value=self.string)
 
 
 @method(Token_NUMBER)
 def nud(self):
-    return jsast.NumericLiteralNode(value=self.value)
+    return jsast.NumericLiteralNode(value=self.string)
 
 
 @method(Token_TRUE)
@@ -310,7 +296,7 @@ def nud(self):
 
 @method(Token_REGEXP)
 def nud(self):
-    return jsast.RegExpNode(regexp=self.value)
+    return jsast.RegExpNode(regexp=self.string)
 
 
 # defining proper handling for some special operators
@@ -442,25 +428,19 @@ def led(self, left):
 class End_Token(Token): pass
 
 
-# change the type of some keywords to 'OP'
-#Token_NEW.id = 'OP'
-#Token_DELETE.id = 'OP'
-#Token_VOID.id = 'OP'
-#Token_TYPEOF.id = 'OP'
-#Token_INSTANCEOF.id = 'OP'
-#Token_IN.id = 'OP'
-#Token_FUNCTION.id = 'OP'
+# special token for end of input stream
+class Start_Token(Token):
+    def __new__(self):
+        return super().__new__(self, None, None, (0,0), (0,0), '')
 
 
 # parsing engine with special rules for context, etc.
 class JSParser:
     lexer = None
     tab = None
-    token = None
+    token = prevtoken = Start_Token()
     _scope = []
     _labels = []
-#    _direct_labels = []
-#    _indirect_labels = []
 
     def __init__(self, lex_name="semantix/utils/lang/javascript/parser/js2.pyl"):
         super().__init__()
@@ -516,8 +496,9 @@ class JSParser:
     def labels(self, labels):
         self._labels = labels
 
-#    def add_label(self, label):
-#        self._labels.append(label)
+    @property
+    def linebreak_detected(self):
+        return self.token.start[0] > self.prevtoken.end[0]
 
     #token lexing
     def set_lexer(self, fname):
@@ -525,6 +506,7 @@ class JSParser:
 
     def get_next_token(self, regexp=True):
         "Uses the associated lexer to grab the next token."
+        self.prevtoken = self.token
         self.lexer.regexp_possible = regexp
         token = self.lexer.token()
         mod_dict = sys.modules[__name__].__dict__
@@ -548,30 +530,43 @@ class JSParser:
         elif token == '#ERR#':
             raise UnknownToken(self.lexer.value, self.lexer.start[0], self.lexer.start[1])
         else:
-            tok = End_Token(token, self.lexer.value, None, None, '')
+            start = end = (self.lexer.line, self.lexer.col)
+            tok = End_Token(token, self.lexer.value, start, end, '')
+#        if tok:
+#            tok.parser = self
+#        return tok
+        tok.parser = self
+        self.token = tok
 
-        if tok:
-            tok.parser = self
-        return tok
-
-    def must_match(self, *tok, regexp=True):
+    def must_match(self, *tok, regexp=True, allowsemi=True):
         """Matches the current token against the specified value.
         If more than one value is given, then a sequence of tokens must match.
         Consumes the token if it is correct, raises an exception otherwise."""
         for val in tok:
-            if self.token.value != val:
-                raise MissingToken(self.token, tok)
-            self.token = self.get_next_token(regexp)
+            if self.token.string != val:
+                # automatic ';' insertion
+                if allowsemi:
+                    if self.token.string == '}':
+                        continue # problems parsing '}'
+                    elif self.linebreak_detected and val == ';':
+                        continue # there is a newline before the problematic token
+                    elif type(self.token) == End_Token and val == ';':
+                        continue # at the end of program
+                    else:
+                        raise MissingToken(self.token, tok)
+                else:
+                    raise MissingToken(self.token, tok)
+            self.get_next_token(regexp)
 
     def tentative_match(self, *tok, regexp=True, consume=True):
         """Checks if the current token matches any of the provided values.
         Only checks ONE token, not a sequence, like 'must_match'.
         If it does, the token is returned and next token is processed from the lexer.
         If there is no match, None is returned and the token stays."""
-        if self.token.value in tok:
+        if self.token.string in tok:
             t = self.token
             if consume:
-                self.token = self.get_next_token(regexp)
+                self.get_next_token(regexp)
             return t
         else:
             return None
@@ -579,16 +574,22 @@ class JSParser:
     def parse_assignment_expression(self, rbp=0):
         """This is the basic parsing step for expressions.
         rbp - specifies Right Binding Power of the current token"""
-        prevt = self.token
-        self.token = self.get_next_token(regexp=(prevt.id == 'OP'))
-        left = prevt.nud()
-        while rbp < self.token.lbp and not (self.state == 'noin' and self.token.value == 'in'):
-            prevt = self.token
-            self.token = self.get_next_token(regexp=(prevt.id == 'OP'))
+        self.get_next_token(regexp=(self.token.type == 'OP'))
+        left = self.prevtoken.nud()
+        # don't go if lbp is weaker,
+        #    or if 'in' isn't allowed,
+        #    or if there's a linebreak before postfix ++/--
+        while rbp < self.token.lbp and \
+            not (self.state == 'noin' and self.token.string == 'in') and\
+            not (self.linebreak_detected and
+                 (self.prevtoken.lbp == 0 or isinstance(self.prevtoken, UnaryLeft)) and
+                 isinstance(self.token, UnaryLeft)):
+            self.get_next_token(regexp=(self.token.type == 'OP'))
             # it's an error to have consecutive unary postfix operators
-            if isinstance(prevt, UnaryLeft) and isinstance(self.token, UnaryLeft):
+            if isinstance(self.prevtoken, UnaryLeft) and isinstance(self.token, UnaryLeft) and\
+                not self.linebreak_detected:
                 raise UnexpectedToken(self.token)
-            left = prevt.led(left)
+            left = self.prevtoken.led(left)
         return left
 
     def parse_expression_list(self):
@@ -610,15 +611,15 @@ class JSParser:
         """Parse an identifier potentially w/o converting keywords. Raise an exception if not ID."""
         tok = self.token
         if not (isinstance(tok, Token_ID) or \
-            allowkeyword and tok.value in keywords.js_keywords):
+            allowkeyword and tok.string in keywords.js_keywords):
             raise UnexpectedToken(self.token)
-        self.token = self.get_next_token(regexp=False)
-        return jsast.IDNode(name=tok.value)
+        self.get_next_token(regexp=False)
+        return jsast.IDNode(name=tok.string)
 
     def parse_statement(self, labels=[]):
         """Parse one statement as delineated by ';' or block"""
         self.labels = labels
-        if self.token.id == 'KEYWORD':
+        if self.token.type == 'KEYWORD':
             # statements start with keywords, otherwise it's an expression
             return self.parse_keywords()
         elif self.tentative_match(';'):
@@ -630,29 +631,40 @@ class JSParser:
         elif self.tentative_match('function'):
             # function declaration
             return self.parse_function_guts(is_declaration=True)
-        elif self.token.id == 'ID':
-            # this may be a label
-            tok = self.token
-            self.token = self.get_next_token(regexp=False)
-            if self.tentative_match(':'):
-                # this is a label
-                label = tok.value
+#        elif self.token.type == 'ID':
+#            # this may be a label
+#            tok = self.token
+#            self.get_next_token(regexp=False)
+#            if self.tentative_match(':'):
+#                # this is a label
+#                label = tok.string
+#                if label in self.enclosing_stmt_labels():
+#                    raise DuplicateLabel(tok)
+#                return jsast.LabelNode(id=label,
+#                                       statement=self.parse_statement(labels=labels + [label]))
+#            else:
+#                # bad luck, it wasn't a label so push back last token and try parsing expression
+#                self.lexer.line, self.lexer.col = self.token.start
+#                self.lexer.PUSHBACK(self.token.string)
+#                self.token = tok
+#                expr = self.parse_expression()
+#                self.must_match(';')
+#                return jsast.StatementNode(statement=expr)
+        else:
+            expr = self.parse_expression()
+            # now let's test if that was a label or expression statement
+            if type(expr) == jsast.IDNode and \
+                self.prevtoken.type == 'ID' and \
+                self.tentative_match(':'):
+                # we have a label!
+                label = expr.name
                 if label in self.enclosing_stmt_labels():
-                    raise DuplicateLabel(tok)
+                    raise DuplicateLabel(self.prevtoken)
                 return jsast.LabelNode(id=label,
                                        statement=self.parse_statement(labels=labels + [label]))
             else:
-                # bad luck, it wasn't a label so push back last token and try parsing expression
-                self.lexer.line, self.lexer.col = self.token.start
-                self.lexer.PUSHBACK(self.token.value)
-                self.token = tok
-                expr = self.parse_expression()
                 self.must_match(';')
                 return jsast.StatementNode(statement=expr)
-        else:
-            expr = self.parse_expression()
-            self.must_match(';')
-            return jsast.StatementNode(statement=expr)
 
     def parse_statement_list(self, *delim, consume=True):
         """Parse a list of statements.
@@ -670,17 +682,9 @@ class JSParser:
 
     def parse_keywords(self):
         """Based on the current token (assumed to be keyword) parses the statement."""
-        # make a dict for processing actions related to different keywords
-        action = getattr(self, 'parse_' + self.token.value + '_guts', None)
-#        action = {
-#                  'var': self.parse_var_guts,
-#                  'continue': self.parse_continue_guts,
-#                  'break': self.parse_break_guts,
-#                  'return': self.parse_return_guts,
-#                  'debugger': lambda: (self.must_match(';'), jsast.DebuggerNode())[1]
-#                  }.get(self.token.value)
+        action = getattr(self, 'parse_' + self.token.string + '_guts', None)
         if action:
-            self.token = self.get_next_token()
+            self.get_next_token()
             return action()
         else:
             raise UnexpectedToken(self.token)
@@ -751,13 +755,13 @@ class JSParser:
 
     def parse_property_name(self):
         # get the property name
-        id = self.token.id
-        if self.token.id == 'NUMBER':
-            prop = jsast.NumericLiteralNode(value=self.token.value)
-            self.token = self.get_next_token()
-        elif self.token.id == 'STRING':
-            prop = jsast.StringLiteralNode(value=self.token.value)
-            self.token = self.get_next_token()
+        id = self.token.type
+        if self.token.type == 'NUMBER':
+            prop = jsast.NumericLiteralNode(value=self.token.string)
+            self.get_next_token()
+        elif self.token.type == 'STRING':
+            prop = jsast.StringLiteralNode(value=self.token.string)
+            self.get_next_token()
         else:
             id = 'ID'
             prop = self.parse_ID(allowkeyword=True)
@@ -765,8 +769,7 @@ class JSParser:
 
     def parse_continue_guts(self):
         """Parse the rest of the continue statement."""
-        # !!! needs to be smarter and actually check newlines
-        if self.tentative_match(';'):
+        if self.tentative_match(';') or self.linebreak_detected:
             # must be inside a loop
             if not self.eclosing_state('loop'):
                 raise IllegalContinue(self.token)
@@ -782,8 +785,7 @@ class JSParser:
 
     def parse_break_guts(self):
         """Parse the rest of the continue statement."""
-        # !!! needs to be smarter and actually check newlines
-        if self.tentative_match(';'):
+        if self.tentative_match(';') or self.linebreak_detected:
             # must be inside a loop or switch
             if not self.eclosing_state('loop', 'switch'):
                 raise IllegalBreak(self.token)
@@ -799,8 +801,7 @@ class JSParser:
 
     def parse_return_guts(self):
         """Parse the rest of the continue statement."""
-        # !!! needs to be smarter and actually check labels and newlines
-        if self.tentative_match(';'):
+        if self.tentative_match(';') or self.linebreak_detected:
             return jsast.ReturnNode(expression=None)
         else:
             expr = self.parse_expression()
@@ -844,6 +845,8 @@ class JSParser:
     def parse_throw_guts(self):
         """Parse throw statement."""
         #!!! needs to handle newline
+        if self.linebreak_detected:
+            raise UnexpectedNewline(self.prevtoken)
         expr = self.parse_expression()
         self.must_match(';')
         return jsast.ThrowNode(expression=expr)
@@ -872,7 +875,7 @@ class JSParser:
                 self.must_match(':')
                 stmt_list = self.parse_statement_list('case', 'default','}', consume=False)
                 code.append(jsast.DefaultNode(statements=jsast.SourceElementsNode(code=stmt_list)))
-            elif has_default and self.token.value == 'default':
+            elif has_default and self.token.string == 'default':
                 raise SecondDefaultToken(self.token)
         return jsast.StatementBlockNode(statements=code)
 
@@ -949,10 +952,10 @@ class JSParser:
             expr = self.parse_expression()
         else:
             # we've got 'classical' for
-            self.must_match(';')
+            self.must_match(';', allowsemi=False)
             if not self.tentative_match(';'):
                 expr2 = self.parse_expression()
-                self.must_match(';')
+                self.must_match(';', allowsemi=False)
             if not self.tentative_match(')', consume=False):
                 expr3 = self.parse_expression()
         self.must_match(')')
@@ -964,7 +967,7 @@ class JSParser:
 
     def reset(self):
         """Reset the line & col counters, and internal state."""
-        self.token = None
+        self.token = self.prevtoken = Start_Token()
         self.lexer.line, self.lexer.col = 1, 0
         self._scope = []
         self._labels = []
@@ -972,49 +975,5 @@ class JSParser:
     def parse(self, program):
         self.lexer.setinputstr(program)
         self.reset()
-        self.token = self.get_next_token()
+        self.get_next_token()
         return self.parse_source()
-
-## testing
-#def test(src):
-#    print('original src:\n', src)
-#    parser.reset()
-#    tree = parser.parse(src)
-#    print(ast.dump.pretty_dump(tree, colorize=True))
-#    processed_src = JavascriptSourceGenerator.to_source(tree)
-#    print(processed_src)
-#
-#
-#if __name__ == "__main__":
-#    parser = JSParser()
-#    test("a + 3;")
-#    test("a + 3 * \n4;")
-#    test("'www' + 0x11 / -33;")
-#    test("- -33e2 * 4.23;")
-#    test("4.e3 * - - -33.;")
-#    test("4.e3 * - - -33.;")
-#    test("3+--a;")
-#    test("3+2 == 4 && 5+9<<1;")
-#    test("3+true == null && 5+9<<1;")
-#    test("3*(2+4);")
-#    test("(2+4,a,true,3);")
-#    test("2,this,3;")
-#    test("('testing');")
-#    test("print('testing');")
-#    test("print('testing', 1,2,3);")
-#    test("print([1,2,3]);")
-#    test("print([1,2,3,]);")
-#    test("print([,,,]);")
-#    test("print([1,2,,,,]);")
-#    test("print([,,1,2,,3,,]);")
-#    test("print([]);")
-#    test("print();")
-#    test("void a, delete b, typeof c;")
-#    test("1 in [1,2], a instanceof 2;")
-#    test("a[b[c[d]]];")
-#    test("a(b(c(d)));")
-#    test("a[b(c[d])];")
-#    test("a.if.else.d;")
-#    test("new a.q[2](2,3,4);")
-#    test("new a.q[2]+b(2,3,4);")
-#    test("/ / / / /;")
