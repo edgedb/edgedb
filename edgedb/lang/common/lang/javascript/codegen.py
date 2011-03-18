@@ -68,7 +68,6 @@ class JavascriptSourceGenerator(SourceGenerator):
     def visit_ObjectLiteralNode(self, node):
         self.write('{')
         self.indentation += 1
-        self.newline()
         self._visit_list(node.properties)
         self.indentation -= 1
         self.write('}')
@@ -165,12 +164,13 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.visit(node.container)
 
     def visit_SimplePropertyNode(self, node):
+        self.newline()
         self.visit(node.name)
         self.write(" : ")
         self.visit(node.value)
-        self.newline()
 
     def visit_GetPropertyNode(self, node):
+        self.newline()
         self.write("get ")
         self.visit(node.name)
         self.write("() {")
@@ -179,9 +179,9 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.visit(node.functionbody)
         self.indentation -= 1
         self.write("}")
-        self.newline()
 
     def visit_SetPropertyNode(self, node):
+        self.newline()
         self.write("set ")
         self.visit(node.name)
         self.write("(")
@@ -192,7 +192,6 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.visit(node.functionbody)
         self.indentation -= 1
         self.write("}")
-        self.newline()
 
     def visit_FunctionNode(self, node):
         self.write("function ")
@@ -267,11 +266,14 @@ class JavascriptSourceGenerator(SourceGenerator):
 
     def visit_ForNode(self, node):
         self.write("for (")
-        self.visit(node.part1)
+        if node.part1:
+            self.visit(node.part1)
         self.write('; ')
-        self.visit(node.part2)
+        if node.part2:
+            self.visit(node.part2)
         self.write('; ')
-        self.visit(node.part3)
+        if node.part3:
+            self.visit(node.part3)
         self.write(') ')
         if node.statement:
             self.visit(node.statement)
@@ -324,7 +326,7 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.newline()
 
     def visit_LabelNode(self, node):
-        self.visit(node.id)
+        self.write(node.id)
         self.write(" : ")
         if node.statement:
             self.visit(node.statement)

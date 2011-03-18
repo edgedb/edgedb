@@ -10,12 +10,30 @@ from semantix.utils import ast
 
 
 class Base(ast.AST):
-    pass
+#    __fields = [('inparen', bool, False)]
+    def __init__(self, *args, **kwargs):
+        self.inparen = False
+
+    def countIN(self):
+        count = 0
+        if not self.inparen:
+            print("!!!!!!!! not inparen", type(self), self.__fields)
+            # any IN enclosed in parenthesis doesn't count
+            for f in self.__fields:
+                # just make sure you get the field name
+                if type(f) != str:
+                    f = f[0]
+
+                print("!!!!!!!!!!!! field:", f)
+
+                attr = getattr(self, f)
+                if isinstance(attr, Base):
+                    count += attr.countIN()
+                elif isinstance(attr, list):
+                    count += sum([x.count() for x in attr if isinstance(x, Base)])
+        return count
 
 class StatementNode(Base):
-    __fields = ['statement']
-
-class BlockNode(Base):
     __fields = ['statement']
 
 class VarDeclarationNode(Base):
@@ -55,6 +73,11 @@ class NullNode(Base):
 
 class ExpressionListNode(Base):
     __fields = [('expressions', list)]
+
+    def countIN(self):
+        count = super().countIN()
+        print("!!!!!!!!!!!!!!!!! counted", count)
+        return count
 
 class PrefixExpressionNode(Base):
     __fields = ['expression', 'op']
@@ -97,6 +120,12 @@ class InstanceOfNode(Base):
 
 class InNode(Base):
     __fields = ['expression', 'container']
+    def countIN(self):
+        if not self.inparen:
+            return 1 + self.expression.countIN() + self.container.countIN()
+        else:
+            return 0
+
 
 # object property definitions
 

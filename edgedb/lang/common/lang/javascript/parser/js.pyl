@@ -65,6 +65,9 @@ INITIAL:
         global linenumber
         linenumber+=1
 
+        print("EOL", len(self.value))
+
+
     # comments
 #    "//":
 #        self.PUSHSTATE(SINGLELINECOMMENT)
@@ -82,6 +85,10 @@ INITIAL:
     "/.":
         global regexp_possible
         nextchar = self.value[-1:]
+
+        print("accepted -> '%s'" % self.value)
+        print("nextchar -> '%s'" % nextchar)
+
         if nextchar == '/':
             # single line comment
             self.PUSHSTATE(SINGLELINECOMMENT)
@@ -94,6 +101,7 @@ INITIAL:
             self.PUSHBACK(nextchar)
             self.PUSHSTATE(REGEXP)
         else:
+            print("not comment or regexp")
             # this is '/' or '/='
             regexp_possible = True
             if nextchar != '=':
@@ -295,6 +303,9 @@ REGEXP:
         self.value, rest = self.string[1], self.string[1:]
         self.PUSHBACK(rest)
         self.POPSTATE()
+
+        print("pushing back '%s'" % rest)
+
         return self.value
 
 REGEXP_MORE:
@@ -324,6 +335,9 @@ REGEXP_MORE:
         self.value, rest = self.string[1], self.string[1:]
         self.PUSHBACK(rest)
         self.PUSHSTATE(INITIAL)
+
+        print("pushing back '%s'" % rest)
+
         regexp_possible = True
         return self.value
 
@@ -346,6 +360,9 @@ REGEXP_CLASS:
         self.value, rest = self.string[1], self.string[1:]
         self.PUSHBACK(rest)
         self.PUSHSTATE(INITIAL)
+
+        print("pushing back '%s'" % rest)
+
         regexp_possible = True
         return self.value
 
@@ -361,5 +378,8 @@ REGEXP_BACKSLASH:
         self.value, rest = self.string[1], self.string[1:]
         self.PUSHBACK(rest)
         self.PUSHSTATE(INITIAL)
+
+        print("pushing back '%s'" % rest)
+
         regexp_possible = True
         return self.value

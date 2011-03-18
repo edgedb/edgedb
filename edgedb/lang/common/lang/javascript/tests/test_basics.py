@@ -50,12 +50,86 @@ class TestJavaScriptParsing(metaclass=MetaTestJavascript):
             };
         print(a.do, a.while, a.get=2);"""
 
+    @jxfail(ParserError)
+    def test_utils_lang_javascript_object5(self):
+        """
+        var a = {2 : "foo", {} : "bar", {a : 2} : "weird"}
+        print(a[2], a[{}], a[{a:2}]);"""
+
+    def test_utils_lang_javascript_object6(self):
+        """
+        var a = [];
+        a[2] = "foo"; a[{}] = "bar"; a[{a : 2}] = "weird";
+        print(a[2], a[{}], a[{a:2}]);
+        """
+
+    # weird bug here if ';' is remved at the end of func declaration
+    def test_utils_lang_javascript_object7(self):
+        """
+        var a = [];
+        function fill(array) {
+            array[2] = "foo"; array[{}] = "bar"; array[{b : 2}] = "weird";
+            return a;
+        };
+        print(fill(a)[2], fill(a)[{}], fill(a)[{b:2}]);
+        """
+
+    def test_utils_lang_javascript_object8(self):
+        """print({get : 2}.get);"""
+
+    def test_utils_lang_javascript_object9(self):
+        """new {
+        };"""
+
+    def test_utils_lang_javascript_object10(self):
+        """new {
+        a:1};"""
+
+    def test_utils_lang_javascript_object11(self):
+        """print({a: "test"} ["a"]);"""
+
+    def test_utils_lang_javascript_object12(self):
+        """print({a: "test"}.a);"""
+
+    def test_utils_lang_javascript_object13(self):
+        """print({
+    a: 2
+}(2));"""
+
+    def test_utils_lang_javascript_object14(self):
+        """print({
+    a: 2
+}++);"""
+
+    def test_utils_lang_javascript_object15(self):
+        """print(delete {
+        a: 2});"""
+
+    def test_utils_lang_javascript_object16(self):
+        """print({a: 2} + {b : print("test")}.b);"""
+
+    def test_utils_lang_javascript_object17(self):
+        """print("a" in {a: 2});"""
+
+    def test_utils_lang_javascript_object18(self):
+        """print({a: 2} ? {b:3}.b : false);"""
+
+    def test_utils_lang_javascript_object19(self):
+        """
+        var a = {default : {a:{a:{}}}};
+        print(a.default.a.a);
+        """
+
     def test_utils_lang_javascript_unary1(self):
         """var a = 3; print(-a++);"""
 
     def test_utils_lang_javascript_unary2(self):
         """var a = 3;
 print(---a);"""
+
+    @jxfail(ParserError)
+    def test_utils_lang_javascript_unary3(self):
+        """var a = 3; print(-a++++);"""
 
     def test_utils_lang_javascript_binexpr1(self):
         """var a = 3; print(1 + 2 / 5 - a * 4 + 6.7 % 3);"""
@@ -110,7 +184,7 @@ print(---a);"""
 
     def test_utils_lang_javascript_function2(self):
         """
-        function f (a) { print("Hello,", a); };
+        function f (a) { print("Hello,", a); }
         f(1); f("world");
         """
 
@@ -121,56 +195,85 @@ print(---a);"""
         f(1); f("world");
         """
 
-    def test_utils_lang_javascript_iter1(self):
+    def test_utils_lang_javascript_function4(self):
+        """function len(s) {
+    function foo() {
+        print("Foo! " + s);
+    }
+    foo();
+    return s.length;
+}
+print(1 / len("hello"));
+foo();
+        """
+
+    def test_utils_lang_javascript_dowhile1(self):
         """
         var i = 0;
         do print(i++); while (i<3);
         """
 
-    def test_utils_lang_javascript_iter2(self):
+    def test_utils_lang_javascript_while1(self):
         """
         var i = 0;
         while (i<3) print(i++);
         """
 
-    def test_utils_lang_javascript_iter3(self):
+    def test_utils_lang_javascript_for1(self):
         """
         var i;
         for (i=0; i<4; i++) print(i);
         """
 
-    def test_utils_lang_javascript_iter4(self):
-        """
-        for (var i=0; i<4; i++) print(i);
-        """
+    def test_utils_lang_javascript_for2(self):
+        """for (var i=0; i<4; i++) print(i);"""
 
-    def test_utils_lang_javascript_iter5(self):
+    def test_utils_lang_javascript_for3(self):
         """
         var a = [2,"a",true], i;
         for (i in a) print(a[i]);
         """
 
-    def test_utils_lang_javascript_iter6(self):
+    def test_utils_lang_javascript_for4(self):
         """
         var a = [2,"a",true];
         for (var i in a) print(a[i]);
         """
 
     @jxfail(ParserError) # XXX , error_re='at col 1')
-    def test_utils_lang_javascript_iter7(self):
-        """
-        for (print("blah"), 1 in []);
-        """
+    def test_utils_lang_javascript_for5(self):
+        """for (print("blah"), 1 in []);"""
 
-    def test_utils_lang_javascript_iter8(self):
-        """
-        for ((print("foo"), 1 in []);false;print("bar"));
-        """
+    def test_utils_lang_javascript_for6(self):
+        """for ((print("foo"), 1 in []);false;print("bar"));"""
+
+    def test_utils_lang_javascript_for7(self):
+        """for (a in ["foo",42] || [1,2,3,4]) print(a);"""
+
+    def test_utils_lang_javascript_for8(self):
+        """for (; print("yay!"); ) break;"""
+
+    def test_utils_lang_javascript_for9(self):
+        """var a;
+        for (print(1),print(2),3,4,5,print(5),a=2;print("foo"),true;a++)
+        {print(a); break;}"""
+
+    @jxfail(SyntaxError)
+    def test_utils_lang_javascript_for10(self):
+        """for (1 in []; print("yay!"); ) break;"""
+
+    def test_utils_lang_javascript_for11(self):
+        """for (2 + print(1); print("yay!"); ) break;"""
+
+#    @jxfail(ParserError)
+    def test_utils_lang_javascript_for12(self):
+        """for (2,print(3),1 in [],print(2); print("yay!"); ) break;"""
+
+    def test_utils_lang_javascript_for13(self):
+        """for ((2,print(3),1 in [],print(2)); print("yay!"); ) break;"""
 
     def test_utils_lang_javascript_switch1(self):
-        """
-        switch (1) {}
-        """
+        """switch (1) {}"""
 
     def test_utils_lang_javascript_switch2(self):
         """
@@ -203,11 +306,32 @@ print(---a);"""
     def _test_utils_lang_javascript_regexp3(self):
         """print({}/2/3);"""
 
-    def _test_utils_lang_javascript_regexp4(self):
+    def test_utils_lang_javascript_regexp4(self):
         """{}/print(1)/print(2)/print(3);"""
 
     def test_utils_lang_javascript_regexp5(self):
         r"""print(/a\r\"[q23]/i);"""
+
+    def test_utils_lang_javascript_regexp6(self):
+        """
+        function len(s) {return s.length;};
+        print(3   /
+        1/len("11111"));
+        """
+
+    def test_utils_lang_javascript_regexp7(self):
+        """
+        function len(s) {return s.length;};
+        print(3
+        /1/len("11111"));
+        """
+
+    def test_utils_lang_javascript_regexp8(self):
+        """
+        function len(s) {return s.length;};
+        print(3   /
+        /1/len("11111"));
+        """
 
     def test_utils_lang_javascript_with1(self):
         """with (a=2) print(a);"""
@@ -216,10 +340,48 @@ print(---a);"""
         """with ({a:function () { print("foo");}}) a();"""
 
     def test_utils_lang_javascript_block1(self):
-        """{ ; print(1); }"""
+        """{ print(1); }"""
 
+    @jxfail(ParserError)
     def test_utils_lang_javascript_block2(self):
         """{ {a:1,b:2}; }"""
+
+    def test_utils_lang_javascript_block3(self):
+        """{ var a ={a:1,b:2}; } print(a.a, a.b);"""
+
+    @jxfail(ParserError)
+    def test_utils_lang_javascript_block4(self):
+        """
+        {
+            {default : {a : {}}}
+        }
+        """
+
+    def test_utils_lang_javascript_block5(self):
+        """
+        {
+            {b : {a : {}}}
+        }
+        print("done");
+        """
+
+    def test_utils_lang_javascript_block6(self):
+        """
+        {
+            print(
+            {default : {a : {}}}
+            .default);
+        }
+        """
+
+    def test_utils_lang_javascript_block7(self):
+        """
+        {
+            print(
+            {b : {a : {}}}
+            .b.a);
+        }
+        """
 
     def test_utils_lang_javascript_try1(self):
         """
@@ -234,20 +396,20 @@ print(---a);"""
     def test_utils_lang_javascript_try2(self):
         """
         try {
-            ;print("no problem");
+            print("no problem");
         }
         finally {
-            ;print("hmmm");
+            print("hmmm");
         }
         """
 
     def test_utils_lang_javascript_try3(self):
         """
         try {
-            ;print("no problem");
+            print("no problem");
         }
         catch(err) {
-            ;print("hmmm");
+            print("hmmm");
         }
         finally {
             ;print("all done");
@@ -257,12 +419,12 @@ print(---a);"""
     def test_utils_lang_javascript_try4(self):
         """
         try {
-            ;print(a);
+            print(a);
         }
         catch(err) {
-            ;print(err);
+            print(err);
         }
         finally {
-            ;print("all done");
+            print("all done");
         }
         """

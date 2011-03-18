@@ -234,102 +234,102 @@ _gen_keyword_tokens()
 
 # Magic
 
-# Creates a class with a whole bunch of reduce_ClassName_OP_ClassName methods, where
-# OP is taken from the class docstring (using '|' as separator)
-class BinaryExpressionMeta(parsing.NontermMeta):
-    def __new__(mcls, name, bases, dct):
-        # create a method for each operation token appearing in docstring
-        for token in [x.strip() for x in dct['__doc__'].split('|')]:
-            if token != '':
-                # name and function body
-                methodname = 'reduce_%s_%s_%s' % (name, token, name)
-                def func(this, *kids):
-                    #__doc__ = '%%reduce %s %s %s' % (name, token, name)
-                    this.val = jsast.BinExpressionNode(left=kids[0].val, op=kids[1].val, right=kids[2].val)
-                func.__doc__ = '%%reduce %s %s %s' % (name, token, name)
-                dct[methodname] = func
-        # clean up the docstring, as it apparently affects interpretation
+# [generate]
+# { template ; OP ; ... | ... | ... }
+# [replace]
+# LEFT_TAG -> ProdClass1, RIGHT_TAG -> ProdClass2
+class ProductionGenMeta(parsing.NontermMeta):
+    def __new__(cls, name, bases, dct):
+        # first we need to parse the docstring, which should have 2 parts
+        parts = [dct['__doc__'].split('[generate]')[1].split('[replace]')[0].strip()]
+        parts += [dct['__doc__'].split('[replace]')[1].strip()]
+        # next we parse each part
+        # [generate]
+        generate_spec = ProductionGenMeta.generate_spec(parts[0])
+        # [replace]
+        if parts[1] != '':
+            replacedoc_spec = [(x[0].strip(), x[1].strip())\
+                               for x in [x.split('->') for x in parts[1].split(',')]]
+        else:
+            replacedoc_spec = []
+        # first generate the necessary methods from the template(s)
+        ProductionGenMeta.generate_methods(bases, dct, generate_spec)
+        # then override all the inherited methods with prefix 'reduce_'
+        ProductionGenMeta.override_methods(dct, bases)
+        # finally, update docstrings of all the methods with prefix 'reduce_'
+        ProductionGenMeta.update_docstrings(dct, replacedoc_spec)
+        # bad voodoo if the class' docstring isn't cleaned up
         dct['__doc__'] = ''
 
-        return super().__new__(mcls, name, bases, dct)
-class BinaryExpressionGenMeta(type):
-    def __new__(mcls, name, bases, dct):
-        # create a method for each operation token appearing in docstring
-        for token in [x.strip() for x in dct['__doc__'].split('|')]:
-            if token != '':
-                # name and function body
-                methodname = 'reduce_%s_%s_%s' % (name, token, name)
-                def func(this, *kids):
-                    #__doc__ = '%%reduce %s %s %s' % (name, token, name)
-                    this.val = jsast.BinExpressionNode(left=kids[0].val, op=kids[1].val, right=kids[2].val)
-                func.__doc__ = '%%reduce %s %s %s' % (name, token, name)
-                dct[methodname] = func
-        # clean up the docstring, as it apparently affects interpretation
-        dct['__doc__'] = ''
+#        for i in dct:
+#            if i.startswith('reduce_'):
+#                print(i, '>>>>', dct[i].__doc__)
 
-        return type.__new__(mcls, name, bases, dct)
+        return super().__new__(cls, name, bases, dct)
 
+    @staticmethod
+    def generate_spec(text):
+        # every item in this spec should ultimately have 3 parts:
+        # template_function_name, TERM to be substituted, and a list of values for TERM
+        parts = []
+        if text != '':
+            generate_spec = [x.split(';') for x in text.replace('{', '').split('}')]
+            for spec in generate_spec:
+                if len(spec) == 3:
+                    parts += [(spec[0].strip(), spec[1].strip(), [x.strip() for x in spec[2].split('|')])]
+        return parts
 
-# Same as BinaryExpressionMeta except the OP is assumed to be an assignment
-class AssignmentOpMeta(parsing.NontermMeta):
-    def __new__(mcls, name, bases, dct):
-        # create a method for each operation token appearing in docstring
-        for token in [x.strip() for x in dct['__doc__'].split('|')]:
-            if token != '':
-                # name and function body
-                methodname = 'reduce_%s' % token
-                def func(this, *kids):
-                    #__doc__ = '%%reduce %s' % token
-                    this.val = kids[0].val
-                func.__doc__ = '%%reduce %s' % token
-                dct[methodname] = func
-        # clean up the docstring, as it apparently affects interpretation
-        dct['__doc__'] = ''
+    @staticmethod
+    def generate_methods(bases, dct, generate_spec):
+        for spec in generate_spec:
+            template_name = spec[0]
+            term = spec[1]
+            template_method = ProductionGenMeta.find_super_method(bases, template_name)
+            for val in spec[2]:
+                m_doc = '%' + template_method.__doc__.replace(term, val)
+                m_name = m_doc[1:].replace(' ', '_')
+                def wrapper(*args, method=template_method, **kwargs):
+                    method(*args, **kwargs)
+                dct[m_name] = wrapper
+                dct[m_name].__name__ = m_name
+                dct[m_name].__doc__ = m_doc
 
-        return super().__new__(mcls, name, bases, dct)
-
-
-# This metaclass will create a class with all the "reduce_" methods overridden.
-# The docstring of the overridden methods will be altered by following the rule
-# provided in the class docstring: "OldStr1 -> NewStr1, OldStr2 -> NewStr2"
-class RenameProductionMeta(parsing.NontermMeta):
-    def __new__(mcls, name, bases, dct):
-        # figure out what needs to be replaced in the docstring
-        findandreplace = [(x[0].strip(), x[1].strip()) for x in [x.split('->') for x in dct['__doc__'].split(',')]]
-
-#        findstr, replacestr = dct['__doc__'].split('->')
-#        findstr = findstr.strip()
-#        replacestr = replacestr.strip()
-
+    @staticmethod
+    def override_methods(dct, bases):
         # find all the "reduce_" methods in bases
         method_names = {name \
                             for base in bases \
                                 for name in base.__dict__ if name.startswith('reduce_')}
-        method_names |= {name for name in dct if name.startswith('reduce_')}
-
+        # find the method to copy
         for method_name in method_names:
-            method = None
-
-            # find the method to copy
-            for probe in bases:
-                try:
-                    method = getattr(probe, method_name)
-                except AttributeError:
-                    pass
-                else:
-                    break
-            assert method
-
+            method = ProductionGenMeta.find_super_method(bases, method_name)
+            # define an overriding method
             def wrapper(*args, method=method, **kwargs):
                 method(*args, **kwargs)
-            # make the altered docstring
-            for fnr in findandreplace:
-                wrapper.__doc__ = method.__doc__.replace(fnr[0], fnr[1])
+            wrapper.__doc__ = method.__doc__
             wrapper.__name__ = method_name
             dct[method_name] = wrapper
-        # bad voodoo if the class' docstring isn't cleaned up
-        dct['__doc__'] = ''
-        return super().__new__(mcls, name, bases, dct)
+
+    @staticmethod
+    def find_super_method(bases, method_name):
+        method = None
+        for probe in bases:
+            try:
+                method = getattr(probe, method_name)
+            except AttributeError:
+                pass
+            else:
+                break
+        assert method
+        return method
+
+    @staticmethod
+    def update_docstrings(dct, replacedoc_spec):
+        # find all the methods prefixed with 'reduce_'
+        for method in dct:
+            if method.startswith('reduce_'):
+                for pair in replacedoc_spec:
+                    dct[method].__doc__ = dct[method].__doc__.replace(pair[0], pair[1])
 
 
 class KeywordsMeta(parsing.NontermMeta):
@@ -426,20 +426,28 @@ class Literal(Nonterm):
         self.val = jsast.RegExpNode(regexp=kids[0].val)
 
 
-class PrimaryExpression(Nonterm):
-    # PrimaryExpressionNoOBJSTART
-    # | ObjectLiteral
+class Expression_template():
+    # ExpressionSTMT
+    # | ExpressionNotSTMT
 
-    def reduce_PrimaryExpressionNoOBJSTART(self, *kids):
-        "%reduce PrimaryExpressionNoOBJSTART"
+    def reduce_ExpressionSTMT(self, *kids):
+        "%reduce ExpressionSTMT"
         self.val = kids[0].val
+
+    def reduce_ExpressionNotSTMT(self, *kids):
+        "%reduce ExpressionNotSTMT"
+        self.val = kids[0].val
+
+
+class PrimaryExpressionNotSTMT(Nonterm):
+    # ObjectLiteral
 
     def reduce_ObjectLiteral(self, *kids):
         "%reduce ObjectLiteral"
         self.val = kids[0].val
 
 
-class PrimaryExpressionNoOBJSTART(Nonterm):
+class PrimaryExpressionSTMT(Nonterm):
     # this | ID | Literal
     # | ArrayLiteral
     # | LPAREN Expression RPAREN
@@ -463,37 +471,56 @@ class PrimaryExpressionNoOBJSTART(Nonterm):
 
     def reduce_LPAREN_ExpressionList_RPAREN(self, *kids):
         "%reduce LPAREN ExpressionList RPAREN"
+        kids[1].val.inparen = True
         self.val = kids[1].val
 
-#    def reduce_LPAREN_ExpressionListNoOBJSTART_RPAREN(self, *kids):
-#        "%reduce LPAREN ExpressionList RPAREN"
-#        self.val = kids[1].val
 
-
-class ExpressionList_stub():
+class ExpressionList_template():
     # AssignmentExpression | ExpressionList COMMA AssignemntExpression
 
     def reduce_AssignmentExpression(self, *kids):
-        "%reduce AssignmentExpressionMetaMOD"
+        "%reduce AssignmentExpressionLEFTMOD"
         self.val = kids[0].val
 
     def reduce_ExpressionList_COMMA_AssignmentExpression(self, *kids):
-        "%reduce ExpressionListMetaMOD COMMA AssignmentExpressionMetaMOD"
+        "%reduce ExpressionListLEFTMOD COMMA AssignmentExpressionRIGHTMOD"
         if not isinstance(kids[0].val, jsast.ExpressionListNode):
             kids[0].val = jsast.ExpressionListNode(expressions=[kids[0].val])
         kids[0].val.expressions += [kids[2].val]
         self.val = kids[0].val
 
 
-class MemberExpression(Nonterm):
+class MemberExpressionSTMT(Nonterm):
     # PrimaryExpression
-    # | FunctionExpression
     # | MemberExpression LSBRACKET ExpressionList RSBRACKET
     # | MemberExpression DOT IdentifierName
     # | NEW MemberExpression Arguments
 
     def reduce_PrimaryExpression(self, *kids):
-        "%reduce PrimaryExpression"
+        "%reduce PrimaryExpressionSTMT"
+        self.val = kids[0].val
+
+    def reduce_MemberExpression_LSBRACKET_ExpressionList_RSBRACKET(self, *kids):
+        "%reduce MemberExpressionSTMT LSBRACKET ExpressionList RSBRACKET"
+        self.val = jsast.SBracketExpressionNode(list=kids[0].val, element=kids[2].val)
+
+    def reduce_MemberExpression_DOT_IdentifierName(self, *kids):
+        "%reduce MemberExpressionSTMT DOT IdentifierName"
+        self.val = jsast.DotExpressionNode(left=kids[0].val, right=kids[2].val)
+
+    def reduce_NEW_MemberExpression_Arguments(self, *kids):
+        "%reduce NEW MemberExpression Arguments"
+        self.val = jsast.NewNode(expression=kids[1].val, arguments=kids[2].val)
+
+
+class MemberExpressionNotSTMT(Nonterm):
+    # PrimaryExpression
+    # | FunctionExpression
+    # | MemberExpression LSBRACKET ExpressionList RSBRACKET
+    # | MemberExpression DOT IdentifierName
+
+    def reduce_PrimaryExpression(self, *kids):
+        "%reduce PrimaryExpressionNotSTMT"
         self.val = kids[0].val
 
     def reduce_FunctionExpression(self, *kids):
@@ -501,49 +528,54 @@ class MemberExpression(Nonterm):
         self.val = kids[0].val
 
     def reduce_MemberExpression_LSBRACKET_ExpressionList_RSBRACKET(self, *kids):
-        "%reduce MemberExpression LSBRACKET ExpressionList RSBRACKET"
+        "%reduce MemberExpressionNotSTMT LSBRACKET ExpressionList RSBRACKET"
         self.val = jsast.SBracketExpressionNode(list=kids[0].val, element=kids[2].val)
 
     def reduce_MemberExpression_DOT_IdentifierName(self, *kids):
-        "%reduce MemberExpression DOT IdentifierName"
-        self.val = jsast.BinExpressionNode(left=kids[0].val, op=".", right=kids[2].val)
-
-    def reduce_NEW_MemberExpression_Arguments(self, *kids):
-        "%reduce NEW MemberExpression Arguments"
-        self.val = jsast.NewNode(expression=kids[1].val, arguments=kids[2].val)
+        "%reduce MemberExpressionNotSTMT DOT IdentifierName"
+        self.val = jsast.DotExpressionNode(left=kids[0].val, right=kids[2].val)
 
 
-class NewExpression(Nonterm):
+class NewExpressionSTMT(Nonterm):
     # MemberExpression | NEW NewExpression
 
     def reduce_MemberExpression(self, *kids):
-        "%reduce MemberExpression"
+        "%reduce MemberExpressionSTMT"
         self.val = kids[0].val
 
     def reduce_NEW_NewExpression(self, *kids):
         "%reduce NEW NewExpression"
         self.val = jsast.NewNode(expression=kids[1].val, arguments=None)
 
-class CallExpression(Nonterm):
+
+class NewExpressionNotSTMT(Nonterm):
+    # MemberExpression
+
+    def reduce_MemberExpression(self, *kids):
+        "%reduce MemberExpressionNotSTMT"
+        self.val = kids[0].val
+
+
+class CallExpression_template():
     # MemberExpression Arguments
     # | CallExpression Arguments
     # | CallExpression LSBRACKET ExpressionList RSBRACKET
     # | CallExpression DOT IdentifierName
 
     def reduce_MemberExpression_Arguments(self, *kids):
-        "%reduce MemberExpression Arguments"
+        "%reduce MemberExpressionLEFTMOD Arguments"
         self.val = jsast.CallNode(call=kids[0].val, arguments=kids[1].val)
 
     def reduce_CallExpression_Arguments(self, *kids):
-        "%reduce CallExpression Arguments"
+        "%reduce CallExpressionLEFTMOD Arguments"
         self.val = jsast.CallNode(call=kids[0].val, arguments=kids[1].val)
 
     def reduce_CallExpression_LSBRACKET_ExpressionList_RSBRACKET(self, *kids):
-        "%reduce CallExpression LSBRACKET ExpressionList RSBRACKET"
+        "%reduce CallExpressionLEFTMOD LSBRACKET ExpressionList RSBRACKET"
         self.val = jsast.SBracketExpressionNode(list=kids[0].val, element=kids[2].val)
 
     def reduce_CallExpression_DOT_IdentifierName(self, *kids):
-        "%reduce CallExpression DOT IdentifierName"
+        "%reduce CallExpressionLEFTMOD DOT IdentifierName"
         self.val = jsast.DotExpressionNode(left=kids[0].val, right=kids[2].val)
 
 class Arguments(Nonterm):
@@ -570,18 +602,18 @@ class ArgumentList(Nonterm):
         "%reduce ArgumentList COMMA AssignmentExpression"
         self.val = kids[0].val + [kids[2].val]
 
-class LHSExpression(Nonterm):
+class LHSExpression_template():
     # NewExpression | CallExpression
 
     def reduce_NewExpression(self, *kids):
-        "%reduce NewExpression"
+        "%reduce NewExpressionLEFTMOD"
         self.val = kids[0].val
 
     def reduce_CallExpression(self, *kids):
-        "%reduce CallExpression"
+        "%reduce CallExpressionLEFTMOD"
         self.val = kids[0].val
 
-class PostfixExpression(Nonterm):
+class PostfixExpression_template():
     # !!! line terminator not checked
     #
     # LHSExpression
@@ -589,18 +621,18 @@ class PostfixExpression(Nonterm):
     # | LHSExpression [no LineTerminator here] MINUSMINUS
 
     def reduce_LHSExpression(self, *kids):
-        "%reduce LHSExpression"
+        "%reduce LHSExpressionLEFTMOD"
         self.val = kids[0].val
 
     def reduce_LHSExpression_PLUSPLUS(self, *kids):
-        "%reduce LHSExpression PLUSPLUS"
+        "%reduce LHSExpressionLEFTMOD PLUSPLUS"
         self.val = jsast.PostfixExpressionNode(expression=kids[0].val, op="++")
 
     def reduce_LHSExpression_MINUSMINUS(self, *kids):
-        "%reduce LHSExpression MINUSMINUS"
+        "%reduce LHSExpressionLEFTMOD MINUSMINUS"
         self.val = jsast.PostfixExpressionNode(expression=kids[0].val, op="--")
 
-class UnaryExpression(Nonterm):
+class UnaryExpression_template():
     # PostfixExpression
     # | DELETE UnaryExpression
     # | VOID UnaryExpression
@@ -613,7 +645,7 @@ class UnaryExpression(Nonterm):
     # | ! UnaryExpression
 
     def reduce_PostfixExpression(self, *kids):
-        "%reduce PostfixExpression"
+        "%reduce PostfixExpressionLEFTMOD"
         self.val = kids[0].val
 
     def reduce_DELETE_UnaryExpression(self, *kids):
@@ -654,136 +686,624 @@ class UnaryExpression(Nonterm):
 
 
 # we're attempting to handle 'in' separately
-class BinaryExpressionPreIn(Nonterm, metaclass=BinaryExpressionMeta):
-    '''PLUS | MINUS | STAR | SLASH | PERCENT
-    | LEFTSHIFT | SIGNRIGHTSHIFT | ZERORIGHTSHIFT'''
-    # binary expressions with all of the above ops
-    # also:
-    # UnaryExpression
+class BinaryExpression_template():
+    def template(self, *kids):
+        'reduce LEFTSIDE OP RIGHTSIDE'
+        self.val = jsast.BinExpressionNode(left=kids[0].val, op=kids[1].val, right=kids[2].val)
 
+
+class MultiplicativeExpressionNotSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; STAR | SLASH | PERCENT }
+    [replace] LEFTSIDE -> MultiplicativeExpressionNotSTMT, RIGHTSIDE -> UnaryExpression
+    '''
     def reduce_UnaryExpression(self, *kids):
-        "%reduce UnaryExpression"
+        "%reduce UnaryExpressionNotSTMT"
         self.val = kids[0].val
 
 
-#class BinaryExpressionMetaMOD(metaclass=BinaryExpressionGenMeta):
-#    '''LESS | LESSEQ | GREATER | GREATEREQ
+class MultiplicativeExpressionSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; STAR | SLASH | PERCENT }
+    [replace] LEFTSIDE -> MultiplicativeExpressionSTMT, RIGHTSIDE -> UnaryExpression
+    '''
+    def reduce_UnaryExpression(self, *kids):
+        "%reduce UnaryExpressionSTMT"
+        self.val = kids[0].val
+
+
+class AdditiveExpressionNotSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; PLUS | MINUS}
+    [replace] LEFTSIDE -> AdditiveExpressionNotSTMT, RIGHTSIDE -> MultiplicativeExpression
+    '''
+    def reduce_MultiplicativeExpression(self, *kids):
+        "%reduce MultiplicativeExpressionNotSTMT"
+        self.val = kids[0].val
+
+
+class AdditiveExpressionSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; PLUS | MINUS}
+    [replace] LEFTSIDE -> AdditiveExpressionSTMT, RIGHTSIDE -> MultiplicativeExpression
+    '''
+    def reduce_MultiplicativeExpression(self, *kids):
+        "%reduce MultiplicativeExpressionSTMT"
+        self.val = kids[0].val
+
+
+class ShiftExpressionNotSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; LEFTSHIFT | SIGNRIGHTSHIFT | ZERORIGHTSHIFT}
+    [replace] LEFTSIDE -> ShiftExpressionNotSTMT, RIGHTSIDE -> AdditiveExpression
+    '''
+    def reduce_AdditiveExpression(self, *kids):
+        "%reduce AdditiveExpressionNotSTMT"
+        self.val = kids[0].val
+
+
+class ShiftExpressionSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; LEFTSHIFT | SIGNRIGHTSHIFT | ZERORIGHTSHIFT}
+    [replace] LEFTSIDE -> ShiftExpressionSTMT, RIGHTSIDE -> AdditiveExpression
+    '''
+    def reduce_AdditiveExpression(self, *kids):
+        "%reduce AdditiveExpressionSTMT"
+        self.val = kids[0].val
+
+
+class RelationalExpressionNotSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; LESS | LESSEQ | GREATER | GREATEREQ}
+    [replace] LEFTSIDE -> RelationalExpressionNotSTMT, RIGHTSIDE -> ShiftExpression
+    '''
+    def reduce_ShiftExpression(self, *kids):
+        "%reduce ShiftExpressionNotSTMT"
+        self.val = kids[0].val
+
+    def reduce_RelationalExpression_INSTANCEOF_RelationalExpression(self, *kids):
+        "%reduce RelationalExpressionNotSTMT INSTANCEOF ShiftExpression"
+        self.val = jsast.InstanceOfNode(expression=kids[0].val, type=kids[2].val)
+
+    def reduce_RelationalExpression_IN_RelationalExpression(self, *kids):
+        "%reduce RelationalExpressionNotSTMT IN ShiftExpression"
+        self.val = jsast.InNode(expression=kids[0].val, container=kids[2].val)
+
+
+class RelationalExpressionSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; LESS | LESSEQ | GREATER | GREATEREQ}
+    [replace] LEFTSIDE -> RelationalExpressionSTMT, RIGHTSIDE -> ShiftExpression
+    '''
+    def reduce_ShiftExpression(self, *kids):
+        "%reduce ShiftExpressionSTMT"
+        self.val = kids[0].val
+
+    def reduce_RelationalExpression_INSTANCEOF_RelationalExpression(self, *kids):
+        "%reduce RelationalExpressionSTMT INSTANCEOF ShiftExpression"
+        self.val = jsast.InstanceOfNode(expression=kids[0].val, type=kids[2].val)
+
+    def reduce_RelationalExpression_IN_RelationalExpression(self, *kids):
+        "%reduce RelationalExpressionSTMT IN ShiftExpression"
+        self.val = jsast.InNode(expression=kids[0].val, container=kids[2].val)
+
+
+#class RelationalExpressionNoIN(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+#    '''
+#    [generate] {template; OP; LESS | LESSEQ | GREATER | GREATEREQ}
+#    [replace] LEFTSIDE -> RelationalExpressionSTMT, RIGHTSIDE -> ShiftExpression
+#    '''
+#    def reduce_ShiftExpressionNotSTMT(self, *kids):
+#        "%reduce ShiftExpressionNotSTMT"
+#        self.val = kids[0].val
+#    def reduce_ShiftExpressionSTMT(self, *kids):
+#        "%reduce ShiftExpressionSTMT"
+#        self.val = kids[0].val
+#
+#    def reduce_RelationalExpression_INSTANCEOF_RelationalExpression(self, *kids):
+#        "%reduce RelationalExpressionNoIN INSTANCEOF RelationalExpressionNoIN"
+#        self.val = jsast.InstanceOfNode(expression=kids[0].val, type=kids[2].val)
+
+
+class EqualityExpressionNotSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; EQUAL | NOTEQUAL | STRICTEQUAL | STRICTNOTEQUAL}
+    [replace] LEFTSIDE -> EqualityExpressionNotSTMT, RIGHTSIDE -> RelationalExpression
+    '''
+    def reduce_RelationalExpression(self, *kids):
+        "%reduce RelationalExpressionNotSTMT"
+        self.val = kids[0].val
+
+
+class EqualityExpressionSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; EQUAL | NOTEQUAL | STRICTEQUAL | STRICTNOTEQUAL}
+    [replace] LEFTSIDE -> EqualityExpressionSTMT, RIGHTSIDE -> RelationalExpression
+    '''
+    def reduce_RelationalExpression(self, *kids):
+        "%reduce RelationalExpressionSTMT"
+        self.val = kids[0].val
+
+
+#class EqualityExpressionNoIN(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+#    '''
+#    [generate] {template; OP; EQUAL | NOTEQUAL | STRICTEQUAL | STRICTNOTEQUAL}
+#    [replace] LEFTSIDE -> EqualityExpressionSTMT, RIGHTSIDE -> RelationalExpression
+#    '''
+#    def reduce_RelationalExpression(self, *kids):
+#        "%reduce RelationalExpressionNoIN"
+#        self.val = kids[0].val
+
+
+class BitwiseANDExpressionNotSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; AND}
+    [replace] LEFTSIDE -> BitwiseANDExpressionNotSTMT, RIGHTSIDE -> EqualityExpression
+    '''
+    def reduce_EqualityExpression(self, *kids):
+        "%reduce EqualityExpressionNotSTMT"
+        self.val = kids[0].val
+
+
+class BitwiseANDExpressionSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; AND}
+    [replace] LEFTSIDE -> BitwiseANDExpressionSTMT, RIGHTSIDE -> EqualityExpression
+    '''
+    def reduce_EqualityExpression(self, *kids):
+        "%reduce EqualityExpressionSTMT"
+        self.val = kids[0].val
+
+
+#class BitwiseANDExpressionNoIN(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+#    '''
+#    [generate] {template; OP; AND}
+#    [replace] LEFTSIDE -> BitwiseANDExpressionSTMT, RIGHTSIDE -> EqualityExpression
+#    '''
+#    def reduce_EqualityExpression(self, *kids):
+#        "%reduce EqualityExpressionNoIN"
+#        self.val = kids[0].val
+
+
+class BitwiseXORExpressionNotSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; CIRCUM}
+    [replace] LEFTSIDE -> BitwiseXORExpressionNotSTMT, RIGHTSIDE -> BitwiseANDExpression
+    '''
+    def reduce_BitwiseANDExpression(self, *kids):
+        "%reduce BitwiseANDExpressionNotSTMT"
+        self.val = kids[0].val
+
+
+class BitwiseXORExpressionSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; CIRCUM}
+    [replace] LEFTSIDE -> BitwiseXORExpressionSTMT, RIGHTSIDE -> BitwiseANDExpression
+    '''
+    def reduce_BitwiseANDExpression(self, *kids):
+        "%reduce BitwiseANDExpressionSTMT"
+        self.val = kids[0].val
+
+
+#class BitwiseXORExpressionNoIN(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+#    '''
+#    [generate] {template; OP; CIRCUM}
+#    [replace] LEFTSIDE -> BitwiseXORExpressionSTMT, RIGHTSIDE -> BitwiseANDExpression
+#    '''
+#    def reduce_BitwiseANDExpression(self, *kids):
+#        "%reduce BitwiseANDExpressionNoIN"
+#        self.val = kids[0].val
+
+
+class BitwiseORExpressionNotSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; PIPE}
+    [replace] LEFTSIDE -> BitwiseORExpressionNotSTMT, RIGHTSIDE -> BitwiseXORExpression
+    '''
+    def reduce_BitwiseXORExpression(self, *kids):
+        "%reduce BitwiseXORExpressionNotSTMT"
+        self.val = kids[0].val
+
+
+class BitwiseORExpressionSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; PIPE}
+    [replace] LEFTSIDE -> BitwiseORExpressionSTMT, RIGHTSIDE -> BitwiseXORExpression
+    '''
+    def reduce_BitwiseXORExpression(self, *kids):
+        "%reduce BitwiseXORExpressionSTMT"
+        self.val = kids[0].val
+
+
+#class BitwiseORExpressionNoIN(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+#    '''
+#    [generate] {template; OP; PIPE}
+#    [replace] LEFTSIDE -> BitwiseORExpressionSTMT, RIGHTSIDE -> BitwiseXORExpression
+#    '''
+#    def reduce_BitwiseXORExpression(self, *kids):
+#        "%reduce BitwiseXORExpressionNoIN"
+#        self.val = kids[0].val
+
+
+class LogicalANDExpressionNotSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; LOGICAND}
+    [replace] LEFTSIDE -> LogicalANDExpressionNotSTMT, RIGHTSIDE -> BitwiseORExpression
+    '''
+    def reduce_BitwiseORExpression(self, *kids):
+        "%reduce BitwiseORExpressionNotSTMT"
+        self.val = kids[0].val
+
+
+class LogicalANDExpressionSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; LOGICAND}
+    [replace] LEFTSIDE -> LogicalANDExpressionSTMT, RIGHTSIDE -> BitwiseORExpression
+    '''
+    def reduce_BitwiseORExpression(self, *kids):
+        "%reduce BitwiseORExpressionSTMT"
+        self.val = kids[0].val
+
+
+#class LogicalANDExpressionNoIN(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+#    '''
+#    [generate] {template; OP; LOGICAND}
+#    [replace] LEFTSIDE -> LogicalANDExpressionSTMT, RIGHTSIDE -> BitwiseORExpression
+#    '''
+#    def reduce_BitwiseORExpression(self, *kids):
+#        "%reduce BitwiseORExpressionNoIN"
+#        self.val = kids[0].val
+
+
+class LogicalORExpressionNotSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; LOGICOR}
+    [replace] LEFTSIDE -> LogicalORExpressionNotSTMT, RIGHTSIDE -> LogicalANDExpression
+    '''
+    def reduce_LogicalANDExpression(self, *kids):
+        "%reduce LogicalANDExpressionNotSTMT"
+        self.val = kids[0].val
+
+
+class LogicalORExpressionSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+    '''
+    [generate] {template; OP; LOGICOR}
+    [replace] LEFTSIDE -> LogicalORExpressionSTMT, RIGHTSIDE -> LogicalANDExpression
+    '''
+    def reduce_LogicalANDExpression(self, *kids):
+        "%reduce LogicalANDExpressionSTMT"
+        self.val = kids[0].val
+
+
+#class LogicalORExpressionNoIN(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+#    '''
+#    [generate] {template; OP; LOGICOR}
+#    [replace] LEFTSIDE -> LogicalORExpressionSTMT, RIGHTSIDE -> LogicalANDExpression
+#    '''
+#    def reduce_LogicalANDExpression(self, *kids):
+#        "%reduce LogicalANDExpressionNoIN"
+#        self.val = kids[0].val
+
+
+#class BinaryExpressionPreInNotSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+#    '''
+#    [generate]
+#    {template; OP;
+#    PLUS | MINUS | STAR | SLASH | PERCENT
+#    | LEFTSHIFT | SIGNRIGHTSHIFT | ZERORIGHTSHIFT }
+#    [replace]
+#    LEFTSIDE -> BinaryExpressionPreInNotSTMT, RIGHTSIDE -> BinaryExpressionPreIn
+#    '''
+#    # binary expressions with all of the above ops
+#    # also:
+#    # UnaryExpression
+#
+#    def reduce_UnaryExpression(self, *kids):
+#        "%reduce UnaryExpressionNotSTMT"
+#        self.val = kids[0].val
+#
+#
+#class BinaryExpressionPreInSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+#    '''
+#    [generate]
+#    {template; OP;
+#    PLUS | MINUS | STAR | SLASH | PERCENT
+#    | LEFTSHIFT | SIGNRIGHTSHIFT | ZERORIGHTSHIFT }
+#    [replace]
+#    LEFTSIDE -> BinaryExpressionPreInSTMT, RIGHTSIDE -> BinaryExpressionPreIn
+#    '''
+#    # binary expressions with all of the above ops
+#    # also:
+#    # UnaryExpression
+#
+#    def reduce_UnaryExpression(self, *kids):
+#        "%reduce UnaryExpressionSTMT"
+#        self.val = kids[0].val
+
+
+#class BinaryExpressionNotSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+#    '''
+#    [generate]
+#    {template; OP;
+#    LESS | LESSEQ | GREATER | GREATEREQ
 #    | EQUAL | NOTEQUAL | STRICTEQUAL | STRICTNOTEQUAL
 #    | AND | CIRCUM | PIPE
-#    | LOGICAND | LOGICOR'''
+#    | LOGICAND | LOGICOR }
+#    [replace]
+#    LEFTSIDE -> BinaryExpressionNotSTMT, RIGHTSIDE -> BinaryExpression
+#    '''
 #    # binary expressions with all of the above ops
 #    # also:
 #    # BinaryExpressionPreIn
 #    # | BinaryExpression INSTANCEOF BinaryExpression
 #    # | BinaryExpression IN BinaryExpression
+#    def reduce_BinaryExpressionPreIn(self, *kids):
+#        "%reduce BinaryExpressionPreInNotSTMT"
+#        self.val = kids[0].val
 #
+#    def reduce_BinaryExpression_INSTANCEOF_BinaryExpression(self, *kids):
+#        "%reduce BinaryExpressionNotSTMT INSTANCEOF BinaryExpression"
+#        self.val = jsast.InstanceOfNode(expression=kids[0].val, type=kids[2].val)
+#
+#    def reduce_BinaryExpression_IN_BinaryExpression(self, *kids):
+#        "%reduce BinaryExpressionNotSTMT IN BinaryExpression"
+#        self.val = jsast.InNode(expression=kids[0].val, container=kids[2].val)
+#
+#
+#class BinaryExpressionNoIN(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+#    '''
+#    [generate]
+#    {template; OP;
+#    LESS | LESSEQ | GREATER | GREATEREQ
+#    | EQUAL | NOTEQUAL | STRICTEQUAL | STRICTNOTEQUAL
+#    | AND | CIRCUM | PIPE
+#    | LOGICAND | LOGICOR }
+#    [replace]
+#    LEFTSIDE -> BinaryExpressionNoIN, RIGHTSIDE -> BinaryExpressionNoIN
+#    '''
+#    # binary expressions with all of the above ops
+#    # also:
+#    # BinaryExpressionPreIn
+#    # | BinaryExpression INSTANCEOF BinaryExpression
 #    def reduce_BinaryExpressionPreIn(self, *kids):
 #        "%reduce BinaryExpressionPreIn"
 #        self.val = kids[0].val
 #
+#    def reduce_BinaryExpressionNoIN_INSTANCEOF_BinaryExpressionNoIN(self, *kids):
+#        "%reduce BinaryExpressionNoIN INSTANCEOF BinaryExpressionNoIN"
+#        self.val = jsast.InstanceOfNode(expression=kids[0].val, type=kids[2].val)
+#
+#
+#class BinaryExpressionSTMT(Nonterm, BinaryExpression_template, metaclass=ProductionGenMeta):
+#    '''
+#    [generate]
+#    {template; OP;
+#    LESS | LESSEQ | GREATER | GREATEREQ
+#    | EQUAL | NOTEQUAL | STRICTEQUAL | STRICTNOTEQUAL
+#    | AND | CIRCUM | PIPE
+#    | LOGICAND | LOGICOR }
+#    [replace]
+#    LEFTSIDE -> BinaryExpressionSTMT, RIGHTSIDE -> BinaryExpressionSTMT
+#    '''
+#    # binary expressions with all of the above ops
+#    # also:
+#    # BinaryExpressionPreIn
+#    # | BinaryExpression INSTANCEOF BinaryExpression
+#    # | BinaryExpression IN BinaryExpression
+#    def reduce_BinaryExpressionPreIn(self, *kids):
+#        "%reduce BinaryExpressionPreInSTMT"
+#        self.val = kids[0].val
+#
 #    def reduce_BinaryExpression_INSTANCEOF_BinaryExpression(self, *kids):
-#        "%reduce BinaryExpressionMetaMOD INSTANCEOF BinaryExpressionMetaMOD"
+#        "%reduce BinaryExpressionSTMT INSTANCEOF BinaryExpressionSTMT"
 #        self.val = jsast.InstanceOfNode(expression=kids[0].val, type=kids[2].val)
 #
 #    def reduce_BinaryExpression_IN_BinaryExpression(self, *kids):
-#        "%reduce BinaryExpressionMetaMOD IN BinaryExpressionMetaMOD"
+#        "%reduce BinaryExpressionSTMT IN BinaryExpressionSTMT"
 #        self.val = jsast.InNode(expression=kids[0].val, container=kids[2].val)
 
 
-class BinaryExpression(Nonterm, metaclass=BinaryExpressionMeta):
-    '''LESS | LESSEQ | GREATER | GREATEREQ
-    | EQUAL | NOTEQUAL | STRICTEQUAL | STRICTNOTEQUAL
-    | AND | CIRCUM | PIPE
-    | LOGICAND | LOGICOR'''
-    # binary expressions with all of the above ops
-    # also:
-    # BinaryExpressionPreIn
-    # | BinaryExpression INSTANCEOF BinaryExpression
-    # | BinaryExpression IN BinaryExpression
+class ConditionalExpression_template():
+    # LogicalORExpression
+    # | LogicalORExpression QUESTION AssignmentExpression COLON AssignmentExpression
 
-    def reduce_BinaryExpressionPreIn(self, *kids):
-        "%reduce BinaryExpressionPreIn"
-        self.val = kids[0].val
-
-    def reduce_BinaryExpression_INSTANCEOF_BinaryExpression(self, *kids):
-        "%reduce BinaryExpression INSTANCEOF BinaryExpression"
-        self.val = jsast.InstanceOfNode(expression=kids[0].val, type=kids[2].val)
-
-    def reduce_BinaryExpression_IN_BinaryExpression(self, *kids):
-        "%reduce BinaryExpression IN BinaryExpression"
-        self.val = jsast.InNode(expression=kids[0].val, container=kids[2].val)
-
-
-class BinaryExpressionNoIN(Nonterm, metaclass=BinaryExpressionMeta):
-    '''LESS | LESSEQ | GREATER | GREATEREQ
-    | EQUAL | NOTEQUAL | STRICTEQUAL | STRICTNOTEQUAL
-    | AND | CIRCUM | PIPE
-    | LOGICAND | LOGICOR'''
-    # binary expressions with all of the above ops
-    # also:
-    # BinaryExpressionPreIn
-    # | BinaryExpression INSTANCEOF BinaryExpression
-    # | BinaryExpression IN BinaryExpression
-
-    def reduce_BinaryExpressionPreIn(self, *kids):
-        "%reduce BinaryExpressionPreIn"
-        self.val = kids[0].val
-
-    def reduce_BinaryExpressionNoIN_INSTANCEOF_BinaryExpressionNoIN(self, *kids):
-        "%reduce BinaryExpressionNoIN INSTANCEOF BinaryExpressionNoIN"
-        self.val = jsast.InstanceOfNode(expression=kids[0].val, type=kids[2].val)
-
-class ConditionalExpression_stub():
-    # BinaryExpression
-    # | BinaryExpression QUESTION AssignmentExpression COLON AssignmentExpression
-
-    def reduce_BinaryExpression(self, *kids):
-        "%reduce BinaryExpressionMetaMOD"
+    def reduce_LogicalORExpression(self, *kids):
+        "%reduce LogicalORExpressionLEFTMOD"
         self.val = kids[0].val
 
     def reduce_BinaryExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(self, *kids):
-        "%reduce BinaryExpressionMetaMOD QUESTION AssignmentExpressionMetaMOD COLON AssignmentExpressionMetaMOD"
+        "%reduce LogicalORExpressionLEFTMOD QUESTION AssignmentExpressionRIGHTMOD COLON AssignmentExpressionRIGHTMOD"
         self.val = jsast.ConditionalExpressionNode(condition=kids[0].val, true=kids[2].val, false=kids[4].val)
 
 
-class AssignmentExpression_stub():
+class AssignmentExpression_template():
     # ConditionalExpression
     # | LHSExpression AssignmentOp AssignmentExpression
 
     def reduce_ConditionalExpression(self, *kids):
-        "%reduce ConditionalExpressionMetaMOD"
+        "%reduce ConditionalExpressionCONDMOD"
         self.val = kids[0].val
 
     def reduce_LHSExpression_AssignmentOp_AssignmentExpression(self, *kids):
-        "%reduce LHSExpression AssignmentOp AssignmentExpressionMetaMOD"
+        "%reduce LHSExpressionLEFTMOD AssignmentOp AssignmentExpressionRIGHTMOD"
         self.val = jsast.AssignmentExpressionNode(left=kids[0].val, op=kids[1].val, right=kids[2].val)
 
 
-class ExpressionList(Nonterm, ExpressionList_stub, metaclass=RenameProductionMeta):
-    'MetaMOD -> '
-#class BinaryExpression(Nonterm, BinaryExpressionMetaMOD, metaclass=RenameProductionMeta):
-#    'MetaMOD -> '
-class ConditionalExpression(Nonterm, ConditionalExpression_stub, metaclass=RenameProductionMeta):
-    'MetaMOD -> '
-class AssignmentExpression(Nonterm, AssignmentExpression_stub, metaclass=RenameProductionMeta):
-    'MetaMOD -> '
+#class AssignmentExpressionNotSTMT(Nonterm):
+#    # ConditionalExpression
+#    # | LHSExpression AssignmentOp AssignmentExpression
+#
+#    def reduce_ConditionalExpression(self, *kids):
+#        "%reduce BinaryExpressionPreInNotSTMT"
+#        self.val = kids[0].val
+#
+#    def reduce_LHSExpression_AssignmentOp_AssignmentExpression(self, *kids):
+#        "%reduce LHSExpressionNotSTMT AssignmentOp AssignmentExpression"
+#        self.val = jsast.AssignmentExpressionNode(left=kids[0].val, op=kids[1].val, right=kids[2].val)
 
 
-class ExpressionListNoIN(Nonterm, ExpressionList_stub, metaclass=RenameProductionMeta):
-    'MetaMOD -> NoIN'
-#class BinaryExpressionNoIN(Nonterm, BinaryExpressionMetaMOD, metaclass=RenameProductionMeta):
-#    'MetaMOD -> NoIN'
-class ConditionalExpressionNoIN(Nonterm, ConditionalExpression_stub, metaclass=RenameProductionMeta):
-    'MetaMOD -> NoIN'
-class AssignmentExpressionNoIN(Nonterm, AssignmentExpression_stub, metaclass=RenameProductionMeta):
-    'MetaMOD -> NoIN'
+# !!!!!
+
+#class PrimaryExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+#    '''[generate][replace]
+#    ExpressionNotSTMT -> PrimaryExpressionNotSTMT,
+#    ExpressionSTMT -> PrimaryExpressionSTMT'''
+class ExpressionList(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace]
+    ExpressionNotSTMT -> ExpressionListNotSTMT,
+    ExpressionSTMT -> ExpressionListSTMT'''
+class MemberExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace]
+    ExpressionNotSTMT -> MemberExpressionNotSTMT,
+    ExpressionSTMT -> MemberExpressionSTMT'''
+class NewExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace]
+    ExpressionNotSTMT -> NewExpressionNotSTMT,
+    ExpressionSTMT -> NewExpressionSTMT'''
+#class CallExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+#    '''[generate][replace]
+#    ExpressionNotSTMT -> CallExpressionNotSTMT,
+#    ExpressionSTMT -> CallExpressionSTMT'''
+class LHSExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace]
+    ExpressionNotSTMT -> LHSExpressionNotSTMT,
+    ExpressionSTMT -> LHSExpressionSTMT'''
+#class PostfixExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+#    '''[generate][replace]
+#    ExpressionNotSTMT -> PostfixExpressionNotSTMT,
+#    ExpressionSTMT -> PostfixExpressionSTMT'''
+class UnaryExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace]
+    ExpressionNotSTMT -> UnaryExpressionNotSTMT,
+    ExpressionSTMT -> UnaryExpressionSTMT'''
+class MultiplicativeExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace]
+    ExpressionNotSTMT -> MultiplicativeExpressionNotSTMT,
+    ExpressionSTMT -> MultiplicativeExpressionSTMT'''
+class AdditiveExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace]
+    ExpressionNotSTMT -> AdditiveExpressionNotSTMT,
+    ExpressionSTMT -> AdditiveExpressionSTMT'''
+class ShiftExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace]
+    ExpressionNotSTMT -> ShiftExpressionNotSTMT,
+    ExpressionSTMT -> ShiftExpressionSTMT'''
+class RelationalExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace]
+    ExpressionNotSTMT -> RelationalExpressionNotSTMT,
+    ExpressionSTMT -> RelationalExpressionSTMT'''
+class EqualityExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace]
+    ExpressionNotSTMT -> EqualityExpressionNotSTMT,
+    ExpressionSTMT -> EqualityExpressionSTMT'''
+class BitwiseANDExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace]
+    ExpressionNotSTMT -> BitwiseANDExpressionNotSTMT,
+    ExpressionSTMT -> BitwiseANDExpressionSTMT'''
+class BitwiseXORExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace]
+    ExpressionNotSTMT -> BitwiseXORExpressionNotSTMT,
+    ExpressionSTMT -> BitwiseXORExpressionSTMT'''
+class BitwiseORExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace]
+    ExpressionNotSTMT -> BitwiseORExpressionNotSTMT,
+    ExpressionSTMT -> BitwiseORExpressionSTMT'''
+class LogicalANDExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace]
+    ExpressionNotSTMT -> LogicalANDExpressionNotSTMT,
+    ExpressionSTMT -> LogicalANDExpressionSTMT'''
+#class LogicalORExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+#    '''[generate][replace]
+#    ExpressionNotSTMT -> LogicalORExpressionNotSTMT,
+#    ExpressionSTMT -> LogicalORExpressionSTMT'''
+
+#class BinaryExpressionPreIn(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+#    '''[generate][replace]
+#    ExpressionNotSTMT -> BinaryExpressionPreInNotSTMT,
+#    ExpressionSTMT -> BinaryExpressionPreInSTMT'''
+#class BinaryExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+#    '''[generate][replace]
+#    ExpressionNotSTMT -> BinaryExpressionNotSTMT,
+#    ExpressionSTMT -> BinaryExpressionSTMT'''
+#class ConditionalExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+#    '''[generate][replace]
+#    ExpressionNotSTMT -> ConditionalExpressionNotSTMT,
+#    ExpressionSTMT -> ConditionalExpressionSTMT'''
+class AssignmentExpression(Nonterm, Expression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace]
+    ExpressionNotSTMT -> AssignmentExpressionNotSTMT,
+    ExpressionSTMT -> AssignmentExpressionSTMT'''
 
 
-class AssignmentOp(Nonterm, metaclass=AssignmentOpMeta):
-    '''ASSIGN | MULTASSIGN | DIVASSIGN | REMAINASSIGN
+class ExpressionListNotSTMT(Nonterm, ExpressionList_template, metaclass=ProductionGenMeta):
+    '''[generate][replace] LEFTMOD -> NotSTMT, RIGHTMOD -> '''
+class CallExpressionNotSTMT(Nonterm, CallExpression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace] LEFTMOD -> NotSTMT'''
+class LHSExpressionNotSTMT(Nonterm, LHSExpression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace] LEFTMOD -> NotSTMT'''
+class PostfixExpressionNotSTMT(Nonterm, PostfixExpression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace] LEFTMOD -> NotSTMT'''
+class UnaryExpressionNotSTMT(Nonterm):
+    def reduce_PostfixExpression(self, *kids):
+        "%reduce PostfixExpressionNotSTMT"
+        self.val = kids[0].val
+class ConditionalExpressionNotSTMT(Nonterm, ConditionalExpression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace] LEFTMOD -> NotSTMT, RIGHTMOD -> '''
+class AssignmentExpressionNotSTMT(Nonterm, AssignmentExpression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace] CONDMOD -> NotSTMT, LEFTMOD -> NotSTMT, RIGHTMOD -> '''
+
+
+class ExpressionListSTMT(Nonterm, ExpressionList_template, metaclass=ProductionGenMeta):
+    '''[generate][replace] LEFTMOD -> STMT, RIGHTMOD -> '''
+class CallExpressionSTMT(Nonterm, CallExpression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace] LEFTMOD -> STMT'''
+class LHSExpressionSTMT(Nonterm, LHSExpression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace] LEFTMOD -> STMT'''
+class PostfixExpressionSTMT(Nonterm, PostfixExpression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace] LEFTMOD -> STMT'''
+class UnaryExpressionSTMT(Nonterm, UnaryExpression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace] LEFTMOD -> STMT'''
+class ConditionalExpressionSTMT(Nonterm, ConditionalExpression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace] LEFTMOD -> STMT, RIGHTMOD -> '''
+class AssignmentExpressionSTMT(Nonterm, AssignmentExpression_template, metaclass=ProductionGenMeta):
+    '''[generate][replace] CONDMOD -> STMT, LEFTMOD -> STMT, RIGHTMOD -> '''
+
+
+#class ExpressionListNoIN(Nonterm, ExpressionList_template, metaclass=ProductionGenMeta):
+#    '''[generate][replace] LEFTMOD -> NoIN, RIGHTMOD -> NoIN'''
+#class ConditionalExpressionNoIN(Nonterm, ConditionalExpression_template, metaclass=ProductionGenMeta):
+#    '''[generate][replace] LEFTMOD -> NoIN, RIGHTMOD -> NoIN'''
+#class AssignmentExpressionNoIN(Nonterm, AssignmentExpression_template, metaclass=ProductionGenMeta):
+#    '''[generate][replace] CONDMOD -> NoIN, LEFTMOD -> STMT, RIGHTMOD -> NoIN'''
+
+
+class ExpressionListOPT(Nonterm):
+    # <e> | ExpressionList
+    def reduce_empty(self, *kids):
+        "%reduce <e>"
+        self.val = None
+
+    def reduce_ExpressionList(self, *kids):
+        "%reduce ExpressionList"
+        self.val = kids[0].val
+
+
+class AssignmentOp_template():
+    def template(self, *kids):
+        'reduce OP'
+        self.val = kids[0].val
+
+
+class AssignmentOp(Nonterm, AssignmentOp_template, metaclass=ProductionGenMeta):
+    '''
+    [generate]
+    {template; OP;
+    ASSIGN | MULTASSIGN | DIVASSIGN | REMAINASSIGN
     | PLUSASSIGN | MINUSASSIGN
     | LSHIFTASSIGN | SRSHIFTASSIGN | ZRSHIFTASSIGN
-    | ANDASSIGN | XORASSIGN | ORASSIGN'''
+    | ANDASSIGN | XORASSIGN | ORASSIGN }
+    [replace]
+    '''
 
 
 class ArrayLiteral(Nonterm):
@@ -830,11 +1350,11 @@ class ElementList(Nonterm):
     # | ElementList COMMA ElisionOPT AssignmentExpression
 
     def reduce_ElisionOPT_AssignmentExpression(self, *kids):
-        "%reduce ElisionOPT AssignmentExpression"
+        "%reduce ElisionOPT AssignmentExpressionSTMT"
         self.val = kids[0].val + [kids[1].val]
 
     def reduce_ElementList_COMMA_ElisionOPT_AssignmentExpression(self, *kids):
-        "%reduce ElementList COMMA ElisionOPT AssignmentExpression"
+        "%reduce ElementList COMMA ElisionOPT AssignmentExpressionSTMT"
         self.val = kids[0].val + kids[2].val + [kids[3].val]
 
 class ObjectLiteral(Nonterm):
@@ -935,14 +1455,14 @@ class Statement(Nonterm):
 
 
 class BasicStatement(Nonterm):
-    # ExpressionList includes function declarations
+    # function declarations technically must not be here
     # !!! incomplete
     #
     # VariableStatement
     # | Block
     # | SEMICOLON
-    # | ExpressionList SEMICOLON
-    # | ContinueStatement
+    # | ExpressionListSTMT SEMICOLON
+    # | FunctionExpression
     # | BreakStatement
     # | ReturnStatement
     # | switch ( Expression ) CaseBlock
@@ -964,17 +1484,17 @@ class BasicStatement(Nonterm):
         self.val = None
 
     def reduce_ExpressionList_SEMICOLON(self, *kids):
-        "%reduce ExpressionListNoOBJSTART SEMICOLON"
+        "%reduce ExpressionListSTMT SEMICOLON"
         # need to check if this is actually a function declaration
-        # also need to check if this looks like an object literal,
-        # but should really be a block statement
-        if isinstance(kids[0].val, jsast.FunctionNode):
-            if not kids[0].val.name:
-                raise SyntaxError("function declaration must include a name")
-            else:
-                self.val = kids[0].val
+        self.val = jsast.StatementNode(statement=kids[0].val)
+
+    def reduce_FunctionExpression(self, *kids):
+        "%reduce FunctionExpression"
+        # need to check if this is actually a function declaration
+        if not kids[0].val.name:
+            raise SyntaxError("function declaration must include a name")
         else:
-            self.val = jsast.StatementNode(statement=kids[0].val)
+            self.val = kids[0].val
 
     def reduce_ContinueStatement(self, *kids):
         "%reduce ContinueStatement"
@@ -1049,7 +1569,7 @@ class IfClosedStatement(Nonterm):
         self.val = kids[0].val
 
 
-class OtherStatement_stub():
+class OtherStatement_template():
     # various non-if constructs ending with Statement
     #
     # with ( Expression ) EndStatement
@@ -1057,7 +1577,7 @@ class OtherStatement_stub():
     # | while ( Expression ) EndStatement
     # | for (ExpressionNoINopt; Expressionopt ; Expressionopt ) EndStatement
     # | for ( var VariableDeclarationListNoIN; Expressionopt ; Expressionopt ) EndStatement for ( LeftHandSideExpression in Expression ) EndStatement
-    # | for ( ForInInit in Expression ) EndStatement
+    # | for ( ForInInit ) EndStatement
 
     def reduce_WithEndStatement(self, *kids):
         "%reduce WITH LPAREN ExpressionList RPAREN EndStatement"
@@ -1072,23 +1592,30 @@ class OtherStatement_stub():
         self.val = jsast.WhileNode(expression=kids[2].val, statement=kids[4].val)
 
     def reduce_For_without_declaration(self, *kids):
-        "%reduce FOR LPAREN ExpressionListNoIN SEMICOLON ExpressionList SEMICOLON ExpressionList RPAREN EndStatement"
-        self.val = jsast.ForNode(part1=kids[2].val, part2=kids[4].val, part3=kids[6].val, statement=kids[8].val);
+        "%reduce FOR LPAREN ExpressionListOPT SEMICOLON ExpressionListOPT SEMICOLON ExpressionListOPT RPAREN EndStatement"
+        if kids[2].val and kids[2].val.countIN() > 0:
+            raise SyntaxError("unexpected 'in'")
+        else:
+            self.val = jsast.ForNode(part1=kids[2].val, part2=kids[4].val, part3=kids[6].val, statement=kids[8].val);
 
     def reduce_For_with_declaration(self, *kids):
-        "%reduce FOR LPAREN VAR VariableDeclarationListNoIN SEMICOLON ExpressionList SEMICOLON ExpressionList RPAREN EndStatement"
-        self.val = jsast.ForNode(part1=jsast.VarDeclarationNode(vars=kids[3].val), part2=kids[5].val, part3=kids[7].val, statement=kids[9].val);
+        "%reduce FOR LPAREN VAR VariableDeclarationList SEMICOLON ExpressionListOPT SEMICOLON ExpressionListOPT RPAREN EndStatement"
+        declarations = jsast.VarDeclarationNode(vars=kids[3].val)
+        if declarations.countIN() > 0:
+            raise SyntaxError("unexpected 'in'")
+        else:
+            self.val = jsast.ForNode(part1=declarations, part2=kids[5].val, part3=kids[7].val, statement=kids[9].val);
 
     def reduce_ForIn(self, *kids):
-        "%reduce FOR LPAREN ForInInit IN ExpressionList RPAREN EndStatement"
-        self.val = jsast.ForInNode(init=kids[2].val, array=kids[4].val, statement=kids[6].val);
+        "%reduce FOR LPAREN ForInInit RPAREN EndStatement"
+        self.val = jsast.ForInNode(init=kids[2].val[0], array=kids[2].val[1], statement=kids[4].val);
 
 
-class OtherIfOpenStatement(Nonterm, OtherStatement_stub, metaclass=RenameProductionMeta):
-    'EndStatement -> IfOpenStatement'
+class OtherIfOpenStatement(Nonterm, OtherStatement_template, metaclass=ProductionGenMeta):
+    '[generate] [replace] EndStatement -> IfOpenStatement'
 
-class OtherIfClosedStatement(Nonterm, OtherStatement_stub, metaclass=RenameProductionMeta):
-    'EndStatement -> IfClosedStatement'
+class OtherIfClosedStatement(Nonterm, OtherStatement_template, metaclass=ProductionGenMeta):
+    '[generate] [replace] EndStatement -> IfClosedStatement'
 
 
 class VariableStatement(Nonterm):
@@ -1099,19 +1626,19 @@ class VariableStatement(Nonterm):
         self.val = jsast.VarDeclarationNode(vars=kids[1].val)
 
 
-class VariableDeclarationList_stub():
+class VariableDeclarationList_template():
     # VariableDeclaration | VariableDeclarationList COMMA VariableDeclaration
 
     def reduce_VariableDeclaration(self, *kids):
-        "%reduce VariableDeclarationMetaMOD"
+        "%reduce VariableDeclarationMETAMOD"
         self.val = [kids[0].val]
 
     def reduce_VariableDeclarationList_COMMA_VariableDeclaration(self, *kids):
-        "%reduce VariableDeclarationListMetaMOD COMMA VariableDeclarationMetaMOD"
+        "%reduce VariableDeclarationListMETAMOD COMMA VariableDeclarationMETAMOD"
         self.val = kids[0].val + [kids[2].val]
 
 
-class VariableDeclaration_stub():
+class VariableDeclaration_template():
     # ID | ID ASSIGN AssignmentExpression
 
     def reduce_ID(self, *kids):
@@ -1119,20 +1646,40 @@ class VariableDeclaration_stub():
         self.val = jsast.VarInitNode(name=kids[0].val, value=None)
 
     def reduce_ID_ASSIGN_AssignmentExpression(self, *kids):
-        "%reduce ID ASSIGN AssignmentExpressionMetaMOD"
+        "%reduce ID ASSIGN AssignmentExpressionMETAMOD"
         self.val = jsast.VarInitNode(name=kids[0].val, value=kids[2].val)
 
 
-class VariableDeclarationList(Nonterm, VariableDeclarationList_stub, metaclass=RenameProductionMeta):
-    'MetaMOD -> '
-class VariableDeclaration(Nonterm, VariableDeclaration_stub, metaclass=RenameProductionMeta):
-    'MetaMOD -> '
+class VariableDeclarationList(Nonterm, VariableDeclarationList_template, metaclass=ProductionGenMeta):
+    '[generate] [replace] METAMOD -> '
+class VariableDeclaration(Nonterm, VariableDeclaration_template, metaclass=ProductionGenMeta):
+    '[generate] [replace] METAMOD -> '
 
 
-class VariableDeclarationListNoIN(Nonterm, VariableDeclarationList_stub, metaclass=RenameProductionMeta):
-    'MetaMOD -> NoIN'
-class VariableDeclarationNoIN(Nonterm, VariableDeclaration_stub, metaclass=RenameProductionMeta):
-    'MetaMOD -> NoIN'
+#class VariableDeclarationNoIN(Nonterm):
+#    # just go through the AST and check for presence of 'exposed' in
+#    def reduce_VariableDeclaration(self, *kids):
+#        "%reduce VariableDeclaration"
+#        if kids[0].val.countIN() > 0:
+#            raise SyntaxError("unexpected 'in'")
+#        else:
+#            self.val = kids[0].val
+#
+#
+#class VariableDeclarationListNoIN(Nonterm):
+#    # just go through the AST and check for presence of 'exposed' in
+#    def reduce_VariableDeclarationList(self, *kids):
+#        "%reduce VariableDeclarationList"
+#        if kids[0].val.countIN() > 0:
+#            raise SyntaxError("unexpected 'in'")
+#        else:
+#            self.val = kids[0].val
+
+
+#class VariableDeclarationListNoIN(Nonterm, VariableDeclarationList_template, metaclass=ProductionGenMeta):
+#    '[generate] [replace] METAMOD -> NoIN'
+#class VariableDeclarationNoIN(Nonterm, VariableDeclaration_template, metaclass=ProductionGenMeta):
+#    '[generate] [replace] METAMOD -> NoIN'
 
 
 class CaseBlock(Nonterm):
@@ -1178,7 +1725,7 @@ class CaseClause(Nonterm):
     # case Expression : StatementListopt
 
     def reduce_CASE_ExpressionList_COLON(self, *kids):
-        "%reduce CASE ExpressionList COLON"
+        "%reduce CASE ` COLON"
         self.val = jsast.CaseNode(case=kids[1].val, statements=[])
 
     def reduce_CASE_ExpressionList_COLON_StatementList(self, *kids):
@@ -1202,12 +1749,16 @@ class Block(Nonterm):
     # LCBRACKET RCBRACKET
     # | LCBRACKET StatementList RCBRACKET
 
-#    def reduce_LCBRACKET_RCBRACKET(self, *kids):
-#        "%reduce LCBRACKET RCBRACKET"
-#        self.val = jsast.StatementBlockNode(statements=[])
+    def reduce_LCBRACKET_RCBRACKET(self, *kids):
+        "%reduce LCBRACKET RCBRACKET"
+        self.val = jsast.StatementBlockNode(statements=[])
 
-    def reduce_LCBRACKET_StatementList_RCBRACKET(self, *kids):
-        "%reduce LCBRACKET BlockStatementList RCBRACKET"
+#    def reduce_LCBRACKET_StatementList_RCBRACKET(self, *kids):
+#        "%reduce LCBRACKET BlockStatementList RCBRACKET"
+#        self.val = jsast.StatementBlockNode(statements=kids[1].val.code);
+
+    def reduce_LCBRACKET_SourceElements_RCBRACKET(self, *kids):
+        "%reduce LCBRACKET SourceElements RCBRACKET"
         self.val = jsast.StatementBlockNode(statements=kids[1].val.code);
 
 
@@ -1247,15 +1798,19 @@ class StatementLoop(Nonterm):
 
 
 class ForInInit(Nonterm):
-    # LeftHandSideExpression | VAR VariableDeclarationNoIN
-
+    # LeftHandSideExpression IN ExpressionListSTMT
+    # | VAR VariableDeclarationNoIN IN ExpressionListSTMT
     def reduce_LHSExpression(self, *kids):
-        "%reduce LHSExpression"
-        self.val = kids[0].val
+        "%reduce ExpressionList"
+        # needs good magic to split the 'IN' parts
+        # as a temp fix, asume the top level op is 'IN'
+        self.val = [kids[0].val.expression, kids[0].val.container]
 
-    def reduce_VAR_VariableDeclarationNoIN(self, *kids):
-        "%reduce VAR VariableDeclarationNoIN"
-        self.val = jsast.VarDeclarationNode(vars=[kids[1].val])
+    def reduce_VAR_VariableDeclaration(self, *kids):
+        "%reduce VAR VariableDeclaration"
+        # needs voodoo to count the INs and split properly
+        # as a temp fix, asume the top level op in var declaration is 'IN'
+        self.val = [kids[1].val.name, kids[1].val.value.container]
 
 
 class ContinueStatement(Nonterm):
@@ -1392,312 +1947,20 @@ class FunctionBody(Nonterm):
 # !!!!!!!!!!!!!!!!!
 
 
-class BlockStatementList(Nonterm):
-    # ; | StatementList Statement
-
-    def reduce_Statement(self, *kids):
-        "%reduce SEMICOLON"
-        self.val = jsast.SourceElementsNode(code=[])
-
+#class BlockStatementList(Nonterm):
+#    # ; | StatementList Statement
+#
+##    def reduce_Statement(self, *kids):
+##        "%reduce SEMICOLON"
+##        self.val = jsast.SourceElementsNode(code=[])
+#
 #    def reduce_BlStatement(self, *kids):
-#        "%reduce ExpressionListNoOBJSTART SEMICOLON"
+#        "%reduce ExpressionListSTMT SEMICOLON"
 #        self.val = jsast.SourceElementsNode(code=[kids[0].val])
-
-    def reduce_StatementList_Statement(self, *kids):
-        "%reduce BlockStatementList Statement"
-        if kids[1].val != None:
-            kids[0].val.code += [kids[1].val]
-        self.val = kids[0].val
-
-# !!!!!!!!!!!!!!!!!
-
-#class PrimaryExpression(Nonterm):
-#    # PrimaryExpressionNoOBJSTART
-#    # | ObjectLiteral
 #
-#    def reduce_PrimaryExpressionNoOBJSTART(self, *kids):
-#        "%reduce PrimaryExpressionNoOBJSTART"
-#        self.val = kids[0].val
-#
-#    def reduce_ObjectLiteral(self, *kids):
-#        "%reduce ObjectLiteral"
-#        self.val = kids[0].val
-#
-#
-#class PrimaryExpressionNoOBJSTART(Nonterm):
-#    # this | ID | Literal
-#    # | ArrayLiteral
-#    # | LPAREN Expression RPAREN
-#
-#    # identifiers, literals and 'this'
-#    def reduce_ID(self, *kids):
-#        "%reduce ID"
-#        self.val = jsast.IDNode(name=kids[0].val)
-#
-#    def reduce_Literal(self, *kids):
-#        "%reduce Literal"
-#        self.val = kids[0].val
-#
-#    def reduce_THIS(self, *kids):
-#        "%reduce THIS"
-#        self.val = jsast.ThisNode()
-#
-#    def reduce_ArrayLiteral(self, *kids):
-#        "%reduce ArrayLiteral"
-#        self.val = kids[0].val
-#
-#    def reduce_LPAREN_ExpressionList_RPAREN(self, *kids):
-#        "%reduce LPAREN ExpressionList RPAREN"
-#        self.val = kids[1].val
-#
-##    def reduce_LPAREN_ExpressionListNoOBJSTART_RPAREN(self, *kids):
-##        "%reduce LPAREN ExpressionList RPAREN"
-##        self.val = kids[1].val
-
-
-class ExpressionListNoOBJSTART(Nonterm):
-    # AssignmentExpression | ExpressionList COMMA AssignemntExpression
-
-    def reduce_AssignmentExpression(self, *kids):
-        "%reduce AssignmentExpressionNoOBJSTART"
-        self.val = kids[0].val
-
-    def reduce_ExpressionList_COMMA_AssignmentExpression(self, *kids):
-        "%reduce ExpressionListNoOBJSTART COMMA AssignmentExpression"
-        if not isinstance(kids[0].val, jsast.ExpressionListNode):
-            kids[0].val = jsast.ExpressionListNode(expressions=[kids[0].val])
-        kids[0].val.expressions += [kids[2].val]
-        self.val = kids[0].val
-
-
-class MemberExpressionNoOBJSTART(Nonterm):
-    # PrimaryExpression
-    # | FunctionExpression
-    # | MemberExpression LSBRACKET ExpressionList RSBRACKET
-    # | MemberExpression DOT IdentifierName
-    # | NEW MemberExpression Arguments
-
-    def reduce_PrimaryExpression(self, *kids):
-        "%reduce PrimaryExpressionNoOBJSTART"
-        self.val = kids[0].val
-
-    def reduce_FunctionExpression(self, *kids):
-        "%reduce FunctionExpression"
-        self.val = kids[0].val
-
-    def reduce_MemberExpression_LSBRACKET_ExpressionList_RSBRACKET(self, *kids):
-        "%reduce MemberExpressionNoOBJSTART LSBRACKET ExpressionList RSBRACKET"
-        self.val = jsast.SBracketExpressionNode(list=kids[0].val, element=kids[2].val)
-
-    def reduce_MemberExpression_DOT_IdentifierName(self, *kids):
-        "%reduce MemberExpressionNoOBJSTART DOT IdentifierName"
-        self.val = jsast.BinExpressionNode(left=kids[0].val, op=".", right=kids[2].val)
-
-    def reduce_NEW_MemberExpression_Arguments(self, *kids):
-        "%reduce NEW MemberExpression Arguments"
-        self.val = jsast.NewNode(expression=kids[1].val, arguments=kids[2].val)
-
-
-class NewExpressionNoOBJSTART(Nonterm):
-    # MemberExpression | NEW NewExpression
-
-    def reduce_MemberExpression(self, *kids):
-        "%reduce MemberExpressionNoOBJSTART"
-        self.val = kids[0].val
-
-    def reduce_NEW_NewExpression(self, *kids):
-        "%reduce NEW NewExpression"
-        self.val = jsast.NewNode(expression=kids[1].val, arguments=None)
-
-class CallExpressionNoOBJSTART(Nonterm):
-    # MemberExpression Arguments
-    # | CallExpression Arguments
-    # | CallExpression LSBRACKET ExpressionList RSBRACKET
-    # | CallExpression DOT IdentifierName
-
-    def reduce_MemberExpression_Arguments(self, *kids):
-        "%reduce MemberExpressionNoOBJSTART Arguments"
-        self.val = jsast.CallNode(call=kids[0].val, arguments=kids[1].val)
-
-    def reduce_CallExpression_Arguments(self, *kids):
-        "%reduce CallExpressionNoOBJSTART Arguments"
-        self.val = jsast.CallNode(call=kids[0].val, arguments=kids[1].val)
-
-    def reduce_CallExpression_LSBRACKET_ExpressionList_RSBRACKET(self, *kids):
-        "%reduce CallExpressionNoOBJSTART LSBRACKET ExpressionList RSBRACKET"
-        self.val = jsast.SBracketExpressionNode(list=kids[0].val, element=kids[2].val)
-
-    def reduce_CallExpression_DOT_IdentifierName(self, *kids):
-        "%reduce CallExpressionNoOBJSTART DOT IdentifierName"
-        self.val = jsast.DotExpressionNode(left=kids[0].val, right=kids[2].val)
-
-
-class LHSExpressionNoOBJSTART(Nonterm):
-    # NewExpression | CallExpression
-
-    def reduce_NewExpression(self, *kids):
-        "%reduce NewExpressionNoOBJSTART"
-        self.val = kids[0].val
-
-    def reduce_CallExpression(self, *kids):
-        "%reduce CallExpressionNoOBJSTART"
-        self.val = kids[0].val
-
-class PostfixExpressionNoOBJSTART(Nonterm):
-    # !!! line terminator not checked
-    #
-    # LHSExpression
-    # | LHSExpression [no LineTerminator here] PLUSPLUS
-    # | LHSExpression [no LineTerminator here] MINUSMINUS
-
-    def reduce_LHSExpression(self, *kids):
-        "%reduce LHSExpressionNoOBJSTART"
-        self.val = kids[0].val
-
-    def reduce_LHSExpression_PLUSPLUS(self, *kids):
-        "%reduce LHSExpressionNoOBJSTART PLUSPLUS"
-        self.val = jsast.PostfixExpressionNode(expression=kids[0].val, op="++")
-
-    def reduce_LHSExpression_MINUSMINUS(self, *kids):
-        "%reduce LHSExpressionNoOBJSTART MINUSMINUS"
-        self.val = jsast.PostfixExpressionNode(expression=kids[0].val, op="--")
-
-class UnaryExpressionNoOBJSTART(Nonterm):
-    # PostfixExpression
-    # | DELETE UnaryExpression
-    # | VOID UnaryExpression
-    # | TYPEOF UnaryExpression
-    # | ++ UnaryExpression
-    # | -- UnaryExpression
-    # | + UnaryExpression
-    # | - UnaryExpression
-    # | ~ UnaryExpression
-    # | ! UnaryExpression
-
-    def reduce_PostfixExpression(self, *kids):
-        "%reduce PostfixExpressionNoOBJSTART"
-        self.val = kids[0].val
-
-    def reduce_DELETE_UnaryExpression(self, *kids):
-        "%reduce DELETE UnaryExpression"
-        self.val = jsast.DeleteNode(expression=kids[1].val)
-
-    def reduce_VOID_UnaryExpression(self, *kids):
-        "%reduce VOID UnaryExpression"
-        self.val = jsast.VoidNode(expression=kids[1].val)
-
-    def reduce_TYPEOF_UnaryExpression(self, *kids):
-        "%reduce TYPEOF UnaryExpression"
-        self.val = jsast.TypeOfNode(expression=kids[1].val)
-
-    def reduce_PLUSPLUS_UnaryExpression(self, *kids):
-        "%reduce PLUSPLUS UnaryExpression"
-        self.val = jsast.PrefixExpressionNode(op='++', expression=kids[1].val)
-
-    def reduce_MINUSMINUS_UnaryExpression(self, *kids):
-        "%reduce MINUSMINUS UnaryExpression"
-        self.val = jsast.PrefixExpressionNode(op='--', expression=kids[1].val)
-
-    def reduce_PLUS_UnaryExpression(self, *kids):
-        "%reduce PLUS UnaryExpression"
-        self.val = jsast.PrefixExpressionNode(op='+', expression=kids[1].val)
-
-    def reduce_MINUS_UnaryExpression(self, *kids):
-        "%reduce MINUS UnaryExpression"
-        self.val = jsast.PrefixExpressionNode(op='-', expression=kids[1].val)
-
-    def reduce_TILDE_UnaryExpression(self, *kids):
-        "%reduce TILDE UnaryExpression"
-        self.val = jsast.PrefixExpressionNode(op='~', expression=kids[1].val)
-
-    def reduce_BANG_UnaryExpression(self, *kids):
-        "%reduce BANG UnaryExpression"
-        self.val = jsast.PrefixExpressionNode(op='!', expression=kids[1].val)
-
-
-# we're attempting to handle 'in' separately
-class BinaryExpressionPreInNoOBJSTART(Nonterm, metaclass=BinaryExpressionMeta):
-    '''PLUS | MINUS | STAR | SLASH | PERCENT
-    | LEFTSHIFT | SIGNRIGHTSHIFT | ZERORIGHTSHIFT'''
-    # binary expressions with all of the above ops
-    # also:
-    # UnaryExpression
-
-    def reduce_UnaryExpression(self, *kids):
-        "%reduce UnaryExpressionNoOBJSTART"
-        self.val = kids[0].val
-
-
-#class BinaryExpressionMetaMOD(metaclass=BinaryExpressionGenMeta):
-#    '''LESS | LESSEQ | GREATER | GREATEREQ
-#    | EQUAL | NOTEQUAL | STRICTEQUAL | STRICTNOTEQUAL
-#    | AND | CIRCUM | PIPE
-#    | LOGICAND | LOGICOR'''
-#    # binary expressions with all of the above ops
-#    # also:
-#    # BinaryExpressionPreIn
-#    # | BinaryExpression INSTANCEOF BinaryExpression
-#    # | BinaryExpression IN BinaryExpression
-#
-#    def reduce_BinaryExpressionPreIn(self, *kids):
-#        "%reduce BinaryExpressionPreIn"
-#        self.val = kids[0].val
-#
-#    def reduce_BinaryExpression_INSTANCEOF_BinaryExpression(self, *kids):
-#        "%reduce BinaryExpressionMetaMOD INSTANCEOF BinaryExpressionMetaMOD"
-#        self.val = jsast.InstanceOfNode(expression=kids[0].val, type=kids[2].val)
-#
-#    def reduce_BinaryExpression_IN_BinaryExpression(self, *kids):
-#        "%reduce BinaryExpressionMetaMOD IN BinaryExpressionMetaMOD"
-#        self.val = jsast.InNode(expression=kids[0].val, container=kids[2].val)
-
-
-class BinaryExpressionNoOBJSTART(Nonterm, metaclass=BinaryExpressionMeta):
-    '''LESS | LESSEQ | GREATER | GREATEREQ
-    | EQUAL | NOTEQUAL | STRICTEQUAL | STRICTNOTEQUAL
-    | AND | CIRCUM | PIPE
-    | LOGICAND | LOGICOR'''
-    # binary expressions with all of the above ops
-    # also:
-    # BinaryExpressionPreIn
-    # | BinaryExpression INSTANCEOF BinaryExpression
-    # | BinaryExpression IN BinaryExpression
-
-    def reduce_BinaryExpressionPreIn(self, *kids):
-        "%reduce BinaryExpressionPreInNoOBJSTART"
-        self.val = kids[0].val
-
-    def reduce_BinaryExpression_INSTANCEOF_BinaryExpression(self, *kids):
-        "%reduce BinaryExpressionNoOBJSTART INSTANCEOF BinaryExpression"
-        self.val = jsast.InstanceOfNode(expression=kids[0].val, type=kids[2].val)
-
-    def reduce_BinaryExpression_IN_BinaryExpression(self, *kids):
-        "%reduce BinaryExpressionNoOBJSTART IN BinaryExpression"
-        self.val = jsast.InNode(expression=kids[0].val, container=kids[2].val)
-
-
-class ConditionalExpressionNoOBJSTART(Nonterm):
-    # BinaryExpression
-    # | BinaryExpression QUESTION AssignmentExpression COLON AssignmentExpression
-
-    def reduce_BinaryExpression(self, *kids):
-        "%reduce BinaryExpressionNoOBJSTART"
-        self.val = kids[0].val
-
-    def reduce_BinaryExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(self, *kids):
-        "%reduce BinaryExpressionNoOBJSTART QUESTION AssignmentExpression COLON AssignmentExpression"
-        self.val = jsast.ConditionalExpressionNode(condition=kids[0].val, true=kids[2].val, false=kids[4].val)
-
-
-class AssignmentExpressionNoOBJSTART(Nonterm):
-    # ConditionalExpression
-    # | LHSExpression AssignmentOp AssignmentExpression
-
-    def reduce_ConditionalExpression(self, *kids):
-        "%reduce ConditionalExpressionNoOBJSTART"
-        self.val = kids[0].val
-
-    def reduce_LHSExpression_AssignmentOp_AssignmentExpression(self, *kids):
-        "%reduce LHSExpressionNoOBJSTART AssignmentOp AssignmentExpression"
-        self.val = jsast.AssignmentExpressionNode(left=kids[0].val, op=kids[1].val, right=kids[2].val)
+##    def reduce_StatementList_Statement(self, *kids):
+##        "%reduce BlockStatementList Statement"
+##        if kids[1].val != None:
+##            kids[0].val.code += [kids[1].val]
+##        self.val = kids[0].val
 
