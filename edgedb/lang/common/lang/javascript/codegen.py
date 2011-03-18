@@ -63,6 +63,8 @@ class JavascriptSourceGenerator(SourceGenerator):
     def visit_ArrayLiteralNode(self, node):
         self.write('[')
         self._visit_list(node.array)
+        if node.array:
+            self.write(',')
         self.write(']')
 
     def visit_ObjectLiteralNode(self, node):

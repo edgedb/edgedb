@@ -23,6 +23,15 @@ class TestJavaScriptParsing(metaclass=MetaTestJavascript):
     def test_utils_lang_javascript_literals4(self):
         r"""print([1,2,'a']);"""
 
+    def test_utils_lang_javascript_array1(self):
+        r"""print([1,2,'a',]);"""
+
+    def test_utils_lang_javascript_array2(self):
+        r"""print([,,,]);"""
+
+    def test_utils_lang_javascript_array3(self):
+        r"""print([,,,1,,2,,]);"""
+
     def test_utils_lang_javascript_basic1(self):
         """print(1);"""
 
