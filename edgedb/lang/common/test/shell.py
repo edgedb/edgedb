@@ -6,7 +6,6 @@
 ##
 
 
-import os
 import sys
 
 import py
@@ -40,10 +39,16 @@ class TestCommand(shell.Command, name='test', expose=True):
         return parser
 
     def __call__(self, args):
+        if tuple(py.__version__.split('.')) < ('1', '4'):
+            print('error: sx test requires at least py-1.4.0 and pytest-2.0.0', file=sys.stderr)
+            return 1
+
         test_args = []
 
-        # both full and short plugin name are listed for before/after pytest-2.0 compatibility
-        test_args.extend(('-p', 'semantix.utils.test.pytest_semantix', '-p', 'semantix', '-s'))
+        plugins = ['-p', 'semantix.utils.test.pytest_semantix']
+        test_args.extend(plugins)
+
+        test_args.append('-s')
 
         if args.shell:
             test_args.append('--shell')
@@ -79,12 +84,4 @@ class TestCommand(shell.Command, name='test', expose=True):
 
         test_args.append('--traceback-style=%s' % args.traceback_style)
 
-        path = os.path.dirname(os.path.abspath(__file__))
-
-        # This ugliness is required due to py.test braindead plugin lookup: there is
-        # no way to specify a plugin with full package path, only a name _suffix_
-        # This has been fixed in pytest-2.0
-        sys.path.insert(0, path)
-        result = py.test.cmdline.main(test_args)
-        sys.path.remove(path)
-        return result
+        return py.test.cmdline.main(test_args)
