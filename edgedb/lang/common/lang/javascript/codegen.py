@@ -37,8 +37,22 @@ class JavascriptSourceGenerator(SourceGenerator):
         #XXX
         self.write(str(node.value))
 
+    def visit_IDNode(self, node):
+        self.write(node.name)
+
     def visit_BinExpressionNode(self, node):
         #XXX
         self.visit(node.left)
         self.write(node.op)
         self.visit(node.right)
+
+    def visit_CallNode(self, node):
+        #XXX
+        self.visit(node.call)
+        self.write('(')
+        for i, var in enumerate(node.arguments):
+            self.visit(var)
+            if i != (len(node.arguments) - 1):
+                self.write(', ')
+        self.write(')')
+

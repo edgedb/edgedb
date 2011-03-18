@@ -7,7 +7,7 @@
 
 import pyggy
 
-l,tab = pyggy.getlexer("semantix/jsparser/js.pyl", debug = 1)
+l,tab = pyggy.getlexer("semantix/utils/lang/javascript/parser/js.pyl", debug = 1)
 l.setinput("-")
 while 1 :
     x = l.token()

@@ -48,6 +48,9 @@ class ExpressionListNode(Base):
 class BinExpressionNode(Base):
     __fields = ['left', 'op', 'right']
 
+class CallNode(Base):
+    __fields = ['call', ('arguments', list)]
+
 # object property definitions
 
 class SimplePropertyNode(Base):

@@ -138,15 +138,21 @@ class SourceElement(Nonterm):
 #        self.val = kids[0].val
 
 class Statement(Nonterm):
-    # !!!! for now just variable declaration
+    # VariableStatement
+    # | SEMICOLON
+    # | BaseExpression SEMICOLON
 
     def reduce_VariableStatement(self, *kids):
         "%reduce VariableStatement"
         self.val = jsast.StatementNode(statement = kids[0].val)
 
-    def reduce_Expression(self, *kids):
-        "%reduce BaseExpression"
-        self.val = kids[0].val
+    def reduce_SEMICOLON(self, *kids):
+        "%reduce SEMICOLON"
+        self.val = jsast.StatementNode(statement = None)
+
+    def reduce_BaseExpression_SEMICOLON(self, *kids):
+        "%reduce BaseExpression SEMICOLON"
+        self.val = jsast.StatementNode(statement = kids[0].val)
 
 class VariableStatement(Nonterm):
     # VAR VariableDeclarationList SEMICOLON
@@ -178,12 +184,38 @@ class VariableDeclaration(Nonterm):
         self.val = jsast.VarInitNode(name = kids[0].val, value = kids[2].val)
 
 class PrimaryExpression(Nonterm):
-    # !!! just accept literals for now
+    # this | ID | Literal
+    # | ArrayLiteral | ObjectLiteral | LPAREN Expression RPAREN
 
     # identifiers, literals and 'this'
     def reduce_ID(self, *kids):
         "%reduce ID"
         self.val = jsast.IDNode(name = kids[0].val)
+
+    def reduce_Literal(self, *kids):
+        "%reduce Literal"
+        self.val = kids[0].val
+
+    def reduce_THIS(self, *kids):
+        "%reduce THIS"
+        self.val = jsast.ThisNode()
+
+    # array and object literals
+    def reduce_ArrayLiteral(self, *kids):
+        "%reduce ArrayLiteral"
+        self.val = kids[0].val
+
+    def reduce_ObjectLiteral(self, *kids):
+        "%reduce ObjectLiteral"
+        self.val = kids[0].val
+
+    # LPAREN ExpressionList RPAREN
+    def reduce_LPAREN_ExpressionList_RPAREN(self, *kids):
+        "%reduce LPAREN ExpressionList RPAREN"
+        self.val = jsast.ExpressionListNode(expressions = kids[1].val)
+
+class Literal(Nonterm):
+    # NUMBER | STRING | NULL | TRUE | FALSE
 
     def reduce_NUMBER(self, *kids):
         "%reduce NUMBER"
@@ -205,26 +237,8 @@ class PrimaryExpression(Nonterm):
         "%reduce NULL"
         self.val = jsast.NullNode()
 
-    def reduce_THIS(self, *kids):
-        "%reduce THIS"
-        self.val = jsast.ThisNode()
-
-    # array and object literals
-    def reduce_ArrayLiteral(self, *kids):
-        "%reduce ArrayLiteral"
-        self.val = kids[0].val
-
-    def reduce_ObjectLiteral(self, *kids):
-        "%reduce ObjectLiteral"
-        self.val = kids[0].val
-
-    # LPAREN ExpressionList RPAREN
-    def reduce_LPAREN_ExpressionList_RPAREN(self, *kids):
-        "%reduce LPAREN ExpressionList RPAREN"
-        self.val = jsast.ExpressionListNode(expressions = kids[1].val)
-
 class ExpressionList(Nonterm):
-    # AssignmentExpression | Expression COMMA AssignemntExpression
+    # AssignmentExpression | ExpressionList COMMA AssignemntExpression
 
     def reduce_AssignmentExpression(self, *kids):
         "%reduce AssignmentExpression"
@@ -234,6 +248,64 @@ class ExpressionList(Nonterm):
         "%reduce ExpressionList COMMA AssignmentExpression"
         self.val = kids[0].val + [kids[2].val]
 
+class NewExpression(Nonterm):
+    # !!! incomplete
+    #
+    # PrimaryExpression
+
+    def reduce_PrimaryExpression(self, *kids):
+        "%reduce PrimaryExpression"
+        self.val = kids[0].val
+
+class CallExpression(Nonterm):
+    # !!! incomplete
+    #
+    # PrimaryExpression Arguments
+    # | CallExpression Arguments
+    def reduce_PrimaryExpression_Arguments(self, *kids):
+        "%reduce PrimaryExpression Arguments"
+        self.val = jsast.CallNode(call = kids[0].val, arguments = kids[1].val)
+
+    def reduce_CallExpression_Arguments(self, *kids):
+        "%reduce CallExpression Arguments"
+        self.val = jsast.CallNode(call = kids[0].val, arguments = kids[1].val)
+
+class Arguments(Nonterm):
+    # LPAREN RPAREN
+    # | LPAREN ArgumentList RPAREN
+
+    def reduce_LPAREN_RPAREN(self, *kids):
+        "%reduce LPAREN RPAREN"
+        self.val = []
+
+    def reduce_LPAREN_ArgumentList_RPAREN(self, *kids):
+        "%reduce LPAREN ArgumentList RPAREN"
+        self.val = kids[1].val
+
+class ArgumentList(Nonterm):
+    # AssignmentExpression
+    # | ArgumentList COMMA AssignmentExpression
+
+    def reduce_AssignmentExpression(self, *kids):
+        "%reduce AssignmentExpression"
+        self.val = [kids[0].val]
+
+    def reduce_ElementList_COMMA_ElisionOPT_AssignmentExpression(self, *kids):
+        "%reduce ArgumentList COMMA AssignmentExpression"
+        self.val = kids[0].val + [kids[2].val]
+
+
+class LHSExpression(Nonterm):
+    # NewExpression | CallExpression
+
+    def reduce_NewExpression(self, *kids):
+        "%reduce NewExpression"
+        self.val = kids[0].val
+
+    def reduce_CallExpression(self, *kids):
+        "%reduce CallExpression"
+        self.val = kids[0].val
+
 class AssignmentExpression(Nonterm):
     # !!! just primary for now
 
@@ -242,10 +314,10 @@ class AssignmentExpression(Nonterm):
         self.val = kids[0].val
 
 class BaseExpression(Nonterm):
-    # !!! just primary for now
+    # !!! incomplete
 
-    def reduce_PrimaryExpression(self, *kids):
-        "%reduce PrimaryExpression"
+    def reduce_LHSExpression(self, *kids):
+        "%reduce LHSExpression"
         self.val = kids[0].val
 
     def reduce_BaseExpression_PLUS_BaseExpression(self, *kids):
