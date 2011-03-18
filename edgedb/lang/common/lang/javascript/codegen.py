@@ -90,6 +90,18 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.write(node.op)
         self.visit(node.right)
 
+    def visit_ConditionalExpressionNode(self, node):
+        self.visit(node.condition)
+        self.write(' ? ')
+        self.visit(node.true)
+        self.write(' : ')
+        self.visit(node.false)
+
+    def visit_AssignmentExpressionNode(self, node):
+        self.visit(node.left)
+        self.write(' ' + node.op + ' ')
+        self.visit(node.right)
+
     def visit_CallNode(self, node):
         self.visit(node.call)
         self.write('(')
@@ -119,6 +131,16 @@ class JavascriptSourceGenerator(SourceGenerator):
     def visit_TypeOfNode(self, node):
         self.write('typeof ')
         self.visit(node.expression)
+
+    def visit_InstanceOfNode(self, node):
+        self.visit(node.expression)
+        self.write(' instanceof ')
+        self.visit(node.type)
+
+    def visit_InNode(self, node):
+        self.visit(node.expression)
+        self.write(' in ')
+        self.visit(node.container)
 
     def visit_SimplePropertyNode(self, node):
         self.visit(node.name)

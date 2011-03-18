@@ -33,6 +33,28 @@ class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
     pass
 
 # Precedence
+
+#class P_LOGICOR(Precedence, assoc='left', tokens=('LOGICOR')):
+#    pass
+#
+#class P_LOGICAND(Precedence, assoc='left', tokens=('LOGICAND')):
+#    pass
+#
+#class P_BITOR(Precedence, assoc='left', tokens=('PIPE')):
+#    pass
+#
+#class P_BITXOR(Precedence, assoc='left', tokens=('CIRCUM')):
+#    pass
+#
+#class P_BITAND(Precedence, assoc='left', tokens=('AND')):
+#    pass
+
+class P_EQUALITY(Precedence, assoc='left' , tokens=('EQUAL', 'NOTEQUAL', 'STRICTEQUAL', 'STRICTNOTEQUAL')):
+    pass
+
+class P_RELATIONAL(Precedence, assoc='left', tokens=('LESS', 'LESSEQ', 'GREATER', 'GREATEREQ', 'INSTANCEOF', 'IN')):
+    pass
+
 class P_SHIFT(Precedence, assoc='left', tokens=('LEFTSHIFT', 'SIGNRIGHTSHIFT', 'ZERORIGHTSHIFT')):
     pass
 
@@ -104,7 +126,13 @@ class T_CIRCUM(Token, lextoken='^'):
 class T_LESS(Token, lextoken='<'):
     pass
 
-class T_MORE(Token, lextoken='>'):
+class T_GREATER(Token, lextoken='>'):
+    pass
+
+class T_LESSEQ(Token, lextoken='<='):
+    pass
+
+class T_GREATEREQ(Token, lextoken='>='):
     pass
 
 class T_ASSIGN(Token, lextoken='='):
@@ -119,7 +147,13 @@ class T_TILDE(Token, lextoken='~'):
 class T_AND(Token, lextoken='&'):
     pass
 
-class T_OR(Token, lextoken='|'):
+class T_PIPE(Token, lextoken='|'):
+    pass
+
+class T_LOGICAND(Token, lextoken='&&'):
+    pass
+
+class T_LOGICOR(Token, lextoken='||'):
     pass
 
 class T_QUESTION(Token, lextoken='?'):
@@ -140,6 +174,50 @@ class T_SIGNRIGHTSHIFT(Token, lextoken='>>'):
 class T_ZERORIGHTSHIFT(Token, lextoken='>>>'):
     pass
 
+class T_EQUAL(Token, lextoken='=='):
+    pass
+
+class T_NOTEQUAL(Token, lextoken='!='):
+    pass
+
+class T_STRICTEQUAL(Token, lextoken='==='):
+    pass
+
+class T_STRICTNOTEQUAL(Token, lextoken='!=='):
+    pass
+
+class T_MULTASSIGN(Token, lextoken='*='):
+    pass
+
+class T_DIVASSIGN(Token, lextoken='/='):
+    pass
+
+class T_REMAINASSIGN(Token, lextoken='%='):
+    pass
+
+class T_PLUSASSIGN(Token, lextoken='+='):
+    pass
+
+class T_MINUSASSIGN(Token, lextoken='-='):
+    pass
+
+class T_LSHIFTASSIGN(Token, lextoken='<<='):
+    pass
+
+class T_SRSHIFTASSIGN(Token, lextoken='>>='):
+    pass
+
+class T_ZRSHIFTASSIGN(Token, lextoken='>>>='):
+    pass
+
+class T_ANDASSIGN(Token, lextoken='&='):
+    pass
+
+class T_ORASSIGN(Token, lextoken='|='):
+    pass
+
+class T_XORASSIGN(Token, lextoken='^='):
+    pass
 
 def _gen_keyword_tokens():
     # Define keyword tokens
@@ -463,58 +541,92 @@ class UnaryExpression(Nonterm):
         "%reduce BANG UnaryExpression"
         self.val = jsast.PrefixExpressionNode(op='!', expression=kids[1].val)
 
-class ArithmeticAnsShiftExpression(Nonterm):
-    # ArithmeticAnsShiftExpression + ArithmeticAnsShiftExpression
-    # | ArithmeticAnsShiftExpression - ArithmeticAnsShiftExpression
-    # | ArithmeticAnsShiftExpression * ArithmeticAnsShiftExpression
-    # | ArithmeticAnsShiftExpression / ArithmeticAnsShiftExpression
-    # | ArithmeticAnsShiftExpression % ArithmeticAnsShiftExpression
-    # | ArithmeticAnsShiftExpression << ArithmeticAnsShiftExpression
-    # | ArithmeticAnsShiftExpression >> ArithmeticAnsShiftExpression
-    # | ArithmeticAnsShiftExpression >>> ArithmeticAnsShiftExpression
+class BinaryExpressionMeta(parsing.NontermMeta):
+    def __new__(mcls, name, bases, dct):
+        # create a method for each operation token appearing in docstring
+        for token in [x.strip() for x in dct['__doc__'].split('|')]:
+            # name and function body
+            methodname = 'reduce_%s_%s_%s' % (name, token, name)
+            def func(this, *kids):
+                #__doc__ = '%%reduce %s %s %s' % (name, token, name)
+                this.val = jsast.BinExpressionNode(left=kids[0].val, op=kids[1].val, right=kids[2].val)
+            func.__doc__ = '%%reduce %s %s %s' % (name, token, name)
+            dct[methodname] = func
+        # clean up the docstring, as it apparently affects interpretation
+        dct['__doc__'] = ''
+
+        return super().__new__(mcls, name, bases, dct)
+
+class BinaryExpression(Nonterm, metaclass=BinaryExpressionMeta):
+    '''PLUS | MINUS | STAR | SLASH | PERCENT
+    | LEFTSHIFT | SIGNRIGHTSHIFT | ZERORIGHTSHIFT
+    | LESS | LESSEQ | GREATER | GREATEREQ
+    | EQUAL | NOTEQUAL | STRICTEQUAL | STRICTNOTEQUAL'''
+#    | AND | CIRCUM | PIPE
+#    | LOGICAND | LOGICOR'''
+    # binary expressions with all of the above ops
+    # also:
+    # UnaryExpression
+    # | BinaryExpression INSTANCEOF BinaryExpression
+    # | BinaryExpression IN BinaryExpression
 
     def reduce_UnaryExpression(self, *kids):
         "%reduce UnaryExpression"
         self.val = kids[0].val
 
-    def reduce_ArithmeticAnsShiftExpression_PLUS_ArithmeticAnsShiftExpression(self, *kids):
-        "%reduce ArithmeticAnsShiftExpression PLUS ArithmeticAnsShiftExpression"
-        self.val = jsast.BinExpressionNode(left=kids[0].val, op='+', right=kids[2].val)
+    def reduce_BinaryExpression_INSTANCEOF_BinaryExpression(self, *kids):
+        "%reduce BinaryExpression INSTANCEOF BinaryExpression"
+        self.val = jsast.InstanceOfNode(expression=kids[0].val, type=kids[2].val)
 
-    def reduce_ArithmeticAnsShiftExpression_MINUS_ArithmeticAnsShiftExpression(self, *kids):
-        "%reduce ArithmeticAnsShiftExpression MINUS ArithmeticAnsShiftExpression"
-        self.val = jsast.BinExpressionNode(left=kids[0].val, op='-', right=kids[2].val)
+    def reduce_BinaryExpression_IN_BinaryExpression(self, *kids):
+        "%reduce BinaryExpression IN BinaryExpression"
+        self.val = jsast.InNode(expression=kids[0].val, container=kids[2].val)
 
-    def reduce_ArithmeticAnsShiftExpression_STAR_ArithmeticAnsShiftExpression(self, *kids):
-        "%reduce ArithmeticAnsShiftExpression STAR ArithmeticAnsShiftExpression"
-        self.val = jsast.BinExpressionNode(left=kids[0].val, op='*', right=kids[2].val)
+class ConditionalExpression(Nonterm):
+    # BinaryExpression
+    # | BinaryExpression QUESTION AssignmentExpression COLON AssignmentExpression
 
-    def reduce_ArithmeticAnsShiftExpression_SLASH_ArithmeticAnsShiftExpression(self, *kids):
-        "%reduce ArithmeticAnsShiftExpression SLASH ArithmeticAnsShiftExpression"
-        self.val = jsast.BinExpressionNode(left=kids[0].val, op='/', right=kids[2].val)
+    def reduce_BinaryExpression(self, *kids):
+        "%reduce BinaryExpression"
+        self.val = kids[0].val
 
-    def reduce_ArithmeticAnsShiftExpression_PERCENT_ArithmeticAnsShiftExpression(self, *kids):
-        "%reduce ArithmeticAnsShiftExpression PERCENT ArithmeticAnsShiftExpression"
-        self.val = jsast.BinExpressionNode(left=kids[0].val, op='%', right=kids[2].val)
-
-    def reduce_ArithmeticAnsShiftExpression_LEFTSHIFT_ArithmeticAnsShiftExpression(self, *kids):
-        "%reduce ArithmeticAnsShiftExpression LEFTSHIFT ArithmeticAnsShiftExpression"
-        self.val = jsast.BinExpressionNode(left=kids[0].val, op='<<', right=kids[2].val)
-
-    def reduce_ArithmeticAnsShiftExpression_SIGNRIGHTSHIFT_ArithmeticAnsShiftExpression(self, *kids):
-        "%reduce ArithmeticAnsShiftExpression SIGNRIGHTSHIFT ArithmeticAnsShiftExpression"
-        self.val = jsast.BinExpressionNode(left=kids[0].val, op='>>', right=kids[2].val)
-
-    def reduce_ArithmeticAnsShiftExpression_ZERORIGHTSHIFT_ArithmeticAnsShiftExpression(self, *kids):
-        "%reduce ArithmeticAnsShiftExpression ZERORIGHTSHIFT ArithmeticAnsShiftExpression"
-        self.val = jsast.BinExpressionNode(left=kids[0].val, op='>>>', right=kids[2].val)
+    def reduce_BinaryExpression_QUESTION_AssignmentExpression_COLON_AssignmentExpression(self, *kids):
+        "%reduce BinaryExpression QUESTION AssignmentExpression COLON AssignmentExpression"
+        self.val = jsast.ConditionalExpressionNode(condition=kids[0].val, true=kids[2].val, false=kids[4].val)
 
 class AssignmentExpression(Nonterm):
-    # !!! just primary for now
+    # ConditionalExpression
+    # | LHSExpression AssignmentOp AssignmentExpression
 
-    def reduce_ArithmeticAnsShiftExpression(self, *kids):
-        "%reduce ArithmeticAnsShiftExpression"
+    def reduce_ConditionalExpression(self, *kids):
+        "%reduce ConditionalExpression"
         self.val = kids[0].val
+
+    def reduce_LHSExpression_AssignmentOp_AssignmentExpression(self, *kids):
+        "%reduce LHSExpression AssignmentOp AssignmentExpression"
+        self.val = jsast.AssignmentExpressionNode(left=kids[0].val, op=kids[1].val, right=kids[2].val)
+
+class AssignmentOpMeta(parsing.NontermMeta):
+    def __new__(mcls, name, bases, dct):
+        # create a method for each operation token appearing in docstring
+        for token in [x.strip() for x in dct['__doc__'].split('|')]:
+            # name and function body
+            methodname = 'reduce_%s' % token
+            def func(this, *kids):
+                #__doc__ = '%%reduce %s' % token
+                this.val = kids[0].val
+            func.__doc__ = '%%reduce %s' % token
+            dct[methodname] = func
+        # clean up the docstring, as it apparently affects interpretation
+        dct['__doc__'] = ''
+
+        return super().__new__(mcls, name, bases, dct)
+
+class AssignmentOp(Nonterm, metaclass=AssignmentOpMeta):
+    '''ASSIGN | MULTASSIGN | DIVASSIGN | REMAINASSIGN
+    | PLUSASSIGN | MINUSASSIGN
+    | LSHIFTASSIGN | SRSHIFTASSIGN | ZRSHIFTASSIGN
+    | ANDASSIGN | XORASSIGN | ORASSIGN'''
 
 class ArrayLiteral(Nonterm):
     # LSBRACKET ElisionOPT RSBRACKET

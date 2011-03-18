@@ -88,3 +88,9 @@ print(---a);"""
 
     def test_utils_lang_javascript_11(self):
         """var a = -4; print(a >> 1);"""
+
+    def test_utils_lang_javascript_12(self):
+        """var a = -4; print(3>2 == a+2<0);"""
+
+    def test_utils_lang_javascript_13(self):
+        """var a = -4; a*=3; print(a > 0 ? "positive" : "negative");"""

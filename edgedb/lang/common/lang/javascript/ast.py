@@ -65,6 +65,12 @@ class PostfixExpressionNode(Base):
 class BinExpressionNode(Base):
     __fields = ['left', 'op', 'right']
 
+class ConditionalExpressionNode(Base):
+    __fields = ['condition', 'true', 'false']
+
+class AssignmentExpressionNode(BinExpressionNode):
+    pass
+
 class CallNode(Base):
     __fields = ['call', ('arguments', list)]
 
@@ -82,6 +88,12 @@ class VoidNode(Base):
 
 class TypeOfNode(Base):
     __fields = ['expression']
+
+class InstanceOfNode(Base):
+    __fields = ['expression', 'type']
+
+class InNode(Base):
+    __fields = ['expression', 'container']
 
 # object property definitions
 
