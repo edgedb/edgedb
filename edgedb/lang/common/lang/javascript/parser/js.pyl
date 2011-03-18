@@ -65,9 +65,6 @@ INITIAL:
         global linenumber
         linenumber+=1
 
-        print("EOL", len(self.value))
-
-
     # comments
 #    "//":
 #        self.PUSHSTATE(SINGLELINECOMMENT)

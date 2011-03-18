@@ -1936,11 +1936,13 @@ class FunctionBody(Nonterm):
 
     def reduce_empty(self, *kids):
         "%reduce <e>"
-        self.val = jsast.SourceElementsNode(code=None)
+        self.val = jsast.StatementBlockNode(statements=[])
+#        self.val = jsast.SourceElementsNode(code=None)
 
     def reduce_SourceElements(self, *kids):
         "%reduce SourceElements"
-        self.val = kids[0].val
+        self.val = jsast.StatementBlockNode(statements=kids[0].val.code);
+#        self.val = kids[0].val
 
 
 # !!!!!!!!!!!!!!!!!

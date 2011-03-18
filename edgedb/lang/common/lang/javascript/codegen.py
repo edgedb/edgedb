@@ -173,12 +173,8 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.newline()
         self.write("get ")
         self.visit(node.name)
-        self.write("() {")
-        self.indentation += 1
-        self.newline()
+        self.write("() ")
         self.visit(node.functionbody)
-        self.indentation -= 1
-        self.write("}")
 
     def visit_SetPropertyNode(self, node):
         self.newline()
@@ -186,12 +182,8 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.visit(node.name)
         self.write("(")
         self.visit(node.param)
-        self.write(") {")
-        self.indentation += 1
-        self.newline()
+        self.write(") ")
         self.visit(node.functionbody)
-        self.indentation -= 1
-        self.write("}")
 
     def visit_FunctionNode(self, node):
         self.write("function ")
@@ -200,12 +192,8 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.write("(")
         if node.param:
             self._visit_list(node.param)
-        self.write(") {")
-        self.newline()
-        self.indentation += 1
+        self.write(") ")
         self.visit(node.body)
-        self.indentation -= 1
-        self.write("}")
         self.newline()
 
     def visit_SourceElementsNode(self, node):
