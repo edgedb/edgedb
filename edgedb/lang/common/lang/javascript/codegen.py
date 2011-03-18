@@ -68,11 +68,11 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.write(']')
 
     def visit_ObjectLiteralNode(self, node):
-        self.write('{')
+        self.write('({')
         self.indentation += 1
         self._visit_list(node.properties)
         self.indentation -= 1
-        self.write('}')
+        self.write('})')
 
     def visit_RegExpNode(self, node):
         self.write(node.regexp)

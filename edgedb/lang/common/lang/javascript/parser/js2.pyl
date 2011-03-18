@@ -25,6 +25,7 @@ code:
     pyggy.lexer.lexer.regexp_possible = True
     pyggy.lexer.lexer.line = 1
     pyggy.lexer.lexer.col = 0
+    pyggy.lexer.lexer.start = pyggy.lexer.lexer.end = (1,0)
 
 definitions:
     # eventually we might also want <VT> <FF> <NBSP>

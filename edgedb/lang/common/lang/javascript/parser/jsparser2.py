@@ -631,25 +631,6 @@ class JSParser:
         elif self.tentative_match('function'):
             # function declaration
             return self.parse_function_guts(is_declaration=True)
-#        elif self.token.type == 'ID':
-#            # this may be a label
-#            tok = self.token
-#            self.get_next_token(regexp=False)
-#            if self.tentative_match(':'):
-#                # this is a label
-#                label = tok.string
-#                if label in self.enclosing_stmt_labels():
-#                    raise DuplicateLabel(tok)
-#                return jsast.LabelNode(id=label,
-#                                       statement=self.parse_statement(labels=labels + [label]))
-#            else:
-#                # bad luck, it wasn't a label so push back last token and try parsing expression
-#                self.lexer.line, self.lexer.col = self.token.start
-#                self.lexer.PUSHBACK(self.token.string)
-#                self.token = tok
-#                expr = self.parse_expression()
-#                self.must_match(';')
-#                return jsast.StatementNode(statement=expr)
         else:
             expr = self.parse_expression()
             # now let's test if that was a label or expression statement

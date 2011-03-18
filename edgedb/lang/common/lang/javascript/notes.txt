@@ -1,6 +1,0 @@
-Unresolved issues:
-
-- lexing the regexp literals
-- ';' insertion
-- checking that '\n' doesn't happen between <expr> and '++'
-- special handling for 'in' operator

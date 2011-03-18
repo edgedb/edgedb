@@ -53,6 +53,18 @@ class TestJavaScriptParsing(metaclass=MetaTestJavascript):
     def test_utils_lang_javascript2_basic6(self):
         """a=b=c=d='hello'; print(a,b,c,d);"""
 
+    @jxfail(UnknownToken)
+    def test_utils_lang_javascript2_basic7(self):
+        """@a=1; print(@a);"""
+
+    @jxfail(UnknownToken)
+    def test_utils_lang_javascript2_basic8(self):
+        """#a=1; print(a);"""
+
+    @jxfail(MissingToken)
+    def test_utils_lang_javascript2_basic9(self):
+        """print(1~2);"""
+
     def test_utils_lang_javascript2_object1(self):
         """var a = {do : 1}; print(a.do);"""
 
@@ -99,11 +111,11 @@ class TestJavaScriptParsing(metaclass=MetaTestJavascript):
         """print({get : 2}.get);"""
 
     def test_utils_lang_javascript2_object9(self):
-        """new {};"""
+        """new ({});"""
 
     def test_utils_lang_javascript2_object10(self):
-        """new {
-    a : 1};"""
+        """new ({
+    a : 1});"""
 
     def test_utils_lang_javascript2_object11(self):
         """print({a: "test"} ["a"]);"""
@@ -112,12 +124,12 @@ class TestJavaScriptParsing(metaclass=MetaTestJavascript):
         """print({a: "test"}.a);"""
 
     def test_utils_lang_javascript2_object13(self):
-        """print({
-    a : 2}(2));"""
+        """print(({
+    a : 2})(2));"""
 
     def test_utils_lang_javascript2_object14(self):
-        """print({
-    a : 2}++);"""
+        """print(({
+    a : 2})++);"""
 
     def test_utils_lang_javascript2_object15(self):
         """print(delete {
@@ -136,6 +148,15 @@ class TestJavaScriptParsing(metaclass=MetaTestJavascript):
         """
         var a = {default : {a:{a:{}}}};
         print(a.default.a.a);
+        """
+
+    def test_utils_lang_javascript2_object20(self):
+        """
+        var a = {for : function(blah) {print('insane', blah);}};
+        a
+        .
+        for (a in [1,2,3])
+            print(a);
         """
 
     def test_utils_lang_javascript2_unary1(self):
@@ -203,8 +224,21 @@ print(---a);"""
             else print("normal");
         """
 
-    def test_utils_lang_javascript2_empty(self):
+    def test_utils_lang_javascript2_empty1(self):
+        ""
+
+    def test_utils_lang_javascript2_empty2(self):
         "      "
+
+    def test_utils_lang_javascript2_empty3(self):
+        "//  print(1);"
+
+    def test_utils_lang_javascript2_empty4(self):
+        "/* print(1); */"
+
+    def test_utils_lang_javascript2_empty5(self):
+        """/* print(1);
+        */"""
 
     def test_utils_lang_javascript2_function1(self):
         """
@@ -430,17 +464,20 @@ foo();
         """{ {a:1,b:2}; }"""
 
     def test_utils_lang_javascript2_block3(self):
+        """{ ({a:1,b:2}); }"""
+
+    def test_utils_lang_javascript2_block4(self):
         """{ var a ={a:1,b:2}; } print(a.a, a.b);"""
 
     @jxfail(UnexpectedToken)
-    def test_utils_lang_javascript2_block4(self):
+    def test_utils_lang_javascript2_block5(self):
         """
         {
             {default : {a : {}}}
         }
         """
 
-    def test_utils_lang_javascript2_block5(self):
+    def test_utils_lang_javascript2_block6(self):
         """
         {
             {b : {a : {}}}
@@ -448,7 +485,7 @@ foo();
         print("done");
         """
 
-    def test_utils_lang_javascript2_block6(self):
+    def test_utils_lang_javascript2_block7(self):
         """
         {
             print(
@@ -457,7 +494,7 @@ foo();
         }
         """
 
-    def test_utils_lang_javascript2_block7(self):
+    def test_utils_lang_javascript2_block8(self):
         """
         {
             print(
@@ -466,7 +503,7 @@ foo();
         }
         """
 
-    def test_utils_lang_javascript2_block8(self):
+    def test_utils_lang_javascript2_block9(self):
         """
         {
             {
