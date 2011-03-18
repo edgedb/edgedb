@@ -5,7 +5,9 @@
 # See LICENSE for details.
 ##
 
+
 from semantix.utils import ast
+
 
 class Base(ast.AST):
     pass
@@ -27,6 +29,12 @@ class VarInitNode(Base):
 class LiteralNode(Base):
     __fields = ['value']
 
+class StringLiteralNode(LiteralNode): pass
+
+class NumericLiteralNode(LiteralNode): pass
+
+class BooleanLiteralNode(LiteralNode): pass
+
 class ArrayLiteralNode(Base):
     __fields = [('array', list)]
 
@@ -42,14 +50,38 @@ class ThisNode(Base):
 class NullNode(Base):
     pass
 
+class ParenthesisNode(Base):
+    __fields = ['expression']
+
 class ExpressionListNode(Base):
     __fields = [('expressions', list)]
+
+class PrefixExpressionNode(Base):
+    __fields = ['expression', 'op']
+
+class PostfixExpressionNode(Base):
+    __fields = ['expression', 'op']
 
 class BinExpressionNode(Base):
     __fields = ['left', 'op', 'right']
 
 class CallNode(Base):
     __fields = ['call', ('arguments', list)]
+
+class NewNode(Base):
+    __fields = ['expression', ('arguments', list)]
+
+class SBracketExpressionNode(Base):
+    __fields = ['list', 'element']
+
+class DeleteNode(Base):
+    __fields = ['expression']
+
+class VoidNode(Base):
+    __fields = ['expression']
+
+class TypeOfNode(Base):
+    __fields = ['expression']
 
 # object property definitions
 
@@ -62,6 +94,6 @@ class GetPropertyNode(Base):
 class SetPropertyNode(Base):
     __fields = ['name', 'param', 'function']
 
-#class ArgListNode(Base):
-#    __fields = ['name', ('args', list)]
-
+# function
+class FunctionBodyNode(Base):
+    __fields = ['body']

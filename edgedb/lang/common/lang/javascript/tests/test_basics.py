@@ -19,7 +19,7 @@ class MetaTestJavascript(type):
     def do_test(src):
         jsparser = jsp.JSParser()
 
-        result = subprocess.getoutput("v8 -e %r" % src)
+        result = subprocess.getoutput("v8 -e '%s'" % src)
 
         """LOG [js.parse] Test Source
         print(src)
@@ -39,7 +39,7 @@ class MetaTestJavascript(type):
         print(processed_src)
         """
 
-        processed = subprocess.getoutput("v8 -e %r" % processed_src)
+        processed = subprocess.getoutput("v8 -e '%s'" % processed_src)
         assert processed == result
 
     def __new__(cls, name, bases, dct):
@@ -52,11 +52,39 @@ class MetaTestJavascript(type):
 
 
 class TestJavaScriptParsing(metaclass=MetaTestJavascript):
+    def test_utils_lang_javascript_0(self):
+        """print(1);"""
+
     def test_utils_lang_javascript_1(self):
         """print(1+2);"""
 
     def test_utils_lang_javascript_2(self):
         """print(1+a);"""
 
+    def test_utils_lang_javascript_3(self):
+        """var a,b,c=[,,7,,,8];print(1,2,3,4,"aa",a,b,c);"""
 
+    def test_utils_lang_javascript_4(self):
+        """var a = {do : 1}; print(a.do);"""
 
+    def test_utils_lang_javascript_5(self):
+        """var a = {get while () {}}; print(a.while);"""
+
+    def test_utils_lang_javascript_6(self):
+        """var a = {set get (a) {}}; print(a.get);"""
+
+    def test_utils_lang_javascript_7(self):
+        """var a = {do : 1, get while () {}, set get (a) {}}; print(a.do, a.while, a.get);"""
+
+    def test_utils_lang_javascript_8(self):
+        """var a = 3; print(-a++);"""
+
+    def test_utils_lang_javascript_9(self):
+        """var a = 3;
+print(---a);"""
+
+    def test_utils_lang_javascript_10(self):
+        """var a = 3; print(a << 2, a >>> 1);"""
+
+    def test_utils_lang_javascript_11(self):
+        """var a = -4; print(a >> 1);"""
