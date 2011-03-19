@@ -921,11 +921,6 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
         linkdef = type(name=link_qname,
                        base=(caos.Name(base),),
                        _setdefaults_=False)
-        if link.target is not None:
-            if isinstance(link.target, str):
-                target = globalmeta.get(link.target)
-            else:
-                target = link.target
 
         globalmeta.add(linkdef)
         if localmeta:
