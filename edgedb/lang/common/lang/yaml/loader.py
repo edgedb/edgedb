@@ -228,7 +228,7 @@ class Constructor(yaml.constructor.Constructor):
                         module_name = node.import_context.from_parent(module_name, parent=parent_context)
                     mod = importlib.import_module(module_name)
                 except ImportError as e:
-                    raise yaml.constructor.ConstructorError(None, None, '%r' % e, node.start_mark)
+                    raise yaml.constructor.ConstructorError(None, None, '%r' % e, node.start_mark) from e
 
                 if not alias:
                     alias = mod.__name__
