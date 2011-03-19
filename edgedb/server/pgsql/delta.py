@@ -2245,7 +2245,16 @@ class UpdateMappingIndexes(MetaCommand):
 
         link_type_ids = (int(i) for i in re.split('\D+', m.group('type_ids') or m.group('type_id')))
 
-        return mapping, list(link_map[i] for i in link_type_ids)
+        links = []
+        for i in link_type_ids:
+            # XXX: in certain cases, orphaned indexes are left in the backend
+            # after the link was dropped.
+            try:
+                links.append(link_map[i])
+            except KeyError:
+                pass
+
+        return mapping, links
 
     def interpret_indexes(self, indexes, link_map):
         for idx_name, idx_pred in zip(indexes['index_names'], indexes['index_predicates']):
