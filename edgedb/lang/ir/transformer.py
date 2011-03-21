@@ -1843,7 +1843,7 @@ class TreeTransformer:
             if expr.name == 'semantix.caos.builtins.id':
                 result = concept
             else:
-                linkset = concept.get_attr(schema, expr.name)
+                linkset = concept.getptr(schema, expr.name)
                 assert linkset, '"%s" is not a link of "%s"' % (expr.name, concept.name)
                 targets = [l.target for l in linkset]
 
@@ -1859,7 +1859,7 @@ class TreeTransformer:
             else:
                 link = expr.ref.link_proto
 
-            prop = link.get_attr(schema, expr.name)
+            prop = link.getptr(schema, expr.name)
             assert prop, '"%s" is not a property of "%s"' % (expr.name, link.name)
             result = prop.target
 
