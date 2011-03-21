@@ -7,7 +7,7 @@
 
 
 from .base import MetaTestJavascript, jxfail
-from semantix.utils.lang.javascript.parser.jsparser import\
+from semantix.utils.lang.javascript.parser.jsparser import \
     UnknownToken, UnexpectedToken, UnknownOperator, MissingToken,\
     SecondDefaultToken, IllegalBreak, IllegalContinue, UndefinedLabel, DuplicateLabel,\
     UnexpectedNewline
