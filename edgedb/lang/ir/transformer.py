@@ -1797,6 +1797,9 @@ class TreeTransformer:
         elif isinstance(left, caos_ast.ExistPred):
             result = newbinop(left, right, uninline=True)
 
+        elif isinstance(left, caos_ast.SubgraphRef):
+            result = newbinop(left, right, uninline=True)
+
         if not result:
             raise TreeError('unexpected binop operands: %s, %s' % (left, right))
 
