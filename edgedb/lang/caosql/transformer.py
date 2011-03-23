@@ -30,6 +30,7 @@ class ParseContextLevel(object):
                 self.proto_schema = prevlevel.proto_schema
                 self.module_aliases = prevlevel.module_aliases
                 self.aliascnt = prevlevel.aliascnt.copy()
+                self.subgraphs_map = {}
             else:
                 self.graph = prevlevel.graph
                 self.anchors = prevlevel.anchors
@@ -41,6 +42,7 @@ class ParseContextLevel(object):
                 self.proto_schema = prevlevel.proto_schema
                 self.module_aliases = prevlevel.module_aliases
                 self.aliascnt = prevlevel.aliascnt
+                self.subgraphs_map = prevlevel.subgraphs_map
         else:
             self.graph = None
             self.anchors = {}
@@ -52,6 +54,7 @@ class ParseContextLevel(object):
             self.proto_schema = None
             self.module_aliases = None
             self.aliascnt = {}
+            self.subgraphs_map = {}
 
     def genalias(self, hint=None):
         if hint is None:
@@ -414,14 +417,18 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         node = None
 
         if isinstance(expr, qlast.SelectQueryNode):
-            with self.context(ParseContext.SUBQUERY):
-                node = self._transform_select(context, expr, self.arg_types)
+            node = context.current.subgraphs_map.get(expr)
 
-            context.current.graph.subgraphs.add(node)
+            if node is None:
+                with self.context(ParseContext.SUBQUERY):
+                    node = self._transform_select(context, expr, self.arg_types)
 
-            if len(node.selector) > 1:
-                err = ('subquery must return only one column')
-                raise errors.CaosQLError(err)
+                if len(node.selector) > 1:
+                    err = ('subquery must return only one column')
+                    raise errors.CaosQLError(err)
+
+                context.current.graph.subgraphs.add(node)
+                context.current.subgraphs_map[expr] = node
 
             refname = node.selector[0].name or node.selector[0].autoname
             node = tree.ast.SubgraphRef(ref=node, name=refname)
