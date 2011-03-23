@@ -1272,6 +1272,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                     # otherwise the cardinality of the result set will be wrong.
                     #
                     map = existing_link[label]
+                    maps[label] = map
                 else:
                     if label is None:
                         link_name = caos_name.Name('link', 'semantix.caos.builtins')
