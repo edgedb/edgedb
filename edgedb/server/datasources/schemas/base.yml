@@ -20,8 +20,15 @@ mapping:
                 type: map
                 mapping:
                     "type":
-                        type: str
+                        type: choice
                         required: yes
+                        choice:
+                            - type: str
+                            - type: seq
+                              min-length: 1
+                              max-length: 1
+                              sequence:
+                                - type: str
 
                     "default":
                         type: any

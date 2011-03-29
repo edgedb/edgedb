@@ -119,14 +119,28 @@ class CaosDatasource(Datasource):
         if typ == 'any' or value is None:
             return value
 
+        is_sequence = isinstance(typ, (tuple, list))
+
+        if is_sequence:
+            typ = typ[0]
+
         type = self.session.schema.get(typ)
 
-        if isinstance(value, type):
-            return value
-        elif isinstance(type, caos_types.AtomClass) and issubclass(type, value.__class__):
-            return value
+        values = (value,) if not is_sequence else value
+        result = []
 
-        return self.coerce_default_value(name, value, typ)
+        for val in values:
+            if isinstance(value, type):
+                result.append(value)
+            elif isinstance(type, caos_types.AtomClass) and issubclass(type, value.__class__):
+                result.append(value)
+            else:
+                result.append(self.coerce_default_value(name, value, typ))
+
+        if not is_sequence:
+            return result[0]
+
+        return result
 
     def coerce_default_value(self, name, value, type):
         if type == 'any' or value is None:
