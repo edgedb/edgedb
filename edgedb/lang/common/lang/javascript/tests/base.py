@@ -23,7 +23,7 @@ def jxfail(*args, **kwargs):
     return wrap
 
 
-class MetaTestJavascript(type, metaclass=config.ConfigurableMeta):
+class MetaJSParserTest(type, metaclass=config.ConfigurableMeta):
     v8_executable = config.cvalue('v8', type=str, doc='path to v8 executable')
     v8_found = None
 
@@ -35,7 +35,7 @@ class MetaTestJavascript(type, metaclass=config.ConfigurableMeta):
             file.write(src)
             file.flush()
 
-            result = subprocess.getoutput("%s %s" % (MetaTestJavascript.v8_executable, file.name))
+            result = subprocess.getoutput("%s %s" % (MetaJSParserTest.v8_executable, file.name))
 
             """LOG [js.parse] Test Source
             print(src)
@@ -43,8 +43,7 @@ class MetaTestJavascript(type, metaclass=config.ConfigurableMeta):
 
             """LOG [js.parse] Expected Result
             print(result)
-            """
-
+            """ 
             tree = jsparser.parse(src)
             """LOG [js.parse] Test Source AST
             print(ast.dump.pretty_dump(tree, colorize=True))
@@ -62,7 +61,7 @@ class MetaTestJavascript(type, metaclass=config.ConfigurableMeta):
             file.write(processed_src)
             file.flush()
 
-            processed = subprocess.getoutput("%s %s" % (MetaTestJavascript.v8_executable, file.name))
+            processed = subprocess.getoutput("%s %s" % (MetaJSParserTest.v8_executable, file.name))
 
             """LOG [js.parse] Processed Result
             print(result)
@@ -71,10 +70,10 @@ class MetaTestJavascript(type, metaclass=config.ConfigurableMeta):
         assert processed.replace(' ', '') == result.replace(' ', '')
 
     def __new__(cls, name, bases, dct):
-        if MetaTestJavascript.v8_found is None:
+        if MetaJSParserTest.v8_found is None:
             result = subprocess.getoutput('%s %s' % (cls.v8_executable,
                                                      """-e 'print("semantix")'"""))
-            MetaTestJavascript.v8_found = result != 'semantix'
+            MetaJSParserTest.v8_found = result != 'semantix'
 
         for testname, testfunc in dct.items():
             if testname.startswith('test_') and getattr(testfunc, '__doc__', None):
