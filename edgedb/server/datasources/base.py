@@ -130,12 +130,12 @@ class CaosDatasource(Datasource):
         result = []
 
         for val in values:
-            if isinstance(value, type):
-                result.append(value)
-            elif isinstance(type, caos_types.AtomClass) and issubclass(type, value.__class__):
-                result.append(value)
+            if isinstance(val, type):
+                result.append(val)
+            elif isinstance(type, caos_types.AtomClass) and issubclass(type, val.__class__):
+                result.append(val)
             else:
-                result.append(self.coerce_default_value(name, value, typ))
+                result.append(self.coerce_default_value(name, val, typ))
 
         if not is_sequence:
             return result[0]
