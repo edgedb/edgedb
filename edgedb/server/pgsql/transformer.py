@@ -772,14 +772,21 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                 cte = cte or context.current.query
 
-                if expr.op == ast.ops.IN and isinstance(expr.right, tree.ast.Constant):
-                    # "expr IN $CONST" must be translated into "expr = any($CONST)"
-                    op = ast.ops.EQ
+                if expr.op in (ast.ops.IN, ast.ops.NOT_IN) and \
+                                                    isinstance(expr.right, tree.ast.Constant):
+                    # "expr IN $CONST" translates into "expr = any($CONST)"
+                    # and "expr NOT IN $CONST" translates into "expr != all($CONST)"
+                    if expr.op == ast.ops.IN:
+                        op = ast.ops.EQ
+                        qual_func = 'any'
+                    else:
+                        op = ast.ops.NE
+                        qual_func = 'all'
 
                     if isinstance(right.expr, pgsql.ast.SequenceNode):
                         right.expr = pgsql.ast.ArrayNode(elements=right.expr.elements)
 
-                    right = pgsql.ast.FunctionCallNode(name='any', args=[right])
+                    right = pgsql.ast.FunctionCallNode(name=qual_func, args=[right])
                 else:
                     op = expr.op
 
