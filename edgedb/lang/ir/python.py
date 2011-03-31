@@ -57,7 +57,7 @@ class PythonQuery:
         self.context = context
         self.result_types = result_types
         self.argument_types = argument_types
-        self.record = datastructures.Record('pyquery_result', self.result_types, None)
+        self.record = datastructures.Record('pyquery_result', tuple(self.result_types), None)
         self.query = self
 
         import semantix
