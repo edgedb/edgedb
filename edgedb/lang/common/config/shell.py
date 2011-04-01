@@ -12,7 +12,8 @@ import textwrap
 from semantix.utils import shell
 from semantix.utils.io.terminal import Terminal
 from semantix.utils.config import config, _Config, cvalue, ConfigError, \
-                                  ConfigRequiredValueError, NoDefault
+                                  ConfigRequiredValueError, NoDefault, \
+                                  ConfigAbstractValueError
 
 
 class _Renderer:
@@ -78,7 +79,11 @@ class _Renderer:
             print(cls.hl(' -> ', 'sep'), end='')
             print(cls.hl('<required, but not set>', 'error'), end='')
 
-        except (TypeError, ConfigError):
+        except ConfigAbstractValueError:
+            print(cls.hl(' -> ', 'sep'), end='')
+            print(cls.hl('<abstract>', 'error'), end='')
+
+        except (TypeError, ConfigError) as ex:
             print(end=' ')
             print(cls.hl('ERROR DURING VALUE CALCULATION', 'error'), end='')
 

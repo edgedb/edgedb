@@ -6,12 +6,14 @@
 ##
 
 
+import abc
 import py
 import types
 
 from semantix.utils.debug import assert_raises
 from semantix.utils.config import *
-from semantix.utils.config import set_value, get_cvalue
+from semantix.utils.config import set_value, get_cvalue, _get_conf, ConfigError, \
+                                  ConfigRequiredValueError, ConfigAbstractValueError
 from semantix.utils.functional import checktypes, hybridmethod
 
 
@@ -457,6 +459,112 @@ class TestUtilsConfig(object):
             @configurable
             def test_yaml2(*, a:int=cvalue(0)):
                 pass
+
+    def test_utils_config_inheritance_basics(self):
+        @configurable
+        class TestInh1:
+            test = cvalue(1)
+
+        class TestInh2(TestInh1):
+            pass
+
+        assert TestInh2.test == 1
+
+        @configurable
+        class TestInh3(TestInh2):
+            pass
+
+        assert TestInh3.test == 1
+
+        set_value('semantix.utils.config.tests.test_config.TestInh3.test', 2)
+        assert TestInh3.test == 2
+
+        set_value('semantix.utils.config.tests.test_config.TestInh4.test', 3)
+
+        @configurable
+        class TestInh4(TestInh2):
+            pass
+
+        assert TestInh4.test == 3
+        assert config.semantix.utils.config.tests.test_config.TestInh4.test == 3
+
+    def test_utils_config_inheritance_cvalue_inheritance(self):
+        @configurable
+        class TestInhC1:
+            test = cvalue(1, doc='foo', type=int)
+
+        @configurable
+        class TestInhC2(TestInhC1):
+            test = cvalue('3', inherits=True, type=str)
+
+        assert TestInhC1.test == 1
+        assert TestInhC2.test == '3'
+
+        test_c2_test = get_cvalue('semantix.utils.config.tests.test_config.TestInhC2.test')
+        assert test_c2_test.doc == 'foo'
+        assert test_c2_test.type == str
+
+        with assert_raises(TypeError, error_re='Unable to find base cvalue to be inherited from'):
+            @configurable
+            class TestInhC3(TestInhC2):
+                test1 = cvalue('3', inherits=True, type=str)
+
+    def test_utils_config_abstract_improper_use(self):
+        with assert_raises(TypeError, error_re='Unable to set default for abstract'):
+            @configurable
+            class abs_test0:
+                test = cvalue(1, abstract=True)
+
+        with assert_raises(TypeError, error_re='Abstract cvalue may be defined only as a class property'):
+            @configurable
+            def abs_test1(test=cvalue(abstract=True)):
+                return test
+
+    def test_utils_config_abstract_abc(self):
+        class abs_abc1(metaclass=abc.ABCMeta):
+            @abc.abstractmethod
+            def test(self):
+                pass
+
+        @configurable
+        class abs_abc2(abs_abc1):
+            test2 = cvalue(abstract=True)
+
+        @configurable
+        class abs_abc3(abs_abc2):
+            def test(self):
+                pass
+
+        set_value('semantix.utils.config.tests.test_config.abs_abc3.test2', 3)
+
+        assert abs_abc3().test2 == 3
+
+    def test_utils_config_abstract_basics(self):
+        @configurable
+        class abs_test2:
+            abs_prop1 = cvalue(type=str, abstract=True)
+
+        with assert_raises(TypeError, error_re="Can't instantiate abstract class"):
+            abs_test2()
+
+        class abs_test3(abs_test2):
+            pass
+
+        with assert_raises(ConfigAbstractValueError, error_re='Abstract cvalue'):
+            abs_test3().abs_prop1
+
+        @configurable
+        class abs_test4(abs_test3):
+            pass
+
+        with assert_raises(TypeError, error_re="Can't instantiate abstract class"):
+            abs_test4()
+
+        with assert_raises(TypeError, error_re='Invalid value'):
+            set_value('semantix.utils.config.tests.test_config.abs_test4.abs_prop1', 123)
+
+        set_value('semantix.utils.config.tests.test_config.abs_test4.abs_prop1', '123')
+        assert abs_test4().abs_prop1 == '123'
 
     def test_utils_config_loadflow(self):
         set_value('semantix.utils.config.tests.test_config.YML.foo', 33)

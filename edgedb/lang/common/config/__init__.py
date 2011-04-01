@@ -18,9 +18,10 @@ from semantix.exceptions import SemantixError
 from semantix.utils.lang import context as lang_context
 from semantix.utils.lang import yaml
 from semantix.utils.config.schema import Schema
+from semantix.utils import abc, helper
 
 
-__all__ = ['ConfigError', 'ConfigRequiredValueError', 'config', 'configurable', 'cvalue']
+__all__ = ['config', 'configurable', 'cvalue']
 
 
 class ConfigError(SemantixError):
@@ -29,9 +30,21 @@ class ConfigError(SemantixError):
 class ConfigRequiredValueError(ConfigError):
     pass
 
+class ConfigAbstractValueError(ConfigError, AttributeError):
+    # Derived from AttributeError on purpose - to not to screw up some code that
+    # inspects class attributes with hasattr/getattr (for instance abc.ABCMeta)
+    #
+    pass
+
 
 _Config_fields = ('_name', '_loaded_values', '_bound_to')
 class _Config:
+    # '~' -- is just a way to access the actual cvalue in the config tree.
+    # Without it, __getattribute__ just returns a value of the cvalue you are
+    # trying to access.  It's important to understand, that the '~' here is just
+    # an access mechanism, not a way of storing data.
+    #
+
     def __init__(self, name):
         self._name = name
         self._loaded_values = {}
@@ -57,8 +70,8 @@ class _Config:
 
         if name in self.__dict__ and isinstance(self.__dict__[name], cvalue) and not return_cvalue:
             return self.__dict__[name]._get_value()
-
-        return object.__getattribute__(self, name)
+        else:
+            return object.__getattribute__(self, name)
 
     def __iter__(self):
         result = []
@@ -83,10 +96,11 @@ config = _RootConfig('config')
 def set_value(name, value, context=None):
     assert not isinstance(value, cvalue)
 
-    name = name.split('.')
+    parts = name.split('.')
+    value_name = parts[-1]
     node = config
 
-    for part in name[:-1]:
+    for part in parts[:-1]:
         if hasattr(node, part) and isinstance(getattr(node, part), cvalue):
             raise ConfigError('Overlapping configs: %s.%s' % (node._name, part))
 
@@ -95,15 +109,29 @@ def set_value(name, value, context=None):
 
         node = getattr(node, part)
 
-    if hasattr(node, '~' + name[-1]):
-        if isinstance(getattr(node, '~' + name[-1]), cvalue):
-            getattr(node, '~' + name[-1])._set_value(value, context)
 
+    if hasattr(node, '~' + value_name):
+        if isinstance(getattr(node, '~' + value_name), cvalue):
+            getattr(node, '~' + value_name)._set_value(value, context)
         else:
-            raise ConfigError('Overlapping configs: %s.%s' % (node._name, name[-1]))
+            raise ConfigError('Overlapping configs: %s.%s' % (node._name, value_name))
 
     else:
-        node._loaded_values[name[-1]] = (value, context)
+        if node._bound_to and inspect.isclass(node._bound_to):
+            # If we're setting a value for the config node that doesn't have such spot,
+            # and the node is bound to some class, then try to find a base class that has
+            # such spot, and if it has - add & reg a cvalue to the class that the current
+            # node is bound to.  This essentially makes property inheritance work, even if
+            # a child class doesn't define cvalue property explicitly, but its parent has it,
+            # it's possible to configure this property via yaml or set_value call.
+            #
+            cls = node._bound_to
+
+            if _inherit_cvalue(node._bound_to, value_name, value, context):
+                _ensure_abstracts(node._bound_to)
+                return
+
+        node._loaded_values[value_name] = (value, context)
 
 
 def get_cvalue(name):
@@ -120,7 +148,7 @@ def get_cvalue(name):
     return getattr(node, '~' + name[-1])
 
 
-def _get_conf(config, name):
+def _get_conf(name, config=config):
     name = name.split('.')
     node = config
     for part in name:
@@ -129,6 +157,79 @@ def _get_conf(config, name):
         node = getattr(node, part)
         assert not isinstance(node, cvalue)
     return node
+
+
+def _check_name(full_name:str, name:str):
+    if name in _Config_fields:
+        raise ConfigError('Unable to apply @configurable, invalid name: "%s", contains "%s"'
+                          ' (which is in conflict with internal config implementation)' % \
+                          (full_name, name))
+
+@checktypes
+def _set_dir(name:str, config=config):
+    node = config
+    parts = name.split('.')
+
+    for part in parts:
+        _check_name(name, part)
+
+        if hasattr(node, part) and isinstance(getattr(node, '~' + part), cvalue):
+            raise ConfigError('Overlapping configs: %s' % node._name)
+
+        if not hasattr(node, part):
+            setattr(node, part, _Config(node._name + '.' + part))
+
+        node = getattr(node, part)
+
+    return node
+
+
+def _find_parent_cvalue(cls, name):
+    for parent in cls.__mro__[1:]:
+        if name in parent.__dict__ and isinstance(parent.__dict__[name], cvalue):
+            return parent.__dict__[name]
+
+
+def _inherit_cvalue(cls, name, value, value_ctx):
+    shadow = _find_parent_cvalue(cls, name)
+
+    if not shadow:
+        return
+
+    new = shadow._copy_for_override()
+
+    if new._abstract:
+        new._abstract = False
+
+    new._set_value(value, value_ctx)
+
+    if shadow._abstract and hasattr(cls, '__abstractmethods__'):
+        cls.__abstractmethods__ = frozenset(cls.__abstractmethods__ - {name})
+
+    new._set_name(cls.__module__ + '.' + cls.__name__ + '.' + name)
+    setattr(cls, name, new)
+    new._bound_to = cls
+
+    return new
+
+
+def _ensure_abstracts(cls):
+    abstracts = set()
+    nonabstracts = set()
+
+    for c in reversed(cls.__mro__):
+        for name, value in c.__dict__.items():
+            if isinstance(value, cvalue):
+                if value._abstract and name not in nonabstracts:
+                    abstracts.add(name)
+                if not value._abstract:
+                    abstracts.discard(name)
+                    nonabstracts.add(name)
+
+    merged = getattr(cls, '__abstractmethods__', set())
+    merged |= abstracts
+    merged -= nonabstracts
+    cls.__abstractmethods__ = frozenset(merged)
 
 
 _Marker = object()
@@ -140,7 +241,7 @@ def configurable(obj, *, basename=None, bind_to=None):
         raise ConfigError('Unable to determine module\'s path')
 
     obj_name = basename or (obj.__module__ + '.' + obj.__name__)
-    bind_to = bind_to or obj
+    bind_to = obj if  bind_to is None else bind_to
 
     def decorate_function(obj):
         assert inspect.isfunction(obj)
@@ -149,16 +250,24 @@ def configurable(obj, *, basename=None, bind_to=None):
         args_spec = get_argsspec(obj)
         checkers = FunctionValidator.get_checkers(obj, args_spec)
 
-        defaults = []
-        if args_spec.defaults:
-            defaults.append(zip(reversed(args_spec.args), reversed(args_spec.defaults)))
+        defaults = itertools.chain(
+                               zip(reversed(args_spec.args), reversed(args_spec.defaults)) \
+                                                if args_spec.defaults else (),
 
-        if args_spec.kwonlydefaults:
-            defaults.append(args_spec.kwonlydefaults.items())
+                               args_spec.kwonlydefaults.items() \
+                                                if args_spec.kwonlydefaults else ()
+                             )
 
-        for arg_name, arg_default in itertools.chain(*defaults):
-            if isinstance(arg_default, cvalue) and not arg_default.bound_to:
+        for arg_name, arg_default in defaults:
+            if isinstance(arg_default, cvalue):
+                assert not arg_default.bound_to, 'argument was processed twice'
+
                 todecorate = True
+
+                if arg_default._abstract:
+                    raise TypeError('Abstract cvalue may be defined only as a class property: ' \
+                                    'got %r cvalue defined for %r function' % \
+                                    (arg_name, obj.__name__))
 
                 arg_default._set_name(obj_name + '.' + arg_name)
                 arg_default._bind(bind_to)
@@ -183,11 +292,7 @@ def configurable(obj, *, basename=None, bind_to=None):
 
                 arg_default._validate()
 
-        if todecorate:
-            _conf = _get_conf(config, obj_name)
-            if _conf:
-                _conf._bound_to = obj
-        else:
+        if not todecorate:
             return obj
 
         def wrapper(*args, **kwargs):
@@ -200,12 +305,16 @@ def configurable(obj, *, basename=None, bind_to=None):
                 except AttributeError:
                     flatten_args_spec = tuple(enumerate(reversed(tuple(
                                             itertools.zip_longest(
-                                                reversed(tuple(args_spec.args) if args_spec.args else []),
-                                                reversed(tuple(args_spec.defaults) if args_spec.defaults else []),
+                                                reversed(tuple(args_spec.args) \
+                                                                    if args_spec.args else []),
+
+                                                reversed(tuple(args_spec.defaults) \
+                                                                    if args_spec.defaults else []),
 
                                                 fillvalue=_Marker
                                             )
                                         ))))
+
                     setattr(obj, '_flatten_args_spec_', flatten_args_spec)
 
                 for i, (arg_name, default) in flatten_args_spec:
@@ -229,6 +338,11 @@ def configurable(obj, *, basename=None, bind_to=None):
             return obj(*args, **kwargs)
 
         decorate(wrapper, obj)
+
+        _conf = _get_conf(obj_name)
+        if _conf:
+            _conf._bound_to = obj
+
         return wrapper
 
     def decorate_class(obj):
@@ -239,7 +353,28 @@ def configurable(obj, *, basename=None, bind_to=None):
             return configurable(wrapped, basename=obj_name + '.' + wrapped.__name__, bind_to=obj)
 
         for attr_name, attr_value in obj.__dict__.items():
-            if isinstance(attr_value, cvalue) and not attr_value.bound_to:
+            if isinstance(attr_value, cvalue):
+                assert not attr_value.bound_to
+
+                if attr_value._abstract:
+                    abc.push_abstract(obj, attr_name)
+
+                if attr_value._inherits:
+                    target = _find_parent_cvalue(obj, attr_name)
+
+                    if not target:
+                        raise TypeError('Unable to find base cvalue to be inherited from')
+
+                    if not attr_value._validator:
+                        attr_value._validator = target._validator
+                        attr_value._type = target._type
+
+                    if attr_value._doc is None:
+                        attr_value._doc = target._doc
+
+                    if attr_value._doc is None:
+                        attr_value._doc = target._doc
+
                 attr_value._set_name(obj_name + '.' + attr_name)
                 attr_value._bind(bind_to)
                 attr_value._owner = obj
@@ -254,10 +389,31 @@ def configurable(obj, *, basename=None, bind_to=None):
                     todecorate = True
                     setattr(obj, attr_name, patched)
 
+        if not todecorate:
+            # Even if there is no cvalues found in the class being @configurable, perhaps
+            # it has some @configurable parents, and if it is, then we have to decorate it
+            # too, in order to be able to set inherited values for it.
+            #
+            todecorate = any(_get_conf(cls.__module__ + '.' + cls.__name__) \
+                                                                    for cls in obj.__mro__[1:])
+
         if todecorate:
-            _conf = _get_conf(config, obj_name)
-            if _conf:
-                _conf._bound_to = obj
+            _conf = _get_conf(obj_name)
+            if not _conf:
+                _conf = _set_dir(obj_name)
+            else:
+                # Now, if let's say we imported a yaml config with some values, which created
+                # a bunch of unbound values which may be overrides for parent cvalues, we need
+                # to try to walk the whole inheritance tree and match those cvalues.
+                #
+                for attr_name, (attr_value, attr_value_ctx) in list(_conf._loaded_values.items()):
+                    # if `_inherit_cvalue` finds a parent cvalue, then it copies it and calls
+                    # `cvalue._set_value` which in turn cleans up relative `_loaded_values`
+                    #
+                    _inherit_cvalue(obj, attr_name, attr_value, attr_value_ctx)
+
+            _conf._bound_to = obj
+            _ensure_abstracts(obj)
 
         return obj
 
@@ -273,12 +429,17 @@ NoDefault = NoDefault()
 
 class cvalue(ChecktypeExempt):
     __slots__ = ('_name', '_default', '_value', '_value_context', '_doc', '_validator', '_type',
-                 '_bound_to', '_inter_cache', '_owner', '_required')
+                 '_bound_to', '_inter_cache', '_owner', '_required', '_abstract', '_inherits')
 
     _inter_re = re.compile(r'''(?P<text>[^$]+) |
                                (?P<ref>\${    (?P<to>[^}]+)   })''', re.M | re.X)
 
-    def __init__(self, default=NoDefault, *, doc=None, validator=None, type=None):
+    def __init__(self, default=NoDefault, *, doc=None, validator=None, type=None,
+                 abstract=False, inherits=False):
+
+        if abstract and default is not NoDefault:
+            raise TypeError('Unable to set default for abstract cvalue')
+
         self._name = None
         self._value = self._default = default
         self._value_context = None
@@ -287,6 +448,8 @@ class cvalue(ChecktypeExempt):
         self._bound_to = None
         self._owner = None
         self._inter_cache = None
+        self._abstract = abstract
+        self._inherits = inherits
 
         if validator:
             if not isinstance(validator, Checker):
@@ -308,6 +471,10 @@ class cvalue(ChecktypeExempt):
     default = property(lambda self: self._default)
     required = property(lambda self: self._default is NoDefault)
 
+    def _copy_for_override(self):
+        return cvalue(self._value, doc=self.doc, validator=self._validator,
+                      type=self._type, abstract=self._abstract)
+
     def _bind(self, owner):
         self._bound_to = owner
 
@@ -318,8 +485,11 @@ class cvalue(ChecktypeExempt):
     type = property(lambda self: self._type, _set_type)
 
     def _get_value(self):
+        if self._abstract:
+            raise ConfigAbstractValueError('Abstract cvalue %r must be overrided' % self._name)
+
         if self._value is NoDefault:
-            raise ConfigRequiredValueError('%s is a required config setting' % self._name)
+            raise ConfigRequiredValueError('%r is a required config setting' % self._name)
 
         if 0 and isinstance(self._value, str) and '$' in self._value:
             if not self._inter_cache:
@@ -337,14 +507,17 @@ class cvalue(ChecktypeExempt):
                     else:
                         self._inter_cache.append(get_cvalue(match[2]))
 
-            return ''.join(item._get_value() if isinstance(item, cvalue) else item\
+            return ''.join(item._get_value() if isinstance(item, cvalue) else item \
                                                                     for item in self._inter_cache)
 
         return self._value
 
-    def _set_value(self, value, context=None):
+    def _set_value(self, value, value_context=None):
+        if self._abstract:
+            raise TypeError('Unable to set value for abstract cvalue %r' % self._name)
+
         self._value = value
-        self._value_context = context
+        self._value_context = value_context
         self._inter_cache = None
         self._validate()
 
@@ -352,32 +525,20 @@ class cvalue(ChecktypeExempt):
     def _set_name(self, name:str):
         self._name = name
 
-        node = config
-        name = name.split('.')
+        dir_name, _, self_name = name.rpartition('.')
 
-        for part in name:
-            if part in _Config_fields:
-                raise ConfigError('Unable to apply @configurable, invalid name: "%s", contains "%s"'
-                                  ' (which is in conflict with internal config implementation)' % \
-                                  ('.'.join(name), part))
+        _check_name(name, self_name)
 
-        for part in name[:-1]:
-            if hasattr(node, part) and isinstance(getattr(node, '~' + part), cvalue):
-                raise ConfigError('Overlapping configs: %s' % node._name)
+        node = _set_dir(dir_name)
 
-            if not hasattr(node, part):
-                setattr(node, part, _Config(node._name + '.' + part))
-
-            node = getattr(node, part)
-
-        if hasattr(node, name[-1]) and isinstance(getattr(node, '~' + name[-1]), cvalue):
+        if hasattr(node, self_name) and isinstance(getattr(node, '~' + self_name), cvalue):
             raise ConfigError('Overlapping configs: %s' % self._name)
 
-        setattr(node, name[-1], self)
+        setattr(node, self_name, self)
 
-        if name[-1] in node._loaded_values:
-            self._set_value(*node._loaded_values[name[-1]])
-            del node._loaded_values[name[-1]]
+        if self_name in node._loaded_values:
+            self._set_value(*node._loaded_values[self_name])
+            del node._loaded_values[self_name]
 
     @checktypes
     def _set_validator(self, validator:Checker):
