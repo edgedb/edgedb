@@ -41,7 +41,7 @@ class TestAssertRaises:
             with assert_raises(ValueError):
                 int(10)
 
-        with assert_raises(AssertionError):
+        with assert_raises(ErrorExpected):
             # Remember -- error_re is a regular expression, so parens must be quoted
             with assert_raises(ValueError, error_re='invalid literal for int() with base \d+'):
                 int('g')
