@@ -38,3 +38,8 @@ class AbstractMeta(type):
                     abstracts.add(name)
 
         cls.__abstractmethods__ = frozenset(abstracts)
+
+
+_empty_set = frozenset()
+def push_abstract(cls, *names):
+    cls.__abstractmethods__ = frozenset(set(names) | getattr(cls, '__abstractmethods__', _empty_set))
