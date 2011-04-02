@@ -632,6 +632,10 @@ class CaosTreeTransformer(CaosExprTransformer):
             refs = self._text_search_refs(context, vector)
         elif isinstance(vector, tree.ast.Sequence):
             refs = vector.elements
+        elif isinstance(vector, tree.ast.AtomicRef):
+            linkset = vector.ref.concept.getptr(context.current.realm.meta, vector.name)
+            ref = tree.ast.AtomicRefSimple(ref=vector.ref, name=vector.name, caoslink=linkset.first)
+            refs = (ref,)
 
         if tsvector:
             for atomref in refs:
