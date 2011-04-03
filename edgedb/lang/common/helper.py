@@ -12,6 +12,7 @@ import importlib
 import types
 
 from semantix import SemantixError
+from semantix.utils.datastructures import xvalue
 
 
 def dump(stuff):
@@ -136,13 +137,16 @@ def shorten_repr(rpr:str, max_len=120) -> str:
     return rpr
 
 
-def dump_code_context(filename, lineno, dump_range=4):
-    with open(filename, 'r') as file:
-        source = file.read().split('\n')
+def format_code_context(lines, lineno, window_size=4, colorize=False):
+    lines = list(lines)
 
-    source_snippet = ''
-    for j in range(max(1, lineno-dump_range), min(len(source), lineno+dump_range+1)):
-        line = source[j - 1] + '\n'
+    result = []
+
+    start = max(1, lineno - window_size)
+    end = min(len(lines), lineno + window_size + 1)
+
+    for j in range(start, end):
+        line = lines[j - 1]
 
         if j == lineno:
             line = ' > ' + line
@@ -150,8 +154,19 @@ def dump_code_context(filename, lineno, dump_range=4):
             line = ' | ' + line
 
         line = '{0:6}'.format(j) + line
-        source_snippet += line
 
+        if colorize and j == lineno:
+            line = xvalue(line, fg='red')
+
+        result.append(line)
+
+    return result
+
+
+def dump_code_context(filename, lineno, dump_range=4):
+    with open(filename, 'r') as file:
+        lines = format_code_context(file, lineno, dump_range)
+        source_snippet = ''.join(lines)
     return source_snippet
 
 
