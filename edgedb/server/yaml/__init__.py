@@ -436,7 +436,7 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
             proto.LinkProperty.__init__(self, name=default_name, target=atom_name,
                                         title=info['title'], description=info['description'],
                                         readonly=info['readonly'], default=default,
-                                        loading=info['loading'],
+                                        loading=info['loading'], required=info['required'],
                                         _setdefaults_=False, _relaxrequired_=True)
             self._constraints = info.get('constraints')
             self._abstract_constraints = info.get('abstract-constraints')

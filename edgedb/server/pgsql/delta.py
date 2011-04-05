@@ -1959,8 +1959,13 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
             for col in cols:
                 # The column may already exist as inherited from parent table
                 cond = ColumnExists(table_name=alter_table.name, column_name=col.name)
+
+                cmd = AlterTableAlterColumnNull(column_name=col.name, null=not property.required)
+                alter_table.add_operation((cmd, (cond,), None))
+
                 cmd = AlterTableAddColumn(col)
                 alter_table.add_operation((cmd, None, (cond,)))
+
 
         with context(delta_cmds.LinkPropertyCommandContext(self, property)):
             rec, updates = self.record_metadata(property, None, meta, context)
@@ -1995,6 +2000,15 @@ class AlterLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.AlterLinkProp
             if rec:
                 self.pgops.add(Update(table=self.table, record=rec,
                                       condition=[('name', str(prop.name))], priority=1))
+
+            if isinstance(prop.target, caos.types.ProtoAtom) and \
+                    isinstance(self.old_prop.target, caos.types.ProtoAtom) and \
+                    prop.required != self.old_prop.required:
+
+                alter_table = context.get(delta_cmds.LinkCommandContext).op.get_alter_table(context)
+                column_name = common.caos_name_to_pg_name(prop.normal_name())
+                alter_table.add_operation(AlterTableAlterColumnNull(column_name=column_name,
+                                                                    null=not prop.required))
 
             new_type = None
             for op in self(delta_cmds.AlterPrototypeProperty):
