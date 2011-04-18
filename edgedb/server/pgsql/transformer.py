@@ -7,6 +7,7 @@
 
 
 import collections
+import itertools
 
 from semantix.utils import ast
 from semantix.caos import caosql, tree
@@ -1178,14 +1179,29 @@ class CaosTreeTransformer(CaosExprTransformer):
             union = self.unify_paths(context, sql_paths)
             cte.fromlist.append(union)
 
+    def _join_condition(self, context, left_refs, right_refs, op='='):
+        if not isinstance(left_refs, tuple):
+            left_refs = (left_refs,)
+        if not isinstance(right_refs, tuple):
+            right_refs = (right_refs,)
+
+        condition = None
+        for left_ref, right_ref in itertools.product(left_refs, right_refs):
+            op = pgsql.ast.BinOpNode(op='=', left=left_ref, right=right_ref)
+            condition = self.extend_binop(condition, op, cls=pgsql.ast.BinOpNode)
+
+        return condition
+
     def _simple_join(self, context, left, right, key, type='inner', condition=None):
         if condition is None:
             condition = left.bonds(key)[-1]
             if not isinstance(condition, pgsql.ast.BinOpNode):
                 condition = right.bonds(key)[-1]
                 if not isinstance(condition, pgsql.ast.BinOpNode):
-                    condition = pgsql.ast.BinOpNode(op='=', left=left.bonds(key)[-1],
-                                                            right=right.bonds(key)[-1])
+                    left_refs = left.bonds(key)[-1]
+                    right_refs = right.bonds(key)[-1]
+                    condition = self._join_condition(context, left_refs, right_refs)
+
         join = pgsql.ast.JoinNode(type=type, left=left, right=right, condition=condition)
 
         join.updatebonds(left)
@@ -1301,8 +1317,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 target_ref = pgsql.ast.FieldRefNode(table=map, field='target_id',
                                                     origin=map, origin_field='target_id')
                 valent_bond = join.bonds(link.source.concept)[-1]
-                forward_bond = pgsql.ast.BinOpNode(left=valent_bond, right=source_ref, op='=')
-                backward_bond = pgsql.ast.BinOpNode(left=valent_bond, right=target_ref, op='=')
+                forward_bond = self._join_condition(context, valent_bond, source_ref, op='=')
+                backward_bond = self._join_condition(context, valent_bond, target_ref, op='=')
 
                 if link.filter.direction == caos_types.AnyDirection:
                     map_join_cond = pgsql.ast.BinOpNode(left=forward_bond, op='or', right=backward_bond)
@@ -1383,7 +1399,6 @@ class CaosTreeTransformer(CaosExprTransformer):
             atomrefs = {'semantix.caos.builtins.id', 'concept_id'} | \
                        {f.name for f in caos_path_tip.atomrefs}
 
-            fieldref = fromnode.expr.bonds(caos_path_tip.concept)[-1]
             context.current.concept_node_map.setdefault(caos_path_tip, {})
             step_cte.concept_node_map.setdefault(caos_path_tip, {})
             aliases = {}
@@ -1550,14 +1565,14 @@ class CaosTreeTransformer(CaosExprTransformer):
         concept_table = self._relation_from_concepts(context, caos_path_tip)
 
         field_name = 'semantix.caos.builtins.id'
-        bond = pgsql.ast.FieldRefNode(table=concept_table, field=field_name,
-                                      origin=concept_table, origin_field=field_name)
+        innerref = pgsql.ast.FieldRefNode(table=concept_table, field=field_name,
+                                          origin=concept_table, origin_field=field_name)
+        outerref = self.get_cte_fieldref_for_set(context, caos_path_tip, field_name,
+                                                 map=sql_path_tip.concept_node_map)
+
+        bond = (innerref, outerref)
         concept_table.addbond(caos_path_tip.concept, bond)
         fromnode.expr = concept_table
-
-        ref = self.get_cte_fieldref_for_set(context, caos_path_tip, field_name,
-                                            map=sql_path_tip.concept_node_map)
-        cte.where = pgsql.ast.BinOpNode(left=bond, op=ast.ops.EQ, right=ref, strong=True)
 
         target = pgsql.ast.SelectExprNode(expr=pgsql.ast.ConstantNode(value=True))
         cte.targets.append(target)
