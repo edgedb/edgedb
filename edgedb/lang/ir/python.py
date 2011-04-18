@@ -79,6 +79,9 @@ class PythonQuery:
     def describe_arguments(self):
         return dict(self.argument_types)
 
+    def convert_arguments(self, **kwargs):
+        return dict(kwargs)
+
     def prepare(self, session):
         return self
 

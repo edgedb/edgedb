@@ -141,6 +141,9 @@ class PreparedQuery:
     def describe_arguments(self):
         return self.query.describe_arguments()
 
+    def convert_arguments(self, **kwargs):
+        return collections.OrderedDict(enumerate(self._convert_args(kwargs)))
+
     def __call__(self, **kwargs):
         return self._iterator(self.statement, **kwargs)
 
