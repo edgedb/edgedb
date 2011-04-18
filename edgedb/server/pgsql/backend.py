@@ -463,6 +463,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def getmeta(self):
         if not self.meta.index:
             if 'caos' in self.modules:
+                self._init_column_cache()
+
                 self.read_atoms(self.meta)
                 self.read_concepts(self.meta)
                 self.read_links(self.meta)
@@ -2043,15 +2045,28 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         pass
 
 
-    def get_table_columns(self, table_name):
+    def _init_column_cache(self):
+        colsds = introspection.tables.TableColumns(self.connection)
+        cols = colsds.fetch(schema_name='caos_%')
+
+        for col in cols:
+            table_name = (col['table_schema'], col['table_name'])
+            cache = self.column_cache.get(table_name)
+            if cache is None:
+                self.column_cache[table_name] = cache = collections.OrderedDict()
+            cache[col['column_name']] = col
+
+
+    def get_table_columns(self, table_name, cacheonly=False):
         cols = self.column_cache.get(table_name)
 
-        if not cols:
+        if not cols and not cacheonly:
             cols = introspection.tables.TableColumns(self.connection)
             cols = cols.fetch(table_name=table_name[1], schema_name=table_name[0])
             cols = collections.OrderedDict((col['column_name'], col) for col in cols)
             self.column_cache[table_name] = cols
 
+        assert cols, 'pgsql: could not obtain columns for "%s"."%s"' % table_name
         return cols
 
 

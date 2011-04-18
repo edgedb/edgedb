@@ -1000,7 +1000,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
     def _sort_record(self, context, elements, concept):
         table_name = common.get_table_name(concept, catenate=False)
-        cols = context.current.realm.backend('data').get_table_columns(table_name)
+        cols = context.current.realm.backend('data').get_table_columns(table_name, cacheonly=True)
 
         elts = {e.origin_field: e for e in elements}
 

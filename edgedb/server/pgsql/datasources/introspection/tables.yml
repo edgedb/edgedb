@@ -24,6 +24,8 @@ filters:
 
 source: |
         SELECT
+                ns.nspname                              AS table_schema,
+                c.relname                               AS table_name,
                 a.attname                               AS column_name,
                 t.typname                               AS column_type,
                 format_type(t.oid, a.atttypmod)         AS column_type_formatted,
@@ -41,8 +43,8 @@ source: |
                 INNER JOIN pg_namespace tns ON t.typnamespace = tns.oid
                 LEFT JOIN pg_attrdef def ON def.adrelid = c.oid AND def.adnum = a.attnum
             WHERE
-                c.relname = %(table_name)s
-                AND ns.nspname = %(schema_name)s
+                ns.nspname LIKE %(schema_name)s::text
+                AND (%(table_name)s::text IS NULL OR c.relname LIKE %(table_name)s::text)
                 AND a.attnum > 0
                 AND (%(include_inherited)s::bool OR a.attislocal)
             ORDER BY
