@@ -22,6 +22,7 @@ code:
     #  - col (starting col counter)
 
     pyggy.lexer.lexer.regexp_possible = True
+    pyggy.lexer.lexer.swallow_line_cont = False
     pyggy.lexer.lexer.line = 1
     pyggy.lexer.lexer.col = 1
     pyggy.lexer.lexer.start = pyggy.lexer.lexer.end = (1,0)
@@ -82,6 +83,30 @@ INITIAL:
         #if self.no_newline:
         #    return '#ERR#'
 
+    #
+    #
+    # special case for preprocessor
+    #
+    "\\{lineterminator}":
+        self.value = '\\'
+        advance_line_col(self)
+        self.col = 1
+        self.line += 1
+
+        if self.swallow_line_cont:
+            return
+        else:
+            return '#ERR#'
+
+    "#(define|error|warning|include|if|ifdef|ifndef|elif|else|endif)|#|##":
+        advance_line_col(self)
+        return '#ERR#'
+
+    #
+    # end of special case for preprocessor
+    #
+    #
+
     # comments
     "//":
         self.col += len(self.value)
@@ -93,7 +118,7 @@ INITIAL:
 # might need to include unary prefix ops here
 
     "{id}":
-        global line, col
+        #global line, col
         advance_line_col(self)
         return "ID"
 
@@ -137,34 +162,18 @@ INITIAL:
         advance_line_col(self)
         return "OP"
 
-    "\{":
+    "\{|\}|\[|\]|\(|\)|\.":
         advance_line_col(self)
-        return "LCBRACKET"
-    "\}":
-        advance_line_col(self)
-        return "RCBRACKET"
-    "\[":
-        advance_line_col(self)
-        return "LSBRACKET"
-    "\]":
-        advance_line_col(self)
-        return "RSBRACKET"
-    "\(":
-        advance_line_col(self)
-        return "LPAREN"
-    "\)":
-        advance_line_col(self)
-        return "RPAREN"
+        return "OP"
 
-    "\.":
-        advance_line_col(self)
-        return "DOT"
     ";":
         advance_line_col(self)
         return "SEMICOLON"
+
     ":":
         advance_line_col(self)
         return "COLON"
+
     ",":
         advance_line_col(self)
         return "COMMA"
@@ -264,3 +273,40 @@ REGEXP:
         self.POPSTATE()
         advance_line_col(self)
         return "REGEXP"
+
+#PREPROCESSOR:
+#    # preprocessor mini-language
+#
+#    "\\{lineterminator}":
+#        self.value = '\\'
+#        advance_line_col(self)
+#        self.col = 1
+#        self.line += 1
+#        return 'LINECONT'
+#
+#    "#":
+#        advance_line_col(self)
+#        return 'QUOTE'
+#
+#    "##":
+#        advance_line_col(self)
+#        return 'CONCAT'
+#
+#    "{lineterminator}":
+#        advance_line_col(self)
+#        self.col = 1
+#        self.line += 1
+#        return 'NEWLINE'
+#
+#    # identifiers
+#    "{id}":
+#        #global line, col
+#        advance_line_col(self)
+#        return "ID"
+#
+#    # everything else
+#    "\t+":
+#        self.col = ((self.col - 1)//4 + len(self.value))*4 + 1
+#    " +":
+#        self.col += len(self.value)
+

@@ -169,7 +169,7 @@ class ForNode(Base):
 
 
 class ForInNode(Base):
-    __fields = ['init', 'array', 'statement']
+    __fields = ['init', 'container', 'statement']
 
 
 class WithNode(Base):
@@ -185,6 +185,10 @@ class BreakNode(Base):
 
 
 class ReturnNode(Base):
+    __fields = ['expression']
+
+
+class YieldNode(Base):
     __fields = ['expression']
 
 
@@ -209,7 +213,56 @@ class ThrowNode(Base):
 
 
 class TryNode(Base):
-    __fields = ['tryblock', 'catchid', 'catchblock', 'finallyblock']
+    __fields = ['tryblock', 'catch', 'finallyblock']
+
+
+class CatchNode(Base):
+    __fields = ['catchid', 'catchblock']
 
 
 class DebuggerNode(Base): pass
+
+#
+# Features
+#
+
+class LetDeclarationNode(Base):
+    __fields = [('vars', list)]
+
+
+class LetExpressionNode(Expression):
+    __fields = [('vars', list), 'expression']
+
+
+class LetStatementNode(Base):
+    __fields = [('vars', list), 'statement']
+
+
+class ForEachNode(Base):
+    __fields = ['var', 'container', 'statement']
+
+
+#class TryCatchIfNode(Base):
+#    __fields = ['tryblock', ('catch', list), 'finallyblock']
+
+
+class CatchIfNode(Base):
+    __fields = ['catchid', 'condition', 'catchblock']
+
+
+#class ArrayComprehensionNode(Expression):
+#    __fields = ['expr', ('comprehensions', list)]
+#
+#!!! seems that syntactically, there's just a generator expression inside
+#
+class ArrayComprehensionNode(Expression):
+    __fields = ['generator']
+
+
+class ComprehensionNode(Base):
+    __fields = ['var', 'container', 'condition']
+
+
+class GeneratorExprNode(Expression):
+    __fields = ['expr', ('forstring', str, 'for'), ('comprehensions', list)]
+

@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils.ast import SourceGenerator
-from semantix.utils.lang.javascript import ast
+from semantix.utils.lang.javascript import ast as jsast
+from semantix.utils.lang.preprocessor import codegen
 
 
 def string_escape(string):
@@ -25,16 +25,7 @@ def string_escape(string):
     return "".join([replace.get(char, char) for char in string])
 
 
-class JavascriptSourceGenerator(SourceGenerator):
-    def _visit_list(self, list):
-        "goes through a list and visits each member printing ','"
-
-        for i, var in enumerate(list):
-            if var:
-                self.visit(var)
-            if i != (len(list) - 1):
-                self.write(', ')
-
+class JavascriptSourceGenerator(codegen.PP_SourceGenerator):
     def visit_StatementNode(self, node):
         if node.statement:
             self.visit(node.statement)
@@ -43,10 +34,10 @@ class JavascriptSourceGenerator(SourceGenerator):
 
     def visit_VarDeclarationNode(self, node):
         self.write('var ')
-        self._visit_list(node.vars)
+        self.visit_list_helper(node.vars)
 
     def visit_VarInitNode(self, node):
-        self.write(node.name)
+        self.visit(node.name)
         if node.value:
             self.write(' = ')
             self.visit(node.value)
@@ -64,7 +55,7 @@ class JavascriptSourceGenerator(SourceGenerator):
 
     def visit_ArrayLiteralNode(self, node):
         self.write('[')
-        self._visit_list(node.array)
+        self.visit_list_helper(node.array)
 
         # this is needed to properly render [,,,,] and similar array literals
         #
@@ -73,14 +64,14 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.write(']')
 
     def visit_ObjectLiteralNode(self, node):
-        if isinstance(node.parent, ast.StatementNode):
+        if isinstance(node.parent, jsast.StatementNode):
             self.write('(')
         self.write('{')
         self.indentation += 1
-        self._visit_list(node.properties)
+        self.visit_list_helper(node.properties)
         self.indentation -= 1
         self.write('}')
-        if isinstance(node.parent, ast.StatementNode):
+        if isinstance(node.parent, jsast.StatementNode):
             self.write(')')
 
     def visit_RegExpNode(self, node):
@@ -97,7 +88,7 @@ class JavascriptSourceGenerator(SourceGenerator):
 
     def visit_ExpressionListNode(self, node):
         self.write('(')
-        self._visit_list(node.expressions)
+        self.visit_list_helper(node.expressions)
         self.write(')')
 
     def visit_PrefixExpressionNode(self, node):
@@ -109,22 +100,22 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.write(node.op)
 
     def visit_BinExpressionNode(self, node):
-        if isinstance(node.parent, ast.Expression):
+        if isinstance(node.parent, jsast.Expression):
             self.write('(')
         self.visit(node.left)
         self.write(' ' + node.op + ' ')
         self.visit(node.right)
-        if isinstance(node.parent, ast.Expression):
+        if isinstance(node.parent, jsast.Expression):
             self.write(')')
 
     def visit_AssignmentExpressionNode(self, node):
-        if isinstance(node.parent, ast.Expression):
+        if isinstance(node.parent, jsast.Expression):
             self.write('(')
         self.visit(node.left)
         self.write(' ' + node.op + ' ')
-        if isinstance(node.parent, ast.Expression):
-            self.write(')')
         self.visit(node.right)
+        if isinstance(node.parent, jsast.Expression):
+            self.write(')')
 
     def visit_DotExpressionNode(self, node):
         self.visit(node.left)
@@ -132,20 +123,20 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.visit(node.right)
 
     def visit_ConditionalExpressionNode(self, node):
-        if isinstance(node.parent, ast.Expression):
+        if isinstance(node.parent, jsast.Expression):
             self.write('(')
         self.visit(node.condition)
         self.write(' ? ')
         self.visit(node.true)
         self.write(' : ')
         self.visit(node.false)
-        if isinstance(node.parent, ast.Expression):
+        if isinstance(node.parent, jsast.Expression):
             self.write(')')
 
     def visit_CallNode(self, node):
         self.visit(node.call)
         self.write('(')
-        self._visit_list(node.arguments)
+        self.visit_list_helper(node.arguments)
         self.write(')')
 
     def visit_NewNode(self, node):
@@ -153,7 +144,7 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.visit(node.expression)
         if node.arguments:
             self.write('(')
-            self._visit_list(node.arguments)
+            self.visit_list_helper(node.arguments)
             self.write(')')
 
     def visit_SBracketExpressionNode(self, node):
@@ -175,21 +166,21 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.visit(node.expression)
 
     def visit_InstanceOfNode(self, node):
-        if isinstance(node.parent, ast.Expression):
+        if isinstance(node.parent, jsast.Expression):
             self.write('(')
         self.visit(node.expression)
         self.write(' instanceof ')
         self.visit(node.type)
-        if isinstance(node.parent, ast.Expression):
+        if isinstance(node.parent, jsast.Expression):
             self.write(')')
 
     def visit_InNode(self, node):
-        if isinstance(node.parent, ast.Expression):
+        if isinstance(node.parent, jsast.Expression):
             self.write('(')
         self.visit(node.expression)
         self.write(' in ')
         self.visit(node.container)
-        if isinstance(node.parent, ast.Expression):
+        if isinstance(node.parent, jsast.Expression):
             self.write(')')
 
     def visit_SimplePropertyNode(self, node):
@@ -224,14 +215,14 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.visit_StatementBlockNode(node.functionbody, endnewline=False)
 
     def visit_FunctionNode(self, node):
-        if isinstance(node.parent, ast.Expression):
+        if isinstance(node.parent, jsast.Expression):
             self.write("(")
         self.write("function ")
         if node.name:
             self.write(node.name)
         self.write("(")
         if node.param:
-            self._visit_list(node.param)
+            self.visit_list_helper(node.param)
         self.write(") ")
 
         # We only want a newline at the end of function declaration
@@ -240,7 +231,7 @@ class JavascriptSourceGenerator(SourceGenerator):
 
         self.visit_StatementBlockNode(node.body, endnewline=make_newline)
 
-        if isinstance(node.parent, ast.Expression):
+        if isinstance(node.parent, jsast.Expression):
             self.write(")")
 
         if make_newline:
@@ -269,7 +260,7 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.visit(node.ifclause)
         self.write(") ")
         if node.thenclause:
-            if isinstance(node.thenclause, ast.StatementBlockNode):
+            if isinstance(node.thenclause, jsast.StatementBlockNode):
                 self.visit_StatementBlockNode(node.thenclause,
                                               endnewline=not node.elseclause)
             else:
@@ -326,7 +317,7 @@ class JavascriptSourceGenerator(SourceGenerator):
         self.write("for (")
         self.visit(node.init)
         self.write(" in ")
-        self.visit(node.array)
+        self.visit(node.container)
         self.write(") ")
         if node.statement:
             self.visit(node.statement)
@@ -360,6 +351,14 @@ class JavascriptSourceGenerator(SourceGenerator):
 
     def visit_ReturnNode(self, node):
         self.write("return")
+        if node.expression:
+            self.write(" ")
+            self.visit(node.expression)
+        self.write(";")
+        self.newline()
+
+    def visit_YieldNode(self, node):
+        self.write("yield")
         if node.expression:
             self.write(" ")
             self.visit(node.expression)
@@ -408,13 +407,119 @@ class JavascriptSourceGenerator(SourceGenerator):
     def visit_TryNode(self, node):
         self.write("try ")
         self.visit(node.tryblock)
-        if node.catchblock:
-            self.write("catch (" + node.catchid + ") ")
-            self.visit(node.catchblock)
+        if node.catch:
+            if type(node.catch) == list:
+                self.visit_list_helper(node.catch, separator='')
+            else:
+                self.visit(node.catch)
         if node.finallyblock:
             self.write("finally ")
             self.visit(node.finallyblock)
 
+    def visit_CatchNode(self, node):
+        self.write("catch (" + node.catchid + ") ")
+        self.visit(node.catchblock)
+
     def visit_DebuggerNode(self, node):
         self.write("debugger;")
         self.newline()
+
+    #
+    # Features
+    #
+
+    def visit_LetDeclarationNode(self, node):
+        self.write('let ')
+        self.visit_list_helper(node.vars)
+
+    def visit_LetExpressionNode(self, node):
+        if isinstance(node.parent, jsast.Expression):
+            self.write('(')
+        self.write('let (')
+        self.visit_list_helper(node.vars)
+        self.write(') ')
+        self.visit(node.expression)
+        if isinstance(node.parent, jsast.Expression):
+            self.write(')')
+
+    def visit_LetStatementNode(self, node):
+        self.write('let (')
+        self.visit_list_helper(node.vars)
+        self.write(') ')
+        self.visit(node.statement)
+
+    def visit_ForEachNode(self, node):
+        self.write("for each (")
+        self.visit(node.var)
+        self.write(" in ")
+        self.visit(node.container)
+        self.write(") ")
+        if node.statement:
+            self.visit(node.statement)
+        else:
+            self.write(";")
+            self.newline()
+
+#    def visit_TryCatchIfNode(self, node):
+#        self.write("try ")
+#        self.visit(node.tryblock)
+#        if node.catch:
+#            self.visit_list_helper(node.catch, separator='')
+#        if node.finallyblock:
+#            self.write("finally ")
+#            self.visit(node.finallyblock)
+
+    def visit_CatchIfNode(self, node):
+        self.write("catch (" + node.catchid)
+        if node.condition:
+            self.write(" if ")
+            self.visit(node.condition)
+        self.write(") ")
+        self.visit(node.catchblock)
+
+    def visit_ArrayComprehensionNode(self, node):
+        self.write('[')
+#        self.visit_comprehension_helepr(node, forstring='for each')
+        self.visit(node.generator)
+        self.write(']')
+
+    def visit_ComprehensionNode(self, node):
+        self.write('(')
+        self.visit(node.var)
+        self.write(" in ")
+        self.visit(node.container)
+        self.write(')')
+        if node.condition:
+            self.write(' if (')
+            self.visit(node.condition)
+            self.write(')')
+
+    def visit_GeneratorExprNode(self, node):
+        is_array_compr = isinstance(node.parent, jsast.ArrayComprehensionNode)
+
+        if (isinstance(node.parent, jsast.VarInitNode) or
+            isinstance(node.parent, jsast.Expression) and not is_array_compr):
+            self.write("(")
+        self.visit_comprehension_helepr(node, forstring=node.forstring)
+        if (isinstance(node.parent, jsast.VarInitNode) or
+            isinstance(node.parent, jsast.Expression) and not is_array_compr):
+            self.write(")")
+
+    def visit_comprehension_helepr(self, node, forstring='for'):
+        self.visit(node.expr)
+        if len(node.comprehensions) > 1:
+            self.indentation+=1
+            self.newline()
+        else:
+            self.write(' ')
+
+        for i, compr in enumerate(node.comprehensions):
+            self.write(forstring + ' ')
+            self.visit(compr)
+            if i != (len(node.comprehensions) - 1):
+                self.indentation+=1
+                self.newline()
+
+        if len(node.comprehensions) > 1:
+            self.indentation-=len(node.comprehensions)
+

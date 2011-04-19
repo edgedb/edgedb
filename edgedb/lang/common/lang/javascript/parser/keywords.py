@@ -67,8 +67,8 @@ for val, typ in js_keywords.items():
     js_keywords[val] = (val.upper(), typ)
 
 
-by_type = {typ: {} for typ in keyword_types}
-
-
-for val, spec in js_keywords.items():
-    by_type[spec[1]][val] = spec[0]
+#by_type = {typ: {} for typ in keyword_types}
+#
+#
+#for val, spec in js_keywords.items():
+#    by_type[spec[1]][val] = spec[0]

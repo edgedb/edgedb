@@ -6,14 +6,14 @@
 ##
 
 
-from .base import MetaJSParserTest, jxfail
+from .base import MetaJSParserTest_Functional, jxfail
 from semantix.utils.lang.javascript.parser.jsparser import \
-    UnknownToken, UnexpectedToken, UnknownOperator, MissingToken,\
+    UnknownToken, UnexpectedToken, UnknownOperator,\
     SecondDefaultToken, IllegalBreak, IllegalContinue, UndefinedLabel, DuplicateLabel,\
-    UnexpectedNewline
+    UnexpectedNewline, PP_UnexpectedToken, PP_MalformedToken
 
 
-class TestJSParser(metaclass=MetaJSParserTest):
+class TestJSParser(metaclass=MetaJSParserTest_Functional):
     def test_utils_lang_js_parser_literals1(self):
         """print(1, "hello", -2.3e-4);"""
 
@@ -68,7 +68,7 @@ class TestJSParser(metaclass=MetaJSParserTest):
     def test_utils_lang_js_parser_basic8(self):
         """#a=1; print(a);"""
 
-    @jxfail(MissingToken)
+    @jxfail(UnexpectedToken)
     def test_utils_lang_js_parser_basic9(self):
         """print(1~2);"""
 
@@ -167,23 +167,39 @@ class TestJSParser(metaclass=MetaJSParserTest):
         """
 
     def test_utils_lang_js_parser_unary1(self):
-        """var a = 3; print(-a++);"""
+        """
+        a=1;
+        print(a++, ++a, a--, --a);
+        print(+42, -42);
+        print(!42)
+        print(~42)
+        print(void a);
+        print(typeof a);
+
+        b=['a','b','c'];
+        print(b);
+        delete b[1];
+        print(b);
+        """
 
     def test_utils_lang_js_parser_unary2(self):
+        """var a = 3; print(-a++);"""
+
+    def test_utils_lang_js_parser_unary3(self):
         """var a = 3;
 print(---a);"""
 
     @jxfail(UnexpectedToken)
-    def test_utils_lang_js_parser_unary3(self):
+    def test_utils_lang_js_parser_unary4(self):
         """var a = 3; print(-a++++);"""
 
-    def test_utils_lang_js_parser_unary4(self):
+    def test_utils_lang_js_parser_unary5(self):
         """var date = +new Date;"""
 
-    def test_utils_lang_js_parser_unary5(self):
+    def test_utils_lang_js_parser_unary6(self):
         """b = 3.14; print(~~b);"""
 
-    def test_utils_lang_js_parser_unary6(self):
+    def test_utils_lang_js_parser_unary7(self):
         """
         var a = new Boolean(false); // how to quickly check if (a)?
         print(typeof a); // "object"
@@ -194,24 +210,75 @@ print(---a);"""
         """
 
     def test_utils_lang_js_parser_binexpr1(self):
-        """var a = 3; print(1 + 2 / 5 - a * 4 + 6.7 % 3);"""
+        """
+        print(2 + 3);
+        print(2 - 3);
+        print(2 * 3);
+        print(2 / 3);
+        print(2 % 3);
+
+        print(-42<<3);
+        print(-42>>3);
+        print(-42>>>3);
+
+        print(2 < 3);
+        print(2 > 3);
+        print(2 <= 3);
+        print(2 >= 3);
+        print(2 >= 3);
+        print(1 in ['a', 'b']);
+        a = String('test');
+        print(a instanceof String);
+
+        print(1 == '1');
+        print(1 != '1');
+        print(1 === '1');
+        print(1 !== '1');
+
+        print(1 & 5);
+        print(1 | 4);
+        print(1 ^ 5);
+
+        print(3 && false);
+        print(3 || false);
+
+        print(true ? 'foo' : 'bar');
+        """
 
     def test_utils_lang_js_parser_binexpr2(self):
-        """var a = -3; print(a << 2, a >> 1, a >>> 1);"""
+        """
+        print(a = 2);
+        print(a += 3);
+        print(a -= 3);
+        print(a *= 3);
+        print(a /= 3);
+        print(a <<= 3);
+        print(a >>= 1);
+        print(a >>>= 2);
+        print(a |= 196);
+        print(a &= 15);
+        print(a ^= 115);
+        """
 
     def test_utils_lang_js_parser_binexpr3(self):
-        """var a = 3; print(a < 3, a <= 3, a > 3, a >= 3);"""
+        """var a = 3; print(1 + 2 / 5 - a * 4 + 6.7 % 3);"""
 
     def test_utils_lang_js_parser_binexpr4(self):
-        """var a = 3; print(a == "3", a != "a", a === "3", a !== 3);"""
+        """var a = -3; print(a << 2, a >> 1, a >>> 1);"""
 
     def test_utils_lang_js_parser_binexpr5(self):
-        """var a = 3; print(a | 70 ^ 100 & 96, ((a | 70) ^ 100) & 96);"""
+        """var a = 3; print(a < 3, a <= 3, a > 3, a >= 3);"""
 
     def test_utils_lang_js_parser_binexpr6(self):
-        """var a = 3; print(a == 2 || true && a == 4);"""
+        """var a = 3; print(a == "3", a != "a", a === "3", a !== 3);"""
 
     def test_utils_lang_js_parser_binexpr7(self):
+        """var a = 3; print(a | 70 ^ 100 & 96, ((a | 70) ^ 100) & 96);"""
+
+    def test_utils_lang_js_parser_binexpr8(self):
+        """var a = 3; print(a == 2 || true && a == 4);"""
+
+    def test_utils_lang_js_parser_binexpr9(self):
         """var a = 3; print(16 | false == 0 <= 1 + 2 / 5 - a * 4 + 6.7 % 3);"""
 
     def test_utils_lang_js_parser_ifexpr1(self):
@@ -374,14 +441,14 @@ foo();
         for (print(1),print(2),3,4,5,print(5),a=2;print("foo"),true;a++)
         {print(a); break;}"""
 
-    @jxfail(MissingToken)
+    @jxfail(UnexpectedToken)
     def test_utils_lang_js_parser_for10(self):
         """for (1 in []; print("yay!"); ) break;"""
 
     def test_utils_lang_js_parser_for11(self):
         """for (2 + print(1); print("yay!"); ) break;"""
 
-    @jxfail(MissingToken)
+    @jxfail(UnexpectedToken)
     def test_utils_lang_js_parser_for12(self):
         """for (2,print(3),1 in [],print(2); print("yay!"); ) break;"""
 
@@ -394,7 +461,7 @@ foo();
     def test_utils_lang_js_parser_for15(self):
         """for (print(1 in []); print("yay!"); ) break;"""
 
-    @jxfail(MissingToken)
+    @jxfail(UnexpectedToken)
     def test_utils_lang_js_parser_for16(self):
         """for (var a,b,c in [1,2,3]) print(42);"""
 
@@ -485,7 +552,7 @@ foo();
     def test_utils_lang_js_parser_block1(self):
         """{ print(1); }"""
 
-    @jxfail(MissingToken)
+    @jxfail(UnexpectedToken)
     def test_utils_lang_js_parser_block2(self):
         """{ {a:1,b:2}; }"""
 
@@ -717,15 +784,15 @@ foo();
         a.A;
         """
 
-    @jxfail(MissingToken)
+    @jxfail(UnexpectedToken)
     def test_utils_lang_js_parser_label10(self):
         """(a): print('foo');"""
 
-    @jxfail(MissingToken)
+    @jxfail(UnexpectedToken)
     def test_utils_lang_js_parser_label11(self):
         """b+a: print('foo');"""
 
-    @jxfail(MissingToken)
+    @jxfail(UnexpectedToken)
     def test_utils_lang_js_parser_label12(self):
         """10: print('foo');"""
 
@@ -744,7 +811,7 @@ foo();
             a++) print(a)
         """
 
-    @jxfail(MissingToken)
+    @jxfail(UnexpectedToken)
     def test_utils_lang_js_parser_semicolon4(self):
         """
         for (
@@ -774,7 +841,7 @@ foo();
     def test_utils_lang_js_parser_semicolon9(self):
         """{if (true)}"""
 
-    @jxfail(MissingToken)
+    @jxfail(UnexpectedToken)
     def test_utils_lang_js_parser_semicolon10(self):
         """
         for (print('wrong');true
