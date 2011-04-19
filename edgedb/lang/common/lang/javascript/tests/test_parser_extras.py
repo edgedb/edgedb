@@ -15,7 +15,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
     def test_utils_lang_js_parser_extra_yield1(self):
         '''function foo() { while (true) yield 42; }; print(foo().next());'''
 
-    @jxfail(UnknownToken)
+    @jxfail(UnknownToken, attrs={'line' : 1, 'col' : 31})
     def test_utils_lang_js_parser_extra_yield2(self):
         '''function foo() { while (true) yield 42; }; print(foo().next());'''
 
@@ -39,7 +39,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
     def test_utils_lang_js_parser_extra_let5(self):
         '''for(let a in [1, 2, 3]) print('foo');'''
 
-    @jxfail(UnknownToken)
+    @jxfail(UnknownToken, attrs={'line' : 1, 'col' : 1})
     def test_utils_lang_js_parser_extra_let6(self):
         '''let ([a, b] = [3, 4]) print(a, b);'''
 
@@ -47,7 +47,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
     def test_utils_lang_js_parser_extra_foreach1(self):
         '''for each (a in [1, 3 , 42]) print(a);'''
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 5})
     def test_utils_lang_js_parser_extra_foreach2(self):
         '''for each (a in [1, 3 , 42]) print(a);'''
 
@@ -108,7 +108,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
         }
         """
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 6, 'col' : 19})
     def test_utils_lang_js_parser_extra_trycatchif5(self):
         """
         try {
@@ -215,14 +215,14 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
         """
 
     @flags(generatorexprsupport=True)
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 2, 'col' : 31})
     def test_utils_lang_js_parser_extra_comprehension8(self):
         """
         a = [2,3,4,5] for each;
         print(a);
         """
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 3, 'col' : 29})
     def test_utils_lang_js_parser_extra_comprehension9(self):
         """
         a = [2,3,4,5];
@@ -246,7 +246,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
         print(b);
         """
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 4, 'col' : 13})
     def test_utils_lang_js_parser_extra_comprehension12(self):
         """
         a = [2,3,4,5];
@@ -255,7 +255,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
         print(b);
         """
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 4, 'col' : 9})
     def test_utils_lang_js_parser_extra_comprehension13(self):
         """
         a = [2,3,4,5];
@@ -264,7 +264,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
         print(b);
         """
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 4, 'col' : 9})
     def test_utils_lang_js_parser_extra_comprehension14(self):
         """
         a = [2,3,4,5];
@@ -274,7 +274,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
         """
 
     @flags(foreachsupport=True, arraycompsupport=True)
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 4, 'col' : 9})
     def test_utils_lang_js_parser_extra_comprehension15(self):
         """
         a = [2,3,4,5];
@@ -284,7 +284,6 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
         """
 
     @flags(foreachsupport=True, arraycompsupport=True)
-#    @jxfail(UnexpectedToken)
     def test_utils_lang_js_parser_extra_comprehension16(self):
         """
         a = [2,3,4,5];

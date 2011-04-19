@@ -60,15 +60,15 @@ class TestJSParser(metaclass=MetaJSParserTest_Functional):
     def test_utils_lang_js_parser_basic6(self):
         """a=b=c=d='hello'; print(a,b,c,d);"""
 
-    @jxfail(UnknownToken)
+    @jxfail(UnknownToken, attrs={'line' : 1, 'col' : 1})
     def test_utils_lang_js_parser_basic7(self):
         """@a=1; print(@a);"""
 
-    @jxfail(UnknownToken)
+    @jxfail(UnknownToken, attrs={'line' : 1, 'col' : 1})
     def test_utils_lang_js_parser_basic8(self):
         """#a=1; print(a);"""
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 8})
     def test_utils_lang_js_parser_basic9(self):
         """print(1~2);"""
 
@@ -93,7 +93,7 @@ class TestJSParser(metaclass=MetaJSParserTest_Functional):
             };
         print(a.do, a.while, a.get=2);"""
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 2, 'col' : 29})
     def test_utils_lang_js_parser_object5(self):
         """
         var a = {2 : "foo", {} : "bar", {a : 2} : "weird"};
@@ -189,7 +189,7 @@ class TestJSParser(metaclass=MetaJSParserTest_Functional):
         """var a = 3;
 print(---a);"""
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 22})
     def test_utils_lang_js_parser_unary4(self):
         """var a = 3; print(-a++++);"""
 
@@ -345,7 +345,7 @@ print(---a);"""
         f(1); f("world");
         """
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 2, 'col' : 18})
     def test_utils_lang_js_parser_function3(self):
         """
         function (a) { print("Hello,", a); };
@@ -441,14 +441,14 @@ foo();
         for (print(1),print(2),3,4,5,print(5),a=2;print("foo"),true;a++)
         {print(a); break;}"""
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 13})
     def test_utils_lang_js_parser_for10(self):
         """for (1 in []; print("yay!"); ) break;"""
 
     def test_utils_lang_js_parser_for11(self):
         """for (2 + print(1); print("yay!"); ) break;"""
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 33})
     def test_utils_lang_js_parser_for12(self):
         """for (2,print(3),1 in [],print(2); print("yay!"); ) break;"""
 
@@ -461,7 +461,7 @@ foo();
     def test_utils_lang_js_parser_for15(self):
         """for (print(1 in []); print("yay!"); ) break;"""
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 16})
     def test_utils_lang_js_parser_for16(self):
         """for (var a,b,c in [1,2,3]) print(42);"""
 
@@ -489,7 +489,7 @@ foo();
         }
         """
 
-    @jxfail(SecondDefaultToken)
+    @jxfail(SecondDefaultToken, attrs={'line' : 6, 'col' : 13})
     def test_utils_lang_js_parser_switch4(self):
         """
         switch (10) {
@@ -552,7 +552,7 @@ foo();
     def test_utils_lang_js_parser_block1(self):
         """{ print(1); }"""
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 9})
     def test_utils_lang_js_parser_block2(self):
         """{ {a:1,b:2}; }"""
 
@@ -562,7 +562,7 @@ foo();
     def test_utils_lang_js_parser_block4(self):
         """{ var a ={a:1,b:2}; } print(a.a, a.b);"""
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 3, 'col' : 14})
     def test_utils_lang_js_parser_block5(self):
         """
         {
@@ -684,29 +684,29 @@ foo();
     def test_utils_lang_js_parser_break2(self):
         """print(1); b: {print(2); while (true) break; print(42);} print("yay");"""
 
-    @jxfail(IllegalBreak)
+    @jxfail(IllegalBreak, attrs={'line' : 1, 'col' : 25})
     def test_utils_lang_js_parser_break3(self):
         """print(1); b: {print(2); break; print(42);} print("yay");"""
 
-    @jxfail(UndefinedLabel)
+    @jxfail(UndefinedLabel, attrs={'line' : 1, 'col' : 31})
     def test_utils_lang_js_parser_break4(self):
         """b: print(1); {print(2); break b; print(42);} print("yay");"""
 
     def test_utils_lang_js_parser_break5(self):
         """a: function foo() {a: {print("bar"); break a; print("never");}}; foo();"""
 
-    @jxfail(DuplicateLabel)
+    @jxfail(DuplicateLabel, attrs={'line' : 1, 'col' : 38})
     def test_utils_lang_js_parser_break6(self):
         """a: function foo() {a: {print("bar"); a: {break a; print("never");}}}; foo();"""
 
-    @jxfail(UndefinedLabel)
+    @jxfail(UndefinedLabel, attrs={'line' : 1, 'col' : 48})
     def test_utils_lang_js_parser_break7(self):
         """a: function foo() {b: {print("bar"); c: {break a; print("never");}}}; foo();"""
 
     def test_utils_lang_js_parser_break8(self):
         """a: function foo() {b: {print("bar"); c: {break c; print("never");}}}; foo();"""
 
-    @jxfail(UndefinedLabel)
+    @jxfail(UndefinedLabel, attrs={'line' : 1, 'col' : 34})
     def test_utils_lang_js_parser_continue1(self):
         """print(1); b: {print(2); continue b; print(42);} print("yay");"""
 
@@ -714,11 +714,11 @@ foo();
         """var x = true;
         b: {print(2); while (x) {print(x); x = !x; continue; x = true;}} print("yay");"""
 
-    @jxfail(IllegalContinue)
+    @jxfail(IllegalContinue, attrs={'line' : 1, 'col' : 25})
     def test_utils_lang_js_parser_continue3(self):
         """print(1); b: {print(2); continue; print(42);} print("yay");"""
 
-    @jxfail(UndefinedLabel)
+    @jxfail(UndefinedLabel, attrs={'line' : 1, 'col' : 34})
     def test_utils_lang_js_parser_continue4(self):
         """b: print(1); {print(2); continue b; print(42);} print("yay");"""
 
@@ -726,17 +726,17 @@ foo();
         """a: function foo(x)
         {a: while (x) {print(x); x = !x; continue a; print("never");}}; foo(true);"""
 
-    @jxfail(DuplicateLabel)
+    @jxfail(DuplicateLabel, attrs={'line' : 2, 'col' : 24})
     def test_utils_lang_js_parser_continue6(self):
         """a: function foo(x)
         {a: while (x) {a: print(x); x = !x; continue a; print("never");}}; foo(true);"""
 
-    @jxfail(UndefinedLabel)
+    @jxfail(UndefinedLabel, attrs={'line' : 2, 'col' : 54})
     def test_utils_lang_js_parser_continue7(self):
         """a: function foo(x)
         {b: while (x) {c: print(x); x = !x; continue a; print("never");}}; foo(true);"""
 
-    @jxfail(UndefinedLabel)
+    @jxfail(UndefinedLabel, attrs={'line' : 2, 'col' : 54})
     def test_utils_lang_js_parser_continue8(self):
         """a: function foo(x)
         {b:{c: while (x) {print(x); x = !x; continue b; print("never");}}}; foo(true);"""
@@ -744,14 +744,14 @@ foo();
     def test_utils_lang_js_parser_label1(self):
         """A: print(1); A: print(2); A: print(3);"""
 
-    @jxfail(DuplicateLabel)
+    @jxfail(DuplicateLabel, attrs={'line' : 1, 'col' : 15})
     def test_utils_lang_js_parser_label2(self):
         """A: {print(1); A: {print(2); A: {print(3);}}}"""
 
     def test_utils_lang_js_parser_label3(self):
         """A: {print(1); B: {print(2); C: {print(3);}}}"""
 
-    @jxfail(DuplicateLabel)
+    @jxfail(DuplicateLabel, attrs={'line' : 1, 'col' : 15})
     def test_utils_lang_js_parser_label4(self):
         """A: {print(1); A: function foo () {print(2); A: {print(3);}} foo();}"""
 
@@ -764,7 +764,7 @@ foo();
         a.A();
         """
 
-    @jxfail(UndefinedLabel)
+    @jxfail(UndefinedLabel, attrs={'line' : 2, 'col' : 72})
     def test_utils_lang_js_parser_label7(self):
         """
         A: var a = {A: function () {while (true) { print('obj'); break A; }}};
@@ -777,29 +777,29 @@ foo();
         a.A;
         """
 
-    @jxfail(UndefinedLabel)
+    @jxfail(UndefinedLabel, attrs={'line' : 2, 'col' : 66})
     def test_utils_lang_js_parser_label9(self):
         """
         A: var a = {get A () {while (true) { print('obj'); break A; }}};
         a.A;
         """
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 4})
     def test_utils_lang_js_parser_label10(self):
         """(a): print('foo');"""
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 4})
     def test_utils_lang_js_parser_label11(self):
         """b+a: print('foo');"""
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 3})
     def test_utils_lang_js_parser_label12(self):
         """10: print('foo');"""
 
     def test_utils_lang_js_parser_semicolon1(self):
         "print('hello')"
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 10})
     def test_utils_lang_js_parser_semicolon2(self):
         "if (true)"
 
@@ -811,7 +811,7 @@ foo();
             a++) print(a)
         """
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 4, 'col' : 13})
     def test_utils_lang_js_parser_semicolon4(self):
         """
         for (
@@ -823,7 +823,7 @@ foo();
     def test_utils_lang_js_parser_semicolon5(self):
         """{print('hello')}"""
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 15})
     def test_utils_lang_js_parser_semicolon6(self):
         """print('hello')}"""
 
@@ -837,18 +837,18 @@ foo();
     def test_utils_lang_js_parser_semicolon8(self):
         """{1+2}print('hello')"""
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 11})
     def test_utils_lang_js_parser_semicolon9(self):
         """{if (true)}"""
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 3, 'col' : 9})
     def test_utils_lang_js_parser_semicolon10(self):
         """
         for (print('wrong');true
         ) break;
         """
 
-    @jxfail(UnexpectedToken)
+    @jxfail(UnexpectedToken, attrs={'line' : 4, 'col' : 9})
     def test_utils_lang_js_parser_semicolon11(self):
         """
         print('right')
@@ -864,7 +864,7 @@ foo();
         (d+c).foo()
         """
 
-    @jxfail(UnexpectedNewline)
+    @jxfail(UnexpectedNewline, attrs={'line' : 2, 'col' : 14})
     def test_utils_lang_js_parser_semicolon13(self):
         """
         throw

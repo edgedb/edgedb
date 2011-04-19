@@ -25,7 +25,7 @@ code:
     pyggy.lexer.lexer.swallow_line_cont = False
     pyggy.lexer.lexer.line = 1
     pyggy.lexer.lexer.col = 1
-    pyggy.lexer.lexer.start = pyggy.lexer.lexer.end = (1,0)
+    pyggy.lexer.lexer.start = pyggy.lexer.lexer.end = (1,1)
 
 definitions:
     # eventually we might also want <VT> <FF> <NBSP>
@@ -118,7 +118,6 @@ INITIAL:
 # might need to include unary prefix ops here
 
     "{id}":
-        #global line, col
         advance_line_col(self)
         return "ID"
 
@@ -189,7 +188,8 @@ INITIAL:
                 # bite off the second char if it isn't '='
                 self.value = self.value[0]
                 self.PUSHBACK(nextchar)
-            self.col += len(self.value)
+            advance_line_col(self)
+            #self.col += len(self.value)
             return "OP"
 
 ###### Helper states ######
@@ -240,8 +240,8 @@ DOUBLEQUOTE:
         self.col += len(self.value)
     "\"":
         self.POPSTATE()
-        self.value = self.string
         self.col += len(self.value)
+        self.value = self.string
         self.end = (self.line, self.col)
         return "STRING"
 
@@ -262,8 +262,8 @@ SINGLEQUOTE:
         self.col += len(self.value)
     "\'":
         self.POPSTATE()
-        self.value = self.string
         self.col += len(self.value)
+        self.value = self.string
         self.end = (self.line, self.col)
         return "STRING"
 

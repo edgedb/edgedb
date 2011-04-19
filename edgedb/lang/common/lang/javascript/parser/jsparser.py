@@ -295,7 +295,7 @@ class JSParser():
         """Reset the line & col counters, and internal state."""
 
         self.token = self.prevtoken = Start_Token()
-        self.lexer.line, self.lexer.col = 1, 0
+        self.lexer.line, self.lexer.col = 1, 1
         self._scope = []
         self._labels = []
 
@@ -805,6 +805,7 @@ class JSParser():
 
         else:
             expr = self.parse_expression()
+            errtok = self.prevtoken
 
             # now let's test if that was a label or expression statement
             #
@@ -816,7 +817,7 @@ class JSParser():
                 label = expr.name
 
                 if label in self.enclosing_stmt_labels():
-                    raise DuplicateLabel(self.prevtoken)
+                    raise DuplicateLabel(errtok)
 
                 return jsast.LabelNode(id=label,
                                        statement=self.parse_statement(labels=labels + [label]))
@@ -1009,12 +1010,13 @@ class JSParser():
 
     def parse_continue_guts(self):
         """Parse the rest of the continue statement."""
+        errtok = self.prevtoken
 
         if self.tentative_match(';') or self.linebreak_detected:
             # must be inside a loop
             #
             if not self.enclosing_state('loop'):
-                raise IllegalContinue(self.token)
+                raise IllegalContinue(errtok)
 
             return jsast.ContinueNode(id=None)
 
@@ -1032,13 +1034,14 @@ class JSParser():
 
 
     def parse_break_guts(self):
-        """Parse the rest of the continue statement."""
+        """Parse the rest of the break statement."""
+        errtok = self.prevtoken
 
         if self.tentative_match(';') or self.linebreak_detected:
             # must be inside a loop or switch
             #
             if not self.enclosing_state('loop', 'switch'):
-                raise IllegalBreak(self.token)
+                raise IllegalBreak(errtok)
 
             return jsast.BreakNode(id=None)
 
