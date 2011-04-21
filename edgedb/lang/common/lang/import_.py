@@ -64,6 +64,14 @@ class LightProxyModule(BaseProxyModule):
 
 
 class Importer(importlib.abc.Finder, importlib.abc.Loader):
+    _modules_by_file = {}
+
+    @classmethod
+    def get_module_by_filename(cls, filename):
+        modname = cls._modules_by_file.get(filename)
+        if modname:
+            return sys.modules.get(modname)
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.module_file_map = dict()
@@ -89,8 +97,14 @@ class Importer(importlib.abc.Finder, importlib.abc.Loader):
         language, filename, is_package = self.module_file_map[fullname]
 
         if language.loader:
-            return language.loader(fullname, filename, is_package).load_module(fullname)
+            module = language.loader(fullname, filename, is_package).load_module(fullname)
+        else:
+            module = self._load_module(fullname, language, filename, is_package)
 
+        self.__class__._modules_by_file[filename] = fullname
+        return module
+
+    def _load_module(self, fullname, language, filename, is_package):
         orig_mod = new_mod = sys.modules.get(fullname)
         reload = new_mod is not None
         proxied = language.proxy_module_cls and isinstance(orig_mod, BaseProxyModule)
