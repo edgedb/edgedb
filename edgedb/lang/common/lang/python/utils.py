@@ -12,10 +12,20 @@ from semantix.exceptions import ExceptionContext
 from semantix.utils.datastructures import xvalue
 from semantix.utils.lang.meta import SourcePoint, SourceContext
 from semantix.utils import helper
+from semantix.utils.lang.import_ import Importer
+
+
+def get_frame_module(frame):
+    try:
+        file = inspect.getabsfile(frame)
+    except TypeError:
+        return None
+
+    return Importer.get_module_by_filename(file)
 
 
 def source_context_from_frame(frame):
-    frame_module = inspect.getmodule(frame)
+    frame_module = get_frame_module(frame)
     file_source = inspect.getsourcelines(frame_module)[0]
     line_no = frame.f_lineno
     name = frame_module.__name__
