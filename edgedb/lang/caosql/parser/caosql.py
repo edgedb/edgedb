@@ -1015,7 +1015,7 @@ class NodeName(Nonterm):
         self.val = qlast.PrototypeRefNode(name=kids[0].val)
 
     def reduce_LBRACKET_FqName_RBRACKET(self, *kids):
-        "%reduce LBRACKET FqName RBRACKET"
+        "%reduce LBRACKET AnyFqName RBRACKET"
         self.val = qlast.PrototypeRefNode(module='.'.join(kids[1].val[:-1]), name=kids[1].val[-1])
 
 
@@ -1036,6 +1036,16 @@ class FqName(Nonterm):
 
     def reduce_FqName_DOT_LabelExpr(self, *kids):
         "%reduce FqName DOT LabelExpr"
+        self.val = kids[0].val + [kids[2].val]
+
+
+class AnyFqName(Nonterm):
+    def reduce_AnyLabelExpr(self, *kids):
+        "%reduce AnyLabelExpr"
+        self.val = [kids[0].val]
+
+    def reduce_AnyFqName_DOT_AnyLabelExpr(self, *kids):
+        "%reduce AnyFqName DOT AnyLabelExpr"
         self.val = kids[0].val + [kids[2].val]
 
 
@@ -1062,6 +1072,16 @@ class LabelExpr(Nonterm):
 
     def reduce_UnreservedKeyword(self, *kids):
         "%reduce UnreservedKeyword"
+        self.val = kids[0].val
+
+
+class AnyLabelExpr(Nonterm):
+    def reduce_LabelExpr(self, *kids):
+        "%reduce LabelExpr"
+        self.val = kids[0].val
+
+    def reduce_ReservedKeyword(self, *kids):
+        "%reduce ReservedKeyword"
         self.val = kids[0].val
 
 

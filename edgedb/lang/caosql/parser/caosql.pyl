@@ -146,7 +146,7 @@ INITIAL:
     "{identifier}":
         kw = caosql_keywords.get(self.value.lower())
         if kw:
-            self.value = self.value.lower()
+            self.value = self.value
             return kw[0]
         else:
             return 'IDENT'
