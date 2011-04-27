@@ -11,6 +11,7 @@ from semantix.caos import proto
 from semantix.utils import ast
 from . import ast as caosql_ast, parser, transformer, codegen
 from semantix.caos.tree import ast as caos_ast
+from semantix.caos.tree import transformer as caos_transformer
 
 from . import errors
 
@@ -22,6 +23,7 @@ class CaosQLExpression:
         self.proto_schema = proto_schema
         self.transformer = transformer.CaosqlTreeTransformer(proto_schema, module_aliases)
         self.reverse_transformer = transformer.CaosqlReverseTransformer()
+        self.path_resolver = None
 
     def process_concept_expr(self, expr, concept):
         tree = self.parser.parse(expr)
@@ -42,9 +44,16 @@ class CaosQLExpression:
         tree = self.reverse_transformer.transform(caos_tree)
         return codegen.CaosQLSourceGenerator.to_source(tree), caos_tree
 
-    def transform_expr_fragment(self, expr, anchors):
+    def transform_expr_fragment(self, expr, anchors=None):
         tree = self.parser.parse(expr)
         return self.transformer.transform_fragment(tree, (), anchors=anchors)
+
+    def get_path_targets(self, expr, session, anchors=None):
+        if not self.path_resolver:
+            self.path_resolver = caos_transformer.PathResolver()
+        ctree = self.transform_expr_fragment(expr, anchors=anchors)
+        targets = self.path_resolver.resolve_path(ctree, session)
+        return targets
 
     def normalize_source_expr(self, expr, source):
         tree = self.parser.parse(expr)

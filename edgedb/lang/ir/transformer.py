@@ -1922,3 +1922,54 @@ class TreeTransformer:
                                               isinstance(selexpr.expr, caos_ast.Constant))
 
         return result
+
+
+class PathResolver(TreeTransformer):
+    def resolve_path(self, tree, session):
+        if isinstance(tree, caos_ast.Disjunction):
+            paths = tree.paths
+        else:
+            paths = {tree}
+
+        result = set()
+
+        for path in paths:
+            result.add(self._resolve_path(path, session))
+
+        return result
+
+    def _resolve_path(self, path, session):
+        if isinstance(path, caos_ast.AtomicRefSimple):
+            expr = self._resolve_path(path.ref, session)
+            result = getattr(expr, path.name)
+
+        elif isinstance(path, caos_ast.LinkPropRefSimple):
+            expr = self._resolve_path(path.ref, session)
+            result = getattr(expr, path.name)
+
+        elif isinstance(path, caos_ast.EntitySet):
+            result = session.schema.get(path.concept.name)
+
+            if path.rlink:
+                result = self._step_from_link(path.rlink, result, session)
+
+        elif isinstance(path, caos_ast.EntityLink):
+            link = path
+            link_proto = next(iter(link.filter.labels))
+            source = self._resolve_path(link.source, session)
+            target = getattr(source, link_proto.normal_name())
+            result = target.as_link()
+
+        else:
+            raise TreeError('unexpected node: "%r"' % path)
+
+        return result
+
+    def _step_from_link(self, link, target, session):
+        link_proto = next(iter(link.filter.labels))
+        dir = link.filter.direction
+        source = self._resolve_path(link.source, session)
+        result = caos_utils.create_path_step(session, source, target,
+                                             link_proto.normal_name(),
+                                             dir)
+        return result
