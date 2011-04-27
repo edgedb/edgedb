@@ -1130,10 +1130,18 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
                         else:
                             link_qname = caos.Name(link_name)
 
+                    atom_constraints = self._get_link_atom_constraints(link)
+
+                    if atom_constraints:
+                        target_name = Atom.gen_atom_name(concept, link_qname)
+                        target_name = caos.Name(name=target_name, module=concept.name.module)
+                    else:
+                        target_name = link.target
+
                     # A new specialized subclass of the link is created for each
                     # (source, link_name, target) combination
                     link.base = (link_qname,)
-                    link_genname = proto.Link.generate_name(link.source, link.target, link_qname)
+                    link_genname = proto.Link.generate_name(link.source, target_name, link_qname)
                     link.name = caos.Name(name=link_genname, module=link_qname.module)
 
                     self.read_properties_for_link(link, globalmeta, localmeta)
@@ -1264,11 +1272,8 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
                             if link_name in link_target_types and link_target_types[link_name] != 'atom':
                                 raise caos.MetaError('%s link is already defined as a link to non-atom')
 
-                            constraints = getattr(link, '_constraints', None)
-                            if constraints:
-                                atom_constraints = [c for c in constraints if isinstance(c, proto.AtomConstraint)]
-                            else:
-                                atom_constraints = None
+                            atom_constraints = self._get_link_atom_constraints(link)
+
                             if atom_constraints:
                                 # Got an inline atom definition.
                                 atom = self.genatom(globalmeta, concept, link.target.name, link_name,
@@ -1311,6 +1316,16 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
             raise MetaError(e.args[0], context=index.context) from e
 
         return concepts
+
+
+    def _get_link_atom_constraints(self, link):
+        constraints = getattr(link, '_constraints', None)
+        if constraints:
+            atom_constraints = [c for c in constraints if isinstance(c, proto.AtomConstraint)]
+        else:
+            atom_constraints = None
+
+        return atom_constraints
 
 
     def genatom(self, meta, host, base, link_name, constraints, default):
