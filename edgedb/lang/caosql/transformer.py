@@ -241,6 +241,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         self.context = context = ParseContext()
         self.context.current.proto_schema = self.proto_schema
         self.context.current.module_aliases = module_aliases or self.module_aliases
+        if self.context.current.module_aliases:
+            self.context.current.namespaces.update(self.context.current.module_aliases)
 
         if anchors:
             self._populate_anchors(context, anchors)
@@ -251,8 +253,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         stree = self._transform_select(context, caosql_tree, arg_types)
         return stree
 
-    def transform_fragment(self, caosql_tree, arg_types, module_aliases=None, anchors=None):
+    def transform_fragment(self, caosql_tree, arg_types, module_aliases=None, anchors=None,
+                                 location=None):
         context = self._init_context(arg_types, module_aliases, anchors)
+        context.current.location = location or 'generator'
         stree = self._process_expr(context, caosql_tree)
         return stree
 
@@ -839,4 +843,5 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         path_tip = next(iter(path_tip))
         anchors = {'self': path_tip}
         caosql_tree = self.parser.parse(computable_proto.expression)
-        return self.transform_fragment(caosql_tree, (), anchors=anchors)
+        return self.transform_fragment(caosql_tree, (), anchors=anchors,
+                                       location='computable')
