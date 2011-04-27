@@ -675,17 +675,18 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                                     newtips[target] = set()
                                     for t in tip:
-                                        atomref_id = tree.transformer.LinearPath(t.id)
-                                        atomref_id.add(link_item, dir, target)
-                                        atomref = tree.ast.AtomicRefSimple(name=linkset_proto.name,
-                                                                           ref=t, id=atomref_id)
-                                        newtips[target].add(atomref)
-
                                         link = tree.ast.EntityLink(source=t, target=None,
                                                                    filter=link_spec,
                                                                    link_proto=link_proto,
                                                                    anchor=link_anchor)
                                         anchor_links.append(link)
+
+                                        atomref_id = tree.transformer.LinearPath(t.id)
+                                        atomref_id.add(link_item, dir, target)
+                                        atomref = tree.ast.AtomicRefSimple(name=linkset_proto.name,
+                                                                           ref=t, id=atomref_id,
+                                                                           rlink=link)
+                                        newtips[target].add(atomref)
 
                                 else:
                                     assert False, 'unexpected link target type: %s' % target
