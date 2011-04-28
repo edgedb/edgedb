@@ -9,6 +9,7 @@
 import builtins
 import collections
 import importlib
+import itertools
 import operator
 import re
 
@@ -100,6 +101,9 @@ class Namespace:
 
     def __iter__(self):
         return iter(self.index_by_name.items())
+
+    def iter_modules(self):
+        return iter(self.index_by_module)
 
     def add(self, obj):
         idx_by_mod = self.index_by_module.setdefault(obj.name.module, collections.OrderedDict())
@@ -445,6 +449,9 @@ class ProtoSchema:
             result = Namespace(self)
             self.namespaces[ns] = result
             return result
+
+    def iter_modules(self):
+        return itertools.chain.from_iterable(ns.iter_modules() for ns in self.namespaces.values())
 
 
 class BuiltinProtoSchema(ProtoSchema):
