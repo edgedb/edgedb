@@ -739,14 +739,20 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
         for link in links:
             if self.include_builtin or link.name.module != 'semantix.caos.builtins':
                 link.setdefaults()
-                link.materialize(self.finalschema)
                 self.finalschema.add(link)
+
+        for link in links:
+            if self.include_builtin or link.name.module != 'semantix.caos.builtins':
+                link.materialize(self.finalschema)
 
         for concept in concepts:
             if self.include_builtin or concept.name.module != 'semantix.caos.builtins':
                 concept.setdefaults()
-                concept.materialize(self.finalschema)
                 self.finalschema.add(concept)
+
+        for concept in concepts:
+            if self.include_builtin or concept.name.module != 'semantix.caos.builtins':
+                concept.materialize(self.finalschema)
 
 
     def get_proto_schema_class(self, builtin):
