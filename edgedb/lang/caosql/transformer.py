@@ -589,30 +589,34 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     if len(sources) > 1 or list(sources)[0] != concept:
                         newtip = set()
                         for t in tip:
-                            paths = set(t.rlink.source.disjunction.paths)
+                            if t.rlink:
+                                paths = set(t.rlink.source.disjunction.paths)
 
-                            for source in sources:
-                                link_spec = t.rlink.filter
-                                t_id = tree.transformer.LinearPath(t.id[:-2])
-                                t_id.add(link_spec.labels, link_spec.direction, source)
+                                for source in sources:
+                                    link_spec = t.rlink.filter
+                                    t_id = tree.transformer.LinearPath(t.id[:-2])
+                                    t_id.add(link_spec.labels, link_spec.direction, source)
 
-                                new_target = tree.ast.EntitySet()
-                                new_target.concept = source
-                                new_target.id = t_id
-                                new_target.users = t.users.copy()
+                                    new_target = tree.ast.EntitySet()
+                                    new_target.concept = source
+                                    new_target.id = t_id
+                                    new_target.users = t.users.copy()
 
-                                newtip.add(new_target)
+                                    newtip.add(new_target)
 
-                                link = tree.ast.EntityLink(source=t.rlink.source,
-                                                           target=new_target,
-                                                           filter=link_spec,
-                                                           link_proto=t.rlink.link_proto)
+                                    link = tree.ast.EntityLink(source=t.rlink.source,
+                                                               target=new_target,
+                                                               filter=link_spec,
+                                                               link_proto=t.rlink.link_proto)
 
-                                new_target.rlink = link
-                                paths.add(link)
+                                    new_target.rlink = link
+                                    paths.add(link)
 
-                            paths.remove(t.rlink)
-                            t.rlink.source.disjunction.paths = frozenset(paths)
+                                paths.remove(t.rlink)
+                                t.rlink.source.disjunction.paths = frozenset(paths)
+                            else:
+                                newtip.add(t)
+
                             tip = newtip
 
                     links = {caos_types.OutboundDirection: outbound,
