@@ -561,3 +561,25 @@ class StrSingleton(str):
     @classmethod
     def values(cls):
         return iter(cls._map.keys())
+
+
+class _MarkerMeta(type):
+    def __repr__(cls):
+        repr_ = cls.__repr__
+        if repr_ is object.__repr__:
+            repr_ = type.__repr__
+        return repr_(cls)
+
+
+class _Marker(metaclass=_MarkerMeta):
+    def __init__(self):
+        raise TypeError('%r cannot be instantiated' % self.__class__.__name__)
+
+
+class _VoidMeta(_MarkerMeta):
+    def __bool__(cls):
+        return False
+
+
+class Void(_Marker, metaclass=_VoidMeta):
+    pass
