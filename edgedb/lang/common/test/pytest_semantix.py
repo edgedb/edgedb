@@ -12,7 +12,7 @@ import re
 import sys
 import logging
 
-from semantix.exceptions import SemantixError
+from semantix.exceptions import SemantixError, excepthook
 from semantix.utils.debug import highlight
 from semantix.utils.io import terminal
 
@@ -85,6 +85,9 @@ class LoggingPrintHandler(logging.Handler):
                 print(terminal.colorize('LOGGER', 'white', 'red'), os.getpid(), record)
             else:
                 print('LOGGER', os.getpid(), record)
+
+            if record.exc_info:
+                excepthook(*record.exc_info)
 
 
 test_patterns = []
