@@ -1374,10 +1374,13 @@ class CaosTreeTransformer(CaosExprTransformer):
                 step_cte.linkmap[(link.filter, link.source, tip_anchor)] = maps
 
             if concept_table:
+                prev_bonds = join.bonds(caos_path_tip.concept)
                 join.addbond(caos_path_tip.concept, target_bond_expr)
                 join = self._simple_join(context, join, concept_table,
                                          caos_path_tip.concept,
                                          type='left' if weak else 'inner')
+                if prev_bonds:
+                    join.addbond(caos_path_tip.concept, prev_bonds[-1])
 
             fromnode.expr = join
 
@@ -1570,8 +1573,10 @@ class CaosTreeTransformer(CaosExprTransformer):
         if caos_path_tip:
             step_cte._source_graph = caos_path_tip
 
-            bond = pgsql.ast.FieldRefNode(table=step_cte, field=aliases['semantix.caos.builtins.id'])
-            step_cte.addbond(caos_path_tip.concept, bond)
+            has_bonds = step_cte.bonds(caos_path_tip.concept)
+            if not has_bonds:
+                bond = pgsql.ast.FieldRefNode(table=step_cte, field=aliases['semantix.caos.builtins.id'])
+                step_cte.addbond(caos_path_tip.concept, bond)
 
         return step_cte
 

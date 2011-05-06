@@ -59,7 +59,9 @@ class RelationNode(Base):
             self._bonds = {}
 
     def bonds(self, key):
-        return self._bonds[key]
+        bonds = self._bonds.get(key)
+        if bonds:
+            return bonds[:]
 
     def addbond(self, key, bond):
         if key not in self._bonds:
