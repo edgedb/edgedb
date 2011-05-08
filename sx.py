@@ -13,17 +13,12 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-import semantix.shell
-import semantix.utils.shell
+import semantix.bootstrap
 
-try:
-    import semantix.config_local
-except ImportError:
-    pass
-
-
-def run(argv):
-    return semantix.utils.shell.MainCommand.main(argv)
+imports = {
+    'required': ['semantix.shell'],
+    'optional': ['semantix.config_local']
+}
 
 if __name__ == '__main__':
-    sys.exit(run(sys.argv))
+    sys.exit(semantix.bootstrap.run(sys.argv, imports))

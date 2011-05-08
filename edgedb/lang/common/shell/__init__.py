@@ -11,6 +11,7 @@ import os
 import sys
 
 from semantix import SemantixError
+from semantix import bootstrap
 
 from semantix.utils import datastructures
 from semantix.utils import debug, config
@@ -109,7 +110,7 @@ class MainCommand(CommandGroup, name='__main__'):
     def create_parser(self, parser):
         parser.add_argument('--color', choices=('auto', 'always', 'never'), default=self.colorize)
         parser.add_argument('-d', '--debug', dest='debug', action='append')
-        parser.add_argument('--profile', dest='profile')
+        bootstrap.init_early_args(parser)
         return parser
 
     def __call__(self, args):
@@ -123,12 +124,7 @@ class MainCommand(CommandGroup, name='__main__'):
             debug.channels.update(args.debug)
 
         try:
-            if args.profile:
-                import cProfile
-                ep = super().__call__
-                cProfile.runctx('ep(args)', globals=globals(), locals=locals(), filename=args.profile)
-            else:
-                result = super().__call__(args)
+            result = super().__call__(args)
         except SemantixError as e:
             raise
 
