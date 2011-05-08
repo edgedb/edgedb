@@ -38,6 +38,23 @@ class Language(meta.Language):
         for d in ldr.get_dict():
             yield d
 
+    @classmethod
+    def load_code(cls, stream, context=None):
+        if not context:
+            context = lang_context.DocumentContext()
+
+        ldr = loader.RecordingLoader(stream, context)
+        return ldr.get_code()
+
+    @classmethod
+    def execute_code(cls, code, context=None):
+        if not context:
+            context = lang_context.DocumentContext()
+
+        ldr = loader.ReplayLoader(code, context)
+        for d in ldr.get_dict():
+            yield d
+
 
 class ObjectMeta(Adapter):
     def __new__(metacls, name, bases, clsdict, *, adapts=None, ignore_aliases=False):

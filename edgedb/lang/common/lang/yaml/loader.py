@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2011 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -348,3 +348,40 @@ class Loader(yaml.reader.Reader, Scanner, Parser, Composer, Constructor, yaml.re
         Composer.__init__(self)
         Constructor.__init__(self, context)
         yaml.resolver.Resolver.__init__(self)
+
+
+class RecordingLoader(Loader):
+    def _get_current_event(self):
+        return self._current_event
+
+    def _set_current_event(self, event):
+        self._current_event = event
+        if event is not None:
+            self._eventlog.append(event)
+
+    current_event = property(_get_current_event, _set_current_event)
+
+    def __init__(self, stream, context=None):
+        super().__init__(stream, context)
+        self._current_event = None
+        self._eventlog = []
+
+    def get_code(self):
+        while self.check_event():
+            self.get_event()
+
+        return self._eventlog
+
+
+class ReplayLoader(Loader):
+    def __init__(self, eventlog, context=None):
+        super().__init__('', context)
+
+        self.state = self._next_event
+        self.event_iterator = iter(eventlog)
+
+    def _next_event(self):
+        try:
+            return next(self.event_iterator)
+        except StopIteration:
+            return None
