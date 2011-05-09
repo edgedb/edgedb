@@ -23,20 +23,30 @@ from .error import SchemaError
 from .name import SchemaName
 
 
+def _new_ImportContext(cls, name, kwargs):
+    return ImportContext.__new__(cls, name, **kwargs)
+
 class ImportContext(lang.ImportContext):
-    def __new__(cls, name, *, loader=None, protoschema=None, toplevel=False, builtin=False,
-                                                                             private=None):
-        result = super(ImportContext, cls).__new__(cls, name, loader=loader)
-        result.protoschema = protoschema if protoschema else cls.new_schema(builtin)
-        result.protoschema.add_module(name, name)
+    def __new__(cls, name, *, loader=None, protoschema=None, toplevel=True, builtin=False,
+                                                                            private=None):
+        result = super().__new__(cls, name, loader=loader)
         result.toplevel = toplevel
         result.builtin = builtin
         result.private = private
         return result
 
-    def __init__(self, name, *, loader=None, protoschema=None, toplevel=False, builtin=False,
-                                                                               private=None):
-        pass
+    def __init__(self, name, *, loader=None, protoschema=None, toplevel=True, builtin=False,
+                                                                              private=None):
+        super().__init__(name, loader=loader)
+        self.protoschema = protoschema if protoschema else self.__class__.new_schema(builtin)
+        self.protoschema.add_module(name, name)
+
+    def __reduce__(self):
+        return (_new_ImportContext, (self.__class__, str(self), {
+                                        'toplevel': self.toplevel,
+                                        'builtin': self.builtin,
+                                        'private': self.private
+                                     }), None)
 
     @classmethod
     def from_parent(cls, name, parent):
@@ -66,8 +76,25 @@ class ImportContext(lang.ImportContext):
 default_err = object()
 
 
+class attrgetter:
+    def __new__(cls, *attrs):
+        result = super().__new__(cls)
+        result.getter = operator.attrgetter(*attrs)
+        result.attrs = attrs
+        return result
+
+    def __getstate__(self):
+        return {'attrs': self.attrs}
+
+    def __getnewargs__(self):
+        return self.attrs
+
+    def __call__(self, obj):
+        return self.getter(obj)
+
+
 class PrototypeSet(ExtendedSet):
-    def __init__(self, *args, key=operator.attrgetter('name'), **kwargs):
+    def __init__(self, *args, key=attrgetter('name'), **kwargs):
         super().__init__(*args, key=key, **kwargs)
 
 

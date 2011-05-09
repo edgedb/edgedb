@@ -86,18 +86,29 @@ class Plural(GrammaticalNumber):
 
 
 class WordCombination(NaturalLanguageObject):
-    def __init__(self, value):
+    def __new__(cls, value):
+        self = super().__new__(cls)
+
         if isinstance(value, str):
             value = {Singular(value)}
 
         self.forms = {}
 
         for form in value:
-            self.forms[form.__class__.name] = form
+            assert isinstance(form, GrammaticalCategory), type(form)
+            self.forms[form.__class__.name] = form.__class__(form.value)
 
         self.value = self.forms.get('singular')
         if not self.value:
             self.value = next(iter(self.forms.values()))
+
+        return self
+
+    def __getnewargs__(self):
+        return (tuple(self.forms.values()),)
+
+    def __getstate__(self):
+        return {}
 
     def __getattr__(self, attribute):
         value = self.forms.get(attribute)

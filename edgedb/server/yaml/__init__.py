@@ -86,13 +86,18 @@ class Decimal(yaml.Object, metaclass=DecimalMeta,
 
 
 class WordCombination(LangObject, adapts=morphology.WordCombination, ignore_aliases=True):
-    def construct(self):
-        if isinstance(self.data, str):
-            morphology.WordCombination.__init__(self, self.data)
-        else:
-            word = morphology.WordCombination.from_dict(self.data)
-            self.forms = word.forms
-            self.value = self.forms.get('singular', next(iter(self.forms.values())))
+    def __new__(cls, context, data):
+        if isinstance(data, dict):
+            word = morphology.WordCombination.from_dict(data)
+            data = word.forms.values()
+
+        self = morphology.WordCombination.__new__(cls, data)
+        self.context = context
+
+        return self
+
+    def __reduce__(self):
+        return (self.__class__, (self.context, tuple(self.forms.values())))
 
     @classmethod
     def represent(cls, data):
@@ -103,7 +108,15 @@ class WordCombination(LangObject, adapts=morphology.WordCombination, ignore_alia
         return cls.from_dict(obj)
 
 
-class LinkMapping(LangObject, adapts=caos.types.LinkMapping, ignore_aliases=True):
+class StrLangObject(LangObject):
+    def __reduce__(self):
+        return (self.__class__.get_adaptee(), (str(self),))
+
+    def __getstate__(self):
+        return {}
+
+
+class LinkMapping(StrLangObject, adapts=caos.types.LinkMapping, ignore_aliases=True):
     def __new__(cls, context, data):
         return caos.types.LinkMapping.__new__(cls, data)
 
@@ -112,7 +125,7 @@ class LinkMapping(LangObject, adapts=caos.types.LinkMapping, ignore_aliases=True
         return str(data)
 
 
-class PointerLoading(LangObject, adapts=caos.types.PointerLoading, ignore_aliases=True):
+class PointerLoading(StrLangObject, adapts=caos.types.PointerLoading, ignore_aliases=True):
     def __new__(cls, context, data):
         return caos.types.PointerLoading.__new__(cls, data)
 
@@ -121,7 +134,7 @@ class PointerLoading(LangObject, adapts=caos.types.PointerLoading, ignore_aliase
         return str(data)
 
 
-class LinkSearchWeight(LangObject, adapts=caos.types.LinkSearchWeight, ignore_aliases=True):
+class LinkSearchWeight(StrLangObject, adapts=caos.types.LinkSearchWeight, ignore_aliases=True):
     def __new__(cls, context, data):
         return caos.types.LinkSearchWeight.__new__(cls, data)
 
