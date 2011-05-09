@@ -438,7 +438,13 @@ class ProtoSchema:
             ns = obj.get_canonical_class()
         else:
             ns = None
-        return self.namespaces.setdefault(ns, Namespace(self))
+
+        try:
+            return self.namespaces[ns]
+        except KeyError:
+            result = Namespace(self)
+            self.namespaces[ns] = result
+            return result
 
 
 class BuiltinProtoSchema(ProtoSchema):
