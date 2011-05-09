@@ -18,11 +18,28 @@ from semantix.exceptions import SemantixError
 
 __all__ = ['get_argsspec', 'apply_decorator', 'decorate', 'isdecorated',
            'Decorator', 'BaseDecorator', 'NonDecoratable', 'callable',
-           'unwrap', 'hybridmethod', 'cachedproperty']
+           'unwrap', 'hybridmethod', 'cachedproperty', 'in_class']
 
 
 class NonDecoratable:
     pass
+
+
+def in_class():
+    frame = sys._getframe()
+    try:
+        while frame.f_back:
+            frame = frame.f_back
+
+            if type(frame.f_locals.get('__locals__')) is dict and \
+                    type(frame.f_locals.get('__module__')) is str and \
+                    frame.f_locals is not frame.f_globals:
+
+                return True
+    finally:
+        del frame
+
+    return False
 
 
 WRAPPER_ASSIGNMENTS = {'__module__', '__name__', '__doc__', '__annotations__'}
@@ -149,9 +166,6 @@ class Decorator(BaseDecorator):
 
 def unwrap(func, deep=False):
     def _unwrap(func):
-        if not isdecorated(func):
-            raise TypeError('function %r is not decorated' % func)
-
         try:
             return func.__wrapped__
         except AttributeError:
@@ -165,9 +179,12 @@ def unwrap(func, deep=False):
     if deep:
         while isdecorated(func):
             func = _unwrap(func)
-        return func
 
-    return _unwrap(func)
+    else:
+        if isdecorated(func):
+            func = _unwrap(func)
+
+    return func
 
 
 def get_argsspec(func):

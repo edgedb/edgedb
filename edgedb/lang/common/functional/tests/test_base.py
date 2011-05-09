@@ -17,6 +17,43 @@ from semantix.utils.functional.signature import Signature
 
 
 class TestUtilsFunctional(object):
+    def test_utils_functional_inclass(self):
+        def dec(expect):
+            def wrap(obj, expect=expect):
+                assert functional.in_class() is expect
+                return obj
+            return wrap
+
+        def do_test(dec):
+            @dec(False)
+            class foo:
+                @dec(True)
+                def bar(self):
+                    @dec(False)
+                    def bar2():
+                        pass
+
+                    @dec(False)
+                    class foo2:
+                        @dec(True)
+                        def bar3(self): pass
+
+                        @dec(True)
+                        class test():
+                            @dec(True)
+                            def bar4(self): pass
+
+            foo().bar()
+
+            def test():
+                __locals__ = True
+                __module__ = True
+                dec(False)(123)
+            test()
+
+        do_test(dec)
+        do_test(lambda arg: dec(arg))
+
     def test_utils_functional_decorator(self):
         class dec1(functional.Decorator):
             def __call__(self, *args, **kwargs):
