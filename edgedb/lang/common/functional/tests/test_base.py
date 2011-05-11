@@ -288,9 +288,11 @@ class TestUtilsFunctional(object):
 
 
     def test_utils_functional_signature(self):
-        def test(a, b:int, c, d:'foo'=1, *args:1, k=1, v:'bar', x=False, **y:2): pass
+        def test(a, b:int, c, d:'foo'=1, *args:1, k=1, v:'bar', x=False, **y:2) -> 42: pass
 
         s = Signature(test)
+        assert s.return_annotation == 42
+
         assert len(s.args) == 3
         assert s.args[0].name == 'a' and not hasattr(s.args[0], 'default') \
                         and not hasattr(s.args[0], 'annotation')

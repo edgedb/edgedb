@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2011 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -11,39 +11,26 @@ import collections
 import itertools
 
 
-class Argument:
+_void = object()
+
+
+class Parameter:
     __slots__ = ('name', 'position', 'default', 'keyword_only', 'annotation')
 
-    def __init__(self, name, position, *, has_default=False,
-                 default=None, keyword_only=False, has_annotation=False,
-                 annotation=None):
+    def __init__(self, name, position, *,
+                 default=_void, annotation=_void, keyword_only=False):
 
         self.name = name
         self.position = position
-        if has_default:
+        if default is not _void:
             self.default = default
         self.keyword_only = keyword_only
-        if has_annotation:
+        if annotation is not _void:
             self.annotation = annotation
 
     def __repr__(self):
         return '<%s at 0x%x %r pos:%s>' % (self.__class__.__name__, id(self),
                                            self.name, self.position)
-
-class PositionalArgument(Argument):
-    __slots__ = ()
-
-
-class VarArgument(Argument):
-    __slots__ = ()
-
-
-class VarKeywordArgument(Argument):
-    __slots__ = ()
-
-
-class KeywordOnlyArgument(Argument):
-    __slots__ = ()
 
 
 class BoundArguments:
@@ -65,23 +52,19 @@ class BoundArguments:
 
 
 class Signature:
-    __slots__ = ('name', 'args', 'kwargs', 'kwonlyargs', 'vararg', 'varkwarg',
-                 'map')
+    __slots__ = ('name', 'args', 'kwargs', 'kwonlyargs', 'vararg',
+                 'varkwarg', 'map', 'return_annotation')
 
     def __init__(self, func):
-        func_code = func.__code__
         self.name = func.__name__
-
-        # XXX replace with own implementation
-        argspec = inspect.getfullargspec(func)[:4]
-
-
         self.args = []
         self.kwargs = []
         self.kwonlyargs = []
         self.vararg = None
         self.varkwarg = None
 
+        argspec = inspect.getfullargspec(func)[:4]
+        func_code = func.__code__
 
         # Parameter information.
         pos_count = func_code.co_argcount
@@ -101,45 +84,33 @@ class Signature:
         # Non-keyword-only parameters w/o defaults.
         non_default_count = pos_count - pos_default_count
         for name in positional[:non_default_count]:
-            has_annotation, annotation = self._find_annotation(func, name)
-            self.args.append(PositionalArgument(name, idx, has_default=False,
-                                                has_annotation=has_annotation,
-                                                annotation=annotation))
+            self.args.append(Parameter(name, idx,
+                                       annotation=self._find_annotation(func, name)))
             idx += 1
 
         # ... w/ defaults.
         for offset, name in enumerate(positional[non_default_count:]):
-            has_annotation, annotation = self._find_annotation(func, name)
-            default_value = fxn_defaults[offset]
-            self.kwargs.append(PositionalArgument(name, idx,
-                                                  has_default=True, default=default_value,
-                                                  has_annotation=has_annotation,
-                                                  annotation=annotation))
+            self.kwargs.append(Parameter(name, idx,
+                                         default=fxn_defaults[offset],
+                                         annotation=self._find_annotation(func, name)))
             idx += 1
 
         # *args
         if func_code.co_flags & 0x04:
             name = func_code.co_varnames[pos_count + keyword_only_count]
-            has_annotation, annotation = self._find_annotation(func, name)
-            self.vararg = VarArgument(name, idx,
-                                      has_annotation=has_annotation,
-                                      annotation=annotation)
+            self.vararg = Parameter(name, idx,
+                                    annotation=self._find_annotation(func, name))
             idx += 1
 
         # Keyword-only parameters.
         for name in keyword_only:
-            has_annotation, annotation = self._find_annotation(func, name)
-
-            has_default, default_value = False, None
+            default_value = _void
             if func.__kwdefaults__ and name in func.__kwdefaults__:
-                has_default = True
                 default_value = func.__kwdefaults__[name]
 
-            self.kwonlyargs.append(KeywordOnlyArgument(name, idx, keyword_only=True,
-                                                       has_default=has_default,
-                                                       default=default_value,
-                                                       has_annotation=has_annotation,
-                                                       annotation=annotation))
+            self.kwonlyargs.append(Parameter(name, idx, keyword_only=True,
+                                             default=default_value,
+                                             annotation=self._find_annotation(func, name)))
             idx += 1
 
         # **kwargs
@@ -149,22 +120,29 @@ class Signature:
                 index += 1
 
             name = func_code.co_varnames[index]
-            has_annotation, annotation = self._find_annotation(func, name)
+            self.varkwarg = Parameter(name, idx,
+                                      annotation=self._find_annotation(func, name))
 
-            self.varkwarg = VarKeywordArgument(name, idx,
-                                               has_annotation=has_annotation,
-                                               annotation=annotation)
+        self.map = {arg.name: arg for arg in self}
 
-        self.map = {}
-        for arg in itertools.chain(self.args, self.kwargs, self.kwonlyargs):
-            self.map[arg.name] = arg
+        # Return annotation.
+        if 'return' in func.__annotations__:
+            self.return_annotation = func.__annotations__['return']
 
+    def __iter__(self):
+        chain = [self.args, self.kwargs]
+        if self.vararg:
+            chain.append((self.vararg,))
+        chain.append(self.kwonlyargs)
+        if self.varkwarg:
+            chain.append((self.varkwarg,))
+        return itertools.chain(*chain)
 
     def _find_annotation(self, func, name):
         try:
-            return True, func.__annotations__[name]
+            return func.__annotations__[name]
         except KeyError:
-            return False, None
+            return _void
 
     def bind(self, *arg_values, **kwarg_values):
         args = collections.OrderedDict()
