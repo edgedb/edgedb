@@ -31,6 +31,7 @@ class ParseContextLevel(object):
                 self.module_aliases = prevlevel.module_aliases
                 self.aliascnt = prevlevel.aliascnt.copy()
                 self.subgraphs_map = {}
+                self.resolve_computables = prevlevel.resolve_computables
             else:
                 self.graph = prevlevel.graph
                 self.anchors = prevlevel.anchors
@@ -43,6 +44,7 @@ class ParseContextLevel(object):
                 self.module_aliases = prevlevel.module_aliases
                 self.aliascnt = prevlevel.aliascnt
                 self.subgraphs_map = prevlevel.subgraphs_map
+                self.resolve_computables = prevlevel.resolve_computables
         else:
             self.graph = None
             self.anchors = {}
@@ -55,6 +57,7 @@ class ParseContextLevel(object):
             self.module_aliases = None
             self.aliascnt = {}
             self.subgraphs_map = {}
+            self.resolve_computables = True
 
     def genalias(self, hint=None):
         if hint is None:
@@ -254,9 +257,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         return stree
 
     def transform_fragment(self, caosql_tree, arg_types, module_aliases=None, anchors=None,
-                                 location=None):
+                                 location=None, resolve_computables=True):
         context = self._init_context(arg_types, module_aliases, anchors)
         context.current.location = location or 'generator'
+        context.current.resolve_computables = resolve_computables
         stree = self._process_expr(context, caosql_tree)
         return stree
 
@@ -631,7 +635,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                     target = link_item.source
                                 assert target
 
-                                if isinstance(link_item, caos_types.ProtoComputable):
+                                if isinstance(link_item, caos_types.ProtoComputable) and \
+                                        context.current.resolve_computables:
                                     newtips[target] = {self.link_computable(link_item, tip)}
                                     continue
 

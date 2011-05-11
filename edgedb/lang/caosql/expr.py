@@ -44,14 +44,15 @@ class CaosQLExpression:
         tree = self.reverse_transformer.transform(caos_tree)
         return codegen.CaosQLSourceGenerator.to_source(tree), caos_tree
 
-    def transform_expr_fragment(self, expr, anchors=None):
+    def transform_expr_fragment(self, expr, anchors=None, resolve_computables=True):
         tree = self.parser.parse(expr)
-        return self.transformer.transform_fragment(tree, (), anchors=anchors)
+        return self.transformer.transform_fragment(tree, (), anchors=anchors,
+                                                   resolve_computables=resolve_computables)
 
     def get_path_targets(self, expr, session, anchors=None):
         if not self.path_resolver:
             self.path_resolver = caos_transformer.PathResolver()
-        ctree = self.transform_expr_fragment(expr, anchors=anchors)
+        ctree = self.transform_expr_fragment(expr, anchors=anchors, resolve_computables=False)
         targets = self.path_resolver.resolve_path(ctree, session)
         return targets
 
