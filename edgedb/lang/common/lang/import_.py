@@ -68,7 +68,8 @@ class Importer(importlib.abc.Finder, importlib.abc.Loader):
 
     @classmethod
     def get_module_by_filename(cls, filename):
-        modname = cls._modules_by_file.get(filename)
+        normpath = os.path.abspath(os.path.realpath(filename))
+        modname = cls._modules_by_file.get(normpath)
         if modname:
             return sys.modules.get(modname)
 
@@ -101,7 +102,8 @@ class Importer(importlib.abc.Finder, importlib.abc.Loader):
         else:
             module = self._load_module(fullname, language, filename, is_package)
 
-        self.__class__._modules_by_file[filename] = fullname
+        normpath = os.path.abspath(os.path.realpath(filename))
+        self.__class__._modules_by_file[normpath] = fullname
         return module
 
     def _load_module(self, fullname, language, filename, is_package):
