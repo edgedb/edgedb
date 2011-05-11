@@ -259,6 +259,10 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeC
 
         return updates
 
+    def rename(self, old_name, new_name):
+        if old_name.module != new_name.module:
+            self.create_module(self.new_name.module)
+
 
 class AlterPrototypeProperty(MetaCommand, adapts=delta_cmds.AlterPrototypeProperty):
     pass
@@ -434,6 +438,8 @@ class RenameAtom(AtomMetaCommand, adapts=delta_cmds.RenameAtom):
     def apply(self, meta, context=None):
         proto = delta_cmds.RenameAtom.apply(self, meta, context)
         AtomMetaCommand.apply(self, meta, context)
+
+        super().rename(self.prototype_name, self.new_name)
 
         domain_name = common.atom_name_to_domain_name(self.prototype_name, catenate=False)
         new_domain_name = common.atom_name_to_domain_name(self.new_name, catenate=False)
@@ -660,6 +666,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             self.pgops.update(alter_tables)
 
     def rename(self, old_name, new_name):
+        super().rename(old_name, new_name)
+
         old_table_name = common.concept_name_to_table_name(old_name, catenate=False)
         new_table_name = common.concept_name_to_table_name(new_name, catenate=False)
 
