@@ -1846,9 +1846,10 @@ class TreeTransformer:
             if expr.name == 'semantix.caos.builtins.id':
                 result = concept
             else:
-                linkset = concept.getptr(schema, expr.name)
-                assert linkset, '"%s" is not a link of "%s"' % (expr.name, concept.name)
-                targets = [l.target for l in linkset]
+                sources, outbound, inbound = concept.resolve_pointer(schema, expr.name,
+                                                                    look_in_children=True)
+                assert sources, '"%s" is not a link of "%s"' % (expr.name, concept.name)
+                targets = [l.target for linkset in outbound for l in linkset]
 
                 if len(targets) == 1:
                     result = targets[0]
