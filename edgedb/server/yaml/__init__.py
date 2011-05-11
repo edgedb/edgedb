@@ -950,7 +950,7 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
                                 'defined in the same source' % {'name': computable_qname},
                                  context=computable.context)
 
-            computable_name = proto.Computable.generate_name(source.name, None, cname)
+            computable_name = proto.Computable.generate_name(source.name, None, computable_qname.name)
             computable.source = source
             computable.name = caos.Name(name=computable_name, module=computable_qname.module)
             computable.setdefaults()
