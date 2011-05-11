@@ -26,6 +26,10 @@ def get_frame_module(frame):
 
 def source_context_from_frame(frame):
     frame_module = get_frame_module(frame)
+
+    if not frame_module:
+        return None
+
     file_source = inspect.getsourcelines(frame_module)[0]
     line_no = frame.f_lineno
     name = frame_module.__name__
@@ -54,9 +58,12 @@ class SourceErrorContext(ExceptionContext):
 
         chunks = []
 
-        chunks.append(xvalue('%s:\n' % source_context.name, fg='white', opts=('bold',)))
-        lines = source_context.buffer
-        lineno = source_context.start.line
-        chunks.extend(helper.format_code_context(lines, lineno, colorize=True))
+        if source_context:
+            chunks.append(xvalue('%s:\n' % source_context.name, fg='white', opts=('bold',)))
+            lines = source_context.buffer
+            lineno = source_context.start.line
+            chunks.extend(helper.format_code_context(lines, lineno, colorize=True))
+        else:
+            chunks.append('Unknown source context')
 
         return chunks
