@@ -81,7 +81,6 @@ class Signature:
         self.kwonlyargs = []
         self.vararg = None
         self.varkwarg = None
-        self.map = None
 
 
         # Parameter information.
@@ -145,12 +144,21 @@ class Signature:
 
         # **kwargs
         if func_code.co_flags & 0x08:
-            name = func_code.co_varnames[pos_count + keyword_only_count + 1]
+            index = pos_count + keyword_only_count
+            if func_code.co_flags & 0x04:
+                index += 1
+
+            name = func_code.co_varnames[index]
             has_annotation, annotation = self._find_annotation(func, name)
 
             self.varkwarg = VarKeywordArgument(name, idx,
                                                has_annotation=has_annotation,
                                                annotation=annotation)
+
+        self.map = {}
+        for arg in itertools.chain(self.args, self.kwargs, self.kwonlyargs):
+            self.map[arg.name] = arg
+
 
     def _find_annotation(self, func, name):
         try:
@@ -187,12 +195,6 @@ class Signature:
                 raise TypeError('missing value for %r positional argument' % spec.name)
 
             args[spec.name] = kwarg_values.pop(spec.name)
-
-        if kwarg_values:
-            if not self.map:
-                self.map = {}
-                for arg in itertools.chain(self.args, self.kwargs, self.kwonlyargs):
-                    self.map[arg.name] = arg
 
         for kwarg_name, kwarg_value in kwarg_values.items():
             if kwarg_name in args:
