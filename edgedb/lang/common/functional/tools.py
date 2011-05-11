@@ -14,11 +14,13 @@ import weakref
 from types import MethodType as _method
 
 from semantix.exceptions import SemantixError
+from .signature import signature as _signature
 
 
 __all__ = ['get_argsspec', 'apply_decorator', 'decorate', 'isdecorated',
            'Decorator', 'BaseDecorator', 'NonDecoratable', 'callable',
-           'unwrap', 'hybridmethod', 'cachedproperty', 'in_class']
+           'unwrap', 'hybridmethod', 'cachedproperty', 'in_class',
+           'get_signature']
 
 
 class NonDecoratable:
@@ -40,6 +42,16 @@ def in_class():
         del frame
 
     return False
+
+
+def get_signature(func):
+    try:
+        while func.__wrapped__:
+            func = func.__wrapped__
+    except AttributeError:
+        pass
+
+    return _signature(func)
 
 
 WRAPPER_ASSIGNMENTS = {'__module__', '__name__', '__doc__', '__annotations__'}

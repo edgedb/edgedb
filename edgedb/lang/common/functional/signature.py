@@ -211,3 +211,12 @@ class Signature:
                 raise TypeError('missing value for %r argument' % arg.name)
 
         return BoundArguments(args, kwargs, varargs, varkwargs)
+
+
+def signature(func):
+    try:
+        return func.__signature__
+    except AttributeError:
+        sig = Signature(func)
+        func.__signature__ = sig
+        return sig
