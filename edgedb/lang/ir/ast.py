@@ -273,11 +273,7 @@ class Constant(Base):
             self._check_type(expr, type)
 
     def _check_type(self, expr, type):
-        if not type:
-            if not expr:
-                raise ASTError('simple constants must have type information')
-
-        else:
+        if type:
             if isinstance(type, tuple):
                 item_type = type[1]
             else:

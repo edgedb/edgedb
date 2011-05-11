@@ -463,7 +463,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         elif isinstance(expr, qlast.ConstantNode):
             if expr.index is not None:
                 type = self.arg_types.get(expr.index)
-                type = caos_types.normalize_type(type, self.proto_schema)
+                if type is not None:
+                    type = caos_types.normalize_type(type, self.proto_schema)
                 node = tree.ast.Constant(value=expr.value, index=expr.index, type=type)
                 context.current.arguments[expr.index] = type
             else:
