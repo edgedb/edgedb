@@ -28,7 +28,7 @@ def find_children(node, test_func, *args, force_traversal=False, **kwargs):
                     if not isinstance(n, AST):
                         continue
 
-                    if test_func(n, *args, **kwargs):
+                    if not field_spec.hidden and test_func(n, *args, **kwargs):
                         result.append(n)
 
                     if field_spec.child_traverse or force_traversal:
@@ -37,7 +37,7 @@ def find_children(node, test_func, *args, force_traversal=False, **kwargs):
                             result.extend(_n)
 
             elif isinstance(value, AST):
-                if test_func(value, *args, **kwargs):
+                if not field_spec.hidden and test_func(value, *args, **kwargs):
                     result.append(value)
 
                 if field_spec.child_traverse or force_traversal:

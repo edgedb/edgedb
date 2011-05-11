@@ -111,7 +111,7 @@ class SubgraphRef(Path):
 
 
 class BaseRef(Path):
-    __fields = ['id', ('ref', Base, None, False), ('rlink', Base, None, False)]
+    __fields = ['id', ('ref', Base, None, False), ('rlink', Base, None, False, False, True)]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
