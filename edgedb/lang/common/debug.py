@@ -175,15 +175,20 @@ def assert_raises(exception_cls, *, cause=None, error_re=None):
         if cause is not None:
             assert isinstance(ex.__cause__, cause)
 
+        try:
+            msg = ex.args[0]
+        except (AttributeError, IndexError):
+            msg = str(ex)
+
         if error_re is not None:
             err_re = re.compile('%s' % error_re)
 
-            if not (err_re.search(ex.args[0]) or \
+            if not (err_re.search(msg) or \
                                 (cause is not None and err_re.search(ex.__cause__.args[0]))):
 
                 raise ErrorExpected('%s was expected to be raised with ' \
                                     'message that matches %r, got %r' % \
-                                    (exception_cls.__name__, error_re, ex.args[0])) from ex
+                                    (exception_cls.__name__, error_re, msg)) from ex
 
     except Exception as ex:
         raise ErrorExpected('%s was expected to be raised, got %s' % \
