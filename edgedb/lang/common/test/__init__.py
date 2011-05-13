@@ -7,6 +7,7 @@
 
 
 from semantix.utils.config import configurable, cvalue
+from .pytest_semantix import logging_off
 
 
 @configurable

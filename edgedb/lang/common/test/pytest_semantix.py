@@ -11,6 +11,7 @@ import py
 import re
 import sys
 import logging
+import contextlib
 
 from semantix.exceptions import SemantixError, excepthook
 from semantix.utils.debug import highlight
@@ -26,6 +27,13 @@ def _logging_off():
 
 setattr(logging, '_logging_on', _logging_on)
 setattr(logging, '_logging_off', _logging_off)
+
+
+@contextlib.contextmanager
+def logging_off():
+    logging._logging_off()
+    yield
+    logging._logging_on()
 
 
 class ShellInvoker:
