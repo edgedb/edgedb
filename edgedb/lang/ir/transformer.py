@@ -795,6 +795,9 @@ class TreeTransformer:
                 left.joins.update(right.joins)
                 left.joins.discard(left)
 
+                if right.concept.issubclass(self.context.current.proto_schema, left.concept):
+                    left.concept = right.concept
+
                 if merge_filters:
                     left.conceptfilter.update(right.conceptfilter)
 
@@ -956,6 +959,9 @@ class TreeTransformer:
                 left_set.joins.update(right_set.joins)
                 left_set.joins.discard(left_set)
                 left_set.conceptfilter.update(right_set.conceptfilter)
+
+                if right_set.concept.issubclass(self.context.current.proto_schema, left_set.concept):
+                    left_set.concept = right_set.concept
 
                 disjunction = self.intersect_paths(left_set.disjunction,
                                                    right_set.disjunction, merge_filters)
