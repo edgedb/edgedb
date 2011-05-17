@@ -6,6 +6,7 @@
 ##
 
 
+import py
 import types
 
 from semantix.utils.debug import assert_raises
@@ -420,6 +421,7 @@ class TestUtilsConfig(object):
             def _name(test=cvalue('root')):
                 return test
 
+    @py.test.mark.xfail
     def test_utils_config_interpolation(self):
         @configurable
         def inter_test1(test=cvalue('root')):

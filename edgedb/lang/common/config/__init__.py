@@ -320,7 +320,7 @@ class cvalue(ChecktypeExempt):
         if self._value is NoDefault:
             raise ConfigRequiredValueError('%s is a required config setting' % self._name)
 
-        if isinstance(self._value, str) and '$' in self._value:
+        if 0 and isinstance(self._value, str) and '$' in self._value:
             if not self._inter_cache:
                 matches = cvalue._inter_re.findall(self._value)
                 check = ''.join(m[0]+m[1] for m in matches)
