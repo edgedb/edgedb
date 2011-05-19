@@ -319,25 +319,25 @@ class TestUtilsFunctional(object):
         assert s.varkwarg.name == 'y'
         assert s.varkwarg.annotation == 2
 
-        b = s.bind(1, 2, 3, v=4)
+        b = s.bind(1, 2, 3, kwarg_values={'v':4})
         assert b.args == (1, 2, 3) and b.kwargs == {'v': 4}
 
-        b = s.bind(1, 2, 3, 4, 5, 6, v=4)
+        b = s.bind(1, 2, 3, 4, 5, 6, kwarg_values={'v':4})
         assert b.args == (1, 2, 3, 4, 5, 6) and b.kwargs == {'v': 4}
 
-        b = s.bind(1, 2, v=4, c=5, **{'d': 'foo'})
+        b = s.bind(1, 2, kwarg_values={'v':4, 'c':5, 'd': 'foo'})
         assert b.args == (1, 2, 5) and b.kwargs == {'v': 4, 'd': 'foo'}
 
-        b = s.bind(1, v=4, c=5, **{'d': 'foo', 'b': 99})
+        b = s.bind(1, kwarg_values={'v':4, 'c':5, 'd': 'foo', 'b': 99})
         assert b.args ==  (1, 99, 5) and b.kwargs == {'d': 'foo', 'v': 4}
 
         with assert_raises(TypeError, error_re='missing value'):
-            b = s.bind(1, v=4, c=5)
+            b = s.bind(1, kwarg_values={'v':4, 'c':5})
 
         with assert_raises(TypeError, error_re='too many'):
-            b = s.bind(1, 2, 3, v=4, a=5)
+            b = s.bind(1, 2, 3, kwarg_values={'v':4, 'a':5})
 
-        b = s.bind(1, 2, 3, v=4, u=9)
+        b = s.bind(1, 2, 3, kwarg_values={'v':4, 'u':9})
         assert b.args == (1, 2, 3) and b.kwargs == {'u': 9, 'v': 4}
 
 
@@ -361,4 +361,4 @@ class TestUtilsFunctional(object):
             s.bind()
 
         with assert_raises(TypeError, error_re='unknown argument'):
-            s.bind(foo='bar')
+            s.bind(kwarg_values={'foo':'bar'})

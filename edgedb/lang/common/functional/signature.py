@@ -51,6 +51,10 @@ class BoundArguments:
         return dict(itertools.chain(self._kwargs.items(), self._varkwargs.items()))
 
 
+class KwonlyArgumentError(TypeError):
+    pass
+
+
 class Signature:
     __slots__ = ('name', 'args', 'kwargs', 'kwonlyargs', 'vararg',
                  'varkwarg', 'map', 'return_annotation')
@@ -144,11 +148,27 @@ class Signature:
         except KeyError:
             return _void
 
-    def bind(self, *arg_values, **kwarg_values):
+    def bind(self, *arg_values, kwarg_values=None, kwarg_only_values=None, loose_kwargs=False):
+        """
+            @param arg_values           Function positional arguments in a tuple
+
+            @param kwarg_values         Should be an instance of OrderedDict, to
+                                        preserve right argument order
+
+            @param kwarg_only_values    A dict of values that should be bound only
+                                        to keyword-only arguments
+        """
+
         args = collections.OrderedDict()
         kwargs = {}
         varargs = []
         varkwargs = {}
+
+        if kwarg_values is None:
+            kwarg_values = {}
+
+        if kwarg_only_values is None:
+            kwarg_only_values = {}
 
         positional = itertools.chain(self.args, self.kwargs)
         idx = 0
@@ -174,17 +194,28 @@ class Signature:
 
             args[spec.name] = kwarg_values.pop(spec.name)
 
-        for kwarg_name, kwarg_value in kwarg_values.items():
+        for kwarg_name, kwarg_value in itertools.chain(kwarg_values.items(),
+                                                       kwarg_only_values.items()):
             if kwarg_name in args:
                 raise TypeError('too many values for %r argument' % kwarg_name)
 
             if kwarg_name in self.map:
+                if kwarg_only_values:
+                    if kwarg_name in kwarg_values and self.map[kwarg_name].keyword_only:
+                        raise KwonlyArgumentError('%r argument must be passed as a keyword-only ' \
+                                                  'argument' % kwarg_name)
+
+                    if kwarg_name in kwarg_only_values and not self.map[kwarg_name].keyword_only:
+                        raise KwonlyArgumentError('non keyword-only argument %r was passed as a ' \
+                                                  'keyword-only argument' % kwarg_name)
+
                 kwargs[kwarg_name] = kwarg_value
             else:
                 if self.varkwarg:
                     varkwargs[kwarg_name] = kwarg_value
                 else:
-                    raise TypeError('unknown argument %r' % kwarg_name)
+                    if not loose_kwargs:
+                        raise TypeError('unknown argument %r' % kwarg_name)
 
         for arg in itertools.chain(self.kwargs, self.kwonlyargs):
             if arg.name not in args and arg.name not in kwargs and not hasattr(arg, 'default'):
