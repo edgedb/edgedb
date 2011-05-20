@@ -66,13 +66,19 @@ class Terminal:
         else:
             return string
 
-    def print(self, *args, **kwargs):
+    def print(self, *args, indent=0, **kwargs):
         new_args = []
         for arg in args:
             if isinstance(arg, xvalue):
                 new_args.append(self.colorize(arg.value, **arg.attrs))
             else:
                 new_args.append(arg)
+
+        if indent:
+            lines = ' '.join(new_args).split('\n')
+            indent = ' ' * indent
+            indented = '\n'.join(indent + line for line in lines)
+            new_args = (indented,)
 
         if self.fd:
             builtins.print(*new_args, file=self.fd, **kwargs)
