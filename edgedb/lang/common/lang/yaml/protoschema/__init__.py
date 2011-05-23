@@ -25,6 +25,19 @@ class SchemaError(protoschema.SchemaError):
         return result
 
 
+class Constructor(yaml.Object):
+    def construct(self):
+        if isinstance(self.data, str):
+            self.cls = self.data
+            self.kwargs = {}
+        else:
+            self.cls = self.data['class']
+            self.kwargs = self.data['args']
+
+    def __call__(self):
+        return self.cls(**self.kwargs)
+
+
 class ProtoSchemaAdapter(yaml.Object):
     def __sx_setstate__(self, data):
         context = lang_context.SourceContext.from_object(self)

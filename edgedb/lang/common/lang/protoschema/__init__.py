@@ -251,6 +251,9 @@ class ProtoSchemaIterator:
         sourceset = self.index.index
 
         if type is not None:
+            if isinstance(type, PrototypeClass):
+                type = type._type
+
             itertype = index.index_by_type.get(type)
 
             if itertype:
@@ -277,7 +280,6 @@ class ProtoSchemaIterator:
 
 
 class ProtoSchema:
-
     def get_builtins_module(self):
         raise NotImplementedError
 
