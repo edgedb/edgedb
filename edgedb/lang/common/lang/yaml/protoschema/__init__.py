@@ -1,6 +1,8 @@
 ##
-# Copyright (c) 2011 M.C. Dean, Inc.
+# Copyright (c) 2011 Sprymix Inc.
 # All rights reserved.
+#
+# See LICENSE for details.
 ##
 
 
@@ -23,19 +25,6 @@ class SchemaError(protoschema.SchemaError):
             result += '\ncontext: %s, line %d, column %d' % \
                         (self.context.name, self.context.start.line, self.context.start.column)
         return result
-
-
-class Constructor(yaml.Object):
-    def construct(self):
-        if isinstance(self.data, str):
-            self.cls = self.data
-            self.kwargs = {}
-        else:
-            self.cls = self.data['class']
-            self.kwargs = self.data['args']
-
-    def __call__(self):
-        return self.cls(**self.kwargs)
 
 
 class ProtoSchemaAdapter(yaml.Object):

@@ -18,6 +18,7 @@ from semantix.utils import lang
 from semantix.utils.datastructures import OrderedSet, ExtendedSet
 from semantix.utils import abc
 from semantix.utils.functional import hybridmethod
+from semantix.utils.datastructures import Struct, StructMeta, Field
 
 from .error import SchemaError
 from .name import SchemaName
@@ -119,6 +120,14 @@ class ProtoObject(metaclass=PrototypeClass):
                 return True
 
             return False
+
+
+class PrototypeMeta(PrototypeClass, StructMeta):
+    pass
+
+
+class Prototype(Struct, ProtoObject, metaclass=PrototypeMeta):
+    pass
 
 
 class Namespace:
