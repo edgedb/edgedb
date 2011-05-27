@@ -349,10 +349,14 @@ class CaosTreeTransformer(CaosExprTransformer):
             """
 
             # Generate query text
-            qtext = pgsql.codegen.SQLSourceGenerator.to_source(qtree)
+            codegen = pgsql.codegen.SQLSourceGenerator()
+            codegen.visit(qtree)
+            qchunks = codegen.result
+            arg_index = codegen.param_index
 
             """LOG [caos.query] SQL Query
             from semantix.utils.debug import highlight
+            qtext = ''.join(qchunks)
             print(highlight(qtext, 'sql'))
             """
         except Exception as e:
@@ -364,7 +368,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             err.tree_context = tree.transformer.TreeTransformerExceptionContext(tree=query)
             raise err from e
 
-        return qtext, argmap
+        return qchunks, argmap, arg_index
 
     def _dump(self, tree):
         print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*|caosnode)$'))

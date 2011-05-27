@@ -15,7 +15,7 @@ class SourceGenerator(NodeVisitor):
     `node_to_source` function.
     """
 
-    def __init__(self, indent_with, add_line_information):
+    def __init__(self, indent_with=' '*4, add_line_information=False):
         self.result = []
         self.indent_with = indent_with
         self.add_line_information = add_line_information

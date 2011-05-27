@@ -107,10 +107,12 @@ class Cursor:
 
 
 class Query:
-    def __init__(self, text, argmap, result_types, argument_types, context=None,
+    def __init__(self, chunks, arg_index, argmap, result_types, argument_types, context=None,
                  scrolling_cursor=False, offset=None, limit=None):
-        self.text = text
+        self.chunks = chunks
+        self.text = ''.join(chunks)
         self.argmap = argmap
+        self.arg_index = arg_index
         self.context = context
         self.result_types = result_types
         self.argument_types = collections.OrderedDict((k, argument_types[k]) for k in argmap
@@ -129,11 +131,35 @@ class Query:
     def prepare(self, session):
         return PreparedQuery(self, session)
 
+    def prepare_partial(self, session, **kwargs):
+        return PreparedQuery(self, session, kwargs)
+
 
 class PreparedQuery:
-    def __init__(self, query, session):
-        self.statement = session.get_prepared_statement(query.text)
+    def __init__(self, query, session, args=None):
         self.query = query
+        self.argmap = query.argmap
+
+        if args:
+            text = self._embed_args(self.query, args)
+            self.argmap = {}
+        else:
+            text = query.text
+
+        self.statement = session.get_prepared_statement(text)
+        self.init_args = args
+
+    def _embed_args(self, query, args):
+        qargs = self.convert_arguments(**args)
+
+        chunks = query.chunks[:]
+
+        for i, arg in qargs.items():
+            arg = postgresql.string.quote_literal(str(arg))
+            for ai in query.arg_index[i]:
+                chunks[ai] = arg
+
+        return ''.join(chunks)
 
     def describe_output(self):
         return self.query.describe_output()
@@ -156,7 +182,7 @@ class PreparedQuery:
 
     def _convert_args(self, kwargs):
         result = []
-        for k in self.query.argmap:
+        for k in self.argmap:
             arg = kwargs[k]
             if isinstance(arg, caos.concept.Concept):
                 arg = arg.id
@@ -173,6 +199,9 @@ class PreparedQuery:
             return native_callback(*vars)
 
     def _cursor_iterator(self, vars, **kwargs):
+        if not kwargs:
+            kwargs = self.init_args
+
         if self.query.limit:
             limit = kwargs.pop(self.query.limit.index)
         else:
@@ -209,7 +238,7 @@ class CaosQLAdapter:
             query.offset = None
             query.limit = None
 
-        qtext, argmap = self.transformer.transform(query, self.realm)
+        qchunks, argmap, arg_index = self.transformer.transform(query, self.realm)
 
         if scrolling_cursor:
             query.offset = offset
@@ -223,7 +252,7 @@ class CaosQLAdapter:
             else:
                 restypes[k] = v
 
-        return Query(text=qtext, argmap=argmap, result_types=restypes,
+        return Query(chunks=qchunks, arg_index=arg_index, argmap=argmap, result_types=restypes,
                      argument_types=query.argument_types, scrolling_cursor=scrolling_cursor,
                      offset=offset, limit=limit)
 

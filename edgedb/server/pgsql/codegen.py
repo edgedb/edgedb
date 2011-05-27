@@ -15,6 +15,10 @@ from semantix.utils.ast import codegen
 class SQLSourceGeneratorError(Exception): pass
 
 class SQLSourceGenerator(codegen.SourceGenerator):
+    def __init__(self, indent_with=' '*4, add_line_information=False):
+        super().__init__(indent_with, add_line_information)
+        self.param_index = {}
+
     def generic_visit(self, node):
         raise SQLSourceGeneratorError('No method to generate code for %s' % node.__class__.__name__)
 
@@ -310,6 +314,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.expr)
         elif node.index is not None:
             self.write('$%d' % (node.index + 1))
+            self.param_index.setdefault(node.index, []).append(len(self.result) - 1)
             if node.type is not None:
                 self.write('::%s' % node.type)
         else:
