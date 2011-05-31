@@ -59,6 +59,28 @@ class DateTime(datetime.datetime):
             tz = cls.get_tz()
         return cls(datetime.datetime.now(tz=tz))
 
+    def __sub__(self, other):
+        if isinstance(other, datetime.datetime):
+            return TimeDelta(dt1=datetime.datetime(self.year, self.month, self.day, self.hour,
+                                                   self.minute, self.second, self.microsecond,
+                                                   self.tzinfo),
+                             dt2=datetime.datetime(other.year, other.month, other.day, other.hour,
+                                                   other.minute, other.second, other.microsecond,
+                                                   other.tzinfo))
+        else:
+            return NotImplemented
+
+    def __add__(self, other):
+        result = super().__add__(other)
+
+        if result is not NotImplemented:
+            return DateTime(result)
+        else:
+            return result
+
+    def truncate(self, field):
+        # XXX
+        raise NotImplementedError
 
 
 class TimeDelta(dateutil.relativedelta.relativedelta):
