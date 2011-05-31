@@ -1120,6 +1120,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                           args[0]])
                 result = pgsql.ast.BinOpNode(left=years, op=ast.ops.ADD, right=months)
 
+            elif expr.name == ('datetime', 'truncate'):
+                name = 'date_trunc'
             elif expr.name == ('datetime', 'current_time'):
                 result = pgsql.ast.FunctionCallNode(name='current_time', noparens=True)
             elif expr.name == ('datetime', 'current_datetime'):
