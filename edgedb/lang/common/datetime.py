@@ -216,7 +216,7 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
 
         seconds, us = self._time_part()
         day_fraction = seconds / 86400
-        days = self.years * 365 + self.months * 12 + self.days + self.leapdays
+        days = self.years * 365 + self.months * 30 + self.days + self.leapdays
 
         if repr == 'years':
             res = self.years + (self.months + (self.leapdays + self.days + day_fraction) / 30) / 12
