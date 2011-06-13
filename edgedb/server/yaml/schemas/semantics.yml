@@ -376,7 +376,7 @@ mapping:
                         mapping:
                             =:
                                 type: map
-                                object: semantix.caos.backends.yaml.LinkList
+                                object: semantix.caos.backends.yaml.SpecializedLink
                                 type: choice
                                 required: yes
                                 choice:

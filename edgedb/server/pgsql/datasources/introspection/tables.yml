@@ -34,7 +34,8 @@ source: |
                 a.attnotnull                            AS column_required,
                 pg_get_expr(def.adbin, c.oid, true)     AS column_default,
                 a.attislocal                            AS column_is_local,
-                a.attinhcount                           AS column_ancestors
+                a.attinhcount                           AS column_ancestors,
+                cmt.description                         AS column_comment
             FROM
                 pg_class c
                 INNER JOIN pg_namespace ns ON c.relnamespace = ns.oid
@@ -42,6 +43,7 @@ source: |
                 INNER JOIN pg_type t ON a.atttypid = t.oid
                 INNER JOIN pg_namespace tns ON t.typnamespace = tns.oid
                 LEFT JOIN pg_attrdef def ON def.adrelid = c.oid AND def.adnum = a.attnum
+                LEFT JOIN pg_description cmt ON (cmt.objoid = c.oid AND cmt.objsubid = a.attnum)
             WHERE
                 ns.nspname LIKE %(schema_name)s::text
                 AND (%(table_name)s::text IS NULL OR c.relname LIKE %(table_name)s::text)
@@ -124,11 +126,13 @@ source: |
                 c.oid                                 AS oid,
                 typ.oid                               AS typoid,
                 c.relname                             AS name,
-                ns.nspname                            AS schema
+                ns.nspname                            AS schema,
+                cmt.description                       AS comment
             FROM
                 pg_class AS c
                 INNER JOIN pg_namespace AS ns ON ns.oid = c.relnamespace
                 INNER JOIN pg_type AS typ ON typ.typrelid = c.oid
+                LEFT JOIN pg_description AS cmt ON (cmt.objoid = c.oid AND cmt.objsubid = 0)
             WHERE
                 --
                 -- Limit the schema scope

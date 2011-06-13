@@ -238,7 +238,7 @@ class CaosQLAdapter:
             query.offset = None
             query.limit = None
 
-        qchunks, argmap, arg_index = self.transformer.transform(query, self.realm)
+        qchunks, argmap, arg_index = self.transformer.transform(query, self.realm, self.session)
 
         if scrolling_cursor:
             query.offset = offset
@@ -582,12 +582,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return delta_cmds.CommandMeta.adapt(delta)
 
     @debug
-    def process_delta(self, delta, meta):
+    def process_delta(self, delta, meta, session=None):
         """LOG [caos.delta.plan] PgSQL Delta Plan
             print(delta.dump())
         """
         delta = self.adapt_delta(delta)
-        context = delta_cmds.CommandContext(self.connection)
+        context = delta_cmds.CommandContext(session.connection if session else self.connection)
         delta.apply(meta, context)
         return delta
 
@@ -603,6 +603,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             except Exception as e:
                 msg = 'failed to apply delta {:032x} to data backend'.format(delta.id)
                 raise base_delta.DeltaError(msg, delta=delta) from e
+
+
+    def execute_delta_plan(self, plan, session=None):
+        plan.execute(delta_cmds.CommandContext(session.connection if session else self.connection))
 
 
     def apply_delta(self, delta):
@@ -708,7 +712,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             concept = session.realm.meta.get(concept_name)
 
             for link_name, link in concept.pointers.items():
-                if link.atomic() and not isinstance(link.first, caos.types.ProtoComputable):
+                if link.atomic() and not isinstance(link, caos.types.ProtoComputable):
                     col_name = common.caos_name_to_pg_name(link_name)
                     atom_link_map[link_name] = attribute_map[col_name]
 
@@ -734,11 +738,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             concept_proto = session.realm.meta.get(concept)
             ret = {}
 
-            for link_name, linkset in concept_proto.pointers.items():
+            for link_name, link in concept_proto.pointers.items():
 
-                if linkset.atomic() and not isinstance(linkset.first, caos.types.ProtoComputable) \
+                if link.atomic() and not isinstance(link, caos.types.ProtoComputable) \
                             and link_name != 'semantix.caos.builtins.id' \
-                            and linkset.first.loading != caos.types.LazyLoading:
+                            and link.loading != caos.types.LazyLoading:
                     colname = common.caos_name_to_pg_name(link_name)
 
                     try:
@@ -1261,18 +1265,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     delta_cmds.Column(name='link_type_id', type='int'),
                 ])
 
-                pointers = prototype.pointers
-
             elif isinstance(prototype, caos.types.ProtoConcept):
                 cols.extend([
                     delta_cmds.Column(name='concept_id', type='int')
                 ])
 
-                pointers = {n: p.first for n, p in prototype.pointers.items()}
             else:
                 assert False
 
-            for pointer_name, pointer in pointers.items():
+            for pointer_name, pointer in prototype.pointers.items():
                 if pointer.atomic() and not isinstance(pointer, caos.types.ProtoComputable):
                     col_type = types.pg_type_from_atom(session.realm.meta, pointer.target,
                                                        topbase=True)
@@ -1297,7 +1298,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         if isinstance(link, caos.types.NodeClass):
             link_names = [(link, link._class_metadata.full_link_name)]
         else:
-            link_names = [(l.target, l._metadata.name) for l in link]
+            link_names = [(link.target, link._metadata.name)]
 
         cmds = []
         records = []
@@ -1814,6 +1815,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                        'is missing' % (pointer_name, source.name))
             raise caos.MetaError(msg, details=details)
 
+        return self._get_pointer_column_target(meta, source, pointer_name, col, constraints)
+
+
+    def _get_pointer_column_target(self, meta, source, pointer_name, col, constraints):
         derived_atom_name = proto.Atom.gen_atom_name(source, pointer_name)
         if col['column_type_schema'] == 'pg_catalog':
             col_type_schema = common.caos_module_name_to_schema_name('semantix.caos.builtins')
@@ -2132,17 +2137,129 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         pass
 
 
-    def get_table_columns(self, table_name, cacheonly=False):
-        cols = self.column_cache.get(table_name)
+    def get_table_columns(self, table_name, cache='auto', connection=None):
+        cols = self.column_cache.get(table_name) if cache is not None else None
 
-        if not cols and not cacheonly:
-            cols = introspection.tables.TableColumns(self.connection)
+        if cols is None and cache != 'always':
+            if connection is None:
+                connection = self.connection
+
+            cols = introspection.tables.TableColumns(connection)
             cols = cols.fetch(table_name=table_name[1], schema_name=table_name[0])
             cols = collections.OrderedDict((col['column_name'], col) for col in cols)
             self.column_cache[table_name] = cols
 
-        assert cols, 'pgsql: could not obtain columns for "%s"."%s"' % table_name
+            if not cols:
+                tlist = introspection.tables.TableList(connection)
+                table = tlist.fetch(schema_name=table_name[0], table_pattern=table_name[1])
+
+                if not table:
+                    msg = 'internal metadata incosistency'
+                    details = 'Could not obtain columns for "%s"."%s"' % table_name
+                    raise caos.MetaError(msg, details=details)
+
         return cols
+
+
+    def virtual_concept_from_table(self, meta, table_name):
+        """Interpret concept relying exclusively on the specified table without supporting metadata."""
+        tables = introspection.tables.TableList(self.connection).fetch(schema_name=table_name[0],
+                                                                       table_pattern=table_name[1])
+
+        if not tables:
+            return None
+
+        if not tables[0]['comment']:
+            msg = 'could not determine concept name: table comment is missing'
+            raise caos.MetaError(msg)
+
+        name = caos.Name(tables[0]['comment'])
+
+        concept = proto.Concept(name=name, is_virtual=True, is_abstract=True)
+        concept.materialize(meta)
+
+        columns = self.get_table_columns(table_name)
+        atom_constraints = self.get_table_atom_constraints()
+        atom_constraints = atom_constraints.get(table_name)
+
+        ptr_constraints = self.get_table_ptr_constraints()
+        ptr_constraints = ptr_constraints.get(table_name)
+
+        for col in columns.values():
+            if not col['column_is_local'] or col['column_name'] == 'concept_id':
+                continue
+
+            pointer_name = col['column_comment']
+
+            if not pointer_name:
+                msg = 'could not determine link name: column comment is missing'
+                raise caos.MetaError(msg)
+
+            pointer_name = caos.Name(pointer_name)
+
+            target, required = self._get_pointer_column_target(meta, concept, pointer_name,
+                                                               col, atom_constraints)
+
+            fname = proto.Link.generate_name(concept.name, target.name, pointer_name)
+            fname = caos.Name(fname)
+            link = proto.Link(name=fname, source=concept, target=target, required=required)
+
+            if ptr_constraints:
+                constraints = ptr_constraints.get(pointer_name)
+                if constraints:
+                    for constraint in constraints:
+                        link.add_constraint(constraint)
+
+            concept.add_pointer(link)
+
+        return concept
+
+
+    def provide_virtual_concept_table(self, concept, schema, session):
+        table_name = common.concept_name_to_table_name(concept.name, catenate=False)
+
+        proto_schema = schema or self.meta
+        stored_concept = self.virtual_concept_from_table(proto_schema, table_name)
+
+        updated_concept = concept.copy()
+        updated_concept._children = concept._children.copy()
+
+        ptrs = updated_concept.get_children_common_pointers(proto_schema)
+
+        for ptr in ptrs:
+            if ptr.atomic():
+                target = ptr.target.get_topmost_base(proto_schema, top_prototype=True)
+                ptr = ptr.derive(proto_schema, updated_concept, target)
+
+                # Drop all constraints on virtual concept links --- they are needless and
+                # potentially harmful.
+                for constr_cls in ptr.constraints.copy():
+                    ptr.del_constraint(constr_cls)
+
+                updated_concept.add_pointer(ptr)
+
+        delta = base_delta.CommandGroup()
+        delta.add(updated_concept.delta(stored_concept))
+
+        for c in updated_concept.children():
+            if updated_concept.name not in c.base:
+                alter = base_delta.AlterConcept(prototype_name=c.name,
+                                                prototype_class=c.__class__.get_canonical_class())
+                prop = base_delta.AlterPrototypeProperty(property='base', old_value=c.base,
+                                                         new_value=c.base + (updated_concept.name,))
+                rebase = base_delta.RebaseConcept(prototype_name=c.name,
+                                                  prototype_class=c.__class__.get_canonical_class(),
+                                                  new_base=c.base + (updated_concept.name,))
+                alter.add(prop)
+                alter.add(rebase)
+                delta.add(alter)
+
+        delta = self.process_delta(delta, proto_schema, session)
+
+        self.execute_delta_plan(delta, session)
+
+        # Update virtual concept table column cache
+        self.get_table_columns(table_name, connection=session.connection, cache=None)
 
 
     def read_concepts(self, meta):
@@ -2164,6 +2281,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                        'description': row['description'],
                        'is_abstract': row['is_abstract'],
                        'is_final': row['is_final'],
+                       'is_virtual': row['is_virtual'],
                        'custombases': row['custombases']}
 
 
@@ -2184,6 +2302,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                     description=concept['description'],
                                     is_abstract=concept['is_abstract'],
                                     is_final=concept['is_final'],
+                                    is_virtual=concept['is_virtual'],
                                     custombases=tuple(concept['custombases']))
 
             meta.add(concept)

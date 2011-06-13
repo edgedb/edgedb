@@ -254,15 +254,22 @@ class TreeTransformer:
             ref = p if len(expr.paths) == 1 else expr
 
             if full_record:
-                for link_name, link in concept.pointers.items():
-                    if link.atomic() and not isinstance(link.first, caos_types.ProtoComputable):
+                if concept.is_virtual:
+                    ptrs = concept.get_children_common_pointers(schema)
+                    ptrs = {ptr.normal_name(): ptr for ptr in ptrs}
+                    ptrs.update(concept.pointers)
+                else:
+                    ptrs = concept.pointers
+
+                for link_name, link in ptrs.items():
+                    if link.atomic() and not isinstance(link, caos_types.ProtoComputable):
                         link_proto = schema.get(link_name)
-                        target_proto = link.first.target
+                        target_proto = link.target
                         id = LinearPath(ref.id)
                         id.add(link_proto, caos_types.OutboundDirection, target_proto)
                         el = caos_ast.AtomicRefSimple(ref=ref, name=link_name, id=id)
 
-                        if link.first.loading == caos_types.LazyLoading:
+                        if link.loading == caos_types.LazyLoading:
                             el = caos_ast.Constant(value=None,
                                                    type=target_proto,
                                                    substitute_for=el.name)
@@ -1375,9 +1382,9 @@ class TreeTransformer:
             cols = []
             for link_name, link in ref.concept.get_searchable_links():
                 id = LinearPath(ref.id)
-                id.add(frozenset((link.first,)), caos_types.OutboundDirection, link.first.target)
+                id.add(frozenset((link,)), caos_types.OutboundDirection, link.target)
                 cols.append(caos_ast.AtomicRefSimple(ref=ref, name=link_name,
-                                                     caoslink=link.first,
+                                                     caoslink=link,
                                                      id=id))
 
             if not cols:

@@ -696,7 +696,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                                         atomref_id = tree.transformer.LinearPath(t.id)
                                         atomref_id.add(link_item, dir, target)
-                                        atomref = tree.ast.AtomicRefSimple(name=linkset_proto.name,
+                                        atomref = tree.ast.AtomicRefSimple(name=linkset_proto.normal_name(),
                                                                            ref=t, id=atomref_id,
                                                                            rlink=link)
                                         newtips[target].add(atomref)

@@ -53,7 +53,7 @@ class MetaCommand(delta_cmds.Command, metaclass=CommandMeta):
         """LINE [caos.delta.execute] EXECUTING
         repr(self)
         """
-        for op in sorted(self.pgops, key=lambda i: i.priority, reverse=True):
+        for op in sorted(self.pgops, key=lambda i: getattr(i, 'priority', 0), reverse=True):
             op.execute(context)
 
     def dump(self):
@@ -63,6 +63,12 @@ class MetaCommand(delta_cmds.Command, metaclass=CommandMeta):
             result.extend('  %s' % l for l in op.dump().split('\n'))
 
         return '\n'.join(result)
+
+
+class CommandGroupAdapted(MetaCommand, adapts=delta_cmds.CommandGroup):
+    def apply(self, meta, context):
+        delta_cmds.CommandGroup.apply(self, meta, context)
+        MetaCommand.apply(self, meta, context)
 
 
 class BaseCommand:
@@ -805,9 +811,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
     def affirm_pointer_defaults(self, source, meta, context):
         for pointer_name, pointer in source.pointers.items():
-            if isinstance(pointer, proto.LinkSet):
-                pointer = pointer.first
-
             if pointer.generic() or not pointer.atomic() or \
                     isinstance(pointer, proto.Computable) or not pointer.default:
                 continue
@@ -827,9 +830,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
     def create_pointer_constraints(self, source, meta, context):
         for pointer_name, pointer in source.pointers.items():
             if pointer_name not in source.own_pointers:
-                if isinstance(pointer, proto.LinkSet):
-                    pointer = pointer.first
-
                 if pointer.generic() or not pointer.atomic() or isinstance(pointer, proto.Computable):
                     continue
 
@@ -847,9 +847,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
     def adjust_pointer_constraints(self, meta, context, source):
 
         for pointer in (p for p in source.pointers.values() if p.atomic()):
-            if isinstance(pointer, proto.LinkSet):
-                pointer = pointer.first
-
             target = pointer.target
 
             pointer_name = pointer.normal_name()
@@ -1117,7 +1114,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         if isinstance(source, caos.types.ProtoConcept):
             nameconv = common.concept_name_to_table_name
             source_ctx = context.get(delta_cmds.ConceptCommandContext)
-            ptr_cmd = delta_cmds.CreateLinkSet
+            ptr_cmd = delta_cmds.CreateLink
         else:
             nameconv = common.link_name_to_table_name
             source_ctx = context.get(delta_cmds.LinkCommandContext)
@@ -1150,9 +1147,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             for added_ptr in added_inh_ptrs - created_ptrs:
                 ptr = source.pointers[added_ptr]
                 if ptr.atomic():
-                    if isinstance(ptr, caos.proto.LinkSet):
-                        ptr = ptr.first
-
                     col_name = common.caos_name_to_pg_name(added_ptr)
                     col_type = types.pg_type_from_atom(meta, ptr.target)
                     col_required = ptr.required
@@ -1272,13 +1266,14 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
 
         fields = self.create_object(concept)
 
-        if concept.name == 'semantix.caos.builtins.BaseObject':
+        if concept.name == 'semantix.caos.builtins.BaseObject' or concept.is_virtual:
             col = Column(name='concept_id', type='integer', required=True)
             alter_table.add_operation(AlterTableAddColumn(col))
 
-        constraint = PrimaryKey(table_name=alter_table.name,
-                                columns=['semantix.caos.builtins.id'])
-        alter_table.add_operation(AlterTableAddConstraint(constraint))
+        if not concept.is_virtual:
+            constraint = PrimaryKey(table_name=alter_table.name,
+                                    columns=['semantix.caos.builtins.id'])
+            alter_table.add_operation(AlterTableAddConstraint(constraint))
 
         bases = (common.concept_name_to_table_name(p, catenate=False)
                  for p in fields['base'][1] if proto.Concept.is_prototype(p))
@@ -1294,6 +1289,8 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
         if self.update_search_indexes:
             self.update_search_indexes.apply(meta, context)
             self.pgops.add(self.update_search_indexes)
+
+        self.pgops.add(Comment(object=concept_table, text=self.prototype_name))
 
         return concept
 
@@ -1549,7 +1546,7 @@ class PointerMetaCommand(MetaCommand):
 
             columns.append(Column(name=column_name, type=column_type,
                                   required=pointer.required,
-                                  default=default))
+                                  default=default, comment=pointer.normal_name()))
 
         return columns
 
@@ -1697,8 +1694,10 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
 
         self.attach_alter_table(context)
 
-        rec, updates = self.record_metadata(link, None, meta, context)
-        self.pgops.add(Insert(table=self.table, records=[rec], priority=1))
+        concept = context.get(delta_cmds.ConceptCommandContext)
+        if not concept or not concept.proto.is_virtual:
+            rec, updates = self.record_metadata(link, None, meta, context)
+            self.pgops.add(Insert(table=self.table, records=[rec], priority=1))
 
         if not link.generic() and link.mapping != caos.types.ManyToMany:
             self.schedule_mapping_update(link, meta, context)
@@ -1820,34 +1819,6 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
         return result
 
 
-class CreateLinkSet(PrototypeMetaCommand, adapts=delta_cmds.CreateLinkSet):
-    def apply(self, meta, context=None):
-        result = delta_cmds.CreateLinkSet.apply(self, meta, context)
-        PrototypeMetaCommand.apply(self, meta, context)
-        return result
-
-
-class RenameLinkSet(PrototypeMetaCommand, adapts=delta_cmds.RenameLinkSet):
-    def apply(self, meta, context=None):
-        result = delta_cmds.RenameLinkSet.apply(self, meta, context)
-        PrototypeMetaCommand.apply(self, meta, context)
-        return result
-
-
-class AlterLinkSet(PrototypeMetaCommand, adapts=delta_cmds.AlterLinkSet):
-    def apply(self, meta, context=None):
-        result = delta_cmds.AlterLinkSet.apply(self, meta, context)
-        PrototypeMetaCommand.apply(self, meta, context)
-        return result
-
-
-class DeleteLinkSet(PrototypeMetaCommand, adapts=delta_cmds.DeleteLinkSet):
-    def apply(self, meta, context=None):
-        result = delta_cmds.DeleteLinkSet.apply(self, meta, context)
-        PrototypeMetaCommand.apply(self, meta, context)
-        return result
-
-
 class PointerConstraintMetaCommand(PrototypeMetaCommand):
     pass
 
@@ -1869,8 +1840,6 @@ class CreatePointerConstraint(PointerConstraintMetaCommand,
                                             isinstance(constraint, proto.PointerConstraintUnique):
 
                 ptr = source.proto.pointers.get(pointer_name)
-                if isinstance(ptr, proto.LinkSet):
-                    ptr = ptr.first
 
                 if self.abstract:
                     # Record abstract constraint in parent op so that potential future children
@@ -2570,6 +2539,18 @@ class UpgradeBackend(MetaCommand):
 
         group.execute(context)
 
+    def update_to_version_3(self, context):
+        """
+        Backend format 3 adds is_virtual attribute to concept description table.
+        """
+        cond = ColumnExists(table_name=('caos', 'concept'), column_name='is_virtual')
+        cmd = AlterTable(('caos', 'concept'), neg_conditions=(cond,))
+        column = Column(name='is_virtual', type='boolean', required=True, default=False)
+        add_column = AlterTableAddColumn(column)
+        cmd.add_operation(add_column)
+
+        cmd.execute(context)
+
     @classmethod
     def update_backend_info(cls):
         backendinfotable = BackendInfoTable()
@@ -2929,12 +2910,13 @@ class PointerConstraintTableConstraint(TableClassConstraint):
 
 
 class Column(DBObject):
-    def __init__(self, name, type, required=False, default=None, readonly=False):
+    def __init__(self, name, type, required=False, default=None, readonly=False, comment=None):
         self.name = name
         self.type = type
         self.required = required
         self.default = default
         self.readonly = readonly
+        self.comment = comment
 
     def code(self, context):
         e = common.quote_ident
@@ -2942,9 +2924,21 @@ class Column(DBObject):
                                 'NOT NULL' if self.required else '',
                                 ('DEFAULT %s' % self.default) if self.default is not None else '')
 
+    def extra(self, context, alter_table):
+        if self.comment is not None:
+            col = TableColumn(table_name=alter_table.name, column=self)
+            cmd = Comment(object=col, text=self.comment)
+            return [cmd]
+
     def __repr__(self):
         return '<%s.%s "%s" %s>' % (self.__class__.__module__, self.__class__.__name__,
                                     self.name, self.type)
+
+
+class TableColumn(DBObject):
+    def __init__(self, table_name, column):
+        self.table_name = table_name
+        self.column = column
 
 
 class IndexColumn(DBObject):
@@ -3227,6 +3221,7 @@ class ConceptTable(MetaObjectTable):
 
         self.__columns = datastructures.OrderedSet([
             Column(name='custombases', type='text[]'),
+            Column(name='is_virtual', type='boolean', required=True, default=False)
         ])
 
         self.constraints = set([
@@ -3950,6 +3945,9 @@ class AlterTableAddColumn(AlterTableFragment):
     def code(self, context):
         return 'ADD COLUMN ' + self.column.code(context)
 
+    def extra(self, context, alter_table):
+        return self.column.extra(context, alter_table)
+
     def __repr__(self):
         return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__, self.column)
 
@@ -4309,14 +4307,22 @@ class Comment(DDLOperation):
     def code(self, context):
         if isinstance(self.object, TableConstraint):
             object_type = 'CONSTRAINT'
-            object_name = self.object.constraint_name()
-            table_name = self.object.table_name
+            object_id = self.object.constraint_name()
+            if self.object.table_name:
+                object_id += ' ON {}'.format(common.qname(*self.object.table_name))
+            else:
+                object_id
+        elif isinstance(self.object, Table):
+            object_type = 'TABLE'
+            object_id = common.qname(*self.object.name)
+        elif isinstance(self.object, TableColumn):
+            object_type = 'COLUMN'
+            object_id = common.qname(self.object.table_name[0], self.object.table_name[1],
+                                     self.object.column.name)
         else:
-            assert False
+            assert False, "unexpected COMMENT target: {}".format(self.object)
 
-        code = 'COMMENT ON %s %s %s IS %s' % \
-                (object_type, object_name,
-                 'ON %s' % common.qname(*table_name) if table_name else '',
-                  postgresql.string.quote_literal(self.text))
+        code = 'COMMENT ON {type} {id} IS {text}'.format(
+                    type=object_type, id=object_id, text=postgresql.string.quote_literal(self.text))
 
         return code

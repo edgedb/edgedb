@@ -32,8 +32,8 @@ def qname(*parts):
     return '.'.join([quote_ident(q) for q in parts])
 
 
-def caos_module_name_to_schema_name(module):
-    return caos_name_to_pg_name('caos_' + module, 5)
+def caos_module_name_to_schema_name(module, prefix='caos_'):
+    return caos_name_to_pg_name(prefix + module, len(prefix))
 
 
 def caos_name_to_pg_name(name, prefix_length=0):
@@ -55,8 +55,8 @@ def caos_name_to_pg_name(name, prefix_length=0):
     return name
 
 
-def convert_name(name, suffix, catenate=True):
-    schema = caos_module_name_to_schema_name(name.module)
+def convert_name(name, suffix, catenate=True, prefix='caos_'):
+    schema = caos_module_name_to_schema_name(name.module, prefix=prefix)
     name = caos_name_to_pg_name('%s_%s' % (name.name, suffix))
 
     if catenate:
@@ -65,15 +65,15 @@ def convert_name(name, suffix, catenate=True):
         return schema, name
 
 
-def atom_name_to_domain_name(name, catenate=True):
+def atom_name_to_domain_name(name, catenate=True, prefix='caos_'):
     return convert_name(name, 'domain', catenate)
 
 
-def atom_name_to_sequence_name(name, catenate=True):
+def atom_name_to_sequence_name(name, catenate=True, prefix='caos_'):
     return convert_name(name, 'sequence', catenate)
 
 
-def concept_name_to_table_name(name, catenate=True):
+def concept_name_to_table_name(name, catenate=True, prefix='caos_'):
     return convert_name(name, 'data', catenate)
 
 

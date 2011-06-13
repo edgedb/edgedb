@@ -388,10 +388,17 @@ class Concept(Prototype, adapts=proto.Concept):
             result['links'] = {}
             result['computables'] = {}
             for ptr_name, ptr in data.own_pointers.items():
-                if isinstance(ptr.first, proto.Computable):
-                    result['computables'][ptr_name] = ptr
+                if isinstance(ptr.target, proto.Atom) and ptr.target.automatic:
+                    key = ptr.target.base
                 else:
-                    result['links'][ptr_name] = ptr
+                    if isinstance(ptr.target, proto.Concept) and ptr.target.is_virtual:
+                        key = tuple(t.name for t in ptr.target.children())
+                    else:
+                        key = ptr.target.name
+
+                section = 'computables' if isinstance(ptr, proto.Computable) else 'links'
+
+                result[section][ptr_name] = {key: ptr}
 
         if data.indexes:
             result['indexes'] = list(sorted(data.indexes, key=lambda i: i.expr))
@@ -594,25 +601,6 @@ class LinkDef(Prototype, adapts=proto.Link):
         return result
 
 
-class LinkSet(Prototype, adapts=proto.LinkSet):
-    @classmethod
-    def represent(cls, data):
-        result = {}
-
-        for l in data.links:
-            if isinstance(l, proto.Computable):
-                result = Computable.represent(l)
-                break
-
-            if isinstance(l.target, proto.Atom) and l.target.automatic:
-                key = l.target.base
-            else:
-                key = l.target.name
-            result[str(key)] = l
-
-        return result
-
-
 class Computable(Prototype, adapts=proto.Computable):
     def construct(self):
         if isinstance(self.data, str):
@@ -670,51 +658,55 @@ class LinkSearchConfiguration(LangObject, adapts=proto.LinkSearchConfiguration, 
             return None
 
 
-class LinkList(LangObject, list):
+class SpecializedLink(LangObject):
 
     def construct(self):
         data = self.data
-        if isinstance(data, str):
-            link = proto.Link(source=None, target=data, name=default_name, _setdefaults_=False,
+        if isinstance(data, (str, list)):
+            link = proto.Link(source=None, target=None, name=default_name, _setdefaults_=False,
                               _relaxrequired_=True)
             link.context = self.context
-            self.append(link)
-        elif isinstance(data, list):
-            for target in data:
-                link = proto.Link(source=None, target=target, name=default_name,
-                                  _setdefaults_=False, _relaxrequired_=True)
-                link.context = self.context
-                self.append(link)
+            link._targets = (data,) if isinstance(data, str) else data
+            self.link = link
+
+        elif isinstance(data, dict):
+            if len(data) != 1:
+                raise MetaError('unexpected number of elements in link data dict: %d', len(data),
+                                context=self.context)
+
+            targets, info = next(iter(data.items()))
+
+            if not isinstance(targets, tuple):
+                targets = (targets,)
+
+            default = info['default']
+            if default and not isinstance(default, list):
+                default = [default]
+
+            props = info['properties']
+
+            link = proto.Link(name=default_name, target=None, mapping=info['mapping'],
+                              required=info['required'], title=info['title'],
+                              description=info['description'], readonly=info['readonly'],
+                              loading=info['loading'],
+                              default=default,
+                              _setdefaults_=False, _relaxrequired_=True)
+
+            search = info.get('search')
+            if search and search.weight is not None:
+                link.search = search
+
+            link.context = self.context
+
+            link._constraints = info.get('constraints')
+            link._abstract_constraints = info.get('abstract-constraints')
+            link._properties = props
+            link._targets = targets
+
+            self.link = link
         else:
-            for target, info in data.items():
-                if not isinstance(target, tuple):
-                    target = (target,)
-
-                default = info['default']
-                if default and not isinstance(default, list):
-                    default = [default]
-
-                props = info['properties']
-
-                for t in target:
-                    link = proto.Link(name=default_name, target=t, mapping=info['mapping'],
-                                      required=info['required'], title=info['title'],
-                                      description=info['description'], readonly=info['readonly'],
-                                      loading=info['loading'],
-                                      default=default,
-                                      _setdefaults_=False, _relaxrequired_=True)
-
-                    search = info.get('search')
-                    if search and search.weight is not None:
-                        link.search = search
-
-                    link.context = self.context
-
-                    link._constraints = info.get('constraints')
-                    link._abstract_constraints = info.get('abstract-constraints')
-                    link._properties = props
-
-                    self.append(link)
+            raise MetaError('unexpected specialized link format: %s', type(data),
+                            context=self.context)
 
 
 class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
@@ -950,7 +942,7 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
     def _read_computables(self, source, globalmeta, localmeta):
         comp_ns = localmeta.get_namespace(proto.Computable)
 
-        for cname, computable in source._computables.items():
+        for cname, computable in getattr(source, '_computables', {}).items():
             computable_qname = comp_ns.normalize_name(cname, default=None)
 
             if not computable_qname:
@@ -1128,50 +1120,76 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
             concept.base = tuple(bases)
             concept.custombases = tuple(custombases)
 
-            for link_name, links in concept._links.items():
-                for link in links:
-                    link.source = concept.name
-                    link.target = concept_ns.normalize_name(link.target)
-
-                    link_qname = link_ns.normalize_name(link_name, default=None)
-                    if not link_qname:
-                        # The link has not been defined globally.
-                        if not caos.Name.is_qualified(link_name):
-                            # If the name is not fully qualified, assume inline link definition.
-                            # The only attribute that is used for global definition is the name.
-                            link_qname = caos.Name(name=link_name, module=self.module)
-                            self._create_base_link(link, link_qname, globalmeta, localmeta)
-                        else:
-                            link_qname = caos.Name(link_name)
-
-                    atom_constraints = self._get_link_atom_constraints(link)
-
-                    if atom_constraints:
-                        target_name = Atom.gen_atom_name(concept, link_qname)
-                        target_name = caos.Name(name=target_name, module=concept.name.module)
+            for link_name, link in concept._links.items():
+                link = link.link
+                link_qname = link_ns.normalize_name(link_name, default=None)
+                if not link_qname:
+                    # The link has not been defined globally.
+                    if not caos.Name.is_qualified(link_name):
+                        # If the name is not fully qualified, assume inline link definition.
+                        # The only attribute that is used for global definition is the name.
+                        link_qname = caos.Name(name=link_name, module=self.module)
+                        self._create_base_link(link, link_qname, globalmeta, localmeta)
                     else:
-                        target_name = link.target
+                        link_qname = caos.Name(link_name)
 
-                    # A new specialized subclass of the link is created for each
-                    # (source, link_name, target) combination
-                    link.base = (link_qname,)
-                    link_genname = proto.Link.generate_name(link.source, target_name, link_qname)
-                    link.name = caos.Name(name=link_genname, module=link_qname.module)
+                link.source = concept.name
+                link._targets = [concept_ns.normalize_name(t) for t in link._targets]
+                link.target = self._normalize_link_target_name(link_qname, link._targets,
+                                                               globalmeta, localmeta)
 
-                    self.read_properties_for_link(link, globalmeta, localmeta)
+                atom_constraints = self._get_link_atom_constraints(link)
 
-                    globalmeta.add(link)
-                    localmeta.add(link)
-                    concept.add_pointer(link)
+                if atom_constraints:
+                    target_name = Atom.gen_atom_name(concept, link_qname)
+                    target_name = caos.Name(name=target_name, module=concept.name.module)
+                else:
+                    target_name = link.target
+
+                # A new specialized subclass of the link is created for each
+                # (source, link_name, target) combination
+                link.base = (link_qname,)
+                link_genname = proto.Link.generate_name(link.source, target_name, link_qname)
+                link.name = caos.Name(name=link_genname, module=link_qname.module)
+
+                self.read_properties_for_link(link, globalmeta, localmeta)
+
+                globalmeta.add(link)
+                localmeta.add(link)
+                concept.add_pointer(link)
+
+        for concept in localmeta('concept', include_builtin=self.include_builtin):
+            for link_name, link in concept._links.items():
+                link = link.link
+                if len(link._targets) > 1:
+                    self._create_link_target(concept, link, globalmeta, localmeta)
 
         for concept in localmeta('concept', include_builtin=self.include_builtin):
             self._read_computables(concept, globalmeta, localmeta)
 
-            for index in concept._indexes:
+            for index in getattr(concept, '_indexes', ()):
                 expr, tree = self.normalize_index_expr(index.expr, concept, globalmeta, localmeta)
                 index.expr = expr
                 index.tree = tree
                 concept.add_index(index)
+
+
+    def _create_link_target(self, source, pointer, globalmeta, localmeta):
+        targets = [localmeta.get(t, type=proto.Concept) for t in pointer._targets]
+
+        target = pointer.get_common_target(globalmeta, targets)
+
+        existing = globalmeta.get(pointer.target, default=None, type=proto.Concept)
+        if not existing:
+            localmeta.add(target)
+            globalmeta.add(target)
+
+
+    def _normalize_link_target_name(self, link_fqname, targets, globalmeta, localmeta):
+        if len(targets) == 1:
+            return targets[0]
+        else:
+            return proto.Source.gen_virt_parent_name(targets, module=link_fqname.module)
 
 
     def normalize_index_expr(self, expr, concept, globalmeta, localmeta):
@@ -1180,133 +1198,123 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
 
 
     def normalize_pointer_defaults(self, source, globalmeta):
-        for link_name, links in source.pointers.items():
-            if not isinstance(links, proto.LinkSet):
-                links = [links]
+        for link in source.pointers.values():
+            if isinstance(link, proto.Computable):
+                continue
 
-            for link in links:
-                if isinstance(link, proto.Computable):
-                    continue
+            if link.default:
+                for default in link.default:
+                    if isinstance(default, QueryDefaultSpec):
+                        module_aliases = {None: str(default.context.document.import_context)}
+                        for alias, module in default.context.document.imports.items():
+                            module_aliases[alias] = module.__name__
 
-                if link.default:
-                    for default in link.default:
-                        if isinstance(default, QueryDefaultSpec):
-                            module_aliases = {None: str(default.context.document.import_context)}
-                            for alias, module in default.context.document.imports.items():
-                                module_aliases[alias] = module.__name__
+                        value, tree = self.caosql_expr.normalize_expr(default.value,
+                                                                      module_aliases)
 
-                            value, tree = self.caosql_expr.normalize_expr(default.value,
-                                                                          module_aliases)
+                        first = list(tree.result_types.values())[0][0]
+                        if len(tree.result_types) > 1 or not \
+                                            first.issubclass(globalmeta, link.target):
+                            raise MetaError(('default value query must yield a '
+                                             'single-column result of type "%s"') %
+                                             link.target.name, context=default.context)
 
-                            first = list(tree.result_types.values())[0][0]
-                            if len(tree.result_types) > 1 or not \
-                                                first.issubclass(globalmeta, link.target):
-                                raise MetaError(('default value query must yield a '
-                                                 'single-column result of type "%s"') %
-                                                 link.target.name, context=default.context)
+                        if not isinstance(link.target, caos.types.ProtoAtom):
+                            if link.mapping not in (caos.types.ManyToOne,
+                                                    caos.types.ManyToMany):
+                                raise MetaError('concept links with query defaults ' \
+                                                'must have either a "*1" or "**" mapping',
+                                                 context=default.context)
 
-                            if not isinstance(link.target, caos.types.ProtoAtom):
-                                if link.mapping not in (caos.types.ManyToOne,
-                                                        caos.types.ManyToMany):
-                                    raise MetaError('concept links with query defaults ' \
-                                                    'must have either a "*1" or "**" mapping',
-                                                     context=default.context)
-
-                            default.value = value
-                    link.normalize_defaults()
+                        default.value = value
+                link.normalize_defaults()
 
 
     def normalize_computables(self, source, globalmeta):
-        for link_name, links in source.pointers.items():
-            if not isinstance(links, proto.LinkSet):
-                links = [links]
+        for link in source.pointers.values():
+            if not isinstance(link, proto.Computable):
+                continue
 
-            for link in links:
-                if not isinstance(link, proto.Computable):
-                    continue
+            module_aliases = {None: str(source.context.document.import_context)}
+            for alias, module in source.context.document.imports.items():
+                module_aliases[alias] = module.__name__
 
-                module_aliases = {None: str(source.context.document.import_context)}
-                for alias, module in source.context.document.imports.items():
-                    module_aliases[alias] = module.__name__
+            expression, tree = self.caosql_expr.normalize_expr(link.expression,
+                                                               module_aliases,
+                                                               anchors={'self': source})
+            refs = self.caosql_expr.get_node_references(tree)
 
-                expression, tree = self.caosql_expr.normalize_expr(link.expression,
-                                                                   module_aliases,
-                                                                   anchors={'self': source})
-                refs = self.caosql_expr.get_node_references(tree)
+            expression = self.caosql_expr.normalize_refs(link.expression, module_aliases)
 
-                expression = self.caosql_expr.normalize_refs(link.expression, module_aliases)
+            first = list(tree.result_types.values())[0][0]
 
-                first = list(tree.result_types.values())[0][0]
+            assert first, "Could not determine computable expression result type"
 
-                assert first, "Could not determine computable expression result type"
+            if len(tree.result_types) > 1:
+                raise MetaError(('computable expression must yield a '
+                                 'single-column result'), context=link.context)
 
-                if len(tree.result_types) > 1:
-                    raise MetaError(('computable expression must yield a '
-                                     'single-column result'), context=link.context)
+            if isinstance(source, proto.Link) and not isinstance(first, proto.Atom):
+                raise MetaError(('computable expression for link property must yield a '
+                                 'scalar'), context=link.context)
 
-                if isinstance(source, proto.Link) and not isinstance(first, proto.Atom):
-                    raise MetaError(('computable expression for link property must yield a '
-                                     'scalar'), context=link.context)
+            link.target = first
+            link.expression = expression
+            link.is_local = len(refs) == 1 and tuple(refs)[0] is source
+            link.is_atom = isinstance(link.target, caos.types.ProtoAtom)
 
-                link.target = first
-                link.expression = expression
-                link.is_local = len(refs) == 1 and tuple(refs)[0] is source
-                link.is_atom = isinstance(link.target, caos.types.ProtoAtom)
-
-                type = proto.Link if isinstance(source, proto.Concept) else proto.LinkProperty
+            type = proto.Link if isinstance(source, proto.Concept) else proto.LinkProperty
 
 
     def order_concepts(self, globalmeta):
         g = {}
 
         for concept in globalmeta('concept', include_builtin=True):
-            links = {}
             link_target_types = {}
 
-            for link_name, links in concept.pointers.items():
-                for link in links:
-                    if not isinstance(link.source, proto.Prototype):
-                        link.source = globalmeta.get(link.source)
+            for link_name, link in concept.pointers.items():
+                if not isinstance(link.source, proto.Prototype):
+                    link.source = globalmeta.get(link.source)
 
-                    if not isinstance(link, proto.Computable):
-                        if not isinstance(link.target, proto.Prototype):
-                            link.target = globalmeta.get(link.target)
-                            if isinstance(link.target, caos.types.ProtoConcept):
-                                link.target.add_rlink(link)
+                if not isinstance(link, proto.Computable):
+                    if not isinstance(link.target, proto.Prototype):
+                        link.target = globalmeta.get(link.target)
+                        if isinstance(link.target, caos.types.ProtoConcept):
+                            link.target.add_rlink(link)
 
-                        if isinstance(link.target, proto.Atom):
-                            link.is_atom = True
+                    if isinstance(link.target, proto.Atom):
+                        link.is_atom = True
 
-                            parent = globalmeta.get(link.normal_name())
+                        parent = globalmeta.get(link.normal_name())
 
-                            if [l for l in parent.children() if not l.generic() and not l.atomic()]:
-                                raise MetaError('%s link target conflict (atom/concept)' % link.normal_name(),
-                                                context=link.context)
+                        if [l for l in parent.children() if not l.generic() and not l.atomic()]:
+                            raise MetaError('%s link target conflict (atom/concept)' % link.normal_name(),
+                                            context=link.context)
 
-                            if link_name in link_target_types and link_target_types[link_name] != 'atom':
-                                raise caos.MetaError('%s link is already defined as a link to non-atom')
+                        if link_name in link_target_types and link_target_types[link_name] != 'atom':
+                            raise caos.MetaError('%s link is already defined as a link to non-atom')
 
-                            atom_constraints = self._get_link_atom_constraints(link)
+                        atom_constraints = self._get_link_atom_constraints(link)
 
-                            if atom_constraints:
-                                # Got an inline atom definition.
-                                atom = self.genatom(globalmeta, concept, link.target.name, link_name,
-                                                    constraints=atom_constraints,
-                                                    default=link.default)
-                                globalmeta.add(atom)
-                                link.target = atom
+                        if atom_constraints:
+                            # Got an inline atom definition.
+                            atom = self.genatom(globalmeta, concept, link.target.name, link_name,
+                                                constraints=atom_constraints,
+                                                default=link.default)
+                            globalmeta.add(atom)
+                            link.target = atom
 
-                            if link.mapping and link.mapping != caos.types.OneToOne:
-                                raise caos.MetaError('%s: links to atoms can only have a "1 to 1" mapping'
-                                                     % link_name)
+                        if link.mapping and link.mapping != caos.types.OneToOne:
+                            raise caos.MetaError('%s: links to atoms can only have a "1 to 1" mapping'
+                                                 % link_name)
 
-                            link_target_types[link_name] = 'atom'
-                        else:
-                            if link_name in link_target_types and link_target_types[link_name] == 'atom':
-                                raise MetaError('%s link target conflict (atom/concept)' % link.normal_name(),
-                                                context=link.context)
+                        link_target_types[link_name] = 'atom'
+                    else:
+                        if link_name in link_target_types and link_target_types[link_name] == 'atom':
+                            raise MetaError('%s link target conflict (atom/concept)' % link.normal_name(),
+                                            context=link.context)
 
-                            link_target_types[link_name] = 'concept'
+                        link_target_types[link_name] = 'concept'
 
             g[concept.name] = {"item": concept, "merge": [], "deps": []}
             if concept.base:
