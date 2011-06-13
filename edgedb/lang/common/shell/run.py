@@ -18,6 +18,9 @@ class RunCommand(shell.Command, name='run', expose=True):
         parser.add_argument('--callable', dest='callable', default='main',
                             help='name of function/callable to execute')
         parser.add_argument('file', help=('path to a python file to be executed'))
+        parser.add_argument('--with-debug-logger', dest='debug_logger',
+                            action='store_true', default=False,
+                            help='installs a debug logger that dumps semantix errors to stdout')
 
         return parser
 
@@ -35,5 +38,10 @@ class RunCommand(shell.Command, name='run', expose=True):
         except AttributeError:
             raise ValueError('unable to run file %r: has no callable %r defined' % \
                              (path, args.callable))
+
+        if args.debug_logger:
+            import logging
+            from semantix.utils.test.pytest_semantix import LoggingPrintHandler
+            logging.getLogger("semantix").addHandler(LoggingPrintHandler(args.color))
 
         callable()
