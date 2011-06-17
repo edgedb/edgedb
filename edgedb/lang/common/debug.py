@@ -192,12 +192,17 @@ def assert_raises(exception_cls, *, cause=None, error_re=None):
         if error_re is not None:
             err_re = re.compile('%s' % error_re)
 
-            if not (err_re.search(msg) or \
-                                (cause is not None and err_re.search(ex.__cause__.args[0]))):
-
-                raise ErrorExpected('%s was expected to be raised with ' \
-                                    'message that matches %r, got %r' % \
-                                    (exception_cls.__name__, error_re, msg)) from ex
+            if not err_re.search(msg):
+                if cause is not None:
+                    if not err_re.search(ex.__cause__.args[0]):
+                        raise ErrorExpected('%s with cause %s was expected to be raised with ' \
+                                            'cause message that matches %r, got %r' % \
+                                            (exception_cls.__name__, cause.__name__,
+                                             error_re, ex.__cause__.args[0])) from ex
+                else:
+                    raise ErrorExpected('%s was expected to be raised with ' \
+                                        'message that matches %r, got %r' % \
+                                        (exception_cls.__name__, error_re, msg)) from ex
 
     except Exception as ex:
         raise ErrorExpected('%s was expected to be raised, got %s' % \

@@ -45,3 +45,22 @@ class TestAssertRaises:
             # Remember -- error_re is a regular expression, so parens must be quoted
             with assert_raises(ValueError, error_re='invalid literal for int() with base \d+'):
                 int('g')
+
+        with assert_raises(Exception, cause=ValueError, error_re='invalid literal for int()'):
+            # Cascaded case
+            try:
+                int('a')
+            except Exception as ex:
+                raise Exception from ex
+
+        with assert_raises(ErrorExpected, error_re='''Exception with cause ValueError was ''' \
+                                                   '''expected to be raised with cause message ''' \
+                                                   '''that matches 'invalid exception', got ''' \
+                                                   '''"invalid literal'''):
+
+            with assert_raises(Exception, cause=ValueError, error_re='invalid exception'):
+                # Cascaded case
+                try:
+                    int('a')
+                except Exception as ex:
+                    raise Exception('foo bar') from ex
