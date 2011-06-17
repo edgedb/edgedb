@@ -1916,6 +1916,10 @@ class TreeTransformer:
                 result = self.get_expr_type(next(iter(expr.paths)), schema)
             else:
                 result = None
+
+        elif isinstance(expr, caos_ast.TypeCast):
+            result = expr.type
+
         else:
             result = None
 
