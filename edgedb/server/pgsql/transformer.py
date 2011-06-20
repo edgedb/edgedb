@@ -1023,7 +1023,10 @@ class CaosTreeTransformer(CaosExprTransformer):
         if expr.name == ('search', 'rank'):
             vector, query = self._text_search_args(context, *expr.args,
                                                    extended=expr.kwargs.get('extended'))
-            result = pgsql.ast.FunctionCallNode(name='ts_rank_cd', args=[vector, query])
+            # Normalize rank to a scale from 0 to 1
+            normalization = pgsql.ast.ConstantNode(value=32)
+            args = [vector, query, normalization]
+            result = pgsql.ast.FunctionCallNode(name='ts_rank_cd', args=args)
 
         elif expr.name == ('search', 'headline'):
             kwargs = expr.kwargs.copy()
