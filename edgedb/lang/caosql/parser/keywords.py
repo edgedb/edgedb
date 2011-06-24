@@ -16,6 +16,7 @@ caosql_keywords = {
     "as": ("AS", RESERVED_KEYWORD),
     "asc": ("ASC", RESERVED_KEYWORD),
     "by": ("BY", UNRESERVED_KEYWORD),
+    "cast": ("CAST", RESERVED_KEYWORD),
     "desc": ("DESC", RESERVED_KEYWORD),
     "distinct": ("DISTINCT", RESERVED_KEYWORD),
     "except": ("EXCEPT", RESERVED_KEYWORD),

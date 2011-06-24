@@ -56,6 +56,8 @@ class SequenceNode(ast.AST): __fields = [('elements', list)]
 
 class PrototypeRefNode(ast.AST): __fields = ['name', 'module']
 
+class TypeCastNode(ast.AST): __fields = ['expr', 'type']
+
 
 class SortOrder(StrSingleton):
     _map = {

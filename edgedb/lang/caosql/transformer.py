@@ -497,6 +497,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         elif isinstance(expr, qlast.ExistsPredicateNode):
             node = tree.ast.ExistPred(expr=self._process_expr(context, expr.expr))
 
+        elif isinstance(expr, qlast.TypeCastNode):
+            typ = context.current.proto_schema.get(expr.type, module_aliases=context.current.namespaces)
+            node = tree.ast.TypeCast(expr=self._process_expr(context, expr.expr), type=typ)
+
         else:
             assert False, "Unexpected expr: %s" % expr
 

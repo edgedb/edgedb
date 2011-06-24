@@ -958,6 +958,10 @@ class LinkDirection(Nonterm):
 
 
 class FuncExpr(Nonterm):
+    def reduce_CAST_LPAREN_Expr_AS_ArgName_RPAREN(self, *kids):
+        "%reduce CAST LPAREN Expr AS ArgName RPAREN"
+        self.val = qlast.TypeCastNode(expr=kids[2].val, type=kids[4].val)
+
     def reduce_FqFuncName_LPAREN_FuncArgList_RPAREN(self, *kids):
         "%reduce FqFuncName LPAREN FuncArgList RPAREN"
         self.val = qlast.FunctionCallNode(func=kids[0].val, args=kids[2].val)
