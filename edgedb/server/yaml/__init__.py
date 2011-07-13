@@ -14,6 +14,7 @@ import itertools
 import decimal
 
 from semantix.utils import lang
+from semantix.utils.lang import context as lang_context
 from semantix.utils.lang import yaml
 from semantix.utils.lang.yaml import protoschema as yaml_protoschema
 from semantix.utils.lang.yaml.struct import StructMeta
@@ -1452,7 +1453,7 @@ class Backend(backends.MetaBackend):
     def load_from_string(self, data):
         import_context = proto.ImportContext('<string>', toplevel=True)
         module = ModuleFromData('<string>')
-        context = lang.meta.DocumentContext(module=module, import_context=import_context)
+        context = lang_context.DocumentContext(module=module, import_context=import_context)
         for k, v in lang.yaml.Language.load_dict(io.StringIO(data), context):
             setattr(module, str(k), v)
 

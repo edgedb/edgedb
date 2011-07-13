@@ -14,7 +14,7 @@ import pyggy
 import pyggy.lexer
 
 from semantix.exceptions import SemantixError, ExceptionContext
-from semantix.utils.lang import meta as lang_meta
+from semantix.utils.lang import context as lang_context
 from semantix.utils.datastructures import xvalue
 
 
@@ -129,11 +129,11 @@ class Precedence(Parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
     pass
 
 
-class SourcePoint(lang_meta.SourcePoint):
+class SourcePoint(lang_context.SourcePoint):
     pass
 
 
-class ParserContext(lang_meta.SourceContext, ExceptionContext):
+class ParserContext(lang_context.SourceContext, ExceptionContext):
     title = 'Parser Context'
 
     def render(self):

@@ -10,9 +10,9 @@ import inspect
 
 from semantix.exceptions import ExceptionContext
 from semantix.utils.datastructures import xvalue
-from semantix.utils.lang.meta import SourcePoint, SourceContext
+from semantix.utils.lang.context import SourcePoint, SourceContext
 from semantix.utils import helper
-from semantix.utils.lang.import_ import Importer
+from semantix.utils.lang.import_.finder import Finder
 
 
 def get_frame_module(frame):
@@ -21,7 +21,7 @@ def get_frame_module(frame):
     except TypeError:
         return None
 
-    return Importer.get_module_by_filename(file)
+    return Finder.get_module_by_filename(file)
 
 
 def source_context_from_frame(frame):

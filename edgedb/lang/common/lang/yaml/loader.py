@@ -13,7 +13,8 @@ import functools
 import collections
 import copy
 
-import semantix.utils.lang.meta
+from semantix.utils.lang import meta as lang_base
+from semantix.utils.lang import context as lang_context
 
 
 class AttributeMappingNode(yaml.nodes.MappingNode):
@@ -191,7 +192,6 @@ class Constructor(yaml.constructor.Constructor):
     def __init__(self, context=None):
         super().__init__()
         self.document_context = context
-        self.documents_emitted = 0
 
     def _get_class_from_tag(self, clsname, node, intent='class'):
         if not clsname:
@@ -210,12 +210,12 @@ class Constructor(yaml.constructor.Constructor):
         return result
 
     def _get_source_context(self, node, document_context):
-        start = semantix.utils.lang.meta.SourcePoint(node.start_mark.line, node.start_mark.column,
+        start = lang_context.SourcePoint(node.start_mark.line, node.start_mark.column,
                                                node.start_mark.pointer)
-        end = semantix.utils.lang.meta.SourcePoint(node.end_mark.line, node.end_mark.column,
+        end = lang_context.SourcePoint(node.end_mark.line, node.end_mark.column,
                                                node.end_mark.pointer)
 
-        context = semantix.utils.lang.meta.SourceContext(node.start_mark.name, node.start_mark.buffer,
+        context = lang_context.SourceContext(node.start_mark.name, node.start_mark.buffer,
                                                    start, end, document_context)
         return context
 
@@ -259,7 +259,7 @@ class Constructor(yaml.constructor.Constructor):
 
     def construct_python_object(self, classname, node):
         cls = self._get_class_from_tag(classname, node, 'object')
-        if not issubclass(cls, semantix.utils.lang.meta.Object):
+        if not issubclass(cls, lang_base.Object):
             raise yaml.constructor.ConstructorError(
                     "while constructing a Python object", node.start_mark,
                     "expected %s to be a subclass of semantix.utils.lang.meta.Object" % classname, node.start_mark)
@@ -310,20 +310,11 @@ class Constructor(yaml.constructor.Constructor):
         value = self.construct_ordered_mapping(node)
         data.update(value)
 
-    def get_dict(self, document_offset=None):
-        if document_offset is not None and document_offset > self.documents_emitted:
-            for i in range(self.documents_emitted, document_offset):
-                if self.check_node():
-                    node = self.get_node()
-                else:
-                    break
-                self.documents_emitted += 1
-
+    def get_dict(self):
         # Construct and return the next document.
         while self.check_node():
             node = self.get_node()
             data = self.construct_document(node)
-            self.documents_emitted += 1
 
             if isinstance(node, AttributeMappingNode):
                 for d in data.items():

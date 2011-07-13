@@ -6,7 +6,7 @@
 ##
 
 
-from .meta import LanguageMeta, DocumentContext
+from .meta import LanguageMeta
 from .import_ import ImportContext
 
 # Import languages to register them

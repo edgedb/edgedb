@@ -9,8 +9,7 @@
 import os
 
 from semantix.utils import helper
-from semantix.utils import lang
-from semantix.utils.lang import meta
+from semantix.utils.lang import context as lang_context
 from semantix.utils.lang.yaml import loader
 from semantix.utils.functional import decorate
 
@@ -41,7 +40,7 @@ def result(expected_result=None, key=None, value=None):
         def new(*args, **kwargs):
             slf = args[0]
 
-            constructor = loader.Constructor(context=meta.DocumentContext())
+            constructor = loader.Constructor(context=lang_context.DocumentContext())
             try:
                 node = slf.load(func.__doc__)
                 node = slf.schema.check(node)

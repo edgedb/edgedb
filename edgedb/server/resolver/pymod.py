@@ -18,11 +18,11 @@ class PyModResolver(shell.BackendResolverHelper):
         import_context = proto.ImportContext(url.path, toplevel=True)
         mod = importlib.import_module(import_context)
 
-        handler = shell.BackendResolverHelperMeta.get('languages', mod._language_)
+        handler = shell.BackendResolverHelperMeta.get('languages', mod.__language__)
         deltarepo = self.get_delta_repo(url)
 
         if handler:
             return handler().resolve_module(mod, deltarepo)
         else:
-            err = 'unsupported Caos module language: %s' % mod._language_
+            err = 'unsupported Caos module language: %s' % mod.__language__
             raise error.BackendResolverError(err)

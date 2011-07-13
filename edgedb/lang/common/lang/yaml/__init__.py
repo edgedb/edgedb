@@ -8,7 +8,7 @@
 
 import os
 import yaml
-from semantix.utils.lang import meta
+from semantix.utils.lang import meta, context as lang_context
 from semantix.utils.lang.yaml import loader, dumper
 from semantix.utils.functional import Adapter
 
@@ -19,7 +19,7 @@ class Language(meta.Language):
     @classmethod
     def load(cls, stream, context=None):
         if not context:
-            context = meta.DocumentContext()
+            context = lang_context.DocumentContext()
 
         ldr = loader.Loader(stream, context)
         while ldr.check_data():
@@ -32,7 +32,7 @@ class Language(meta.Language):
     @classmethod
     def load_dict(cls, stream, context=None):
         if not context:
-            context = meta.DocumentContext()
+            context = lang_context.DocumentContext()
 
         ldr = loader.Loader(stream, context)
         for d in ldr.get_dict():
