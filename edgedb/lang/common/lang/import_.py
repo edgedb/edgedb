@@ -98,7 +98,7 @@ class Importer(importlib.abc.Finder, importlib.abc.Loader):
         language, filename, is_package = self.module_file_map[fullname]
 
         if language.loader:
-            module = language.loader(fullname, filename, is_package).load_module(fullname)
+            module = language.loader(fullname, filename).load_module(fullname)
         else:
             module = self._load_module(fullname, language, filename, is_package)
 
