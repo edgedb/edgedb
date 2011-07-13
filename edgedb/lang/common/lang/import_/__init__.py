@@ -13,7 +13,7 @@ import importlib.abc
 import collections
 import types
 
-from .meta import LanguageMeta, DocumentContext
+from semantix.utils.lang.meta import LanguageMeta, DocumentContext
 
 
 class ImportContext(str):
