@@ -40,3 +40,9 @@ class LightProxyModule(BaseProxyModule):
 
     def __repr__(self):
         return '<%s "%s">' % (object.__getattribute__(self, '__class__').__name__, self.__name__)
+
+
+class ModuleInfo:
+    def __init__(self, module):
+        for attr in ('__name__', '__package__', '__path__', '__file__'):
+            setattr(self, attr, getattr(module, attr, None))

@@ -15,6 +15,7 @@ import copy
 
 from semantix.utils.lang import meta as lang_base
 from semantix.utils.lang import context as lang_context
+from semantix.utils.lang.import_ import module as module_types
 
 
 class AttributeMappingNode(yaml.nodes.MappingNode):
@@ -232,7 +233,7 @@ class Constructor(yaml.constructor.Constructor):
 
                 if not alias:
                     alias = mod.__name__
-                self.document_context.imports[alias] = mod
+                self.document_context.imports[alias] = module_types.ModuleInfo(mod)
 
         return super().construct_document(node)
 

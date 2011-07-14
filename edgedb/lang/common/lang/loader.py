@@ -10,6 +10,7 @@ import collections
 import io
 
 from semantix.utils.lang.import_ import loader
+from semantix.utils.lang.import_ import module as module_types
 
 from .context import DocumentContext
 
@@ -24,7 +25,8 @@ class LanguageLoader:
         return self._language.proxy_module_cls
 
     def code_from_source(self, module, source_bytes):
-        context = DocumentContext(module=module, import_context=module.__name__)
+        modinfo = module_types.ModuleInfo(module)
+        context = DocumentContext(module=modinfo, import_context=module.__name__)
 
         stream = io.BytesIO(source_bytes)
 
@@ -40,7 +42,8 @@ class LanguageLoader:
 
     def _execute(self, module, data, method):
         try:
-            context = DocumentContext(module=module, import_context=self._context)
+            modinfo = module_types.ModuleInfo(module)
+            context = DocumentContext(module=modinfo, import_context=self._context)
             attributes = getattr(self._language, method)(data, context=context)
             self.set_module_attributes(module, attributes)
 
