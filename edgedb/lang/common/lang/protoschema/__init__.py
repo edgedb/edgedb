@@ -24,8 +24,9 @@ from .name import SchemaName
 
 
 class ImportContext(lang.ImportContext):
-    def __new__(cls, name, *, protoschema=None, toplevel=False, builtin=False, private=None):
-        result = super(ImportContext, cls).__new__(cls, name)
+    def __new__(cls, name, *, loader=None, protoschema=None, toplevel=False, builtin=False,
+                                                                             private=None):
+        result = super(ImportContext, cls).__new__(cls, name, loader=loader)
         result.protoschema = protoschema if protoschema else cls.new_schema(builtin)
         result.protoschema.add_module(name, name)
         result.toplevel = toplevel
@@ -33,13 +34,15 @@ class ImportContext(lang.ImportContext):
         result.private = private
         return result
 
-    def __init__(self, name, *, protoschema=None, toplevel=False, builtin=False, private=None):
+    def __init__(self, name, *, loader=None, protoschema=None, toplevel=False, builtin=False,
+                                                                               private=None):
         pass
 
     @classmethod
     def from_parent(cls, name, parent):
         if parent and isinstance(parent, ImportContext):
-            result = cls(name, protoschema=parent.protoschema, toplevel=False, builtin=parent.builtin)
+            result = cls(name, loader=parent.loader, protoschema=parent.protoschema,
+                               toplevel=False, builtin=parent.builtin)
             result.protoschema.add_module(name, name)
         else:
             result = cls(name, toplevel=True)
@@ -48,8 +51,9 @@ class ImportContext(lang.ImportContext):
     @classmethod
     def copy(cls, name, other):
         if isinstance(other, ImportContext):
-            result = cls(other, protoschema=other.protoschema, toplevel=other.toplevel,
-                                builtin=other.builtin, private=other.private)
+            result = cls(other, loader=other.loader, protoschema=other.protoschema,
+                                toplevel=other.toplevel, builtin=other.builtin,
+                                private=other.private)
         else:
             result = cls(other)
         return result

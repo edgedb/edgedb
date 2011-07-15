@@ -35,5 +35,7 @@ class Finder(importlib.abc.Finder):
             result = LanguageMeta.recognize_file(test, True, is_package)
             if result:
                 language, filename = result
-                loader = language.get_loader()
+                loader = getattr(fullname, 'loader', None)
+                if loader is None:
+                    loader = language.get_loader()
                 return loader(fullname, filename, language)

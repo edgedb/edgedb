@@ -10,6 +10,7 @@ import imp
 import sys
 
 from . import module as module_types
+from .context import ImportContext
 
 
 def reload(module):
@@ -27,17 +28,3 @@ def reload(module):
 
     else:
         return imp.reload(module)
-
-
-class ImportContext(str):
-    def __getitem__(self, key):
-        result = super().__getitem__(key)
-        return self.__class__.copy(result, self)
-
-    @classmethod
-    def copy(cls, name, other):
-        return cls(name)
-
-    @classmethod
-    def from_parent(cls, name, parent):
-        return cls(name)
