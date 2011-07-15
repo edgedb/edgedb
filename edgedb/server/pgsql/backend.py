@@ -445,6 +445,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.meta = proto.RealmMeta(load_builtins=False)
 
         repo = deltarepo(self.connection)
+        self._init_introspection_cache()
         super().__init__(repo)
 
 
@@ -463,6 +464,69 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             raise caos.MetaError(msg, details=details)
 
         self.init_features(connection)
+
+
+    def _init_introspection_cache(self):
+        if 'caos' in self.modules:
+            self.column_cache = self._init_column_cache()
+            self.table_id_to_proto_name_cache, self.proto_name_to_table_id_cache = self._init_relid_cache()
+
+
+    def _init_column_cache(self):
+        colsds = introspection.tables.TableColumns(self.connection)
+        cols = colsds.fetch(schema_name='caos_%')
+
+        column_cache = {}
+
+        for col in cols:
+            table_name = (col['table_schema'], col['table_name'])
+            cache = column_cache.get(table_name)
+            if cache is None:
+                column_cache[table_name] = cache = collections.OrderedDict()
+            cache[col['column_name']] = col
+
+        return column_cache
+
+
+    def _init_relid_cache(self):
+        link_tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
+                                                                            table_pattern='%_link')
+        link_tables = {(t['schema'], t['name']): t for t in link_tables}
+
+        links_list = datasources.meta.links.ConceptLinks(self.connection).fetch()
+        links_list = collections.OrderedDict((caos.Name(r['name']), r) for r in links_list)
+
+        table_id_to_proto_name_cache = {}
+        proto_name_to_table_id_cache = {}
+
+        for link_name, link in links_list.items():
+            if not link['source_id']:
+                link_table_name = common.link_name_to_table_name(link_name, catenate=False)
+                t = link_tables.get(link_table_name)
+                if t:
+                    table_id_to_proto_name_cache[t['oid']] = link_name
+                    proto_name_to_table_id_cache[link_name] = t['typoid']
+
+        tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
+                                                                       table_pattern='%_data')
+        tables = {(t['schema'], t['name']): t for t in tables}
+
+        concept_list = datasources.meta.concepts.ConceptList(self.connection).fetch()
+        concept_list = collections.OrderedDict((caos.Name(row['name']), row) for row in concept_list)
+
+        for name, row in concept_list.items():
+            table_name = common.concept_name_to_table_name(name, catenate=False)
+            table = tables.get(table_name)
+
+            if not table:
+                msg = 'internal metadata incosistency'
+                details = 'Record for concept "%s" exists but the table is missing' % name
+                raise caos.MetaError(msg, details=details)
+
+            table_id_to_proto_name_cache[table['oid']] = name
+            proto_name_to_table_id_cache[name] = table['typoid']
+
+        return table_id_to_proto_name_cache, proto_name_to_table_id_cache
 
 
     def init_features(self, connection):
@@ -495,7 +559,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def getmeta(self):
         if not self.meta.index:
             if 'caos' in self.modules:
-                self._init_column_cache()
+                self._init_introspection_cache()
 
                 self.read_atoms(self.meta)
                 self.read_concepts(self.meta)
@@ -1174,12 +1238,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def source_name_from_relid(self, table_oid):
-        self.getmeta()
         return self.table_id_to_proto_name_cache.get(table_oid)
 
 
     def typrelid_for_source_name(self, source_name):
-        self.getmeta()
         return self.proto_name_to_table_id_cache.get(source_name)
 
 
@@ -1851,13 +1913,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             elif name != 'semantix.caos.builtins.link':
                 bases = (caos.Name('semantix.caos.builtins.link'),)
 
-            if not r['source_id']:
-                link_table_name = common.link_name_to_table_name(name, catenate=False)
-                t = link_tables.get(link_table_name)
-                if t:
-                    self.table_id_to_proto_name_cache[t['oid']] = name
-                    self.proto_name_to_table_id_cache[name] = t['typoid']
-
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
             source = meta.get(r['source']) if r['source'] else None
@@ -2077,18 +2132,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         pass
 
 
-    def _init_column_cache(self):
-        colsds = introspection.tables.TableColumns(self.connection)
-        cols = colsds.fetch(schema_name='caos_%')
-
-        for col in cols:
-            table_name = (col['table_schema'], col['table_name'])
-            cache = self.column_cache.get(table_name)
-            if cache is None:
-                self.column_cache[table_name] = cache = collections.OrderedDict()
-            cache[col['column_name']] = col
-
-
     def get_table_columns(self, table_name, cacheonly=False):
         cols = self.column_cache.get(table_name)
 
@@ -2131,9 +2174,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 msg = 'internal metadata incosistency'
                 details = 'Record for concept "%s" exists but the table is missing' % name
                 raise caos.MetaError(msg, details=details)
-
-            self.table_id_to_proto_name_cache[table['oid']] = name
-            self.proto_name_to_table_id_cache[name] = table['typoid']
 
             visited_tables.add(table_name)
 
