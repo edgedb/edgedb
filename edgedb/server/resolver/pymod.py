@@ -6,17 +6,16 @@
 ##
 
 
-import importlib
+from semantix.utils.lang.import_ import utils as imp_utils
+from semantix.utils.lang.protoschema.loader import ProtoSchemaModuleLoader
 
-from semantix.caos import proto
 from . import shell
 from . import error
 
 
 class PyModResolver(shell.BackendResolverHelper):
     def resolve(self, url):
-        import_context = proto.ImportContext(url.path, toplevel=True)
-        mod = importlib.import_module(import_context)
+        mod = imp_utils.import_module(url.path, loader=ProtoSchemaModuleLoader)
 
         handler = shell.BackendResolverHelperMeta.get('languages', mod.__language__)
         deltarepo = self.get_delta_repo(url)

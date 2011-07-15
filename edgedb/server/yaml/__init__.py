@@ -1464,7 +1464,7 @@ class Backend(backends.MetaBackend):
         super().__init__(repo)
 
     def load_from_string(self, data):
-        import_context = proto.ImportContext('<string>', toplevel=True)
+        import_context = proto.ImportContext('<string>')
         module = ModuleFromData('<string>')
         context = lang_context.DocumentContext(module=module, import_context=import_context)
         for k, v in lang.yaml.Language.load_dict(io.StringIO(data), context):
