@@ -136,6 +136,9 @@ class Namespace:
     def iter_modules(self):
         return iter(self.index_by_module)
 
+    def has_module(self, module):
+        return module in self.index_by_module
+
     def add(self, obj):
         idx_by_mod = self.index_by_module.setdefault(obj.name.module, collections.OrderedDict())
         idx_by_mod[obj.name.name] = obj
@@ -483,6 +486,11 @@ class ProtoSchema:
 
     def iter_modules(self):
         return itertools.chain.from_iterable(ns.iter_modules() for ns in self.namespaces.values())
+
+    def has_module(self, module):
+        for ns in self.namespaces.values():
+            if ns.has_module(module):
+                return True
 
 
 class BuiltinProtoSchema(ProtoSchema):
