@@ -352,7 +352,7 @@ def configurable(obj, *, basename=None, bind_to=None):
         def _decorate(wrapped):
             return configurable(wrapped, basename=obj_name + '.' + wrapped.__name__, bind_to=obj)
 
-        for attr_name, attr_value in obj.__dict__.items():
+        for attr_name, attr_value in tuple(obj.__dict__.items()):
             if isinstance(attr_value, cvalue):
                 assert not attr_value.bound_to
 
