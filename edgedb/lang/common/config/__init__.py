@@ -15,6 +15,7 @@ from semantix.utils.functional import decorate, apply_decorator, get_argsspec
 from semantix.utils.functional.types import Checker, FunctionValidator, checktypes, \
                                             ChecktypeExempt, TypeChecker, CombinedChecker
 from semantix.exceptions import SemantixError
+from semantix.utils.lang import context as lang_context
 from semantix.utils.lang import yaml
 from semantix.utils.config.schema import Schema
 
@@ -421,7 +422,8 @@ class _Loader(_YamlObject):
                 for key in data:
                     _Loader.traverse(data[key], (name + '.' + key) if name else key)
             else:
-                set_value(name, data, str(obj.context))
+                context = lang_context.SourceContext.from_object(obj)
+                set_value(name, data, str(context))
 
     def __sx_setstate__(self, data):
         super().__sx_setstate__(data)

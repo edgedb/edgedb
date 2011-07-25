@@ -7,6 +7,7 @@
 import itertools
 
 
+from semantix.utils.lang import context as lang_context
 from semantix.utils.lang import protoschema
 from semantix.utils.lang import yaml
 
@@ -26,7 +27,7 @@ class SchemaError(protoschema.SchemaError):
 
 class ProtoSchemaAdapter(yaml.Object):
     def __sx_setstate__(self, data):
-        context = self.context
+        context = lang_context.SourceContext.from_object(self)
 
         if context.document.import_context.builtin:
             self.include_builtin = True

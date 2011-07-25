@@ -287,7 +287,7 @@ class Constructor(yaml.constructor.Constructor):
                 newargs, newkwargs = newargs['args'], newargs['kwargs']
 
         result = cls.__new__(cls, *newargs, **newkwargs)
-        type(result).__setattr__(result, 'context', context)
+        lang_context.SourceContext.register_object(result, context)
 
         yield result
 

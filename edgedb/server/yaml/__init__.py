@@ -657,17 +657,19 @@ class LinkSearchConfiguration(LangObject, adapts=proto.LinkSearchConfiguration, 
 class SpecializedLink(LangObject):
 
     def __sx_setstate__(self, data):
+        context = lang_context.SourceContext.from_object(self)
+
         if isinstance(data, (str, list)):
             link = proto.Link(source=None, target=None, name=default_name, _setdefaults_=False,
                               _relaxrequired_=True)
-            link.context = self.context
+            lang_context.SourceContext.register_object(link, context)
             link._targets = (data,) if isinstance(data, str) else data
             self.link = link
 
         elif isinstance(data, dict):
             if len(data) != 1:
                 raise MetaError('unexpected number of elements in link data dict: %d', len(data),
-                                context=self.context)
+                                context=context)
 
             targets, info = next(iter(data.items()))
 
@@ -691,7 +693,7 @@ class SpecializedLink(LangObject):
             if search and search.weight is not None:
                 link.search = search
 
-            link.context = self.context
+            lang_context.SourceContext.register_object(link, context)
 
             link._constraints = info.get('constraints')
             link._abstract_constraints = info.get('abstract-constraints')
@@ -700,8 +702,7 @@ class SpecializedLink(LangObject):
 
             self.link = link
         else:
-            raise MetaError('unexpected specialized link format: %s', type(data),
-                            context=self.context)
+            raise MetaError('unexpected specialized link format: %s', type(data), context=context)
 
 
 class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
@@ -768,8 +769,9 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
         base = globalmeta.get(base_name, type=element.__class__.get_canonical_class(),
                               include_pyobjects=True)
         if isinstance(base, caos.types.ProtoObject) and base.is_final:
+            context = lang_context.SourceContext.from_object(element)
             raise MetaError('"%s" is final and cannot be inherited from' % base.name,
-                            context=element.context)
+                            context=context)
 
 
     def read_atoms(self, data, globalmeta, localmeta):
@@ -789,7 +791,8 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
                     atom.base = ns.normalize_name(atom.base, include_pyobjects=True)
                     self._check_base(atom, atom.base, globalmeta)
                 except caos.MetaError as e:
-                    raise MetaError(e, context=atom.context) from e
+                    context = lang_context.SourceContext.from_object(atom)
+                    raise MetaError(e, context=context) from e
 
 
     def order_atoms(self, globalmeta):
@@ -947,9 +950,10 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
                     computable_qname = caos.Name(cname)
 
             if computable_qname in source.own_pointers:
+                context = lang_context.SourceContext.from_object(computable)
                 raise MetaError('computable "%(name)s" conflicts with "%(name)s" pointer '
                                 'defined in the same source' % {'name': computable_qname},
-                                 context=computable.context)
+                                 context=context)
 
             computable_name = proto.Computable.generate_name(source.name, None, computable_qname.name)
             computable.source = source
@@ -996,7 +1000,8 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
             for index in link._indexes:
                 expr, tree = self.normalize_index_expr(index.expr, link, globalmeta, localmeta)
                 idx = proto.SourceIndex(expr, tree=tree)
-                idx.context = index.context
+                context = lang_context.SourceContext.from_object(index)
+                lang_context.SourceContext.register_object(idx, context)
                 link.add_index(idx)
 
     def order_links(self, globalmeta):
@@ -1034,8 +1039,9 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
             if not link.generic() and not link.atomic():
                 base = globalmeta.get(link.normal_name())
                 if [l for l in base.children() if not l.generic() and l.atomic()]:
+                    context = lang_context.SourceContext.from_object(link)
                     raise MetaError('%s link target conflict (atom/concept)' % link.normal_name(),
-                                    context=link.context)
+                                    context=context)
 
             if not link.generic():
                 type = 'atom' if link.atomic() else 'concept'
@@ -1073,7 +1079,8 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
                 self.normalize_pointer_defaults(link, globalmeta)
 
         except caosql_exc.CaosQLReferenceError as e:
-            raise MetaError(e.args[0], context=index.context) from e
+            context = lang_context.SourceContext.from_object(index)
+            raise MetaError(e.args[0], context=context) from e
 
         return links
 
@@ -1200,8 +1207,10 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
             if link.default:
                 for default in link.default:
                     if isinstance(default, QueryDefaultSpec):
-                        module_aliases = {None: str(default.context.document.import_context)}
-                        for alias, module in default.context.document.imports.items():
+                        def_context = lang_context.SourceContext.from_object(default)
+
+                        module_aliases = {None: str(def_context.document.import_context)}
+                        for alias, module in def_context.document.imports.items():
                             module_aliases[alias] = module.__name__
 
                         value, tree = self.caosql_expr.normalize_expr(default.value,
@@ -1212,14 +1221,14 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
                                             first.issubclass(globalmeta, link.target):
                             raise MetaError(('default value query must yield a '
                                              'single-column result of type "%s"') %
-                                             link.target.name, context=default.context)
+                                             link.target.name, context=def_context)
 
                         if not isinstance(link.target, caos.types.ProtoAtom):
                             if link.mapping not in (caos.types.ManyToOne,
                                                     caos.types.ManyToMany):
                                 raise MetaError('concept links with query defaults ' \
                                                 'must have either a "*1" or "**" mapping',
-                                                 context=default.context)
+                                                 context=def_context)
 
                         default.value = value
                 link.normalize_defaults()
@@ -1230,8 +1239,9 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
             if not isinstance(link, proto.Computable):
                 continue
 
-            module_aliases = {None: str(source.context.document.import_context)}
-            for alias, module in source.context.document.imports.items():
+            src_context = lang_context.SourceContext.from_object(source)
+            module_aliases = {None: str(src_context.document.import_context)}
+            for alias, module in src_context.document.imports.items():
                 module_aliases[alias] = module.__name__
 
             expression, tree = self.caosql_expr.normalize_expr(link.expression,
@@ -1246,12 +1256,14 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
             assert first, "Could not determine computable expression result type"
 
             if len(tree.result_types) > 1:
+                link_context = lang_context.SourceContext.from_object(link)
                 raise MetaError(('computable expression must yield a '
-                                 'single-column result'), context=link.context)
+                                 'single-column result'), context=link_context)
 
             if isinstance(source, proto.Link) and not isinstance(first, proto.Atom):
+                link_context = lang_context.SourceContext.from_object(link)
                 raise MetaError(('computable expression for link property must yield a '
-                                 'scalar'), context=link.context)
+                                 'scalar'), context=link_context)
 
             link.target = first
             link.expression = expression
@@ -1283,8 +1295,9 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
                         parent = globalmeta.get(link.normal_name())
 
                         if [l for l in parent.children() if not l.generic() and not l.atomic()]:
+                            link_context = lang_context.SourceContext.from_object(link)
                             raise MetaError('%s link target conflict (atom/concept)' % link.normal_name(),
-                                            context=link.context)
+                                            context=link_context)
 
                         if link_name in link_target_types and link_target_types[link_name] != 'atom':
                             raise caos.MetaError('%s link is already defined as a link to non-atom')
@@ -1306,8 +1319,9 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
                         link_target_types[link_name] = 'atom'
                     else:
                         if link_name in link_target_types and link_target_types[link_name] == 'atom':
+                            link_context = lang_context.SourceContext.from_object(link)
                             raise MetaError('%s link target conflict (atom/concept)' % link.normal_name(),
-                                            context=link.context)
+                                            context=link_context)
 
                         link_target_types[link_name] = 'concept'
 
@@ -1330,7 +1344,8 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
                 self.normalize_computables(concept, globalmeta)
 
         except caosql_exc.CaosQLReferenceError as e:
-            raise MetaError(e.args[0], context=index.context) from e
+            index_context = lang_context.SourceContext.from_object(index)
+            raise MetaError(e.args[0], context=index_context) from e
 
         return concepts
 
@@ -1364,8 +1379,10 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
         elif isinstance(data, dict) and 'query' in data:
             query = data['query']
 
-            aliases = {alias: mod.__name__ for alias, mod in self.context.document.imports.items()}
-            session = self.context.document.session
+            ent_context = lang_context.SourceContext.from_object(self)
+
+            aliases = {alias: mod.__name__ for alias, mod in ent_context.document.imports.items()}
+            session = ent_context.document.session
 
             cursor = caos_query.CaosQLCursor(session, aliases)
             prepared = cursor.prepare(query, proto_schema=session.realm.meta)
@@ -1382,8 +1399,10 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
             assert self.entity, "query returned empty result: %s" % query
 
         else:
-            aliases = {alias: mod.__name__ for alias, mod in self.context.document.imports.items()}
-            session = self.context.document.session
+            ent_context = lang_context.SourceContext.from_object(self)
+
+            aliases = {alias: mod.__name__ for alias, mod in ent_context.document.imports.items()}
+            session = ent_context.document.session
 
             concept, data = next(iter(data.items()))
 
@@ -1406,7 +1425,7 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
                 linkcls = caos.concept.getlink(self.entity, link_name, target)
                 linkcls.update(**link_properties)
 
-            self.context.document.entities.append(self.entity)
+            ent_context.document.entities.append(self.entity)
 
 
 class RealmMeta(LangObject, adapts=proto.RealmMeta):
@@ -1433,7 +1452,8 @@ class DataSet(LangObject):
     def __sx_setstate__(self, data):
 
         entities = {id: [shell.entity for shell in shells] for id, shells in data.items()}
-        for entity in self.context.document.entities:
+        context = lang_context.SourceContext.from_object(self)
+        for entity in context.document.entities:
             entity.__class__.materialize_links(entity, entities)
 
 
