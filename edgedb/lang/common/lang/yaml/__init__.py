@@ -69,7 +69,7 @@ class ObjectMeta(Adapter):
     def __init__(cls, name, bases, clsdict, *, adapts=None, ignore_aliases=False):
         super(ObjectMeta, cls).__init__(name, bases, clsdict, adapts=adapts)
 
-        if hasattr(cls, 'represent'):
+        if hasattr(cls, '__sx_getstate__'):
             representer = lambda dumper, data: cls.represent_wrapper(data, dumper)
 
             if cls._adapts:
@@ -84,7 +84,7 @@ class ObjectMeta(Adapter):
 class Object(meta.Object, metaclass=ObjectMeta):
     @classmethod
     def represent_wrapper(cls, data, dumper):
-        result = cls.represent(data)
+        result = cls.__sx_getstate__(data)
 
         if isinstance(result, dict):
             return dumper.represent_mapping('tag:yaml.org,2002:map', result)

@@ -25,8 +25,7 @@ class SchemaError(protoschema.SchemaError):
 
 
 class ProtoSchemaAdapter(yaml.Object):
-    def construct(self):
-        data = self.data
+    def __sx_setstate__(self, data):
         context = self.context
 
         if context.document.import_context.builtin:

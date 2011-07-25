@@ -1568,8 +1568,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             # adapter for DefaultSpec is defined there.
             adapter = yaml.ObjectMeta.get_adapter(proto.DefaultSpec)
             assert adapter, "could not find YAML adapter for proto.DefaultSpec"
-            item = adapter.resolve(item)(None, item)
-            item.construct()
+            data = item
+            item = adapter.resolve(item)(item)
+            item.__sx_setstate__(data)
             result.append(item)
         return result
 

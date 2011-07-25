@@ -14,17 +14,16 @@ from semantix.utils.lang.yaml.validator.tests.base import SchemaTest, result, ra
 
 
 class A(Object):
-    def __init__(self, *, name=None, description=None, context=None, data=None):
-        super().__init__(context, data)
+    def __init__(self, *, name=None, description=None):
         self.name = name
         self.description = description
 
     def __eq__(self, other):
         return isinstance(other, A) and other.name == self.name and other.description == self.description
 
-    def construct(self):
-        self.name = self.data['name']
-        self.description = self.data['description']
+    def __sx_setstate__(self, data):
+        self.name = data['name']
+        self.description = data['description']
 
     @classmethod
     def get_yaml_validator_config(cls):
@@ -36,27 +35,30 @@ class Bad(object):
 
 
 class ScalarContainer(Object):
-    def __init__(self, *, scalar=None, context=None, data=None):
-        super().__init__(context, data)
+    def __init__(self, *, scalar=None):
         self.scalar = scalar
 
     def __eq__(self, other):
         return isinstance(other, ScalarContainer) and other.scalar == self.scalar \
                and isinstance(self.scalar, Scalar) and isinstance(other.scalar, Scalar)
 
-    def construct(self):
-        self.scalar = self.data['scalar']
+    def __sx_setstate__(self, data):
+        self.scalar = data['scalar']
 
 
 class Scalar(Object, str):
-    def __new__(cls, context, data):
+    def __new__(cls, data):
         return str.__new__(cls, data)
+
+    @classmethod
+    def __sx_getnewargs__(cls, context, data):
+        return (data,)
 
 
 class CustomValidator(Object):
-    def construct(self):
-        name = self.data['name']
-        description = self.data['description']
+    def __sx_setstate__(self, data):
+        name = data['name']
+        description = data['description']
 
         if name != description:
             raise ObjectError('name must be equal to description')
@@ -112,7 +114,7 @@ class TestObject(SchemaTest):
                 customfield: 21
         """
 
-    @result(key='properdefault', value=ScalarContainer(scalar=Scalar(None, 'default scalar')))
+    @result(key='properdefault', value=ScalarContainer(scalar=Scalar('default scalar')))
     def test_validator_object_default(self):
         """
         properdefault: {}

@@ -56,7 +56,7 @@ class StructMeta(StructMeta):
 
         return result
 
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         result = {}
 
         for f, desc in cls._fields.items():
@@ -75,10 +75,23 @@ class StructMeta(StructMeta):
                 if resolver:
                     adapter = resolver(value)
 
-                value = adapter(None, value)
-                constructor = getattr(value, 'construct', None)
+                newargs = ()
+                newkwargs = {}
+
+                try:
+                    getnewargs = adapter.__sx_getnewargs__
+                except AttributeError:
+                    pass
+                else:
+                    newargs = getnewargs(None, value)
+                    if not isinstance(newargs, tuple):
+                        newargs, newkwargs = newargs['args'], newkwargs['kwargs']
+
+                raw_value = value
+                value = adapter.__new__(adapter, *newargs, **newkwargs)
+                constructor = getattr(value, '__sx_setstate__', None)
                 if constructor:
-                    constructor()
+                    constructor(raw_value)
             else:
                 value = field.adapt(value)
         return value

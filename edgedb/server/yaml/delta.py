@@ -18,10 +18,10 @@ class DeltaMeta(type(yaml.Object), delta.DeltaMeta, StructMeta):
 
 
 class Delta(yaml.Object, adapts=delta.Delta, metaclass=DeltaMeta):
-    def construct(self):
+    def __sx_setstate__(self, data):
         fields = {}
         for f, fdesc in type(self)._fields.items():
-            v = self.data.get(f)
+            v = data.get(f)
             if v is not None:
                 if f in ('id', 'parent_id', 'checksum'):
                     fields[f] = int(v, 16)
@@ -31,8 +31,8 @@ class Delta(yaml.Object, adapts=delta.Delta, metaclass=DeltaMeta):
         datastructures.Struct.__init__(self, **fields)
 
     @classmethod
-    def represent(cls, data):
-        result = StructMeta.represent(cls, data)
+    def __sx_getstate__(cls, data):
+        result = StructMeta.__sx_getstate__(cls, data)
 
         result['id'] = '%x' % result['id']
         if result['parent_id']:
@@ -57,11 +57,11 @@ class DeltaSet(yaml.Object, adapts=delta.DeltaSet):
     def items(self):
         return (('deltas', self),)
 
-    def construct(self):
-        delta.DeltaSet.__init__(self, self.data.values())
+    def __sx_setstate__(self, data):
+        delta.DeltaSet.__init__(self, data.values())
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return {d.id: d for d in data.deltas}
 
 
@@ -74,7 +74,7 @@ class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
         return StructMeta.adapt_value(field, value)
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         key = '%s.%s' % (cls.__module__, cls.__name__)
         return {key: cls.represent_command(data)}
 
@@ -96,18 +96,18 @@ class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
             result[f] = getattr(data, f)
         return result
 
-    def construct(self):
+    def __sx_setstate__(self, data):
         fields = {}
         for f, fdesc in type(self)._fields.items():
-            v = self.data.get(f)
+            v = data.get(f)
             if v is not None:
                 fields[f] = self.adapt_value(fdesc, v)
 
         delta.Command.__init__(self, **fields)
-        self.ops = datastructures.OrderedSet(self.data['ops'])
+        self.ops = datastructures.OrderedSet(data['ops'])
 
-        if self.data['properties']:
-            for prop in self.data['properties']:
+        if data['properties']:
+            for prop in data['properties']:
                 for prop_name, (old_value, new_value) in prop.items():
                     field = self.prototype_class._fields.get(prop_name)
                     if field:
@@ -134,12 +134,12 @@ class PrototypeCommand(Command, adapts=delta.PrototypeCommand):
                                                    data.prototype_class.__name__)
         return result
 
-    def construct(self):
-        prototype_class = self.data.get('prototype_class')
+    def __sx_setstate__(self, data):
+        prototype_class = data.get('prototype_class')
         if prototype_class:
-            self.data['prototype_class'] = helper.get_object(prototype_class)
+            data['prototype_class'] = helper.get_object(prototype_class)
 
-        properties = self.data.get('properties')
+        properties = data.get('properties')
         if properties:
             for prop in properties:
                 for prop_name, prop_values in prop.items():
@@ -150,13 +150,13 @@ class PrototypeCommand(Command, adapts=delta.PrototypeCommand):
                             else:
                                 prop_values[1] = caos.Name(prop_values[1])
 
-        return super().construct()
+        return super().__sx_setstate__(data)
 
 
 class NamedPrototypeCommand(PrototypeCommand, adapts=delta.NamedPrototypeCommand):
-    def construct(self):
-        self.data['prototype_name'] = caos.Name(self.data['prototype_name'])
-        return super().construct()
+    def __sx_setstate__(self, data):
+        data['prototype_name'] = caos.Name(data['prototype_name'])
+        return super().__sx_setstate__(data)
 
 
 class CreatePrototype(PrototypeCommand, adapts=delta.CreatePrototype):
@@ -189,7 +189,7 @@ class AlterNamedPrototype(NamedPrototypeCommand, adapts=delta.AlterNamedPrototyp
 
 class AlterPrototypeProperty(Command, adapts=delta.AlterPrototypeProperty):
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         result = {
             data.property: [data.old_value, data.new_value]
         }
@@ -202,20 +202,21 @@ class DeleteNamedPrototype(NamedPrototypeCommand, adapts=delta.DeleteNamedProtot
 
 
 class AlterDefault(Command, adapts=delta.AlterDefault):
-    def construct(self):
+    def __sx_setstate__(self, data):
         adapter = yaml.ObjectMeta.get_adapter(proto.DefaultSpec)
         assert adapter, 'could not find YAML adapter for proto.DefaultSpec'
 
         for f in ('old_value', 'new_value'):
-            if self.data[f]:
+            if data[f]:
                 val = []
-                for spec in self.data[f]:
-                    spec = adapter.resolve(spec)(None, spec)
-                    spec.construct()
+                for spec in data[f]:
+                    d = spec
+                    spec = adapter.resolve(spec)(spec)
+                    spec.__sx_setstate__(d)
                     val.append(spec)
-                self.data[f] = val
+                data[f] = val
 
-        super().construct()
+        super().__sx_setstate__(data)
 
 
 class AtomConstraintCommand(PrototypeCommand, adapts=delta.AtomConstraintCommand):

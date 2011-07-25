@@ -193,6 +193,7 @@ class Constructor(yaml.constructor.Constructor):
     def __init__(self, context=None):
         super().__init__()
         self.document_context = context
+        self.obj_data = {}
 
     def _get_class_from_tag(self, clsname, node, intent='class'):
         if not clsname:
@@ -273,16 +274,29 @@ class Constructor(yaml.constructor.Constructor):
 
         data = self.construct_object(nodecopy, True)
 
-        result = cls(context=context, data=data)
+        newargs = ()
+        newkwargs = {}
+
+        try:
+            getnewargs = cls.__sx_getnewargs__
+        except AttributeError:
+            pass
+        else:
+            newargs = getnewargs(context, data)
+            if not isinstance(newargs, tuple):
+                newargs, newkwargs = newargs['args'], newargs['kwargs']
+
+        result = cls.__new__(cls, *newargs, **newkwargs)
+        type(result).__setattr__(result, 'context', context)
 
         yield result
 
         try:
-            constructor = result.construct
+            constructor = type(result).__sx_setstate__
         except AttributeError:
             pass
         else:
-            constructor()
+            constructor(result, data)
 
     def construct_ordered_mapping(self, node, deep=False):
         if isinstance(node, yaml.nodes.MappingNode):

@@ -57,19 +57,19 @@ class LangObject(yaml.Object, metaclass=LangObjectMeta):
 
 class Bool(yaml.Object, adapts=objects.boolean.Bool, ignore_aliases=True):
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return bool(data)
 
 
 class TimeDelta(yaml.Object, adapts=objects.datetime.TimeDelta, ignore_aliases=True):
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return str(data)
 
 
 class Int(yaml.Object, adapts=objects.int.Int, ignore_aliases=True):
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return int(data)
 
 
@@ -80,27 +80,30 @@ class DecimalMeta(LangObjectMeta, type(objects.numeric.Decimal)):
 class Decimal(yaml.Object, metaclass=DecimalMeta,
               adapts=objects.numeric.Decimal, ignore_aliases=True):
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return str(data)
 
 
 
 class WordCombination(LangObject, adapts=morphology.WordCombination, ignore_aliases=True):
-    def __new__(cls, context, data):
+    def __new__(cls, data):
         if isinstance(data, dict):
             word = morphology.WordCombination.from_dict(data)
             data = word.forms.values()
 
         self = morphology.WordCombination.__new__(cls, data)
-        self.context = context
 
         return self
 
+    @classmethod
+    def __sx_getnewargs__(cls, context, data):
+        return (data,)
+
     def __reduce__(self):
-        return (self.__class__, (self.context, tuple(self.forms.values())))
+        return (self.__class__, (tuple(self.forms.values()),))
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return data.as_dict()
 
     @classmethod
@@ -115,31 +118,35 @@ class StrLangObject(LangObject):
     def __getstate__(self):
         return {}
 
+    @classmethod
+    def __sx_getnewargs__(cls, context, data):
+        return (data,)
+
 
 class LinkMapping(StrLangObject, adapts=caos.types.LinkMapping, ignore_aliases=True):
-    def __new__(cls, context, data):
+    def __new__(cls, data):
         return caos.types.LinkMapping.__new__(cls, data)
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return str(data)
 
 
 class PointerLoading(StrLangObject, adapts=caos.types.PointerLoading, ignore_aliases=True):
-    def __new__(cls, context, data):
+    def __new__(cls, data):
         return caos.types.PointerLoading.__new__(cls, data)
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return str(data)
 
 
 class LinkSearchWeight(StrLangObject, adapts=caos.types.LinkSearchWeight, ignore_aliases=True):
-    def __new__(cls, context, data):
+    def __new__(cls, data):
         return caos.types.LinkSearchWeight.__new__(cls, data)
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return str(data)
 
 
@@ -161,20 +168,20 @@ class DefaultSpec(LangObject, adapts=proto.DefaultSpec, ignore_aliases=True):
 
 
 class LiteralDefaultSpec(DefaultSpec, adapts=proto.LiteralDefaultSpec):
-    def construct(self):
-        proto.LiteralDefaultSpec.__init__(self, self.data)
+    def __sx_setstate__(self, data):
+        proto.LiteralDefaultSpec.__init__(self, data)
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return data.value
 
 
 class QueryDefaultSpec(DefaultSpec, adapts=proto.QueryDefaultSpec):
-    def construct(self):
-        proto.QueryDefaultSpec.__init__(self, self.data['query'])
+    def __sx_setstate__(self, data):
+        proto.QueryDefaultSpec.__init__(self, data['query'])
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return {'query': str(data.value)}
 
 
@@ -183,75 +190,75 @@ class AtomConstraint(LangObject, ignore_aliases=True):
 
 
 class AtomConstraintMinLength(AtomConstraint, adapts=proto.AtomConstraintMinLength):
-    def construct(self):
-        proto.AtomConstraintMinLength.__init__(self, self.data['min-length'], context=self.context)
+    def __sx_setstate__(self, data):
+        proto.AtomConstraintMinLength.__init__(self, data['min-length'])
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return {'min-length': data.value}
 
 
 class AtomConstraintMinValue(AtomConstraint, adapts=proto.AtomConstraintMinValue):
-    def construct(self):
-        proto.AtomConstraintMinValue.__init__(self, self.data['min-value'], context=self.context)
+    def __sx_setstate__(self, data):
+        proto.AtomConstraintMinValue.__init__(self, data['min-value'])
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return {'min-value': data.value}
 
 
 class AtomConstraintMinExValue(AtomConstraint, adapts=proto.AtomConstraintMinExValue):
-    def construct(self):
-        proto.AtomConstraintMinExValue.__init__(self, self.data['min-value-ex'], context=self.context)
+    def __sx_setstate__(self, data):
+        proto.AtomConstraintMinExValue.__init__(self, data['min-value-ex'])
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return {'min-value-ex': data.value}
 
 
 class AtomConstraintMaxLength(AtomConstraint, adapts=proto.AtomConstraintMaxLength):
-    def construct(self):
-        proto.AtomConstraintMaxLength.__init__(self, self.data['max-length'], context=self.context)
+    def __sx_setstate__(self, data):
+        proto.AtomConstraintMaxLength.__init__(self, data['max-length'])
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return {'max-length': data.value}
 
 
 class AtomConstraintMaxValue(AtomConstraint, adapts=proto.AtomConstraintMaxValue):
-    def construct(self):
-        proto.AtomConstraintMaxValue.__init__(self, self.data['max-value'], context=self.context)
+    def __sx_setstate__(self, data):
+        proto.AtomConstraintMaxValue.__init__(self, data['max-value'])
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return {'max-value': data.value}
 
 
 class AtomConstraintMaxExValue(AtomConstraint, adapts=proto.AtomConstraintMaxExValue):
-    def construct(self):
-        proto.AtomConstraintMaxValue.__init__(self, self.data['max-value-ex'], context=self.context)
+    def __sx_setstate__(self, data):
+        proto.AtomConstraintMaxValue.__init__(self, data['max-value-ex'])
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return {'max-value-ex': data.value}
 
 
 class AtomConstraintPrecision(AtomConstraint, adapts=proto.AtomConstraintPrecision):
-    def construct(self):
-        if isinstance(self.data['precision'], int):
-            precision = (int(self.data['precision']), 0)
+    def __sx_setstate__(self, data):
+        if isinstance(data['precision'], int):
+            precision = (int(data['precision']), 0)
         else:
-            precision = int(self.data['precision'][0])
-            scale = int(self.data['precision'][1])
+            precision = int(data['precision'][0])
+            scale = int(data['precision'][1])
 
             if scale >= precision:
                 raise ValueError('Scale must be strictly less than total numeric precision')
 
             precision = (precision, scale)
-        proto.AtomConstraintPrecision.__init__(self, precision, context=self.context)
+        proto.AtomConstraintPrecision.__init__(self, precision)
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         if data.value[1] is None:
             return {'precision': data.value[0]}
         else:
@@ -272,37 +279,35 @@ class AtomConstraintRounding(AtomConstraint, adapts=proto.AtomConstraintRounding
 
     rmap = dict(zip(map.values(), map.keys()))
 
-    def construct(self):
-        proto.AtomConstraintRounding.__init__(self, self.map[self.data['rounding']], context=self.context)
+    def __sx_setstate__(self, data):
+        proto.AtomConstraintRounding.__init__(self, self.map[data['rounding']])
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return {'rounding': cls.rmap[data.value]}
 
 
 class AtomConstraintExpr(AtomConstraint, adapts=proto.AtomConstraintExpr):
-    def construct(self):
-        proto.AtomConstraintExpr.__init__(self, [self.data['expr'].strip(' \n')], context=self.context)
+    def __sx_setstate__(self, data):
+        proto.AtomConstraintExpr.__init__(self, [data['expr'].strip(' \n')])
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return {'expr': next(iter(data.values))}
 
 
 class AtomConstraintRegExp(AtomConstraint, adapts=proto.AtomConstraintRegExp):
-    def construct(self):
-        proto.AtomConstraintRegExp.__init__(self, [self.data['regexp']], context=self.context)
+    def __sx_setstate__(self, data):
+        proto.AtomConstraintRegExp.__init__(self, [data['regexp']])
 
     @classmethod
-    def represent(self, data):
+    def __sx_getstate__(self, data):
         return {'regexp': next(iter(data.values))}
 
 default_name = None
 
 class Atom(Prototype, adapts=proto.Atom):
-    def construct(self):
-        data = self.data
-
+    def __sx_setstate__(self, data):
         default = data['default']
         if default and not isinstance(default, list):
             default = [default]
@@ -316,7 +321,7 @@ class Atom(Prototype, adapts=proto.Atom):
         self._constraints = data.get('constraints')
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         result = {
             'extends': data.base
         }
@@ -350,8 +355,7 @@ class Atom(Prototype, adapts=proto.Atom):
 
 
 class Concept(Prototype, adapts=proto.Concept):
-    def construct(self):
-        data = self.data
+    def __sx_setstate__(self, data):
         extends = data.get('extends')
         if extends:
             if not isinstance(extends, list):
@@ -367,7 +371,7 @@ class Concept(Prototype, adapts=proto.Concept):
         self._indexes = data.get('indexes') or ()
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         result = {
             'extends': list(itertools.chain(data.base, data.custombases))
         }
@@ -418,18 +422,16 @@ class Concept(Prototype, adapts=proto.Concept):
 
 
 class SourceIndex(LangObject, adapts=proto.SourceIndex, ignore_aliases=True):
-    def construct(self):
-        proto.SourceIndex.__init__(self, expr=self.data)
+    def __sx_setstate__(self, data):
+        proto.SourceIndex.__init__(self, expr=data)
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return str(data.expr)
 
 
 class LinkPropertyDef(Prototype, proto.LinkProperty):
-    def construct(self):
-        data = self.data
-
+    def __sx_setstate__(self, data):
         extends = data.get('extends')
         if extends:
             if not isinstance(extends, list):
@@ -443,8 +445,7 @@ class LinkPropertyDef(Prototype, proto.LinkProperty):
 
 
 class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
-    def construct(self):
-        data = self.data
+    def __sx_setstate__(self, data):
         if isinstance(data, str):
             proto.LinkProperty.__init__(self, name=default_name, target=data, _relaxrequired_=True)
         else:
@@ -463,7 +464,7 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
             self._abstract_constraints = info.get('abstract-constraints')
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         result = {}
 
         if data.target and data.target.constraints and data.target.automatic:
@@ -500,9 +501,7 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
 
 
 class LinkPropertyProps(Prototype, proto.LinkProperty):
-    def construct(self):
-        data = self.data
-
+    def __sx_setstate__(self, data):
         default = data['default']
         if default and not isinstance(default, list):
             default = [default]
@@ -512,8 +511,7 @@ class LinkPropertyProps(Prototype, proto.LinkProperty):
 
 
 class LinkDef(Prototype, adapts=proto.Link):
-    def construct(self):
-        data = self.data
+    def __sx_setstate__(self, data):
         extends = data.get('extends')
         if extends:
             if not isinstance(extends, list):
@@ -538,7 +536,7 @@ class LinkDef(Prototype, adapts=proto.Link):
         self._indexes = data.get('indexes') or ()
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         result = {}
 
         if data.generic():
@@ -602,11 +600,9 @@ class LinkDef(Prototype, adapts=proto.Link):
 
 
 class Computable(Prototype, adapts=proto.Computable):
-    def construct(self):
-        if isinstance(self.data, str):
-            data = {'expression': self.data}
-        else:
-            data = self.data
+    def __sx_setstate__(self, data):
+        if isinstance(data, str):
+            data = {'expression': data}
 
         proto.Computable.__init__(self, expression=data.get('expression'),
                                   name=default_name, source=None,
@@ -616,7 +612,7 @@ class Computable(Prototype, adapts=proto.Computable):
                                   _relaxrequired_=True)
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         result = {}
 
         result['expression'] = data.expression
@@ -625,33 +621,33 @@ class Computable(Prototype, adapts=proto.Computable):
 
 class PointerConstraint(LangObject, adapts=proto.PointerConstraint, ignore_aliases=True):
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return {cls.constraint_name: next(iter(data.values))}
 
 
 class PointerConstraintUnique(PointerConstraint, adapts=proto.PointerConstraintUnique):
-    def construct(self):
-        values = {self.data[self.__class__.constraint_name]}
-        proto.PointerConstraintUnique.__init__(self, values, context=self.context)
+    def __sx_setstate__(self, data):
+        values = {data[self.__class__.constraint_name]}
+        proto.PointerConstraintUnique.__init__(self, values)
 
 
 class LinkSearchConfiguration(LangObject, adapts=proto.LinkSearchConfiguration, ignore_aliases=True):
-    def construct(self):
-        if isinstance(self.data, bool):
-            if self.data:
+    def __sx_setstate__(self, data):
+        if isinstance(data, bool):
+            if data:
                 weight = caos.types.SearchWeight_A
             else:
                 weight = None
         else:
-            if self.data:
-                weight = caos.types.LinkSearchWeight(self.data['weight'])
+            if data:
+                weight = caos.types.LinkSearchWeight(data['weight'])
             else:
                 weight = None
 
         proto.LinkSearchConfiguration.__init__(self, weight=weight)
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         if data.weight:
             return {'weight': data.weight}
         else:
@@ -660,8 +656,7 @@ class LinkSearchConfiguration(LangObject, adapts=proto.LinkSearchConfiguration, 
 
 class SpecializedLink(LangObject):
 
-    def construct(self):
-        data = self.data
+    def __sx_setstate__(self, data):
         if isinstance(data, (str, list)):
             link = proto.Link(source=None, target=None, name=default_name, _setdefaults_=False,
                               _relaxrequired_=True)
@@ -1361,15 +1356,13 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
 
 
 class EntityShell(LangObject, adapts=caos.concept.EntityShell):
-    def __init__(self, data, context):
-        super().__init__(data=data, context=context)
+    def __sx_setstate__(self, data):
         caos.concept.EntityShell.__init__(self)
 
-    def construct(self):
-        if isinstance(self.data, str):
-            self.id = self.data
-        elif isinstance(self.data, dict) and 'query' in self.data:
-            query = self.data['query']
+        if isinstance(data, str):
+            self.id = data
+        elif isinstance(data, dict) and 'query' in data:
+            query = data['query']
 
             aliases = {alias: mod.__name__ for alias, mod in self.context.document.imports.items()}
             session = self.context.document.session
@@ -1392,7 +1385,7 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
             aliases = {alias: mod.__name__ for alias, mod in self.context.document.imports.items()}
             session = self.context.document.session
 
-            concept, data = next(iter(self.data.items()))
+            concept, data = next(iter(data.items()))
 
             links = {}
             props = {}
@@ -1418,7 +1411,7 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
 
 class RealmMeta(LangObject, adapts=proto.RealmMeta):
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         result = {'atoms': {}, 'links': {}, 'concepts': {}, 'link-properties': {}}
 
         for type in ('atom', 'link', 'concept', 'link_property'):
@@ -1437,19 +1430,19 @@ class RealmMeta(LangObject, adapts=proto.RealmMeta):
 
 
 class DataSet(LangObject):
-    def construct(self):
+    def __sx_setstate__(self, data):
 
-        entities = {id: [shell.entity for shell in shells] for id, shells in self.data.items()}
+        entities = {id: [shell.entity for shell in shells] for id, shells in data.items()}
         for entity in self.context.document.entities:
             entity.__class__.materialize_links(entity, entities)
 
 
-class CaosName(LangObject, adapts=caos.Name, ignore_aliases=True):
-    def __new__(cls, context, data):
+class CaosName(StrLangObject, adapts=caos.Name, ignore_aliases=True):
+    def __new__(cls, data):
         return caos.Name.__new__(cls, data)
 
     @classmethod
-    def represent(cls, data):
+    def __sx_getstate__(cls, data):
         return str(data)
 
 

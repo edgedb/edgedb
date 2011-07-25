@@ -82,10 +82,6 @@ class ObjectError(Exception):
         return self.msg
 
 
-class Object(object):
-    def __init__(self, context, data):
-        self.context = context
-        self.data = data
-
-    def construct(self):
+class Object:
+    def __sx_setstate__(self, data):
         pass

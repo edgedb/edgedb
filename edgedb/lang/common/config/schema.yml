@@ -14,7 +14,7 @@ object: semantix.utils.config._Loader
 mapping:
     =:
         &CONFIG_DATA
-        object: semantix.utils.lang.yaml.Object
+        object: semantix.utils.config._YamlObject
         type: choice
         choice:
             - type: map

@@ -406,15 +406,23 @@ class cvalue(ChecktypeExempt):
         return "<cvalue at 0x%x value:%r>" % (id(self), self._value)
 
 
-class _Loader(yaml.Object):
+class _YamlObject(yaml.Object):
+    def __sx_setstate__(self, data):
+        object.__setattr__(self, '__sx_yaml_data__', data)
+
+
+class _Loader(_YamlObject):
     @staticmethod
     def traverse(obj, name=''):
-        if isinstance(obj, yaml.Object):
-            if isinstance(obj.data, dict):
-                for key in obj.data:
-                    _Loader.traverse(obj.data[key], (name + '.' + key) if name else key)
-            else:
-                set_value(name, obj.data, str(obj.context))
+        if isinstance(obj, _YamlObject):
+            data = object.__getattribute__(obj, '__sx_yaml_data__')
 
-    def construct(self):
+            if isinstance(data, dict):
+                for key in data:
+                    _Loader.traverse(data[key], (name + '.' + key) if name else key)
+            else:
+                set_value(name, data, str(obj.context))
+
+    def __sx_setstate__(self, data):
+        super().__sx_setstate__(data)
         self.traverse(self)
