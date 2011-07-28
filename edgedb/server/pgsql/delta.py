@@ -32,7 +32,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 2
+BACKEND_FORMAT_VERSION = 3
 
 
 class CommandMeta(delta_cmds.CommandMeta):
