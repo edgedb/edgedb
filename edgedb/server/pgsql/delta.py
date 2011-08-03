@@ -10,6 +10,7 @@ import itertools
 import re
 
 import postgresql
+import postgresql.installation
 
 from semantix import caos
 from semantix.caos import proto
@@ -3404,10 +3405,10 @@ class Feature:
         return code
 
     def get_source(self, context):
-        pgpath = Config.pg_install_path
-        source = self.source % {'pgpath': pgpath}
-        source = source % {'version': '%s.%s' % context.db.version_info[:2]}
-        return source
+        pg_config_path = Config.get_pg_config_path()
+        config = postgresql.installation.pg_config_dictionary(pg_config_path)
+        installation = postgresql.installation.Installation(config)
+        return self.source % {'pgpath': installation.sharedir}
 
     @classmethod
     def init_feature(cls, db):
