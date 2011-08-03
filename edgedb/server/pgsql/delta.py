@@ -1819,6 +1819,34 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
         return result
 
 
+class CreateLinkSet(PrototypeMetaCommand, adapts=delta_cmds.CreateLinkSet):
+    def apply(self, meta, context=None):
+        result = delta_cmds.CreateLinkSet.apply(self, meta, context)
+        PrototypeMetaCommand.apply(self, meta, context)
+        return result
+
+
+class RenameLinkSet(PrototypeMetaCommand, adapts=delta_cmds.RenameLinkSet):
+    def apply(self, meta, context=None):
+        result = delta_cmds.RenameLinkSet.apply(self, meta, context)
+        PrototypeMetaCommand.apply(self, meta, context)
+        return result
+
+
+class AlterLinkSet(PrototypeMetaCommand, adapts=delta_cmds.AlterLinkSet):
+    def apply(self, meta, context=None):
+        result = delta_cmds.AlterLinkSet.apply(self, meta, context)
+        PrototypeMetaCommand.apply(self, meta, context)
+        return result
+
+
+class DeleteLinkSet(PrototypeMetaCommand, adapts=delta_cmds.DeleteLinkSet):
+    def apply(self, meta, context=None):
+        result = delta_cmds.DeleteLinkSet.apply(self, meta, context)
+        PrototypeMetaCommand.apply(self, meta, context)
+        return result
+
+
 class PointerConstraintMetaCommand(PrototypeMetaCommand):
     pass
 
