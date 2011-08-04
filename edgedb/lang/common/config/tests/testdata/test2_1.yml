@@ -1,0 +1,20 @@
+##
+# Copyright (c) 2011 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+%SCHEMA semantix.utils.config.yaml.schema.Schema
+%NAME config1
+---
+semantix.utils.config.tests.test_conf.Foo:
+    bar: 2
+
+...
+%SCHEMA semantix.utils.config.yaml.schema.Schema
+%NAME config2
+---
+semantix.utils.config.tests.test_conf:
+    Foo:
+        bar: 3

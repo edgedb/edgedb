@@ -23,9 +23,8 @@ def jxfail(*args, **kwargs):
     return wrap
 
 
-@config.configurable
-class MetaTestJavascript(type):
-    v8_executable = config.cvalue('/usr/bin/d8', type=str, doc='path to v8 executable')
+class MetaTestJavascript(type, metaclass=config.ConfigurableMeta):
+    v8_executable = config.cvalue('v8', type=str, doc='path to v8 executable')
     v8_found = None
 
     @debug.debug

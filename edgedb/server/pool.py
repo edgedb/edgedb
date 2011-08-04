@@ -22,7 +22,6 @@ class ConnectionOvercommitError(PoolError):
     pass
 
 
-@config.configurable
 class ConnectionPool(connection_pool.LimitedPool):
     max_hold_time = config.cvalue(default=0,
                                   doc=("Maximum time in seconds a connection can be held before the"

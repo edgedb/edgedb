@@ -20,7 +20,7 @@ from semantix.utils.io import terminal
 from . import reqs
 
 
-class CommandMeta(type):
+class CommandMeta(config.ConfigurableMeta):
     main_command = None
 
     def __new__(cls, clsname, bases, dct, *, name, commands=None, expose=False, requires=None):
@@ -100,7 +100,6 @@ class Command(CommandBase, name=None):
         raise NotImplementedError
 
 
-@config.configurable
 class MainCommand(CommandGroup, name='__main__'):
     colorize = config.cvalue('auto',
                              type=str,
@@ -114,7 +113,6 @@ class MainCommand(CommandGroup, name='__main__'):
         return parser
 
     def __call__(self, args):
-        config.set_value('semantix.utils.shell.MainCommand.colorize', args.color)
         color = None if args.color == 'auto' else args.color == 'always'
         term = terminal.Terminal(sys.stdout.fileno(), colors=color)
         args.color = term.has_colors()
@@ -123,10 +121,8 @@ class MainCommand(CommandGroup, name='__main__'):
         if args.debug:
             debug.channels.update(args.debug)
 
-        try:
+        with config.inline({'semantix.utils.shell.MainCommand.colorize': args.color}):
             result = super().__call__(args)
-        except SemantixError as e:
-            raise
 
         return result
 

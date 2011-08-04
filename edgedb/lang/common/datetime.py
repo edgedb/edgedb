@@ -16,9 +16,11 @@ import time
 from semantix.utils import config
 
 
-@config.configurable
-class DateTime(datetime.datetime):
+class DateTimeConfig(metaclass=config.ConfigurableMeta):
     local_timezone = config.cvalue(type=str, default=None, doc='Default local time-zone')
+
+
+class DateTime(datetime.datetime):
     local_tz = None
 
     def __new__(cls, value=None):
@@ -50,7 +52,7 @@ class DateTime(datetime.datetime):
     @classmethod
     def get_tz(cls):
         if cls.local_tz is None:
-            cls.local_tz = dateutil.tz.gettz(name=cls.local_timezone)
+            cls.local_tz = dateutil.tz.gettz(name=DateTimeConfig.local_timezone)
         return cls.local_tz
 
     @classmethod

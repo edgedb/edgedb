@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2011 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.

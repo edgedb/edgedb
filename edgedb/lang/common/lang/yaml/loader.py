@@ -38,7 +38,6 @@ class AttributeMappingNode(yaml.nodes.MappingNode):
 
 
 class Scanner(yaml.scanner.Scanner):
-
     def __init__(self):
         super().__init__()
         self.alnum_range = self.mcrange([('0', '9'), ('a', 'z'), ('A', 'Z')]) + ['_']

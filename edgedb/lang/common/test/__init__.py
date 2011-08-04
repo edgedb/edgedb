@@ -6,12 +6,11 @@
 ##
 
 
-from semantix.utils.config import configurable, cvalue
+from semantix.utils.config import ConfigurableMeta, cvalue
 from .pytest_semantix import logging_off
 
 
-@configurable
-class Exceptions:
+class Exceptions(metaclass=ConfigurableMeta):
     traceback_style = cvalue(default='short', type=str,
                              validator=lambda arg: arg in ('short', 'long'),
                              doc='Style of exception traceback printout')

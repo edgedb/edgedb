@@ -16,8 +16,7 @@ sys.path.insert(0, os.path.dirname(__file__))
 import semantix.bootstrap
 
 imports = {
-    'required': ['semantix.shell'],
-    'optional': ['semantix.config_local']
+    'required': ['semantix.shell']
 }
 
 if __name__ == '__main__':

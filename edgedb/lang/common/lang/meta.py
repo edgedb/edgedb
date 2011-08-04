@@ -85,3 +85,4 @@ class ObjectError(Exception):
 class Object:
     def __sx_setstate__(self, data):
         pass
+
