@@ -36,7 +36,7 @@ class PathIndex(dict):
             else:
                 self[k] = v
 
-    def __setitem__(self,  key, value):
+    def __setitem__(self, key, value):
         if not isinstance(key, (LinearPath, str)):
             raise TypeError('Invalid key type for PathIndex: %s' % key)
 
@@ -1400,6 +1400,21 @@ class TreeTransformer:
 
         elif node.name[0] == 'agg':
             node.aggregates = True
+
+        elif node.name == 'typename':
+            if len(node.args) != 1:
+                raise caos_error.CaosError('typename() function takes exactly one argument, {} given'
+                                           .format(len(node.args)))
+
+            arg = next(iter(node.args))
+
+            if isinstance(arg, caos_ast.Disjunction):
+                arg = next(iter(arg.paths))
+            elif not isinstance(arg, caos_ast.EntitySet):
+                raise caos_error.CaosError('typename() function only supports concept arguments')
+
+            node = caos_ast.MetaRef(ref=arg, name='name')
+            return node
 
         if node.args:
             for arg in node.args:

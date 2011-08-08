@@ -26,6 +26,7 @@ class ParseContextLevel(object):
                 self.location = None
                 self.groupprefixes = None
                 self.in_aggregate = []
+                self.in_func_call = False
                 self.arguments = prevlevel.arguments
                 self.proto_schema = prevlevel.proto_schema
                 self.module_aliases = prevlevel.module_aliases
@@ -39,6 +40,7 @@ class ParseContextLevel(object):
                 self.location = prevlevel.location
                 self.groupprefixes = prevlevel.groupprefixes
                 self.in_aggregate = prevlevel.in_aggregate[:]
+                self.in_func_call = prevlevel.in_func_call
                 self.arguments = prevlevel.arguments
                 self.proto_schema = prevlevel.proto_schema
                 self.module_aliases = prevlevel.module_aliases
@@ -52,6 +54,7 @@ class ParseContextLevel(object):
             self.location = None
             self.groupprefixes = None
             self.in_aggregate = []
+            self.in_func_call = False
             self.arguments = {}
             self.proto_schema = None
             self.module_aliases = None
@@ -456,7 +459,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                'used in an aggregate function ') % p.id
                         raise errors.CaosQLError(err)
 
-            if context.current.location != 'generator' or context.current.in_aggregate:
+            if (context.current.location != 'generator' and not context.current.in_func_call) \
+                                                                    or context.current.in_aggregate:
                 node = self.entityref_to_idref(node, self.proto_schema,
                                                full_record=selector_top_level)
 
@@ -480,6 +484,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             with context():
                 if expr.func[0] == 'agg':
                     context.current.in_aggregate.append(expr)
+                context.current.in_func_call = True
                 args = [self._process_expr(context, a) for a in expr.args]
                 node = tree.ast.FunctionCall(name=expr.func, args=args)
                 node = self.process_function_call(node)
