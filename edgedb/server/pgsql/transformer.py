@@ -449,8 +449,10 @@ class CaosTreeTransformer(CaosExprTransformer):
                 query.groupby.append(inner_ref.expr)
 
         if context.current.subquery_map:
-            from_expr = query.fromlist[0]
-            join_point = from_expr.expr
+            if query.fromlist:
+                join_point = query.fromlist[0].expr
+            else:
+                join_point = None
 
             for subquery in context.current.subquery_map.values():
                 condition = None
@@ -463,10 +465,16 @@ class CaosTreeTransformer(CaosExprTransformer):
                     comparison = pgsql.ast.BinOpNode(left=left, op=ast.ops.EQ, right=right)
                     condition = self.extend_binop(condition, comparison, cls=pgsql.ast.BinOpNode)
 
-                join_point = pgsql.ast.JoinNode(type='left', left=join_point, right=subquery,
-                                                condition=condition)
+                if join_point:
+                    join_point = pgsql.ast.JoinNode(type='left', left=join_point, right=subquery,
+                                                    condition=condition)
+                else:
+                    join_point = subquery
 
-            from_expr.expr = join_point
+            if query.fromlist:
+                query.fromlist[0].expr = join_point
+            else:
+                query.fromlist = [pgsql.ast.FromExprNode(expr=join_point)]
 
     def _process_generator(self, context, generator):
         context.current.location = 'generator'
