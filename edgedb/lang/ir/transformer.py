@@ -1942,6 +1942,13 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.TypeCast):
             result = expr.type
 
+        elif isinstance(expr, caos_ast.SubgraphRef):
+            subgraph = expr.ref
+            if len(subgraph.selector) == 1:
+                result = self.get_expr_type(subgraph.selector[0].expr, schema)
+            else:
+                result = None
+
         else:
             result = None
 
