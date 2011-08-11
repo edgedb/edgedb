@@ -931,14 +931,14 @@ class LinkExpr(Nonterm):
 
 
 class SimpleFqLinkExpr(Nonterm):
-    def reduce_LinkDirection_FqNodeName(self, *kids):
-        "%reduce LinkDirection FqNodeName"
+    def reduce_LinkDirection_AnyFqNodeName(self, *kids):
+        "%reduce LinkDirection AnyFqNodeName"
         self.val = qlast.LinkNode(name=kids[1].val.name,
                                   namespace=kids[1].val.module,
                                   direction=kids[0].val)
 
-    def reduce_FqNodeName(self, *kids):
-        "%reduce FqNodeName"
+    def reduce_AnyFqNodeName(self, *kids):
+        "%reduce AnyFqNodeName"
         self.val = qlast.LinkNode(name=kids[0].val.name,
                                   namespace=kids[0].val.module)
 
@@ -1000,6 +1000,13 @@ class AnchorName(Nonterm):
 class FqNodeName(Nonterm):
     def reduce_FqName(self, *kids):
         "%reduce FqName"
+        self.val = qlast.PrototypeRefNode(module='.'.join(kids[0].val[:-1]), name=kids[0].val[-1])
+
+
+class AnyFqNodeName(Nonterm):
+    # Fully-qualified node name permitting reserved keywords
+    def reduce_FqName(self, *kids):
+        "%reduce AnyFqName"
         self.val = qlast.PrototypeRefNode(module='.'.join(kids[0].val[:-1]), name=kids[0].val[-1])
 
 
