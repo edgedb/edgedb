@@ -565,7 +565,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                 proto = self._normalize_concept(context, tip.expr, tip.namespace)
 
-                if isinstance(proto, caos_types.ProtoConcept):
+                if isinstance(proto, (caos_types.ProtoConcept, caos_types.ProtoAtom)):
                     step = tree.ast.EntitySet()
                     step.concept = proto
                     tips = {step.concept: {step}}
