@@ -13,14 +13,15 @@ from semantix.utils import shell
 
 class RunCommand(shell.Command, name='run', expose=True):
     def get_parser(self, subparsers, **kwargs):
-        parser = super().get_parser(subparsers, description='Run python files in semantix context.')
+        parser = super().get_parser(subparsers, description='Run python script in semantix context.')
 
         parser.add_argument('--callable', dest='callable', default='main',
-                            help='name of function/callable to execute')
-        parser.add_argument('file', help=('path to a python file to be executed'))
+                            help='name of function/callable to execute, default to "main(*args)"')
+        parser.add_argument('file', help=('path to a python script to be executed'))
         parser.add_argument('--with-debug-logger', dest='debug_logger',
                             action='store_true', default=False,
                             help='installs a debug logger that dumps semantix errors to stdout')
+        parser.add_argument('args', nargs='*', help='script arguments')
 
         return parser
 
@@ -44,4 +45,4 @@ class RunCommand(shell.Command, name='run', expose=True):
             from semantix.utils.test.pytest_semantix import LoggingPrintHandler
             logging.getLogger("semantix").addHandler(LoggingPrintHandler(args.color))
 
-        callable()
+        return callable(*args.args)
