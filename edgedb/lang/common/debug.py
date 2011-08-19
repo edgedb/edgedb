@@ -12,6 +12,7 @@ import ast
 import contextlib
 
 from semantix.utils.functional import decorate, callable
+from semantix.exceptions import MultiError
 
 
 enabled = __debug__
@@ -171,6 +172,14 @@ class ErrorExpected(Exception): pass
 def assert_raises(exception_cls, *, cause=None, error_re=None):
     try:
         yield
+
+    except MultiError as ex:
+        for error in ex.errors:
+            if isinstance(error, exception_cls):
+                return
+        raise ErrorExpected('no expected exception {!r} in MultiError'. \
+                            format(exception_cls.__class__.__name__))
+
     except exception_cls as ex:
         if cause is not None:
             assert isinstance(ex.__cause__, cause)
