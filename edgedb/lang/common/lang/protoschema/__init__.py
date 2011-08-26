@@ -399,7 +399,7 @@ class ProtoSchema:
         if default is default_err:
             default = self.SchemaError
 
-        if not obj:
+        if obj is None:
             raise_ = default and (isinstance(default, Exception) or \
                      (isinstance(default, builtins.type) and issubclass(default, Exception)))
             if raise_:
