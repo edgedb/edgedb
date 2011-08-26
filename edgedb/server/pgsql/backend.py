@@ -299,7 +299,7 @@ class SourceCopyProducer(BinaryCopyProducer):
 
         self.attrmap = {}
 
-        for ptr_name, ptr_cls in source:
+        for ptr_name, ptr_cls in source.iter_pointers():
             if isinstance(ptr_cls, caos.types.AtomClass):
                 self.attrmap[common.caos_name_to_pg_name(ptr_name)] = str(ptr_name)
 
@@ -911,7 +911,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         with connection.xact():
 
             attrs = {}
-            for link_name, link_cls in cls:
+            for link_name, link_cls in cls.iter_pointers():
                 if isinstance(link_cls, caos.types.AtomClass) and \
                                                     link_name != 'semantix.caos.builtins.id':
                     if not isinstance(link_cls._class_metadata.link, caos.types.ComputableClass) \
@@ -1324,7 +1324,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             link_obj = caos.concept.getlink(source, link_name, target)
 
             attrs = {}
-            for prop_name, prop_cls in link_cls:
+            for prop_name, prop_cls in link_cls.iter_pointers():
                 if not isinstance(prop_cls._class_metadata.link, caos.types.ComputableClass):
                     attrs[common.caos_name_to_pg_name(prop_name)] = getattr(link_obj, str(prop_name))
 
