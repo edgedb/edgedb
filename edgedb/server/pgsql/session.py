@@ -45,8 +45,9 @@ class Transaction(session.Transaction):
         """LOG [caos.sql]
         print('ROLLBACK %r[%d]' % (self.xact, len(list(self.chain()))))
         """
-        self.xact.rollback()
-        self.xact = None
+        if self.xact is not None:
+            self.xact.rollback()
+            self.xact = None
 
     @debug
     def _commit_impl(self):
