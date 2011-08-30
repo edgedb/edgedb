@@ -345,12 +345,10 @@ class LinkCopyProducer(SourceCopyProducer):
 
     def data_feed(self):
         for link_name, source, targets in self.data:
-            link = getattr(source.__class__, str(link_name))
+            target = getattr(source.__class__, str(link_name))
 
-            if isinstance(link, caos.types.NodeClass):
-                link_names = [(link, link._class_metadata.full_link_name)]
-            else:
-                link_names = [(l.target, l._metadata.name) for l in link]
+            link_names = [(target, caos.types.prototype(target.as_link()).name)]
+
 
             for target in targets:
                 tup = []
@@ -1290,15 +1288,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def store_links(self, source, targets, link_name, session, merge=False):
         link_map = self.get_link_map(session)
 
-        link = getattr(source.__class__, str(link_name))
-        link_cls = caos.concept.link(link, True)
+        target = getattr(source.__class__, str(link_name))
+        link_cls = target.as_link()
 
         table = self.get_table(link_cls._metadata.root_prototype, session)
 
-        if isinstance(link, caos.types.NodeClass):
-            link_names = [(link, link._class_metadata.full_link_name)]
-        else:
-            link_names = [(link.target, link._metadata.name)]
+        link_names = [(target, caos.types.prototype(link_cls).name)]
 
         cmds = []
         records = []
