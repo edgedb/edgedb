@@ -9,6 +9,7 @@
 import abc
 import bisect
 import collections
+import copy
 import sys
 
 from semantix.utils.functional import hybridmethod
@@ -514,6 +515,8 @@ class Struct(metaclass=StructMeta):
 
         args = {f: getattr(obj, f) for f in cls._fields.keys()}
         return cls(**args)
+
+    __copy__ = copy
 
     def formatfields(self, context='str'):
         for name, field in self.__class__._fields.items():
