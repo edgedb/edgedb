@@ -476,6 +476,13 @@ class Struct(metaclass=StructMeta):
                 self.check_field_type(field, name, value)
             super().__setattr__(name, value)
 
+    def update(self, *args, **kwargs):
+        values = {}
+        values.update(values, *args, **kwargs)
+
+        for k, v in values.items():
+            setattr(self, k, v)
+
     def check_field_type(self, field, name, value):
         if field.type and value is not None and not isinstance(value, field.type):
             raise TypeError('%s.%s.%s: expected %s but got %s'
