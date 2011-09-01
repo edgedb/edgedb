@@ -11,6 +11,7 @@ import numbers
 
 from semantix.caos import types as caos_types
 from semantix.caos.tree.transformer import TreeTransformer
+from semantix.caos.expr.record import QuerySelectorRow
 
 from semantix.utils import ast
 
@@ -64,14 +65,11 @@ class PythonQuery:
         from semantix import caos
         self.globals = {'caos': caos, 'semantix': semantix}
 
-    def __call__(self, **kwargs):
-        return [self.record(**dict(eval(self.statement, self.globals, kwargs)))]
-
     def first(self, **kwargs):
         return eval(self.statement, self.globals, kwargs)[0][1]
 
     def rows(self, **kwargs):
-        return [collections.OrderedDict(eval(self.statement, self.globals, kwargs))]
+        return [QuerySelectorRow(eval(self.statement, self.globals, kwargs))]
 
     def describe_output(self):
         return collections.OrderedDict(self.result_types)
@@ -86,13 +84,14 @@ class PythonQuery:
         return self
 
     __iter__ = rows
+    __call__ = rows
 
 
 class Adapter:
     def __init__(self):
         self.transformer = CaosToPythonTransformer()
 
-    def transform(self, tree, context=None, *, proto_schema):
+    def transform(self, tree, scrolling_cursor=False, context=None, *, proto_schema):
         pytree = self.transformer.transform(tree, context=context, proto_schema=proto_schema)
 
         text = py_codegen.BasePythonSourceGenerator.to_source(pytree)

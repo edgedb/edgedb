@@ -580,7 +580,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         else:
             key = ('meta', link_name) if meta else link_name
             ref = cte_refs.get(key)
-            assert ref, 'Reference to an inaccessible table node %s' % key
+            assert ref, 'Reference to an inaccessible table node {}'.format(key)
 
         if isinstance(ref, pgsql.ast.SelectExprNode):
             ref = ref.expr
