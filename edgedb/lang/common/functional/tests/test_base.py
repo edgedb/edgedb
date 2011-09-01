@@ -13,7 +13,6 @@ from semantix.utils import functional
 from semantix.utils.debug import assert_raises
 from semantix.exceptions import SemantixError
 from semantix.utils.functional.tests import base
-from semantix.utils.functional.signature import Signature
 
 
 class TestUtilsFunctional(object):
@@ -285,80 +284,3 @@ class TestUtilsFunctional(object):
 
         t2 = Test(20)
         assert t2.square == 400 and t.square == 100
-
-
-    def test_utils_functional_signature(self):
-        def test(a, b:int, c, d:'foo'=1, *args:1, k=1, v:'bar', x=False, **y:2) -> 42: pass
-
-        s = Signature(test)
-        assert s.return_annotation == 42
-
-        assert len(s.args) == 3
-        assert s.args[0].name == 'a' and not hasattr(s.args[0], 'default') \
-                        and not hasattr(s.args[0], 'annotation')
-        assert s.args[1].name == 'b' and not hasattr(s.args[1], 'default') \
-                        and s.args[1].annotation is int
-        assert s.args[2].name == 'c' and not hasattr(s.args[2], 'default') \
-                        and not hasattr(s.args[2], 'annotation')
-
-        assert len(s.kwargs) == 1
-        assert s.kwargs[0].name == 'd' and s.kwargs[0].default == 1 \
-                        and s.kwargs[0].annotation == 'foo'
-
-        assert s.vararg
-        assert s.vararg.name == 'args'
-        assert s.vararg.annotation == 1
-
-        assert len(s.kwonlyargs) == 3
-        assert s.kwonlyargs[0].name == 'k' and s.kwonlyargs[0].default == 1 \
-                        and not hasattr(s.kwonlyargs[0], 'annotation')
-        assert s.kwonlyargs[1].name == 'v' and not hasattr(s.kwonlyargs[1], 'default') \
-                        and s.kwonlyargs[1].annotation == 'bar'
-
-        assert s.varkwarg
-        assert s.varkwarg.name == 'y'
-        assert s.varkwarg.annotation == 2
-
-        b = s.bind(1, 2, 3, kwarg_values={'v':4})
-        assert b.args == (1, 2, 3) and b.kwargs == {'v': 4}
-
-        b = s.bind(1, 2, 3, 4, 5, 6, kwarg_values={'v':4})
-        assert b.args == (1, 2, 3, 4, 5, 6) and b.kwargs == {'v': 4}
-
-        b = s.bind(1, 2, kwarg_values={'v':4, 'c':5, 'd': 'foo'})
-        assert b.args == (1, 2, 5) and b.kwargs == {'v': 4, 'd': 'foo'}
-
-        b = s.bind(1, kwarg_values={'v':4, 'c':5, 'd': 'foo', 'b': 99})
-        assert b.args ==  (1, 99, 5) and b.kwargs == {'d': 'foo', 'v': 4}
-
-        with assert_raises(TypeError, error_re='missing value'):
-            b = s.bind(1, kwarg_values={'v':4, 'c':5})
-
-        with assert_raises(TypeError, error_re='too many'):
-            b = s.bind(1, 2, 3, kwarg_values={'v':4, 'a':5})
-
-        b = s.bind(1, 2, 3, kwarg_values={'v':4, 'u':9})
-        assert b.args == (1, 2, 3) and b.kwargs == {'u': 9, 'v': 4}
-
-
-        def test(): pass
-        s = Signature(test)
-        assert not any((s.args, s.kwargs, s.vararg, s.varkwarg, s.kwonlyargs))
-
-        def test(a): pass
-        s = Signature(test)
-        assert not any((s.kwargs, s.vararg, s.varkwarg, s.kwonlyargs))
-        assert s.args[0].name == 'a' and len(s.args) == 1
-
-        with assert_raises(TypeError, error_re='too many'):
-            s.bind(1, 2)
-
-
-        def test(*, k): pass
-        s = Signature(test)
-
-        with assert_raises(TypeError, error_re='missing value'):
-            s.bind()
-
-        with assert_raises(TypeError, error_re='unknown argument'):
-            s.bind(kwarg_values={'foo':'bar'})

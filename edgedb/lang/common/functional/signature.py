@@ -14,6 +14,10 @@ import itertools
 _void = object()
 
 
+class BindError(TypeError):
+    pass
+
+
 class Parameter:
     __slots__ = ('name', 'position', 'default', 'keyword_only', 'annotation')
 
@@ -29,8 +33,8 @@ class Parameter:
             self.annotation = annotation
 
     def __repr__(self):
-        return '<%s at 0x%x %r pos:%s>' % (self.__class__.__name__, id(self),
-                                           self.name, self.position)
+        return '<{} at 0x{:x} {!r} pos:{}>'.format(self.__class__.__name__, id(self),
+                                                   self.name, self.position)
 
 
 class BoundArguments:
@@ -44,11 +48,17 @@ class BoundArguments:
 
     @property
     def args(self):
-        return tuple(self._args.values()) + tuple(self._varargs)
+        if self._varargs:
+            return tuple(self._args.values()) + self._varargs
+        else:
+            return tuple(self._args.values())
 
     @property
     def kwargs(self):
-        return dict(itertools.chain(self._kwargs.items(), self._varkwargs.items()))
+        if self._varkwargs:
+            return dict(itertools.chain(self._kwargs.items(), self._varkwargs.items()))
+        else:
+            return dict(self._kwargs)
 
 
 class KwonlyArgumentError(TypeError):
@@ -56,13 +66,11 @@ class KwonlyArgumentError(TypeError):
 
 
 class Signature:
-    __slots__ = ('name', 'args', 'kwargs', 'kwonlyargs', 'vararg',
-                 'varkwarg', 'map', 'return_annotation')
+    __slots__ = ('name', 'args', 'kwonlyargs', 'vararg', 'varkwarg', '_map', 'return_annotation')
 
     def __init__(self, func):
         self.name = func.__name__
         self.args = []
-        self.kwargs = []
         self.kwonlyargs = []
         self.vararg = None
         self.varkwarg = None
@@ -74,8 +82,7 @@ class Signature:
         pos_count = func_code.co_argcount
         keyword_only_count = func_code.co_kwonlyargcount
         positional = argspec[0]
-        keyword_only = func_code.co_varnames[pos_count:
-                                                pos_count+keyword_only_count]
+        keyword_only = func_code.co_varnames[pos_count:(pos_count+keyword_only_count)]
 
         fxn_defaults = func.__defaults__
         if fxn_defaults:
@@ -88,15 +95,14 @@ class Signature:
         # Non-keyword-only parameters w/o defaults.
         non_default_count = pos_count - pos_default_count
         for name in positional[:non_default_count]:
-            self.args.append(Parameter(name, idx,
-                                       annotation=self._find_annotation(func, name)))
+            self.args.append(Parameter(name, idx, annotation=self._find_annotation(func, name)))
             idx += 1
 
         # ... w/ defaults.
         for offset, name in enumerate(positional[non_default_count:]):
-            self.kwargs.append(Parameter(name, idx,
-                                         default=fxn_defaults[offset],
-                                         annotation=self._find_annotation(func, name)))
+            self.args.append(Parameter(name, idx,
+                                       default=fxn_defaults[offset],
+                                       annotation=self._find_annotation(func, name)))
             idx += 1
 
         # *args
@@ -127,14 +133,19 @@ class Signature:
             self.varkwarg = Parameter(name, idx,
                                       annotation=self._find_annotation(func, name))
 
-        self.map = {arg.name: arg for arg in self}
+        self.args = tuple(self.args)
+        self.kwonlyargs = tuple(self.kwonlyargs)
+        self._map = {arg.name: arg for arg in self}
 
         # Return annotation.
         if 'return' in func.__annotations__:
             self.return_annotation = func.__annotations__['return']
 
+    def __getitem__(self, arg_name):
+        return self._map[arg_name]
+
     def __iter__(self):
-        chain = [self.args, self.kwargs]
+        chain = [self.args]
         if self.vararg:
             chain.append((self.vararg,))
         chain.append(self.kwonlyargs)
@@ -148,80 +159,66 @@ class Signature:
         except KeyError:
             return _void
 
-    def bind(self, *arg_values, kwarg_values=None, kwarg_only_values=None, loose_kwargs=False):
-        """
-            @param arg_values           Function positional arguments in a tuple
+    def bind(self, *args, **kwargs):
+        _args = collections.OrderedDict()
+        _kwargs = {}
+        _varargs = None
+        _varkwargs = None
 
-            @param kwarg_values         Should be an instance of OrderedDict, to
-                                        preserve right argument order
-
-            @param kwarg_only_values    A dict of values that should be bound only
-                                        to keyword-only arguments
-        """
-
-        args = collections.OrderedDict()
-        kwargs = {}
-        varargs = []
-        varkwargs = {}
-
-        if kwarg_values is None:
-            kwarg_values = {}
-
-        if kwarg_only_values is None:
-            kwarg_only_values = {}
-
-        positional = itertools.chain(self.args, self.kwargs)
-        idx = 0
-        for arg_value in arg_values:
+        arg_specs = iter(self.args)
+        arg_vals = iter(args)
+        while True:
             try:
-                spec = next(positional)
+                arg_val = next(arg_vals)
             except StopIteration:
-                if self.vararg:
-                    varargs = arg_values[idx:]
+                try:
+                    arg_spec = next(arg_specs)
+                except StopIteration:
                     break
                 else:
-                    raise TypeError('too many positional arguments')
-
-            args[spec.name] = arg_value
-            idx += 1
-
-        while idx < len(self.args):
-            spec = next(positional)
-            idx += 1
-
-            if spec.name not in kwarg_values:
-                raise TypeError('missing value for %r positional argument' % spec.name)
-
-            args[spec.name] = kwarg_values.pop(spec.name)
-
-        for kwarg_name, kwarg_value in itertools.chain(kwarg_values.items(),
-                                                       kwarg_only_values.items()):
-            if kwarg_name in args:
-                raise TypeError('too many values for %r argument' % kwarg_name)
-
-            if kwarg_name in self.map:
-                if kwarg_only_values:
-                    if kwarg_name in kwarg_values and self.map[kwarg_name].keyword_only:
-                        raise KwonlyArgumentError('%r argument must be passed as a keyword-only ' \
-                                                  'argument' % kwarg_name)
-
-                    if kwarg_name in kwarg_only_values and not self.map[kwarg_name].keyword_only:
-                        raise KwonlyArgumentError('non keyword-only argument %r was passed as a ' \
-                                                  'keyword-only argument' % kwarg_name)
-
-                kwargs[kwarg_name] = kwarg_value
+                    if hasattr(arg_spec, 'default'):
+                        break
+                    else:
+                        if arg_spec.name in kwargs:
+                            arg_specs = itertools.chain((arg_spec,), arg_specs)
+                            break
+                        else:
+                            raise BindError('{!r} parameter lacking default value'. \
+                                            format(arg_spec.name))
             else:
-                if self.varkwarg:
-                    varkwargs[kwarg_name] = kwarg_value
+                try:
+                    arg_spec = next(arg_specs)
+                except StopIteration:
+                    if self.vararg:
+                        _varargs = (arg_val,) + tuple(arg_vals)
+                        break
+                    else:
+                        raise BindError('too many positional arguments')
                 else:
-                    if not loose_kwargs:
-                        raise TypeError('unknown argument %r' % kwarg_name)
+                    if arg_spec.name in kwargs:
+                        raise BindError('multiple values for keyword argument {!r}'. \
+                                        format(arg_spec.name))
+                    _args[arg_spec.name] = arg_val
 
-        for arg in itertools.chain(self.kwargs, self.kwonlyargs):
-            if arg.name not in args and arg.name not in kwargs and not hasattr(arg, 'default'):
-                raise TypeError('missing value for %r argument' % arg.name)
+        for arg_spec in itertools.chain(arg_specs, self.kwonlyargs):
+            arg_name = arg_spec.name
+            try:
+                arg_val = kwargs[arg_name]
+            except KeyError:
+                if not hasattr(arg_spec, 'default'):
+                    raise BindError('{!r} parameter lacking default value'. \
+                                    format(arg_name))
+            else:
+                _kwargs[arg_name] = arg_val
+                kwargs.pop(arg_name)
 
-        return BoundArguments(args, kwargs, varargs, varkwargs)
+        if kwargs:
+            if self.varkwarg:
+                _varkwargs = kwargs
+            else:
+                raise BindError('too many keyword arguments')
+
+        return BoundArguments(_args, _kwargs, _varargs, _varkwargs)
 
 
 def signature(func):
