@@ -9,12 +9,15 @@
 """Persistent hash implementation for builtin types."""
 
 
+import contextlib
 import decimal
 from hashlib import md5
 
 
 class persistent_hash(int):
     magic_method = 'persistent_hash'
+
+    _hash_memory = []
 
     def __new__(cls, value):
         """Compute a persistent hash for a given value.
@@ -41,9 +44,14 @@ class persistent_hash(int):
         elif isinstance(value, frozenset):
             hash = cls.frozenset_hash(value)
         else:
-            phm = getattr(value, cls.magic_method, None)
-            if phm:
-                hash = phm()
+            for bucket in reversed(cls._hash_memory):
+                hash = bucket.get(id(value))
+                if hash is not None:
+                    break
+            else:
+                phm = getattr(value, cls.magic_method, None)
+                if phm:
+                    hash = phm()
 
         if hash is None:
             raise TypeError("un(persistently-)hashable type: '%s'" % type(value).__name__)
@@ -106,3 +114,13 @@ class persistent_hash(int):
         result = result * 69069 + 907133923
 
         return result
+
+    @classmethod
+    @contextlib.contextmanager
+    def memory(cls, *pairs):
+        try:
+            bucket = {id(obj): hash for obj, hash in pairs}
+            cls._hash_memory.append(bucket)
+            yield bucket
+        finally:
+            cls._hash_memory.pop()
