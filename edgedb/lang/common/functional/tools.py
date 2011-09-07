@@ -11,13 +11,14 @@ import sys
 import types
 import inspect
 import weakref
+from types import MethodType as _method
 
 from semantix.exceptions import SemantixError
 
 
 __all__ = ['get_argsspec', 'apply_decorator', 'decorate', 'isdecorated',
            'Decorator', 'BaseDecorator', 'NonDecoratable', 'callable',
-           'unwrap']
+           'unwrap', 'hybridmethod', 'cachedproperty']
 
 
 class NonDecoratable:
@@ -53,6 +54,8 @@ def isdecorated(func):
 
 
 class BaseDecorator(metaclass=abc.ABCMeta):
+    __slots__ = ('__wrapped__',)
+
     def __init__(self, func):
         self.__wrapped__ = func
 
@@ -171,6 +174,27 @@ def get_argsspec(func):
     if isdecorated(func):
         func = unwrap(func, True)
     return inspect.getfullargspec(func)
+
+
+class hybridmethod(BaseDecorator):
+    def __get__(self, obj, cls=None):
+        if obj:
+            return _method(self.__wrapped__, obj)
+        else:
+            return _method(self.__wrapped__, cls)
+
+
+class cachedproperty(BaseDecorator):
+    def __init__(self, func):
+        super().__init__(func)
+        self.__name__ = func.__name__
+
+    def __get__(self, obj, cls=None):
+        assert obj
+        value = self.__wrapped__(obj)
+        obj.__dict__[self.__name__] = value
+        return value
+
 
 
 def apply_decorator(func, *, decorate_function=None, decorate_class=None):

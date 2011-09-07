@@ -188,6 +188,23 @@ class TestUtilsFunctional(object):
         assert CHK == 6
         assert test() == 9
 
+    def test_utils_functional_hybridmethod(self):
+        class C1:
+            @functional.hybridmethod
+            def method(scope, param):
+                """Method documentation"""
+                if isinstance(scope, C1):
+                    return param * 2
+                elif isinstance(scope, type) and issubclass(scope, C1):
+                    return param * 3
+                else:
+                    assert False
+
+        assert C1.method(10) == 30
+        assert C1().method(10) == 20
+
+        assert C1.method.__name__ == 'method'
+        assert C1.method.__doc__ == 'Method documentation'
 
     def test_utils_functional_callable(self):
         assert functional.callable(functional.callable)

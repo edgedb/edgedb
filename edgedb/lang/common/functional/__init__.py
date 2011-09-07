@@ -9,4 +9,3 @@
 from .adapter import Adapter, AdapterError
 from .types import checktypes, ischecktypes
 from .tools import *
-from .misc import *
