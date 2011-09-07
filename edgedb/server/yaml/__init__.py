@@ -1384,19 +1384,24 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
             aliases = {alias: mod.__name__ for alias, mod in ent_context.document.imports.items()}
             session = ent_context.document.session
 
-            cursor = caos_query.CaosQLCursor(session, aliases)
-            prepared = cursor.prepare(query, proto_schema=session.realm.meta)
+            selector = session.selector(query, module_aliases=aliases)
 
-            output = prepared.describe_output()
+            if not isinstance(selector, caos.types.ConceptClass):
+                raise MetaError('query expressions must return a single entity')
 
-            assert len(output) == 1, "query expressions must return a single entity"
-            target, kind = next(iter(output.values()))
+            selector_iter = iter(selector)
 
-            assert target, "could not determine expression result type: %s" % query
+            try:
+                self.entity = next(selector_iter)
+            except StopIteration:
+                raise MetaError('query expressions must return a single entity')
 
-            self.entity = prepared.first()
-
-            assert self.entity, "query returned empty result: %s" % query
+            try:
+                next(selector_iter)
+            except StopIteration:
+                pass
+            else:
+                raise MetaError('query expressions must return a single entity')
 
         else:
             ent_context = lang_context.SourceContext.from_object(self)
