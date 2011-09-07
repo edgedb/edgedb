@@ -1390,7 +1390,7 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
             output = prepared.describe_output()
 
             assert len(output) == 1, "query expressions must return a single entity"
-            target, is_constant = next(iter(output.values()))
+            target, kind = next(iter(output.values()))
 
             assert target, "could not determine expression result type: %s" % query
 

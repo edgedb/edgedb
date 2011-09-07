@@ -62,7 +62,7 @@ class ObjectMeta(Adapter):
         result._adapts = adapts
 
         if ignore_aliases:
-            dumper.Dumper.add_ignore_aliases(adapts or result)
+            dumper.Dumper.add_ignore_aliases(adapts if adapts is not None else result)
 
         return result
 
@@ -72,7 +72,7 @@ class ObjectMeta(Adapter):
         if hasattr(cls, '__sx_getstate__'):
             representer = lambda dumper, data: cls.represent_wrapper(data, dumper)
 
-            if cls._adapts:
+            if cls._adapts is not None:
                 yaml.add_multi_representer(cls._adapts, representer, Dumper=dumper.Dumper)
             else:
                 yaml.add_multi_representer(cls, representer, Dumper=dumper.Dumper)

@@ -14,11 +14,11 @@ class Adapter(type):
     adapters = {}
 
     def __new__(mcls, name, bases, clsdict, *, adapts=None):
-        if adapts:
+        if adapts is not None:
             bases = bases + (adapts,)
 
         result = super().__new__(mcls, name, bases, clsdict)
-        if adapts:
+        if adapts is not None:
             assert issubclass(mcls, Adapter) and mcls is not Adapter
 
             adapters = Adapter.adapters.get(mcls)
@@ -38,7 +38,7 @@ class Adapter(type):
         for mc in [mcls] + mcls.__subclasses__(mcls):
             adapters = Adapter.adapters.get(mc)
 
-            if adapters:
+            if adapters is not None:
                 for adaptee, adapter in adapters.items():
                     for c in cls.mro():
                         if issubclass(c, adapter):

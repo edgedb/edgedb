@@ -1958,47 +1958,69 @@ class TreeTransformer:
         result = collections.OrderedDict()
 
         for i, selexpr in enumerate(selector):
-            result[selexpr.name or str(i)] = (self.get_expr_type(selexpr.expr, schema),
-                                              isinstance(selexpr.expr, caos_ast.Constant))
+            expr_type = self.get_expr_type(selexpr.expr, schema)
+
+            if isinstance(selexpr.expr, caos_ast.Constant):
+                expr_kind = 'constant'
+            elif isinstance(selexpr.expr, (caos_ast.EntitySet, caos_ast.AtomicRefSimple,
+                                           caos_ast.LinkPropRefSimple, caos_ast.Record)):
+                expr_kind = 'path'
+            elif isinstance(selexpr.expr, caos_ast.PathCombination):
+                for p in selexpr.expr.paths:
+                    if not isinstance(p, (caos_ast.EntitySet, caos_ast.AtomicRefSimple,
+                                          caos_ast.LinkPropRefSimple)):
+                        expr_kind = 'expression'
+                        break
+                else:
+                    expr_kind = 'path'
+            else:
+                expr_kind = 'expression'
+            result[selexpr.name or str(i)] = (expr_type, expr_kind)
 
         return result
 
 
 class PathResolver(TreeTransformer):
     def resolve_path(self, tree, session):
-        if isinstance(tree, caos_ast.Disjunction):
-            paths = tree.paths
-        else:
-            paths = {tree}
-
-        result = set()
-
-        for path in paths:
-            result.add(self._resolve_path(path, session))
-
-        return result
+        return list(self._resolve_path(tree, session))
 
     def _resolve_path(self, path, session):
-        if isinstance(path, caos_ast.AtomicRefSimple):
+        if isinstance(path, caos_ast.Disjunction):
+            result = set()
+
+            for path in path.paths:
+                result.update(self._resolve_path(path, session))
+
+        elif isinstance(path, caos_ast.AtomicRefSimple):
             expr = self._resolve_path(path.ref, session)
-            result = getattr(expr, path.name)
+            result = (getattr(e, path.name) for e in expr)
 
         elif isinstance(path, caos_ast.LinkPropRefSimple):
             expr = self._resolve_path(path.ref, session)
-            result = getattr(expr, path.name)
+            result = (getattr(e, path.name) for e in expr)
 
         elif isinstance(path, caos_ast.EntitySet):
             result = session.schema.get(path.concept.name)
 
             if path.rlink:
                 result = self._step_from_link(path.rlink, result, session)
+            else:
+                result = (result,)
 
         elif isinstance(path, caos_ast.EntityLink):
             link = path
             link_proto = next(iter(link.filter.labels))
             source = self._resolve_path(link.source, session)
-            target = getattr(source, link_proto.normal_name())
-            result = target.as_link()
+            result = (getattr(e, link_proto.normal_name()).as_link() for e in source)
+
+        elif isinstance(path, caos_ast.TypeCast):
+            result = self._resolve_path(path.expr, session)
+
+        elif isinstance(path, caos_ast.Record):
+            result = self._resolve_path(path.elements[0].ref, session)
+
+        elif isinstance(path, caos_ast.Constant):
+            result = ()
 
         else:
             raise TreeError('unexpected node: "%r"' % path)
@@ -2009,7 +2031,7 @@ class PathResolver(TreeTransformer):
         link_proto = next(iter(link.filter.labels))
         dir = link.filter.direction
         source = self._resolve_path(link.source, session)
-        result = caos_utils.create_path_step(session, source, target,
+        result = (caos_utils.create_path_step(session, expr, target,
                                              link_proto.normal_name(),
-                                             dir)
+                                             dir) for expr in source)
         return result
