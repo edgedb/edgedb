@@ -142,6 +142,11 @@ class TestUtilsSignature(object):
 
         assert call(test, 1, bar=2, spam='ham') == {'spam': 'ham'}
 
+    def test_utils_signature_13(self):
+        def test(a, b, c:str='1'):
+            return a+b+c
+        assert call(test, '1', '2', c='3') == '123'
+
     def test_utils_signature_obj(self):
         def test(a, b:int, c, d:'foo'=1, *args:1, k=1, v:'bar', x=False, **y:2) -> 42: pass
 

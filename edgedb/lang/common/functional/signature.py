@@ -166,6 +166,7 @@ class Signature:
         _varkwargs = None
 
         arg_specs = iter(self.args)
+        arg_specs_ex = ()
         arg_vals = iter(args)
         while True:
             try:
@@ -176,15 +177,12 @@ class Signature:
                 except StopIteration:
                     break
                 else:
-                    if hasattr(arg_spec, 'default'):
+                    if hasattr(arg_spec, 'default') or arg_spec.name in kwargs:
+                        arg_specs_ex = (arg_spec,)
                         break
                     else:
-                        if arg_spec.name in kwargs:
-                            arg_specs = itertools.chain((arg_spec,), arg_specs)
-                            break
-                        else:
-                            raise BindError('{!r} parameter lacking default value'. \
-                                            format(arg_spec.name))
+                        raise BindError('{!r} parameter lacking default value'. \
+                                        format(arg_spec.name))
             else:
                 try:
                     arg_spec = next(arg_specs)
@@ -200,7 +198,7 @@ class Signature:
                                         format(arg_spec.name))
                     _args[arg_spec.name] = arg_val
 
-        for arg_spec in itertools.chain(arg_specs, self.kwonlyargs):
+        for arg_spec in itertools.chain(arg_specs_ex, arg_specs, self.kwonlyargs):
             arg_name = arg_spec.name
             try:
                 arg_val = kwargs[arg_name]
