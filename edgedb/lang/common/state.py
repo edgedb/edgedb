@@ -21,7 +21,7 @@ class StateGenerator:
     state_cls = State
 
     def __init__(self):
-        self.state_iter = itertools.count()
+        self.state_iter = itertools.count(1)
         self.states = {}
 
     def gen_state(self, count=1):
@@ -29,6 +29,13 @@ class StateGenerator:
 
         result = []
         for num in nums:
+            # It's convenient to have non-zero positive states, as 0 always can
+            # be used as a special state or absence of it.
+            #
+            # Important: some spin package logic depends on it.
+            #
+            assert num > 0
+
             self.states[num] = self.state_cls(num)
             result.append(self.states[num])
 
