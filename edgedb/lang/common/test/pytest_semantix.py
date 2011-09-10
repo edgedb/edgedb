@@ -13,7 +13,7 @@ import sys
 import logging
 import contextlib
 
-from semantix.exceptions import SemantixError, excepthook
+from semantix.exceptions import SemantixError, excepthook, _iter_contexts
 from semantix.utils.debug import highlight
 from semantix.utils.io import terminal
 
@@ -161,7 +161,7 @@ class PyTestPatcher:
             einfo = ExceptionInfo(excinfo._excinfo)
 
             while einfo:
-                contexts = SemantixError.iter_contexts(einfo.value)
+                contexts = _iter_contexts(einfo.value)
                 einfos.append((self.repr_traceback(einfo), einfo._getreprcrash(), contexts))
                 if einfo.value.__cause__:
                     cause = einfo.value.__cause__

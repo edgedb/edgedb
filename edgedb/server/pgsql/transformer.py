@@ -18,6 +18,7 @@ from semantix.caos.backends import pgsql
 from semantix.caos.backends.pgsql import common
 from semantix.utils.debug import debug
 from semantix.utils.datastructures import OrderedSet
+from semantix import exceptions as base_err
 
 
 from . import types
@@ -372,7 +373,8 @@ class CaosTreeTransformer(CaosExprTransformer):
             except (AttributeError, IndexError):
                 args = []
             err = tree.transformer.InternalTreeTransformerError(*args)
-            err.tree_context = tree.transformer.TreeTransformerExceptionContext(tree=query)
+            err_ctx = tree.transformer.TreeTransformerExceptionContext(tree=query)
+            base_err._replace_context(err, err_ctx)
             raise err from e
 
         return qchunks, argmap, arg_index
