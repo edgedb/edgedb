@@ -60,11 +60,12 @@ class TestUtilsFunctional(object):
 
         @dec1
         def test1(a, b=None):
+            '''spam'''
             return a + (b if b else 0)
 
         assert test1(1, 2) == 4 and test1(1) == 2
         assert hasattr(test1, '__name__') and test1.__name__ == 'test1'
-
+        assert test1.__doc__ == 'spam'
 
         class Test1:
             BASE = 100

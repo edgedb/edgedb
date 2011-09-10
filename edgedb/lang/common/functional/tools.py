@@ -12,6 +12,7 @@ import types
 import inspect
 import weakref
 from types import MethodType as _method
+from functools import partial
 
 from semantix.exceptions import SemantixError
 from .signature import signature as _signature
@@ -88,16 +89,11 @@ class BaseDecorator(metaclass=abc.ABCMeta):
     def __init__(self, func):
         self.__wrapped__ = func
 
-BaseDecorator.register(staticmethod)
-BaseDecorator.register(classmethod)
-
 
 _marker = object()
 class Decorator(BaseDecorator):
-    _cache = weakref.WeakKeyDictionary()
-
-    def __new__(cls, func=_marker, *args, __completed__=False, **kwargs):
-        if not __completed__ and func is not _marker and callable(func) and (args or kwargs):
+    def __new__(cls, func=_marker, *args, __sx_completed__=False, **kwargs):
+        if not __sx_completed__ and func is not _marker and callable(func) and (args or kwargs):
             original_function = unwrap(func, True)
             frame = sys._getframe(1)
             try:
@@ -105,12 +101,12 @@ class Decorator(BaseDecorator):
                     frame = frame.f_back
 
                 if frame and frame.f_lineno >= original_function.__code__.co_firstlineno:
-                    __completed__ = True
+                    __sx_completed__ = True
 
             finally:
                 del frame
 
-        if __completed__ or (not args and not kwargs and callable(func)):
+        if __sx_completed__ or (not args and not kwargs and callable(func)):
             try:
                 decorated = cls.decorate(func, *args, **kwargs)
             except NotImplementedError:
@@ -123,13 +119,13 @@ class Decorator(BaseDecorator):
         if func is not _marker:
             args = (func,) + args
 
-        return (lambda func: cls(func, *args, __completed__=True, **kwargs))
+        return (lambda func: cls(func, *args, __sx_completed__=True, **kwargs))
 
     @classmethod
     def decorate(cls, func, *args, **kwargs):
         raise NotImplementedError
 
-    def __init__(self, func, *args, __completed__=None, **kwargs):
+    def __init__(self, func, *args, __sx_completed__=None, **kwargs):
         BaseDecorator.__init__(self, func)
 
         if args or kwargs:
@@ -149,21 +145,9 @@ class Decorator(BaseDecorator):
             target = cls
             method = self.class_call
 
-        try:
-            return Decorator._cache[target][self, self.__name__]
-
-        except KeyError:
-            if target not in Decorator._cache:
-                Decorator._cache[target] = {}
-
-            targetref = weakref.ref(target)
-            def wrapper(*args, **kwargs):
-                return method(targetref(), *args, **kwargs)
-
-            decorate(wrapper, self.__wrapped__)
-
-            Decorator._cache[target][self, self.__name__] = wrapper
-            return wrapper
+        wrapper = partial(method, target)
+        decorate(wrapper, self.__wrapped__)
+        return wrapper
 
     @abc.abstractmethod
     def __call__(self, *args, **kwargs):
@@ -223,7 +207,6 @@ class cachedproperty(BaseDecorator):
         value = self.__wrapped__(obj)
         obj.__dict__[self.__name__] = value
         return value
-
 
 
 def apply_decorator(func, *, decorate_function=None, decorate_class=None):
