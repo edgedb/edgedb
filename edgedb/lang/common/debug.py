@@ -11,7 +11,7 @@ import re
 import ast
 import contextlib
 
-from semantix.utils.functional import decorate, callable
+from semantix.utils.functional import decorate
 from semantix.exceptions import MultiError
 
 

@@ -18,10 +18,9 @@ from semantix.exceptions import SemantixError
 from .signature import signature as _signature
 
 
-__all__ = ['get_argsspec', 'apply_decorator', 'decorate', 'isdecorated',
-           'Decorator', 'BaseDecorator', 'NonDecoratable', 'callable',
-           'unwrap', 'hybridmethod', 'cachedproperty', 'in_class',
-           'get_signature']
+__all__ = ('get_argsspec', 'apply_decorator', 'decorate', 'isdecorated',
+           'Decorator', 'BaseDecorator', 'NonDecoratable', 'get_signature',
+           'unwrap', 'hybridmethod', 'cachedproperty', 'in_class')
 
 
 class NonDecoratable:
@@ -73,10 +72,6 @@ def decorate(wrapper, wrapped, *, assigned=WRAPPER_ASSIGNMENTS):
 
     wrapper.__wrapped__ = wrapped
     return wrapper
-
-
-def callable(obj):
-    return any('__call__' in cls.__dict__ for cls in type(obj).__mro__)
 
 
 def isdecorated(func):

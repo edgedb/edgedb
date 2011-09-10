@@ -244,28 +244,6 @@ class TestUtilsFunctional(object):
         assert C1.method.__name__ == 'method'
         assert C1.method.__doc__ == 'Method documentation'
 
-    def test_utils_functional_callable(self):
-        assert functional.callable(functional.callable)
-
-        class foo:
-            def __call__(self): pass
-        class bar(foo):
-            pass
-        assert functional.callable(bar())
-
-        assert functional.callable(object)
-        assert not functional.callable(object())
-        assert not functional.callable(functional)
-        assert not functional.callable(42)
-
-
-        class P(property):
-            def __get__(self, obj, cls):
-                1/0
-        class C(object):
-            __call__ = P()
-        assert functional.callable(C())
-
     def test_utils_functional_cachedproperty(self):
         CHK = 0
 
