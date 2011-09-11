@@ -853,12 +853,15 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                             self.add_pointer_constraint(source, pointer_name, constraint,
                                                                 meta, context)
 
-    def adjust_pointer_constraints(self, meta, context, source):
+    def adjust_pointer_constraints(self, meta, context, source, pointer_names=None):
 
         for pointer in (p for p in source.pointers.values() if p.atomic()):
             target = pointer.target
 
             pointer_name = pointer.normal_name()
+
+            if pointer_names is not None and pointer_name not in pointer_names:
+                continue
 
             if isinstance(source, caos.types.ProtoConcept):
                 ctx_class = delta_cmds.ConceptCommandContext
@@ -890,7 +893,12 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 if target.automatic:
                     # We need to establish fake AlterLink context here since
                     # atom constraint constraint ops need it.
-                    with context(ptr_ctx_class(ptr_op, pointer)):
+                    orig_ctx = context.get(ptr_ctx_class)
+
+                    with context(ptr_ctx_class(ptr_op, pointer)) as ptr_ctx:
+                        if orig_ctx is not None:
+                            ptr_ctx.original_proto = orig_ctx.original_proto
+
                         for constraint in target.effective_local_constraints.values():
                             old_constraint = self.get_pointer_constraint(meta, context, constraint,
                                                                          original=True)
@@ -1328,6 +1336,8 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
 
         self.table_name = common.concept_name_to_table_name(self.new_name, catenate=False)
 
+        concept.original_proto.name = proto.name
+
         return proto
 
 
@@ -1733,8 +1743,13 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
             # Indexes
             self.adjust_indexes(meta, context, result)
         else:
+            link_cmd = context.get(delta_cmds.LinkCommandContext)
+
             # Constraints
-            self.adjust_pointer_constraints(meta, context, result)
+            if link_cmd.proto.normal_name() != link_cmd.original_proto.normal_name():
+                concept_cmd = context.get(delta_cmds.ConceptCommandContext)
+                self.adjust_pointer_constraints(meta, context, concept_cmd.proto,
+                                                pointer_names=(result.normal_name(),))
 
         return result
 
