@@ -672,18 +672,26 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         if alter_tables:
             self.pgops.update(alter_tables)
 
-    def rename(self, old_name, new_name):
+    def rename(self, old_name, new_name, obj=None):
         super().rename(old_name, new_name)
 
-        old_table_name = common.concept_name_to_table_name(old_name, catenate=False)
-        new_table_name = common.concept_name_to_table_name(new_name, catenate=False)
+        if obj is not None and isinstance(obj, caos.types.ProtoLink):
+            old_table_name = common.link_name_to_table_name(old_name, catenate=False)
+            new_table_name = common.link_name_to_table_name(new_name, catenate=False)
+        else:
+            old_table_name = common.concept_name_to_table_name(old_name, catenate=False)
+            new_table_name = common.concept_name_to_table_name(new_name, catenate=False)
+
+        cond = TableExists(name=old_table_name)
 
         if old_name.module != new_name.module:
-            self.pgops.add(AlterTableSetSchema(old_table_name, new_table_name[0]))
+            self.pgops.add(AlterTableSetSchema(old_table_name, new_table_name[0],
+                                               conditions=(cond,)))
             old_table_name = (new_table_name[0], old_table_name[1])
 
         if old_name.name != new_name.name:
-            self.pgops.add(AlterTableRenameTo(old_table_name, new_table_name[1]))
+            self.pgops.add(AlterTableRenameTo(old_table_name, new_table_name[1],
+                                              conditions=(cond,)))
 
         updaterec = self.table.record(name=str(new_name))
         condition = [('name', str(old_name))]
@@ -1716,6 +1724,12 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
         self.attach_alter_table(context)
 
         if result.generic():
+            link_cmd = context.get(delta_cmds.LinkCommandContext)
+            assert link_cmd
+
+            self.rename(self.prototype_name, self.new_name, obj=result)
+            link_cmd.op.table_name = common.link_name_to_table_name(self.new_name, catenate=False)
+
             # Indexes
             self.adjust_indexes(meta, context, result)
         else:
@@ -4089,8 +4103,8 @@ class AlterTableDropConstraint(AlterTableFragment, TableConstraintCommand):
 
 
 class AlterTableSetSchema(AlterTableBase):
-    def __init__(self, name, schema):
-        super().__init__(name)
+    def __init__(self, name, schema, **kwargs):
+        super().__init__(name, **kwargs)
         self.schema = schema
 
     def code(self, context):
@@ -4100,8 +4114,8 @@ class AlterTableSetSchema(AlterTableBase):
 
 
 class AlterTableRenameTo(AlterTableBase):
-    def __init__(self, name, new_name):
-        super().__init__(name)
+    def __init__(self, name, new_name, **kwargs):
+        super().__init__(name, **kwargs)
         self.new_name = new_name
 
     def code(self, context):
