@@ -6,7 +6,11 @@
 ##
 
 
-from semantix.utils.value import value
+from semantix.utils.slots import SlotsMeta
+from semantix.utils.datastructures.all import _Marker
+from semantix.utils.functional.types import Checker, FunctionValidator, \
+                                            ChecktypeExempt, TypeChecker, CombinedChecker
+
 from .base import HEAD, ConfigRootNode
 from .tree import *
 
@@ -14,32 +18,100 @@ from .tree import *
 __all__ = 'cvalue',
 
 
-class cvalue(value):
-    __slots__ = ('_owner',)
+_std_type = type
 
-    def __init__(self, *args, abstract=False, inherit=False, **kwargs):
-        super().__init__(*args, **kwargs)
-        self._owner = None
+class _empty(_Marker):
+    pass
+
+
+class cvalue(ChecktypeExempt, metaclass=SlotsMeta):
+    __slots__ = ('_name', '_default', '_doc', '_validator', '_type', '_owner')
+
+    def __init__(self, default=_empty, *, doc=None, validator=None, type=None):
+        self._name = None
+        self._default = default
+        self._doc = doc
+        self._type = type
+
+        if validator:
+            if not isinstance(validator, Checker):
+                validator = Checker.get(validator)
+
+            if type and isinstance(type, _std_type):
+                validator = CombinedChecker(TypeChecker(type), validator)
+
+            self._validator = validator
+
+        elif type and isinstance(type, _std_type):
+            self._validator = TypeChecker(type)
+
+        else:
+            self._validator = None
+
+    doc = property(lambda self: self._doc)
+    default = property(lambda self: self._default)
+    required = property(lambda self: self._default is _empty)
+    name = property(lambda self: self._name)
+    fullname = property(lambda self: self._owner.__module__ + '.' + \
+                                                self._owner.__name__ + '.' + self.name)
 
     def _set_name(self, name):
         self._name = name
-        CvalueRootNode._set_value(CVALUES, name, self, None)
+        CvalueRootNode._set_value(CVALUES, self.fullname, self, None)
 
-    def _get_value(self):
+    def _get_value(self, cls):
         if self._name is None:
             raise ValueError('Unable to get value on uninitialized cvalue: ' \
                              'no name set {!r}'.format(self))
 
-        conf = HEAD.get()
-        while conf:
-            try:
-                value = ConfigRootNode._get_value(conf.node, self._name)
-            except AttributeError:
-                conf = conf.parent
-            else:
-                return value.value
+        head = HEAD.get()
 
-        return super()._get_value()
+        for base in cls.__mro__:
+            conf = head
+            while conf:
+                fullname = base.__module__ + '.' + base.__name__ + '.' + self._name
+
+                try:
+                    value = ConfigRootNode._get_value(conf.node, fullname)
+                except AttributeError:
+                    conf = conf.parent
+                else:
+                    self._validate(value.value, fullname, value.context)
+                    return value.value
+
+            if base is self._owner:
+                break
+
+        if self._default is _empty:
+            raise ValueError('{!r} is a required value'.format(self._name))
+
+        return self._default
+
+    def _validate(self, value, fullname, context=None):
+        if self._validator is not None:
+            try:
+                FunctionValidator.check_value(self._validator, value,
+                                              self._name, 'default value')
+            except TypeError as ex:
+                ctx = '' if context is None else ' in {!r}'.format(context)
+                raise TypeError('Invalid value {!r} for "{}"{}'. \
+                                format(value, fullname, ctx)) from ex
+
+    def __get__(self, instance, owner):
+        cls = owner
+        if instance:
+            cls = type(instance)
+        assert cls is not None
+        return self._get_value(cls)
+
+    def __set__(self, instance, value):
+        raise TypeError('{} is a read-only value'.format(self._name))
+
+    def __delete__(self, instance):
+        raise TypeError('{} is a read-only value'.format(self._name))
+
+    def __repr__(self):
+        return "<{} at 0x{:x} ({!r})>".format(type(self).__name__, id(self), self._default)
 
 
 class CvalueContainer(TreeValue):

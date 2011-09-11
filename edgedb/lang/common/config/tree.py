@@ -38,7 +38,8 @@ class TreeNode(metaclass=SlotsMeta):
         self.__node_children__[name] = value
 
     def __getattribute__(self, name):
-        if name.startswith('__node_') or name in ('__dict__', '__bases__', '__class__', '__enter__', '__exit__'):
+        if name.startswith('__node_') or name in ('__dict__', '__bases__', '__class__', \
+                                                  '__enter__', '__exit__'):
             return object.__getattribute__(self, name)
 
         return_container = False
