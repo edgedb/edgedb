@@ -58,6 +58,7 @@ class TransformerContextLevel(object):
                 self.link_node_map = prevlevel.link_node_map
                 self.subquery_map = prevlevel.subquery_map
                 self.direct_subquery_ref = prevlevel.direct_subquery_ref
+                self.pending_bonds = prevlevel.pending_bonds
 
             elif mode == TransformerContext.SUBQUERY:
                 self.vars = {}
@@ -72,6 +73,7 @@ class TransformerContextLevel(object):
                 self.query = pgsql.ast.SelectQueryNode()
                 self.subquery_map = {}
                 self.direct_subquery_ref = False
+                self.pending_bonds = {}
 
             else:
                 self.vars = prevlevel.vars.copy()
@@ -82,6 +84,7 @@ class TransformerContextLevel(object):
                 self.link_node_map = prevlevel.link_node_map.copy()
                 self.subquery_map = prevlevel.subquery_map
                 self.direct_subquery_ref = False
+                self.pending_bonds = prevlevel.pending_bonds.copy()
 
         else:
             self.vars = {}
@@ -100,6 +103,7 @@ class TransformerContextLevel(object):
             self.session = None
             self.subquery_map = {}
             self.direct_subquery_ref = False
+            self.pending_bonds = {}
 
     def genalias(self, alias=None, hint=None):
         if alias is None:
@@ -460,6 +464,9 @@ class CaosTreeTransformer(CaosExprTransformer):
                 condition = None
 
                 for outer_ref, inner_ref in subquery.outerbonds:
+                    outer_ref = context.current.concept_node_map[outer_ref]
+                    outer_ref = outer_ref['semantix.caos.builtins.id']
+
                     left = outer_ref.expr
                     right = pgsql.ast.FieldRefNode(table=subquery, field=inner_ref.alias,
                                                    origin=inner_ref.expr.origin,
@@ -705,10 +712,19 @@ class CaosTreeTransformer(CaosExprTransformer):
                 condition = None
 
                 for outer_ref, inner_ref in subquery.outerbonds:
-                    left = outer_ref.expr
-                    right = inner_ref.expr
-                    comparison = pgsql.ast.BinOpNode(left=left, op=ast.ops.EQ, right=right)
-                    condition = self.extend_binop(condition, comparison, cls=pgsql.ast.BinOpNode)
+                    outer_ref = context.current.concept_node_map.get(outer_ref)
+
+                    if outer_ref is None:
+                        # The outer ref has not been processed yet, put it in a queue
+                        # and glue the bond when it appears.
+                        context.current.pending_bonds[outer_ref] = (subquery, inner_ref)
+                    else:
+                        outer_ref = outer_ref['semantix.caos.builtins.id']
+
+                        left = outer_ref.expr
+                        right = inner_ref.expr
+                        comparison = pgsql.ast.BinOpNode(left=left, op=ast.ops.EQ, right=right)
+                        condition = self.extend_binop(condition, comparison, cls=pgsql.ast.BinOpNode)
 
                 subquery.where = self.extend_binop(subquery.where, condition, cls=pgsql.ast.BinOpNode)
 
@@ -765,6 +781,20 @@ class CaosTreeTransformer(CaosExprTransformer):
             root = self.get_caos_path_root(expr)
             self._process_graph(context, cte or context.current.query, root)
             result = pgsql.ast.IgnoreNode()
+
+            pending = context.current.pending_bonds.pop(expr, None)
+            if pending is not None:
+                outer_ref = expr
+                subquery, inner_ref = pending
+
+                outer_ref = context.current.concept_node_map[outer_ref]
+                outer_ref = outer_ref['semantix.caos.builtins.id']
+
+                left = outer_ref.expr
+                right = inner_ref.expr
+                comparison = pgsql.ast.BinOpNode(left=left, op=ast.ops.EQ, right=right)
+
+                subquery.where = self.extend_binop(subquery.where, comparison, cls=pgsql.ast.BinOpNode)
 
         elif isinstance(expr, tree.ast.BinOp):
             left_is_universal_set = self.is_universal_set(expr.left)
@@ -1561,8 +1591,10 @@ class CaosTreeTransformer(CaosExprTransformer):
             context.pop()
 
         if caos_path_tip and caos_path_tip.reference:
-            outer_ref = context.current.concept_node_map[caos_path_tip.reference]
-            outer_ref = outer_ref['semantix.caos.builtins.id']
+            # Do not attempt to resolve the outer reference here since it may have not
+            # been processed yet.
+            #
+            outer_ref = caos_path_tip.reference
 
             inner_ref = context.current.concept_node_map[caos_path_tip]
             inner_ref = inner_ref['semantix.caos.builtins.id']
