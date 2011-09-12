@@ -40,10 +40,10 @@ class MetaChecker(type):
             MetaChecker.registry.append(cls)
 
         if '__slots__' not in dct:
-            raise CheckerError('Invalid type checker %s: missing __slots__' % name)
+            raise CheckerError('Invalid type checker {}: missing __slots__'.format(name))
 
         if not isinstance(dct['__slots__'], tuple):
-            raise CheckerError('Invalid type checker %s: __slots__ must be a tuple' % name)
+            raise CheckerError('Invalid type checker %s: __slots__ must be a tuple'.format(name))
 
         return cls
 
@@ -63,16 +63,15 @@ class Checker(metaclass=MetaChecker):
             if checker.can_handle(target):
                 return checker(target)
 
-        raise CheckerError('Unable to find proper checker for %r' % target)
+        raise CheckerError('Unable to find proper checker for {!r}'.format(target))
 
 
-class LambdaChecker(Checker):
+class FunctionalChecker(Checker):
     __slots__ = ()
 
-    def check(self, value, func, arg_name):
+    def check(self, value, value_name):
         if not self.target(value):
-            raise TypeError('%s(): unexpected value for \'%s\' argument' % \
-                            (getattr(func, '__name__', func), arg_name))
+            raise TypeError('unexpected value {!r} for {}'.format(value, value_name))
 
     @classmethod
     def can_handle(cls, target):
@@ -86,10 +85,10 @@ class TupleChecker(Checker):
         super().__init__(targets)
         self.checkers = [Checker.get(target) for target in targets]
 
-    def check(self, value, func, arg_name):
+    def check(self, value, value_name):
         for checker in self.checkers:
             try:
-                checker.check(value, func, arg_name)
+                checker.check(value, value_name)
 
             except TypeError:
                 pass
@@ -97,9 +96,7 @@ class TupleChecker(Checker):
             else:
                 return
 
-        raise TypeError('%s(): unexpected value for \'%s\' argument: expected one of %s, got %s' % \
-                        (getattr(func, '__name__', func), arg_name,
-                        tuple(t.__name__ for t in self.target), type(value).__name__))
+        raise TypeError('unexpected value {!r} for {}'.format(value, value_name))
 
     @classmethod
     def can_handle(cls, target):
@@ -109,11 +106,11 @@ class TupleChecker(Checker):
 class TypeChecker(Checker):
     __slots__ = ()
 
-    def check(self, value, func, arg_name):
+    def check(self, value, value_name):
         if not isinstance(value, self.target):
-            raise TypeError('%s(): unexpected value for \'%s\' argument: expected %s, got %s' % \
-                            (getattr(func, '__name__', func), arg_name,
-                             self.target.__name__, type(value).__name__))
+            raise TypeError('unexpected value {!r} of type {!r} for {}, ' \
+                            'expected value type is {!r}'. \
+                            format(value, type(value), value_name, self.target))
 
     @classmethod
     def can_handle(cls, target):
@@ -127,9 +124,9 @@ class CombinedChecker(Checker):
         assert all(isinstance(checker, Checker) for checker in checkers)
         self.checkers = checkers
 
-    def check(self, value, func, arg_name):
+    def check(self, value, value_name):
         for checker in self.checkers:
-            checker.check(value, func, arg_name)
+            checker.check(value, value_name)
 
 
 class FunctionValidator:
@@ -149,7 +146,7 @@ class FunctionValidator:
     @classmethod
     def check_value(cls, checker, value, func, arg_name):
         if value is not None and not isinstance(value, ChecktypeExempt):
-            checker.check(value, func, arg_name)
+            checker.check(value, arg_name)
 
     @classmethod
     def check_defaults(cls, func, args_spec, checkers):

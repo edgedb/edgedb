@@ -45,7 +45,7 @@ class TestUtilsFunctionalChecktypes:
                 super().__init__()
                 self.key = key
 
-            def check(self, value, func, arg_name):
+            def check(self, value, value_name):
                 if not isinstance(value, dict) or self.key not in value:
                     raise TypeError()
 
