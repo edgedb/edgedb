@@ -181,8 +181,8 @@ class Signature:
                         arg_specs_ex = (arg_spec,)
                         break
                     else:
-                        raise BindError('{!r} parameter lacking default value'. \
-                                        format(arg_spec.name))
+                        raise BindError('bind: {func}: {arg!r} parameter lacking default value'. \
+                                        format(func=self.name, arg=arg_spec.name))
             else:
                 try:
                     arg_spec = next(arg_specs)
@@ -191,11 +191,12 @@ class Signature:
                         _varargs = (arg_val,) + tuple(arg_vals)
                         break
                     else:
-                        raise BindError('too many positional arguments')
+                        raise BindError('bind: {func}: too many positional arguments'. \
+                                        format(func=self.name))
                 else:
                     if arg_spec.name in kwargs:
-                        raise BindError('multiple values for keyword argument {!r}'. \
-                                        format(arg_spec.name))
+                        raise BindError('bind: {func}: multiple values for keyword argument {arg!r}'. \
+                                        format(arg=arg_spec.name, func=self.name))
                     _args[arg_spec.name] = arg_val
 
         for arg_spec in itertools.chain(arg_specs_ex, arg_specs, self.kwonlyargs):
@@ -204,8 +205,8 @@ class Signature:
                 arg_val = kwargs[arg_name]
             except KeyError:
                 if not hasattr(arg_spec, 'default'):
-                    raise BindError('{!r} parameter lacking default value'. \
-                                    format(arg_name))
+                    raise BindError('bind: {func}: {arg!r} parameter lacking default value'. \
+                                    format(arg=arg_name, func=self.name))
             else:
                 _kwargs[arg_name] = arg_val
                 kwargs.pop(arg_name)
@@ -214,7 +215,8 @@ class Signature:
             if self.varkwarg:
                 _varkwargs = kwargs
             else:
-                raise BindError('too many keyword arguments')
+                raise BindError('bind: {func}: too many keyword arguments'. \
+                                format(func=self.name))
 
         return BoundArguments(_args, _kwargs, _varargs, _varkwargs)
 
