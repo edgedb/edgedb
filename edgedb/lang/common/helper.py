@@ -107,7 +107,7 @@ def get_function_class(func):
 
                 visited[item] = True
                 result = finder(item, level+1)
-                if result:
+                if result is not None:
                     return result
 
     if isinstance(func, types.MethodType):
