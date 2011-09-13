@@ -132,13 +132,12 @@ class Decorator(BaseDecorator):
         raise SemantixError('decorator %r does not support any arguments' % self.__class__.__name__)
 
     def __get__(self, obj, cls=None):
-        if obj:
-            target = obj
-            method = self.instance_call
-
-        else:
+        if obj is None:
             target = cls
             method = self.class_call
+        else:
+            target = obj
+            method = self.instance_call
 
         wrapper = partial(method, target)
         decorate(wrapper, self.__wrapped__)
@@ -186,10 +185,10 @@ def get_argsspec(func):
 
 class hybridmethod(BaseDecorator):
     def __get__(self, obj, cls=None):
-        if obj:
-            return _method(self.__wrapped__, obj)
-        else:
+        if obj is None:
             return _method(self.__wrapped__, cls)
+        else:
+            return _method(self.__wrapped__, obj)
 
 
 class cachedproperty(BaseDecorator):

@@ -238,6 +238,9 @@ class TestUtilsFunctional(object):
                 else:
                     assert False
 
+            def __bool__(self):
+                return False
+
         assert C1.method(10) == 30
         assert C1().method(10) == 20
 
