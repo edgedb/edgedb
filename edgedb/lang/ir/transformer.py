@@ -1965,10 +1965,15 @@ class TreeTransformer:
             elif isinstance(selexpr.expr, (caos_ast.EntitySet, caos_ast.AtomicRefSimple,
                                            caos_ast.LinkPropRefSimple, caos_ast.Record)):
                 expr_kind = 'path'
+            elif isinstance(selexpr.expr, caos_ast.AtomicRefExpr) and \
+                                                                  selexpr.expr.caoslink is not None:
+                # RefExpr represents a computable
+                expr_kind = 'path'
             elif isinstance(selexpr.expr, caos_ast.PathCombination):
                 for p in selexpr.expr.paths:
                     if not isinstance(p, (caos_ast.EntitySet, caos_ast.AtomicRefSimple,
-                                          caos_ast.LinkPropRefSimple)):
+                                          caos_ast.LinkPropRefSimple)) \
+                       and not (isinstance(p, caos_ast.AtomicRefExpr) and p.caoslink is not None):
                         expr_kind = 'expression'
                         break
                 else:
@@ -1994,6 +1999,10 @@ class PathResolver(TreeTransformer):
         elif isinstance(path, caos_ast.AtomicRefSimple):
             expr = self._resolve_path(path.ref, session)
             result = (getattr(e, path.name) for e in expr)
+
+        elif isinstance(path, caos_ast.AtomicRefExpr) and path.caoslink is not None:
+            expr = self._resolve_path(path.ref, session)
+            result = (getattr(e, path.caoslink.normal_name()) for e in expr)
 
         elif isinstance(path, caos_ast.LinkPropRefSimple):
             expr = self._resolve_path(path.ref, session)

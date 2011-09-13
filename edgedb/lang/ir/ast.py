@@ -129,11 +129,11 @@ class BaseRef(Path):
 
 
 class AtomicRef(BaseRef):
-    pass
+    __fields = ['caoslink']
 
 
 class AtomicRefSimple(AtomicRef):
-    __fields = [('name', caos_name.Name, None), 'caoslink']
+    __fields = [('name', caos_name.Name, None)]
 
 
 class BaseRefExpr(Path):

@@ -862,5 +862,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         path_tip = next(iter(path_tip))
         anchors = {'self': path_tip}
         caosql_tree = self.parser.parse(computable_proto.expression)
-        return self.transform_fragment(caosql_tree, (), anchors=anchors,
+        result = self.transform_fragment(caosql_tree, (), anchors=anchors,
                                        location='computable')
+        result.caoslink = computable_proto
+        return result
