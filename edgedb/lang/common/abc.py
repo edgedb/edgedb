@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2011 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -7,9 +7,10 @@
 
 
 __all__ = ['AbstractMeta', 'abstractmethod', 'abstractproperty',
-           'abstractclassmethod', 'abstractstaticmethod']
+           'abstractclassmethod', 'abstractstaticmethod',
+           'abstractattribute']
 
-from abc import abstractmethod, abstractproperty
+from abc import abstractmethod, abstractproperty, abstractclassmethod, abstractstaticmethod
 
 
 class AbstractMeta(type):
@@ -41,25 +42,13 @@ class AbstractMeta(type):
         cls.__abstractmethods__ = frozenset(abstracts)
 
 
+class abstractattribute:
+    __isabstractmethod__ = True
+
+    def __init__(self, *, doc=None):
+        self.__doc__ = doc
+
+
 _empty_set = frozenset()
 def push_abstract(cls, *names):
     cls.__abstractmethods__ = frozenset(set(names) | getattr(cls, '__abstractmethods__', _empty_set))
-
-
-try:
-    from abc import abstractclassmethod, abstractstaticmethod
-except ImportError:
-    class abstractclassmethod(classmethod):
-        __isabstractmethod__ = True
-
-        def __init__(self, funcobj):
-            funcobj.__isabstractmethod__ = True
-            super().__init__(funcobj)
-
-
-    class abstractstaticmethod(classmethod):
-        __isabstractmethod__ = True
-
-        def __init__(self, funcobj):
-            funcobj.__isabstractmethod__ = True
-            super().__init__(funcobj)
