@@ -64,3 +64,10 @@ class TestUtilsDSExpiringDict:
         assert dct['foo'] == 'bar'
         del dct['foo']
         assert 'foo' not in dct
+
+        dct.set('foo', 'bar', expiry=0.1)
+        del dct['foo']
+        assert len(dct) == 0
+        time.sleep(0.2)
+        assert len(dct) == 0
+

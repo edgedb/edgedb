@@ -59,9 +59,13 @@ class ExpiringDict(collections.UserDict):
             while self.keyheap and self.keyheap[0][0] <= now:
                 data = heapq.heappop(self.keyheap)
 
-                _, control = self.data[data[1]]
-                if control == data[2]:
-                    del self.data[data[1]]
+                try:
+                    _, control = self.data[data[1]]
+                except KeyError:
+                    pass
+                else:
+                    if control == data[2]:
+                        del self.data[data[1]]
 
     def set(self, key, value, *, expiry=Void):
         if expiry is Void:
