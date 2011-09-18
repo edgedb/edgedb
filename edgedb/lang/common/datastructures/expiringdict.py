@@ -10,6 +10,8 @@ import collections
 import heapq
 from datetime import timedelta, datetime
 
+from semantix.utils.datastructures.all import Void
+
 
 class ExpiringDict(collections.UserDict):
     """A dict-like object with an expiry time on its values.
@@ -23,16 +25,22 @@ class ExpiringDict(collections.UserDict):
     ... False
     """
 
-    def __init__(self, *, expiry:float):
+    def __init__(self, *, default_expiry:float=None):
         super().__init__()
+        self.default_expiry = self._cast_expiry(default_expiry)
+        self.keyheap = []
+
+    def _cast_expiry(self, expiry):
+        if expiry is None:
+            return expiry
 
         if not isinstance(expiry, timedelta):
             if not isinstance(expiry, (int, float)):
                 raise ValueError('expected expiry to be float or integer value, got {}:{!r}'. \
                                  format(type(expiry), expiry))
             expiry = timedelta(seconds=expiry)
-        self.expiry = expiry
-        self.keyheap = []
+
+        return expiry
 
     def _cleanup(self):
         now = datetime.now()
@@ -59,14 +67,25 @@ class ExpiringDict(collections.UserDict):
 
         super().__delitem__(key)
 
-    def __setitem__(self, key, value):
+    def set(self, key, value, *, expiry=Void):
+        if expiry is Void:
+            if self.default_expiry is not None:
+                expiry = self.default_expiry
+        else:
+            expiry = self._cast_expiry(expiry)
+
         self._cleanup()
 
         if key in self:
             self.__delitem__(key)
 
-        heapq.heappush(self.keyheap, (datetime.now() + self.expiry, key))
+        if expiry is not None and expiry is not Void:
+            heapq.heappush(self.keyheap, (datetime.now() + expiry, key))
+
         super().__setitem__(key, value)
+
+    def __setitem__(self, key, value):
+        self.set(key, value)
 
     def __getitem__(self, key):
         self._cleanup()
@@ -75,6 +94,10 @@ class ExpiringDict(collections.UserDict):
     def __iter__(self):
         self._cleanup()
         return super().__iter__()
+
+    def __contains__(self, key):
+        self._cleanup()
+        return super().__contains__(key)
 
     def __len__(self):
         self._cleanup()
