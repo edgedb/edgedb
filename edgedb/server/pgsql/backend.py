@@ -2232,10 +2232,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 for constr_cls in ptr.constraints.copy():
                     ptr.del_constraint(constr_cls)
 
+                ptr.required = False
+
                 updated_concept.add_pointer(ptr)
 
-        delta = base_delta.CommandGroup()
-        delta.add(updated_concept.delta(stored_concept))
+        delta = base_delta.AlterRealm()
+        concept_delta = updated_concept.delta(stored_concept)
+        delta.add(concept_delta)
 
         for c in updated_concept.children():
             if updated_concept.name not in c.base:
@@ -2250,9 +2253,27 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 alter.add(rebase)
                 delta.add(alter)
 
+        if isinstance(concept_delta, base_delta.CreateConcept):
+            schema.delete(updated_concept)
+
         delta = self.process_delta(delta, proto_schema, session)
 
         self.execute_delta_plan(delta, session)
+
+        # Update oid to proto name mapping cache
+        ds = introspection.tables.TableList(session.connection)
+        table_name = common.concept_name_to_table_name(updated_concept.name, catenate=False)
+        tables = ds.fetch(schema_name=table_name[0], table_pattern=table_name[1])
+
+        if not tables:
+            msg = 'internal metadata incosistency'
+            details = 'Record for concept "%s" exists but the table is missing' % updated_concept.name
+            raise caos.MetaError(msg, details=details)
+
+        table = next(iter(tables))
+
+        self.table_id_to_proto_name_cache[table['oid']] = updated_concept.name
+        self.proto_name_to_table_id_cache[updated_concept.name] = table['typoid']
 
         # Update virtual concept table column cache
         self.get_table_columns(table_name, connection=session.connection, cache=None)
