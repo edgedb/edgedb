@@ -13,6 +13,9 @@ from datetime import timedelta, datetime
 from semantix.utils.datastructures.all import Void
 
 
+MAX_CONTROL_ID = 2**64 - 1
+
+
 class ExpiringDict(collections.UserDict):
     """A dict-like object with an expiry time on its values.
 
@@ -29,6 +32,13 @@ class ExpiringDict(collections.UserDict):
         super().__init__()
         self.default_expiry = self._cast_expiry(default_expiry)
         self.keyheap = []
+        self._control_idx = 0
+
+    def _get_control_idx(self):
+        self._control_idx += 1
+        if self._control_idx == MAX_CONTROL_ID:
+            self._control_idx = 0
+        return self._control_idx
 
     def _cast_expiry(self, expiry):
         if expiry is None:
@@ -46,26 +56,12 @@ class ExpiringDict(collections.UserDict):
         now = datetime.now()
 
         if self.keyheap and self.keyheap[0][0] <= now:
-            keys_to_delete = []
-
             while self.keyheap and self.keyheap[0][0] <= now:
                 data = heapq.heappop(self.keyheap)
-                keys_to_delete.append(data[1])
 
-            for key in keys_to_delete:
-                self.__delitem__(key)
-
-    def __delitem__(self, key):
-        heap_location = None
-
-        for idx, key_data in enumerate(self.keyheap):
-            if key_data[1] == key:
-                heap_location = idx
-
-        if heap_location is not None:
-            del self.keyheap[heap_location]
-
-        super().__delitem__(key)
+                _, control = self.data[data[1]]
+                if control == data[2]:
+                    del self.data[data[1]]
 
     def set(self, key, value, *, expiry=Void):
         if expiry is Void:
@@ -76,20 +72,23 @@ class ExpiringDict(collections.UserDict):
 
         self._cleanup()
 
+        control_idx = None
+
         if key in self:
             self.__delitem__(key)
 
         if expiry is not None and expiry is not Void:
-            heapq.heappush(self.keyheap, (datetime.now() + expiry, key))
+            control_idx = self._get_control_idx()
+            heapq.heappush(self.keyheap, (datetime.now() + expiry, key, control_idx))
 
-        super().__setitem__(key, value)
+        super().__setitem__(key, (value, control_idx))
 
     def __setitem__(self, key, value):
         self.set(key, value)
 
     def __getitem__(self, key):
         self._cleanup()
-        return super().__getitem__(key)
+        return super().__getitem__(key)[0]
 
     def __iter__(self):
         self._cleanup()
