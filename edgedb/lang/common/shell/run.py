@@ -44,5 +44,6 @@ class RunCommand(shell.Command, name='run', expose=True):
             import logging
             from semantix.utils.test.pytest_semantix import LoggingPrintHandler
             logging.getLogger("semantix").addHandler(LoggingPrintHandler(args.color))
+            logging.getLogger("semantix").setLevel(logging.INFO)
 
         return callable(*args.args)
