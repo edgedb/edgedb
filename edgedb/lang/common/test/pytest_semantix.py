@@ -90,9 +90,15 @@ class LoggingPrintHandler(logging.Handler):
     def emit(self, record):
         if getattr(logging, '_semantix_logging_running'):
             if self.colorize:
-                print(terminal.colorize('LOGGER', 'white', 'red'), os.getpid(), record)
+                level = record.levelname
+                level_color = 'blue'
+                if level == 'ERROR':
+                    level_color = 'red'
+
+                print(terminal.colorize(level, 'white', level_color), os.getpid(),
+                      record.getMessage())
             else:
-                print('LOGGER', os.getpid(), record)
+                print(record.levelname, os.getpid(), record.getMessage())
 
             if record.exc_info:
                 excepthook(*record.exc_info)
