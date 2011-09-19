@@ -17,7 +17,7 @@ class TestUtilsSlotsMeta:
                 class Foo(metaclass=mcls):
                     pass
 
-            with assert_raises(TypeError, error_re='type tuple'):
+            with assert_raises(TypeError, error_re='must be a tuple'):
                 class Foo(metaclass=mcls):
                     __slots__ = ('foo')
 
@@ -28,6 +28,13 @@ class TestUtilsSlotsMeta:
                 class Bar(Foo):
                     pass
 
-            with assert_raises(TypeError, error_re='type tuple'):
+            with assert_raises(TypeError, error_re='must be a tuple'):
                 class Bar(Foo):
                     __slots__ = 'foo'
+
+    def test_utils_slots_meta_2(self):
+        class A(metaclass=slots.SlotsMeta): __slots__ = ('a',)
+        class B(A): __slots__ = ('b',)
+
+        with assert_raises(TypeError, error_re='intersection'):
+            class C(B): __slots__ = ('a',)
