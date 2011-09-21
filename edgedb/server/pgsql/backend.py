@@ -170,11 +170,11 @@ class PreparedQuery:
     def convert_arguments(self, **kwargs):
         return collections.OrderedDict(enumerate(self._convert_args(kwargs)))
 
-    def __call__(self, **kwargs):
-        return self._iterator(self.statement, **kwargs)
-
     def rows(self, **kwargs):
         return self._iterator(self.statement.rows, **kwargs)
+
+    __call__ = rows
+    __iter__ = rows
 
     def first(self, **kwargs):
         vars = self._convert_args(kwargs)
@@ -213,8 +213,6 @@ class PreparedQuery:
             offset = None
 
         return Cursor(self.statement.declare(*vars), offset, limit)
-
-    __iter__ = rows
 
 
 class CaosQLAdapter:
