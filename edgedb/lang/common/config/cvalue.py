@@ -20,14 +20,14 @@ __all__ = 'cvalue',
 
 _std_type = type
 
-class _empty(_Marker):
+class _no_default(_Marker):
     pass
 
 
 class cvalue(ChecktypeExempt, metaclass=SlotsMeta):
     __slots__ = ('_name', '_default', '_doc', '_validator', '_type', '_owner')
 
-    def __init__(self, default=_empty, *, doc=None, validator=None, type=None):
+    def __init__(self, default=_no_default, *, doc=None, validator=None, type=None):
         self._name = None
         self._default = default
         self._doc = doc
@@ -50,7 +50,7 @@ class cvalue(ChecktypeExempt, metaclass=SlotsMeta):
 
     doc = property(lambda self: self._doc)
     default = property(lambda self: self._default)
-    required = property(lambda self: self._default is _empty)
+    required = property(lambda self: self._default is _no_default)
     name = property(lambda self: self._name)
     fullname = property(lambda self: self._owner.__module__ + '.' + \
                                                 self._owner.__name__ + '.' + self.name)
@@ -64,26 +64,44 @@ class cvalue(ChecktypeExempt, metaclass=SlotsMeta):
             raise ValueError('Unable to get value on uninitialized cvalue: ' \
                              'no name set {!r}'.format(self))
 
-        head = HEAD.get()
+        top_conf_link = HEAD.get()
+        if top_conf_link is not None:
+            try:
+                # Can cache here, as configs chain is immutable, and we're working
+                # from the current top of it to the bottom (very first with statements.)
+                #
+                return top_conf_link.cache_get((cls, self))
+            except LookupError:
+                pass
 
-        for base in cls.__mro__:
-            conf = head
-            while conf:
-                fullname = base.__module__ + '.' + base.__name__ + '.' + self._name
+            result = _no_default
 
-                try:
-                    value = ConfigRootNode._get_value(conf.node, fullname)
-                except AttributeError:
-                    conf = conf.parent
-                else:
-                    self._validate(value.value, fullname, value.context)
-                    return value.value
+            for base in cls.__mro__:
+                conf_link = top_conf_link
+                while conf_link is not None:
+                    fullname = base.__module__ + '.' + base.__name__ + '.' + self._name
 
-            if base is self._owner:
-                break
+                    try:
+                        value = ConfigRootNode._get_value(conf_link.node, fullname)
+                    except AttributeError:
+                        conf_link = conf_link.parent
+                    else:
+                        self._validate(value.value, fullname, value.context)
+                        result = value.value
+                        break
 
-        if self._default is _empty:
+                if result is not _no_default or base is self._owner:
+                    break
+
+            if result is not _no_default:
+                top_conf_link.cache_set((cls, self), result)
+                return result
+
+        if self._default is _no_default:
             raise ValueError('{!r} is a required value'.format(self._name))
+
+        if top_conf_link is not None:
+            top_conf_link.cache_set((cls, self), self._default)
 
         return self._default
 
@@ -99,9 +117,8 @@ class cvalue(ChecktypeExempt, metaclass=SlotsMeta):
 
     def __get__(self, instance, owner):
         cls = owner
-        if instance:
+        if instance is not None:
             cls = type(instance)
-        assert cls is not None
         return self._get_value(cls)
 
     def __set__(self, instance, value):

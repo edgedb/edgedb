@@ -6,7 +6,7 @@
 ##
 
 
-from .cvalue import cvalue, _empty
+from .cvalue import cvalue, _no_default
 
 
 __all__ = 'ConfigurableMeta', 'Configurable'
@@ -21,7 +21,7 @@ class ConfigurableMeta(type):
                 attrval._owner = cls
                 attrval._set_name(attrname)
 
-                if attrval._default is not _empty:
+                if attrval._default is not _no_default:
                     attrval._validate(attrval._default, attrval.fullname, 'class definition')
 
 

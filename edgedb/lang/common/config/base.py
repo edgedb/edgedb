@@ -11,16 +11,21 @@ import threading
 
 from .tree import *
 from semantix.utils.functional import decorate
+from semantix.utils import slots
 
 
 __all__ = 'inline',
 
 
-HEAD = None
+class _BaseHeadPointer(metaclass=slots.SlotsMeta):
+    __slots__ = ()
 
 
-class _HeadPointer:
+class _HeadPointer(_BaseHeadPointer):
+    __slots__ = ('head',)
+
     def __init__(self):
+        super().__init__()
         self.head = None
 
     def set(self, head):
@@ -62,8 +67,8 @@ class _HeadManager:
 HEAD = _HeadManager()
 
 
-class ConfigRootLink:
-    __slots__ = '_node', '_parent', '_thread_ident'
+class ConfigRootLink(metaclass=slots.SlotsMeta):
+    __slots__ = '_node', '_parent', '_thread_ident', '_cache'
 
     def __init__(self, node):
         self._node = node
@@ -82,6 +87,18 @@ class ConfigRootLink:
         assert _thread.get_ident() == self._thread_ident
         HEAD.set(self._parent)
         self._parent = None
+
+    def cache_get(self, key):
+        try:
+            return self._cache[key]
+        except (KeyError, AttributeError):
+            raise LookupError()
+
+    def cache_set(self, key, value):
+        try:
+            self._cache[key] = value
+        except AttributeError:
+            self._cache = {key: value}
 
 
 class ConfigValue(TreeValue):
