@@ -428,6 +428,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.column_cache = {}
         self.table_id_to_proto_name_cache = {}
         self.proto_name_to_table_id_cache = {}
+        self.attribute_link_map_cache = {}
 
         self._table_atom_constraints_cache = None
         self._table_ptr_constraints_cache = None
@@ -672,6 +673,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.column_cache.clear()
         self.table_id_to_proto_name_cache.clear()
         self.proto_name_to_table_id_cache.clear()
+        self.attribute_link_map_cache.clear()
         self._table_atom_constraints_cache = None
         self._table_ptr_constraints_cache = None
 
@@ -692,8 +694,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def entity_from_row(self, session, concept_name, attribute_map, row):
-        atom_link_map = {}
-
         concept_map = self.get_concept_map(session)
 
         concept_id = row[attribute_map['concept_id']]
@@ -706,13 +706,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         if real_concept == concept_name:
             concept = session.realm.meta.get(concept_name)
+            attribute_link_map = self.get_attribute_link_map(concept, attribute_map)
 
-            for link_name, link in concept.pointers.items():
-                if link.atomic() and not isinstance(link, caos.types.ProtoComputable):
-                    col_name = common.caos_name_to_pg_name(link_name)
-                    atom_link_map[link_name] = attribute_map[col_name]
-
-            links = {k: row[i] for k, i in atom_link_map.items()}
+            links = {k: row[i] for k, i in attribute_link_map.items()}
             id = links['semantix.caos.builtins.id']
         else:
             id = row[attribute_map[common.caos_name_to_pg_name('semantix.caos.builtins.id')]]
@@ -1239,6 +1235,23 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 self.concept_cache[row['id']] = caos.Name(row['name'])
 
         return self.concept_cache
+
+
+    def get_attribute_link_map(self, concept, attribute_map):
+        key = (concept.name, frozenset(attribute_map.items()))
+
+        try:
+            attribute_link_map = self.attribute_link_map_cache[key]
+        except KeyError:
+            attribute_link_map = {}
+            for link_name, link in concept.pointers.items():
+                if link.atomic() and not isinstance(link, caos.types.ProtoComputable):
+                    col_name = common.caos_name_to_pg_name(link_name)
+                    attribute_link_map[link_name] = attribute_map[col_name]
+
+            self.attribute_link_map_cache[key] = attribute_link_map
+
+        return attribute_link_map
 
 
     def source_name_from_relid(self, table_oid):
