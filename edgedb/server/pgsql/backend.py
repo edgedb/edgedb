@@ -864,7 +864,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 return errcls(err, source=source, pointer=pointer)
 
             elif error_type == 'ptr_constraint':
-                constraint, pointer_name, source_table = self.constraint_from_pg_name(error_data)
+                constraint = self.constraint_from_pg_name(error_data)
+                if constraint is None:
+                    return caos.error.UninterpretedStorageError(err.message)
+
+                constraint, pointer_name, source_table = constraint
 
                 msg = 'unique link constraint violation'
 
