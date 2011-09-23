@@ -64,3 +64,23 @@ class TestAssertRaises:
                     int('a')
                 except Exception as ex:
                     raise Exception('foo bar') from ex
+
+        class Ex(Exception):
+            pass
+
+        with assert_raises(Ex, attrs={'foo': 'bar'}):
+            ex = Ex()
+            ex.foo = 'bar'
+            raise ex
+
+        with assert_raises(ErrorExpected):
+            with assert_raises(Ex, attrs={'foo': 'bar'}):
+                ex = Ex()
+                ex.bar = 'bar'
+                raise ex
+
+        with assert_raises(ErrorExpected):
+            with assert_raises(Ex, attrs={'foo': 'bar'}):
+                ex = Ex()
+                ex.foo = 'foo'
+                raise ex

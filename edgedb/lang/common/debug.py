@@ -169,7 +169,7 @@ class ErrorExpected(Exception): pass
 
 
 @contextlib.contextmanager
-def assert_raises(exception_cls, *, cause=None, error_re=None):
+def assert_raises(exception_cls, *, cause=None, error_re=None, attrs=None):
     try:
         yield
 
@@ -203,6 +203,18 @@ def assert_raises(exception_cls, *, cause=None, error_re=None):
                     raise ErrorExpected('%s was expected to be raised with ' \
                                         'message that matches %r, got %r' % \
                                         (exception_cls.__name__, error_re, msg)) from ex
+
+        if attrs is not None:
+            for attr, attr_value in attrs.items():
+                try:
+                    test = getattr(ex, attr)
+                    if attr_value != test:
+                        raise ErrorExpected('%s was expected to have attribute %r ' \
+                                            'with value %r, got %r' % (exception_cls.__name__,
+                                                                       attr, attr_value, test))
+                except AttributeError:
+                    raise ErrorExpected('%s was expected to have attribute %r' % \
+                                                                (exception_cls.__name__, attr))
 
     except Exception as ex:
         raise ErrorExpected('%s was expected to be raised, got %s' % \
