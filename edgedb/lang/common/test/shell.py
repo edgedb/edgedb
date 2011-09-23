@@ -22,18 +22,21 @@ class TestCommand(shell.Command, name='test', expose=True):
         parser.add_argument('-s', '--shell', dest='shell', action='store_true',
                             help='start the interactive python shell on error', default=False)
         parser.add_argument('--skip', dest='skipped', action='append', metavar='SKIP_PATTERN',
-                            help='a pattern specifying tests to be excluded from the test run')
+                            help=('a regular expression specifying tests to be excluded from the '
+                                  'test run; pattern should not include the "test_" prefix; '
+                                  'can be specified more than once'))
         parser.add_argument('--keep-going', action='store_true', default=False,
                             help='do not stop at the first failed test')
         parser.add_argument('--no-magic', dest='magic', action='store_false', default=True,
-                            help='don\'t reinterpret asserts, no traceback cutting')
+                            help='do not reinterpret asserts, no traceback cutting')
         parser.add_argument('--no-assert', dest='asserts', action='store_false', default=True,
                             help='disable python assert expression reinterpretation')
         parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', default=False,
                             help='enable verbose output')
         parser.add_argument('--tb', dest='traceback_style', default=ExceptionConfig.traceback_style)
         parser.add_argument('tests', nargs='*',
-                            help=('a pattern specifying tests to be included in the test run; '
+                            help=('one or more regular expressions specifying tests to be included '
+                                  'in the test run; patterns should not include the "test_" prefix; '
                                   'if not specified, all tests will be run'))
 
         return parser
