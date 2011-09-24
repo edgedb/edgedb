@@ -34,8 +34,8 @@ class CommandMeta(config.ConfigurableMeta):
                 if issubclass(cls, CommandMeta.main_command):
                     CommandMeta.main_command = cls
                 elif not issubclass(CommandMeta.main_command, cls):
-                    raise SemantixError(('Main command is already defined by %s which %s does not'
-                                         ' subclass from') % (CommandMeta.main_command, cls))
+                    raise SemantixError('Main command is already defined by {} which {} does not' \
+                                        ' subclass from'.format(CommandMeta.main_command, cls))
             else:
                 CommandMeta.main_command = cls
 
@@ -59,29 +59,38 @@ class CommandBase(metaclass=CommandMeta, name=None):
                 for requirement in self.__class__._command_requirements:
                     requirement()
             except reqs.UnsatisfiedRequirementError as e:
-                err = '%s: %s' % (self.__class__._command_name, e)
+                err = '{}: {}'.format(self.__class__._command_name, e)
                 raise reqs.UnsatisfiedRequirementError(err) from e
+
+    def __init__(self, subparsers):
+        self.parser = self.get_parser(subparsers)
+        if self.__doc__:
+            self.parser.description = self.__doc__
+
+    def create_parser(self, subparsers, **kwargs):
+        return subparsers.add_parser(self.__class__._command_name)
+
+    def get_parser(self, subparsers, **kwargs):
+        return self.create_parser(subparsers, **kwargs)
 
 
 class CommandGroup(CommandBase, name=None):
     def __init__(self, subparsers):
-        parser = self.get_parser(subparsers)
-        self._command_submap = {}
+        super().__init__(subparsers)
 
+        self._command_submap = {}
         for cmdcls in self:
-            cmd = cmdcls(parser)
+            cmd = cmdcls(self.parser)
             self._command_submap[cmd._command_name] = cmd
 
     def get_parser(self, subparsers):
         parser = self.create_parser(subparsers)
         return parser.add_subparsers(dest=self.__class__._command_name + '_subcommand')
 
-    def create_parser(self, subparsers):
-        return subparsers.add_parser(self.__class__._command_name)
-
     def __call__(self, args):
         self.check_requirements()
-        return self._command_submap[getattr(args, self.__class__._command_name + '_subcommand')](args)
+        command = getattr(args, self.__class__._command_name + '_subcommand')
+        return self._command_submap[command](args)
 
     def __iter__(self):
         for cmd in self.__class__._commands:
@@ -89,13 +98,6 @@ class CommandGroup(CommandBase, name=None):
 
 
 class Command(CommandBase, name=None):
-    def __init__(self, subparsers):
-        self.get_parser(subparsers)
-
-    def get_parser(self, subparsers, **kwargs):
-        parser = subparsers.add_parser(self.__class__._command_name, **kwargs)
-        return parser
-
     def __call__(self, args):
         raise NotImplementedError
 
@@ -116,7 +118,6 @@ class MainCommand(CommandGroup, name='__main__'):
         color = None if args.color == 'auto' else args.color == 'always'
         term = terminal.Terminal(sys.stdout.fileno(), colors=color)
         args.color = term.has_colors()
-        result = 0
 
         if args.debug:
             debug.channels.update(args.debug)
