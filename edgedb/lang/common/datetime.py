@@ -85,6 +85,28 @@ class DateTime(datetime.datetime):
         raise NotImplementedError
 
 
+class Date(datetime.date):
+    def __new__(cls, value=None):
+        if isinstance(value, datetime.date):
+            args = [value.year, value.month, value.day]
+        elif isinstance(value, time.struct_time):
+            args = [value.tm_year, value.tm_mon, value.tm_mday]
+        elif isinstance(value, str):
+            try:
+                dt = dateutil.parser.parse(value)
+                args = [dt.year, dt.month, dt.day]
+            except ValueError as e:
+                raise ValueError("invalid value for Date object: %s" % value) from e
+        else:
+            raise ValueError("invalid value for Date object: %s" % value)
+
+        return super().__new__(cls, *args)
+
+    def truncate(self, field):
+        # XXX
+        raise NotImplementedError
+
+
 class TimeDelta(dateutil.relativedelta.relativedelta):
     _interval_tokens = {'year': 'years', 'years': 'years',
                         'month': 'months', 'months': 'months',
