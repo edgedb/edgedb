@@ -11,7 +11,7 @@ import itertools
 
 class State(int):
     def __repr__(self):
-        return '<%s (%d)>' % (self, int(self))
+        return '<{} ({:d})>'.format(self, int(self))
 
     def __str__(self):
         return getattr(self, 'name', 'unknown')
@@ -50,4 +50,4 @@ class StatesMeta(type):
         for attrname, attr in dct.items():
             if isinstance(attr, State):
                 if attr in StatesMeta.state_gen.states:
-                    StatesMeta.state_gen.states[attr].name = '%s.%s' % (name, attrname)
+                    StatesMeta.state_gen.states[attr].name = '{}.{}'.format(name, attrname)
