@@ -1190,8 +1190,10 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
             for added_base in added_bases:
                 parent_table_name = nameconv(caos.name.Name(added_base), catenate=False)
+                table_name = nameconv(source.name, catenate=False)
+                cond = TableInherits(table_name, parent_table_name)
                 op = AlterTableAddParent(parent_name=parent_table_name)
-                alter_table.add_operation(op)
+                alter_table.add_operation((op, None, [cond]))
 
 
 class SourceIndexCommand(PrototypeMetaCommand):
@@ -3762,6 +3764,27 @@ class TableExists(Condition):
         return code, self.name
 
 
+class TableInherits(Condition):
+    def __init__(self, name, parent_name):
+        self.name = name
+        self.parent_name = parent_name
+
+    def code(self, context):
+        code = '''SELECT
+                        c.relname
+                    FROM
+                        pg_class c
+                        INNER JOIN pg_namespace ns ON ns.oid = c.relnamespace
+                        INNER JOIN pg_inherits i ON i.inhrelid = c.oid
+                        INNER JOIN pg_class pc ON i.inhparent = pc.oid
+                        INNER JOIN pg_namespace pns ON pns.oid = pc.relnamespace
+                    WHERE
+                        ns.nspname = $1 AND c.relname = $2
+                        AND pns.nspname = $3 AND pc.relname = $4
+               '''
+        return code, self.name + self.parent_name
+
+
 class CreateTable(SchemaObjectOperation):
     def __init__(self, table, temporary=False, *, conditions=None, neg_conditions=None, priority=0):
         super().__init__(table.name, conditions=conditions, neg_conditions=neg_conditions,
@@ -3975,7 +3998,8 @@ class ColumnExists(Condition):
 
 
 class AlterTableAddParent(AlterTableFragment):
-    def __init__(self, parent_name):
+    def __init__(self, parent_name, **kwargs):
+        super().__init__(**kwargs)
         self.parent_name = parent_name
 
     def code(self, context):
