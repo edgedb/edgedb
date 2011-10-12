@@ -467,6 +467,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         if 'caos' in self.modules:
             self.column_cache = self._init_column_cache()
             self.table_id_to_proto_name_cache, self.proto_name_to_table_id_cache = self._init_relid_cache()
+            self.domain_to_atom_map = self._init_atom_map_cache()
 
 
     def _init_column_cache(self):
@@ -524,6 +525,31 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             proto_name_to_table_id_cache[name] = table['typoid']
 
         return table_id_to_proto_name_cache, proto_name_to_table_id_cache
+
+
+    def _init_atom_map_cache(self):
+        domains = introspection.domains.DomainsList(self.connection).fetch(schema_name='caos%',
+                                                                           domain_name='%_domain')
+        domains = {(d['schema'], d['name']): self.normalize_domain_descr(d) for d in domains}
+
+        atom_list = datasources.meta.atoms.AtomList(self.connection).fetch()
+
+        domain_to_atom_map = {}
+
+        for row in atom_list:
+            name = caos.Name(row['name'])
+
+            domain_name = common.atom_name_to_domain_name(name, catenate=False)
+
+            domain = domains.get(domain_name)
+            if not domain:
+                # That's fine, automatic atoms are not represented by domains, skip them,
+                # they'll be handled by read_links()
+                continue
+
+            domain_to_atom_map[domain_name] = name
+
+        return domain_to_atom_map
 
 
     def init_features(self, connection):
@@ -1504,8 +1530,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 # That's fine, automatic atoms are not represented by domains, skip them,
                 # they'll be handled by read_links()
                 continue
-
-            self.domain_to_atom_map[domain_name] = name
 
             atom_data = {'name': name,
                          'title': self.hstore_to_word_combination(row['title']),
