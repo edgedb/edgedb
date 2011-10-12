@@ -2235,9 +2235,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             target, required = self._get_pointer_column_target(meta, concept, pointer_name,
                                                                col, atom_constraints)
 
-            fname = proto.Link.generate_name(concept.name, target.name, pointer_name)
-            fname = caos.Name(fname)
-            link = proto.Link(name=fname, source=concept, target=target, required=required)
+            ptr = meta.get(pointer_name)
+            link = ptr.derive(meta, concept, target)
+            link.required = required
+            link.is_atom = True
 
             if ptr_constraints:
                 constraints = ptr_constraints.get(pointer_name)
@@ -2263,7 +2264,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         for ptr in ptrs:
             if ptr.atomic():
-                target = ptr.target.get_topmost_base(proto_schema, top_prototype=True)
+                if ptr.target.automatic:
+                    target = proto_schema.get(ptr.target.base, type=ptr.target.get_canonical_class())
+                else:
+                    target = ptr.target
                 ptr = ptr.derive(proto_schema, updated_concept, target)
 
                 # Drop all constraints on virtual concept links --- they are needless and
@@ -2272,12 +2276,19 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     ptr.del_constraint(constr_cls)
 
                 ptr.required = False
+                ptr.readonly = False
 
                 updated_concept.add_pointer(ptr)
 
         delta = base_delta.AlterRealm()
-        concept_delta = updated_concept.delta(stored_concept)
-        delta.add(concept_delta)
+
+        diff = updated_concept.compare(stored_concept)
+
+        if diff != 1.0:
+            concept_delta = updated_concept.delta(stored_concept)
+            delta.add(concept_delta)
+            if isinstance(concept_delta, base_delta.CreateConcept):
+                schema.delete(updated_concept)
 
         for c in updated_concept.children():
             if updated_concept.name not in c.base:
@@ -2291,9 +2302,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 alter.add(prop)
                 alter.add(rebase)
                 delta.add(alter)
-
-        if isinstance(concept_delta, base_delta.CreateConcept):
-            schema.delete(updated_concept)
 
         delta = self.process_delta(delta, proto_schema, session)
 
