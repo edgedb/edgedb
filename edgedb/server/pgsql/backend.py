@@ -32,6 +32,7 @@ from semantix.caos import backends
 from semantix.caos import proto
 from semantix.caos import delta as base_delta
 from semantix.caos import debug as caos_debug
+from semantix.caos import error as caos_error
 
 from semantix.caos.caosql import transformer as caosql_transformer
 from semantix.caos.caosql import codegen as caosql_codegen
@@ -44,6 +45,7 @@ from .datasources import introspection
 
 from .transformer import CaosTreeTransformer
 
+from . import ast as pg_ast
 from . import astexpr
 from . import parser
 from . import types
@@ -108,7 +110,7 @@ class Cursor:
 
 class Query:
     def __init__(self, chunks, arg_index, argmap, result_types, argument_types, context=None,
-                 scrolling_cursor=False, offset=None, limit=None):
+                 scrolling_cursor=False, offset=None, limit=None, query_type=None):
         self.chunks = chunks
         self.text = ''.join(chunks)
         self.argmap = argmap
@@ -121,6 +123,7 @@ class Query:
         self.scrolling_cursor = scrolling_cursor
         self.offset = offset
         self.limit = limit
+        self.query_type = query_type
 
     def describe_output(self):
         return collections.OrderedDict(self.result_types)
@@ -149,6 +152,19 @@ class PreparedQuery:
         self.statement = session.get_prepared_statement(text)
         self.init_args = args
 
+        # PreparedStatement.rows() is a streaming iterator that uses scrolling cursor
+        # internally to stream data from the database.  Since PostgreSQL only allows DECLARE
+        # with SELECT or VALUES, but not UPDATE ... RETURNING or DELETE ... RETURNING, we
+        # must use a single transaction fetch, that does not use cursors, for non-SELECT
+        # queries.
+        if issubclass(self.query.query_type, pg_ast.SelectQueryNode):
+            self._native_iter = self.statement.rows
+        else:
+            if self.query.scrolling_cursor:
+                raise caos_error.CaosError('cannot create scrolling cursor for non-SELECT query')
+
+            self._native_iter = self.statement
+
     def _embed_args(self, query, args):
         qargs = self.convert_arguments(**args)
 
@@ -171,7 +187,12 @@ class PreparedQuery:
         return collections.OrderedDict(enumerate(self._convert_args(kwargs)))
 
     def rows(self, **kwargs):
-        return self._iterator(self.statement.rows, **kwargs)
+        vars = self._convert_args(kwargs)
+
+        if self.query.scrolling_cursor:
+            return self._cursor_iterator(vars, **kwargs)
+        else:
+            return self._native_iter(*vars)
 
     __call__ = rows
     __iter__ = rows
@@ -189,14 +210,6 @@ class PreparedQuery:
             result.append(arg)
 
         return result
-
-    def _iterator(self, native_callback, **kwargs):
-        vars = self._convert_args(kwargs)
-
-        if self.query.scrolling_cursor:
-            return self._cursor_iterator(vars, **kwargs)
-        else:
-            return native_callback(*vars)
 
     def _cursor_iterator(self, vars, **kwargs):
         if not kwargs:
@@ -236,7 +249,8 @@ class CaosQLAdapter:
             query.offset = None
             query.limit = None
 
-        qchunks, argmap, arg_index = self.transformer.transform(query, self.realm, self.session)
+        qchunks, argmap, arg_index, query_type = self.transformer.transform(query, self.realm,
+                                                                            self.session)
 
         if scrolling_cursor:
             query.offset = offset
@@ -252,7 +266,7 @@ class CaosQLAdapter:
 
         return Query(chunks=qchunks, arg_index=arg_index, argmap=argmap, result_types=restypes,
                      argument_types=query.argument_types, scrolling_cursor=scrolling_cursor,
-                     offset=offset, limit=limit)
+                     offset=offset, limit=limit, query_type=query_type)
 
 
 class BinaryCopyProducer(postgresql.copyman.IteratorProducer):

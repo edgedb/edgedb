@@ -381,7 +381,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             base_err._replace_context(err, err_ctx)
             raise err from e
 
-        return qchunks, argmap, arg_index
+        return qchunks, argmap, arg_index, type(qtree)
 
     def _dump(self, tree):
         print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*|caosnode)$'))
