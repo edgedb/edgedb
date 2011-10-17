@@ -17,7 +17,7 @@ class RunCommand(shell.Command, name='run', expose=True):
     def get_parser(self, subparsers, **kwargs):
         parser = super().get_parser(subparsers, description='Run python script in semantix context.')
 
-        parser.add_argument('-C', '--config', dest='configs', nargs='*',
+        parser.add_argument('-C', '--config', dest='configs', action='append',
                             help="configuration objects to load in specified order")
         parser.add_argument('--callable', dest='callable', default='main',
                             help='name of function/callable to execute, default to "main(*args)"')
