@@ -160,7 +160,7 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
             try:
                 number = None
 
-                for token in re.split('\s+', value):
+                for token in re.split('\s+', value.lower()):
                     if expecting_number:
                         number = int(token)
                     else:
@@ -171,8 +171,8 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
                     expecting_number = not expecting_number
                 if not expecting_number:
                     raise ValueError
-            except (ValueError, KeyError):
-                raise ValueError("invalid timedelta value: '%s'" % value)
+            except (ValueError, KeyError) as e:
+                raise ValueError("invalid timedelta value: '%s'" % value) from e
 
             result = super().__new__(cls)
             super().__init__(result, **intervals)
