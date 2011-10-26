@@ -159,6 +159,38 @@ class Signature:
         except KeyError:
             return _void
 
+    def render_args(self, for_apply=False):
+        result = []
+
+        def render_arg(arg):
+            if for_apply:
+                return '{}={}'.format(arg.name, arg.name)
+            else:
+                try:
+                    default = arg.default
+                except AttributeError:
+                    return arg.name
+                else:
+                    return '{}={!r}'.format(arg.name, default)
+
+        for arg in self.args:
+            result.append(render_arg(arg))
+
+        if self.vararg:
+            result.append('*{}'.format(self.vararg.name))
+
+        if self.kwonlyargs:
+            if not self.vararg and not for_apply:
+                result.append('*')
+
+            for arg in self.kwonlyargs:
+                result.append(render_arg(arg))
+
+        if self.varkwarg:
+            result.append('**{}'.format(self.varkwarg.name))
+
+        return ', '.join(result)
+
     def bind(self, *args, **kwargs):
         _args = collections.OrderedDict()
         _kwargs = {}

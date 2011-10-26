@@ -178,3 +178,47 @@ class TestUtilsSignature(object):
         assert s.varkwarg
         assert s.varkwarg.name == 'y'
         assert s.varkwarg.annotation == 2
+
+    def test_utils_signature_render_args_1(self):
+        def test(): pass
+        assert signature(test).render_args() == ''
+
+        def test(a, b): pass
+        assert signature(test).render_args() == 'a, b'
+
+        def test(a, b='a'): pass
+        assert signature(test).render_args() == "a, b='a'"
+
+        def test(a, *args): pass
+        assert signature(test).render_args() == "a, *args"
+
+        def test(a, *, foo, bar=1): pass
+        assert signature(test).render_args() == "a, *, foo, bar=1"
+
+        def test(a, *args, foo, bar=1): pass
+        assert signature(test).render_args() == "a, *args, foo, bar=1"
+
+        def test(*args, foo, bar=1, **kwargs): pass
+        assert signature(test).render_args() == "*args, foo, bar=1, **kwargs"
+
+    def test_utils_signature_render_args_2(self):
+        def test(): pass
+        assert signature(test).render_args(for_apply=True) == ''
+
+        def test(a, b): pass
+        assert signature(test).render_args(for_apply=True) == 'a=a, b=b'
+
+        def test(a, b='a'): pass
+        assert signature(test).render_args(for_apply=True) == "a=a, b=b"
+
+        def test(a, *args): pass
+        assert signature(test).render_args(for_apply=True) == "a=a, *args"
+
+        def test(a, *, foo, bar=1): pass
+        assert signature(test).render_args(for_apply=True) == "a=a, foo=foo, bar=bar"
+
+        def test(a, *args, foo, bar=1): pass
+        assert signature(test).render_args(for_apply=True) == "a=a, *args, foo=foo, bar=bar"
+
+        def test(*args, foo, bar=1, **kwargs): pass
+        assert signature(test).render_args(for_apply=True) == "*args, foo=foo, bar=bar, **kwargs"
