@@ -21,6 +21,7 @@ from semantix.utils.lang.yaml.struct import StructMeta
 from semantix.utils.nlang import morphology
 from semantix.utils.algos.persistent_hash import persistent_hash
 from semantix.utils.algos import topological
+from semantix.utils.datastructures import xvalue
 
 from semantix import caos
 from semantix.caos import proto
@@ -1403,6 +1404,8 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
             else:
                 raise MetaError('query expressions must return a single entity')
 
+            if data['properties']:
+                self.props = data['properties']
         else:
             ent_context = lang_context.SourceContext.from_object(self)
 
@@ -1420,6 +1423,12 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
                         if isinstance(item, dict):
                             links[link_name].append(item['target'])
                             props[(link_name, item['target'])] = item['properties']
+                        elif isinstance(item, xvalue):
+                            links[link_name].append(item.value)
+                            props[(link_name, item.value)] = item.attrs
+                        elif isinstance(item, EntityShell):
+                            links[link_name].append(item)
+                            props[(link_name, item)] = getattr(item, 'props', {})
                         else:
                             links[link_name].append(item)
                 else:
