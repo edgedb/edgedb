@@ -1382,7 +1382,7 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
             ent_context = lang_context.SourceContext.from_object(self)
 
             aliases = {alias: mod.__name__ for alias, mod in ent_context.document.imports.items()}
-            session = ent_context.document.session
+            session = ent_context.document.import_context.session
 
             selector = session.selector(query, module_aliases=aliases)
 
@@ -1407,7 +1407,7 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
             ent_context = lang_context.SourceContext.from_object(self)
 
             aliases = {alias: mod.__name__ for alias, mod in ent_context.document.imports.items()}
-            session = ent_context.document.session
+            session = ent_context.document.import_context.session
 
             concept, data = next(iter(data.items()))
 
@@ -1430,7 +1430,7 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell):
                 linkcls = caos.concept.getlink(self.entity, link_name, target)
                 linkcls.update(**link_properties)
 
-            ent_context.document.entities.append(self.entity)
+            ent_context.document.import_context.entities.append(self.entity)
 
 
 class RealmMeta(LangObject, adapts=proto.RealmMeta):
@@ -1458,7 +1458,7 @@ class DataSet(LangObject):
 
         entities = {id: [shell.entity for shell in shells] for id, shells in data.items()}
         context = lang_context.SourceContext.from_object(self)
-        for entity in context.document.entities:
+        for entity in context.document.import_context.entities:
             entity.__class__.materialize_links(entity, entities)
 
 
@@ -1474,6 +1474,33 @@ class CaosName(StrLangObject, adapts=caos.Name, ignore_aliases=True):
 class ModuleFromData:
     def __init__(self, name):
         self.__name__ = name
+
+
+class FixtureImportContext(lang.ImportContext):
+    def __new__(cls, name, *, loader=None, session=None, entities=None):
+        result = super().__new__(cls, name, loader=loader)
+        result.session = session
+        result.entities = entities if entities is not None else []
+        return result
+
+    def __init__(self, name, *, loader=None, session=None, entities=None):
+        super().__init__(name, loader=loader)
+
+    @classmethod
+    def from_parent(cls, name, parent):
+        if parent and isinstance(parent, FixtureImportContext):
+            result = cls(name, loader=parent.loader, session=parent.session)
+        else:
+            result = cls(name)
+        return result
+
+    @classmethod
+    def copy(cls, name, other):
+        if isinstance(other, FixtureImportContext):
+            result = cls(other, loader=other.loader, session=other.session)
+        else:
+            result = cls(other)
+        return result
 
 
 class Backend(backends.MetaBackend):
