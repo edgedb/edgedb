@@ -242,6 +242,24 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
         day_fraction = seconds / 86400
         days = self.years * 365 + self.months * 30 + self.days + self.leapdays
 
+        auto_repr = repr == 'auto'
+
+        if auto_repr:
+            if self.microseconds:
+                repr = 'seconds'
+            elif self.seconds:
+                repr = 'seconds'
+            elif self.minutes:
+                repr = 'minutes'
+            elif self.hours:
+                repr = 'hours'
+            elif self.days:
+                repr = 'days'
+            elif self.months:
+                repr = 'months'
+            else:
+                repr = 'years'
+
         if repr == 'years':
             res = self.years + (self.months + (self.leapdays + self.days + day_fraction) / 30) / 12
         elif repr == 'months':
@@ -256,6 +274,9 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
             res = days * 1440 * 60 + seconds + us / (10 ** -6)
         else:
             raise ValueError('unsupported representation mode for reduce(): %s' % repr)
+
+        if auto_repr:
+            return res, repr
 
         return res
 
