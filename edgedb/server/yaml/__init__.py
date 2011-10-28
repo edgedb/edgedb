@@ -1467,8 +1467,10 @@ class DataSet(LangObject):
 
         entities = {id: [shell.entity for shell in shells] for id, shells in data.items()}
         context = lang_context.SourceContext.from_object(self)
-        for entity in context.document.import_context.entities:
-            entity.__class__.materialize_links(entity, entities)
+        session = context.document.import_context.session
+        with session.transaction():
+            for entity in context.document.import_context.entities:
+                entity.__class__.materialize_links(entity, entities)
 
 
 class CaosName(StrLangObject, adapts=caos.Name, ignore_aliases=True):
