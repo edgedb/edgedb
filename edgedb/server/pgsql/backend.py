@@ -1277,15 +1277,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return self.concept_cache
 
 
-    def get_attribute_link_map(self, concept, attribute_map):
-        key = (concept.name, frozenset(attribute_map.items()))
+    def get_attribute_link_map(self, concept, attribute_map, include_lazy=False):
+        key = (concept.name, frozenset(attribute_map.items()), include_lazy)
 
         try:
             attribute_link_map = self.attribute_link_map_cache[key]
         except KeyError:
             attribute_link_map = {}
             for link_name, link in concept.pointers.items():
-                if link.atomic() and not isinstance(link, caos.types.ProtoComputable):
+                if link.atomic() and not isinstance(link, caos.types.ProtoComputable) \
+                                 and (include_lazy or link.loading != caos.types.LazyLoading):
                     col_name = common.caos_name_to_pg_name(link_name)
                     attribute_link_map[link_name] = attribute_map[col_name]
 
