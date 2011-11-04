@@ -59,8 +59,9 @@ class Transaction(session.Transaction):
 
 
 class Session(session.Session):
-    def __init__(self, realm, backend, pool):
-        super().__init__(realm, entity_cache=session.WeakEntityCache, pool=pool)
+    def __init__(self, realm, backend, pool, proto_schema=None):
+        super().__init__(realm, entity_cache=session.WeakEntityCache, pool=pool,
+                                proto_schema=proto_schema)
         self.backend = backend
         self.prepared_statements = {}
         self.init_connection()

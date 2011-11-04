@@ -75,7 +75,7 @@ class TypeIO(pq3.TypeIO):
 
         session = self.get_session()
         if session:
-            backend = session.realm.backend('data')
+            backend = session.backend
             source = backend.source_name_from_relid(composite_relid)
             if source:
                 return partial(backend.entity_from_row, session, source, attribute_map)

@@ -46,8 +46,8 @@ class TransformerContextLevel(object):
             self.ignore_cardinality = prevlevel.ignore_cardinality
             self.in_aggregate = prevlevel.in_aggregate
             self.query = prevlevel.query
-            self.realm = prevlevel.realm
             self.session = prevlevel.session
+            self.proto_schema = prevlevel.proto_schema
 
             if mode == TransformerContext.NEW_TRANSPARENT:
                 self.vars = prevlevel.vars
@@ -99,8 +99,8 @@ class TransformerContextLevel(object):
             self.ignore_cardinality = False
             self.in_aggregate = False
             self.query = pgsql.ast.SelectQueryNode()
-            self.realm = None
             self.session = None
+            self.proto_schema = None
             self.subquery_map = {}
             self.direct_subquery_ref = False
             self.pending_bonds = {}
@@ -225,8 +225,8 @@ class PgSQLExprTransformer(ast.visitor.NodeVisitor):
 class CaosExprTransformer(tree.transformer.TreeTransformer):
     def _table_from_concept(self, context, concept, node):
         if concept.is_virtual:
-            data_backend = context.current.realm.backend('data')
-            proto_schema = context.current.realm.meta
+            data_backend = context.current.session.backend
+            proto_schema = context.current.proto_schema
             data_backend.provide_virtual_concept_table(concept, proto_schema, context.current.session)
 
         table_schema_name, table_name = common.concept_name_to_table_name(concept.name, catenate=False)
@@ -347,12 +347,12 @@ class SimpleExprTransformer(CaosExprTransformer):
 
 class CaosTreeTransformer(CaosExprTransformer):
     @debug
-    def transform(self, query, realm, session):
+    def transform(self, query, session):
         try:
             # Transform to sql tree
             context = TransformerContext()
-            context.current.realm = realm
             context.current.session = session
+            context.current.proto_schema = session.proto_schema
             qtree = self._transform_tree(context, query)
             argmap = context.current.argmap
 
@@ -599,8 +599,8 @@ class CaosTreeTransformer(CaosExprTransformer):
             # PostgreSQL does not create array types for custom domains and will
             # fail to process a query with custom domains appearing as array elements.
             #
-            link = caos_node.concept.getptr(context.current.realm.meta, link_name)
-            pgtype = types.pg_type_from_atom(context.current.realm.meta, link.target,
+            link = caos_node.concept.getptr(context.current.proto_schema, link_name)
+            pgtype = types.pg_type_from_atom(context.current.proto_schema, link.target,
                                              topbase=True)
             pgtype = pgsql.ast.TypeNode(name=pgtype)
             ref = pgsql.ast.TypeCastNode(expr=ref, type=pgtype)
@@ -611,13 +611,13 @@ class CaosTreeTransformer(CaosExprTransformer):
     def _process_constant(self, context, expr):
         if expr.type:
             if isinstance(expr.type, caos_types.ProtoAtom):
-                const_type = types.pg_type_from_atom(context.current.realm.meta, expr.type, topbase=True)
+                const_type = types.pg_type_from_atom(context.current.proto_schema, expr.type, topbase=True)
             elif isinstance(expr.type, caos_types.ProtoConcept):
                 const_type = common.get_table_name(expr.type, catenate=True)
             elif isinstance(expr.type, tuple):
                 item_type = expr.type[1]
                 if isinstance(item_type, caos_types.ProtoAtom):
-                    item_type = types.pg_type_from_atom(context.current.realm.meta, item_type, topbase=True)
+                    item_type = types.pg_type_from_atom(context.current.proto_schema, item_type, topbase=True)
                     const_type = '%s[]' % item_type
                 elif isinstance(item_type, caos_types.ProtoConcept):
                     item_type = common.get_table_name(item_type, catenate=True)
@@ -662,7 +662,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         elif isinstance(vector, tree.ast.Sequence):
             refs = vector.elements
         elif isinstance(vector, tree.ast.AtomicRef):
-            link = vector.ref.concept.getptr(context.current.realm.meta, vector.name)
+            link = vector.ref.concept.getptr(context.current.proto_schema, vector.name)
             ref = tree.ast.AtomicRefSimple(ref=vector.ref, name=vector.name, caoslink=link)
             refs = (ref,)
 
@@ -886,12 +886,12 @@ class CaosTreeTransformer(CaosExprTransformer):
                         context.current.query.having = left
                         result = right
                     else:
-                        left_type = self.get_expr_type(expr.left, context.current.realm.meta)
-                        right_type = self.get_expr_type(expr.right, context.current.realm.meta)
+                        left_type = self.get_expr_type(expr.left, context.current.proto_schema)
+                        right_type = self.get_expr_type(expr.right, context.current.proto_schema)
 
                         if left_type and right_type:
                             if isinstance(left_type, caos_types.ProtoAtom):
-                                left_type = types.pg_type_from_atom(context.current.realm.meta,
+                                left_type = types.pg_type_from_atom(context.current.proto_schema,
                                                                     left_type, topbase=True)
                             elif not isinstance(left_type, caos_types.ProtoObject) and \
                                         (not isinstance(left_type, tuple) or \
@@ -899,7 +899,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                                 left_type = common.py_type_to_pg_type(left_type)
 
                             if isinstance(right_type, caos_types.ProtoAtom):
-                                right_type = types.pg_type_from_atom(context.current.realm.meta,
+                                right_type = types.pg_type_from_atom(context.current.proto_schema,
                                                                     right_type, topbase=True)
                             elif not isinstance(right_type, caos_types.ProtoObject) and \
                                         (not isinstance(right_type, tuple) or \
@@ -938,7 +938,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             else:
                 expr_type = None
 
-            schema = context.current.realm.meta
+            schema = context.current.proto_schema
             int_proto = schema.get('semantix.caos.builtins.int')
 
             pg_expr = self._process_expr(context, expr.expr, cte)
@@ -1030,8 +1030,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 # PostgreSQL does not create array types for custom domains and will
                 # fail to process a query with custom domains appearing as array elements.
                 #
-                prop = expr.ref.link_proto.getptr(context.current.realm.meta, expr.name)
-                pgtype = types.pg_type_from_atom(context.current.realm.meta, prop.target,
+                prop = expr.ref.link_proto.getptr(context.current.proto_schema, expr.name)
+                pgtype = types.pg_type_from_atom(context.current.proto_schema, prop.target,
                                                  topbase=True)
                 pgtype = pgsql.ast.TypeNode(name=pgtype)
                 fieldref = pgsql.ast.TypeCastNode(expr=fieldref, type=pgtype)
@@ -1052,7 +1052,8 @@ class CaosTreeTransformer(CaosExprTransformer):
 
     def _sort_record(self, context, elements, concept):
         table_name = common.get_table_name(concept, catenate=False)
-        cols = context.current.realm.backend('data').get_table_columns(table_name, cache='always')
+        data_backend = context.current.session.backend
+        cols = data_backend.get_table_columns(table_name, cache='always')
 
         elts = {e.origin_field: e for e in elements}
 

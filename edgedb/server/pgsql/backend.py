@@ -233,7 +233,6 @@ class CaosQLAdapter:
 
     def __init__(self, session):
         self.session = session
-        self.realm = session.realm
         self.connection = session.get_connection()
         self.transformer = CaosTreeTransformer()
         self.current_portal = None
@@ -249,8 +248,7 @@ class CaosQLAdapter:
             query.offset = None
             query.limit = None
 
-        qchunks, argmap, arg_index, query_type = self.transformer.transform(query, self.realm,
-                                                                            self.session)
+        qchunks, argmap, arg_index, query_type = self.transformer.transform(query, self.session)
 
         if scrolling_cursor:
             query.offset = offset
@@ -745,7 +743,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         real_concept = concept_map[concept_id]
 
         if real_concept == concept_name:
-            concept = session.realm.meta.get(concept_name)
+            concept = session.proto_schema.get(concept_name)
             attribute_link_map = self.get_attribute_link_map(concept, attribute_map)
 
             links = {k: row[i] for k, i in attribute_link_map.items()}
@@ -767,7 +765,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         result = ps.first(id)
 
         if result is not None:
-            concept_proto = session.realm.meta.get(concept)
+            concept_proto = session.proto_schema.get(concept)
             ret = {}
 
             for link_name, link in concept_proto.pointers.items():
@@ -1329,7 +1327,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             for pointer_name, pointer in prototype.pointers.items():
                 if pointer.atomic() and not isinstance(pointer, caos.types.ProtoComputable):
-                    col_type = types.pg_type_from_atom(session.realm.meta, pointer.target,
+                    col_type = types.pg_type_from_atom(session.proto_schema, pointer.target,
                                                        topbase=True)
                     col_name = common.caos_name_to_pg_name(pointer_name)
                     cols.append(delta_cmds.Column(name=col_name, type=col_type))
