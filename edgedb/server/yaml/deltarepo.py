@@ -8,6 +8,7 @@
 
 import importlib
 import os
+import re
 
 from semantix.caos import backends
 from semantix.caos import delta as base_delta
@@ -74,6 +75,18 @@ class MetaDeltaRepository(backends.MetaDeltaRepository):
     def get_delta_file_path(self, delta_id):
         path = os.path.join(self.deltas.__path__[0], 'd_%x_%x.yml' % (self.modhash, delta_id))
         return path
+
+    def remove_delta(self, delta_id):
+        path = self.get_delta_file_path(delta_id)
+        os.unlink(path)
+
+    def iter_deltas(self):
+        pat = r'd_%x_(?P<did>\w+)\.yml' % self.modhash
+
+        for f in os.listdir(self.deltas.__path__[0]):
+            match = re.match(pat, f)
+            if match:
+                yield match.group('did')
 
     def get_delta_module_path(self, delta_id):
         path = '%s.d_%x_%x' % (self.deltas.__name__, self.modhash, delta_id)
