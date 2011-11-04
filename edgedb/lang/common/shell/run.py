@@ -6,14 +6,20 @@
 ##
 
 
+import argparse
 import contextlib
 import os
 import imp
-from semantix.utils.functional import contextlib as sx_contextlib
+
+from semantix.utils.functional import contextlib as sx_contextlib, get_signature
 from semantix.utils import shell, helper
 
 
 class RunCommand(shell.Command, name='run', expose=True):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.app_kwargs = None
+
     def get_parser(self, subparsers, **kwargs):
         parser = super().get_parser(subparsers, description='Run python script in semantix context.')
 
@@ -60,5 +66,41 @@ class RunCommand(shell.Command, name='run', expose=True):
                 yield
             contexts = [dummy_context()]
 
+        kwargs = {}
+        if self.app_kwargs:
+            kwargs_parser = self._build_callable_args_subparser(callable)
+            kwargs = kwargs_parser.parse_args(self.app_kwargs)
+            kwargs = dict(kwargs._get_kwargs())
+
         with sx_contextlib.nested(*contexts):
-            return callable(*args.args)
+            return callable(*args.args, **kwargs)
+
+    def handle_unknown_args(self, args):
+        self.app_kwargs = args
+
+    def _build_callable_args_subparser(self, callable):
+        sig = get_signature(callable)
+
+        parser = argparse.ArgumentParser(usage='{!r} callable accepts following arguments: {}'.\
+                                               format(callable.__name__, sig.render_args()))
+        for arg in sig.kwonlyargs:
+            kwargs = {}
+            name = '--{}'.format(arg.name)
+
+            try:
+                type_ = arg.annotation
+            except AttributeError:
+                pass
+            else:
+                kwargs['type'] = type_
+
+            try:
+                default = arg.default
+            except AttributeError:
+                pass
+            else:
+                kwargs['default'] = default
+
+            parser.add_argument(name, **kwargs)
+
+        return parser
