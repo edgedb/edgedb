@@ -835,47 +835,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             return {}
 
 
-    def _get_update_refs(self, source_cls, pointers):
-        cols = []
-
-        realm = source_cls._metadata.realm
-
-        for a in pointers:
-            l = getattr(source_cls, str(a), None)
-            if l:
-                col_type = types.pg_type_from_atom(realm.meta, l._metadata.prototype)
-                col_type = 'text::%s' % col_type
-
-            else:
-                col_type = 'int'
-            column_name = common.caos_name_to_pg_name(a)
-            column_name = common.quote_ident(column_name)
-            cols.append('%s = %%(%s)s::%s' % (column_name, str(a), col_type))
-
-        return cols
-
-
-    def _get_insert_refs(self, source_cls, pointers, named=True):
-        realm = source_cls._metadata.realm
-
-        cols_names = [common.quote_ident(common.caos_name_to_pg_name(a))
-                      for a in pointers]
-        cols = []
-        for a in pointers:
-            if hasattr(source_cls, str(a)):
-                l = getattr(source_cls, str(a))
-                col_type = types.pg_type_from_atom(realm.meta, l._metadata.prototype)
-                col_type = 'text::%s' % col_type
-
-            else:
-                col_type = 'int'
-            if named:
-                cols.append('%%(%s)s::%s' % (a, col_type))
-            else:
-                cols.append('%%s::%s' % col_type)
-        return cols_names, cols
-
-
     def _interpret_db_error(self, err, source, pointer=None):
         if isinstance(err, postgresql.exceptions.UniqueError):
             eres = self.error_res[postgresql.exceptions.UniqueError]
