@@ -13,6 +13,7 @@ import weakref
 
 from semantix.utils.algos import persistent_hash
 from semantix.utils.functional import hybridmethod
+from semantix.utils.debug import debug
 from . import implementation
 
 
@@ -240,14 +241,22 @@ class Bucket(metaclass=BucketMeta):
         real_key = self.hash_function((self._versioned_hash, key))
         return str(real_key).encode('latin-1')
 
+    @debug
     def __getitem__(self, key):
         if not self._ready:
             raise KeyError('non-initialized cache: no providers set; key: {!r}'.format(key))
 
         hashed_key = self._get_inst_key(key)
         try:
-            return self._implementation.getitem(hashed_key)
+            value = self._implementation.getitem(hashed_key)
+            '''LINE [cache] CACHE HIT
+            self, '{:.40}'.format(key)
+            '''
+            return value
         except KeyError:
+            '''LINE [cache] CACHE MISS
+            self, '{:.40}'.format(key)
+            '''
             raise KeyError('missing cache key {!r}'.format(key))
 
     def _cast_expiry_to_seconds(self, expiry:(int,float,timedelta)):
@@ -263,9 +272,14 @@ class Bucket(metaclass=BucketMeta):
         raise ValueError('expected expiry as int, float or timedelta, got {}, {!r}'. \
                          format(type(expiry).__name__, expiry))
 
+    @debug
     def set(self, key, value, expiry:(int, float, timedelta)=None):
         if not self._ready:
             return
+
+        '''LINE [cache] CACHE SET
+        self, '{:.40}'.format(key), expiry
+        '''
 
         expiry = self._cast_expiry_to_seconds(expiry)
         hashed_key = self._get_inst_key(key)

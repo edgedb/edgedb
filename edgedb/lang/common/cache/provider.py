@@ -96,7 +96,7 @@ class MemoryProvider(NonBlockingProvider):
 
         self._data[key] = (data, expiry)
 
-        """LINE [cache] MEMORY PROVIDER SET
+        """LINE [cache.core] MEMORY PROVIDER SET
         key
         """
 
@@ -105,12 +105,12 @@ class MemoryProvider(NonBlockingProvider):
         try:
             data, expiry = self._data[key]
         except KeyError:
-            """LINE [cache] MEMORY PROVIDER GET FAIL
+            """LINE [cache.core] MEMORY PROVIDER GET FAIL
             key
             """
             raise LookupError('cache key {!r} not found'.format(key))
         else:
-            """LINE [cache] MEMORY PROVIDER FOUND
+            """LINE [cache.core] MEMORY PROVIDER FOUND
             key
             """
 
