@@ -87,10 +87,17 @@ class CommandGroup(CommandBase, name=None):
         parser = self.create_parser(subparsers)
         return parser.add_subparsers(dest=self.__class__._command_name + '_subcommand')
 
-    def __call__(self, args):
+    def __call__(self, args, unknown_args):
         self.check_requirements()
         command = getattr(args, self.__class__._command_name + '_subcommand')
-        return self._command_submap[command](args)
+        next_command = self._command_submap[command]
+
+        if isinstance(next_command, Command):
+            if unknown_args:
+                next_command.handle_unknown_args(unknown_args)
+            return next_command(args)
+
+        return next_command(args, unknown_args)
 
     def __iter__(self):
         for cmd in self.__class__._commands:
@@ -100,6 +107,9 @@ class CommandGroup(CommandBase, name=None):
 class Command(CommandBase, name=None):
     def __call__(self, args):
         raise NotImplementedError
+
+    def handle_unknown_args(self, args):
+        self.parser.error('unrecognized arguments: {}'.format(' '.join(args)))
 
 
 class MainCommand(CommandGroup, name='__main__'):
@@ -114,7 +124,7 @@ class MainCommand(CommandGroup, name='__main__'):
         bootstrap.init_early_args(parser)
         return parser
 
-    def __call__(self, args):
+    def __call__(self, args, unknown_args):
         color = None if args.color == 'auto' else args.color == 'always'
         term = terminal.Terminal(sys.stdout.fileno(), colors=color)
         args.color = term.has_colors()
@@ -123,7 +133,7 @@ class MainCommand(CommandGroup, name='__main__'):
             debug.channels.update(args.debug)
 
         with config.inline({'semantix.utils.shell.MainCommand.colorize': args.color}):
-            result = super().__call__(args)
+            result = super().__call__(args, unknown_args)
 
         return result
 
@@ -132,5 +142,6 @@ class MainCommand(CommandGroup, name='__main__'):
         parser = argparse.ArgumentParser(prog=os.path.basename(argv[0]))
 
         cmd = cls(parser)
-        args = parser.parse_args(argv[1:])
-        return cmd(args)
+        args, unknown_args = parser.parse_known_args(argv[1:])
+
+        return cmd(args, unknown_args)
