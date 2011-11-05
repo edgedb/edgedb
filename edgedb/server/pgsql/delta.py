@@ -1829,13 +1829,17 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
             concept = context.get(delta_cmds.ConceptCommandContext)
 
             name = result.normal_name()
-            column_name = common.caos_name_to_pg_name(name)
-            # We don't really care about the type -- we're dropping the thing
-            column_type = 'text'
 
-            alter_table = concept.op.get_alter_table(context)
-            col = AlterTableDropColumn(Column(name=column_name, type=column_type))
-            alter_table.add_operation(col)
+            if name not in concept.proto.pointers:
+                # Do not drop the column if the link was reinherited in the same delta
+
+                column_name = common.caos_name_to_pg_name(name)
+                # We don't really care about the type -- we're dropping the thing
+                column_type = 'text'
+
+                alter_table = concept.op.get_alter_table(context)
+                col = AlterTableDropColumn(Column(name=column_name, type=column_type))
+                alter_table.add_operation(col)
 
         elif result.generic() and \
                             [l for l in result.children() if not l.generic() and not l.atomic()]:
