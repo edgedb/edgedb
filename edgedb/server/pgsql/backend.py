@@ -626,38 +626,78 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         delta.apply(meta, context)
         return delta
 
-    @debug
-    def apply_synchronization_plan(self, plans):
-        """LOG [caos.delta.plan] PgSQL Adapted Delta Plan
-        for plan, delta in plans:
-            print(plan.dump())
-        """
-        for plan, delta in plans:
-            try:
-                plan.execute(delta_cmds.CommandContext(self.connection))
-            except Exception as e:
-                msg = 'failed to apply delta {:032x} to data backend'.format(delta.id)
-                raise base_delta.DeltaError(msg, delta=delta) from e
-
 
     def execute_delta_plan(self, plan, session=None):
         plan.execute(delta_cmds.CommandContext(session.connection if session else self.connection))
 
 
-    def apply_delta(self, delta):
+    @debug
+    def apply_delta(self, delta, session):
         if isinstance(delta, base_delta.DeltaSet):
             deltas = list(delta)
         else:
             deltas = [delta]
 
-        plans = []
+        proto_schema = self.getmeta()
 
-        meta = self.getmeta()
+        with session.transaction():
+            old_conn = self.connection
+            self.connection = session.connection
 
-        for d in deltas:
-            plan = self.process_delta(d.deltas[0], meta)
-            plans.append((plan, d))
+            for d in deltas:
+                delta = d.deltas[0]
 
+                """LINE [caos.delta.apply] Applying delta
+                    '{:032x}'.format(d.id)
+                """
+
+                session._replace_schema(proto_schema)
+
+                # Run preprocess pass
+                delta.do_preprocess(session)
+
+                # Apply and adapt delta, build native delta plan
+                plan = self.process_delta(delta, proto_schema)
+
+                # Reinitialize the session with the mutated schema
+                session._replace_schema(proto_schema)
+
+                context = delta_cmds.CommandContext(session.connection)
+
+                try:
+                    plan.execute(context)
+                except Exception as e:
+                    msg = 'failed to apply delta {:032x} to data backend'.format(d.id)
+                    raise base_delta.DeltaError(msg, delta=d) from e
+
+                # Update introspection caches
+                self._init_introspection_cache()
+
+                # Run postprocess pass
+                delta.do_postprocess(session)
+
+            self._update_repo(session, deltas)
+
+            self.invalidate_meta_cache()
+
+            introspected_schema = self.getmeta()
+
+            if introspected_schema.get_checksum() != d.checksum:
+                details = ('Schema checksum verification failed (expected "%x", got "%x") when '
+                           'applying delta "%x".' % (d.checksum, introspected_schema.get_checksum(),
+                                                     deltas[-1].id))
+                hint = 'This usually indicates a bug in backend delta adapter.'
+                raise base_delta.DeltaChecksumError('failed to apply schema delta'
+                                                    'checksums do not match',
+                                                    details=details, hint=hint,
+                                                    schema1=proto_schema,
+                                                    schema2=introspected_schema,
+                                                    schema1_title='Expected Schema',
+                                                    schema2_title='Schema in Backend')
+
+            self.connection = old_conn
+
+    def _update_repo(self, session, deltas):
         table = delta_cmds.DeltaLogTable()
         records = []
         for d in deltas:
@@ -669,7 +709,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                   )
             records.append(rec)
 
-        plans.append((delta_cmds.Insert(table, records=records), None))
+        context = delta_cmds.CommandContext(session.connection)
+        delta_cmds.Insert(table, records=records).execute(context)
 
         table = delta_cmds.DeltaRefTable()
         rec = table.record(
@@ -677,26 +718,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 ref='HEAD'
               )
         condition = [('ref', str('HEAD'))]
-        plans.append((delta_cmds.Merge(table, record=rec, condition=condition), None))
-
-        with self.connection.xact() as xact:
-            self.apply_synchronization_plan(plans)
-            self.invalidate_meta_cache()
-            meta = self.getmeta()
-            if meta.get_checksum() != d.checksum:
-                xact.rollback()
-                self.invalidate_meta_cache()
-                expected_meta = self.getmeta()
-                delta.apply(expected_meta)
-                details = ('Schema checksum verification failed (expected "%x", got "%x") when '
-                           'applying delta "%x".' % (d.checksum, meta.get_checksum(), deltas[-1].id))
-                hint = 'This usually indicates a bug in backend delta adapter.'
-                raise base_delta.DeltaChecksumError('failed to apply schema delta'
-                                                    'checksums do not match',
-                                                    details=details, hint=hint,
-                                                    schema1=expected_meta, schema2=meta,
-                                                    schema1_title='Expected Schema',
-                                                    schema2_title='Schema in Backend')
+        delta_cmds.Merge(table, record=rec, condition=condition).execute(context)
 
 
     def invalidate_meta_cache(self):

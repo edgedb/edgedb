@@ -80,7 +80,7 @@ class Backend(MetaBackend, DataBackend):
         super().__init__(deltarepo())
         self.meta = RealmMeta(load_builtins=False)
 
-    def apply_delta(self, delta):
+    def apply_delta(self, delta, session):
         if isinstance(delta, DeltaSet):
             deltas = list(delta)
         else:

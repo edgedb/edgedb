@@ -76,30 +76,30 @@ class MetaDeltaRepository:
             v2 = self.load_delta(ref2)
             v2_meta = self.get_meta(v2)
 
-        if v1 and v1.checksum == v2_meta.get_checksum():
-            return None
-
-        if v1:
+        if v1 is not None:
             v1_meta = self.get_meta(v1)
         else:
             v1_meta = proto.RealmMeta(load_builtins=False)
 
-        delta = v2_meta.delta(v1_meta)
+        if v1 is None or v1.checksum != v2_meta.get_checksum():
+            delta = v2_meta.delta(v1_meta)
+        else:
+            delta = None
 
         return v1, v1_meta, v2, v2_meta, delta
 
     def cumulative_delta(self, ref1, ref2):
-        cdelta = self._cumulative_delta(ref1, ref2)
-        if cdelta:
-            return cdelta[4]
-        else:
-            return None
+        return self._cumulative_delta(ref1, ref2)[4]
 
-    def calculate_delta(self, ref1, ref2, comment=None):
-        cdelta = self._cumulative_delta(ref1, ref2)
+    def calculate_delta(self, ref1, ref2, *, comment=None, preprocess=None, postprocess=None):
+        v1, v1_meta, v2, v2_meta, d = self._cumulative_delta(ref1, ref2)
 
-        if cdelta:
-            v1, v1_meta, v2, v2_meta, d = cdelta
+        if d is None and (preprocess is not None or postprocess is not None):
+            d = delta.AlterRealm(module=v1_meta.main_module)
+
+        if d is not None:
+            d.preprocess = preprocess
+            d.postprocess = postprocess
 
             parent_id = v1.id if v1 else None
             checksum = v2_meta.get_checksum()
@@ -126,9 +126,10 @@ class MetaBackend:
         else:
             return True
 
-    def record_delta(self, comment=None):
+    def record_delta(self, *, preprocess=None, postprocess=None, comment=None):
         ref1 = self.deltarepo.resolve_delta_ref('HEAD')
-        delta_obj = self.deltarepo.calculate_delta(ref1, self.getmeta(), comment)
+        delta_obj = self.deltarepo.calculate_delta(ref1, self.getmeta(), comment=comment,
+                                                   preprocess=preprocess, postprocess=postprocess)
         if delta_obj:
             self.deltarepo.write_delta(delta_obj)
             self.deltarepo.update_delta_ref('HEAD', delta_obj.id)

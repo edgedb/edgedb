@@ -59,15 +59,18 @@ class Transaction(session.Transaction):
 
 
 class Session(session.Session):
-    def __init__(self, realm, backend, pool, proto_schema=None):
+    def __init__(self, realm, backend, pool, proto_schema=None, connection=None):
         super().__init__(realm, entity_cache=session.WeakEntityCache, pool=pool,
                                 proto_schema=proto_schema)
         self.backend = backend
         self.prepared_statements = {}
-        self.init_connection()
+        self.init_connection(connection)
 
-    def init_connection(self):
-        self.connection = self.backend.connection_pool(self)
+    def init_connection(self, connection=None):
+        if connection is None:
+            self.connection = self.backend.connection_pool(self)
+        else:
+            self.connection = connection
 
     def get_connection(self):
         return self.connection
@@ -162,5 +165,8 @@ class Session(session.Session):
 
 
 class AsyncSession(Session):
-    def init_connection(self):
-        self.connection = self.backend.async_connection_pool(self)
+    def init_connection(self, connection=None):
+        if connection is None:
+            self.connection = self.backend.async_connection_pool(self)
+        else:
+            self.connection = connection
