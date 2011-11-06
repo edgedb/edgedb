@@ -864,6 +864,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                                                                 meta, context)
 
     def adjust_pointer_constraints(self, meta, context, source, pointer_names=None):
+        source.materialize(meta)
 
         for pointer in (p for p in source.pointers.values() if p.atomic()):
             target = pointer.target
@@ -931,7 +932,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                                       prototype_class=pointer.__class__.get_canonical_class())
 
                 with context(ptr_ctx_class(ptr_op, pointer)):
-                    for constraint in pointer.constraints.values():
+                    for constraint in itertools.chain(pointer.constraints.values(),
+                                                      pointer.abstract_constraints.values()):
                         if isinstance(constraint, proto.PointerConstraintUnique):
                             old_constraint = self.get_pointer_constraint(meta, context,
                                                                          constraint,
@@ -1065,7 +1067,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                                              events=('update',),
                                              condition=condition, procedure=proc_name)
 
-        result = CommandGroup(priority=priority)
+        result = CommandGroup(priority=priority, neg_conditions=[FunctionExists(name=proc_name)])
         result.add_command(proc)
         result.add_command(instrigger)
         result.add_command(updtrigger)
@@ -1131,6 +1133,10 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         new_proc_name = table_name[0], new_proc_name
 
         result.add_command(RenameFunction(name=old_proc_name, args=(), new_name=new_proc_name))
+        old = common.get_table_name(orig_source)
+        new = common.get_table_name(source)
+        result.add_command(AlterFunctionReplaceText(name=new_proc_name, args=(), old_text=old,
+                                                    new_text=new))
 
         return result
 
@@ -4234,6 +4240,57 @@ class RenameFunction(CommandGroup):
         if name[1] != new_name[1]:
             cmd = AlterFunctionRenameTo(name, args, new_name[1])
             self.add_command(cmd)
+
+
+class AlterFunctionReplaceText(DDLOperation):
+    def __init__(self, name, args, old_text, new_text, *, conditions=None, neg_conditions=None,
+                                                                           priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+        self.name = name
+        self.args = args
+        self.old_text = old_text
+        self.new_text = new_text
+
+    def code(self, context):
+        code = '''SELECT
+                        replace(p.prosrc, $4, $5) AS text,
+                        l.lanname AS lang,
+                        p.provolatile AS volatility,
+                        retns.nspname AS retnamens,
+                        ret.typname AS retname
+                    FROM
+                        pg_catalog.pg_proc p
+                        INNER JOIN pg_catalog.pg_namespace ns ON (ns.oid = p.pronamespace)
+                        INNER JOIN pg_catalog.pg_language l ON (p.prolang = l.oid)
+                        INNER JOIN pg_catalog.pg_type ret ON (p.prorettype = ret.oid)
+                        INNER JOIN pg_catalog.pg_namespace retns ON (retns.oid = ret.typnamespace)
+                    WHERE
+                        p.proname = $2 AND ns.nspname = $1
+                        AND ($3::text[] IS NULL
+                             OR $3::text[] = ARRAY(SELECT
+                                                      format_type(t, NULL)::text
+                                                    FROM
+                                                      unnest(p.proargtypes) t))
+                '''
+
+        vars = self.name + (self.args, self.old_text, self.new_text)
+        new_text, lang, volatility, *returns = context.db.prepare(code)(*vars)[0]
+
+        code = '''CREATE OR REPLACE FUNCTION {name} ({args})
+                  RETURNS {returns}
+                  LANGUAGE {lang}
+                  {volatility}
+                  AS $____funcbody____$
+                      {text}
+                  $____funcbody____$;
+               '''.format(name=common.qname(*self.name),
+                          args=', '.join(common.quote_ident(a) for a in self.args),
+                          text=new_text,
+                          lang=lang,
+                          returns=common.qname(*returns),
+                          volatility={b'i': 'IMMUTABLE', b's': 'STABLE', b'v': 'VOLATILE'}[volatility])
+
+        return code, ()
 
 
 class AlterFunctionSetSchema(DDLOperation):
