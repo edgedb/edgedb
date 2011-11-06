@@ -148,12 +148,22 @@ class Command(BaseCommand):
                         cmd.execute(context)
         return result
 
+    @debug
     def check_conditions(self, context, conditions, positive):
         result = True
         if conditions:
             for condition in conditions:
                 code, vars = condition.get_code_and_vars(context)
+
+                """LOG [caos.sql] Sync command condition:
+                print(code, vars)
+                """
+
                 result = context.db.prepare(code)(*vars)
+
+                """LOG [caos.sql] Sync command condition result:
+                print('actual:', bool(result), 'expected:', positive)
+                """
 
                 if bool(result) ^ positive:
                     result = False
