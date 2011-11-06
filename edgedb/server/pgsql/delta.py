@@ -1186,18 +1186,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                     op = AlterTableDropParent(parent_name=parent_table_name)
                     alter_table.add_operation(op)
 
-                alter_table = source_ctx.op.get_alter_table(context, force_new=True)
-
-                dropped_inh_ptrs = {p.normal_name() for p in orig_source.pointers.values()} - \
-                                   {p.normal_name() for p in source.pointers.values()}
-
-                for dropped_ptr in dropped_inh_ptrs:
-                    ptr = orig_source.pointers[dropped_ptr]
-                    if ptr.atomic():
-                        col_name = common.caos_name_to_pg_name(dropped_ptr)
-                        col = Column(name=col_name, type="text")
-                        alter_table.add_operation(AlterTableDropColumn(col))
-
             for added_base in added_bases:
                 parent_table_name = nameconv(caos.name.Name(added_base), catenate=False)
                 table_name = nameconv(source.name, catenate=False)
