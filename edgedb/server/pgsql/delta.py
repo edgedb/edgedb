@@ -2264,8 +2264,16 @@ class DropMappingIndexes(MetaCommand):
     def __init__(self, idx_names, table_name, mapping):
         super().__init__()
 
+        table_exists = TableExists(table_name)
+        group = CommandGroup(conditions=(table_exists,), priority=3)
+
         for idx_name in idx_names:
-            self.pgops.add(DropIndex((table_name[0], idx_name), priority=3))
+            fq_idx_name = (table_name[0], idx_name)
+            index_exists = IndexExists(fq_idx_name)
+            drop = DropIndex(fq_idx_name, conditions=(index_exists,), priority=3)
+            group.add_command(drop)
+
+        self.pgops.add(group)
 
 
 class UpdateMappingIndexes(MetaCommand):
