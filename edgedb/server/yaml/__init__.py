@@ -1371,7 +1371,14 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
         return atom
 
 
-class EntityShell(LangObject, adapts=caos.concept.EntityShell):
+class EntityShellMeta(type(LangObject), type(caos.concept.EntityShell)):
+    def __init__(cls, name, bases, dct, *, adapts=None, ignore_aliases=False):
+        type(LangObject).__init__(cls, name, bases, dct, adapts=adapts,
+                                                         ignore_aliases=ignore_aliases)
+        type(caos.concept.EntityShell).__init__(cls, name, bases, dct)
+
+
+class EntityShell(LangObject, adapts=caos.concept.EntityShell, metaclass=EntityShellMeta):
     def __sx_setstate__(self, data):
         caos.concept.EntityShell.__init__(self)
 
