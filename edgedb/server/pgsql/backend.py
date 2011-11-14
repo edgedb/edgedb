@@ -454,7 +454,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.atom_constr_exprs = {}
         self.constant_expr = None
 
-        self.meta = proto.RealmMeta(load_builtins=False)
+        self.meta = proto.ProtoSchema(load_builtins=False)
 
         repo = deltarepo(self.connection)
         self._init_introspection_cache()
@@ -725,7 +725,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def invalidate_meta_cache(self):
-        self.meta = proto.RealmMeta(load_builtins=False)
+        self.meta = proto.ProtoSchema(load_builtins=False)
         self.modules = self.read_modules()
         self.features = self.read_features()
         self.link_cache.clear()

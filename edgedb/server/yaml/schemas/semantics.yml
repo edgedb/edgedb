@@ -10,7 +10,7 @@
 %NAME Semantics
 ---
 type: map
-object: semantix.caos.backends.yaml.MetaSet
+object: semantix.caos.backends.yaml.ProtoSchemaAdapter
 mapping:
     "module":
         type: str

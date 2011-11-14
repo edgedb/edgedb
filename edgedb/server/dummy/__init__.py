@@ -7,7 +7,7 @@
 
 
 from semantix.caos.backends import MetaBackend, DataBackend
-from semantix.caos.proto import RealmMeta
+from semantix.caos.proto import ProtoSchema
 from semantix.caos.delta import DeltaSet
 from semantix.caos import session
 
@@ -78,7 +78,7 @@ class Session(session.Session):
 class Backend(MetaBackend, DataBackend):
     def __init__(self, deltarepo):
         super().__init__(deltarepo())
-        self.meta = RealmMeta(load_builtins=False)
+        self.meta = ProtoSchema(load_builtins=False)
 
     def apply_delta(self, delta, session):
         if isinstance(delta, DeltaSet):

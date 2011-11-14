@@ -56,7 +56,7 @@ class MetaDeltaRepository:
 
     def get_meta(self, delta_obj):
         deltas = self.get_deltas(None, delta_obj.id)
-        meta = proto.RealmMeta(load_builtins=False)
+        meta = proto.ProtoSchema(load_builtins=False)
         deltas.apply(meta)
         return meta
 
@@ -68,7 +68,7 @@ class MetaDeltaRepository:
         delta = None
         v1 = self.load_delta(ref1) if ref1 else None
 
-        if isinstance(ref2, proto.RealmMeta):
+        if isinstance(ref2, proto.ProtoSchema):
             v2 = None
             v2_meta = ref2
         else:
@@ -78,7 +78,7 @@ class MetaDeltaRepository:
         if v1 is not None:
             v1_meta = self.get_meta(v1)
         else:
-            v1_meta = proto.RealmMeta(load_builtins=False)
+            v1_meta = proto.ProtoSchema(load_builtins=False)
 
         if v1 is None or v1.checksum != v2_meta.get_checksum():
             delta = v2_meta.delta(v1_meta)

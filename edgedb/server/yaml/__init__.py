@@ -706,7 +706,7 @@ class SpecializedLink(LangObject):
             raise MetaError('unexpected specialized link format: %s', type(data), context=context)
 
 
-class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
+class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
     def read_elements(self, data, globalschema, localschema):
         self.caosql_expr = caosql_expr.CaosQLExpression(globalschema, localschema.modules)
         self.read_atoms(data, globalschema, localschema)
@@ -759,7 +759,7 @@ class MetaSet(yaml_protoschema.ProtoSchemaAdapter):
 
 
     def get_proto_schema_class(self, builtin):
-        return proto.BuiltinRealmMeta if builtin else proto.RealmMeta
+        return proto.BuiltinProtoSchema if builtin else proto.ProtoSchema
 
 
     def get_schema_name_class(self):
@@ -1449,7 +1449,7 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell, metaclass=EntityS
             ent_context.document.import_context.entities.append(self.entity)
 
 
-class RealmMeta(LangObject, adapts=proto.RealmMeta):
+class ProtoSchema(LangObject, adapts=proto.ProtoSchema):
     @classmethod
     def __sx_getstate__(cls, data):
         result = {'atoms': {}, 'links': {}, 'concepts': {}, 'link-properties': {}}
