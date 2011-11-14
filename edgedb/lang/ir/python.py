@@ -12,6 +12,7 @@ import numbers
 from semantix.caos import types as caos_types
 from semantix.caos.tree.transformer import TreeTransformer
 from semantix.caos.expr.record import QuerySelectorRow
+from semantix.caos.backends import query as backend_query
 
 from semantix.utils import ast
 
@@ -51,7 +52,7 @@ _operator_map = {
 }
 
 
-class PythonQuery:
+class PythonQuery(backend_query.Query):
     def __init__(self, text, result_types, argument_types, context=None):
         self.text = text
         self.statement = compile(text, '<string>', 'eval')
@@ -70,12 +71,6 @@ class PythonQuery:
 
     def rows(self, **kwargs):
         return [QuerySelectorRow(eval(self.statement, self.globals, kwargs))]
-
-    def describe_output(self):
-        return collections.OrderedDict(self.result_types)
-
-    def describe_arguments(self):
-        return dict(self.argument_types)
 
     def convert_arguments(self, **kwargs):
         return dict(kwargs)
@@ -98,15 +93,21 @@ class Adapter:
 
         restypes = collections.OrderedDict()
         for k, v in tree.result_types.items():
-            """
-            if isinstance(v[0], caos_types.ProtoNode):
-                restypes[k] = (self.session.schema.get(v[0].name), v[1])
+            if v[0] is not None: # XXX get_expr_type
+                restypes[k] = (v[0].name, v[1])
             else:
                 restypes[k] = v
-            """
-            restypes[k] = v
 
-        return PythonQuery(text, result_types=restypes, argument_types=tree.argument_types)
+        argtypes = {}
+
+        for k, v in tree.argument_types.items():
+            if v is not None: # XXX get_expr_type
+                if isinstance(v, tuple):
+                    argtypes[k] = (v[0], v[1].name)
+            else:
+                argtypes[k] = v
+
+        return PythonQuery(text, result_types=restypes, argument_types=argtypes)
 
 
 class CaosToPythonTransformerContext:

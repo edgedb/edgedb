@@ -37,6 +37,7 @@ from semantix.caos import error as caos_error
 from semantix.caos.caosql import transformer as caosql_transformer
 from semantix.caos.caosql import codegen as caosql_codegen
 
+from semantix.caos.backends import query as backend_query
 from semantix.caos.backends.pgsql import common
 from semantix.caos.backends.pgsql import delta as delta_cmds
 
@@ -108,28 +109,21 @@ class Cursor:
             yield next(self.dbcursor)
 
 
-class Query:
-    def __init__(self, chunks, arg_index, argmap, result_types, argument_types, context=None,
+class Query(backend_query.Query):
+    def __init__(self, chunks, arg_index, argmap, result_types, argument_types,
                  scrolling_cursor=False, offset=None, limit=None, query_type=None):
         self.chunks = chunks
         self.text = ''.join(chunks)
         self.argmap = argmap
         self.arg_index = arg_index
-        self.context = context
         self.result_types = result_types
         self.argument_types = collections.OrderedDict((k, argument_types[k]) for k in argmap
                                                       if k in argument_types)
 
         self.scrolling_cursor = scrolling_cursor
-        self.offset = offset
-        self.limit = limit
+        self.offset = offset.index if offset is not None else None
+        self.limit = limit.index if limit is not None else None
         self.query_type = query_type
-
-    def describe_output(self):
-        return collections.OrderedDict(self.result_types)
-
-    def describe_arguments(self):
-        return collections.OrderedDict(self.argument_types)
 
     def prepare(self, session):
         return PreparedQuery(self, session)
@@ -177,11 +171,11 @@ class PreparedQuery:
 
         return ''.join(chunks)
 
-    def describe_output(self):
-        return self.query.describe_output()
+    def describe_output(self, session):
+        return self.query.describe_output(session)
 
-    def describe_arguments(self):
-        return self.query.describe_arguments()
+    def describe_arguments(self, session):
+        return self.query.describe_arguments(session)
 
     def convert_arguments(self, **kwargs):
         return collections.OrderedDict(enumerate(self._convert_args(kwargs)))
@@ -216,12 +210,12 @@ class PreparedQuery:
             kwargs = self.init_args
 
         if self.query.limit:
-            limit = kwargs.pop(self.query.limit.index)
+            limit = kwargs.pop(self.query.limit)
         else:
             limit = None
 
         if self.query.offset:
-            offset = kwargs.pop(self.query.offset.index)
+            offset = kwargs.pop(self.query.offset)
         else:
             offset = None
 
@@ -257,13 +251,22 @@ class CaosQLAdapter:
         restypes = {}
 
         for k, v in query.result_types.items():
-            if isinstance(v[0], caos.types.ProtoNode):
-                restypes[k] = (self.session.schema.get(v[0].name), v[1])
+            if v[0] is not None: # XXX get_expr_type
+                restypes[k] = (v[0].name, v[1])
             else:
                 restypes[k] = v
 
+        argtypes = {}
+
+        for k, v in query.argument_types.items():
+            if v is not None: # XXX get_expr_type
+                if isinstance(v, tuple):
+                    argtypes[k] = (v[0], v[1].name)
+            else:
+                argtypes[k] = v
+
         return Query(chunks=qchunks, arg_index=arg_index, argmap=argmap, result_types=restypes,
-                     argument_types=query.argument_types, scrolling_cursor=scrolling_cursor,
+                     argument_types=argtypes, scrolling_cursor=scrolling_cursor,
                      offset=offset, limit=limit, query_type=query_type)
 
 
