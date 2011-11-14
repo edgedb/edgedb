@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.caos import backends
+from semantix.caos.backends import deltarepo
 
 from semantix.caos import delta as base_delta
 
@@ -16,7 +16,7 @@ from . import delta
 from .datasources import deltalog
 
 
-class MetaDeltaRepository(backends.MetaDeltaRepository):
+class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
     def __init__(self, connection):
         self.connection = connection
 

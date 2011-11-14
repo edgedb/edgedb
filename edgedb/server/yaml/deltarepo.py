@@ -10,13 +10,13 @@ import importlib
 import os
 import re
 
-from semantix.caos import backends
+from semantix.caos.backends import deltarepo
 from semantix.caos import delta as base_delta
 
 from semantix.utils.lang import yaml
 
 
-class MetaDeltaRepository(backends.MetaDeltaRepository):
+class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
     def __init__(self, module, id):
         self.deltas = self._find_deltas_package(module)
         self.modhash = id

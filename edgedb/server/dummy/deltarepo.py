@@ -6,13 +6,13 @@
 ##
 
 
-from semantix.caos import backends
+from semantix.caos.backends import deltarepo
 from semantix.utils.datastructures import OrderedIndex
 
 from semantix.caos import delta as delta_cmds
 
 
-class MetaDeltaRepository(backends.MetaDeltaRepository):
+class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
     def __init__(self):
         self.deltas = OrderedIndex(key=lambda i: i.id)
         self.refs = {}
