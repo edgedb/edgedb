@@ -1863,7 +1863,7 @@ class TreeTransformer:
 
     def get_expr_type(self, expr, schema):
         if isinstance(expr, caos_ast.MetaRef):
-            result = str
+            result = schema.get('semantix.caos.builtins.str')
         elif isinstance(expr, caos_ast.AtomicRefSimple):
             if isinstance(expr.ref, caos_ast.PathCombination):
                 targets = [t.concept for t in expr.ref.paths]
@@ -1951,6 +1951,11 @@ class TreeTransformer:
 
         else:
             result = None
+
+        if result is not None:
+            assert isinstance(result, caos_types.ProtoObject) or \
+                   (isinstance(result, (tuple, list)) and isinstance(result[1], caos_types.ProtoObject)), \
+                   "get_expr_type({!r}) retured {!r} instead of a prototype".format(expr, result)
 
         return result
 
