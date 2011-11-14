@@ -250,12 +250,12 @@ class Bucket(metaclass=BucketMeta):
         try:
             value = self._implementation.getitem(hashed_key)
             '''LINE [cache] CACHE HIT
-            self, '{:.40}'.format(key)
+            self, '{!r:.40}'.format(key)
             '''
             return value
         except KeyError:
             '''LINE [cache] CACHE MISS
-            self, '{:.40}'.format(key)
+            self, '{!r:.40}'.format(key)
             '''
             raise KeyError('missing cache key {!r}'.format(key))
 
@@ -278,7 +278,7 @@ class Bucket(metaclass=BucketMeta):
             return
 
         '''LINE [cache] CACHE SET
-        self, '{:.40}'.format(key), expiry
+        self, '{!r:.40}'.format(key), expiry
         '''
 
         expiry = self._cast_expiry_to_seconds(expiry)
