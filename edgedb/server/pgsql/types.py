@@ -61,7 +61,9 @@ def get_atom_base_and_constraints(meta, atom, own_only=True):
 
     atom_constraints = atom.effective_local_constraints if own_only else atom.constraints
 
-    if proto.Atom.is_prototype(atom.base):
+    base = meta.get(atom.base, include_pyobjects=True, index_only=False)
+
+    if isinstance(base, caos.types.ProtoAtom):
         # Base is another atom prototype, check if it is fundamental,
         # if not, then it is another domain
         base = base_type_name_map.get(atom.base)
@@ -108,7 +110,7 @@ def pg_type_from_atom(meta, atom, topbase=False):
     if topbase:
         column_type = base_type_name_map.get(base.name)
         if not column_type:
-            base_class = meta.get(base.base, include_pyobjects=True)
+            base_class = meta.get(base.base, include_pyobjects=True, index_only=False)
             column_type = base_type_name_map[base_class.adapts]
     elif not atom.automatic:
         column_type = base_type_name_map.get(atom.name)

@@ -56,7 +56,7 @@ class MetaDeltaRepository:
 
     def get_meta(self, delta_obj):
         deltas = self.get_deltas(None, delta_obj.id)
-        meta = proto.ProtoSchema(load_builtins=False)
+        meta = proto.ProtoSchema()
         deltas.apply(meta)
         return meta
 
@@ -78,7 +78,7 @@ class MetaDeltaRepository:
         if v1 is not None:
             v1_meta = self.get_meta(v1)
         else:
-            v1_meta = proto.ProtoSchema(load_builtins=False)
+            v1_meta = proto.ProtoSchema()
 
         if v1 is None or v1.checksum != v2_meta.get_checksum():
             delta = v2_meta.delta(v1_meta)
@@ -94,7 +94,7 @@ class MetaDeltaRepository:
         v1, v1_meta, v2, v2_meta, d = self._cumulative_delta(ref1, ref2)
 
         if d is None and (preprocess is not None or postprocess is not None):
-            d = delta.AlterRealm(module=v1_meta.main_module)
+            d = delta.AlterRealm()
 
         if d is not None:
             d.preprocess = preprocess

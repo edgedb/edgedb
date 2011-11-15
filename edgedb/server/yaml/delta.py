@@ -159,6 +159,19 @@ class NamedPrototypeCommand(PrototypeCommand, adapts=delta.NamedPrototypeCommand
         return super().__sx_setstate__(data)
 
 
+
+class CreateModule(NamedPrototypeCommand, adapts=delta.CreateModule):
+    pass
+
+
+class AlterModule(NamedPrototypeCommand, adapts=delta.AlterModule):
+    pass
+
+
+class DeleteModule(NamedPrototypeCommand, adapts=delta.DeleteModule):
+    pass
+
+
 class CreatePrototype(PrototypeCommand, adapts=delta.CreatePrototype):
     pass
 

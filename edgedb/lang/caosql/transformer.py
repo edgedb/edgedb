@@ -839,9 +839,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         ptr_module, ptr_nqname = ptr_name
 
         if ptr_module:
-            ns = self.proto_schema.get_namespace(ptr_type)
             ptr_fqname = caos_name.Name(module=ptr_module, name=ptr_nqname)
-            pointer_name = ns.normalize_name(ptr_fqname, module_aliases=context.current.namespaces)
+            modaliases = context.current.namespaces
+            pointer = self.proto_schema.get(ptr_fqname, module_aliases=modaliases, type=ptr_type)
+            pointer_name = pointer.name
         else:
             pointer_name = ptr_fqname = ptr_nqname
 

@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -12,6 +12,8 @@ import importlib
 import itertools
 import operator
 import re
+import sys
+import types
 
 from semantix import SemantixError
 from semantix.utils import lang
@@ -19,59 +21,81 @@ from semantix.utils.datastructures import OrderedSet, ExtendedSet
 from semantix.utils import abc
 from semantix.utils.functional import hybridmethod
 from semantix.utils.datastructures.struct import Struct, StructMeta, Field
+from semantix.utils.datastructures import Void
+from semantix.utils import helper
 
-from .error import SchemaError
+from .error import SchemaError, NoPrototypeError
 from .name import SchemaName
 
 
-def _new_ImportContext(cls, name, kwargs):
-    return ImportContext.__new__(cls, name, **kwargs)
-
 class ImportContext(lang.ImportContext):
-    def __new__(cls, name, *, loader=None, protoschema=None, toplevel=True, builtin=False,
-                                                                            private=None):
-        result = super().__new__(cls, name, loader=loader)
-        result.toplevel = toplevel
-        result.builtin = builtin
-        result.private = private
-        return result
+    pass
 
-    def __init__(self, name, *, loader=None, protoschema=None, toplevel=True, builtin=False,
-                                                                              private=None):
-        super().__init__(name, loader=loader)
-        self.protoschema = protoschema if protoschema else self.__class__.new_schema(builtin)
-        self.protoschema.add_module(name, name)
 
-    def __reduce__(self):
-        return (_new_ImportContext, (self.__class__, str(self), {
-                                        'toplevel': self.toplevel,
-                                        'builtin': self.builtin,
-                                        'private': self.private
-                                     }), None)
+_schemas = {}
+
+
+def get_loaded_proto_schema(module_class):
+    try:
+        schema = _schemas[module_class]
+    except KeyError:
+        schema = _schemas[module_class] = module_class.get_schema_class()()
+
+    return schema
+
+
+def drop_loaded_proto_schema(module_class, unload_modules=True):
+    try:
+        schema = _schemas[module_class]
+    except KeyError:
+        pass
+    else:
+        for module in schema.iter_modules():
+            try:
+                del sys.modules[module]
+            except KeyError:
+                pass
+
+        schema.clear()
+
+
+class SchemaModule(types.ModuleType):
+    def __sx_finalize_load__(self):
+        schema = get_loaded_proto_schema(self.__class__)
+        populate_proto_modules(schema, self)
+
+    def __getattr__(self, name):
+        if name.startswith('__') and name.endswith('__'):
+            return super().__getattr__(name)
+
+        protoname = name
+        nsname = None
+
+        if name.startswith('_ns_') and len(name) > 4:
+            try:
+                prefix_len_end = name.index('_', 4)
+            except ValueError:
+                pass
+            else:
+                prefix_len = name[4:prefix_len_end]
+
+                try:
+                    prefix_len = int(prefix_len)
+                except ValueError:
+                    pass
+                else:
+                    protoname = name[prefix_len_end + prefix_len + 2:]
+                    nsname = name[prefix_len_end + 1:prefix_len_end + prefix_len + 1]
+
+        proto = self.__sx_prototypes__.get(protoname, nsname=nsname)
+        schema = get_loaded_proto_schema(self.__class__)
+        cls = proto(schema, cache=False)
+        setattr(self, name, cls)
+        return cls
 
     @classmethod
-    def from_parent(cls, name, parent):
-        if parent and isinstance(parent, ImportContext):
-            result = cls(name, loader=parent.loader, protoschema=parent.protoschema,
-                               toplevel=False, builtin=parent.builtin)
-            result.protoschema.add_module(name, name)
-        else:
-            result = cls(name, toplevel=True)
-        return result
-
-    @classmethod
-    def copy(cls, name, other):
-        if isinstance(other, ImportContext):
-            result = cls(other, loader=other.loader, protoschema=other.protoschema,
-                                toplevel=other.toplevel, builtin=other.builtin,
-                                private=other.private)
-        else:
-            result = cls(other)
-        return result
-
-    @classmethod
-    def new_schema(cls, builtin):
-        return (BuiltinProtoSchema() if builtin else ProtoSchema())
+    def get_schema_class(cls):
+        return ProtoSchema
 
 
 default_err = object()
@@ -103,23 +127,46 @@ class PrototypeClass(type):
     pass
 
 
+class ObjectClass(type):
+    pass
+
+
 class ProtoObject(metaclass=PrototypeClass):
     @classmethod
     def get_canonical_class(cls):
         return cls
 
     @classmethod
-    def is_prototype(cls, name):
+    def _get_prototype(cls, obj):
+        try:
+            proto = object.__getattribute__(obj, '__sx_prototype__')
+        except AttributeError as e:
+            raise NoPrototypeError('{!r} does not have a valid prototype'.format(obj)) from e
+        else:
+            if not isinstance(proto, ProtoObject):
+                raise NoPrototypeError('{!r} does not have a valid prototype'.format(obj))
+        return proto
+
+    @classmethod
+    def load_prototype(cls, proto_schema, obj_name):
+        mod, _, name = str(obj_name).rpartition('.')
+        ns = proto_schema.get_namespace(cls)
+        name = ns.prefix_name(name, dir(types.ModuleType))
+
+        try:
+            obj = getattr(importlib.import_module(mod), name)
+        except (ImportError, AttributeError) as e:
+            raise NoPrototypeError('could not load {}'.format(obj_name)) from e
+        else:
+            return cls._get_prototype(obj)
+
+    @classmethod
+    def is_prototype(cls, proto_schema, name):
         if isinstance(name, ProtoObject):
             return True
-        elif isinstance(name, (str, SchemaName)):
-            mod, _, name = str(name).rpartition('.')
-            try:
-                getattr(importlib.import_module(mod), name)
-            except (ImportError, AttributeError):
-                return True
-
-            return False
+        else:
+            obj = proto_schema.get(name, include_pyobjects=True, index_only=False)
+            return isinstance(obj, ProtoObject)
 
 
 class PrototypeMeta(PrototypeClass, StructMeta):
@@ -131,10 +178,11 @@ class Prototype(Struct, ProtoObject, metaclass=PrototypeMeta):
 
 
 class Namespace:
-    def __init__(self, index):
+    def __init__(self, index, name=None):
         self.index_by_name = collections.OrderedDict()
         self.index_by_module = collections.OrderedDict()
         self.index = index
+        self.name = name
 
     def __contains__(self, obj):
         return obj.name in self.index_by_name
@@ -171,63 +219,8 @@ class Namespace:
                     result.append(obj)
         return result
 
-    def lookup_name(self, name, module_aliases=None, default=default_err):
-        name = self.normalize_name(name, module_aliases, default=default)
-        if name:
-            return self.lookup_qname(name)
-
     def lookup_qname(self, name):
         return self.index_by_name.get(name)
-
-    def normalize_name(self, name, module_aliases=None, default=default_err,
-                             include_pyobjects=False):
-        name, module, nqname = self.split_name(name)
-        norm_name = None
-
-        if module is None:
-            object = None
-            default_module = self.index.resolve_module(module, module_aliases)
-
-            if default_module:
-                fq_name = self.index.SchemaName(name=nqname, module=default_module)
-                object = self.lookup_qname(fq_name)
-            if not object:
-                fq_name = self.index.SchemaName(name=nqname, module=self.index.builtins_module)
-                object = self.lookup_qname(fq_name)
-            if object:
-                norm_name = object.name
-        else:
-            object = self.lookup_qname(name)
-
-            if object:
-                norm_name = object.name
-            else:
-                fullmodule = self.index.resolve_module(module, module_aliases)
-                if not fullmodule:
-                    if module in self.index.rmodules or \
-                                 (module_aliases and module in module_aliases.values()):
-                        fullmodule = module
-
-                if fullmodule:
-                    norm_name = self.index.SchemaName(name=nqname, module=fullmodule)
-
-        if not norm_name and include_pyobjects and module:
-            try:
-                getattr(importlib.import_module(module), nqname)
-                norm_name = name
-            except (ImportError, AttributeError) as e:
-                pass
-
-        if norm_name:
-            return norm_name
-        else:
-            if default is default_err:
-                default = self.index.SchemaError
-
-            if default and issubclass(default, Exception):
-                raise default('could not normalize caos name %s' % name)
-            else:
-                return default
 
     @hybridmethod
     def split_name(self, name):
@@ -250,12 +243,20 @@ class Namespace:
 
         return name, module, nqname
 
+    def prefix_name(self, name, reserved_names=None):
+        if reserved_names is not None:
+            name = helper.get_safe_attrname(name, reserved_names)
+
+        if self.name:
+            return '_ns_{}_{}_{}'.format(len(self.name), self.name, name)
+        else:
+            return name
+
 
 class ProtoSchemaIterator:
-    def __init__(self, index, type, include_builtin=False):
+    def __init__(self, index, type):
         self.index = index
         self.type = type
-        self.include_builtin = include_builtin
 
         sourceset = self.index.index
 
@@ -275,9 +276,6 @@ class ProtoSchemaIterator:
 
     def filter_set(self, sourceset):
         filtered = sourceset
-        if not self.include_builtin:
-            filtered = filtered - self.index.index_builtin
-
         return filtered
 
     def __iter__(self):
@@ -288,18 +286,12 @@ class ProtoSchemaIterator:
         return result
 
 
-class ProtoSchema:
-    def get_builtins_module(self):
-        raise NotImplementedError
-
+class ProtoModule:
     def get_schema_error(self):
         return SchemaError
 
     def get_import_context(self):
         return ImportContext
-
-    def get_schema_name(self):
-        return SchemaName
 
     def get_object_key(self, obj):
         return obj.__class__.get_canonical_class(), obj.name
@@ -310,30 +302,18 @@ class ProtoSchema:
         assert obj, 'Could not find "%s" object named "%s"' % (cls, name)
         return obj
 
-    def __init__(self, load_builtins=True, main_module=None):
+    def __init__(self, name):
+        self.name = name
+
         self.index = OrderedSet()
         self.index_by_type = {}
-        self.index_builtin = OrderedSet()
 
         self.namespaces = {}
-        self.modules = {}
 
-        self.main_module = main_module
-        self.rmodules = set()
         self.checksum = None
+
         self.SchemaError = self.get_schema_error()
-        self.builtins_module = self.get_builtins_module()
         self.ImportContext = self.get_import_context()
-        self.SchemaName = self.get_schema_name()
-
-        if load_builtins and self.builtins_module:
-            self._init_builtin()
-
-    def _init_builtin(self):
-        module = self.ImportContext(name=self.builtins_module, toplevel=True, builtin=True)
-        builtins = importlib.import_module(module)
-        for key in builtins._index_.index:
-            self.add(builtins._index_.get_object_by_key(key))
 
     def add(self, obj):
         ns = self.get_namespace(obj)
@@ -350,9 +330,6 @@ class ProtoSchema:
 
         idx_by_type = self.index_by_type.setdefault(obj._type, OrderedSet())
         idx_by_type.add(key)
-
-        if obj.name.module == self.builtins_module:
-            self.index_builtin.add(key)
 
     def discard(self, obj):
         existing = self.get_namespace(obj).discard(obj)
@@ -376,60 +353,69 @@ class ProtoSchema:
     def _delete(self, obj):
         key = self.get_object_key(obj)
         self.index.remove(key)
-        self.index_builtin.discard(key)
         self.index_by_type[obj.__class__._type].remove(key)
 
-    def add_module(self, module, alias):
-        existing = self.modules.get(alias)
-        if existing and existing != module:
-            raise self.SchemaError('Alias %s is already bound to module %s' %
-                                   (alias, self.modules[alias]))
-        else:
-            self.modules[alias] = module
-            self.rmodules.add(module)
-
-    def get(self, name, default=default_err, module_aliases=None, type=None, include_pyobjects=False):
+    def get(self, name, default=default_err, module_aliases=None, type=None,
+                  include_pyobjects=False, index_only=True, implicit_builtins=True,
+                  nsname=None):
         if isinstance(type, tuple):
             for typ in type:
-                ns = self.get_namespace(typ)
-                obj = ns.lookup_name(name, module_aliases, default=None)
-                if obj:
-                    break
-        else:
-            ns = self.get_namespace(type)
-            obj = ns.lookup_name(name, module_aliases, default=None)
-
-        if not obj and include_pyobjects:
-            module_name, attrname = str(name).rpartition('.')[::2]
-            if module_name:
                 try:
-                    obj = getattr(importlib.import_module(module_name), attrname)
-                except (ImportError, AttributeError):
+                    prototype = self.get(name, module_aliases=module_aliases,
+                                         type=typ, include_pyobjects=include_pyobjects,
+                                         index_only=index_only, default=None)
+                except self.SchemaError:
                     pass
+                else:
+                    if prototype is not None:
+                        break
+        else:
+            ns = self.get_namespace(type, name=nsname)
+
+            fail_cause = None
+            prototype = None
+
+            fq_name = '{}.{}'.format(self.name, name)
+            prototype = ns.lookup_qname(fq_name)
 
         if default is default_err:
             default = self.SchemaError
 
-        if obj is None:
-            raise_ = default and (isinstance(default, Exception) or \
-                     (isinstance(default, builtins.type) and issubclass(default, Exception)))
-            if raise_:
-                raise default('reference to a non-existent schema prototype: %s' % name)
-            else:
-                obj = default
+        raise_ = None
 
-        if type and isinstance(obj, ProtoObject) and not isinstance(obj, type):
-            raise_ = default and (isinstance(default, Exception) or \
-                     (isinstance(default, builtins.type) and issubclass(default, Exception)))
+        if prototype is None:
+            if default is not None:
+                raise_ = (isinstance(default, Exception) or \
+                            (isinstance(default, builtins.type) and issubclass(default, Exception)))
+
+            if raise_:
+                msg = 'reference to a non-existent schema prototype: {}.{}'.format(self.name, name)
+                if fail_cause is not None:
+                    raise default(msg) from fail_cause
+                else:
+                    raise default(msg)
+            else:
+                prototype = default
+
+        if type is not None and isinstance(prototype, ProtoObject) and not isinstance(prototype, type):
+            if default is not None:
+                raise_ = (isinstance(default, Exception) or \
+                          (isinstance(default, builtins.type) and issubclass(default, Exception)))
             if raise_:
                 if isinstance(type, tuple):
                     typname = ' or '.join(typ.__name__ for typ in type)
                 else:
                     typname = type.__name__
-                raise default('reference to a non-existent %s: %s' % (typname, name))
+
+                msg = '{} exists but is not {}'.format(name, typname)
+
+                if fail_cause is not None:
+                    raise default(msg) from fail_cause
+                else:
+                    raise default(msg)
             else:
-                obj = default
-        return obj
+                prototype = default
+        return prototype
 
     def match(self, name, module_aliases=None, type=None):
         name, module, nqname = Namespace.split_name(name)
@@ -451,14 +437,23 @@ class ProtoSchema:
 
         return result
 
+    def reorder(self, new_order):
+        name_order = [self.get_object_key(p) for p in new_order]
+
+        self.index = OrderedSet(sorted(self.index, key=name_order.index))
+        for typeindex in self.index_by_type.values():
+            sortedindex = sorted(typeindex, key=name_order.index)
+            typeindex.clear()
+            typeindex.update(sortedindex)
+
     def __contains__(self, obj):
         return obj in self.index
 
     def __iter__(self):
         return ProtoSchemaIterator(self, None)
 
-    def __call__(self, type=None, include_builtin=False):
-        return ProtoSchemaIterator(self, type, include_builtin)
+    def __call__(self, type=None):
+        return ProtoSchemaIterator(self, type)
 
 
     def resolve_module(self, module, module_aliases):
@@ -480,7 +475,7 @@ class ProtoSchema:
             module = self.modules.get(module)
         return module
 
-    def get_namespace(self, obj):
+    def get_namespace(self, obj, name=None):
         if obj is None:
             ns = None
         elif getattr(obj, '_separate_namespace', False):
@@ -488,11 +483,20 @@ class ProtoSchema:
         else:
             ns = None
 
+        if name is not None:
+            return self.namespaces[name]
+
+        if ns is not None:
+            nsname = ns.__name__
+        else:
+            nsname = None
+
         try:
             return self.namespaces[ns]
         except KeyError:
-            result = Namespace(self)
+            result = Namespace(self, name=nsname)
             self.namespaces[ns] = result
+            self.namespaces[nsname] = result
             return result
 
     def iter_modules(self):
@@ -504,6 +508,222 @@ class ProtoSchema:
                 return True
 
 
-class BuiltinProtoSchema(ProtoSchema):
-    def _init_builtin(self):
+class ProtoSchema:
+    """ProtoSchema is a collection of ProtoModules"""
+
+    @classmethod
+    def get_schema_name(cls):
+        return SchemaName
+
+    @classmethod
+    def get_builtins_module(cls):
+        raise NotImplementedError
+
+    @classmethod
+    def get_schema_error(cls):
+        return SchemaError
+
+    def __init__(self):
+        self.modules = collections.OrderedDict()
+        self.foreign_modules = collections.OrderedDict()
+        self.module_aliases = {}
+        self.module_aliases_r = {}
+
+        self.SchemaName = self.get_schema_name()
+        self.SchemaError = self.get_schema_error()
+        self.builtins_module = self.get_builtins_module()
+
+    def add_module(self, proto_module, alias=Void):
+        """Add a module to the schema
+
+        :param ProtoModule proto_module: A module that should be added to the schema
+        :param str alias: An optional alias for this module to use when resolving names
+        """
+
+        if isinstance(proto_module, ProtoModule):
+            name = proto_module.name
+            self.modules[name] = proto_module
+        else:
+            name = proto_module.__name__
+            self.foreign_modules[name] = proto_module
+
+        if alias is not Void:
+            self.set_module_alias(name, alias)
+
+    def set_module_alias(self, module_name, alias):
+        self.module_aliases[alias] = module_name
+        self.module_aliases_r[module_name] = alias
+
+    def get_module(self, module):
+        return self.modules[module]
+
+    def delete_module(self, proto_module):
+        """Remove a module from the schema
+
+        :param proto_module: Either a string name of the module or a ProtoModule object
+                             thet should be dropped from the schema.
+        """
+        if isinstance(proto_module, str):
+            module_name = proto_module
+        else:
+            module_name = proto_module
+
+        del self.modules[module_name]
+
+        try:
+            alias = self.module_aliases_r[module_name]
+        except KeyError:
+            pass
+        else:
+            del self.module_aliases_r[module_name]
+            del self.module_aliases[alias]
+
+    def add(self, obj):
+        try:
+            module = self.modules[obj.name.module]
+        except KeyError as e:
+            raise self.SchemaError('module {} is not in this schema'.format(obj.name.module)) from e
+
+        module.add(obj)
+
+    def discard(self, obj):
+        try:
+            module = self.modules[obj.name.module]
+        except KeyError:
+            return
+
+        return module.discard(obj)
+
+    def delete(self, obj):
+        try:
+            module = self.modules[obj.name.module]
+        except KeyError as e:
+            raise self.SchemaError('module {} is not in this schema'.format(obj.name.module)) from e
+
+        return module.delete(obj)
+
+    def clear(self):
+        self.modules.clear()
+        self.foreign_modules.clear()
+        self.module_aliases.clear()
+        self.module_aliases_r.clear()
+
+    def reorder(self, new_order):
+        by_module = {}
+
+        for item in new_order:
+            try:
+                module_order = by_module[item.name.module]
+            except KeyError:
+                module_order = by_module[item.name.module] = []
+            module_order.append(item)
+
+        for module_name, module_order in by_module.items():
+            module = self.modules[module_name]
+            module.reorder(module_order)
+
+    def get(self, name, default=default_err, module_aliases=None, type=None,
+                  include_pyobjects=False, index_only=True, implicit_builtins=True,
+                  nsname=None):
+
+        name, module, nqname = Namespace.split_name(name)
+
+        fq_module = None
+
+        if module_aliases is not None:
+            fq_module = module_aliases.get(module)
+
+        if fq_module is None:
+            fq_module = self.module_aliases.get(module)
+
+        if fq_module is not None:
+            module = fq_module
+
+        if default is default_err:
+            default = self.SchemaError
+            default_raise = True
+        else:
+            if default is not None and \
+                    (isinstance(default, Exception) or \
+                     (isinstance(default, builtins.type) and issubclass(default, Exception))):
+                default_raise = True
+            else:
+                default_raise = False
+
+        errmsg = 'reference to a non-existent schema prototype: {}'.format(name)
+
+        proto_module = None
+
+        try:
+            proto_module = self.modules[module]
+        except KeyError as e:
+            module_err = e
+
+            if include_pyobjects:
+                try:
+                    proto_module = self.foreign_modules[module]
+                except KeyError as e:
+                    module_err = e
+
+
+            if proto_module is None:
+                if default_raise:
+                    raise default(errmsg) from module_err
+                else:
+                    return default
+
+        if isinstance(proto_module, ProtoModule):
+            if default_raise:
+                try:
+                    result = proto_module.get(nqname, default=default, type=type,
+                                              index_only=index_only,
+                                              nsname=nsname)
+                except default:
+                    if not implicit_builtins:
+                        raise
+                    else:
+                        proto_module = self.modules[self.get_builtins_module()]
+                        result = proto_module.get(nqname, default=None, type=type,
+                                                  index_only=index_only,
+                                                  nsname=nsname)
+                        if result is None:
+                            raise
+            else:
+                result = proto_module.get(nqname, default=default, type=type,
+                                          include_pyobjects=include_pyobjects, index_only=index_only,
+                                          nsname=nsname)
+        else:
+            try:
+                result = getattr(proto_module, nqname)
+            except AttributeError as e:
+                if default_raise:
+                    raise default(errmsg) from e
+                else:
+                    result = default
+
+        return result
+
+    def iter_modules(self):
+        return iter(self.modules)
+
+    def has_module(self, module):
+        return module in self.modules
+
+
+def populate_proto_modules(schema, module):
+    if not schema.has_module(module.__name__):
+        try:
+            proto_module = module.__sx_prototypes__
+        except AttributeError:
+            schema.add_module(module)
+        else:
+            schema.add_module(proto_module)
+
+    try:
+        subimports = module.__sx_imports__
+    except AttributeError:
         pass
+    else:
+        for subimport in subimports:
+            submodule = sys.modules[subimport]
+            populate_proto_modules(schema, submodule)

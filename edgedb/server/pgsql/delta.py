@@ -245,11 +245,8 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeC
             if rec.name:
                 rec.name = str(rec.name)
 
-            if rec.title:
+            if getattr(rec, 'title', None):
                 rec.title = rec.title.as_dict()
-
-            if rec.description:
-                rec.description = rec.description
 
         return rec, updates
 
@@ -260,32 +257,13 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeC
             result = None
         return result
 
-    def create_module(self, module_name):
-        schema_name = common.caos_module_name_to_schema_name(module_name)
-        condition = SchemaExists(name=schema_name)
-
-        cmd = CommandGroup(neg_conditions={condition})
-        cmd.add_command(CreateSchema(name=schema_name))
-
-        modtab = ModuleTable()
-        rec = modtab.record()
-        rec.name = module_name
-        rec.schema_name = schema_name
-        cmd.add_command(Insert(modtab, [rec]))
-
-        self.pgops.add(cmd)
-
     def create_object(self, prototype):
         rec, updates = self.fill_record()
         self.pgops.add(Insert(table=self.table, records=[rec]))
-
-        self.create_module(prototype.name.module)
-
         return updates
 
     def rename(self, old_name, new_name):
-        if old_name.module != new_name.module:
-            self.create_module(self.new_name.module)
+        pass
 
 
 class AlterPrototypeProperty(MetaCommand, adapts=delta_cmds.AlterPrototypeProperty):
@@ -1289,7 +1267,6 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
         new_table_name = common.concept_name_to_table_name(self.prototype_name, catenate=False)
         self.table_name = new_table_name
         concept_table = Table(name=new_table_name)
-        self.create_module(self.prototype_name.module)
         self.pgops.add(CreateTable(table=concept_table))
 
         alter_table = self.get_alter_table(context)
@@ -1309,7 +1286,7 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
             alter_table.add_operation(AlterTableAddConstraint(constraint))
 
         bases = (common.concept_name_to_table_name(p, catenate=False)
-                 for p in fields['base'][1] if proto.Concept.is_prototype(p))
+                 for p in fields['base'][1] if proto.Concept.is_prototype(meta, p))
         concept_table.bases = list(bases)
 
         self.apply_inherited_deltas(concept, meta, context)
@@ -1620,7 +1597,6 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
 
     def create_table(self, link, meta, context, conditional=False):
         self.table_name = new_table_name = common.link_name_to_table_name(link.name, catenate=False)
-        self.create_module(link.name.module)
 
         constraints = []
         columns = []
@@ -1641,7 +1617,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
 
         if link.base:
             bases = (common.link_name_to_table_name(p, catenate=False)
-                     for p in link.base if proto.Concept.is_prototype(p))
+                     for p in link.base if proto.Concept.is_prototype(meta, p))
             table.bases = list(bases)
 
         ct = CreateTable(table=table)
@@ -2475,6 +2451,65 @@ class CommandContext(delta_cmds.CommandContext):
         return link_map
 
 
+class CreateModule(CompositePrototypeMetaCommand, adapts=delta_cmds.CreateModule):
+    def apply(self, schema, context):
+        CompositePrototypeMetaCommand.apply(self, schema, context)
+        module = delta_cmds.CreateModule.apply(self, schema, context)
+
+        module_name = module.name
+        schema_name = common.caos_module_name_to_schema_name(module_name)
+        condition = SchemaExists(name=schema_name)
+
+        cmd = CommandGroup(neg_conditions={condition})
+        cmd.add_command(CreateSchema(name=schema_name))
+
+        modtab = ModuleTable()
+        rec = modtab.record()
+        rec.name = module_name
+        rec.schema_name = schema_name
+        rec.imports = module.imports
+        cmd.add_command(Insert(modtab, [rec]))
+
+        self.pgops.add(cmd)
+
+        return module
+
+
+class AlterModule(CompositePrototypeMetaCommand, adapts=delta_cmds.AlterModule):
+    def apply(self, schema, context):
+        self.table = ModuleTable()
+        module = delta_cmds.AlterModule.apply(self, schema, context=context)
+        CompositePrototypeMetaCommand.apply(self, schema, context)
+
+        updaterec, updates = self.fill_record()
+
+        if updaterec:
+            condition = [('name', str(module.name))]
+            self.pgops.add(Update(table=self.table, record=updaterec, condition=condition))
+
+        self.attach_alter_table(context)
+
+        return module
+
+
+class DeleteModule(CompositePrototypeMetaCommand, adapts=delta_cmds.DeleteModule):
+    def apply(self, schema, context):
+        CompositePrototypeMetaCommand.apply(self, schema, context)
+        module = delta_cmds.DeleteModule.apply(self, schema, context)
+
+        module_name = module.name
+        schema_name = common.caos_module_name_to_schema_name(module_name)
+        condition = SchemaExists(name=schema_name)
+
+        cmd = CommandGroup()
+        cmd.add_command(DropSchema(name=schema_name, neg_conditions={condition}))
+        cmd.add(Delete(table=ModuleTable(), condition=[('name', str(module.name))]))
+
+        self.pgops.add(cmd)
+
+        return module
+
+
 class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -3267,7 +3302,8 @@ class ModuleTable(Table):
 
         self.__columns = datastructures.OrderedSet([
             Column(name='name', type='text', required=True),
-            Column(name='schema_name', type='text', required=True)
+            Column(name='schema_name', type='text', required=True),
+            Column(name='imports', type='varchar[]', required=False)
         ])
 
         self.constraints = set([
@@ -3575,6 +3611,18 @@ class CreateSchema(DDLOperation):
 
     def code(self, context):
         return 'CREATE SCHEMA %s' % common.quote_ident(self.name)
+
+    def __repr__(self):
+        return '<caos.sync.%s %s>' % (self.__class__.__name__, self.name)
+
+
+class DropSchema(DDLOperation):
+    def __init__(self, name, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+        self.name = name
+
+    def code(self, context):
+        return 'DROP SCHEMA %s' % common.quote_ident(self.name)
 
     def __repr__(self):
         return '<caos.sync.%s %s>' % (self.__class__.__name__, self.name)

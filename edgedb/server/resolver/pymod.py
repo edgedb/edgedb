@@ -7,7 +7,6 @@
 
 
 from semantix.utils.lang.import_ import utils as imp_utils
-from semantix.utils.lang.protoschema.loader import ProtoSchemaModuleLoader
 
 from . import shell
 from . import error
@@ -15,7 +14,7 @@ from . import error
 
 class PyModResolver(shell.BackendResolverHelper):
     def resolve(self, url):
-        mod = imp_utils.import_module(url.path, loader=ProtoSchemaModuleLoader)
+        mod = imp_utils.import_module(url.path)
 
         handler = shell.BackendResolverHelperMeta.get('languages', mod.__language__)
         deltarepo = self.get_delta_repo(url)

@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -9,6 +9,7 @@
 import os
 import re
 import collections
+import importlib
 import itertools
 import struct
 import uuid
@@ -22,6 +23,7 @@ from semantix.utils import ast, helper
 from semantix.utils.algos import topological, persistent_hash
 from semantix.utils.debug import debug
 from semantix.utils.lang import yaml
+from semantix.utils.lang import protoschema as lang_protoschema
 from semantix.utils.nlang import morphology
 from semantix.utils import datastructures, markup
 
@@ -444,6 +446,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         self.features = None
         self.backend_info = None
+        self.modules = None
 
         self.connection_pool = pool.ConnectionPool(connector, backend=self)
         self.async_connection_pool = pool.ConnectionPool(async_connector, backend=self)
@@ -451,8 +454,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.connection = connector(pool=self.connection_pool)
         self.connection.connect()
 
-        self.modules = self.read_modules()
-        self.features = self.read_features()
         self.link_cache = {}
         self.concept_cache = {}
         self.table_cache = {}
@@ -473,7 +474,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.atom_constr_exprs = {}
         self.constant_expr = None
 
-        self.meta = proto.ProtoSchema(load_builtins=False)
+        self.meta = proto.ProtoSchema()
 
         repo = deltarepo(self.connection)
         self._init_introspection_cache()
@@ -498,7 +499,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def _init_introspection_cache(self):
-        if 'caos' in self.modules:
+        if self.backend_info['initialized']:
             self.column_cache = self._init_column_cache()
             self.table_id_to_proto_name_cache, self.proto_name_to_table_id_cache = self._init_relid_cache()
             self.domain_to_atom_map = self._init_atom_map_cache()
@@ -616,10 +617,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def getmeta(self):
-        if not self.meta.index:
-            if 'caos' in self.modules:
+        if not self.meta.modules:
+            if self.backend_info['initialized']:
                 self._init_introspection_cache()
 
+                self.read_modules(self.meta)
                 self.read_atoms(self.meta)
                 self.read_concepts(self.meta)
                 self.read_links(self.meta)
@@ -675,7 +677,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     '{:032x}'.format(d.id)
                 """
 
-                session._replace_schema(proto_schema)
+                session.replace_schema(proto_schema)
 
                 # Run preprocess pass
                 delta.do_preprocess(session)
@@ -684,7 +686,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 plan = self.process_delta(delta, proto_schema)
 
                 # Reinitialize the session with the mutated schema
-                session._replace_schema(proto_schema)
+                session.replace_schema(proto_schema)
 
                 context = delta_cmds.CommandContext(session.connection)
 
@@ -749,8 +751,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def invalidate_meta_cache(self):
-        self.meta = proto.ProtoSchema(load_builtins=False)
-        self.modules = self.read_modules()
+        self.meta = proto.ProtoSchema()
+        self.backend_info = self.read_backend_info()
         self.features = self.read_features()
         self._table_atom_constraints_cache = None
         self._table_ptr_constraints_cache = None
@@ -1505,7 +1507,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return CaosQLAdapter(session)
 
 
-    def read_modules(self):
+    def read_modules(self, meta):
         schemas = introspection.schemas.SchemasList(self.connection).fetch(schema_name='caos%')
         schemas = {s['name'] for s in schemas}
 
@@ -1515,7 +1517,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         if 'caos' in schemas and module_index_exists:
             modules = datasources.meta.modules.ModuleList(self.connection).fetch()
-            modules = {m['schema_name']: m['name'] for m in modules}
+            modules = {m['schema_name']: {'name': m['name'], 'imports': m['imports']}
+                       for m in modules}
 
             recorded_schemas = set(modules.keys())
 
@@ -1535,9 +1538,23 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                             % (', '.join('"%s"' % s for s in extra_schemas))
                 raise caos.MetaError(msg, details=details)
 
-            return set(modules.values()) | {'caos'}
+            mods = []
 
-        return {}
+            for module in modules.values():
+                mod = caos.proto.ProtoModule(name=module['name'],
+                                             imports=tuple(module['imports'] or ()))
+                self.meta.add_module(mod)
+                mods.append(mod)
+
+            for mod in mods:
+                for imp in mod.imports:
+                    if not self.meta.has_module(imp):
+                        # Must be a foreign module, import it directly
+                        impmod = importlib.import_module(imp)
+                        # Again, it must not be a schema module
+                        assert not isinstance(impmod, lang_protoschema.SchemaModule)
+
+                        self.meta.add_module(impmod)
 
 
     def read_features(self):
@@ -1550,11 +1567,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def read_backend_info(self):
         try:
-            return datasources.meta.backend_info.BackendInfo(self.connection).fetch()[0]
+            info = datasources.meta.backend_info.BackendInfo(self.connection).fetch()[0]
+            info['initialized'] = True
+            return info
         except postgresql.exceptions.SchemaNameError:
-            return {'format_version': delta_cmds.BACKEND_FORMAT_VERSION}
+            return {'format_version': delta_cmds.BACKEND_FORMAT_VERSION, 'initialized': False}
         except postgresql.exceptions.UndefinedTableError:
-            return {'format_version': 0}
+            return {'format_version': 0, 'initialized': True}
 
 
     def read_atoms(self, meta):
@@ -2067,7 +2086,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             meta.add(link)
 
-        for link in meta(type='link', include_automatic=True, include_builtin=True):
+        for link in meta(type='link', include_automatic=True):
             link.acquire_parent_data(meta)
 
 
@@ -2079,14 +2098,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         g = {}
 
-        for link in meta(type='link', include_automatic=True, include_builtin=True):
+        for link in meta(type='link', include_automatic=True):
             g[link.name] = {"item": link, "merge": [], "deps": []}
             if link.base:
                 g[link.name]['merge'].extend(link.base)
 
         topological.normalize(g, merger=proto.Link.merge)
 
-        for link in meta(type='link', include_automatic=True, include_builtin=True):
+        for link in meta(type='link', include_automatic=True):
             link.materialize(meta)
 
             if link.generic():
@@ -2177,14 +2196,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def order_link_properties(self, meta):
         g = {}
 
-        for prop in meta(type='link_property', include_automatic=True, include_builtin=True):
+        for prop in meta(type='link_property', include_automatic=True):
             g[prop.name] = {"item": prop, "merge": [], "deps": []}
             if prop.base:
                 g[prop.name]['merge'].extend(prop.base)
 
         topological.normalize(g, merger=proto.LinkProperty.merge)
 
-        for prop in meta(type='link_property', include_automatic=True, include_builtin=True):
+        for prop in meta(type='link_property', include_automatic=True):
             if not prop.generic() and prop.source.generic():
                 source_table_name = common.get_table_name(prop.source, catenate=False)
                 cols = self.get_table_columns(source_table_name)
@@ -2469,14 +2488,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         reverse_caosql_transformer = caosql_transformer.CaosqlReverseTransformer()
 
         g = {}
-        for concept in meta(type='concept', include_automatic=True, include_builtin=True):
+        for concept in meta(type='concept', include_automatic=True):
             g[concept.name] = {"item": concept, "merge": [], "deps": []}
             if concept.base:
                 g[concept.name]["merge"].extend(concept.base)
 
         topological.normalize(g, merger=proto.Concept.merge)
 
-        for concept in meta(type='concept', include_automatic=True, include_builtin=True):
+        for concept in meta(type='concept', include_automatic=True):
             concept.materialize(meta)
 
             table_name = common.get_table_name(concept, catenate=False)

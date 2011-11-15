@@ -15,6 +15,13 @@ from semantix.exceptions import SemantixError
 from semantix.utils.datastructures import xvalue
 
 
+def get_safe_attrname(name, reserved):
+    name = str(name)
+    while name in reserved:
+        name += '_'
+    return name
+
+
 def dump(stuff):
     if (not (isinstance(stuff, str) or isinstance(stuff, int)
              or isinstance(stuff, list) or isinstance(stuff, dict)

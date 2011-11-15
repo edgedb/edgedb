@@ -17,3 +17,7 @@ class SchemaError(SemantixError):
 
 class SchemaNameError(SchemaError):
     pass
+
+
+class NoPrototypeError(SchemaError):
+    pass
