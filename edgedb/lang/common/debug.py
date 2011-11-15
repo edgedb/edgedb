@@ -10,9 +10,13 @@ import inspect
 import re
 import ast
 import contextlib
+import cProfile
 
 from semantix.utils.functional import decorate
 from semantix.exceptions import MultiError
+
+
+"""A collection of useful debugging routines"""
 
 
 enabled = __debug__
@@ -169,6 +173,45 @@ class ErrorExpected(Exception): pass
 
 
 @contextlib.contextmanager
+def profiler(filename=None, sort='time'):
+    """Profile context manager.
+
+    Provides an easier setup than the standard ``cProfile.run('command()')``.
+
+    :param str filename: Optional argument to specify where to dump profiler output.
+                         ``None`` by default, which means that the profiler stats
+                         will be dumped in stdout.
+
+    :param str sort: If ``filename`` argument is ``None``, and the results are going
+                     to be printed to stdout, this argument specifies the sorting of
+                     the call table.  The possible valid values are specified
+                     in the stdlib's ``pstats`` module.
+
+    Usage:
+
+    .. code-block:: python
+
+        from semantix.utils.debug import profiler
+
+        with profiler():
+            your_code()
+    """
+
+    prof = cProfile.Profile()
+
+    prof.enable()
+    try:
+        yield
+    finally:
+        prof.disable()
+
+        if filename is None:
+            prof.print_stats(sort)
+        else:
+            prof.dump_stats(filename)
+
+
+@contextlib.contextmanager
 def assert_raises(exception_cls, *, cause=None, error_re=None, attrs=None):
     try:
         yield
@@ -230,7 +273,9 @@ def timeit(target):
 
     Usage:
 
-    from semantix.util.debug import timeit
+    .. code-block:: python
+
+        from semantix.util.debug import timeit
 
     1) in a "with" statement:
         >>> with timeit('long list'):
