@@ -12,6 +12,7 @@ import pickle
 import os
 import struct
 import sys
+import logging
 
 
 from semantix.utils.lang.loader import LanguageSourceFileLoader
@@ -20,6 +21,7 @@ from semantix.utils.lang.import_ import utils as imp_utils
 
 class ProtoSchemaModuleLoader(LanguageSourceFileLoader):
     _schema_cache_struct = struct.Struct('!I')
+    logger = logging.getLogger('semantix.lang.import.loader')
 
     def execute_module_code(self, module, code):
         cache_path = None
@@ -49,7 +51,11 @@ class ProtoSchemaModuleLoader(LanguageSourceFileLoader):
                     except (IOError, ImportError):
                         pass
                     else:
-                        cached_data = pickle.loads(cache_bytes[cm_offset+cm_size:])
+                        try:
+                            cached_data = pickle.loads(cache_bytes[cm_offset+cm_size:])
+                        except Exception:
+                            self.logger.warning('exception caught while unpacking schema cache',
+                                                exc_info=True)
 
         if cached_data is not None:
             self.set_module_attributes(module, cached_data.items())
