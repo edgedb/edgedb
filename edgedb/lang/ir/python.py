@@ -53,18 +53,24 @@ _operator_map = {
 
 
 class PythonQuery(backend_query.Query):
-    def __init__(self, text, result_types, argument_types, context=None):
+    def __init__(self, text, result_types, argument_types):
         self.text = text
-        self.statement = compile(text, '<string>', 'eval')
-        self.context = context
         self.result_types = result_types
         self.argument_types = argument_types
-        self.record = datastructures.Record('pyquery_result', tuple(self.result_types), None)
-        self.query = self
+
+    def prepare(self, session):
+        return PreparedPythonQuery(self, session)
+
+
+class PreparedPythonQuery:
+    def __init__(self, query, session):
+        self.query = query
 
         import semantix
         from semantix import caos
         self.globals = {'caos': caos, 'semantix': semantix}
+
+        self.statement = compile(query.text, '<string>', 'eval')
 
     def first(self, **kwargs):
         return eval(self.statement, self.globals, kwargs)[0][1]
@@ -72,11 +78,14 @@ class PythonQuery(backend_query.Query):
     def rows(self, **kwargs):
         return [QuerySelectorRow(eval(self.statement, self.globals, kwargs))]
 
+    def describe_output(self, session):
+        return self.query.describe_output(session)
+
+    def describe_arguments(self, session):
+        return self.query.describe_arguments(session)
+
     def convert_arguments(self, **kwargs):
         return dict(kwargs)
-
-    def prepare(self, session):
-        return self
 
     __iter__ = rows
     __call__ = rows
