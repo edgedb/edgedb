@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2011 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -424,7 +424,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         return expr
 
 
-    def _process_expr(self, context, expr, *, selector_top_level=False):
+    def _process_expr(self, context, expr):
         node = None
 
         if isinstance(expr, qlast.SelectQueryNode):
@@ -459,10 +459,9 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                'used in an aggregate function ') % p.id
                         raise errors.CaosQLError(err)
 
-            if (context.current.location != 'generator' and not context.current.in_func_call) \
-                                                                    or context.current.in_aggregate:
-                node = self.entityref_to_idref(node, self.proto_schema,
-                                               full_record=selector_top_level)
+            if (context.current.location not in {'generator', 'selector'} \
+                            and not context.current.in_func_call) or context.current.in_aggregate:
+                node = self.entityref_to_idref(node, self.proto_schema)
 
         elif isinstance(expr, qlast.ConstantNode):
             if expr.index is not None:
@@ -496,6 +495,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 name = expr.name
             node = self.proto_schema.get(name=name, module_aliases=context.current.namespaces,
                                          type=caos_types.ProtoNode)
+
+            node = tree.ast.Constant(value=node, type=(list, node.__class__))
 
         elif isinstance(expr, qlast.UnaryOpNode):
             node = self.process_unaryop(self._process_expr(context, expr.operand), expr.op)
@@ -807,12 +808,18 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         with context():
             context.current.location = 'selector'
             for target in targets:
-                expr = self._process_expr(context, target.expr, selector_top_level=True)
+                expr = self._process_expr(context, target.expr)
                 expr = self.merge_paths(expr)
                 if target.alias:
                     params = {'name': target.alias}
                 else:
                     params = {'autoname': context.current.genalias()}
+
+                if isinstance(expr, tree.ast.Disjunction):
+                    path = next(iter(expr.paths))
+                    if isinstance(path, tree.ast.EntitySet):
+                        expr = self.entityref_to_idref(expr, self.proto_schema, full_record=True)
+
                 t = tree.ast.SelectorExpr(expr=expr, **params)
                 selector.append(t)
 

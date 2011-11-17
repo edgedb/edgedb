@@ -137,6 +137,8 @@ class PreparedQuery:
         self.query = query
         self.argmap = query.argmap
 
+        self._concept_map = session.backend.get_concept_map(session)
+
         if args:
             text = self._embed_args(self.query, args)
             self.argmap = {}
@@ -161,11 +163,15 @@ class PreparedQuery:
 
     def _embed_args(self, query, args):
         qargs = self.convert_arguments(**args)
+        quote = postgresql.string.quote_literal
 
         chunks = query.chunks[:]
 
         for i, arg in qargs.items():
-            arg = postgresql.string.quote_literal(str(arg))
+            if isinstance(arg, (tuple, list)):
+                arg = 'ARRAY[' + ', '.join(quote(str(a)) for a in arg) + ']'
+            else:
+                arg = quote(str(arg))
             for ai in query.arg_index[i]:
                 chunks[ai] = arg
 
@@ -199,8 +205,13 @@ class PreparedQuery:
         result = []
         for k in self.argmap:
             arg = kwargs[k]
-            if isinstance(arg, caos.concept.Concept):
+            if isinstance(arg, caos.types.ConceptObject):
                 arg = arg.id
+            elif isinstance(arg, caos.types.ConceptClass):
+                proto = caos.types.prototype(arg)
+                children = proto.children(recursive=True)
+                arg = [self._concept_map[proto.name]]
+                arg.extend(self._concept_map[c.name] for c in children)
             result.append(arg)
 
         return result
@@ -261,7 +272,11 @@ class CaosQLAdapter:
         for k, v in query.argument_types.items():
             if v is not None: # XXX get_expr_type
                 if isinstance(v, tuple):
-                    argtypes[k] = (v[0], v[1].name)
+                    name = 'type' if isinstance(v[1], caos.types.PrototypeClass) else v[1].name
+                    argtypes[k] = (v[0], name)
+                else:
+                    name = 'type' if isinstance(v, caos.types.PrototypeClass) else v.name
+                    argtypes[k] = name
             else:
                 argtypes[k] = v
 
@@ -483,6 +498,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             self.column_cache = self._init_column_cache()
             self.table_id_to_proto_name_cache, self.proto_name_to_table_id_cache = self._init_relid_cache()
             self.domain_to_atom_map = self._init_atom_map_cache()
+            # Concept map needed early for type filtering operations in schema queries
+            self.get_concept_map()
 
 
     def _init_column_cache(self):
@@ -1248,15 +1265,36 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return self.link_cache
 
 
-    def get_concept_map(self, session):
+    def get_concept_map(self, session=None):
+        connection = session.connection if session is not None else self.connection
+
         if not self.concept_cache:
-            cl_ds = datasources.meta.concepts.ConceptList(session.connection)
+            cl_ds = datasources.meta.concepts.ConceptList(connection)
 
             for row in cl_ds.fetch():
                 self.concept_cache[row['name']] = row['id']
                 self.concept_cache[row['id']] = caos.Name(row['name'])
 
         return self.concept_cache
+
+
+    def get_concept_id(self, concept, session, cache='auto'):
+        concept_id = None
+
+        if cache != 'always':
+            concept_cache = self.get_concept_map(session)
+        else:
+            concept_cache = self.concept_cache
+
+        if concept_cache:
+            concept_id = concept_cache.get(concept.name)
+
+        if concept_id is None:
+            msg = 'could not determine backend id for concept in this context'
+            details = 'Concept: {}'.format(concept.name)
+            raise caos.MetaError(msg, details=details)
+
+        return concept_id
 
 
     def get_attribute_link_map(self, concept, attribute_map, include_lazy=False):

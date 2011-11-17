@@ -158,7 +158,15 @@ class AtomicRefExpr(AtomicRef, BaseRefExpr):
         self.ref.backrefs.add(self)
 
 
-class MetaRef(AtomicRefSimple):
+class MetaRefBase(AtomicRef):
+    pass
+
+
+class MetaRef(AtomicRefSimple, MetaRefBase):
+    __fields = ['name']
+
+
+class MetaRefExpr(MetaRefBase, AtomicRefExpr):
     __fields = ['name']
 
 
@@ -279,7 +287,7 @@ class Constant(Base):
             else:
                 item_type = type
 
-            if not isinstance(item_type, caos_types.ProtoObject):
+            if not isinstance(item_type, (caos_types.ProtoObject, caos_types.PrototypeClass)):
                 raise ASTError(('unexpected constant type representation, '
                                 'expected ProtoObject, got "%r"') % (type,))
 

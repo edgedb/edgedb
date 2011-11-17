@@ -1,11 +1,12 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2011 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
 
+import importlib
 import itertools
 import hashlib
 import base64
@@ -13,6 +14,7 @@ import base64
 import postgresql
 
 from semantix.caos import proto
+from semantix.caos import types as caos_types
 
 from . import driver
 from .driver import io as custom_type_io
@@ -101,8 +103,14 @@ def py_type_to_pg_type(typ):
 
         _type_index = {}
 
-        for mod in itertools.chain(postgresql.types.io.io_modules, custom_type_io.io_modules):
-            mod = postgresql.types.io.load(mod)
+        postgres_io_mods = {'postgresql.types.io.{}'.format(m) for m in
+                            postgresql.types.io.io_modules}
+
+        caos_io_mods = {'semantix.caos.backends.pgsql.driver.io.{}'.format(m) for m in
+                        custom_type_io.io_modules}
+
+        for mod in itertools.chain(postgres_io_mods, caos_io_mods):
+            mod = importlib.import_module(mod)
 
             oid_to_type = getattr(mod, 'oid_to_type', None)
             if oid_to_type:
@@ -115,7 +123,15 @@ def py_type_to_pg_type(typ):
     if isinstance(typ, tuple):
         supertyp, typ = typ
         assert issubclass(supertyp, list)
-        basetyp = _type_index[typ]
+
+        if isinstance(typ, caos_types.PrototypeClass):
+            basetyp = 'int'
+        else:
+            basetyp = _type_index[typ]
+
         return '%s[]' % basetyp
     else:
-        return _type_index[typ]
+        if isinstance(typ, caos_types.PrototypeClass):
+            return 'int'
+        else:
+            return _type_index[typ]

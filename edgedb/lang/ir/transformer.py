@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2011 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -1518,7 +1518,11 @@ class TreeTransformer:
 
     def is_type_check(self, left, right, op, reversed):
         return not reversed and op in (ast.ops.IS, ast.ops.IS_NOT) and \
-                isinstance(left, caos_ast.Path) and isinstance(right, caos_types.ProtoConcept)
+                isinstance(left, caos_ast.Path) and \
+                isinstance(right, caos_ast.Constant) and \
+                (isinstance(right.type, caos_types.PrototypeClass)
+                 or isinstance(right.type, tuple) and
+                    isinstance(right.type[1], caos_types.PrototypeClass))
 
     def is_const_idfilter(self, left, right, op, reversed):
         return isinstance(left, caos_ast.Path) and isinstance(right, caos_ast.Constant) and \
@@ -1602,31 +1606,17 @@ class TreeTransformer:
 
                 elif self.is_type_check(left, right, op, reversed):
                     # Type check expression: <path> IS [NOT] <concept>
-
                     paths = set()
-                    backrefs = set()
 
-                    # XXX: this should be turned into a proper filter
-                    # and moved to postprocessing stage after all merging
-                    # was complete.
-                    #
+                    if isinstance(right.type, tuple) and issubclass(right.type[0], (tuple, list)):
+                        filter_op = ast.ops.IN if op == ast.ops.IS else ast.ops.NOT_IN
+                    else:
+                        filter_op = ast.ops.EQ if op == ast.ops.IS else ast.ops.NE
+
                     for path in left_exprs.paths:
-                        if op == ast.ops.IS:
-                            if path.concept.issubclass(self.context.current.proto_schema, right):
-                                paths.add(path)
-                        elif op == ast.ops.IS_NOT:
-                            if path.concept != right:
-                                filtered = path.concept.filter_children(lambda i: i != right)
-                                if filtered[path.concept]:
-                                    path.conceptfilter = filtered
-                                paths.add(path)
-
-                        for backref in path.backrefs:
-                            if isinstance(backref, caos_ast.PathCombination):
-                                backrefs.add(backref)
-
-                    for backref in backrefs:
-                        backref.paths = frozenset(paths)
+                        ref = caos_ast.MetaRef(ref=path, name='id')
+                        expr = caos_ast.BinOp(left=ref, right=right, op=filter_op)
+                        paths.add(caos_ast.MetaRefExpr(expr=expr))
 
                     result = self.path_from_set(paths)
 
@@ -1933,6 +1923,9 @@ class TreeTransformer:
             operand_type = self.get_expr_type(expr.expr, schema)
             result = caos_types.TypeRules.get_result(expr.op, (operand_type,), schema)
 
+        elif isinstance(expr, caos_ast.EntitySet):
+            result = expr.concept
+
         elif isinstance(expr, caos_ast.Disjunction):
             if expr.paths:
                 result = self.get_expr_type(next(iter(expr.paths)), schema)
@@ -1953,8 +1946,9 @@ class TreeTransformer:
             result = None
 
         if result is not None:
-            assert isinstance(result, caos_types.ProtoObject) or \
-                   (isinstance(result, (tuple, list)) and isinstance(result[1], caos_types.ProtoObject)), \
+            allowed = (caos_types.ProtoObject, caos_types.PrototypeClass)
+            assert isinstance(result, allowed) or \
+                   (isinstance(result, (tuple, list)) and isinstance(result[1], allowed)), \
                    "get_expr_type({!r}) retured {!r} instead of a prototype".format(expr, result)
 
         return result

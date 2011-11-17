@@ -583,6 +583,8 @@ class CaosTreeTransformer(CaosExprTransformer):
         #
         data_table = cte_refs.get('data')
         if data_table:
+            if meta and link_name == 'id':
+                link_name = 'concept_id'
             field_name = common.caos_name_to_pg_name(link_name)
             ref = pgsql.ast.FieldRefNode(table=data_table, field=field_name,
                                          origin=data_table, origin_field=field_name)
@@ -632,6 +634,9 @@ class CaosTreeTransformer(CaosExprTransformer):
         if expr.expr:
             result = pgsql.ast.ConstantNode(expr=self._process_expr(context, expr.expr))
         else:
+            value = expr.value
+            const_expr = None
+
             if expr.index is not None and not isinstance(expr.index, int):
                 if expr.index in context.current.argmap:
                     index = context.current.argmap.index(expr.index)
@@ -640,7 +645,26 @@ class CaosTreeTransformer(CaosExprTransformer):
                     index = len(context.current.argmap) - 1
             else:
                 index = expr.index
-            result = pgsql.ast.ConstantNode(value=expr.value, index=index, type=const_type)
+                data_backend = context.current.session.backend
+
+                if isinstance(value, caos_types.ProtoConcept):
+                    children = value.children(recursive=True)
+
+                    concept_ids = [data_backend.get_concept_id(value, context.current.session,
+                                                               cache='always')]
+
+                    for c in children:
+                        concept_id = data_backend.get_concept_id(c, context.current.session,
+                                                                 cache='always')
+                        concept_ids.append(concept_id)
+
+                    const_type = common.py_type_to_pg_type(value.__class__)
+                    elements = [pgsql.ast.ConstantNode(value=cid) for cid in concept_ids]
+                    const_expr = pgsql.ast.SequenceNode(elements=elements)
+                    value = None
+
+            result = pgsql.ast.ConstantNode(value=value, expr=const_expr, index=index,
+                                            type=const_type)
 
             if expr.substitute_for:
                 result.origin_field = common.caos_name_to_pg_name(expr.substitute_for)
@@ -1056,16 +1080,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         cols = data_backend.get_table_columns(table_name, cache='always')
 
         elts = {e.origin_field: e for e in elements}
-
-        result = []
-
-        for i, col in enumerate(cols.keys()):
-            if col == 'concept_id':
-                col = 'id'
-
-            result.append(elts[col])
-
-        return result
+        return [elts[col] for col in cols]
 
     def _process_function(self, context, expr, cte):
         if expr.name == ('search', 'rank'):
@@ -1458,7 +1473,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         # Include target entity id and concept class id in the Select expression list.
         if caos_path_tip:
-            atomrefs = {'semantix.caos.builtins.id', 'concept_id'} | \
+            atomrefs = {'semantix.caos.builtins.id'} | \
                        {f.name for f in caos_path_tip.atomrefs}
 
             context.current.concept_node_map.setdefault(caos_path_tip, {})
@@ -1484,37 +1499,47 @@ class CaosTreeTransformer(CaosExprTransformer):
                 selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
                 context.current.concept_node_map[caos_path_tip][field] = selectnode
 
-        if caos_path_tip and caos_path_tip.metarefs:
-            datatable = pgsql.ast.TableNode(name='metaobject',
-                                            schema='caos',
-                                            concepts=None,
-                                            alias=context.current.genalias(hint='metaobject'))
+        if caos_path_tip:
+            metarefs = {'id'} | {f.name for f in caos_path_tip.metarefs}
 
-            left = pgsql.ast.FieldRefNode(table=concept_table, field='concept_id')
-            right = pgsql.ast.FieldRefNode(table=datatable, field='id')
-            joincond = pgsql.ast.BinOpNode(op='=', left=left, right=right)
+            if len(metarefs) > 1:
+                datatable = pgsql.ast.TableNode(name='metaobject',
+                                                schema='caos',
+                                                concepts=None,
+                                                alias=context.current.genalias(hint='metaobject'))
 
-            fromnode.expr = self._simple_join(context, fromnode.expr, datatable, key=None,
-                                              type='left' if weak else 'inner',
-                                              condition=joincond)
+                left = pgsql.ast.FieldRefNode(table=concept_table, field='concept_id')
+                right = pgsql.ast.FieldRefNode(table=datatable, field='id')
+                joincond = pgsql.ast.BinOpNode(op='=', left=left, right=right)
 
-            for metaref in caos_path_tip.metarefs:
-                fieldref = pgsql.ast.FieldRefNode(table=datatable, field=metaref.name,
-                                                  origin=datatable, origin_field=metaref.name)
+                fromnode.expr = self._simple_join(context, fromnode.expr, datatable, key=None,
+                                                  type='left' if weak else 'inner',
+                                                  condition=joincond)
 
-                alias = context.current.genalias(hint=metaref.name)
+            for metaref in metarefs:
+                if metaref == 'id':
+                    metaref_name = 'concept_id'
+                    srctable = concept_table
+                else:
+                    metaref_name = metaref
+                    srctable = datatable
+
+                fieldref = pgsql.ast.FieldRefNode(table=srctable, field=metaref_name,
+                                                  origin=srctable, origin_field=metaref_name)
+
+                alias = context.current.genalias(hint=metaref_name)
                 selectnode = pgsql.ast.SelectExprNode(expr=fieldref,
                                                       alias=step_cte.alias + ('_meta_' + alias))
                 step_cte.targets.append(selectnode)
-                step_cte.concept_node_map[caos_path_tip][('meta', metaref.name)] = selectnode
+                step_cte.concept_node_map[caos_path_tip][('meta', metaref)] = selectnode
 
                 ##
                 # Record meta references in the global map in case they have to be pulled up later
                 #
                 refexpr = pgsql.ast.FieldRefNode(table=step_cte, field=selectnode.alias,
-                                                 origin=datatable, origin_field=metaref.name)
+                                                 origin=srctable, origin_field=metaref_name)
                 selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
-                context.current.concept_node_map[caos_path_tip][('meta', metaref.name)] = selectnode
+                context.current.concept_node_map[caos_path_tip][('meta', metaref)] = selectnode
 
         if caos_path_tip and caos_path_tip.filter:
             ##
@@ -1909,7 +1934,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                         alias=context.current.genalias(hint='metaobject'))
                         query.fromlist.append(pgsql.ast.FromExprNode(expr=datatable))
 
-                        left = query.concept_node_map[sqlpath.caosnode]['concept_id']
+                        left = query.concept_node_map[sqlpath.caosnode][('meta', 'id')]
                         right = pgsql.ast.FieldRefNode(table=datatable, field='id')
                         whereexpr = pgsql.ast.BinOpNode(op='=', left=left.expr, right=right)
                         query.where = self.extend_predicate(query.where, whereexpr)

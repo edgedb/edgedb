@@ -8,6 +8,8 @@
 
 import collections
 
+from semantix.caos import types as caos_types
+
 
 class Query:
     def __init__(self, text, *, argument_types, result_types):
@@ -52,9 +54,17 @@ class Query:
                 continue
 
             if isinstance(expr_type, tuple):
-                expr_type = (expr_type[0], session.schema.get(expr_type[1]))
+                if expr_type[1] == 'type':
+                    expr_typ = caos_types.ProtoObject
+                else:
+                    expr_typ = session.schema.get(expr_type[1])
+
+                expr_type = (expr_type[0], expr_typ)
             else:
-                expr_type = session.schema.get(expr_type)
+                if expr_type[1] == 'type':
+                    expr_type = caos_types.ProtoObject
+                else:
+                    expr_type = session.schema.get(expr_type)
 
             result[field] = expr_type
 
