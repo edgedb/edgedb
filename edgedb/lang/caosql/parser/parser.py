@@ -75,8 +75,8 @@ class CaosQLParser(parsing.Parser):
 
                     path = qlast.PathNode(steps=[objnode, link])
 
-                    lcond = qlast.BinOpNode(left=path, op=ast.ops.IN,
-                                            right=qlast.PathNode(steps=[qlast.PathStepNode(expr='%')]))
+                    lcond = qlast.BinOpNode(left=path, op=ast.ops.IS_NOT,
+                                            right=qlast.ConstantNode(value=None))
 
                     cond = qlast.BinOpNode(left=cond,
                                            op=ast.ops.AND,

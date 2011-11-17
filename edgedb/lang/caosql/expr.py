@@ -82,19 +82,20 @@ class CaosQLExpression:
         return processed
 
     def get_node_references(self, tree):
+        result = []
+
         refs = self.transformer.extract_paths(tree, reverse=True, resolve_arefs=True,
                                                     recurse_subqueries=True)
 
-        flt = lambda n: isinstance(n, (caos_ast.EntitySet, caos_ast.EntityLink))
-        nodes = ast.find_children(refs, flt)
-
-        result = []
-        if nodes:
-            for node in nodes:
-                if isinstance(node, caos_ast.EntitySet):
-                    result.append(node.concept)
-                else:
-                    result.append(node.link_proto)
+        if refs is not None:
+            flt = lambda n: isinstance(n, (caos_ast.EntitySet, caos_ast.EntityLink))
+            nodes = ast.find_children(refs, flt)
+            if nodes:
+                for node in nodes:
+                    if isinstance(node, caos_ast.EntitySet):
+                        result.append(node.concept)
+                    else:
+                        result.append(node.link_proto)
 
         return set(result)
 

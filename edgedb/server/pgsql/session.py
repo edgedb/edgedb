@@ -89,6 +89,9 @@ class Session(session.Session):
     def _transaction(self, parent):
         return Transaction(session=self, parent=parent)
 
+    def _get_query_adapter(self):
+        return self.backend.caosqladapter(self)
+
     def _store_entity(self, entity):
         self.backend.store_entity(entity, self)
 

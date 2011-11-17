@@ -38,6 +38,9 @@ class Session(session.Session):
     def sequence_next(self, seqcls):
         raise NotImplementedError
 
+    def _get_query_adapter(self):
+        raise NotImplementedError
+
     def _store_entity(self, entity):
         raise NotImplementedError
 

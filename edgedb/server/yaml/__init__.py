@@ -28,7 +28,6 @@ from semantix.caos import proto
 from semantix.caos import backends
 from semantix.caos import delta as base_delta
 from semantix.caos import objects
-from semantix.caos import query as caos_query
 from semantix.caos.caosql import expr as caosql_expr
 from semantix.caos.caosql import errors as caosql_exc
 

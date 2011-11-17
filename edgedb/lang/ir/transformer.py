@@ -485,9 +485,12 @@ class TreeTransformer:
         else:
             assert False, "Unexpexted expression: %s" % expr
 
+    @classmethod
+    def _is_weak_op(self, op):
+        return op in (ast.ops.OR, ast.ops.IN, ast.ops.NOT_IN)
+
     def is_weak_op(self, op):
-        return op in (ast.ops.OR, ast.ops.IN, ast.ops.NOT_IN) or \
-               self.context.current.location != 'generator'
+        return self._is_weak_op(op) or self.context.current.location != 'generator'
 
     def merge_paths(self, expr):
         if isinstance(expr, caos_ast.AtomicRefExpr):
@@ -617,13 +620,14 @@ class TreeTransformer:
 
         return expr
 
-    def flatten_path_combination(self, expr, recursive=False):
+    @classmethod
+    def flatten_path_combination(cls, expr, recursive=False):
         paths = set()
         for path in expr.paths:
             if isinstance(path, expr.__class__) or \
                         (recursive and isinstance(path, caos_ast.PathCombination)):
                 if recursive:
-                    self.flatten_path_combination(path, recursive=True)
+                    cls.flatten_path_combination(path, recursive=True)
                     paths.update(path.paths)
                 else:
                     paths.update(path.paths)
@@ -1187,7 +1191,8 @@ class TreeTransformer:
     def fixup_refs(self, refs, newref):
         caos_ast.Base.fixup_refs(refs, newref)
 
-    def extract_paths(self, path, reverse=False, resolve_arefs=True, recurse_subqueries=False):
+    @classmethod
+    def extract_paths(cls, path, reverse=False, resolve_arefs=True, recurse_subqueries=False):
         if isinstance(path, caos_ast.GraphExpr):
             if not recurse_subqueries:
                 return None
@@ -1198,8 +1203,8 @@ class TreeTransformer:
                     recurse_subqueries = False
 
                 if path.generator:
-                    normalized = self.extract_paths(path.generator, reverse, resolve_arefs,
-                                                    recurse_subqueries)
+                    normalized = cls.extract_paths(path.generator, reverse, resolve_arefs,
+                                                   recurse_subqueries)
                     if normalized:
                         paths.add(normalized)
 
@@ -1207,25 +1212,27 @@ class TreeTransformer:
                     e = getattr(path, part)
                     if e:
                         for p in e:
-                            normalized = self.extract_paths(p, reverse, resolve_arefs,
-                                                            recurse_subqueries)
+                            normalized = cls.extract_paths(p, reverse, resolve_arefs,
+                                                           recurse_subqueries)
                             if normalized:
                                 paths.add(normalized)
 
                 if len(paths) == 1:
                     return next(iter(paths))
+                elif len(paths) == 0:
+                    return None
                 else:
                     result = caos_ast.Disjunction(paths=frozenset(paths))
-                    return self.flatten_path_combination(result)
+                    return cls.flatten_path_combination(result)
 
         elif isinstance(path, caos_ast.SubgraphRef):
-            return self.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries)
+            return cls.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries)
 
         elif isinstance(path, caos_ast.SelectorExpr):
-            return self.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
+            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
 
         elif isinstance(path, caos_ast.SortExpr):
-            return self.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
+            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
 
         elif isinstance(path, (caos_ast.EntitySet, caos_ast.InlineFilter, caos_ast.AtomicRef)):
             if isinstance(path, (caos_ast.InlineFilter, caos_ast.AtomicRef)) and \
@@ -1241,11 +1248,11 @@ class TreeTransformer:
             return result
 
         elif isinstance(path, caos_ast.InlinePropFilter):
-            return self.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries)
+            return cls.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries)
 
         elif isinstance(path, caos_ast.LinkPropRef):
             if resolve_arefs or reverse:
-                return self.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries)
+                return cls.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries)
             else:
                 return path
 
@@ -1263,61 +1270,69 @@ class TreeTransformer:
         elif isinstance(path, caos_ast.PathCombination):
             result = set()
             for p in path.paths:
-                normalized = self.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
+                normalized = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
                 if normalized:
                     result.add(normalized)
             if len(result) == 1:
                 return next(iter(result))
+            elif len(result) == 0:
+                return None
             else:
-                return self.flatten_path_combination(path.__class__(paths=frozenset(result)))
+                return cls.flatten_path_combination(path.__class__(paths=frozenset(result)))
 
         elif isinstance(path, caos_ast.BinOp):
-            combination = caos_ast.Disjunction if self.is_weak_op(path.op) else caos_ast.Conjunction
+            combination = caos_ast.Disjunction if cls._is_weak_op(path.op) else caos_ast.Conjunction
 
             paths = set()
             for p in (path.left, path.right):
-                normalized = self.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
+                normalized = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
                 if normalized:
                     paths.add(normalized)
 
             if len(paths) == 1:
                 return next(iter(paths))
+            elif len(paths) == 0:
+                return None
             else:
-                return self.flatten_path_combination(combination(paths=frozenset(paths)))
+                return cls.flatten_path_combination(combination(paths=frozenset(paths)))
 
         elif isinstance(path, caos_ast.UnaryOp):
-            return self.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
+            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
 
         elif isinstance(path, caos_ast.ExistPred):
-            return self.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
+            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
 
         elif isinstance(path, caos_ast.TypeCast):
-            return self.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
+            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
 
         elif isinstance(path, caos_ast.NoneTest):
-            return self.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
+            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
 
         elif isinstance(path, caos_ast.FunctionCall):
             paths = set()
             for p in path.args:
-                p = self.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
+                p = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
                 if p:
                     paths.add(p)
 
             if len(paths) == 1:
                 return next(iter(paths))
+            elif len(paths) == 0:
+                return None
             else:
                 return caos_ast.Conjunction(paths=frozenset(paths))
 
         elif isinstance(path, (caos_ast.Sequence, caos_ast.Record)):
             paths = set()
             for p in path.elements:
-                p = self.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
+                p = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
                 if p:
                     paths.add(p)
 
             if len(paths) == 1:
                 return next(iter(paths))
+            elif len(paths) == 0:
+                return None
             else:
                 return caos_ast.Disjunction(paths=frozenset(paths))
 
@@ -1326,6 +1341,55 @@ class TreeTransformer:
 
         else:
             assert False, 'unexpected node "%r"' % path
+
+    @classmethod
+    def get_query_schema_scope(cls, tree):
+        """Determine query scope, i.e the schema nodes it will potentially traverse"""
+
+        entity_paths = ast.find_children(tree, lambda i: isinstance(i, caos_ast.EntitySet))
+        return list(set(entity_paths))
+
+    @classmethod
+    def get_query_node_scope(cls, tree):
+        """Determine the cardinality of node set the query will potentially traverse"""
+
+        schema_scope = cls.get_query_schema_scope(tree)
+        schema_scope_len = len(schema_scope)
+
+        if schema_scope_len == 0:
+            node_scope = 0
+
+        elif schema_scope_len == 1:
+            node_scope = -1
+
+            entity_path = schema_scope[0]
+
+            filter = entity_path.filter
+
+            filters = []
+            if isinstance(filter, caos_ast.BinOp):
+                filters.append(filter)
+
+                if isinstance(filter.left, caos_ast.AtomicRefExpr):
+                    filters.append(filter.left.expr)
+
+                if isinstance(filter.right, caos_ast.AtomicRefExpr):
+                    filters.append(filter.right)
+
+            for filter in filters:
+                is_idfilter = isinstance(filter, caos_ast.BinOp) and \
+                              filter.op == ast.ops.EQ and \
+                              isinstance(filter.left, caos_ast.AtomicRefSimple) and \
+                              filter.left.name == 'semantix.caos.builtins.id' and \
+                              isinstance(filter.right, caos_ast.Constant)
+                if is_idfilter:
+                    node_scope = 1
+                    break
+
+        else:
+            node_scope = -1
+
+        return node_scope
 
     def copy_path(self, path: (caos_ast.EntitySet, caos_ast.EntityLink)):
         if isinstance(path, caos_ast.EntitySet):
