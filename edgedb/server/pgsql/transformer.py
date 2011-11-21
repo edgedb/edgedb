@@ -714,6 +714,8 @@ class CaosTreeTransformer(CaosExprTransformer):
     def _path_weight(self, path):
         if isinstance(path, (tree.ast.ExistPred, tree.ast.GraphExpr)):
             return 2
+        elif isinstance(path, tree.ast.UnaryOp) and isinstance(path.expr, tree.ast.ExistPred):
+            return 2
         else:
             return 1
 
