@@ -58,6 +58,7 @@ class PrototypeRefNode(ast.AST): __fields = ['name', 'module']
 
 class TypeCastNode(ast.AST): __fields = ['expr', 'type']
 
+class TypeRefNode(ast.AST): __fields = ['expr']
 
 class SortOrder(StrSingleton):
     _map = {

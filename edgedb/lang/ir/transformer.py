@@ -1401,9 +1401,9 @@ class TreeTransformer:
         elif node.name[0] == 'agg':
             node.aggregates = True
 
-        elif node.name == 'typename':
+        elif node.name == 'type':
             if len(node.args) != 1:
-                raise caos_error.CaosError('typename() function takes exactly one argument, {} given'
+                raise caos_error.CaosError('type() function takes exactly one argument, {} given'
                                            .format(len(node.args)))
 
             arg = next(iter(node.args))
@@ -1411,9 +1411,9 @@ class TreeTransformer:
             if isinstance(arg, caos_ast.Disjunction):
                 arg = next(iter(arg.paths))
             elif not isinstance(arg, caos_ast.EntitySet):
-                raise caos_error.CaosError('typename() function only supports concept arguments')
+                raise caos_error.CaosError('type() function only supports concept arguments')
 
-            node = caos_ast.MetaRef(ref=arg, name='name')
+            node = caos_ast.FunctionCall(name=node.name, args=[arg])
             return node
 
         if node.args:

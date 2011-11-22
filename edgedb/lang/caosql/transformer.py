@@ -516,6 +516,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
     def _process_path(self, context, path):
         anchors = context.current.anchors
         tips = {}
+        typeref = None
 
         for i, node in enumerate(path.steps):
             anchor = None
@@ -557,6 +558,9 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                         continue
 
                     tip = node
+
+                elif isinstance(node, qlast.TypeRefNode):
+                    tip = node
             else:
                 tip = node
 
@@ -582,7 +586,17 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 if anchor:
                     anchors[anchor] = step
 
-            elif isinstance(tip, qlast.LinkExprNode) and not tip_is_link:
+            elif isinstance(tip, qlast.TypeRefNode):
+                typeref = self._process_path(context, tip.expr)
+                if isinstance(typeref, tree.ast.PathCombination):
+                    if len(typeref.paths) > 1:
+                        raise errors.CaosQLError("type() argument must not be a path combination")
+                    typeref = next(iter(typeref.paths))
+
+            elif isinstance(tip, qlast.LinkExprNode) and typeref:
+                tips = {None: {tree.ast.MetaRef(ref=typeref, name=tip.expr.name)}}
+
+            elif isinstance(tip, qlast.LinkExprNode) and not tip_is_link and not typeref:
                 # LinkExprNode
                 link_expr = tip.expr
 

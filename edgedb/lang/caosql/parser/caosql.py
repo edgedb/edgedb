@@ -797,6 +797,10 @@ class PathSimple(Nonterm):
         if kids[1].val:
             self.val += kids[1].val
 
+    def reduce_FuncExpr_SubpathNoParens(self, *kids):
+        "%reduce FuncExpr SubpathNoParens"
+        self.val = [kids[0].val] + kids[1].val
+
     def reduce_PathStart_AT_LinkPropName(self, *kids):
         "%reduce PathStart AT LinkPropName"
         self.val = [kids[0].val, qlast.LinkPropExprNode(expr=kids[2].val)]
@@ -968,7 +972,17 @@ class FuncExpr(Nonterm):
 
     def reduce_IDENT_LPAREN_FuncArgList_RPAREN(self, *kids):
         "%reduce IDENT LPAREN FuncArgList RPAREN"
-        self.val = qlast.FunctionCallNode(func=kids[0].val, args=kids[2].val)
+
+        func_name = kids[0].val
+        args = kids[2].val
+
+        if func_name == 'type':
+            if len(args) != 1:
+                msg = 'type() takes exactly one argument, {} given'.format(len(args))
+                raise CaosQLSyntaxError(msg)
+            self.val = qlast.TypeRefNode(expr=args[0])
+        else:
+            self.val = qlast.FunctionCallNode(func=func_name, args=args)
 
 
 class FuncArgList(Nonterm):

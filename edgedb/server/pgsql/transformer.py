@@ -1529,6 +1529,14 @@ class CaosTreeTransformer(CaosExprTransformer):
                 fieldref = pgsql.ast.FieldRefNode(table=srctable, field=metaref_name,
                                                   origin=srctable, origin_field=metaref_name)
 
+                if metaref == 'title':
+                    # Title is a WordCombination object with multiple grammatical forms,
+                    # which is stored as an hstore in the database.  Direct reference
+                    # defaults to the "singular" form
+                    hstore_key = pgsql.ast.ConstantNode(value='singular')
+                    op = 'operator(caos.->)'
+                    fieldref = pgsql.ast.BinOpNode(left=fieldref, right=hstore_key, op=op)
+
                 alias = context.current.genalias(hint=metaref_name)
                 selectnode = pgsql.ast.SelectExprNode(expr=fieldref,
                                                       alias=step_cte.alias + ('_meta_' + alias))
