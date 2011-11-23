@@ -499,7 +499,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             self.table_id_to_proto_name_cache, self.proto_name_to_table_id_cache = self._init_relid_cache()
             self.domain_to_atom_map = self._init_atom_map_cache()
             # Concept map needed early for type filtering operations in schema queries
-            self.get_concept_map()
+            self.get_concept_map(force_reload=True)
 
 
     def _init_column_cache(self):
@@ -1265,10 +1265,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return self.link_cache
 
 
-    def get_concept_map(self, session=None):
+    def get_concept_map(self, session=None, force_reload=False):
         connection = session.connection if session is not None else self.connection
 
-        if not self.concept_cache:
+        if not self.concept_cache or force_reload:
             cl_ds = datasources.meta.concepts.ConceptList(connection)
 
             for row in cl_ds.fetch():
