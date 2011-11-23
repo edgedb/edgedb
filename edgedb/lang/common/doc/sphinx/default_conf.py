@@ -10,7 +10,8 @@
 
 
 extensions = ['sphinx.ext.autodoc', 'sphinx.ext.todo',
-              'sphinx.ext.coverage', 'sphinx.ext.viewcode']
+              'sphinx.ext.coverage', 'sphinx.ext.viewcode',
+              'sphinx.ext.intersphinx']
 
 
 templates_path = ['_templates']
@@ -23,3 +24,5 @@ pygments_style = 'sphinx'
 html_theme = 'default'
 
 html_static_path = ['_static']
+intersphinx_mapping = {'python': ('http://docs.python.org/3.2', None)}
+autoclass_content = 'both'

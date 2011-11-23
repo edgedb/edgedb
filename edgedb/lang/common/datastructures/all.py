@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2011 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -13,6 +13,34 @@ import copy
 import sys
 
 from semantix.utils.functional import hybridmethod
+
+
+class _MarkerMeta(type):
+    def __repr__(cls):
+        repr_ = cls.__repr__
+        if repr_ is object.__repr__:
+            repr_ = type.__repr__
+        return repr_(cls)
+
+    def __str__(cls):
+        return cls.__name__
+
+class _Marker(metaclass=_MarkerMeta):
+    def __init__(self):
+        raise TypeError('%r cannot be instantiated' % self.__class__.__name__)
+
+    def __str__(cls):
+        return cls.__name__
+
+    __repr__ = __str__
+
+class _VoidMeta(_MarkerMeta):
+    def __bool__(cls):
+        return False
+
+
+class Void(_Marker, metaclass=_VoidMeta):
+    pass
 
 
 class GenericWrapperMeta(abc.ABCMeta):
@@ -408,12 +436,18 @@ class RecordBase:
     __repr__ = __str__
 
 
-class NoDefault:
-    pass
-
-
 class Field:
-    def __init__(self, type, default=NoDefault, *, str_formatter=str, repr_formatter=repr):
+    """``Field`` objects are meant to be specified as attributes of :class:`Struct`"""
+
+    def __init__(self, type, default=Void, *, str_formatter=str, repr_formatter=repr):
+        """
+        :param type: A type, or a tuple of types allowed for the field value.
+        :param default: Default field value.  If not specified, the field would be considered
+                        required and a failure to specify its value when initializing a ``Struct``
+                        will raise :exc:`TypeError`.  `default` can be a callable taking no
+                        arguments.
+        """
+
         if not isinstance(type, tuple):
             type = (type,)
         self.type = type
@@ -454,63 +488,66 @@ class StructMeta(type):
 
 
 class Struct(metaclass=StructMeta):
-    def __init__(self, **kwargs):
-        self._init_fields(kwargs)
+    """Struct classes provide a way to define, maintain and introspect strict data structures.
 
-    # XXX: the following is a CC from AST, consider consolidation
-    def _init_fields(self, values):
-        setdefaults = values.get('_setdefaults_', True)
-        relaxrequired = values.get('_relaxrequired_', False)
-        for field_name, field  in self.__class__._fields.items():
-            value = values.get(field_name)
+    Each struct has a collection of ``Field`` objects, which should be defined as class
+    attributes of the ``Struct'' subclass.  Unlike ``collections.namedtuple``, ``Struct`` is
+    much easier to mix in and define.  Furthermore, fields are strictly typed and can be
+    declared as required.
 
-            if value is None and field.default is not None and setdefaults:
-                value = self._getdefault(field_name, field, relaxrequired)
+    .. code-block:: pycon
 
-            setattr(self, field_name, value)
+        >>> from semantix.utils.datastructures import Struct, Field
 
-    if __debug__:
-        def __setattr__(self, name, value):
-            field = self._fields.get(name)
-            if field:
-                self.check_field_type(field, name, value)
-            super().__setattr__(name, value)
+        >>> class MyStruct(Struct):
+        ...    name = Field(type=str)
+        ...    description = Field(type=str, default=None)
+        ...
+        >>> MyStruct(name='Spam')
+        <MyStruct name=Spam>
+        >>> MyStruct(name='Ham', description='Good Ham')
+        <MyStruct name=Ham, description=Good Ham>
+    """
+
+    def __init__(self, *, _setdefaults_=True, _relaxrequired_=False, **kwargs):
+        """
+        :param bool _setdefaults_: If False, fields will not be initialized with default
+                                   values immediately.  It is possible to call
+                                   ``Struct.setdefaults()`` later to initialize unset fields.
+
+        :param bool _relaxrequired_: If True, missing values for required fields will not
+                                     cause an exception.
+
+        :raises: TypeError if invalid field value was provided or a value was not provided
+                 for a field without a default value and `_relaxrequired_` is False.
+        """
+        self._init_fields(_setdefaults_, _relaxrequired_, kwargs)
 
     def update(self, *args, **kwargs):
+        """Updates the field values from dict/iterable and `**kwargs` similarly to :py:meth:`dict.update()`"""
+
         values = {}
         values.update(values, *args, **kwargs)
 
         for k, v in values.items():
             setattr(self, k, v)
 
-    def check_field_type(self, field, name, value):
-        if field.type and value is not None and not isinstance(value, field.type):
-            raise TypeError('%s.%s.%s: expected %s but got %s'
-                            % (self.__class__.__module__,
-                               self.__class__.__name__,
-                               name, ' or '.join(t.__name__ for t in field.type),
-                               value.__class__.__name__))
-
-    def _getdefault(self, field_name, field, relaxrequired=False):
-        if field.default in field.type:
-            value = field.default()
-        elif field.default is NoDefault:
-            if relaxrequired:
-                value = None
-            else:
-                raise TypeError('%s.%s.%s is required' % (self.__class__.__module__,
-                                                          self.__class__.__name__,
-                                                          field_name))
-        else:
-            value = field.default
-        return value
-
     def setdefaults(self):
+        """Initializes unset fields with default values.  Useful for deferred initialization"""
+
         for field_name, field  in self.__class__._fields.items():
             value = getattr(self, field_name)
             if value is None and field.default is not None:
                 value = self._getdefault(field_name, field)
                 setattr(self, field_name, value)
+
+    def formatfields(self, formatter='str'):
+        """Returns an iterator over fields formatted using `formatter`"""
+
+        for name, field in self.__class__._fields.items():
+            formatter = field.formatters.get(formatter)
+            if formatter:
+                yield (name, formatter(getattr(self, name)))
 
     @hybridmethod
     def copy(scope, obj=None):
@@ -525,17 +562,52 @@ class Struct(metaclass=StructMeta):
 
     __copy__ = copy
 
-    def formatfields(self, context='str'):
-        for name, field in self.__class__._fields.items():
-            formatter = field.formatters.get(context)
-            if formatter:
-                yield (name, formatter(getattr(self, name)))
-
     def __str__(self):
-        return ', '.join('%s=%s' % (name, value) for name, value in self.formatfields('str'))
+        fields = ', '.join('%s=%s' % (name, value) for name, value in self.formatfields('str'))
+        return '<{} {}>'.format(self.__class__.__name__, fields)
 
     def __repr__(self):
-        return ', '.join('%s=%s' % (name, value) for name, value in self.formatfields('repr'))
+        fields = ', '.join('%s=%s' % (name, value) for name, value in self.formatfields('repr'))
+        return '<{} {}>'.format(self.__class__.__name__, fields)
+
+    # XXX: the following is a CC from AST, consider consolidation
+    def _init_fields(self, setdefaults, relaxrequired, values):
+        for field_name, field  in self.__class__._fields.items():
+            value = values.get(field_name)
+
+            if value is None and field.default is not None and setdefaults:
+                value = self._getdefault(field_name, field, relaxrequired)
+
+            setattr(self, field_name, value)
+
+    if __debug__:
+        def __setattr__(self, name, value):
+            field = self._fields.get(name)
+            if field:
+                self._check_field_type(field, name, value)
+            super().__setattr__(name, value)
+
+    def _check_field_type(self, field, name, value):
+        if field.type and value is not None and not isinstance(value, field.type):
+            raise TypeError('%s.%s.%s: expected %s but got %s'
+                            % (self.__class__.__module__,
+                               self.__class__.__name__,
+                               name, ' or '.join(t.__name__ for t in field.type),
+                               value.__class__.__name__))
+
+    def _getdefault(self, field_name, field, relaxrequired=False):
+        if field.default in field.type:
+            value = field.default()
+        elif field.default is Void:
+            if relaxrequired:
+                value = None
+            else:
+                raise TypeError('%s.%s.%s is required' % (self.__class__.__module__,
+                                                          self.__class__.__name__,
+                                                          field_name))
+        else:
+            value = field.default
+        return value
 
 
 class xvalue:
@@ -571,25 +643,3 @@ class StrSingleton(str):
     @classmethod
     def values(cls):
         return iter(cls._map.keys())
-
-
-class _MarkerMeta(type):
-    def __repr__(cls):
-        repr_ = cls.__repr__
-        if repr_ is object.__repr__:
-            repr_ = type.__repr__
-        return repr_(cls)
-
-
-class _Marker(metaclass=_MarkerMeta):
-    def __init__(self):
-        raise TypeError('%r cannot be instantiated' % self.__class__.__name__)
-
-
-class _VoidMeta(_MarkerMeta):
-    def __bool__(cls):
-        return False
-
-
-class Void(_Marker, metaclass=_VoidMeta):
-    pass
