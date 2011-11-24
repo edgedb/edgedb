@@ -690,6 +690,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     msg = 'failed to apply delta {:032x} to data backend'.format(d.id)
                     raise base_delta.DeltaError(msg, delta=d) from e
 
+                # Invalidate transient structure caches
+                self.invalidate_transient_cache()
+
                 # Update introspection caches
                 self._init_introspection_cache()
 
@@ -745,6 +748,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.meta = proto.ProtoSchema(load_builtins=False)
         self.modules = self.read_modules()
         self.features = self.read_features()
+        self._table_atom_constraints_cache = None
+        self._table_ptr_constraints_cache = None
+
+        self.invalidate_transient_cache()
+
+
+    def invalidate_transient_cache(self):
         self.link_cache.clear()
         self.concept_cache.clear()
         self.table_cache.clear()
@@ -754,8 +764,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.table_id_to_proto_name_cache.clear()
         self.proto_name_to_table_id_cache.clear()
         self.attribute_link_map_cache.clear()
-        self._table_atom_constraints_cache = None
-        self._table_ptr_constraints_cache = None
 
 
     def concept_name_from_id(self, id, session):
