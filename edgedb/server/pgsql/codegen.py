@@ -1,23 +1,70 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2011 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
+
 import numbers
 import postgresql.string
+
+from semantix import exceptions as sx_errors
 from semantix.caos.backends.pgsql import common
-from . import ast as pgast
+from semantix.caos.backends.pgsql import ast as pgast
 from semantix.utils.ast import codegen
+from semantix.utils.datastructures import xvalue
 
 
-class SQLSourceGeneratorError(Exception): pass
+class SQLSourceGeneratorContext(sx_errors.ExceptionContext):
+    def __init__(self, node, chunks_generated=None):
+        self.node = node
+        self.chunks_generated = chunks_generated
+        self.title = 'SQL Source Generator Context'
+
+    def render(self):
+        buffer = []
+
+        buffer.extend(('-' * 9, '\n', xvalue('SQL Tree', fg='red'), '\n', '-' * 9, '\n\n'))
+
+        buffer.append(self.node.dump(pretty=True, colorize=True, width=180,
+                                     field_mask='^(_.*|refs|backrefs|caosnode|caoslink)$'))
+
+        buffer.extend(('-' * 13, '\n', xvalue('End SQL Tree', fg='red'), '\n', '-' * 13, '\n\n'))
+
+        if self.chunks_generated:
+            buffer.extend(('-' * 9, '\n', xvalue('SQL generated so far', fg='red'), '\n', '-' * 9, '\n\n'))
+
+            buffer.extend(self.chunks_generated)
+            buffer.append('\n')
+
+            buffer.extend(('-' * 13, '\n', xvalue('End SQL generated so far', fg='red'), '\n', '-' * 13, '\n\n'))
+
+        return buffer
+
+
+class SQLSourceGeneratorError(sx_errors.SemantixError):
+    def __init__(self, msg, *, node=None, details=None, hint=None):
+        super().__init__(msg, details=details, hint=hint)
+        if node is not None:
+            ctx = SQLSourceGeneratorContext(node)
+            sx_errors._add_context(self, ctx)
+
 
 class SQLSourceGenerator(codegen.SourceGenerator):
     def __init__(self, indent_with=' '*4, add_line_information=False):
         super().__init__(indent_with, add_line_information)
         self.param_index = {}
+
+    @classmethod
+    def to_source(cls, node, indent_with=' '*4, add_line_information=False):
+        try:
+            return super().to_source(node, indent_with=indent_with,
+                                           add_line_information=add_line_information)
+        except SQLSourceGeneratorError as e:
+            ctx = SQLSourceGeneratorContext(node)
+            sx_errors._add_context(e, ctx)
+            raise
 
     def generic_visit(self, node):
         raise SQLSourceGeneratorError('No method to generate code for %s' % node.__class__.__name__)

@@ -362,7 +362,13 @@ class CaosTreeTransformer(CaosExprTransformer):
 
             # Generate query text
             codegen = pgsql.codegen.SQLSourceGenerator()
-            codegen.visit(qtree)
+            try:
+                codegen.visit(qtree)
+            except pgsql.codegen.SQLSourceGeneratorError as e:
+                ctx = pgsql.codegen.SQLSourceGeneratorContext(qtree, codegen.result)
+                base_err._add_context(e, ctx)
+                raise
+
             qchunks = codegen.result
             arg_index = codegen.param_index
 
