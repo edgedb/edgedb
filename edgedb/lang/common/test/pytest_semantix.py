@@ -11,6 +11,7 @@ import py
 import re
 import sys
 import logging
+import datetime
 import contextlib
 
 from semantix.exceptions import SemantixError, excepthook, _iter_contexts
@@ -88,6 +89,9 @@ class LoggingPrintHandler(logging.Handler):
         super().__init__(*args, **kwargs)
 
     def emit(self, record):
+        dt = datetime.datetime.fromtimestamp(record.created)
+        str_dt = '@{}@'.format(dt)
+
         if getattr(logging, '_semantix_logging_running'):
             if self.colorize:
                 level = record.levelname
@@ -96,9 +100,9 @@ class LoggingPrintHandler(logging.Handler):
                     level_color = 'red'
 
                 print(terminal.colorize(level, 'white', level_color), os.getpid(),
-                      record.getMessage())
+                      str_dt, record.getMessage())
             else:
-                print(record.levelname, os.getpid(), record.getMessage())
+                print(record.levelname, os.getpid(), str_dt, record.getMessage())
 
             if record.exc_info:
                 excepthook(*record.exc_info)
