@@ -237,6 +237,21 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                                             caosnode=node)
         return concept_table
 
+    def _provide_tuple_type(self, context, elements):
+        types = []
+
+        for expr in elements:
+            expr_type = self.get_expr_type(expr, context.current.proto_schema)
+            if expr_type is None:
+                raise caosql.CaosQLError('could not determine tuple element type')
+
+            types.append(expr_type)
+
+        session = context.current.session
+        data_backend = session.backend
+        proto_schema = context.current.proto_schema
+        return data_backend.provide_auto_tuple_type(types, proto_schema, session)
+
     def _relation_from_concepts(self, context, node):
         if node.conceptfilter:
             union = pgsql.ast.UnionNode(caosnode=node, concepts=frozenset(node.conceptfilter))
@@ -849,7 +864,14 @@ class CaosTreeTransformer(CaosExprTransformer):
                 else:
                     assert False, "Unsupported universal set expression"
             else:
-                right = self._process_expr(context, expr.right, cte)
+                if expr.op in (ast.ops.IN, ast.ops.NOT_IN) \
+                        and isinstance(expr.right, tree.ast.Constant) \
+                        and isinstance(expr.right.expr, tree.ast.Sequence):
+                    with context(TransformerContext.NEW_TRANSPARENT):
+                        context.current.sequence_is_array = True
+                        right = self._process_expr(context, expr.right, cte)
+                else:
+                    right = self._process_expr(context, expr.right, cte)
 
             if isinstance(expr.op, tree.ast.TextSearchOperator):
                 vector, query = self._text_search_args(context, expr.left, expr.right,
@@ -975,7 +997,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
             pg_expr = self._process_expr(context, expr.expr, cte)
 
-            if expr_type and issubclass(expr_type, bool) and expr.type.issubclass(schema, int_proto):
+            if expr_type and expr_type is bool and expr.type.issubclass(schema, int_proto):
                 when_expr = pgsql.ast.CaseWhenNode(expr=pg_expr,
                                                    result=pgsql.ast.ConstantNode(value=1))
                 default = pgsql.ast.ConstantNode(value=0)
@@ -987,7 +1009,12 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         elif isinstance(expr, tree.ast.Sequence):
             elements = [self._process_expr(context, e, cte) for e in expr.elements]
-            result = pgsql.ast.SequenceNode(elements=elements)
+            if getattr(context.current, 'sequence_is_array', False):
+                result = pgsql.ast.SequenceNode(elements=elements)
+            else:
+                type = self._provide_tuple_type(context, expr.elements)
+                type = pgsql.ast.TypeNode(name=type)
+                result = pgsql.ast.TypeCastNode(expr=pgsql.ast.RowExprNode(args=elements), type=type)
 
         elif isinstance(expr, tree.ast.Record):
             result = self._process_record(context, expr, cte)

@@ -2294,6 +2294,35 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return concept
 
 
+    def provide_auto_tuple_type(self, caos_types, schema, session):
+        pg_types = []
+
+        for caos_type in caos_types:
+            if isinstance(caos_type, caos.types.ProtoAtom):
+                pg_type = types.pg_type_from_atom(schema, caos_type, topbase=True)
+            elif isinstance(caos_type, caos.types.ProtoConcept):
+                pg_type = common.get_table_name(caos_type)
+            else:
+                raise caos.MetaError('unexpected tuple element type: {}'.format(caos_type))
+
+            pg_types.append(pg_type)
+
+        name = ('caos', 'tuple_auto_{:x}'.format(persistent_hash.persistent_hash(tuple(pg_types))))
+
+        type_elems = datastructures.OrderedSet();
+
+        for i, pg_type in enumerate(pg_types):
+            type_elems.add(delta_cmds.Column(name='f_{}'.format(i), type=pg_type))
+        type = delta_cmds.CompositeType(name, type_elems)
+        cond = delta_cmds.CompositeTypeExists(name)
+        op = delta_cmds.CreateCompositeType(type, neg_conditions=[cond])
+
+        context = delta_cmds.CommandContext(session.connection)
+        op.execute(context)
+
+        return common.qname(*name)
+
+
     def provide_virtual_concept_table(self, concept, schema, session):
         table_name = common.concept_name_to_table_name(concept.name, catenate=False)
 

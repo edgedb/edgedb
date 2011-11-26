@@ -3147,9 +3147,10 @@ class MappingIndex(Index):
 
 
 class CompositeDBObject(DBObject):
-    def __init__(self, name):
+    def __init__(self, name, columns=None):
         super().__init__()
         self.name = name
+        self._columns = columns
 
     @property
     def record(self):

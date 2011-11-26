@@ -599,6 +599,8 @@ class TreeTransformer:
             for element in expr.elements:
                 elements.append(self.merge_paths(element))
 
+            self.unify_paths(paths=elements, mode=caos_ast.Disjunction)
+
             if isinstance(expr, caos_ast.Record):
                 expr = expr.__class__(elements=elements, concept=expr.concept)
             else:
