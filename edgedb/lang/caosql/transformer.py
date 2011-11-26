@@ -14,6 +14,7 @@ from semantix.caos import name as caos_name
 from semantix.caos.caosql import ast as qlast
 from semantix.caos.caosql import errors
 from semantix.caos.caosql import parser as caosql_parser
+from semantix.utils import ast
 
 
 class ParseContextLevel(object):
@@ -447,6 +448,16 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         elif isinstance(expr, qlast.BinOpNode):
             left = self._process_expr(context, expr.left)
             right = self._process_expr(context, expr.right)
+
+            # The entityref_to_idref transform must be reverted for typecheck ops
+            if isinstance(expr.op, ast.ops.EquivalenceOperator) \
+                    and isinstance(left, tree.ast.AtomicRefSimple) \
+                    and left.name == 'semantix.caos.builtins.id' \
+                    and isinstance(right, tree.ast.Constant) \
+                    and (isinstance(right.type, caos_types.PrototypeClass) or
+                         isinstance(right.type, tuple) and
+                         isinstance(right.type[1], caos_types.PrototypeClass)):
+                left = left.ref
             node = self.process_binop(left, right, expr.op)
 
         elif isinstance(expr, qlast.PathNode):
