@@ -8,6 +8,7 @@
 
 import collections
 import itertools
+import functools
 
 from semantix.utils import ast
 from semantix.caos import caosql, tree
@@ -58,7 +59,7 @@ class TransformerContextLevel(object):
                 self.link_node_map = prevlevel.link_node_map
                 self.subquery_map = prevlevel.subquery_map
                 self.direct_subquery_ref = prevlevel.direct_subquery_ref
-                self.pending_bonds = prevlevel.pending_bonds
+                self.node_callbacks = prevlevel.node_callbacks
 
             elif mode == TransformerContext.SUBQUERY:
                 self.vars = {}
@@ -73,7 +74,7 @@ class TransformerContextLevel(object):
                 self.query = pgsql.ast.SelectQueryNode()
                 self.subquery_map = {}
                 self.direct_subquery_ref = False
-                self.pending_bonds = {}
+                self.node_callbacks = {}
 
             else:
                 self.vars = prevlevel.vars.copy()
@@ -84,7 +85,7 @@ class TransformerContextLevel(object):
                 self.link_node_map = prevlevel.link_node_map.copy()
                 self.subquery_map = prevlevel.subquery_map
                 self.direct_subquery_ref = False
-                self.pending_bonds = prevlevel.pending_bonds.copy()
+                self.node_callbacks = prevlevel.node_callbacks.copy()
 
         else:
             self.vars = {}
@@ -103,7 +104,7 @@ class TransformerContextLevel(object):
             self.proto_schema = None
             self.subquery_map = {}
             self.direct_subquery_ref = False
-            self.pending_bonds = {}
+            self.node_callbacks = {}
 
     def genalias(self, alias=None, hint=None):
         if alias is None:
@@ -152,6 +153,12 @@ class TransformerContext(object):
             return self.stack[-1]
         else:
             return None
+
+    def __getitem__(self, idx):
+        return self.stack[idx]
+
+    def __len__(self):
+        return len(self.stack)
 
     current = property(_current)
 
@@ -383,6 +390,11 @@ class CaosTreeTransformer(CaosExprTransformer):
                 ctx = pgsql.codegen.SQLSourceGeneratorContext(qtree, codegen.result)
                 base_err._add_context(e, ctx)
                 raise
+            except Exception as e:
+                ctx = pgsql.codegen.SQLSourceGeneratorContext(qtree, codegen.result)
+                err = pgsql.codegen.SQLSourceGeneratorError('error while generating SQL source')
+                base_err._add_context(err, ctx)
+                raise err from e
 
             qchunks = codegen.result
             arg_index = codegen.param_index
@@ -408,6 +420,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*|caosnode)$'))
 
     def _transform_tree(self, context, tree):
+        context.current.query.subquery_referrers = tree.referrers
 
         if tree.generator:
             expr = self._process_generator(context, tree.generator)
@@ -415,6 +428,21 @@ class CaosTreeTransformer(CaosExprTransformer):
                 context.current.query.having = expr
             else:
                 context.current.query.where = expr
+
+        self._join_subqueries(context, context.current.query)
+
+        # Gather all subqueries not appearing in filter and consolidate them into a subquery
+        # for easy reference in the main query.
+        #
+        non_generating_subgraphs = []
+        for subgraph in tree.subgraphs:
+            if 'generator' not in subgraph.referrers and 'exists' not in subgraph.referrers:
+                non_generating_subgraphs.append(subgraph)
+
+        if non_generating_subgraphs:
+            context.current.query = self._consolidate_subqueries(context, context.current.query,
+                                                                 non_generating_subgraphs)
+
 
         self._process_selector(context, tree.selector, context.current.query)
         self._process_sorter(context, tree.sorter)
@@ -458,6 +486,129 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         return query
 
+    def _consolidate_subqueries(self, context, query, subgraphs):
+        # Turn the given ``query`` into a subquery and translated ``subgraphs``
+        # into the target list so that expressions in upper query can reference
+        # subquery results.
+        #
+
+        wrapper = pgsql.ast.SelectQueryNode()
+        query.alias = context.current.genalias()
+        from_ = pgsql.ast.FromExprNode(expr=query)
+        wrapper.fromlist.append(from_)
+
+        # Pull up the target list
+        self._pull_fieldrefs(context, wrapper, query)
+
+        outer_refs = set()
+
+        for subgraph in subgraphs:
+            # Put subqueries into the target list
+            #
+            subgraph_ref = tree.ast.SubgraphRef(ref=subgraph)
+            subquery = self._process_expr(context, subgraph_ref)
+            refname = subquery.targets[0].alias
+
+            alias = context.current.genalias(hint=refname)
+            expr = pgsql.ast.SelectExprNode(expr=subquery, alias=alias)
+            query.targets.append(expr)
+
+            refexpr = pgsql.ast.FieldRefNode(table=query, field=expr.alias,
+                                             origin=subquery, origin_field=expr.alias)
+            selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=expr.alias)
+            context.current.concept_node_map[subgraph] = {refname: selectnode}
+
+            if subquery.outerbonds:
+                outer_refs.update(b[0] for b in subquery.outerbonds)
+
+        if context.current.subquery_map:
+            for subgraph, subquery in context.current.subquery_map.items():
+                # Put all explicit references to attributes of joined subqueries into the
+                # target list.
+                #
+                for attrref in subgraph.attrrefs:
+                    refexpr = pgsql.ast.FieldRefNode(table=subquery, field=attrref,
+                                                     origin=subquery, origin_field=attrref)
+                    alias = context.current.genalias(hint=attrref)
+                    selexpr = pgsql.ast.SelectExprNode(expr=refexpr, alias=alias)
+                    query.targets.append(selexpr)
+
+                    refexpr = pgsql.ast.FieldRefNode(table=query, field=alias,
+                                                     origin=subquery, origin_field=attrref)
+                    selexpr = pgsql.ast.SelectExprNode(expr=refexpr, alias=alias)
+
+                    try:
+                        subgraph_map = context.current.concept_node_map[subgraph]
+                    except KeyError:
+                        subgraph_map = context.current.concept_node_map[subgraph] = {}
+                    subgraph_map[attrref] = selexpr
+
+        # Pull up CTEs
+        context.current.ctemap[wrapper] = context.current.ctemap[query]
+        wrapper.ctes = query.ctes
+        query.ctes = OrderedSet()
+
+        for outer_ref in outer_refs:
+            # Join references to CTEs
+            #
+            outerbonds = self._pull_outerbonds(context, outer_ref, query, subquery)
+            self._connect_subquery_outerbonds(context, outerbonds, wrapper)
+
+            callback = functools.partial(self._inject_relation, context, wrapper)
+
+            try:
+                context.current.ctemap[query][outer_ref]
+            except KeyError:
+                try:
+                    callbacks = context.current.node_callbacks[outer_ref]
+                except KeyError:
+                    callbacks = context.current.node_callbacks[outer_ref] = []
+                callbacks.append(callback)
+            else:
+                callback(outer_ref)
+
+        return wrapper
+
+    def _pull_outerbonds(self, context, outer_ref, target_rel, source_rel):
+        pulled_bonds = []
+
+        oref = context.current.concept_node_map[outer_ref]['semantix.caos.builtins.id']
+        target_rel.targets.append(oref)
+
+        refexpr = pgsql.ast.FieldRefNode(table=target_rel, field=oref.alias,
+                                         origin=target_rel, origin_field=oref.alias)
+        selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=oref.alias)
+
+        pulled_bonds.append((outer_ref, selectnode))
+
+        return pulled_bonds
+
+    def _inject_relation(self, context, query, caosnode):
+        cte = context.current.ctemap[query][caosnode]
+        fromexpr = pgsql.ast.FromExprNode(expr=cte)
+        query.fromlist.append(fromexpr)
+
+    def _inject_outerbond_condition(self, context, subquery, inner_ref, outer_ref):
+        outer_ref = context.current.concept_node_map[outer_ref]
+        outer_ref = outer_ref['semantix.caos.builtins.id']
+        comparison = pgsql.ast.BinOpNode(left=outer_ref.expr, op=ast.ops.EQ, right=inner_ref.expr)
+        subquery.where = self.extend_binop(subquery.where, comparison, cls=pgsql.ast.BinOpNode)
+
+    def _connect_subquery_outerbonds(self, context, outerbonds, subquery):
+        for outer_ref, inner_ref in outerbonds:
+            if outer_ref in context.current.concept_node_map:
+                self._inject_outerbond_condition(context, subquery, inner_ref, outer_ref)
+            else:
+                # The outer ref has not been processed yet, put it in a queue
+                # and glue the bond when it appears.
+                callback = functools.partial(self._inject_outerbond_condition,
+                                             context, subquery, inner_ref)
+                try:
+                    callbacks = context.current.node_callbacks[outer_ref]
+                except KeyError:
+                    callbacks = context.current.node_callbacks[outer_ref] = []
+                callbacks.append(callback)
+
     def _postprocess_query(self, context, query):
         ctes = set(ast.find_children(query, lambda i: isinstance(i, pgsql.ast.SelectQueryNode)))
         for cte in ctes:
@@ -468,13 +619,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 op = ast.ops.AND if getattr(cte.where, 'strong', False) else ast.ops.OR
                 cte.where = self.extend_predicate(cte.where, cte.where_weak, op)
 
-        outerbonds = getattr(query, 'outerbonds', ())
-        for outer_ref, inner_ref in outerbonds:
-            query.targets.append(inner_ref)
-
-            if query.aggregates:
-                query.groupby.append(inner_ref.expr)
-
+    def _join_subqueries(self, context, query):
         if context.current.subquery_map:
             if query.fromlist:
                 join_point = query.fromlist[0].expr
@@ -487,6 +632,10 @@ class CaosTreeTransformer(CaosExprTransformer):
                 for outer_ref, inner_ref in subquery.outerbonds:
                     outer_ref = context.current.concept_node_map[outer_ref]
                     outer_ref = outer_ref['semantix.caos.builtins.id']
+
+                    subquery.targets.append(inner_ref)
+                    if subquery.aggregates:
+                        subquery.groupby.append(inner_ref.expr)
 
                     left = outer_ref.expr
                     right = pgsql.ast.FieldRefNode(table=subquery, field=inner_ref.alias,
@@ -617,7 +766,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         if isinstance(ref, pgsql.ast.SelectExprNode):
             ref = ref.expr
 
-        if context.current.in_aggregate:
+        if context.current.in_aggregate and not meta:
             # Cast atom refs to the base type in aggregate expressions, since
             # PostgreSQL does not create array types for custom domains and will
             # fail to process a query with custom domains appearing as array elements.
@@ -754,37 +903,31 @@ class CaosTreeTransformer(CaosExprTransformer):
         elif isinstance(expr, tree.ast.SubgraphRef):
             subgraph = expr.ref
 
-            if context.current.direct_subquery_ref:
-                subquery = self._process_expr(context, subgraph, cte)
-                condition = None
-
-                for outer_ref, inner_ref in subquery.outerbonds:
-                    outer_ref = context.current.concept_node_map.get(outer_ref)
-
-                    if outer_ref is None:
-                        # The outer ref has not been processed yet, put it in a queue
-                        # and glue the bond when it appears.
-                        context.current.pending_bonds[outer_ref] = (subquery, inner_ref)
-                    else:
-                        outer_ref = outer_ref['semantix.caos.builtins.id']
-
-                        left = outer_ref.expr
-                        right = inner_ref.expr
-                        comparison = pgsql.ast.BinOpNode(left=left, op=ast.ops.EQ, right=right)
-                        condition = self.extend_binop(condition, comparison, cls=pgsql.ast.BinOpNode)
-
-                subquery.where = self.extend_binop(subquery.where, condition, cls=pgsql.ast.BinOpNode)
-
-                result = subquery
-            else:
-                subquery = context.current.subquery_map.get(subgraph)
-                if subquery is None:
+            try:
+                result = context.current.concept_node_map[subgraph][expr.name].expr
+            except KeyError:
+                if context.current.direct_subquery_ref or 'generator' not in subgraph.referrers:
+                    # Subqueries in selector should always go into SQL selector
                     subquery = self._process_expr(context, subgraph, cte)
-                    subquery.alias = context.current.genalias(hint='sq')
-                    context.current.subquery_map[subgraph] = subquery
+                    self._connect_subquery_outerbonds(context, subquery.outerbonds, subquery)
+                    result = subquery
+                else:
+                    subquery = context.current.subquery_map.get(subgraph)
+                    if subquery is None:
+                        subquery = self._process_expr(context, subgraph, cte)
+                        subquery.alias = context.current.genalias(hint='sq')
+                        context.current.subquery_map[subgraph] = subquery
 
-                result = pgsql.ast.FieldRefNode(table=subquery, field=expr.name,
-                                                origin=subquery, origin_field=expr.name)
+                    result = pgsql.ast.FieldRefNode(table=subquery, field=expr.name,
+                                                    origin=subquery, origin_field=expr.name)
+                    alias = context.current.genalias(hint=expr.name)
+                    selexpr = pgsql.ast.SelectExprNode(expr=result, alias=alias)
+
+                    try:
+                        subgraph_map = context.current.concept_node_map[subgraph]
+                    except KeyError:
+                        subgraph_map = context.current.concept_node_map[subgraph] = {}
+                    subgraph_map[expr.name] = selexpr
 
         elif isinstance(expr, tree.ast.Disjunction):
             #context.current.append_graphs = True
@@ -829,19 +972,13 @@ class CaosTreeTransformer(CaosExprTransformer):
             self._process_graph(context, cte or context.current.query, root)
             result = pgsql.ast.IgnoreNode()
 
-            pending = context.current.pending_bonds.pop(expr, None)
-            if pending is not None:
-                outer_ref = expr
-                subquery, inner_ref = pending
-
-                outer_ref = context.current.concept_node_map[outer_ref]
-                outer_ref = outer_ref['semantix.caos.builtins.id']
-
-                left = outer_ref.expr
-                right = inner_ref.expr
-                comparison = pgsql.ast.BinOpNode(left=left, op=ast.ops.EQ, right=right)
-
-                subquery.where = self.extend_binop(subquery.where, comparison, cls=pgsql.ast.BinOpNode)
+            try:
+                callbacks = context.current.node_callbacks.pop(expr)
+            except KeyError:
+                pass
+            else:
+                for callback in callbacks:
+                    callback(expr)
 
         elif isinstance(expr, tree.ast.BinOp):
             left_is_universal_set = self.is_universal_set(expr.left)
@@ -1318,6 +1455,41 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         return join
 
+    def _pull_fieldrefs(self, context, target_rel, source_rel):
+        for caosnode, refs in source_rel.concept_node_map.items():
+            for field, ref in refs.items():
+                refexpr = pgsql.ast.FieldRefNode(table=source_rel, field=ref.alias,
+                                                 origin=ref.expr.origin,
+                                                 origin_field=ref.expr.origin_field)
+
+                fieldref = pgsql.ast.SelectExprNode(expr=refexpr, alias=ref.alias)
+                target_rel.targets.append(fieldref)
+
+                mapslot = target_rel.concept_node_map.get(caosnode)
+                if not mapslot:
+                    target_rel.concept_node_map[caosnode] = {field: fieldref}
+                else:
+                    mapslot[field] = fieldref
+
+                if field == 'semantix.caos.builtins.id':
+                    bondref = pgsql.ast.FieldRefNode(table=target_rel, field=ref.alias,
+                                                     origin=ref.expr.origin,
+                                                     origin_field=ref.expr.origin_field)
+                    target_rel.addbond(caosnode.concept, bondref)
+                context.current.concept_node_map[caosnode][field].expr.table = target_rel
+
+        for caoslink, refs in source_rel.link_node_map.items():
+            for field, ref in refs.items():
+                refexpr = pgsql.ast.FieldRefNode(table=source_rel, field=ref.alias,
+                                                 origin=ref.expr.origin,
+                                                 origin_field=ref.expr.origin_field)
+
+                fieldref = pgsql.ast.SelectExprNode(expr=refexpr, alias=ref.alias)
+                target_rel.targets.append(fieldref)
+
+                target_rel.link_node_map.setdefault(caoslink, {})[field] = fieldref
+                context.current.link_node_map[caoslink][field].expr.table = target_rel
+
     def caos_path_to_sql_path(self, context, root_cte, step_cte, caos_path_tip, sql_path_tip, link,
                                                                                         weak=False):
         """
@@ -1471,40 +1643,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 # If this is a new query, pull the references to fields inside the CTE one level
                 # up to keep them visible.
                 #
-                for caosnode, refs in sql_path_tip.concept_node_map.items():
-                    for field, ref in refs.items():
-                        refexpr = pgsql.ast.FieldRefNode(table=sql_path_tip, field=ref.alias,
-                                                         origin=ref.expr.origin,
-                                                         origin_field=ref.expr.origin_field)
-
-                        fieldref = pgsql.ast.SelectExprNode(expr=refexpr, alias=ref.alias)
-                        step_cte.targets.append(fieldref)
-
-                        mapslot = step_cte.concept_node_map.get(caosnode)
-                        if not mapslot:
-                            step_cte.concept_node_map[caosnode] = {field: fieldref}
-                        else:
-                            mapslot[field] = fieldref
-
-                        bondref = pgsql.ast.FieldRefNode(table=step_cte, field=ref.alias,
-                                                         origin=ref.expr.origin,
-                                                         origin_field=ref.expr.origin_field)
-
-                        if field == 'semantix.caos.builtins.id':
-                            step_cte.addbond(caosnode.concept, bondref)
-                        context.current.concept_node_map[caosnode][field].expr.table = step_cte
-
-                for caoslink, refs in sql_path_tip.link_node_map.items():
-                    for field, ref in refs.items():
-                        refexpr = pgsql.ast.FieldRefNode(table=sql_path_tip, field=ref.alias,
-                                                         origin=ref.expr.origin,
-                                                         origin_field=ref.expr.origin_field)
-
-                        fieldref = pgsql.ast.SelectExprNode(expr=refexpr, alias=ref.alias)
-                        step_cte.targets.append(fieldref)
-
-                        step_cte.link_node_map.setdefault(caoslink, {})[field] = fieldref
-                        context.current.link_node_map[caoslink][field].expr.table = step_cte
+                self._pull_fieldrefs(context, step_cte, sql_path_tip)
 
         # Include target entity id and concept class id in the Select expression list.
         if caos_path_tip:

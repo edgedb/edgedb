@@ -88,16 +88,19 @@ class SelectQueryNode(RelationNode):
                 ('from_only', bool),
                 ('orderby', list), 'offset', 'limit', ('groupby', list), 'having',
                 ('ctes', datastructures.OrderedSet),
-                ('concept_node_map', dict), ('link_node_map', dict), ('linkmap', dict)]
+                ('concept_node_map', dict), ('link_node_map', dict), ('linkmap', dict),
+                ('subquery_referrers', list)]
 
 class UpdateQueryNode(Base):
-    __fields = ['fromexpr', ('values', list), 'where', ('targets', list)]
+    __fields = ['fromexpr', ('values', list), 'where', ('targets', list),
+                ('subquery_referrers', list)]
 
 class UpdateExprNode(Base):
     __fields = ['expr', 'value']
 
 class DeleteQueryNode(Base):
-    __fields = ['fromexpr', 'where', ('targets', list)]
+    __fields = ['fromexpr', 'where', ('targets', list),
+                ('subquery_referrers', list)]
 
 class CompositeNode(RelationNode):
     __fields = [('queries', list), ('ctes', datastructures.OrderedSet),

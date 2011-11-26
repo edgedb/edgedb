@@ -439,10 +439,12 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     err = ('subquery must return only one column')
                     raise errors.CaosQLError(err)
 
+                node.referrers.append(context.current.location)
                 context.current.graph.subgraphs.add(node)
                 context.current.subgraphs_map[expr] = node
 
             refname = node.selector[0].name or node.selector[0].autoname
+            node.attrrefs.add(refname)
             node = tree.ast.SubgraphRef(ref=node, name=refname)
 
         elif isinstance(expr, qlast.BinOpNode):
@@ -513,7 +515,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             node = self.process_unaryop(self._process_expr(context, expr.operand), expr.op)
 
         elif isinstance(expr, qlast.ExistsPredicateNode):
-            node = tree.ast.ExistPred(expr=self._process_expr(context, expr.expr))
+            subquery = self._process_expr(context, expr.expr)
+            if isinstance(subquery, tree.ast.SubgraphRef):
+                subquery.ref.referrers.append('exists')
+            node = tree.ast.ExistPred(expr=subquery)
 
         elif isinstance(expr, qlast.TypeCastNode):
             typ = context.current.proto_schema.get(expr.type, module_aliases=context.current.namespaces)

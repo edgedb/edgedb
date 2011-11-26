@@ -100,7 +100,7 @@ class Base(ast.AST):
 class GraphExpr(Base):
     __fields = ['generator', ('selector', list), ('grouper', list), ('sorter', list),
                 'offset', 'limit', ('opselector', list), 'optarget', 'opvalues', 'op',
-                ('subgraphs', set)]
+                ('subgraphs', set), ('referrers', list), ('attrrefs', set)]
 
 
 class Path(Base):
