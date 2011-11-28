@@ -422,10 +422,18 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.direction:
             direction = 'ASC' if node.direction == pgast.SortAsc else 'DESC'
             self.write(' ' + direction)
-            if node.direction == pgast.SortDesc:
+
+            if node.nulls_order is None:
+                if node.direction == pgast.SortDesc:
+                    self.write(' NULLS LAST')
+                else:
+                    self.write(' NULLS FIRST')
+            elif node.nulls_order == pgast.NullsFirst:
+                self.write(' NULLS FIRST')
+            elif node.nulls_order == pgast.NullsLast:
                 self.write(' NULLS LAST')
             else:
-                self.write(' NULLS FIRST')
+                raise SQLSourceGeneratorError('unexpected NULLS order: {}'.format(node.nulls_order))
 
     def visit_TypeCastNode(self, node):
         self.visit(node.expr)

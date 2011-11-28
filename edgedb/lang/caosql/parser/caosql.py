@@ -477,7 +477,7 @@ class OptNonesOrder(Nonterm):
 
     def reduce_empty(self, *kids):
         "%reduce <e>"
-        self.val = qlast.NonesDefault
+        self.val = None
 
 
 class OptAll(Nonterm):

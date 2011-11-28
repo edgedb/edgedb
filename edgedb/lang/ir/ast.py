@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2011 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -13,6 +13,7 @@ from semantix.exceptions import SemantixError
 from semantix.utils import ast
 from semantix.caos import name as caos_name
 from semantix.caos import types as caos_types
+from semantix.utils.datastructures import StrSingleton
 
 
 class ASTError(SemantixError):
@@ -309,7 +310,32 @@ class InlineFilter(Base): __fields  = ['expr', 'ref']
 class InlinePropFilter(Base): __fields  = ['expr', 'ref']
 class ExistPred(Base): __fields = ['expr', 'outer']
 class AtomicExistPred(ExistPred): pass
-class SortExpr(Base): __fields = ['expr', 'direction']
+
+class SortOrder(StrSingleton):
+    _map = {
+        'ASC': 'SortAsc',
+        'DESC': 'SortDesc',
+        'SORT_DEFAULT': 'SortDefault'
+    }
+
+SortAsc = SortOrder('ASC')
+SortDesc = SortOrder('DESC')
+SortDefault = SortAsc
+
+
+class NonesOrder(StrSingleton):
+    _map = {
+        'first': 'NonesFirst',
+        'last': 'NonesLast'
+    }
+
+NonesFirst = NonesOrder('first')
+NonesLast = NonesOrder('last')
+
+
+class SortExpr(Base):
+    __fields = ['expr', 'direction', ('nones_order', NonesOrder)]
+
 class SelectorExpr(Base): __fields = ['expr', 'name', 'autoname']
 class UpdateExpr(Base): __fields = ['expr', 'value']
 class FunctionCall(Base):

@@ -860,7 +860,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 for sorter in sorters:
                     expr = self._process_expr(context, sorter.path)
                     expr = self.merge_paths(expr)
-                    s = tree.ast.SortExpr(expr=expr, direction=sorter.direction)
+                    s = tree.ast.SortExpr(expr=expr, direction=sorter.direction,
+                                          nones_order=sorter.nones_order)
                     result.append(s)
 
         return result

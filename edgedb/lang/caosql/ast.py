@@ -1,13 +1,13 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2011 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
 
+from semantix.caos.tree import ast as tree_ast
 from semantix.utils import ast
-from semantix.utils.datastructures import StrSingleton
 
 
 class RootNode(ast.AST): __fields = ['children']
@@ -60,33 +60,8 @@ class TypeCastNode(ast.AST): __fields = ['expr', 'type']
 
 class TypeRefNode(ast.AST): __fields = ['expr']
 
-class SortOrder(StrSingleton):
-    _map = {
-        'ASC': 'SortAsc',
-        'DESC': 'SortDesc',
-        'SORT_DEFAULT': 'SortDefault'
-    }
-
-SortAsc = SortOrder('ASC')
-SortDesc = SortOrder('DESC')
-SortDefault = SortAsc
-
-
-class NonesOrder(StrSingleton):
-    _map = {
-        'NONES_FIRST': 'NonesFirst',
-        'NONES_LAST': 'NonesLast',
-        'NONES_DEFAULT': 'NonesDefault'
-    }
-
-NonesFirst = NonesOrder('NONES_FIRST')
-NonesLast = NonesOrder('NONES_LAST')
-NonesDefault = NonesOrder('NONES_DEFAULT')
-
-
 class CaosQLOperator(ast.ops.Operator):
     pass
-
 
 LIKE = CaosQLOperator('~~')
 NOT_LIKE = CaosQLOperator('!~~')
@@ -94,3 +69,25 @@ ILIKE = CaosQLOperator('~~*')
 NOT_ILIKE = CaosQLOperator('!~~*')
 IS_OF = CaosQLOperator('IS OF')
 IS_NOT_OF = CaosQLOperator('IS NOT OF')
+
+
+class SortOrder(tree_ast.SortOrder):
+    _map = {
+        tree_ast.SortAsc: 'SortAsc',
+        tree_ast.SortDesc: 'SortDesc',
+        tree_ast.SortDefault: 'SortDefault'
+    }
+
+SortAsc = SortOrder(tree_ast.SortAsc)
+SortDesc = SortOrder(tree_ast.SortDesc)
+SortDefault = SortOrder(tree_ast.SortDefault)
+
+
+class NonesOrder(tree_ast.NonesOrder):
+    _map = {
+        tree_ast.NonesFirst: 'NonesFirst',
+        tree_ast.NonesLast: 'NonesLast'
+    }
+
+NonesFirst = NonesOrder(tree_ast.NonesFirst)
+NonesLast = NonesOrder(tree_ast.NonesLast)

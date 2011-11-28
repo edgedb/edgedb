@@ -9,7 +9,7 @@
 import weakref
 
 from semantix.utils import datastructures, ast
-from semantix.caos.caosql import ast as caosql_ast
+from semantix.caos.tree import ast as tree_ast
 
 
 class Base(ast.AST):
@@ -128,7 +128,7 @@ class SequenceNode(Base):
     __fields = [('elements', list)]
 
 class SortExprNode(Base):
-    __fields = ['expr', 'direction']
+    __fields = ['expr', 'direction', 'nulls_order']
 
 class FunctionCallNode(Base):
     __fields = ['name', ('args', list), 'over', ('aggregate', bool), ('noparens', bool)]
@@ -191,13 +191,23 @@ IS_OF = PgSQLComparisonOperator('IS OF')
 IS_NOT_OF = PgSQLComparisonOperator('IS NOT OF')
 
 
-class SortOrder(datastructures.StrSingleton):
+class SortOrder(tree_ast.SortOrder):
     _map = {
-        caosql_ast.SortAsc: 'SortAsc',
-        caosql_ast.SortDesc: 'SortDesc',
-        caosql_ast.SortDefault: 'SortDefault'
+        tree_ast.SortAsc: 'SortAsc',
+        tree_ast.SortDesc: 'SortDesc',
+        tree_ast.SortDefault: 'SortDefault'
     }
 
-SortAsc = SortOrder(caosql_ast.SortAsc)
-SortDesc = SortOrder(caosql_ast.SortDesc)
-SortDefault = SortOrder(caosql_ast.SortDefault)
+SortAsc = SortOrder(tree_ast.SortAsc)
+SortDesc = SortOrder(tree_ast.SortDesc)
+SortDefault = SortOrder(tree_ast.SortDefault)
+
+
+class NullsOrder(tree_ast.NonesOrder):
+    _map = {
+        tree_ast.NonesFirst: 'NonesFirst',
+        tree_ast.NonesLast: 'NonesLast'
+    }
+
+NullsFirst = NullsOrder(tree_ast.NonesFirst)
+NullsLast = NullsOrder(tree_ast.NonesLast)

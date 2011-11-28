@@ -512,7 +512,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         for expr in sorter:
             sortexpr = pgsql.ast.SortExprNode(expr=self._process_expr(context, expr.expr),
-                                              direction=expr.direction)
+                                              direction=expr.direction, nulls_order=expr.nones_order)
             query.orderby.append(sortexpr)
 
     def _process_groupby(self, context, grouper):
