@@ -134,7 +134,7 @@ class SortExprNode(Base):
     __fields = ['expr', 'direction', 'nulls_order']
 
 class FunctionCallNode(Base):
-    __fields = ['name', ('args', list), 'over', ('aggregate', bool), ('noparens', bool)]
+    __fields = ['name', ('args', list), 'over', ('aggregates', bool), ('noparens', bool)]
 
 class IgnoreNode(Base):
     pass

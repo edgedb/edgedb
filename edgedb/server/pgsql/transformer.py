@@ -1101,7 +1101,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                                     right_type in ('text', 'varchar') and op == ast.ops.ADD:
                                 op = '||'
 
-                        result = pgsql.ast.BinOpNode(op=op, left=left, right=right)
+                        result = pgsql.ast.BinOpNode(op=op, left=left, right=right,
+                                                     aggregates=op_aggregates)
 
         elif isinstance(expr, tree.ast.UnaryOp):
             operand = self._process_expr(context, expr.expr, cte)
@@ -1391,7 +1392,8 @@ class CaosTreeTransformer(CaosExprTransformer):
             else:
                 name = expr.name
             if not result:
-                result = pgsql.ast.FunctionCallNode(name=name, args=args)
+                result = pgsql.ast.FunctionCallNode(name=name, args=args,
+                                                    aggregates=bool(expr.aggregates))
 
         return result
 
