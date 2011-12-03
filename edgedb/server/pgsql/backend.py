@@ -2333,21 +2333,21 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def provide_virtual_concept_table(self, concept, schema, session):
         table_name = common.concept_name_to_table_name(concept.name, catenate=False)
 
-        proto_schema = schema or self.meta
-        stored_concept = self.virtual_concept_from_table(proto_schema, table_name)
+        my_schema = self.meta
+        stored_concept = self.virtual_concept_from_table(my_schema, table_name)
 
         updated_concept = concept.copy()
         updated_concept._children = concept._children.copy()
 
-        ptrs = updated_concept.get_children_common_pointers(proto_schema)
+        ptrs = updated_concept.get_children_common_pointers(schema)
 
         for ptr in ptrs:
             if ptr.atomic():
                 if ptr.target.automatic:
-                    target = proto_schema.get(ptr.target.base, type=ptr.target.get_canonical_class())
+                    target = schema.get(ptr.target.base, type=ptr.target.get_canonical_class())
                 else:
                     target = ptr.target
-                ptr = ptr.derive(proto_schema, updated_concept, target)
+                ptr = ptr.derive(schema, updated_concept, target)
 
                 # Drop all constraints on virtual concept links --- they are needless and
                 # potentially harmful.
@@ -2382,7 +2382,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 alter.add(rebase)
                 delta.add(alter)
 
-        delta = self.process_delta(delta, proto_schema, session)
+        delta = self.process_delta(delta, my_schema, session)
 
         self.execute_delta_plan(delta, session)
 

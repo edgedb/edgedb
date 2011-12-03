@@ -640,7 +640,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                     seen_concepts = seen_atoms = False
 
-                    if len(sources) > 1 or list(sources)[0] != concept:
+                    if len(sources) > 1:
                         newtip = set()
                         for t in tip:
                             if t.rlink:

@@ -492,6 +492,9 @@ class TreeTransformer:
             if self.context.current.location == 'generator' and expr.inline:
                 expr.ref.filter = self.extend_binop(expr.ref.filter, expr.expr)
                 self.merge_paths(expr.ref)
+                arefs = ast.find_children(expr, lambda i: isinstance(i, caos_ast.AtomicRefSimple))
+                for aref in arefs:
+                    self.merge_paths(aref)
                 expr = caos_ast.InlineFilter(expr=expr.ref.filter, ref=expr.ref)
             else:
                 self.merge_paths(expr.expr)
