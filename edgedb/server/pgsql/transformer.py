@@ -1032,6 +1032,14 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                     if isinstance(right.expr, pgsql.ast.SequenceNode):
                         right.expr = pgsql.ast.ArrayNode(elements=right.expr.elements)
+                    elif right.type == 'text[]':
+                        left_type = self.get_expr_type(expr.left, context.current.proto_schema)
+                        if isinstance(left_type, caos_types.ProtoNode):
+                            if isinstance(left_type, caos_types.ProtoConcept):
+                                left_type = left_type.pointers['semantix.caos.builtins.id'].target
+                            left_type = types.pg_type_from_atom(context.current.proto_schema,
+                                                                left_type, topbase=True)
+                            right.type = left_type + '[]'
 
                     right = pgsql.ast.FunctionCallNode(name=qual_func, args=[right])
                 else:
@@ -1081,7 +1089,9 @@ class CaosTreeTransformer(CaosExprTransformer):
                         right_type = self.get_expr_type(expr.right, context.current.proto_schema)
 
                         if left_type and right_type:
-                            if isinstance(left_type, caos_types.ProtoAtom):
+                            if isinstance(left_type, caos_types.ProtoNode):
+                                if isinstance(left_type, caos_types.ProtoConcept):
+                                    left_type = left_type.pointers['semantix.caos.builtins.id'].target
                                 left_type = types.pg_type_from_atom(context.current.proto_schema,
                                                                     left_type, topbase=True)
                             elif not isinstance(left_type, caos_types.ProtoObject) and \
@@ -1089,7 +1099,9 @@ class CaosTreeTransformer(CaosExprTransformer):
                                          not isinstance(left_type[1], caos_types.ProtoObject)):
                                 left_type = common.py_type_to_pg_type(left_type)
 
-                            if isinstance(right_type, caos_types.ProtoAtom):
+                            if isinstance(right_type, caos_types.ProtoNode):
+                                if isinstance(right_type, caos_types.ProtoConcept):
+                                    right_type = right_type.pointers['semantix.caos.builtins.id'].target
                                 right_type = types.pg_type_from_atom(context.current.proto_schema,
                                                                     right_type, topbase=True)
                             elif not isinstance(right_type, caos_types.ProtoObject) and \
@@ -1100,6 +1112,11 @@ class CaosTreeTransformer(CaosExprTransformer):
                             if left_type in ('text', 'varchar') and \
                                     right_type in ('text', 'varchar') and op == ast.ops.ADD:
                                 op = '||'
+                            elif left_type != right_type:
+                                if isinstance(right, pgsql.ast.ConstantNode) and right_type == 'text':
+                                    right.type = left_type
+                                elif isinstance(left, pgsql.ast.ConstantNode) and left_type == 'text':
+                                    left.type = right_type
 
                         result = pgsql.ast.BinOpNode(op=op, left=left, right=right,
                                                      aggregates=op_aggregates)
