@@ -13,7 +13,7 @@ from semantix.utils import term
 from semantix.utils.helper import xrepr
 
 from .. import elements
-from . import styles
+from . import styles as styles_module
 
 
 SMART_BREAK       = 1
@@ -175,7 +175,7 @@ class BaseRenderer:
         self.renderers_cache = {}
         self.buffer = Buffer(max_width=max_width, styled=styles, indent_with=indent_with)
         self.max_width = max_width
-        self.styles = styles
+        self.styles = styles or styles_module.StylesTable()
 
     def _render(self, markup):
         cls = markup.__class__
@@ -489,9 +489,9 @@ def render(markup, file=None):
     if term.use_colors(fileno):
         max_colors = term.max_colors()
         if max_colors > 255:
-            style_table = styles.Dark256
+            style_table = styles_module.Dark256
         elif max_colors > 6:
-            style_table = styles.Dark16
+            style_table = styles_module.Dark16
 
     rendered = renders(markup, styles=style_table, max_width=max_width)
     if not rendered.endswith('\n'):
