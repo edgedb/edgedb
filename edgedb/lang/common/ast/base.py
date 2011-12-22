@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2011 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -11,6 +11,7 @@ import collections
 
 
 from . import dump
+from semantix.utils import markup
 
 
 class ASTError(Exception):
@@ -142,11 +143,7 @@ class AST(object, metaclass=MetaAST):
                                field.name, field.type.__name__, value.__class__.__name__))
 
     def dump(self, *args, **kwargs):
-        if 'pretty' in kwargs and kwargs['pretty']:
-            del kwargs['pretty']
-            return dump.pretty_dump(self, *args, **kwargs)
-        else:
-            return dump.dump(self, *args, **kwargs)
+        markup.dump(self)
 
     def __copy__(self):
         copied = self.__class__()
@@ -164,6 +161,18 @@ class AST(object, metaclass=MetaAST):
                 setattr(copied, field, copy.deepcopy(value, memo))
         return copied
 
+
+@markup.serializer.serializer(handles=AST)
+def _serialize_to_markup(ast, *, ctx):
+    children = {}
+
+    for fieldname, field in iter_fields(ast):
+        children[fieldname] = markup.serialize(field, ctx=ctx)
+
+    return markup.elements.lang.TreeNode(children=children, id=id(ast),
+                                         name=type(ast).__name__)
+
+
 class LanguageAST(AST):
     def __init__(self, **kwargs):
         self.source_position = (None, -1, -1)
@@ -177,6 +186,7 @@ class LanguageAST(AST):
         copied = super().__deepcopy__(memo)
         copied.source_position = copy.deepcopy(self.source_position)
         return copied
+
 
 class ASTBlockNode(AST):
     __fields = [('body', list)]
