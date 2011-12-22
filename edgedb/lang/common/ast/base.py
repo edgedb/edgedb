@@ -10,7 +10,6 @@ import copy
 import collections
 
 
-from . import dump
 from semantix.utils import markup
 
 
