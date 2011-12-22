@@ -12,7 +12,7 @@ import weakref
 
 
 class WeakObjectRegistry(collections.MutableMapping):
-    """ Weak object mapping class.
+    """Weak object mapping class.
 
     Dictionary entries will be discarded once there are no strong references
     to the key, similar to weakref.WeakKeyDictionary.  Unlike WeakKeyDictionary,
@@ -21,6 +21,10 @@ class WeakObjectRegistry(collections.MutableMapping):
     """
 
     def __init__(self, mapping=None):
+        """
+        :param dict mapping: Optional initial values.
+        """
+
         self.data = {}
         self.refs = {}
 

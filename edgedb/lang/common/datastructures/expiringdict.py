@@ -19,16 +19,28 @@ MAX_CONTROL_ID = 2**64 - 1
 class ExpiringDict(collections.UserDict):
     """A dict-like object with an expiry time on its values.
 
-    >>> dct = ExpiringDict(expiry=1.0)
-    >>> dct['foo'] = 'bar'
+    .. code-block:: pycon
+
+        >>> dct = ExpiringDict(expiry=1.0)
+        >>> dct['foo'] = 'bar'
 
     And, slightly after a second:
-    >>> time.sleep(1.1)
-    >>> 'foo' in dct
-    ... False
+
+    .. code-block:: pycon
+
+        >>> time.sleep(1.1)
+        >>> 'foo' in dct
+        False
     """
 
     def __init__(self, *, default_expiry:float=None):
+        """
+        :param float default_expiry: Optional default expiry in seconds
+                                     (or ``datetime.timedelta``).  Maybe
+                                     overridden by ``ExpiringDict.set``
+                                     method.
+        """
+
         super().__init__()
         self.default_expiry = self._cast_expiry(default_expiry)
         self.keyheap = []
@@ -68,6 +80,11 @@ class ExpiringDict(collections.UserDict):
                         del self.data[data[1]]
 
     def set(self, key, value, *, expiry=Void):
+        """Sets (key: value) pair with an optional expiry time.
+
+        :param float expiry: Optional expiry time in seconds (or ``datetime.timedelta``)
+        """
+
         if expiry is Void:
             if self.default_expiry is not None:
                 expiry = self.default_expiry

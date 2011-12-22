@@ -29,6 +29,8 @@ class ImmutableMeta(type):
 
 
 class frozendict(dict, metaclass=ImmutableMeta):
+    """Immutable dict (like ``frozenset`` for ``set``.)"""
+
     _shadowed_methods_ = ('__setitem__', '__delitem__', 'update', 'clear',
                           'pop', 'popitem', 'setdefault')
 

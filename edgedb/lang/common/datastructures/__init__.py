@@ -6,5 +6,9 @@
 ##
 
 
+"""Collection of various data structures."""
+
+
 from .all import *
 from .multidict import Multidict, CombinedMultidict
+from .typed import TypedList, TypedDict
