@@ -10,14 +10,11 @@ import types
 import decimal
 import collections
 import weakref
-import linecache
 
-from semantix.utils import helper
 from semantix.utils.functional.dispatch import TypeDispatcher
 from .. import elements
 
 from semantix import exceptions
-from semantix.utils.helper import xrepr
 
 
 __all__ = 'serialize',
@@ -96,26 +93,17 @@ def serialize_traceback_point(obj, *, ctx, include_source=True, source_window_si
     name = obj.tb_frame.f_code.co_name
     filename = obj.tb_frame.f_code.co_filename
 
-    if include_source:
-        lines = []
-        line_numbers = []
-
-        sourcelines = linecache.getlines(filename, globals())
-        start = max(1, lineno - source_window_size)
-        end = min(len(sourcelines), lineno + source_window_size + 1)
-        for i in range(start, end):
-            lines.append(sourcelines[i - 1].rstrip())
-            line_numbers.append(i)
-    else:
-        lines = line_numbers = None
-
     locals = None
     if include_locals:
         locals = serialize(dict(obj.tb_frame.f_locals), ctx=ctx)
 
-    return point_cls(name=name, lineno=lineno, filename=filename,
-                     lines=lines, line_numbers=line_numbers,
-                     locals=locals, id=id(obj))
+    point = point_cls(name=name, lineno=lineno, filename=filename,
+                      locals=locals, id=id(obj))
+
+    if include_source:
+        point.load_source(window=source_window_size)
+
+    return point
 
 
 @serializer(handles=types.TracebackType)

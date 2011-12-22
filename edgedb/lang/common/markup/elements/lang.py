@@ -6,6 +6,8 @@
 ##
 
 
+import linecache
+
 from semantix.utils.datastructures import Field
 from semantix.utils.datastructures import typed
 from . import base
@@ -84,11 +86,33 @@ class TracebackPoint(BaseObject):
     name = Field(str)
     filename = Field(str)
     lineno = Field(int)
+    colno = Field(int, default=None)
 
     lines = Field(typed.StrList, default=None, coerce=True)
     line_numbers = Field(typed.IntList, default=None, coerce=True)
 
     locals = Field(Dict, default=None)
+
+    def load_source(self, window=2, lines=None):
+        self.lines = self.line_numbers = None
+
+        if self.lineno and (self.filename or lines):
+            lineno = self.lineno
+
+            lines = []
+            line_numbers = []
+
+            sourcelines = lines or linecache.getlines(self.filename, globals())
+
+            start = max(1, lineno - window)
+            end = min(len(sourcelines), lineno + window + 1)
+            for i in range(start, end):
+                lines.append(sourcelines[i - 1].rstrip())
+                line_numbers.append(i)
+
+            if lines:
+                self.lines = typed.StrList(lines)
+                self.line_numbers = typed.IntList(line_numbers)
 
 
 class TracebackPointList(typed.TypedList, type=TracebackPoint):
