@@ -246,13 +246,27 @@ class DocRenderer(BaseRenderer):
 
         for el in element.body:
             self._render(el)
-
-        self.buffer.new_line()
+            self.buffer.new_line()
 
     def _render_doc_ValueDiff(self, element):
         self.buffer.write(element.before, style=self.styles.diff_before)
         self.buffer.write(' | ')
         self.buffer.write(element.after, style=self.styles.diff_after)
+
+    def _render_doc_Diff(self, element):
+        total_lines = len(element.lines)
+        for linenum, line in enumerate(element.lines):
+            style = None
+            if line.startswith('+'):
+                style = self.styles.diff_after
+            elif line.startswith('-'):
+                style = self.styles.diff_before
+            elif line.startswith('@@'):
+                style = self.styles.diff_anno
+
+            self.buffer.write(line, style=style)
+            if linenum < total_lines - 1:
+                self.buffer.new_line()
 
 
 class LangRenderer(BaseRenderer):

@@ -75,8 +75,9 @@ class Dark256(StylesTable):
     unknown_object = Style(color='#454545')
     unknown_markup = Style(color='white', bgcolor='#84345a')
 
+    diff_anno = Style(color='#777')
     diff_after = Style(color='#4aa336')
-    diff_before = Style(color='#900')
+    diff_before = Style(color='#A00')
 
     code = Style(color='#aaa')
     code_decorator = Style(color='#af5f00')

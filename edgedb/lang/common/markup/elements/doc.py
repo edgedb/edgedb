@@ -33,8 +33,12 @@ class Diff(DocMarkup):
                   tofiledate='', n=10):
 
         lines = difflib.unified_diff(a, b, fromfile, tofile, fromfiledate, tofiledate, n)
+        lines=[line.rstrip() for line in lines]
 
-        print(repr(lines))
+        if lines:
+            return cls(lines=lines)
+        else:
+            return Text(text='No differences')
 
 
 class ValueDiff(DocMarkup):
