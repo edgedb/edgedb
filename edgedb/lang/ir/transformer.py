@@ -17,7 +17,7 @@ from semantix.caos import types as caos_types
 from semantix.caos.tree import ast as caos_ast
 
 from semantix.utils.algos import boolean
-from semantix.utils import datastructures, ast, debug
+from semantix.utils import datastructures, ast, debug, markup
 from semantix.utils.datastructures import xvalue
 from semantix.utils.functional import checktypes
 
@@ -77,22 +77,17 @@ class TreeError(TreeTransformerError):
     pass
 
 
-class TreeTransformerExceptionContext(exceptions.ExceptionContext):
+class TreeTransformerExceptionContext(markup.MarkupExceptionContext):
+    title = 'Caos Tree Transformer Context'
+
     def __init__(self, tree):
+        super().__init__()
         self.tree = tree
-        self.title = 'Caos Tree Transformer Context'
 
-    def render(self):
-        buffer = []
-
-        buffer.extend(('-' * 9, '\n', xvalue('Caos Tree', fg='red'), '\n', '-' * 9, '\n\n'))
-
-        buffer.append(self.tree.dump(pretty=True, colorize=True, width=180,
-                                     field_mask='^(_.*|refs|backrefs)$'))
-
-        buffer.extend(('-' * 13, '\n', xvalue('End Caos Tree', fg='red'), '\n', '-' * 13, '\n\n'))
-
-        return buffer
+    @classmethod
+    def as_markup(cls, self, *, ctx):
+        tree = markup.serialize(self.tree, ctx=ctx)
+        return markup.elements.lang.ExceptionContext(title=self.title, body=[tree])
 
 
 @checktypes

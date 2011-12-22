@@ -57,13 +57,14 @@ class MetaCommand(delta_cmds.Command, metaclass=CommandMeta):
         for op in sorted(self.pgops, key=lambda i: getattr(i, 'priority', 0), reverse=True):
             op.execute(context)
 
-    def dump(self):
-        result = [repr(self)]
+    @classmethod
+    def as_markup(cls, self, *, ctx):
+        node = markup.elements.lang.TreeNode(name=repr(self))
 
         for op in self.pgops:
-            result.extend('  %s' % l for l in op.dump().split('\n'))
+            node.add_child(node=markup.serialize(op, ctx=ctx))
 
-        return '\n'.join(result)
+        return node
 
 
 class CommandGroupAdapted(MetaCommand, adapts=delta_cmds.CommandGroup):
@@ -72,6 +73,7 @@ class CommandGroupAdapted(MetaCommand, adapts=delta_cmds.CommandGroup):
         MetaCommand.apply(self, meta, context)
 
 
+@markup.serializer.serializer(method='as_markup')
 class BaseCommand:
     def get_code_and_vars(self, context):
         code = self.code(context)
@@ -101,6 +103,10 @@ class BaseCommand:
                 for cmd in extra:
                     cmd.execute(context)
             return result
+
+    @classmethod
+    def as_markup(cls, self, *, ctx):
+        return markup.serialize(str(self))
 
     def dump(self):
         return str(self)
@@ -195,13 +201,14 @@ class CommandGroup(Command):
 
         return result
 
-    def dump(self):
-        result = [repr(self)]
+    @classmethod
+    def as_markup(cls, self, *, ctx):
+        node = markup.elements.lang.TreeNode(name=repr(self))
 
         for op in self.commands:
-            result.extend('  %s' % l for l in op.dump().split('\n'))
+            node.add_child(node=markup.serialize(op, ctx=ctx))
 
-        return '\n'.join(result)
+        return node
 
     def __iter__(self):
         return iter(self.commands)
@@ -3885,15 +3892,17 @@ class AlterTable(AlterTableBase):
 
         return extra
 
-    def dump(self):
-        result = [repr(self)]
+    @classmethod
+    def as_markup(cls, self, *, ctx):
+        node = markup.elements.lang.TreeNode(name=repr(self))
 
         for op in self.ops:
             if isinstance(op, tuple):
                 op = op[0]
-            result.extend('  %s' % l for l in op.dump().split('\n'))
 
-        return '\n'.join(result)
+            node.add_child(node=markup.serialize(op, ctx=ctx))
+
+        return node
 
     def __iter__(self):
         return iter(self.ops)

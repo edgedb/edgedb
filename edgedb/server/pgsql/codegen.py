@@ -14,33 +14,27 @@ from semantix.caos.backends.pgsql import common
 from semantix.caos.backends.pgsql import ast as pgast
 from semantix.utils.ast import codegen
 from semantix.utils.datastructures import xvalue
+from semantix.utils import markup
 
 
-class SQLSourceGeneratorContext(sx_errors.ExceptionContext):
+class SQLSourceGeneratorContext(markup.MarkupExceptionContext):
+    title = 'SQL Source Generator Context'
+
     def __init__(self, node, chunks_generated=None):
         self.node = node
         self.chunks_generated = chunks_generated
-        self.title = 'SQL Source Generator Context'
 
-    def render(self):
-        buffer = []
+    @classmethod
+    def as_markup(cls, self, *, ctx):
+        me = markup.elements
 
-        buffer.extend(('-' * 9, '\n', xvalue('SQL Tree', fg='red'), '\n', '-' * 9, '\n\n'))
-
-        buffer.append(self.node.dump(pretty=True, colorize=True, width=180,
-                                     field_mask='^(_.*|refs|backrefs|caosnode|caoslink)$'))
-
-        buffer.extend(('-' * 13, '\n', xvalue('End SQL Tree', fg='red'), '\n', '-' * 13, '\n\n'))
+        body = [me.doc.Section(title='SQL Tree', body=[markup.serialize(self.node, ctx=ctx)])]
 
         if self.chunks_generated:
-            buffer.extend(('-' * 9, '\n', xvalue('SQL generated so far', fg='red'), '\n', '-' * 9, '\n\n'))
+            code = markup.serializer.serialize_code(''.join(self.chunks_generated), lexer='sql')
+            body.append(me.doc.Section(title='SQL generated so far', body=[code]))
 
-            buffer.extend(self.chunks_generated)
-            buffer.append('\n')
-
-            buffer.extend(('-' * 13, '\n', xvalue('End SQL generated so far', fg='red'), '\n', '-' * 13, '\n\n'))
-
-        return buffer
+        return me.lang.ExceptionContext(title=self.title, body=body)
 
 
 class SQLSourceGeneratorError(sx_errors.SemantixError):

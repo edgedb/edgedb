@@ -1655,7 +1655,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def interpret_search_index(self, index_name, index_expression):
         m = self.search_idx_name_re.match(index_name)
         if not m:
-            raise caos.MetaError('could not interpret index %s' % index_name)
+            raise caos.MetaError('could not interpret index {}'.format(index_name))
 
         language = m.group('language')
         index_class = m.group('index_class')
