@@ -56,3 +56,20 @@ class TestHelper:
         assert helper.get_function_class(foo.classbar) is Foo
         assert helper.get_function_class(foo.saved[1]) is Foo
         assert helper.get_function_class(foo.typesbar.__wrapped__) is Foo
+
+    def test_utils_helper_xrepr(self):
+        a = '1234567890'
+
+        assert helper.xrepr(a) == repr(a)
+
+        assert helper.xrepr(a, max_len=5) == "''..."
+        assert helper.xrepr(a, max_len=7) == "'12'..."
+        assert helper.xrepr(a, max_len=12) == repr(a)
+
+        assert repr(repr) == '<built-in function repr>'
+
+        assert helper.xrepr(repr) == repr(repr)
+        assert helper.xrepr(repr, max_len=10) == '<built>...'
+        assert helper.xrepr(repr, max_len=100) == repr(repr)
+
+        assert len(helper.xrepr(repr, max_len=10)) == 10
