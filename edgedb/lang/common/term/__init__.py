@@ -273,6 +273,12 @@ class AbstractStyle:
             self._term_prefix = ''
             self._term_postfix = ''
 
+    def apply(self, str):
+        """Applies ANSI escape sequences to :param:str, so if the result can be printed to
+        a terminal that supports styling"""
+
+        return self._term_prefix + str + self._term_postfix
+
 
 class Style16(AbstractStyle):
     """16-color style"""
