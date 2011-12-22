@@ -203,8 +203,9 @@ this.sx = (function() {
             if (args && args.length) {
                 return (function(func, scope, args) {
                     return function() {
-                        args.push.apply(args, arguments);
-                        return func.apply(scope, args);
+                        var args_copy = Array.prototype.slice.call(args);
+                        args_copy.push.apply(args_copy, arguments);
+                        return func.apply(scope, args_copy);
                     };
                 })(func, scope, args);
             } else {
@@ -218,6 +219,15 @@ this.sx = (function() {
 
         escape: function(str) {
             return String(str).replace(/\&/, '&amp;').replace(/</, '&lt;').replace(/>/, '&gt;');
+        },
+
+        uuid4: function() {
+            function s(num) {
+                return (((1 + Math.random()) * num) | 0).toString(16);
+            }
+
+            return s(0x10000000) + '-' + s(0x1000) + '-4' + s(0x100) + '-a' +
+                                                s(0x100) + '-' + s(0x1000) + s(0x1000) + s(0x1000);
         },
 
         dom: {
@@ -261,6 +271,18 @@ this.sx = (function() {
                 if (element.className) {
                     var reg = new RegExp('(\\s|^)' + cls + '(\\s|$)');
                     element.className = element.className.replace(reg, ' ');
+                }
+            },
+
+            toggle_class: function(element, class_name) {
+                if (!class_name || !element) {
+                    return false;
+                }
+
+                if (sx.dom.has_class(element, class_name)) {
+                    sx.dom.remove_class(element, class_name);
+                } else {
+                    sx.dom.add_class(element, class_name);
                 }
             },
 
@@ -331,6 +353,11 @@ this.sx = (function() {
                 }
 
                 return new_el;
+            },
+
+            replace: function(element, spec) {
+                var child = sx.dom._builder(null, spec);
+                element.parentNode.replaceChild(child, element);
             },
 
             update: function(element, spec) {
@@ -442,6 +469,13 @@ this.sx = (function() {
         remove_class: function(class_name) {
             for (var i = 0; i < this.length; i++) {
                 sx.dom.remove_class(this[i], class_name);
+            }
+            return this;
+        },
+
+        toggle_class: function(class_name) {
+            for (var i = 0; i < this.length; i++) {
+                sx.dom.toggle_class(this[i], class_name);
             }
             return this;
         },
