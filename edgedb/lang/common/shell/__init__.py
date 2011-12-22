@@ -15,7 +15,6 @@ from semantix import bootstrap
 
 from semantix.utils import datastructures
 from semantix.utils import debug, config
-from semantix.utils.io import terminal
 
 from . import reqs
 
@@ -115,20 +114,17 @@ class Command(CommandBase, name=None):
 class MainCommand(CommandGroup, name='__main__'):
     colorize = config.cvalue('auto',
                              type=str,
-                             validator=lambda value: value in ('auto', 'always', 'never'),
-                             doc='default commands color output setting value [auto, always, never]')
+                             validator=lambda value: value in ('auto', 'on', 'off'),
+                             doc='default commands color output setting value ' \
+                                 '[auto, on, off]')
 
     def create_parser(self, parser):
-        parser.add_argument('--color', choices=('auto', 'always', 'never'), default=self.colorize)
+        parser.add_argument('--color', choices=('auto', 'on', 'off'), default=self.colorize)
         parser.add_argument('-d', '--debug', dest='debug', action='append')
         bootstrap.init_early_args(parser)
         return parser
 
     def __call__(self, args, unknown_args):
-        color = None if args.color == 'auto' else args.color == 'always'
-        term = terminal.Terminal(sys.stdout.fileno(), colors=color)
-        args.color = term.has_colors()
-
         if args.debug:
             debug.channels.update(args.debug)
 

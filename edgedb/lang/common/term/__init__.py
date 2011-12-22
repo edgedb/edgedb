@@ -89,10 +89,10 @@ def use_colors(fileno=None):
 
     flag = shell.MainCommand.colorize
 
-    if flag == 'always':
+    if flag == 'on':
         return True
 
-    if flag == 'never':
+    if flag == 'off':
         return False
 
     assert flag == 'auto'
