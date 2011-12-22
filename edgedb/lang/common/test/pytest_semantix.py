@@ -127,8 +127,9 @@ class ReprExceptionInfo(BaseReprExceptionInfo):
 
             tw.sep('~', 'Semantix Exception Contexts')
             if contexts:
+                from semantix.utils import markup
                 for context in contexts:
-                    context.print(self.term)
+                    markup.dump(context)
 
         for name, content, sep in self.sections:
             tw.sep(sep, name)
