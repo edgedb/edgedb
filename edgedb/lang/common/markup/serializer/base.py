@@ -182,6 +182,19 @@ def serialize_generic_exception_context(obj, *, ctx):
                                           body=[elements.doc.Text(text=msg)])
 
 
+@serializer(handles=exceptions.DefaultExceptionContext)
+def serialize_default_exception_context(obj, *, ctx):
+    body = []
+
+    if obj.details:
+        body.append(elements.doc.Text(text='Details: {}'.format(obj.details)))
+
+    if obj.hint:
+        body.append(elements.doc.Text(text='Hint: {}'.format(obj.hint)))
+
+    return elements.lang.ExceptionContext(title=obj.title, body=body)
+
+
 @serializer(handles=type(None))
 @no_ref_detect
 def serialize_none(obj, *, ctx):
