@@ -14,7 +14,7 @@ import logging
 import datetime
 import contextlib
 
-from semantix.exceptions import SemantixError, excepthook, _iter_contexts
+from semantix.exceptions import SemantixError, _iter_contexts
 from semantix.utils.debug import highlight
 from semantix.utils.io import terminal
 
@@ -105,7 +105,7 @@ class LoggingPrintHandler(logging.Handler):
                 print(record.levelname, os.getpid(), str_dt, record.getMessage())
 
             if record.exc_info:
-                excepthook(*record.exc_info)
+                sys.excepthook(*record.exc_info)
 
 
 test_patterns = []
