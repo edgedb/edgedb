@@ -19,6 +19,13 @@ class MarkupExceptionContext(_ExceptionContext, metaclass=abc.AbstractMeta):
         pass
 
 
+def dumps(obj, header=None):
+    markup = serialize(obj)
+    if header is not None:
+        markup = elements.doc.Section(title=header, body=[markup])
+    return renderers.terminal.renders(markup)
+
+
 def _dump(markup, header, file):
     if header is not None:
         markup = elements.doc.Section(title=header, body=[markup])

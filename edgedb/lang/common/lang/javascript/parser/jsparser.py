@@ -15,7 +15,7 @@ import os
 from .. import ast as jsast
 from semantix.utils.lang.preprocessor import ast as ppast
 from . import keywords
-from semantix.utils.ast.dump import pretty_dump
+
 
 #
 # Various errors

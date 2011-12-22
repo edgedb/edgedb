@@ -14,7 +14,7 @@ import functools
 from semantix.utils.lang.python.convert import AstToPyAstConverter, PyAstToGeneric
 from semantix.utils.lang.generic.codegen.python import GenericPythonSourceGenerator
 from semantix.utils.debug import _indent_code, debug, highlight
-from semantix.utils.ast.dump import pretty_dump
+from semantix.utils import markup
 
 
 class GenericLangTestSuiteMeta(type):
@@ -34,13 +34,13 @@ class GenericLangTestSuiteMeta(type):
                     """
 
                     """LOG [lang.generic] Python Ast Tree
-                    print(pretty_dump(tree, colorize=True, width=120))
+                    markup.dump(tree)
                     """
 
                     ctree = PyAstToGeneric().convert(tree)
 
                     """LOG [lang.generic] Generic Ast Tree
-                    print(pretty_dump(ctree, colorize=True, width=120))
+                    markup.dump(ctree)
                     """
 
                     csource = GenericPythonSourceGenerator.to_source(ctree)

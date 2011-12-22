@@ -142,7 +142,7 @@ class AST(object, metaclass=MetaAST):
                                self.__class__.__name__,
                                field.name, field.type.__name__, value.__class__.__name__))
 
-    def dump(self, *args, **kwargs):
+    def dump(self):
         markup.dump(self)
 
     def __copy__(self):

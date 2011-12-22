@@ -297,9 +297,9 @@ class TreeTransformer:
 
     def _dump(self, tree):
         if tree is not None:
-            print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*|refs|backrefs)$'))
+            markup.dump(tree)
         else:
-            print('None')
+            markup.dump(None)
 
     def extend_binop(self, binop, *exprs, op=ast.ops.AND, reversed=False, cls=caos_ast.BinOp):
         exprs = list(exprs)

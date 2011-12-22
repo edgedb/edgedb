@@ -8,10 +8,8 @@
 
 import inspect
 
-from semantix.exceptions import ExceptionContext
-from semantix.utils.datastructures import xvalue
 from semantix.utils.lang.context import SourcePoint, SourceContext
-from semantix.utils import helper
+from semantix.utils import markup
 from semantix.utils.lang.import_.finder import Finder
 
 

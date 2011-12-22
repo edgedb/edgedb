@@ -10,7 +10,7 @@ import collections
 import itertools
 import functools
 
-from semantix.utils import ast
+from semantix.utils import ast, markup
 from semantix.caos import caosql, tree
 from semantix.caos import types as caos_types
 from semantix.caos import name as caos_name
@@ -404,6 +404,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             qtext = ''.join(qchunks)
             print(highlight(qtext, 'sql'))
             """
+
         except Exception as e:
             try:
                 args = [e.args[0]]
@@ -417,7 +418,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         return qchunks, argmap, arg_index, type(qtree)
 
     def _dump(self, tree):
-        print(tree.dump(pretty=True, colorize=True, width=180, field_mask='^(_.*|caosnode)$'))
+        markup.dump(tree)
 
     def _transform_tree(self, context, tree):
         context.current.query.subquery_referrers = tree.referrers

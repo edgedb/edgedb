@@ -24,7 +24,7 @@ from semantix.utils import datastructures
 from semantix.utils.debug import debug
 from semantix.utils.lang import yaml
 from semantix.utils.algos.persistent_hash import persistent_hash
-from semantix.utils import helper
+from semantix.utils import helper, markup
 
 from . import ast as pg_ast
 from . import codegen

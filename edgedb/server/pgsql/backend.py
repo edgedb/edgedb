@@ -23,7 +23,7 @@ from semantix.utils.algos import topological, persistent_hash
 from semantix.utils.debug import debug
 from semantix.utils.lang import yaml
 from semantix.utils.nlang import morphology
-from semantix.utils import datastructures
+from semantix.utils import datastructures, markup
 
 from semantix import caos
 from semantix.caos import objects as caos_objects
@@ -639,7 +639,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     @debug
     def process_delta(self, delta, meta, session=None):
         """LOG [caos.delta.plan] PgSQL Delta Plan
-            print(delta.dump())
+            markup.dump(delta)
         """
         delta = self.adapt_delta(delta)
         context = delta_cmds.CommandContext(session.connection if session else self.connection)
@@ -1664,8 +1664,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         columns = self.search_idx_expr.match(tree)
 
         if columns is None:
-            msg = 'could not interpret index "%s"' % index_name
-            details = 'Could not match expression:\n%s' % ast.dump.pretty_dump(tree)
+            msg = 'could not interpret index {!r}'.format(str(index_name))
+            details = 'Could not match expression:\n{}'.format(markup.dumps(tree))
             hint = 'Take a look at the matching pattern and adjust'
             raise caos.MetaError(msg, details=details, hint=hint)
 
@@ -1729,7 +1729,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         if value is None:
             msg = 'could not interpret constant expression "%s"' % expr
-            details = 'Could not match expression:\n%s' % ast.dump.pretty_dump(expr_tree)
+            details = 'Could not match expression:\n{}'.format(markup.dumps(expr_tree))
             hint = 'Take a look at the matching pattern and adjust'
             raise caos.MetaError(msg, details=details, hint=hint)
 
@@ -1776,7 +1776,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 msg = 'could not interpret constraint %s' % name
                 details = 'No matching pattern defined for constraint class "%s"' % constraint_class
                 hint = 'Implement matching pattern for "%s"' % constraint_class
-                hint += '\nExpression:\n%s' % ast.dump.pretty_dump(expr_tree)
+                hint += '\nExpression:\n{}'.format(markup.dumps(expr_tree))
                 raise caos.MetaError(msg, details=details, hint=hint)
 
             pattern = adapter()
@@ -1785,9 +1785,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         constraint_data = pattern.match(expr_tree)
 
         if constraint_data is None:
-            msg = 'could not interpret constraint "%s"' % name
-            details = 'Pattern "%r" could not match expression:\n%s' \
-                                            % (pattern.__class__, ast.dump.pretty_dump(expr_tree))
+            msg = 'could not interpret constraint {!r}'.format(str(name))
+            details = 'Pattern "{!r}" could not match expression:\n{}'. \
+                                        format(pattern.__class__, markup.dumps(expr_tree))
             hint = 'Take a look at the matching pattern and adjust'
             raise caos.MetaError(msg, details=details, hint=hint)
 

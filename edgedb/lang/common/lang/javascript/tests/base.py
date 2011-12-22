@@ -12,11 +12,10 @@ import subprocess
 import tempfile
 import py.test
 
-from semantix.utils import ast, debug, functional, config
+from semantix.utils import ast, debug, functional, config, markup
 from semantix.utils.debug import _indent_code, highlight
 import semantix.utils.lang.javascript.parser.jsparser as jsp
 from semantix.utils.lang.javascript.codegen import JavascriptSourceGenerator
-from semantix.utils.ast.dump import pretty_dump
 from semantix.utils.lang.javascript.ast import ForEachNode
 
 
@@ -52,7 +51,7 @@ class MetaJSParserTest_Base(type, metaclass=config.ConfigurableMeta):
 
         tree = jsparser.parse(src)
         """LOG [js.extra.parse] Test Source AST (no checking for now)
-        print(pretty_dump(tree, colorize=True))
+        markup.dump(tree)
         """
 
         processed_src = JavascriptSourceGenerator.to_source(tree)
@@ -104,10 +103,10 @@ class MetaJSParserTest_Functional(MetaJSParserTest_Base):
 
             """LOG [js.parse] Expected Result
             print(result)
-            """ 
+            """
             tree = jsparser.parse(src)
             """LOG [js.parse] Test Source AST
-            print(ast.dump.pretty_dump(tree, colorize=True))
+            markup.dump(tree)
             """
 
             processed_src = JavascriptSourceGenerator.to_source(tree)
