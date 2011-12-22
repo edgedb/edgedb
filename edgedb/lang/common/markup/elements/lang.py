@@ -50,9 +50,19 @@ class Dict(BaseObject):
     items = Field(base.MarkupMapping, default=base.MarkupMapping, coerce=True)
 
 
+class TreeNodeChild(BaseObject):
+    label = Field(str, default=None)
+    node = Field(base.Markup)
+
+class TreeNodeChildrenList(typed.TypedList, type=TreeNodeChild):
+    pass
+
 class TreeNode(BaseObject):
     name = Field(str)
-    children = Field(base.MarkupMapping, default=base.MarkupMapping, coerce=True)
+    children = Field(TreeNodeChildrenList, default=TreeNodeChildrenList, coerce=True)
+
+    def add_child(self, *, label=None, node):
+        self.children.append(TreeNodeChild(label=label, node=node))
 
 
 class NoneConstantType(LangMarkup):

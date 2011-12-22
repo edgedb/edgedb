@@ -37,3 +37,6 @@ class Diff(DocMarkup):
         print(repr(lines))
 
 
+class ValueDiff(DocMarkup):
+    before = Field(str)
+    after = Field(str)

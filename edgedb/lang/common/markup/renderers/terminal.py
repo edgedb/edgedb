@@ -16,33 +16,19 @@ from .. import elements
 from . import styles
 
 
-class _Marker(int):
-    pass
+SMART_BREAK       = 1
+SMART_LINES_START = 2
+SMART_LINES_END   = 3
+SMART_SPACE       = 4
 
+INDENT            = 10
+INDENT_NO_NL      = 11
+DEDENT            = 20
+DEDENT_NO_NL      = 21
 
-SMART_BREAK       = _Marker(1)
-SMART_LINES_START = _Marker(2)
-SMART_LINES_END   = _Marker(3)
+NEW_LINE          = 30
 
-INDENT            = _Marker(10)
-INDENT_NO_NL      = _Marker(11)
-DEDENT            = _Marker(20)
-DEDENT_NO_NL      = _Marker(21)
-
-NEW_LINE          = _Marker(30)
-
-
-class _styled_str(str):
-    def __new__(cls, value='', *, style=None):
-        obj = str.__new__(cls, value)
-        obj.style = style
-        return obj
-
-    def __str__(self):
-        if self.style is not None and not self.style.empty:
-            return self.style._term_prefix + self + self.style._term_postfix
-        else:
-            return self
+DATA              = 100
 
 
 class Buffer:
@@ -56,35 +42,37 @@ class Buffer:
 
     def new_line(self, lines=1):
         for _ in range(lines):
-            self.data.append(NEW_LINE)
+            self.data.append((NEW_LINE,))
 
     @contextlib.contextmanager
     def indent(self, auto_new_line=True):
         if auto_new_line:
-            self.data.append(INDENT)
+            self.data.append((INDENT,))
             yield
-            self.data.append(DEDENT)
+            self.data.append((DEDENT,))
         else:
-            self.data.append(INDENT_NO_NL)
+            self.data.append((INDENT_NO_NL,))
             yield
-            self.data.append(DEDENT_NO_NL)
+            self.data.append((DEDENT_NO_NL,))
+
+    def smart_space(self, space=' '):
+        self.data.append((SMART_SPACE, space))
 
     @contextlib.contextmanager
     def smart_lines(self):
-        self.data.append(SMART_LINES_START)
+        self.data.append((SMART_LINES_START,))
         yield
-        self.data.append(SMART_LINES_END)
+        self.data.append((SMART_LINES_END,))
 
     def smart_break(self):
-        self.data.append(SMART_BREAK)
+        self.data.append((SMART_BREAK,))
 
     def write(self, s, style=None):
-        s = str(s)
-
+        st = None
         if self.styled and style is not None and not style.empty:
-            s = _styled_str(s, style=style)
+            st = style
 
-        self.data.append(s)
+        self.data.append((DATA, str(s), st))
 
     def flush(self):
         data = self.data
@@ -106,18 +94,18 @@ class Buffer:
             smlines_max = 0
 
             for item in data[pos:]:
-                if item.__class__ is _Marker:
-                    if item == SMART_LINES_START:
-                        smlines += 1
-                        smlines_max += 1
-                    elif item == SMART_LINES_END:
-                        smlines -= 1
-                        if not smlines:
-                            break
-                    elif item == SMART_BREAK:
-                        _len += 1
-                else:
-                    _len += len(item)
+                code = item[0]
+                if code == SMART_LINES_START:
+                    smlines += 1
+                    smlines_max += 1
+                elif code == SMART_LINES_END:
+                    smlines -= 1
+                    if not smlines:
+                        break
+                elif code == SMART_BREAK:
+                    _len += 1
+                elif code == DATA:
+                    _len += len(item[1])
 
                 if _len > width:
                     return 0
@@ -128,46 +116,56 @@ class Buffer:
                 return 0
 
 
-        for pos, el in enumerate(data):
-            if el.__class__ is _Marker:
-                if el == INDENT:
-                    indentation += 1
-                    if not smart_mode:
-                        result.append('\n' + indent_with * indentation)
-                        offset = indent_with_len * indentation
-                elif el == DEDENT:
-                    indentation -= 1
-                    if not smart_mode:
-                        result.append('\n' + indent_with * indentation)
-                        offset = indent_with_len * indentation
-                elif el == INDENT_NO_NL:
-                    indentation += 1
-                elif el == DEDENT_NO_NL:
-                    indentation -= 1
-                elif el == NEW_LINE:
-                    if not smart_mode:
-                        result.append('\n' + indent_with * indentation)
-                        offset = indent_with_len * indentation
-                elif el == SMART_LINES_START:
-                    if (not smart_mode) and (max_width is not None) and (max_width - offset > 20):
-                        smart_mode = does_fit(pos, data, max_width-offset)
-                elif el == SMART_LINES_END:
-                    if smart_mode:
-                        smart_mode -= 1
-                elif el == SMART_BREAK:
-                    if smart_mode:
-                        result.append(' ')
-                        offset += 1
-                    else:
-                        result.append('\n' + indent_with * indentation)
-                        offset = indent_with_len * indentation
+        for pos, item in enumerate(data):
+            el = item[0]
 
+            if el == INDENT:
+                indentation += 1
+                if not smart_mode:
+                    result.append('\n' + indent_with * indentation)
+                    offset = indent_with_len * indentation
+            elif el == DEDENT:
+                indentation -= 1
+                if not smart_mode:
+                    result.append('\n' + indent_with * indentation)
+                    offset = indent_with_len * indentation
+            elif el == INDENT_NO_NL:
+                indentation += 1
+            elif el == DEDENT_NO_NL:
+                indentation -= 1
+            elif el == NEW_LINE:
+                if not smart_mode:
+                    result.append('\n' + indent_with * indentation)
+                    offset = indent_with_len * indentation
+            elif el == SMART_LINES_START:
+                if (not smart_mode) and (max_width is not None) and (max_width - offset > 20):
+                    smart_mode = does_fit(pos, data, max_width-offset)
+            elif el == SMART_LINES_END:
+                if smart_mode:
+                    smart_mode -= 1
+            elif el == SMART_BREAK:
+                if smart_mode:
+                    result.append(' ')
+                    offset += 1
                 else:
-                    assert False
-
+                    result.append('\n' + indent_with * indentation)
+                    offset = indent_with_len * indentation
+            elif el == SMART_SPACE:
+                if not smart_mode:
+                    result.append(item[1])
+            elif el == DATA:
+                # ``item[1]`` -- text to output, ``item[2]`` -- its style
+                #
+                if item[2] is None:
+                    result.append(item[1])
+                else:
+                    # If there's a style object - let's apply it
+                    #
+                    result.append(item[2].apply(item[1]))
+                offset += len(item[1])
             else:
-                result.append(str(el))
-                offset += len(el)
+                assert False
+
 
         return ''.join(result)
 
@@ -251,6 +249,11 @@ class DocRenderer(BaseRenderer):
 
         self.buffer.new_line()
 
+    def _render_doc_ValueDiff(self, element):
+        self.buffer.write(element.before, style=self.styles.diff_before)
+        self.buffer.write(' | ')
+        self.buffer.write(element.after, style=self.styles.diff_after)
+
 
 class LangRenderer(BaseRenderer):
     def __init__(self, *args, **kwargs):
@@ -260,16 +263,28 @@ class LangRenderer(BaseRenderer):
     def _render_lang_TreeNode(self, element):
         with self.buffer.smart_lines():
             self.buffer.write(element.name, style=self.styles.tree_node)
-            self.buffer.write(' <0x{:x}> ('.format(int(element.id)), style=self.styles.id)
+
+            self.buffer.smart_space()
+            if element.id:
+                self.buffer.write('<0x{:x}>'.format(int(element.id)), style=self.styles.id)
+                self.buffer.smart_space()
+            self.buffer.write('(', style=self.styles.id)
+
+            longest_label = max(element.children,
+                                key=lambda child: (len(child.label) if child.label else 0)).label
+            padding = min(len(longest_label) if longest_label else 0, 20)
 
             child_count = len(element.children)
             if child_count:
                 with self.buffer.indent():
-                    for idx, (childname, child) in enumerate(element.children.items()):
-                        self.buffer.write(childname, style=self.styles.attribute)
-                        self.buffer.write(' = ')
+                    for idx, child in enumerate(element.children):
+                        if child.label:
+                            self.buffer.write(child.label, style=self.styles.attribute)
+                            self.buffer.smart_space(' ' * (max(0, padding - len(child.label)) + 1))
+                            self.buffer.write('=')
+                            self.buffer.smart_space()
 
-                        self._render(child)
+                        self._render(child.node)
 
                         if idx < (child_count - 1):
                             self.buffer.write(',')

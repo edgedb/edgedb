@@ -164,13 +164,12 @@ class AST(object, metaclass=MetaAST):
 
 @markup.serializer.serializer(handles=AST)
 def _serialize_to_markup(ast, *, ctx):
-    children = {}
+    node = markup.elements.lang.TreeNode(id=id(ast), name=type(ast).__name__)
 
     for fieldname, field in iter_fields(ast):
-        children[fieldname] = markup.serialize(field, ctx=ctx)
+        node.add_child(label=fieldname, node=markup.serialize(field, ctx=ctx))
 
-    return markup.elements.lang.TreeNode(children=children, id=id(ast),
-                                         name=type(ast).__name__)
+    return node
 
 
 class LanguageAST(AST):
