@@ -545,9 +545,9 @@ class Struct(metaclass=StructMeta):
         """Returns an iterator over fields formatted using `formatter`"""
 
         for name, field in self.__class__._fields.items():
-            formatter = field.formatters.get(formatter)
-            if formatter:
-                yield (name, formatter(getattr(self, name)))
+            formatter_obj = field.formatters.get(formatter)
+            if formatter_obj:
+                yield (name, formatter_obj(getattr(self, name)))
 
     @hybridmethod
     def copy(scope, obj=None):
@@ -563,11 +563,11 @@ class Struct(metaclass=StructMeta):
     __copy__ = copy
 
     def __str__(self):
-        fields = ', '.join('%s=%s' % (name, value) for name, value in self.formatfields('str'))
+        fields = ', '.join(('%s=%s' % (name, value)) for name, value in self.formatfields('str'))
         return '<{} {}>'.format(self.__class__.__name__, fields)
 
     def __repr__(self):
-        fields = ', '.join('%s=%s' % (name, value) for name, value in self.formatfields('repr'))
+        fields = ', '.join(('%s=%s' % (name, value)) for name, value in self.formatfields('repr'))
         return '<{} {}>'.format(self.__class__.__name__, fields)
 
     # XXX: the following is a CC from AST, consider consolidation
