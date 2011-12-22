@@ -6,10 +6,7 @@
 ##
 
 
-import types
-
-from semantix.utils.datastructures import Struct, Field
-from semantix.utils.datastructures import typed
+from semantix.utils.datastructures import Struct, Field, typed
 
 
 class MarkupMeta(type(Struct)):

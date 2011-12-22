@@ -6,8 +6,7 @@
 ##
 
 
-from semantix.utils.datastructures.all import Field
-from semantix.utils.datastructures import typed
+from semantix.utils.datastructures import typed, struct
 from . import base
 
 
@@ -16,7 +15,7 @@ class BaseCode(base.Markup, ns='code'):
 
 
 class Token(BaseCode):
-    val = Field(str)
+    val = struct.Field(str)
 
 
 class TokenList(typed.TypedList, type=Token):
@@ -24,7 +23,7 @@ class TokenList(typed.TypedList, type=Token):
 
 
 class Code(BaseCode):
-    tokens = Field(TokenList, default=None, coerce=True)
+    tokens = struct.Field(TokenList, default=None, coerce=True)
 
 
 class Whitespace(Token):

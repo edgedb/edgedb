@@ -12,3 +12,4 @@
 from .all import *
 from .multidict import Multidict, CombinedMultidict
 from .typed import TypedList, TypedDict
+from .struct import Field, Struct, StructMeta

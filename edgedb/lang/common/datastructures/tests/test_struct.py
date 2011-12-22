@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.datastructures import Struct, Field
+from semantix.utils.datastructures.struct import Struct, Field
 from semantix.utils.debug import assert_raises
 
 
