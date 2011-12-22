@@ -115,8 +115,6 @@ def serialize_traceback(obj, *, ctx):
         result.append(serialize_traceback_point(current, ctx=ctx))
         current = current.tb_next
 
-    result.reverse()
-
     return elements.lang.Traceback(items=result, id=id(obj))
 
 
