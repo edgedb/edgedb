@@ -13,9 +13,10 @@ import Parsing
 import pyggy
 import pyggy.lexer
 
-from semantix.exceptions import SemantixError, ExceptionContext
+from semantix.exceptions import SemantixError
 from semantix.utils.lang import context as lang_context
 from semantix.utils.datastructures import xvalue
+from semantix.utils import markup
 
 
 class TokenMeta(type):
@@ -133,18 +134,22 @@ class SourcePoint(lang_context.SourcePoint):
     pass
 
 
-class ParserContext(lang_context.SourceContext, ExceptionContext):
+class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
     title = 'Parser Context'
 
-    def render(self):
-        buf = []
-        prefix = '%s line=%d col=%d: ' % (self.name, self.start.line, self.start.column)
+    def as_markup(cls, self, *, ctx):
+        me = markup.elements
+
+        prefix = '{} line={} col={}: '.format(self.name, self.start.line, self.start.column)
         snippet, offset = self.get_line_snippet(self.start, max_length=80 - len(prefix))
         errpos = ' ' * (len(prefix) + offset) + '^'
         prefix += snippet + '\n'
-        buf.append(prefix)
-        buf.append(errpos)
-        return buf
+
+        body = []
+        body.append(me.doc.Text(text=prefix))
+        body.append(me.doc.Text(text=errpos))
+
+        return me.lang.ExceptionContext(title=self.title, body=body)
 
     def get_line_snippet(self, point, max_length):
         if point.line > 1:
