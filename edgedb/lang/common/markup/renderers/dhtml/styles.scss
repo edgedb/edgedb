@@ -1,0 +1,348 @@
+%from semantix.rendering.css.extras merge reset
+
+
+%mixin monospace:
+    font-family: Monaco, 'DejaVu Sans Mono', monospace
+
+
+%mixin icon_plus:
+    background: `url('data:image/gif;base64,R0lGODlhCwALALMAAP////j4+PHx8erq6uTk5N3d3dbW1s/Pz8`
+                     `jIyGZmZv8AADMzMwAAAAAAAAAAAAAAACH5BAEHAAoALAAAAAALAAsAAAQsUKVJqQQ45xm695`
+                     `MgjuM0nCg6EcTiuuxUzDQ9GXieT0fv+xOEcDhMSCoVRQQAOw==')`
+    width: 11px
+    height: 11px
+
+
+%mixin icon_minus:
+    background: `url('data:image/gif;base64,R0lGODlhCwALALMAAP////j4+PHx8erq6uTk5N3d3dbW1s/Pz8`
+                     `jIyGZmZv8AADMzMwAAAAAAAAAAAAAAACH5BAEHAAoALAAAAAALAAsAAAQzUKVJqQQ45xm695`
+                     `MgCssoTEM6LOowEcQiy/BU3MWCF5PhG4ufYXIoGo0ThHK5TEgqFUUEADs=')`
+    width: 11px
+    height: 11px
+
+
+%mixin unselectable:
+    `-moz-user-select`: `-moz-none`
+    `-khtml-user-select`: none
+    `-webkit-user-select`: none
+    `-o-user-select`: none
+    user-select: none
+
+
+.semantix-markup:
+    .sx-unknown-markup:
+        background: #222
+        color: white
+
+    .sx-collapsible:
+        > .sx-collapsible-label:
+            %merge unselectable
+
+            display: inline-block
+            color: #222
+            font-weight: bold
+            cursor: pointer
+            margin-right: 5px
+
+            > i:
+                margin-bottom: -1px
+                margin-right: 4px
+                display: inline-block
+                %merge icon_plus
+
+        &.collapsed:
+            > .sx-collapsible-label:
+                > i:
+                    %merge icon_minus
+
+            > .sx-collapsible-body:
+                display: none
+
+    .sx-code:
+        %merge monospace
+        white-space: pre
+        font-size: 12px
+
+    .sx-code-builtinname, .lng-ref:
+        color: #000080
+
+    .sx-code-keyword, .sx-code-tag, .lng-tree>.lng-tree-title:
+        font-weight: bold
+        color: #4b8810
+
+    .sx-code-classname, .sx-code-functionname, .sx-code-attribute:
+        color: #06b
+
+    .sx-code-string, .sx-code-number, .lng-str, lng.number:
+        color: #900
+
+    .sx-code-constant, .lng-constant:
+        color: #8c4179
+        font-weight: bold
+
+    .sx-code-comment:
+        color: #656565
+
+    .sx-code-operator:
+        color: #333
+        font-weight: bold
+
+    .sx-code-decorator:
+        color: #656565
+        font-weight: bold
+
+    .sx-markup-bracket:
+        display: inline
+        color: #555
+
+    .doc-section:
+        margin-bottom: 15px
+        &:last-child:
+            margin-bottom: 0
+
+        .doc-section-title:
+            margin-top: 25px
+            margin-bottom: 10px
+
+            &:first-child:
+                margin-top: 0
+
+        &.doc-level-1>.doc-section-title:
+            font-size: 20px
+
+        &.doc-level-2>.doc-section-title:
+            font-size: 17px
+
+        &.doc-level-3>.doc-section-title:
+            font-size: 15px
+
+        &.doc-level-4>.doc-section-title, &.doc-level-5>.doc-section-title:
+            font-size: 12px
+
+    .lng-list:
+        padding-left: 60px
+
+        > .lng-list:
+            padding-left: 0
+
+        .lng-list-item:
+            display: inline
+
+    .lng-ref:
+        %merge unselectable
+        cursor: pointer
+        text-decoration: underline
+
+    .lng-object:
+        white-space: nowrap
+        color: #555
+
+    .lng-dict:
+        > ul:
+            margin-top: 0
+
+            > li:
+                margin-left: 20px
+                list-style: none
+                overflow: auto
+
+                > .lng-dict-key:
+                    float: left
+                    color: #555
+                    margin-right: 10px
+                    min-width: 50px
+
+                    &:after:
+                        content: ": "
+
+    .lng-tree:
+        .lng-tree-title:
+            > span:
+                > .lng-tree-node-id:
+                    font-weight: normal
+                    padding-left: 5px
+                    color: #888
+
+        > .sx-collapsible-body:
+            > ul:
+                margin-top: 0
+
+                > li:
+                    margin-left: 20px
+                    list-style: none
+                    overflow: auto
+
+                    > .lng-tree-child-title:
+                        float: left
+                        color: #555
+                        margin-right: 10px
+                        min-width: 50px
+
+                        &:after:
+                            content: ": "
+
+    .sx-exceptions:
+        background: white
+
+        > .exc-header:
+            position: relative
+            background: #8c2e2e
+            border-bottom: 2px solid #6f2424
+            padding: 10px 30px
+            margin-bottom: 30px
+            overflow: hidden
+
+            h1:
+                position: relative
+                z-index: 1
+
+                font-size: 26px
+                display: block
+
+                text-shadow: 0 1px 2px #4e1616
+
+                .exc-msg:
+                    color: white
+
+                .exc-class:
+                    color: #c29696
+
+        .sx-exception:
+            margin: 30px
+
+            h2.exc-title:
+                font-size: 20px
+                margin-bottom: 15px
+                color: #700
+
+                .exc-num:
+                    color: #494141
+
+                    span:
+                        font-size: 65%
+
+                .exc-class:
+                    color: #777
+
+            .exc-context:
+                background: #F0F0F0
+                margin-bottom: 30px
+
+                .doc-section:
+                    .doc-section-title:
+                        border: 1px solid #ccc
+                        background: #e1e1e1
+                        font-size: 14px
+                        font-weight: bold
+                        padding: 2px 7px
+                        color: #222
+
+                h3.exc-context-title:
+                    font-size: 14px
+                    font-weight: bold
+                    padding: 7px 15px
+                    display: block
+                    background: #365b92
+                    color: white
+                    border: 1px solid #16386a
+
+                    text-shadow: 0 -1px 1px #2d334f
+
+                .exc-context-body:
+                    font-size: 13px
+                    color: #333
+
+                    border: 1px solid #DDD
+                    border-top: none
+                    padding: 15px
+
+                    overflow: auto
+
+                    .tb-line:
+                        margin-bottom: 15px
+
+                        &:last-child:
+                            margin-bottom: 0
+
+                        .tb-line-header:
+                            font-size: 14px
+                            color: #606060
+
+                            > .tb-line-fn:
+                                color: #053052
+
+                            > .tb-line-line:
+                                color: #000
+
+                            > .tb-line-location:
+                                %merge monospace
+                                color: #700
+
+                        .tb-line-source:
+                            margin: 3px 0 0 20px
+                            padding: 2px 0
+                            background: white
+                            border: 1px solid #DADADA
+                            font-size: 12px
+
+                            -moz-border-radius: 5px
+                            -webkit-border-radius: 5px
+                            border-radius: 5px
+
+                            overflow: auto
+
+                            > .tb-line-line:
+                                padding: 1px 0
+
+                                &.tb-current:
+                                    background: #edf3f7
+                                    border-top: 1px solid #cfd9e1
+                                    border-bottom: 1px solid #cfd9e1
+
+                                .tb-lineno:
+                                    %merge monospace
+                                    font-size: 12px
+                                    color: #888
+                                    padding-left: 5px
+                                    min-width: 20px
+
+                                .tb-code:
+                                    %merge monospace
+                                    font-size: 12px
+                                    white-space: pre
+                                    padding-left: 20px
+
+                    .tb-locals:
+                        margin-left: 20px
+                        margin-top: 10px
+
+                        .tb-locals-lbl:
+                            float: left
+                            padding-right: 10px
+                            font-weight: bold
+                            color: #555
+
+        .hr-caused:
+            position: relative
+            text-align: center
+            font-size: 13px
+
+            > .line:
+                position: absolute
+                top: 50%
+                left: 0
+                right: 0
+                border-top: 2px solid #958c8c
+
+            > .label:
+                position: relative
+                z-index: 1
+                display: inline-block
+                margin: 0 auto
+                padding: 2px 7px
+                background-color: #958c8c
+                color: white
+
+                -moz-border-radius: 5px
+                -webkit-border-radius: 5px
+                border-radius: 5px

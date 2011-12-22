@@ -1,0 +1,653 @@
+sx.Markup = sx.Markup || {};
+
+sx.Markup.Renderer = function(markup, render_to) {
+    this.ex_depth = 0;
+    this.tree_depth = 0;
+    this.section_depth = 0;
+
+    this.objects = {};
+
+    this.handlers = {};
+
+    this._id_base = sx.uuid4();
+    this._id = 0;
+
+    this.markup = markup;
+    this.render_to = render_to;
+}
+
+sx.Markup.Renderer.prototype = {
+    on_ref_click: function(ref_id, object_id) {
+        sx.dom.replace(sx('#' + ref_id)[0], this._render(this.objects[object_id]));
+        this._rebind_handlers();
+    },
+
+    on_collapsible_click: function(collapsible_id, event) {
+        if (event.metaKey || event.ctrlKey) {
+            var parent = sx('#' + collapsible_id);
+            parent.toggle_class('collapsed');
+            if (parent.has_class('collapsed')) {
+                sx('#' + collapsible_id + ' .sx-collapsible').add_class('collapsed');
+            } else {
+                sx('#' + collapsible_id + ' .sx-collapsible').remove_class('collapsed');
+            }
+        } else {
+            sx('#' + collapsible_id).toggle_class('collapsed');
+        }
+    },
+
+    'doc.Text': function(o) {
+        return {
+            tag: 'span',
+            cls: 'doc-text',
+            text: o.text
+        };
+    },
+
+    'doc.Section': function(o) {
+        this.section_depth++;
+
+        var body = [], i;
+
+        for (i = 0; i < o.body.length; i++) {
+            body.push(this._render(o.body[i]));
+        }
+
+        var obj = {
+            cls: 'doc-section doc-level-' + this.section_depth,
+
+            children: [
+                {tag: 'div', cls: 'doc-section-title', text: o.title},
+                {tag: 'div', cls: 'doc-section-body', children: body}
+            ]
+        };
+
+        this.section_depth--;
+        return obj;
+    },
+
+    'lang.Ref': function(o) {
+        var id = this._gen_id();
+
+        this.handlers[id] = {
+            click: sx.partial(this.on_ref_click, this, id, o.ref)
+        };
+
+        return {
+            tag: 'span',
+            cls: 'lng-ref',
+            attrs: {
+                id: id,
+            },
+            text: o.refname + ' <' + this._render_id(o.ref) + '>'
+        }
+    },
+
+    'lang.NoneConstantType': function(o) {
+        return {
+            tag: 'span',
+            cls: 'lng-constant',
+            text: 'None'
+        };
+    },
+
+    'lang.TrueConstantType': function(o) {
+        return {
+            tag: 'span',
+            cls: 'lng-constant',
+            text: 'True'
+        };
+    },
+
+    'lang.FalseConstantType': function(o) {
+        return {
+            tag: 'span',
+            cls: 'lng-constant',
+            text: 'False'
+        };
+    },
+
+    'lang.String': function(o) {
+        return {
+            tag: 'span',
+            cls: 'lng-str',
+            text: '"' + o.str + '"'
+        };
+    },
+
+    'lang.Object': function(o) {
+        var id = '';
+        if (o.id) {
+            id = ' at: ' + this._render_id(o.id);
+        }
+
+        return {
+            tag: 'span',
+            cls: 'lng-object',
+            text: '<' + o.class_module + '.' + o.class_name + id + '>'
+        };
+    },
+
+    'lang.Number': function(o) {
+        return {
+            tag: 'span',
+            cls: 'lng-number',
+            text: o.num
+        };
+    },
+
+    'lang.List': function(o) {
+        var items = [];
+
+        items.push({tag: 'span', cls: 'sx-markup-bracket', text: '[ '});
+
+        if (o.items) {
+            for (var i = 0; i < o.items.length; i++) {
+                var cls = 'lng-list-item';
+
+                if (i == o.items.length - 1) {
+                    cls += ' last';
+                }
+
+                var item = this._render(o.items[i]);
+
+                if (item.cls) {
+                    item.cls += ' ' + cls;
+                } else {
+                    item.cls = cls;
+                }
+
+                items.push(item);
+
+                if (i != o.items.length - 1) {
+                    items.push({text: ', '});
+                }
+            }
+        }
+
+        items.push({tag: 'span', cls: 'sx-markup-bracket', text: ' ]'});
+
+        var obj = {
+            tag: 'div',
+            cls: 'lng-list',
+            children: items
+        };
+
+        return obj;
+    },
+
+    'lang.Dict': function(o) {
+        var items = [];
+
+        if (o.items) {
+            for (var i in o.items) {
+                if (o.items.hasOwnProperty(i)) {
+                    var li = [{tag: 'div', cls: 'lng-dict-key', text: i}]
+                    li.push(this._render(o.items[i]));
+
+                    items.push({
+                        tag: 'li',
+                        children: li
+                    });
+                }
+            }
+        }
+
+        var obj = {
+            tag: 'div',
+            cls: 'lng-dict',
+            children: [
+                {tag: 'div', cls: 'sx-markup-bracket', text: '{ '},
+                {tag: 'ul', children: items},
+                {tag: 'div', cls: 'sx-markup-bracket', text: ' }'}
+            ]
+        };
+
+        return obj;
+    },
+
+    'lang.TreeNodeChild': function(o) {
+        var body = [];
+
+        if (o.label) {
+            body.push({tag: 'div', cls: 'lng-tree-child-title', text: o.label});
+        }
+
+        body.push({tag: 'div', cls: 'lng-tree-node-child-body',
+            children: this._render(o.node)
+        });
+
+        return {
+            tag: 'li',
+            children: body
+        };
+    },
+
+    'lang.TreeNode': function(o) {
+        this.tree_depth++;
+        var children = [], i;
+
+        for (i = 0; i < o.children.length; i++) {
+            children.push(this._render(o.children[i]));
+        }
+
+        var label = o.name;
+        if (o.id) {
+            label = {tag: 'span', children: [
+                         {text: label},
+                         {tag: 'span', cls: 'lng-tree-node-id', text: this._render_id(o.id)}
+                     ]};
+        }
+
+        var obj = this._render_collapsible({
+            cls: 'lng-tree' + (this.tree_depth == 1 ? ' lng-tree-root' : ''),
+
+            label: label,
+            label_cls: 'lng-tree-title',
+            collapsed: this.tree_depth > 1,
+
+            body: {tag: 'ul', children: children}
+        });
+
+        this.tree_depth--;
+        return obj;
+    },
+
+    'lang.ExceptionContext': function(o) {
+        var body = [];
+
+        if (o.body) {
+            for (var i = 0; i < o.body.length; i++) {
+                body.push(this._render(o.body[i]));
+            }
+        }
+
+        var obj = {
+            cls: 'exc-context',
+            children: [
+                {tag: 'h3', cls: 'exc-context-title', text: o.title},
+                {cls: 'exc-context-body', children: body}
+            ]
+        };
+
+        return obj;
+    },
+
+    'lang.Exception': function(o) {
+        this.ex_depth++;
+
+        var cause = [];
+        if (o.cause) {
+            cause.push(this._render(o.cause));
+            cause.push(this._render_hr('The above exception was the direct ' +
+                                                  'cause of the following exception'));
+        }
+
+        var body = [];
+        body.push({tag: 'h2', cls: 'exc-title', children: [
+                     {tag: 'span', cls: 'exc-num', children: [
+                          {tag: 'span', text: '#'},
+                          {text: this.ex_depth + ' '}
+                      ]},
+
+                     {tag: 'span', cls: 'exc-class',
+                      text: o.class_module + '.' + o.class_name + ': '},
+
+                     {tag: 'span', cls: 'exc-msg', text: o.msg}
+                  ]});
+
+        if (o.contexts) {
+            for (var i = 0; i < o.contexts.length; i++) {
+                body.push(this._render(o.contexts[i]));
+            }
+        }
+
+        var obj = {
+            cls: 'sx-exception',
+            children: body
+        };
+
+        this.ex_depth--;
+
+        cause.push(obj);
+
+        if (this.ex_depth == 0) {
+            var header = {tag: 'div', cls: 'exc-header', children: {
+                            tag: 'h1',
+                            children: [
+                               {tag: 'span', cls: 'exc-class',
+                                text: o.class_module + '.' + o.class_name + ': '},
+
+                               {tag: 'span', cls: 'exc-msg', text: o.msg}
+                            ]
+                         }};
+
+            cause.splice(0, 0, header);
+        }
+
+        obj = {
+            cls: 'sx-exceptions',
+            children: cause
+        }
+
+        return obj;
+    },
+
+    'lang.TracebackPoint': function(o) {
+        var source = [];
+
+        if (o.lines) {
+            for (var i = 0; i < o.lines.length; i++) {
+                var lineno = o.line_numbers[i], line = o.lines[i], current = lineno == o.lineno,
+                    cls = 'tb-line-line';
+
+                if (current) {
+                    cls += ' tb-current';
+                }
+
+                source.push({
+                    cls: cls,
+                    children: [
+                        {tag: 'span', cls: 'tb-lineno', text: lineno},
+                        {tag: 'span', cls: 'tb-code', text: line}
+                    ]
+                });
+            }
+        }
+
+        var tb_lines = {
+            cls: 'tb-line',
+            children: [
+                {cls: 'tb-line-header', children: [
+                     {text: 'File '},
+                     {tag: 'span', cls: 'tb-line-fn', text: o.filename},
+
+                     {text: ', line '},
+                     {tag: 'span', cls: 'tb-line-line',
+                      text: o.lineno + (o.colno == null ? '' : ':' + (o.colno))},
+
+                     {text: ', in '},
+                     {tag: 'span', cls: 'tb-line-location', text: o.name}
+                 ]},
+
+                {cls: 'tb-line-source', children: source}
+            ]
+        };
+
+        if (o.locals) {
+            tb_lines.children.push({
+                cls: 'tb-locals',
+
+                children: this._render_collapsible({
+                    label: 'Locals',
+                    collapsed: true,
+                    body: this._render(o.locals)
+                })
+            });
+        }
+
+        return tb_lines;
+    },
+
+    'lang.Traceback': function(o) {
+        var lines = [];
+
+        if (o.items) {
+            for (var i = 0; i < o.items.length; i++) {
+                lines.push(this._render(o.items[i]));
+            }
+        }
+
+        var obj = {
+            cls: 'exc-traceback',
+            children: lines
+        };
+
+        return obj;
+    },
+
+    'code.Code': function(o) {
+        var els = [], i;
+
+        if (o.tokens) {
+            for (i = 0; i < o.tokens.length; i++) {
+                els.push(this._render(o.tokens[i]));
+            }
+        }
+
+        return {tag: 'div', cls: 'sx-code', children: els}
+    },
+
+    'code.Token': function(o) {
+        return {tag: 'span', cls: 'sx-code-token', text: o.val};
+    },
+
+    'code.Comment': function(o) {
+        return {tag: 'span', cls: 'sx-code-comment', text: o.val};
+    },
+
+    'code.Decorator': function(o) {
+        return {tag: 'span', cls: 'sx-code-decorator', text: o.val};
+    },
+
+    'code.Operator': function(o) {
+        return {tag: 'span', cls: 'sx-code-operator', text: o.val};
+    },
+
+    'code.String': function(o) {
+        return {tag: 'span', cls: 'sx-code-string', text: o.val};
+    },
+
+    'code.Number': function(o) {
+        return {tag: 'span', cls: 'sx-code-number', text: o.val};
+    },
+
+    'code.BuiltinName': function(o) {
+        return {tag: 'span', cls: 'sx-code-builtinname', text: o.val};
+    },
+
+    'code.ClassName': function(o) {
+        return {tag: 'span', cls: 'sx-code-classname', text: o.val};
+    },
+
+    'code.FunctionName': function(o) {
+        return {tag: 'span', cls: 'sx-code-functionname', text: o.val};
+    },
+
+    'code.Constant': function(o) {
+        return {tag: 'span', cls: 'sx-code-constant', text: o.val};
+    },
+
+    'code.Keyword': function(o) {
+        return {tag: 'span', cls: 'sx-code-keyword', text: o.val};
+    },
+
+    'code.Punctuation': function(o) {
+        return {tag: 'span', cls: 'sx-code-punctuation', text: o.val};
+    },
+
+    'code.Tag': function(o) {
+        return {tag: 'span', cls: 'sx-code-tag', text: o.val};
+    },
+
+    'code.Attribute': function(o) {
+        return {tag: 'span', cls: 'sx-code-attribute', text: o.val};
+    },
+
+    'Markup': function(o, obj) {
+        return {tag: 'span', cls: 'sx-unknown-markup',
+                text: ('no renderer for: "' + obj.type + '"')};
+    },
+
+    _gen_id: function() {
+        this._id++;
+        return 'id-' + this._id_base + '-' + this._id;
+    },
+
+    _render_collapsible: function(o) {
+        var id = this._gen_id();
+
+        this.handlers[id + '-label'] = {
+            click: sx.partial(this.on_collapsible_click, this, id)
+        };
+
+        var label = o.label;
+        if (!sx.is_object(o.label)) {
+            label = {text: o.label};
+        }
+
+        return {
+            cls: 'sx-collapsible' + (o.collapsed ? ' collapsed' : '') + (' ' + (o.cls || '')),
+
+            attrs: {
+                id: id
+            },
+
+            children: [
+                {tag: 'span',
+                 cls: 'sx-collapsible-label' + (' ' + (o.label_cls || '')),
+
+                 attrs: {
+                     id: id + '-label',
+                 },
+
+                 children: [
+                     {tag: 'i', cls: 'sx-icon-plus'},
+                     label
+                 ]},
+
+                 {cls: 'sx-collapsible-body' + (' ' + (o.body_cls || '')), children: o.body}
+            ]
+        };
+    },
+
+    _render_id: function(id) {
+        var pid = parseInt(id);
+        if (!isNaN(pid)) {
+            return '0x' + pid.toString(16);
+        }
+        return id;
+    },
+
+    _render_hr: function(label) {
+        return {
+            cls: 'hr-caused',
+            children: [
+                {cls: 'line', children: {tag: 'span', attrs: {style: 'visibility: hidden'},
+                                         text: '#'}},
+
+                {cls: 'label', text: label}
+            ]
+        };
+    },
+
+    _render: function(obj) {
+        var meth = obj.type;
+
+        if (obj.fields.id) {
+            this.objects[obj.fields.id] = obj;
+        }
+
+        if (this[meth]) {
+            return this[meth].call(this, obj.fields, obj);
+        } else {
+            var i, meth;
+
+            for (i = 0; i < obj.mro.length; i++) {
+                meth = this[obj.mro[i]];
+                if (meth) {
+                    return meth.call(this, obj.fields, obj)
+                }
+            }
+
+            return this.Markup(obj.fields, obj);
+        }
+    },
+
+    _rebind_handlers: function() {
+        for (var i in this.handlers) {
+            if (this.handlers.hasOwnProperty(i)) {
+                var id = i, evs = this.handlers[i];
+
+                for (var j in evs) {
+                    if (evs.hasOwnProperty(j)) {
+                        sx('#' + id).on(j, evs[j]);
+                    }
+                }
+
+            }
+        }
+        this.handlers = {};
+    },
+
+    render: function() {
+        var spec = this._render(this.markup);
+        sx('#' + this.render_to).update({cls: 'semantix-markup', children: spec});
+        this._rebind_handlers();
+    },
+
+    destroy: function() {
+        sx('#' + this.render_to).update('');
+        this.handlers = this.objects = this.markup = null;
+    }
+};
+
+sx.Markup.Renderer.unpack_markup = function(packed) {
+    var table = packed[0], markup = packed[1], result, ntable = {}, i;
+
+    for (i in table) {
+        if (table.hasOwnProperty(i)) {
+            ntable[table[i][0]] = {id: i, mro: table[i][1], fields: table[i][2]};
+        }
+    }
+
+    function _transform(s) {
+        if (s == null) {
+            return null;
+        }
+
+        var i, f, cls_name, fields, result;
+
+        if (sx.is_array(s)) {
+            if (s[0] === 0) {
+                cls_name = ntable[s[1]].id;
+                fields = ntable[s[1]].fields;
+                f = {};
+
+                for (i = 0; i < fields.length; i++) {
+                    f[fields[i]] = _transform(s[i+2]);
+                }
+
+                return {type: cls_name, fields: f, mro: ntable[s[1]].mro};
+            }
+
+            if (s[0] === 1) {
+                result = [];
+
+                for (i = 1; i < s.length; i++) {
+                    result.push(_transform(s[i]));
+                }
+
+                return result;
+            }
+
+            throw 'unable to serialize: unknown list structure';
+        }
+
+        if (sx.is_object(s)) {
+            result = {};
+
+            for (i in s) {
+                if (s.hasOwnProperty(i)) {
+                    result[i] = _transform(s[i]);
+                }
+            }
+
+            return result;
+        }
+
+        return s;
+    }
+
+    return _transform(markup);
+};
