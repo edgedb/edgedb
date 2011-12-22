@@ -105,7 +105,7 @@ class TracebackPoint(BaseObject):
             sourcelines = lines or linecache.getlines(self.filename, globals())
 
             start = max(1, lineno - window)
-            end = min(len(sourcelines), lineno + window + 1)
+            end = min(len(sourcelines), lineno + window) + 1
             for i in range(start, end):
                 lines.append(sourcelines[i - 1].rstrip())
                 line_numbers.append(i)
