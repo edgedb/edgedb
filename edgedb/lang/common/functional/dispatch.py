@@ -37,7 +37,7 @@ class _TypeDispatcherMeta(type):
                              class of objectes that can be handled by it.
         :param string method: If a class is decorated, ``method`` specifies
                               name of a ``@classmethod`` or ``@staticmethod``
-                              that hadndles the class (and its derivatives)
+                              that handles the class (and its derivatives)
         """
 
         if handles is None and method is None:
