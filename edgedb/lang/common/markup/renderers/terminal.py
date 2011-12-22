@@ -284,12 +284,12 @@ class LangRenderer(BaseRenderer):
                 self.buffer.smart_space()
             self.buffer.write('(', style=self.styles.id)
 
-            longest_label = max(element.children,
-                                key=lambda child: (len(child.label) if child.label else 0)).label
-            padding = min(len(longest_label) if longest_label else 0, 20)
-
             child_count = len(element.children)
             if child_count:
+                longest_lbl = max(element.children,
+                                  key=lambda child: (len(child.label) if child.label else 0)).label
+                padding = min(len(longest_lbl) if longest_lbl else 0, 20)
+
                 with self.buffer.indent():
                     for idx, child in enumerate(element.children):
                         if child.label:
