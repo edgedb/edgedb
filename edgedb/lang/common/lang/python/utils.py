@@ -44,24 +44,19 @@ def source_context_from_frame(frame):
     return context
 
 
-class SourceErrorContext(ExceptionContext):
+class SourceErrorContext(markup.MarkupExceptionContext):
     def __init__(self, source_context):
         self.source_context = source_context
 
-    def render(self):
-        if inspect.isframe(self.source_context):
-            source_context = source_context_from_frame(self.source_context)
+    @classmethod
+    def as_markup(cls, self, *, ctx):
+        me = markup.elements
+
+        if self.source_context:
+            tbp = me.lang.TracebackPoint(name=self.source_context.name,
+                                         lineno=self.source_context.start.line)
+            tbp.load_source(lines=self.source_context.buffer)
         else:
-            source_context = self.source_context
+            tbp = me.doc.Text(text='Unknown source context')
 
-        chunks = []
-
-        if source_context:
-            chunks.append(xvalue('%s:\n' % source_context.name, fg='white', opts=('bold',)))
-            lines = source_context.buffer
-            lineno = source_context.start.line
-            chunks.extend(helper.format_code_context(lines, lineno, colorize=True))
-        else:
-            chunks.append('Unknown source context')
-
-        return chunks
+        return me.lang.ExceptionContext(title=self.title, body=[tbp])
