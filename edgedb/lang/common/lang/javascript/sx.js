@@ -218,7 +218,7 @@ this.sx = (function() {
         },
 
         escape: function(str) {
-            return String(str).replace(/\&/, '&amp;').replace(/</, '&lt;').replace(/>/, '&gt;');
+            return String(str).replace(/\&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         },
 
         uuid4: function() {
