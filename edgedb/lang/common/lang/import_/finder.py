@@ -14,15 +14,6 @@ from semantix.utils.lang.meta import LanguageMeta
 
 
 class Finder(importlib.abc.Finder):
-    _modules_by_file = {}
-
-    @classmethod
-    def get_module_by_filename(cls, filename):
-        normpath = os.path.abspath(os.path.realpath(filename))
-        modname = cls._modules_by_file.get(normpath)
-        if modname:
-            return sys.modules.get(modname)
-
     def find_module(self, fullname, path=None):
         basename = fullname.rpartition('.')[2]
 

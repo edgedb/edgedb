@@ -19,12 +19,13 @@ class SourcePoint(object):
 class SourceContext(object):
     _object_registry = registry.WeakObjectRegistry()
 
-    def __init__(self, name, buffer, start, end, document=None):
+    def __init__(self, name, buffer, start, end, document=None, *, filename=None):
         self.name = name
         self.buffer = buffer
         self.start = start
         self.end = end
         self.document = document
+        self.filename = filename
 
     def __str__(self):
         return '%s line:%d col:%d' % (self.name, self.start.line, self.start.column)
