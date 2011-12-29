@@ -6,8 +6,19 @@
 ##
 
 
+import pickle
+
 from semantix.utils.datastructures.struct import Struct, Field
 from semantix.utils.debug import assert_raises
+
+
+class PickleTest(Struct):
+    a = Field(str, default='42')
+    b = Field(int)
+
+class PickleTestSlots(Struct, use_slots=True):
+    a = Field(str, default='42')
+    b = Field(int)
 
 
 class TestUtilsDSStruct:
@@ -64,3 +75,14 @@ class TestUtilsDSStruct:
         assert t.field2 == 2
         with assert_raises(AttributeError, error_re='has no attribute'):
             t.foo = 'bar'
+
+    def test_utils_ds_struct_pickle(self):
+        s1 = PickleTest(b=41)
+        s2 = pickle.loads(pickle.dumps(s1))
+        assert s2.b == 41 and s2.a == '42'
+        assert s2.__class__.__name__ == 'PickleTest'
+
+        s1 = PickleTestSlots(b=41)
+        s2 = pickle.loads(pickle.dumps(s1))
+        assert s2.b == 41 and s2.a == '42'
+        assert s2.__class__.__name__ == 'PickleTestSlots'
