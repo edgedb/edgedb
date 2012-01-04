@@ -1487,7 +1487,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                    compat=False, return_stmt=True)
             partial_count = result.first(*params)
 
-            assert partial_count == len(partial_endpoints)
+            # Actual deletion count may be less than the list of links,
+            # since the caller may request deletion of a non-existent link,
+            # e.g. through discard().
+            assert partial_count <= len(partial_endpoints)
 
             count += partial_count
 
