@@ -210,6 +210,10 @@ class BaseRenderer:
         return renderer(markup)
 
     def _render_header(self, str, level=1):
+        # TODO: Rendering should be moved to Buffer (as only there we're aware of
+        # the current indentation and, therefore, ``max_width``).  While here, we should
+        # only yield a buffer opcode.
+
         str = ' {} '.format(str)
 
         strlevel = '='
@@ -326,30 +330,39 @@ class LangRenderer(BaseRenderer):
 
             self.buffer.write(']', style=self.styles.bracket)
 
+    def _render_mapping_(self, mapping):
+        self.buffer.write('{', style=self.styles.bracket)
+
+        item_count = len(mapping)
+        if item_count:
+            with self.buffer.indent():
+                for idx, (key, value) in enumerate(mapping.items()):
+                    self.buffer.write(key, style=self.styles.key)
+                    self.buffer.write(': ')
+
+                    self._render(value)
+
+                    if idx < (item_count - 1):
+                        self.buffer.write(',')
+                        self.buffer.smart_break()
+
+        self.buffer.write('}', style=self.styles.bracket)
+
     def _render_lang_Dict(self, element):
         with self.buffer.smart_lines():
-            self.buffer.write('{', style=self.styles.bracket)
-
-            item_count = len(element.items)
-            if item_count:
-                with self.buffer.indent():
-                    for idx, (key, value) in enumerate(element.items.items()):
-                        self.buffer.write(key, style=self.styles.key)
-                        self.buffer.write(': ')
-
-                        self._render(value)
-
-                        if idx < (item_count - 1):
-                            self.buffer.write(',')
-                            self.buffer.smart_break()
-
-            self.buffer.write('}', style=self.styles.bracket)
+            self._render_mapping_(element.items)
 
     def _render_lang_Object(self, element):
-        self.buffer.write('<{}.{} at 0x{:x}>'.format(element.class_module,
-                                                     element.class_name,
-                                                     element.id),
+        self.buffer.write('<{}.{} at 0x{:x}'.format(element.class_module,
+                                                    element.class_name,
+                                                    element.id),
                           style=self.styles.unknown_object)
+
+        if element.attributes:
+            self.buffer.write(' ')
+            self._render_mapping_(element.attributes)
+
+        self.buffer.write('>', style=self.styles.unknown_object)
 
     def _render_lang_String(self, element):
         self.buffer.write(xrepr(element.str, max_len=120), style=self.styles.literal)

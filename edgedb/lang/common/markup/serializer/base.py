@@ -232,3 +232,13 @@ def serialize_uknown_object(obj, *, ctx):
     return elements.lang.Object(id=id(obj),
                                 class_module=type(obj).__module__,
                                 class_name=type(obj).__name__)
+
+
+def _serialize_known_object(obj, attrs, *, ctx):
+    map = collections.OrderedDict()
+    for attr in attrs:
+        map[attr] = serialize(getattr(obj, attr, None), ctx=ctx)
+    return elements.lang.Object(id=id(obj),
+                                class_module=object.__class__.__module__,
+                                class_name=object.__class__.__name__,
+                                attributes=map)

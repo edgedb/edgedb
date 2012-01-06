@@ -8,3 +8,4 @@
 
 from .base import serialize, serializer, serialize_traceback_point
 from .code import serialize_code
+from . import logging
