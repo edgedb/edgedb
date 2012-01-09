@@ -1413,6 +1413,13 @@ class CaosTreeTransformer(CaosExprTransformer):
                 r = pgsql.ast.FunctionCallNode(name='strpos', args=args)
                 result = pgsql.ast.BinOpNode(left=r, right=pgsql.ast.ConstantNode(value=1),
                                              op=ast.ops.SUB)
+            elif expr.name == 'getitem':
+                index = self._process_expr(context, expr.args[1], cte)
+                upper = pgsql.ast.BinOpNode(left=index, op=ast.ops.ADD,
+                                            right=pgsql.ast.ConstantNode(value=1))
+                indirection = pgsql.ast.IndexIndirectionNode(upper=upper)
+                _expr = self._process_expr(context, expr.args[0], cte)
+                result = pgsql.ast.IndirectionNode(expr=_expr, indirection=indirection)
             elif isinstance(expr.name, tuple):
                 assert False, 'unsupported function %s' % (expr.name,)
             else:

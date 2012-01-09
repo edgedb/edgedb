@@ -475,7 +475,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_IndexIndirectionNode(self, node):
         self.write('[')
-        self.visit(node.lower)
-        self.write(':')
+        if node.lower is not None:
+            self.visit(node.lower)
+            self.write(':')
         self.visit(node.upper)
         self.write(']')
