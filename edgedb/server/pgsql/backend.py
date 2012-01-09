@@ -263,7 +263,11 @@ class CaosQLAdapter:
 
         for k, v in query.result_types.items():
             if v[0] is not None: # XXX get_expr_type
-                restypes[k] = (v[0].name, v[1])
+                if isinstance(v[0], tuple):
+                    typ = (v[0][0], v[0][1].name)
+                else:
+                    typ = v[0].name
+                restypes[k] = (typ, v[1])
             else:
                 restypes[k] = v
 

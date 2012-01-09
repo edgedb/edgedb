@@ -962,8 +962,8 @@ class LinkDirection(Nonterm):
 
 
 class FuncExpr(Nonterm):
-    def reduce_CAST_LPAREN_Expr_AS_ArgName_RPAREN(self, *kids):
-        "%reduce CAST LPAREN Expr AS ArgName RPAREN"
+    def reduce_CAST_LPAREN_Expr_AS_TypeName_RPAREN(self, *kids):
+        "%reduce CAST LPAREN Expr AS TypeName RPAREN"
         self.val = qlast.TypeCastNode(expr=kids[2].val, type=kids[4].val)
 
     def reduce_FqFuncName_LPAREN_FuncArgList_RPAREN(self, *kids):
@@ -1108,6 +1108,16 @@ class AnyLabelExpr(Nonterm):
     def reduce_ReservedKeyword(self, *kids):
         "%reduce ReservedKeyword"
         self.val = kids[0].val
+
+
+class TypeName(Nonterm):
+    def reduce_ArgName(self, *kids):
+        "%reduce ArgName"
+        self.val = kids[0].val
+
+    def reduce_ArgName_LBRACKET_RBRACKET(self, *kids):
+        "%reduce ArgName LBRACKET RBRACKET"
+        self.val = (list, kids[0].val)
 
 
 class ArgName(Nonterm):

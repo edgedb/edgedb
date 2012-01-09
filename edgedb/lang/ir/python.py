@@ -234,6 +234,10 @@ class CaosToPythonTransformer(TreeTransformer):
                 func = py_ast.PyAttribute(value=func, attr=step)
             result = py_ast.PyCall(func=func, args=args)
 
+        elif isinstance(expr, caos_ast.TypeCast):
+            # XXX: should add proper schema type constructor call
+            result = self._process_expr(expr.expr, context)
+
         else:
             assert False, "unexpected expression: %r" % expr
 

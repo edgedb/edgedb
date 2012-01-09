@@ -521,7 +521,16 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             node = tree.ast.ExistPred(expr=subquery)
 
         elif isinstance(expr, qlast.TypeCastNode):
-            typ = context.current.proto_schema.get(expr.type, module_aliases=context.current.namespaces)
+            if isinstance(expr.type, tuple):
+                typ = expr.type[1]
+            else:
+                typ = expr.type
+
+            typ = context.current.proto_schema.get(typ, module_aliases=context.current.namespaces)
+
+            if isinstance(expr.type, tuple):
+                typ = (expr.type[0], typ)
+
             node = tree.ast.TypeCast(expr=self._process_expr(context, expr.expr), type=typ)
 
         else:

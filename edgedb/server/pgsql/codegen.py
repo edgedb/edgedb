@@ -436,6 +436,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_TypeNode(self, node):
         self.write(node.name)
+        if node.array_bounds:
+            for array_bound in node.array_bounds:
+                self.write('[')
+                if array_bound >= 0:
+                    self.write(array_bound)
+                self.write(']')
 
     def visit_StarIndirectionNode(self, node):
         self.write('*')

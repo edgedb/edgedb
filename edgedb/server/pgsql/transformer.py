@@ -1159,8 +1159,16 @@ class CaosTreeTransformer(CaosExprTransformer):
                 default = pgsql.ast.ConstantNode(value=0)
                 result = pgsql.ast.CaseExprNode(args=[when_expr], default=default)
             else:
-                type = types.pg_type_from_atom(schema, expr.type, topbase=True)
-                type = pgsql.ast.TypeNode(name=type)
+                if isinstance(expr.type, tuple):
+                    typ = expr.type[1]
+                else:
+                    typ = expr.type
+                type = types.pg_type_from_atom(schema, typ, topbase=True)
+
+                if isinstance(expr.type, tuple):
+                    type = pgsql.ast.TypeNode(name=type, array_bounds=[-1])
+                else:
+                    type = pgsql.ast.TypeNode(name=type)
                 result = pgsql.ast.TypeCastNode(expr=pg_expr, type=type)
 
         elif isinstance(expr, tree.ast.Sequence):
