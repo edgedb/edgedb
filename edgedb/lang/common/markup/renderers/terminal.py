@@ -353,16 +353,20 @@ class LangRenderer(BaseRenderer):
             self._render_mapping_(element.items)
 
     def _render_lang_Object(self, element):
-        self.buffer.write('<{}.{} at 0x{:x}'.format(element.class_module,
-                                                    element.class_name,
-                                                    element.id),
-                          style=self.styles.unknown_object)
+        if element.attributes or element.repr is None:
+            self.buffer.write('<{}.{} at 0x{:x}'.format(element.class_module,
+                                                        element.class_name,
+                                                        element.id),
+                              style=self.styles.unknown_object)
 
-        if element.attributes:
-            self.buffer.write(' ')
-            self._render_mapping_(element.attributes)
+            if element.attributes:
+                self.buffer.write(' ')
+                self._render_mapping_(element.attributes)
 
-        self.buffer.write('>', style=self.styles.unknown_object)
+            self.buffer.write('>', style=self.styles.unknown_object)
+
+        else:
+            self.buffer.write(element.repr, style=self.styles.unknown_object)
 
     def _render_lang_String(self, element):
         self.buffer.write(xrepr(element.str, max_len=120), style=self.styles.literal)

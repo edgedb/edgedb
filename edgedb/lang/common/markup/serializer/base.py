@@ -15,6 +15,7 @@ from semantix.utils.functional.dispatch import TypeDispatcher
 from .. import elements
 
 from semantix import exceptions
+from semantix.utils.helper import xrepr
 
 
 __all__ = 'serialize',
@@ -228,10 +229,12 @@ def serialize_mapping(obj, *, ctx):
 
 
 @serializer(handles=object)
+@no_ref_detect
 def serialize_uknown_object(obj, *, ctx):
     return elements.lang.Object(id=id(obj),
                                 class_module=type(obj).__module__,
-                                class_name=type(obj).__name__)
+                                class_name=type(obj).__name__,
+                                repr=xrepr(obj, max_len=80))
 
 
 def _serialize_known_object(obj, attrs, *, ctx):
