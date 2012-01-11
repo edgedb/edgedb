@@ -127,7 +127,7 @@ class CaosQLExpression:
         result = []
 
         refs = self.transformer.extract_paths(tree, reverse=True, resolve_arefs=True,
-                                                    recurse_subqueries=True)
+                                                    recurse_subqueries=-1)
 
         if refs is not None:
             flt = lambda n: isinstance(n, (caos_ast.EntitySet, caos_ast.EntityLink))

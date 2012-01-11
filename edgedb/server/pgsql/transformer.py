@@ -742,9 +742,26 @@ class CaosTreeTransformer(CaosExprTransformer):
             query.fromlist.append(fromexpr)
 
     def _inject_outerbond_condition(self, context, subquery, inner_ref, outer_ref):
+        field_ref = inner_ref.expr
+
+        for fromexpr in subquery.fromlist:
+            if fromexpr.expr == field_ref.table:
+                break
+        else:
+            # May be a ref to a part of the path pushed into a subquery due to cardinality
+            # constraints in _process_(dis|con)junction, if so, push the condition into that query.
+            if isinstance(field_ref.table, pgsql.ast.SelectQueryNode):
+                subquery = field_ref.table
+                field_ref = pgsql.ast.FieldRefNode(table=field_ref.origin,
+                                                   field=field_ref.origin_field,
+                                                   origin=field_ref.origin,
+                                                   origin_field=field_ref.origin_field)
+            else:
+                raise ValueError('invalid inner reference in subquery bond')
+
         outer_ref = context.current.concept_node_map[outer_ref]
         outer_ref = outer_ref['semantix.caos.builtins.id']
-        comparison = pgsql.ast.BinOpNode(left=outer_ref.expr, op=ast.ops.EQ, right=inner_ref.expr)
+        comparison = pgsql.ast.BinOpNode(left=outer_ref.expr, op=ast.ops.EQ, right=field_ref)
         subquery.where = self.extend_binop(subquery.where, comparison, cls=pgsql.ast.BinOpNode)
 
     def _connect_subquery_outerbonds(self, context, outerbonds, subquery):

@@ -368,8 +368,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         graph.argument_types = self.context.current.arguments
         graph.context_vars = self.context.current.context_vars
 
-        path_idx = self.build_paths_index(graph)
-        self.link_subqueries(graph, path_idx)
+        self.link_subqueries(graph)
 
         return graph
 
