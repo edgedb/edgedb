@@ -13,6 +13,7 @@ from semantix.utils.functional.types import Checker, FunctionValidator, \
 
 from .base import HEAD, ConfigRootNode
 from .tree import *
+from .exceptions import ConfigError
 
 
 __all__ = 'cvalue',
@@ -61,8 +62,10 @@ class cvalue(ChecktypeExempt, metaclass=SlotsMeta):
 
     def _get_value(self, cls):
         if self._name is None:
-            raise ValueError('Unable to get value on uninitialized cvalue: ' \
-                             'no name set {!r}'.format(self))
+            raise ConfigError('Unable to get value of uninitialized cvalue: ' \
+                              'no name set {!r}'.format(self),
+                              hint='Perhaps, class that hosts the cvalue is not configurable; ' \
+                                   'check its metaclass to be a subclass of ConfigurableMeta')
 
         top_conf_link = HEAD.get()
         if top_conf_link is not None:
