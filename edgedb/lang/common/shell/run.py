@@ -53,8 +53,9 @@ class RunCommand(shell.Command, name='run', expose=True):
         if args.debug_logger:
             import logging
             from semantix.utils.test.pytest_semantix import LoggingPrintHandler
-            logging.getLogger("semantix").addHandler(LoggingPrintHandler(args.color))
-            logging.getLogger("semantix").setLevel(logging.INFO)
+            logging.getLogger().addHandler(LoggingPrintHandler(args.color))
+            logging.getLogger().setLevel(logging.INFO)
+            logging.getLogger('semantix').setLevel(logging.DEBUG)
 
         if args.configs:
             contexts = []
