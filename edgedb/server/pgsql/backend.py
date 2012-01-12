@@ -2338,6 +2338,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         updated_concept = concept.copy()
         updated_concept._children = concept._children.copy()
+        updated_concept.automatic = True
 
         ptrs = updated_concept.get_children_common_pointers(schema)
 
@@ -2415,8 +2416,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         visited_tables = set()
 
-        table_to_name_map = {common.concept_name_to_table_name(n, catenate=False): n \
-                                                                        for n in concept_list}
+        table_to_concept_map = {common.concept_name_to_table_name(n, catenate=False): c \
+                                                                for n, c in concept_list.items()}
 
         for name, row in concept_list.items():
             concept = {'name': name,
@@ -2425,8 +2426,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                        'is_abstract': row['is_abstract'],
                        'is_final': row['is_final'],
                        'is_virtual': row['is_virtual'],
-                       'custombases': row['custombases']}
-
+                       'custombases': row['custombases'],
+                       'automatic': row['automatic']}
 
             table_name = common.concept_name_to_table_name(name, catenate=False)
             table = tables.get(table_name)
@@ -2438,8 +2439,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             visited_tables.add(table_name)
 
+            if concept['automatic']:
+                continue
+
             bases = self.pg_table_inheritance_to_bases(table['name'], table['schema'],
-                                                                      table_to_name_map)
+                                                                      table_to_concept_map)
 
             concept = proto.Concept(name=name, base=bases, title=concept['title'],
                                     description=concept['description'],
@@ -2584,16 +2588,19 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         connection.execute(query)
 
 
-    def pg_table_inheritance_to_bases(self, table_name, schema_name, table_to_name_map):
+    def pg_table_inheritance_to_bases(self, table_name, schema_name, table_to_concept_map):
         inheritance = introspection.tables.TableInheritance(self.connection)
         inheritance = inheritance.fetch(table_name=table_name, schema_name=schema_name, max_depth=1)
         inheritance = [i[:2] for i in inheritance[1:]]
 
-        bases = tuple()
+        bases = []
         if len(inheritance) > 0:
-            bases = tuple(table_to_name_map[table[:2]] for table in inheritance)
+            for table in inheritance:
+                base = table_to_concept_map[table[:2]]
+                if not base['automatic']:
+                    bases.append(base['name'])
 
-        return bases
+        return tuple(bases)
 
 
     def parse_pg_type(self, type_expr):

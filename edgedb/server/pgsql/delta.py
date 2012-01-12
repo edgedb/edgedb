@@ -33,7 +33,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 3
+BACKEND_FORMAT_VERSION = 4
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -2634,6 +2634,18 @@ class UpgradeBackend(MetaCommand):
 
         cmd.execute(context)
 
+    def update_to_version_4(self, context):
+        """
+        Backend format 4 adds automatic attribute to concept description table.
+        """
+        cond = ColumnExists(table_name=('caos', 'concept'), column_name='automatic')
+        cmd = AlterTable(('caos', 'concept'), neg_conditions=(cond,))
+        column = Column(name='automatic', type='boolean', required=True, default=False)
+        add_column = AlterTableAddColumn(column)
+        cmd.add_operation(add_column)
+
+        cmd.execute(context)
+
     @classmethod
     def update_backend_info(cls):
         backendinfotable = BackendInfoTable()
@@ -3305,7 +3317,8 @@ class ConceptTable(MetaObjectTable):
 
         self.__columns = datastructures.OrderedSet([
             Column(name='custombases', type='text[]'),
-            Column(name='is_virtual', type='boolean', required=True, default=False)
+            Column(name='is_virtual', type='boolean', required=True, default=False),
+            Column(name='automatic', type='boolean', required=True, default=False)
         ])
 
         self.constraints = set([
