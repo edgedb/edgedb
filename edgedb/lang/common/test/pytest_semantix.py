@@ -34,8 +34,12 @@ setattr(logging, '_logging_off', _logging_off)
 @contextlib.contextmanager
 def logging_off():
     logging._logging_off()
-    yield
-    logging._logging_on()
+    try:
+        yield
+    finally:
+        logging._logging_on()
+
+logging.logging_off = logging_off
 
 
 class ShellInvoker:
