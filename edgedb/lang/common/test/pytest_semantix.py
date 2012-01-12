@@ -17,6 +17,7 @@ import contextlib
 from semantix.exceptions import SemantixError, _iter_contexts
 from semantix.utils.debug import highlight
 from semantix.utils.io import terminal
+from semantix.utils import markup
 
 
 setattr(logging, '_semantix_logging_running', True)
@@ -116,24 +117,15 @@ traceback_style = 'long'
 BaseReprExceptionInfo = __import__('py._code.code', None, None, ['ReprExceptionInfo']).ReprExceptionInfo
 
 class ReprExceptionInfo(BaseReprExceptionInfo):
-    def __init__(self, einfos):
-        super().__init__(*einfos[-1][:2])
-        self.einfos = einfos
-        self.term = terminal.Terminal(fd=sys.stderr, colors=True)
+    def __init__(self, reprtraceback, reprcrash, ex):
+        super().__init__(reprtraceback, reprcrash)
+        self._sx_ex = ex
 
     def toterminal(self, tw):
-        for tb, crash, contexts in reversed(self.einfos):
-            tb.toterminal(tw)
+        super().toterminal(tw)
 
-            tw.sep('~', 'Semantix Exception Contexts')
-            if contexts:
-                from semantix.utils import markup
-                for context in contexts:
-                    markup.dump(context)
-
-        for name, content, sep in self.sections:
-            tw.sep(sep, name)
-            tw.line(content)
+        tw.sep("'", 'Semantix Exception Logger')
+        markup.dump(self._sx_ex, file=tw._file)
 
 
 BaseExceptionInfo = __import__('py._code.code', None, None, ['ExceptionInfo']).ExceptionInfo
@@ -153,6 +145,8 @@ class PyTestPatcher:
 
     @classmethod
     def patch(cls):
+        assert cls.old_get_source is None
+
         cls.target = __import__('py._code.code', None, None, ['FormattedExcinfo']).FormattedExcinfo
         cls.target2 = __import__('py._code.code', None, None, ['ExceptionInfo']).ExceptionInfo
         cls.old_get_source = cls.target.get_source
@@ -167,20 +161,9 @@ class PyTestPatcher:
         cls.old_repr_excinfo = cls.target.repr_excinfo
 
         def repr_excinfo(self, excinfo):
-            einfos = []
-
             einfo = ExceptionInfo(excinfo._excinfo)
-
-            while einfo:
-                contexts = _iter_contexts(einfo.value)
-                einfos.append((self.repr_traceback(einfo), einfo._getreprcrash(), contexts))
-                if einfo.value.__cause__:
-                    cause = einfo.value.__cause__
-                    einfo = ExceptionInfo((type(cause), cause, cause.__traceback__))
-                else:
-                    einfo = None
-
-            return ReprExceptionInfo(einfos)
+            ex = einfo.value
+            return ReprExceptionInfo(self.repr_traceback(einfo), einfo._getreprcrash(), ex)
 
         def getrepr(self, showlocals=False,
                     style='long',
