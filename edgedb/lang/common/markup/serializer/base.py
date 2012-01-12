@@ -142,14 +142,21 @@ def serialize_exception(obj, *, ctx):
         else:
             cause = None
 
+    details_context = None
     contexts = []
     for context in exceptions._iter_contexts(obj):
-        contexts.append(serialize(context, ctx=ctx))
+        if isinstance(context, exceptions.DefaultExceptionContext):
+            details_context = context
+        else:
+            contexts.append(serialize(context, ctx=ctx))
 
     if obj.__traceback__:
         traceback = elements.lang.ExceptionContext(title='Traceback',
                                                    body=[serialize(obj.__traceback__, ctx=ctx)])
         contexts.append(traceback)
+
+    if details_context is not None:
+        contexts.append(serialize(details_context, ctx=ctx))
 
     markup = elements.lang.Exception(class_module=obj.__class__.__module__,
                                      class_name=obj.__class__.__name__,
