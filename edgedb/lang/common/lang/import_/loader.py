@@ -110,7 +110,7 @@ class LoaderCommon:
 
         return data
 
-    def code_from_source(self, modname, source_bytes):
+    def code_from_source(self, module, source_bytes):
         raise NotImplementedError
 
     def cache_from_code(self, modname, code, source_mtime):
@@ -144,10 +144,13 @@ class SourceLoader(LoaderCommon, importlib.abc.SourceLoader):
     def get_source(self, fullname):
         return self.get_source_bytes(fullname).decode()
 
+    def cache_from_source(self, source_path):
+        return imp_utils.cache_from_source(source_path)
+
     def get_code(self, module):
         modname = module.__name__
         source_path = self.get_filename(modname)
-        cache_path = imp_utils.cache_from_source(source_path)
+        cache_path = self.cache_from_source(source_path)
         source_mtime = None
 
         code = None

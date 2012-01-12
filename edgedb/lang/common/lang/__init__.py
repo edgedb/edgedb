@@ -10,8 +10,7 @@ from .meta import LanguageMeta
 from .import_ import ImportContext
 
 # Import languages to register them
-from semantix.utils.lang import yaml
-from semantix.utils.lang import python
+from semantix.utils.lang import yaml, python, javascript
 
 
 class SemantixLangLoaderError(Exception):
