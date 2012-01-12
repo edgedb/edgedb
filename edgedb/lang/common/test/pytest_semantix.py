@@ -212,9 +212,12 @@ def pytest_configure(config):
 
     if config.option.colorize:
         PyTestPatcher.patch()
-        logging.getLogger("semantix").addHandler(LoggingPrintHandler(True))
+        logging.getLogger().addHandler(LoggingPrintHandler(True))
     else:
-        logging.getLogger("semantix").addHandler(LoggingPrintHandler(False))
+        logging.getLogger().addHandler(LoggingPrintHandler(False))
+
+    logging.getLogger().setLevel(logging.INFO)
+    logging.getLogger('semantix').setLevel(logging.DEBUG)
 
     patterns = []
     tp = config.getvalue('test_patterns')
