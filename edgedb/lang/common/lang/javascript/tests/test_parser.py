@@ -30,6 +30,9 @@ class TestJSParser(metaclass=MetaJSParserTest_Functional):
         r"""print('Hello,\
         World!');"""
 
+    def test_utils_lang_js_parser_literals6(self):
+        """print('function');"""
+
     def test_utils_lang_js_parser_array1(self):
         r"""print([1,2,'a',]);"""
 

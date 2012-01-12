@@ -136,10 +136,15 @@ def stamp_state(name, affectslabels=False):
 class Token(tokenize.TokenInfo):
     @property
     def value(self):
-        return self[1]
+        return self.string
 
     def __init__(self, *args, **kwargs):
         self.parser = None
+
+    def __repr__(self):
+        return '<Token 0x{:x} {!r} {!r}>'.format(id(self), self.type, self.value)
+
+    __str__ = __repr__
 
 class End_Token(Token):
     'Special token for end of input stream'
@@ -157,6 +162,33 @@ class Start_Token(Token):
         return tok
 
 class JSParser():
+    SPECIAL_NAMES = {
+        '('     : 'LPAREN',
+        '['     : 'LSBRACKET',
+        '{'     : 'LCBRACKET',
+        '?'     : 'HOOK',
+        '.'     : 'DOT',
+
+        'function'  : 'FUNCTION',
+        'instanceof': 'INSTANCEOF',
+        'in'        : 'IN',
+        'delete'    : 'DELETE',
+        'void'      : 'VOID',
+        'typeof'    : 'TYPEOF',
+        'new'       : 'NEW',
+
+        'true'  : 'TRUE',
+        'false' : 'FALSE',
+        'this'  : 'THIS',
+        'null'  : 'NULL',
+
+        #
+        # extra
+        #
+        'let'   : 'LET',
+        'for'   : 'FOR'
+    }
+
     """ JavaScript Parser. Parsing engine with special rules for context, etc.
     parse(src) is the main method used for code parsing.
     """
@@ -213,39 +245,12 @@ class JSParser():
             ('rbp', '',         ('let', ), self.letsupport)
         ]
 
-        self.SPECIAL_NAMES = {
-            '('     : 'LPAREN',
-            '['     : 'LSBRACKET',
-            '{'     : 'LCBRACKET',
-            '?'     : 'HOOK',
-            '.'     : 'DOT',
-
-            'function'  : 'FUNCTION',
-            'instanceof': 'INSTANCEOF',
-            'in'        : 'IN',
-            'delete'    : 'DELETE',
-            'void'      : 'VOID',
-            'typeof'    : 'TYPEOF',
-            'new'       : 'NEW',
-
-            'true'  : 'TRUE',
-            'false' : 'FALSE',
-            'this'  : 'THIS',
-            'null'  : 'NULL',
-
-            #
-            # extra
-            #
-            'let'   : 'LET',
-            'for'   : 'FOR'
-        }
-
-        # this will contain mappings from values to token information for various operations
-        #
+        #: this will contain mappings from values to token information for various operations
+        #:
         self.OP_2_INFO = {}
 
-        # calculate the starting binding power
-        #
+        #: calculate the starting binding power
+        #:
         bp_val = len(self.PREC) * 10
 
         for bp, special, vals, active in self.PREC:
@@ -279,17 +284,17 @@ class JSParser():
 
         tok_val = token.value
         tok_type = token.type
-        spec_type = self.SPECIAL_NAMES.get(tok_val, None)
 
-        if spec_type:
-            return spec_type
+        if tok_type in ('ID', 'OP'):
+            try:
+                return self.SPECIAL_NAMES[tok_val]
+            except KeyError:
+                pass
 
-        elif tok_type == 'OP' and tok_val in self.OP_2_INFO:
+        if tok_type == 'OP' and tok_val in self.OP_2_INFO:
             return self.OP_2_INFO[tok_val].get(context, '')
 
-        else:
-            return tok_type
-
+        return tok_type
 
     def reset(self):
         """Reset the line & col counters, and internal state."""
