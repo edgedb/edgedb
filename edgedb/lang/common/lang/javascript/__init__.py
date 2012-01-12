@@ -40,28 +40,31 @@ class JavaScriptModule(module.Module):
 
 
 class _SemantixImportsHook:
-    #: Matches '// %from ..a.b import foo, bar' to {name: '..a.b', fromlist: 'foo, bar'}
-    #:
-    from_import_re = re.compile(r'^//\s*%from\s+(?P<name>[^\s]+)\s+import\s+(?P<fromlist>[^\n]+)$',
-                                re.X | re.M)
-
-    #: Matches '// %import foo.bar' to {name: 'foo.bar'}
-    #:
-    import_re = re.compile(r'^//\s*%import\s+(?P<name>[^\s]+)\s+$', re.X | re.M)
+    import_re = re.compile(r'''
+        ^//(
+            \s*(%import|%from)\s+
+                (?P<name>[^\s]+)
+                (
+                    \s+import\s+
+                    (?P<fromlist>[^\n]+)
+                )?
+            )
+        \s*$
+    ''', re.X | re.M)
 
     def __call__(self, module, imports, source):
         if '%import' in source or '%from' in source:
-            matches = self.from_import_re.findall(source)
+            match = self.import_re.search(source)
+            while match is not None:
+                name = match.group('name')
+                fromlist = match.group('fromlist')
 
-            for match in matches:
-                name = match[0].strip()
-                frms = match[1]
-                imports.add((name, tuple(frm.strip() for frm in frms.split(','))))
+                if fromlist is None:
+                    imports.add((name.strip(),))
+                else:
+                    imports.add((name.strip(), tuple(frm.strip() for frm in fromlist.split(','))))
 
-            matches = self.import_re.findall(source)
-            for match in matches:
-                name = match.strip()
-                imports.add((name,))
+                match = self.import_re.search(source, match.end())
 
 
 class Loader(loader.SourceFileLoader):
