@@ -182,6 +182,109 @@ class TreeTransformer:
 
         return prefixes
 
+    def apply_fixups(self, expr):
+        """A rather dumb pass that attempts to fixup potential brokenness of a fully processed tree.
+        """
+
+        if isinstance(expr, caos_ast.PathCombination):
+            for path in expr.paths:
+                self.apply_fixups(path)
+
+        elif isinstance(expr, caos_ast.AtomicRefSimple):
+            self.apply_fixups(expr.ref)
+
+        elif isinstance(expr, caos_ast.EntitySet):
+            if expr.rlink:
+                self.apply_fixups(expr.rlink.source)
+
+            if expr.conjunction.paths:
+                # Move non-filtering paths out of a conjunction into a disjunction where
+                # it belongs.
+
+                cpaths = set()
+                dpaths = set()
+
+                for path in expr.conjunction.paths:
+                    if isinstance(path, caos_ast.EntitySet):
+                        if 'generator' not in path.users:
+                            dpaths.add(path)
+                        else:
+                            cpaths.add(path)
+                    elif isinstance(path, caos_ast.EntityLink):
+                        if path.target and 'generator' not in path.target.users:
+                            dpaths.add(path)
+                        else:
+                            cpaths.add(path)
+
+                expr.conjunction.paths = frozenset(cpaths)
+                if dpaths:
+                    expr.disjunction.paths = expr.disjunction.paths | dpaths
+
+        elif isinstance(expr, caos_ast.EntityLink):
+            self.apply_fixups(expr.source)
+
+        elif isinstance(expr, caos_ast.LinkPropRefSimple):
+            self.apply_fixups(expr.ref)
+
+        elif isinstance(expr, caos_ast.BinOp):
+            self.apply_fixups(expr.left)
+            self.apply_fixups(expr.right)
+
+        elif isinstance(expr, caos_ast.UnaryOp):
+            self.apply_fixups(expr.expr)
+
+        elif isinstance(expr, caos_ast.ExistPred):
+            self.apply_fixups(expr.expr)
+
+        elif isinstance(expr, (caos_ast.InlineFilter, caos_ast.InlinePropFilter)):
+            self.apply_fixups(expr.ref)
+            self.apply_fixups(expr.expr)
+
+        elif isinstance(expr, (caos_ast.AtomicRefExpr, caos_ast.LinkPropRefExpr)):
+            self.apply_fixups(expr.expr)
+
+        elif isinstance(expr, caos_ast.FunctionCall):
+            for arg in expr.args:
+                self.apply_fixups(arg)
+
+        elif isinstance(expr, caos_ast.TypeCast):
+            self.apply_fixups(expr.expr)
+
+        elif isinstance(expr, caos_ast.NoneTest):
+            self.apply_fixups(expr.expr)
+
+        elif isinstance(expr, (caos_ast.Sequence, caos_ast.Record)):
+            for path in expr.elements:
+                self.apply_fixups(path)
+
+        elif isinstance(expr, caos_ast.Constant):
+            pass
+
+        elif isinstance(expr, caos_ast.GraphExpr):
+            if expr.generator:
+                self.apply_fixups(expr.generator)
+
+            if expr.selector:
+                for e in expr.selector:
+                    self.apply_fixups(e.expr)
+
+            if expr.grouper:
+                for e in expr.grouper:
+                    self.apply_fixups(e)
+
+            if expr.sorter:
+                for e in expr.sorter:
+                    self.apply_fixups(e)
+
+        elif isinstance(expr, caos_ast.SortExpr):
+            self.apply_fixups(expr.expr)
+
+        elif isinstance(expr, caos_ast.SubgraphRef):
+            self.apply_fixups(expr.ref)
+
+        else:
+            assert False, 'unexpected node: "%r"' % expr
+
     def replace_atom_refs(self, expr, prefixes):
 
         if isinstance(expr, caos_ast.AtomicRefSimple):

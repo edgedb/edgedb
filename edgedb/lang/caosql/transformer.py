@@ -258,6 +258,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
     def transform(self, caosql_tree, arg_types, module_aliases=None, anchors=None):
         context = self._init_context(arg_types, module_aliases, anchors)
         stree = self._transform_select(context, caosql_tree, arg_types)
+        self.apply_fixups(stree)
         return stree
 
     def transform_fragment(self, caosql_tree, arg_types, module_aliases=None, anchors=None,
