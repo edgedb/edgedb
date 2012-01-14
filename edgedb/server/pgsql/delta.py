@@ -1148,6 +1148,9 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         return result
 
     def apply_base_delta(self, orig_source, source, meta, context):
+        realm = context.get(delta_cmds.RealmCommandContext)
+        orig_source.base = tuple(realm.op._renames.get(b, b) for b in orig_source.base)
+
         dropped_bases = set(orig_source.base) - set(source.base)
         added_bases = set(source.base) - set(orig_source.base)
 
@@ -1332,6 +1335,11 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
 
         concept = context.get(delta_cmds.ConceptCommandContext)
         assert concept
+
+        realm = context.get(delta_cmds.RealmCommandContext)
+        assert realm
+
+        realm.op._renames[concept.original_proto.name] = proto.name
 
         concept.op.attach_alter_table(context)
 
@@ -2468,6 +2476,10 @@ class CommandContext(delta_cmds.CommandContext):
 
 
 class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._renames = {}
+
     def apply(self, meta, context):
         self.pgops.add(CreateSchema(name='caos', priority=-3))
 
