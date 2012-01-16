@@ -82,7 +82,7 @@ class _SemantixImportsHook:
 
 class Loader(loader.SourceFileLoader):
     #: version of cache format
-    CACHE_MAGIC_BASE = 0
+    CACHE_MAGIC_BASE = 1
 
     # That's the attribute where the actual magic number will be stored.
     # The magic number depends on the 'CACHE_MAGIC_BASE' constant +
