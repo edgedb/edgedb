@@ -38,7 +38,7 @@ sx.Markup.Renderer.prototype = {
         }
     },
 
-    on_long_str_click: function(id, event) {
+    on_collapsible_toggler_click: function(id, event) {
         sx('#' + id).toggle_class('collapsed');
 
         if (event.stopPropagation) {
@@ -358,7 +358,12 @@ sx.Markup.Renderer.prototype = {
     },
 
     'lang.TracebackPoint': function(o) {
-        var source = [];
+        var source = [],
+            id = this._gen_id();
+
+        this.handlers[id] = {
+            click: sx.partial(this.on_collapsible_toggler_click, this, id)
+        };
 
         if (o.lines) {
             for (var i = 0; i < o.lines.length; i++) {
@@ -394,7 +399,9 @@ sx.Markup.Renderer.prototype = {
                      {tag: 'span', cls: 'tb-line-location', text: o.name}
                  ]},
 
-                {cls: 'tb-line-source', children: source}
+                {cls: 'tb-line-source collapsed',
+                 attrs: {id: id},
+                 children: source}
             ]
         };
 
@@ -522,7 +529,7 @@ sx.Markup.Renderer.prototype = {
         }
 
         this.handlers[id + '-handler'] = {
-            click: sx.partial(this.on_long_str_click, this, id)
+            click: sx.partial(this.on_collapsible_toggler_click, this, id)
         };
 
         return {

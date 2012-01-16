@@ -322,6 +322,8 @@
                             overflow: auto
 
                             > .tb-line-line:
+                                %merge unselectable
+                                cursor: pointer
                                 padding: 1px 0
 
                                 &.tb-current:
@@ -341,6 +343,15 @@
                                     font-size: 12px
                                     white-space: pre
                                     padding-left: 20px
+
+                            &.collapsed:
+                                > .tb-line-line:
+                                    display: none
+
+                                    &.tb-current:
+                                        display: block
+                                        border: none
+                                        background: white
 
                     .tb-locals:
                         margin-left: 20px
