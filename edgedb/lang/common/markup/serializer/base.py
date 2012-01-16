@@ -98,6 +98,11 @@ def serialize_traceback_point(obj, *, ctx, include_source=True, source_window_si
     if include_locals:
         locals = serialize(dict(obj.tb_frame.f_locals), ctx=ctx)
 
+    if filename.startswith('.'):
+        frame_fn = obj.tb_frame.f_globals.get('__file__')
+        if frame_fn and frame_fn.endswith(filename[2:]):
+            filename = frame_fn
+
     point = point_cls(name=name, lineno=lineno, filename=filename,
                       locals=locals, id=id(obj))
 
