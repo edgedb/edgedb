@@ -221,7 +221,8 @@ class TreeTransformer:
                     expr.disjunction.paths = expr.disjunction.paths | dpaths
 
         elif isinstance(expr, caos_ast.EntityLink):
-            self.apply_fixups(expr.source)
+            if expr.source is not None:
+                self.apply_fixups(expr.source)
 
         elif isinstance(expr, caos_ast.LinkPropRefSimple):
             self.apply_fixups(expr.ref)
