@@ -48,7 +48,7 @@ def sort(graph, return_record=False, root_only=False):
 
     def visit(item):
         if item in visiting:
-            raise CycleError("detected cycle")
+            raise CycleError("detected cycle on vertex {!r}".format(item))
         if item not in visited:
             visiting.add(item)
             for n in adj[item]:
