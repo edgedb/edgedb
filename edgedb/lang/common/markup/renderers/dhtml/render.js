@@ -14,6 +14,8 @@ sx.Markup.Renderer = function(markup, render_to) {
 
     this.markup = markup;
     this.render_to = render_to;
+
+    this.top_exc_title = null;
 }
 
 sx.Markup.Renderer.prototype = {
@@ -33,6 +35,14 @@ sx.Markup.Renderer.prototype = {
             }
         } else {
             sx('#' + collapsible_id).toggle_class('collapsed');
+        }
+    },
+
+    on_long_str_click: function(id, event) {
+        sx('#' + id).toggle_class('collapsed');
+
+        if (event.stopPropagation) {
+            event.stopPropagation();
         }
     },
 
@@ -283,7 +293,19 @@ sx.Markup.Renderer.prototype = {
                                                   'cause of the following exception'));
         }
 
-        var body = [];
+        var body = [], msg = o.msg, msg_el,
+            cls_name = o.class_module + '.' + o.class_name + ': ';
+
+        if (msg.length > 200) {
+            msg_el = this._render_long_string({
+                text: msg,
+                maxlen: 200,
+                detect_code: true
+            });
+        } else {
+            msg_el = {text: msg};
+        }
+
         body.push({tag: 'h2', cls: 'exc-title', children: [
                      {tag: 'span', cls: 'exc-num', children: [
                           {tag: 'span', text: '#'},
@@ -291,9 +313,9 @@ sx.Markup.Renderer.prototype = {
                       ]},
 
                      {tag: 'span', cls: 'exc-class',
-                      text: o.class_module + '.' + o.class_name + ': '},
+                      text: cls_name},
 
-                     {tag: 'span', cls: 'exc-msg', text: o.msg}
+                     {tag: 'span', cls: 'exc-msg', children: msg_el}
                   ]});
 
         if (o.contexts) {
@@ -312,13 +334,15 @@ sx.Markup.Renderer.prototype = {
         cause.push(obj);
 
         if (this.ex_depth == 0) {
+            this.top_exc_title = this._shorten_str(msg, 50);
+
             var header = {tag: 'div', cls: 'exc-header', children: {
                             tag: 'h1',
                             children: [
                                {tag: 'span', cls: 'exc-class',
-                                text: o.class_module + '.' + o.class_name + ': '},
+                                text: cls_name},
 
-                               {tag: 'span', cls: 'exc-msg', text: o.msg}
+                               {tag: 'span', cls: 'exc-msg', text: this._shorten_str(msg, 120)}
                             ]
                          }};
 
@@ -482,6 +506,49 @@ sx.Markup.Renderer.prototype = {
     _gen_id: function() {
         this._id++;
         return 'id-' + this._id_base + '-' + this._id;
+    },
+
+    _render_long_string: function(o) {
+        var id = this._gen_id(),
+            detect_code = o.detect_code || false,
+            add_long_cls = '',
+            text = o.text;
+
+        if (detect_code) {
+            if (text.match(/\n\s{2,}/g).length > 3) {
+                // at least 4 lines of tabulated text
+                add_long_cls += ' sx-pre'
+            }
+        }
+
+        this.handlers[id + '-handler'] = {
+            click: sx.partial(this.on_long_str_click, this, id)
+        };
+
+        return {
+            cls: 'sx-long-str collapsed',
+
+            attrs: {
+                id: id
+            },
+
+            children: [
+                {tag: 'i', cls: 'sx-icon-plus', attrs: {id: id + '-handler'}},
+
+                {tag: 'span', cls: 'sx-long-str-short',
+                 text: this._shorten_str(text, o.maxlen || 100)},
+
+                {tag: 'span', cls: 'sx-long-str-long' + add_long_cls, text: text}
+            ]
+        };
+    },
+
+    _shorten_str: function(str, max) {
+        if (str.length >= max) {
+            str = str.substring(0, max) + ' ...';
+        }
+
+        return str;
     },
 
     _render_collapsible: function(o) {

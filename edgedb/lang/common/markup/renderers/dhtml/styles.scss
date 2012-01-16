@@ -34,6 +34,35 @@
         background: #222
         color: white
 
+    .sx-pre:
+        white-space: pre
+
+    .sx-long-str:
+        display: inline
+
+        > i.sx-icon-plus:
+            display: inline-block
+            margin-right: 4px
+            cursor: pointer
+            %merge icon_plus
+            %merge unselectable
+
+        > .sx-long-str-short:
+            display: none
+
+        > .sx-long-str-long:
+            display: inline
+
+        &.collapsed:
+            > i.sx-icon-plus:
+                %merge icon_minus
+
+            > .sx-long-str-short:
+                display: inline
+
+            > .sx-long-str-long:
+                display: none
+
     .sx-collapsible:
         > .sx-collapsible-label:
             %merge unselectable
@@ -196,7 +225,7 @@
                 position: relative
                 z-index: 1
 
-                font-size: 26px
+                font-size: 23px
                 display: block
 
                 text-shadow: 0 1px 2px #4e1616
@@ -211,11 +240,12 @@
             margin: 30px
 
             h2.exc-title:
-                font-size: 20px
+                font-size: 17px
                 margin-bottom: 15px
                 color: #700
 
                 .exc-num:
+                    %merge unselectable
                     color: #494141
 
                     span:
@@ -238,9 +268,9 @@
                         color: #222
 
                 h3.exc-context-title:
-                    font-size: 14px
+                    font-size: 13px
                     font-weight: bold
-                    padding: 7px 15px
+                    padding: 6px 15px 5px 15px
                     display: block
                     background: #365b92
                     color: white

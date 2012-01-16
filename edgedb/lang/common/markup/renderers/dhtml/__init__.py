@@ -40,6 +40,9 @@ _HTML_END = ''';
                     var spec = sx.Markup.Renderer.unpack_markup(exc_info);
                     var renderer = new sx.Markup.Renderer(spec, 'body');
                     renderer.render();
+                    if (renderer.top_exc_title) {
+                        document.title = renderer.top_exc_title;
+                    }
                 }, this, exc_info);
             })();
         </script>
