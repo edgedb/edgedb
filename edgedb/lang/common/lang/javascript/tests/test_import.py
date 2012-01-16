@@ -16,12 +16,12 @@ from semantix.utils.lang import javascript
 
 def no_jsc_cache(func):
     def wrapper(*args, **kwargs):
-        old = javascript.Loader.CACHE_MAGIC_BASE
-        javascript.Loader.CACHE_MAGIC_BASE = random.randint(0, 10**6)
+        old = javascript.Loader._cache_magic
+        javascript.Loader._cache_magic = random.randint(0, 10**6)
         try:
             return func(*args, **kwargs)
         finally:
-            javascript.Loader.CACHE_MAGIC_BASE = old
+            javascript.Loader._cache_magic = old
 
     functools.update_wrapper(wrapper, func)
     return wrapper
@@ -39,7 +39,7 @@ def clean_sys_modules(func):
     return wrapper
 
 
-_deps = operator.attrgetter('__sx_js_module_deps__')
+_deps = operator.attrgetter('__sx_resource_deps__')
 
 
 class TestUtilsLangJSImport:
@@ -49,9 +49,10 @@ class TestUtilsLangJSImport:
         from semantix.utils.lang.javascript.tests.testimport import foo
 
         d = _deps(foo)
-        assert len(d) == 2
+        assert len(d) == 3
         assert d[0].__name__.endswith('bar')
         assert d[1].__name__.endswith('inner')
+        assert d[2].__name__.endswith('spam')
 
         m = sys.modules['semantix.utils.lang.javascript.tests.testimport.inner.ham']
         d = _deps(m)
@@ -71,11 +72,13 @@ class TestUtilsLangJSImport:
         from semantix.utils.lang.javascript.tests.testimport import foo
 
         mods = []
-        for mod in foo.list_deps_modules():
+        for mod in type(foo)._list_resources(foo):
             mods.append(mod.__name__)
 
-        assert mods == ['semantix.utils.lang.javascript.tests.testimport.bar',
-                        'semantix.utils.lang.javascript.tests.testimport.outer',
+        assert mods == ['semantix.utils.lang.javascript.tests.testimport.outer',
+                        'semantix.utils.lang.javascript.tests.testimport',
+                        'semantix.utils.lang.javascript.tests.testimport.bar',
                         'semantix.utils.lang.javascript.tests.testimport.inner.ham',
                         'semantix.utils.lang.javascript.tests.testimport.inner',
+                        'semantix.utils.lang.javascript.tests.testimport.spam',
                         'semantix.utils.lang.javascript.tests.testimport.foo']

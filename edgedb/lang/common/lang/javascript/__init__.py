@@ -14,36 +14,34 @@ import types
 import sys
 import zlib
 
+from semantix.utils.datastructures import OrderedSet
+from semantix.utils import resource
 from semantix.utils.lang import meta as lang_meta
 from semantix.utils.lang.import_ import module, loader, utils as imp_utils
-from semantix.utils.datastructures import OrderedSet
 
 
-class JavaScriptModule(module.Module):
+class JavaScriptModule(module.Module, resource.File):
     """Whenever you import a javascript file, the resulting module
     will be a subclass of this class"""
 
-    def list_deps_modules(self):
-        """Builds the full list of modules that current module depends on"""
+    def __init__(self, path, name):
+        module.Module.__init__(self, name)
 
-        def _collect_deps(module, deps, recs):
-            recs.add(module)
-            for mod in module.__sx_js_module_deps__:
-                if mod not in recs:
-                    _collect_deps(mod, deps, recs)
-            deps.add(module)
+        public_path = os.path.join('jsmodules/', name + '.js')
+        resource.File.__init__(self, path, public_path=public_path)
 
-        recs = set()
-        deps = OrderedSet()
-        _collect_deps(self, deps, recs)
-        return tuple(deps)
+
+_add_required_resource = JavaScriptModule.add_required_resource
+
+
+ParsedImport = collections.namedtuple('ParsedImport', 'name, frm, weak')
 
 
 class _SemantixImportsHook:
     import_re = re.compile(r'''
         ^//(
             \s*(%import|%from)\s+
-                (?P<name>[^\s]+)
+                (?P<name>.+?)
                 (
                     \s+import\s+
                     (?P<fromlist>[^\n]+)
@@ -52,19 +50,34 @@ class _SemantixImportsHook:
         \s*$
     ''', re.X | re.M)
 
-    def __call__(self, module, imports, source):
+    @classmethod
+    def parse(cls, source):
+        imports = []
+
         if '%import' in source or '%from' in source:
-            match = self.import_re.search(source)
+            match = cls.import_re.search(source)
             while match is not None:
-                name = match.group('name')
+                name = match.group('name').strip()
                 fromlist = match.group('fromlist')
 
                 if fromlist is None:
-                    imports.add((name.strip(),))
+                    for nm in name.split(','):
+                        imports.append(ParsedImport(nm.strip(), None, False))
                 else:
-                    imports.add((name.strip(), tuple(frm.strip() for frm in fromlist.split(','))))
+                    if ',' in name:
+                        raise RuntimeError('invalid import statement: "%from {} import {}"'. \
+                                           format(name, fromlist))
 
-                match = self.import_re.search(source, match.end())
+                    fromlist = (frm.strip() for frm in fromlist.split(','))
+                    for frm in fromlist:
+                        imports.append(ParsedImport(name, frm, False))
+
+                match = cls.import_re.search(source, match.end())
+
+        return imports
+
+    def __call__(self, module, imports, source):
+        imports.extend(self.parse(source))
 
 
 class Loader(loader.SourceFileLoader):
@@ -119,7 +132,7 @@ class Loader(loader.SourceFileLoader):
 
         # If any imports detect hooks are registered - process the source.
         #
-        raw_imports = OrderedSet()
+        raw_imports = []
         for hook in self._import_detect_hooks.values():
             hook(module, raw_imports, source)
 
@@ -134,15 +147,14 @@ class Loader(loader.SourceFileLoader):
 
         imports = OrderedSet()
         for imp in raw_imports:
-            if len(imp) == 1:
-                imports.add(imp[0])
+            if imp.frm is None:
+                name = imp.name
             else:
                 # Here we have to unwind any relative imports, for instance:
                 # 'from .. import foo' in 'a.b.c' module should be transformed
                 # to 'import a.foo'
 
-                imp_package, imp_froms = imp
-
+                imp_package = imp.name
                 if imp_package.startswith('.'):
                     mod_package = module_name
 
@@ -160,13 +172,14 @@ class Loader(loader.SourceFileLoader):
                     else:
                         imp_package = mod_package
 
-                for imp_from in imp_froms:
-                    imports.add(imp_package + '.' + imp_from)
+                name = imp_package + '.' + imp.frm
+
+            imports.add((name, imp.weak))
 
         return tuple(imports)
 
     def load_module(self, fullname):
-        module = JavaScriptModule(fullname)
+        module = JavaScriptModule(self._path, fullname)
         module.__file__ = self._path
 
         is_package = os.path.splitext(os.path.basename(self._path))[0] == '__init__'
@@ -188,24 +201,35 @@ class Loader(loader.SourceFileLoader):
 
         deps = []
         if imports:
-            for imp in imports:
+            for imp_name, weak in imports:
                 try:
-                    mod = sys.modules[imp]
+                    mod = sys.modules[imp_name]
                 except KeyError:
                     # Module was not imported before; import it
                     #
-                    mod = importlib.import_module(imp)
+                    mod = importlib.import_module(imp_name)
 
-                if isinstance(mod, JavaScriptModule):
-                    # We're interested in tracking only javascript modules
+                if isinstance(mod, resource.Resource):
+                    # We're interested in tracking only resources
                     #
-                    deps.append(mod)
+                    deps.append((mod, weak))
+
+        if '.' in module.__name__:
+            # Link parent package
+            #
+            parent_name = module.__name__.rpartition('.')[0]
+            parent = sys.modules[parent_name]
+
+            if isinstance(parent, resource.Resource):
+                module.__sx_resource_parent__ = parent
 
         # Here, in 'deps' list we have all immediate modules that our module
         # depends on.  Store them in a special attribute to be able to build
         # modules index later.
         #
-        module.__sx_js_module_deps__ = tuple(deps)
+        for dep, weak in deps:
+            _add_required_resource(module, dep, weak=weak)
+
         module.__loaded__ = True
 
         return module
