@@ -50,19 +50,19 @@ class TestUtilsLangJSImport:
 
         d = _deps(foo)
         assert len(d) == 3
-        assert d[0].__name__.endswith('bar')
-        assert d[1].__name__.endswith('inner')
-        assert d[2].__name__.endswith('spam')
+        assert d[0][0].__name__.endswith('bar')
+        assert d[1][0].__name__.endswith('inner')
+        assert d[2][0].__name__.endswith('spam')
 
         m = sys.modules['semantix.utils.lang.javascript.tests.testimport.inner.ham']
         d = _deps(m)
         assert len(d)  == 1
-        assert d[0].__name__.endswith('outer')
+        assert d[0][0].__name__.endswith('outer')
 
         m = sys.modules['semantix.utils.lang.javascript.tests.testimport']
         d = _deps(m)
         assert len(d)  == 1
-        assert d[0].__name__.endswith('outer')
+        assert d[0][0].__name__.endswith('outer')
 
         assert isinstance(foo, javascript.JavaScriptModule)
 

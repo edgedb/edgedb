@@ -28,30 +28,39 @@ class Resource:
         if not isinstance(dependency, Resource):
             raise ResourceError('an instance of Resource expected, got {!r}'.format(dependency))
 
-        resource.__sx_resource_deps__.append(dependency)
+        resource.__sx_resource_deps__.append((dependency, weak))
 
     @classmethod
     def _list_resources(cls, resource):
         """Builds the full list of resources that current resource depends on.
         The list includes the resource itself."""
 
-        def _collect_deps(resource, deps, visited):
+        def _collect_deps(resource, collected, visited, to_import):
             visited.add(resource)
 
             parent = resource.__sx_resource_parent__
             if parent is not None and parent not in visited:
-                _collect_deps(parent, deps, visited)
+                _collect_deps(parent, collected, visited, to_import)
 
-            for mod in resource.__sx_resource_deps__:
-                if mod not in visited:
-                    _collect_deps(mod, deps, visited)
+            for mod, weak in resource.__sx_resource_deps__:
+                if weak:
+                    to_import.add(mod)
+                else:
+                    if mod not in visited:
+                        _collect_deps(mod, collected, visited, to_import)
 
-            deps.add(resource)
+            collected.add(resource)
 
         visited = set()
-        deps = OrderedSet()
-        _collect_deps(resource, deps, visited)
-        return tuple(deps)
+        collected = OrderedSet()
+
+        to_import = OrderedSet((resource,))
+        while to_import:
+            mod = to_import.pop()
+            _collect_deps(mod, collected, visited, to_import)
+            to_import -= collected
+
+        return tuple(collected)
 
 
 class AbstractFileSystemResource(Resource):
@@ -100,9 +109,6 @@ class Publisher:
         self.resources.append(resource)
 
     def _collect_deps(self):
-        if not len(self.resources):
-            return ()
-
         collected = OrderedSet()
 
         for resource in self.resources:
