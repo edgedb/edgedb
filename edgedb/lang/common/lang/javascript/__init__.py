@@ -82,7 +82,7 @@ class _SemantixImportsHook:
 
 class Loader(loader.SourceFileLoader):
     #: version of cache format
-    CACHE_MAGIC_BASE = 1
+    CACHE_MAGIC_BASE = 2
 
     # That's the attribute where the actual magic number will be stored.
     # The magic number depends on the 'CACHE_MAGIC_BASE' constant +
@@ -179,6 +179,10 @@ class Loader(loader.SourceFileLoader):
         return tuple(imports)
 
     def load_module(self, fullname):
+        if fullname in sys.modules:
+            # XXX mask bug in importlib; to be removed
+            return sys.modules[fullname]
+
         module = JavaScriptModule(self._path, fullname)
         module.__file__ = self._path
 
