@@ -97,7 +97,11 @@ class TracebackPoint(BaseObject):
     def load_source(self, window=3, lines=None):
         self.lines = self.line_numbers = None
 
-        if self.lineno and (self.filename or lines):
+        if self.lineno and \
+                        ((self.filename and not self.filename.startswith('<') \
+                                                and not self.filename.endswith('>')) \
+                         or lines):
+
             lineno = self.lineno
 
             sourcelines = lines or linecache.getlines(self.filename, globals())
