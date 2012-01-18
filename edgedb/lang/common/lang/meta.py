@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -8,7 +8,7 @@
 
 import os
 
-
+from semantix import exceptions as sx_errors
 from .loader import LanguageSourceFileLoader
 
 
@@ -86,3 +86,6 @@ class Object:
     def __sx_setstate__(self, data):
         pass
 
+
+class LanguageError(sx_errors.SemantixError):
+    pass

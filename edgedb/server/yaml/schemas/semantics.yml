@@ -6,7 +6,7 @@
 ##
 
 
-%SCHEMA semantix.utils.lang.yaml.schema.Schema
+%SCHEMA semantix.utils.lang.yaml.schema.ModuleSchema
 %NAME Semantics
 ---
 type: map

@@ -1,16 +1,15 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
 
-import os
-
 from semantix.utils import helper
 from semantix.utils.lang import context as lang_context
-from semantix.utils.lang.yaml import loader
+from semantix.utils.lang.yaml import constructor as yaml_constructor
+from semantix.utils.lang.yaml import loader as yaml_loader
 from semantix.utils.functional import decorate
 
 
@@ -19,7 +18,7 @@ def raises(ex_cls, ex_msg):
         def new(*args, **kwargs):
             slf = args[0]
 
-            constructor = loader.Constructor()
+            constructor = yaml_constructor.Constructor()
             try:
                 node = slf.load(func.__doc__)
                 node = slf.schema.check(node)
@@ -40,7 +39,7 @@ def result(expected_result=None, key=None, value=None):
         def new(*args, **kwargs):
             slf = args[0]
 
-            constructor = loader.Constructor(context=lang_context.DocumentContext())
+            constructor = yaml_constructor.Constructor(context=lang_context.DocumentContext())
             try:
                 node = slf.load(func.__doc__)
                 node = slf.schema.check(node)
@@ -62,7 +61,7 @@ def result(expected_result=None, key=None, value=None):
 
 class SchemaTest(object):
     def load(self, str):
-        return loader.Loader(str).get_single_node()
+        return yaml_loader.Loader(str).get_single_node()
 
     @staticmethod
     def get_schema(clsname):

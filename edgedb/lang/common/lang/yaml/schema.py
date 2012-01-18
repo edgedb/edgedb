@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -18,11 +18,22 @@ class Base(validator.Schema):
         pass
 
 
+class ModuleSchemaBase(Base):
+    pass
+
+
 class Schema(Base):
+    _schema_base_cls = Base
+
     def check(self, node):
         if not hasattr(node, 'tags'):
             node.tags = [node.tag]
         else:
             node.tags.append(node.tag)
-        node.tag = 'tag:semantix.sprymix.com,2009/semantix/class/derive:semantix.utils.lang.yaml.schema.Base'
+        tag = 'tag:semantix.sprymix.com,2009/semantix/class/derive:{}.{}'
+        node.tag = tag.format(self._schema_base_cls.__module__, self._schema_base_cls.__name__)
         return node
+
+
+class ModuleSchema(Schema):
+    _schema_base_cls = ModuleSchemaBase

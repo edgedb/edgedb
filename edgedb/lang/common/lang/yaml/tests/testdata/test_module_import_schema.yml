@@ -1,0 +1,16 @@
+##
+# Copyright (c) 2008-2012 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%SCHEMA semantix.utils.lang.yaml.schema.ModuleSchema
+%NAME ModuleImportSchema
+---
+type: map
+required: true
+mapping:
+    "=":
+        type: scalar
