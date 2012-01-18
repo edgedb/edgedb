@@ -16,15 +16,45 @@ from .. import ast as jsast
 from semantix.utils.lang.preprocessor import ast as ppast
 from . import keywords
 
+from semantix.exceptions import SemantixError, _add_context
+from semantix.utils import markup
+
+
+class ExceptionContext(markup.MarkupExceptionContext):
+    title = 'JavaScript Parser Context'
+
+    def __init__(self, filename=None, lineno=None, colno=None, source=None):
+        super().__init__()
+        self.colno = colno
+        self.filename = filename
+        self.lineno = lineno
+        if filename is None:
+            self.source = source
+
+    @classmethod
+    def as_markup(cls, self, *, ctx):
+        me = markup.elements
+
+        tbp = me.lang.TracebackPoint(name='javascript', lineno=self.lineno,
+                                     filename=self.filename, colno=self.colno)
+
+        if self.filename is None and self.source is not None:
+            tbp.load_source(window=3, lines=self.source.split('\n'))
+        else:
+            tbp.load_source(window=3)
+
+        return me.lang.ExceptionContext(title=self.title, body=[tbp])
+
 
 #
 # Various errors
 #
 
-class ParseError(Exception): pass
+class ParseError(SemantixError):
+    pass
 
 
-class SyntaxError(Exception):
+class SyntaxError(SemantixError):
     def __init__(self, msg, line, col):
         super().__init__("Syntax error: %s" % msg)
         self.line = line
@@ -39,7 +69,7 @@ class UnknownToken(SyntaxError):
 
 
 class UnexpectedToken(SyntaxError):
-    def __init__(self, token, expected=None):
+    def __init__(self, token, expected=None, parser=None):
         if not expected:
             super().__init__("unexpected token %r (line %i, column %i)." %
                              (token.string, token.start[0], token.start[1]),
@@ -52,6 +82,11 @@ class UnexpectedToken(SyntaxError):
             super().__init__("unexpected token %r instead of one of %s (line %i, column %i)." %
                              (token.string, list(expected), token.start[0], token.start[1]),
                              token.start[0], token.start[1])
+
+        if parser is not None:
+            exc = ExceptionContext(lineno=token.start[0], colno=token.start[1],
+                                   filename=parser.filename, source=parser.source)
+            _add_context(self, exc)
 
 
 class UnknownOperator(SyntaxError):
@@ -433,10 +468,10 @@ class JSParser():
                         continue # at the end of program
 
                     else:
-                        raise UnexpectedToken(self.token, tok)
+                        raise UnexpectedToken(self.token, tok, parser=self)
 
                 else:
-                    raise UnexpectedToken(self.token, tok)
+                    raise UnexpectedToken(self.token, tok, parser=self)
 
             self.get_next_token(regexp)
 
@@ -630,7 +665,7 @@ class JSParser():
             return self.parse_comprehension(left)
 
         else:
-            raise UnexpectedToken(self.prevtoken)
+            raise UnexpectedToken(self.prevtoken, parser=self)
 
     #
     # core methods for expression processing
@@ -677,7 +712,7 @@ class JSParser():
             if nud:
                 return nud(token)
             else:
-                raise UnexpectedToken(token)
+                raise UnexpectedToken(token, parser=self)
 
 
     def led(self, left, token):
@@ -723,7 +758,7 @@ class JSParser():
             if (self.get_token_special_type(self.prevtoken, 'led') ==
                 self.get_token_special_type(self.token, 'led') == 'Unary' and
                 not self.linebreak_detected):
-                raise UnexpectedToken(self.token)
+                raise UnexpectedToken(self.token, parser=self)
 
             left = self.led(left, self.prevtoken)
 
@@ -760,7 +795,7 @@ class JSParser():
 
         if (not (tok.type == 'ID' or
                  allowkeyword and tok.value in keywords.js_keywords)):
-            raise UnexpectedToken(self.token)
+            raise UnexpectedToken(self.token, parser=self)
 
         self.get_next_token(regexp=False)
         return jsast.IDNode(name=tok.string)
@@ -862,7 +897,7 @@ class JSParser():
             return action()
 
         else:
-            raise UnexpectedToken(self.token)
+            raise UnexpectedToken(self.token, parser=self)
 
 
     @stamp_state('stmt', affectslabels=True)
@@ -938,7 +973,7 @@ class JSParser():
                 break
 
             else:
-                raise UnexpectedToken(self.token)
+                raise UnexpectedToken(self.token, parser=self)
 
         return var_list
 
@@ -1405,7 +1440,9 @@ class JSParser():
 
         return jsast.ComprehensionNode(var=var, container=container, condition=condition)
 
-    def parse(self, program):
+    def parse(self, program, *, filename=None):
+        self.filename = filename
+        self.source = program
         self.lexer.setinputstr(program)
         self.reset()
         self.get_next_token()
