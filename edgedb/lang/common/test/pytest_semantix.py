@@ -13,6 +13,7 @@ import sys
 import logging
 import datetime
 import contextlib
+import io
 
 from semantix.exceptions import SemantixError, _iter_contexts
 from semantix.utils.debug import highlight
@@ -129,7 +130,12 @@ class ReprExceptionInfo(BaseReprExceptionInfo):
         super().toterminal(tw)
 
         tw.sep("'", 'Semantix Exception Logger')
-        markup.dump(self._sx_ex, file=tw._file)
+
+        if hasattr(tw._file, 'fileno'):
+            markup.dump(self._sx_ex, file=tw._file)
+        else:
+            tw.write(markup.dumps(self._sx_ex))
+
 
 
 BaseExceptionInfo = __import__('py._code.code', None, None, ['ExceptionInfo']).ExceptionInfo
