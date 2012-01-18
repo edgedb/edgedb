@@ -468,6 +468,10 @@ foo();
     def test_utils_lang_js_parser_for16(self):
         """for (var a,b,c in [1,2,3]) print(42);"""
 
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 16})
+    def test_utils_lang_js_parser_for17(self):
+        """for (var i = 0;) print(1)"""
+
     def test_utils_lang_js_parser_switch1(self):
         """switch (1) {}"""
 
@@ -955,6 +959,12 @@ foo();
         ++
         b
         print(a,b);
+        """
+
+    def test_utils_lang_js_parser_semicolon22(self):
+        """
+        var a = 'test'
+        print(a)
         """
 
     def test_utils_lang_js_parser_instanceof(self):

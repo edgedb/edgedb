@@ -921,7 +921,7 @@ class JSParser():
 
 
     def parse_let_guts(self, statement=True):
-        """Parse the VAR declaration."""
+        """Parse the LET declaration."""
 
         if not self.letsupport:
             raise UnknownToken(self.prevtoken)
@@ -962,9 +962,6 @@ class JSParser():
             if self.tentative_match(','):
                 continue
 
-            elif self.tentative_match(';', consume=statement):
-                break
-
             elif self.tentative_match('in', consume=statement):
                 # this can only happen in 'noin' mode
                 break
@@ -974,7 +971,19 @@ class JSParser():
                 break
 
             else:
-                raise UnexpectedToken(self.token, parser=self)
+                # this catches optional semicolon in statements
+                #
+                if statement:
+                    self.must_match(';')
+                    break
+
+                # this may be an error, but what kind is better determined by whoever called us
+                #
+                elif self.tentative_match(';', consume=statement):
+                    break
+
+                else:
+                    raise UnexpectedToken(self.token, parser=self)
 
         return var_list
 
