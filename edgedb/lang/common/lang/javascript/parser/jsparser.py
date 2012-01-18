@@ -30,6 +30,7 @@ class ExceptionContext(markup.MarkupExceptionContext):
         self.lineno = lineno
         if filename is None:
             self.source = source
+            self.filename = '<string>'
 
     @classmethod
     def as_markup(cls, self, *, ctx):
@@ -38,7 +39,7 @@ class ExceptionContext(markup.MarkupExceptionContext):
         tbp = me.lang.TracebackPoint(name='javascript', lineno=self.lineno,
                                      filename=self.filename, colno=self.colno)
 
-        if self.filename is None and self.source is not None:
+        if self.filename == '<string>' and self.source is not None:
             tbp.load_source(window=3, lines=self.source.split('\n'))
         else:
             tbp.load_source(window=3)
