@@ -94,16 +94,16 @@ class TracebackPoint(BaseObject):
 
     locals = Field(Dict, default=None)
 
-    def load_source(self, window=2, lines=None):
+    def load_source(self, window=3, lines=None):
         self.lines = self.line_numbers = None
 
         if self.lineno and (self.filename or lines):
             lineno = self.lineno
 
+            sourcelines = lines or linecache.getlines(self.filename, globals())
+
             lines = []
             line_numbers = []
-
-            sourcelines = lines or linecache.getlines(self.filename, globals())
 
             start = max(1, lineno - window)
             end = min(len(sourcelines), lineno + window) + 1
