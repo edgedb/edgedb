@@ -119,7 +119,7 @@ class Loader(loader.SourceFileLoader):
     def get_cache_magic(self):
         return self.__class__._cache_magic
 
-    def cache_from_source(self, source_path):
+    def cache_path_from_source_path(self, source_path):
         return imp_utils.cache_from_source(source_path, cache_ext='.js')
 
     def code_from_source(self, module, source_bytes):

@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -7,7 +7,6 @@
 
 
 import errno
-import importlib.abc
 import importlib.util
 import os
 import pickle
@@ -18,18 +17,27 @@ from . import module as module_types
 from . import utils as imp_utils
 
 
-class LoaderCommon:
-    _cache_struct = struct.Struct('!II')
-
+class LoaderIface:
     def get_proxy_module_class(self):
         return None
 
     def invalidate_module(self, module):
         pass
 
+    def get_code(self, module):
+        raise NotImplementedError
+
     def execute_module_code(self, module, code):
         raise NotImplementedError
 
+    def execute_module(self, module):
+        raise NotImplementedError
+
+    def get_source_bytes(self, modname):
+        raise NotImplementedError
+
+
+class LoaderCommon:
     @importlib.util.module_for_loader
     def _load_module(self, module):
         orig_mod = module
@@ -59,7 +67,6 @@ class LoaderCommon:
         try:
             code = self.get_code(module)
             self.execute_module_code(module, code)
-            module.__cached__ = imp_utils.cache_from_source(module.__file__)
         except NotImplementedError:
             self.execute_module(module)
 
@@ -78,58 +85,9 @@ class LoaderCommon:
         sys.modules[module.__name__] = result_mod
         return result_mod
 
-    def get_cache_magic(self):
-        raise NotImplementedError
 
-    def unmarshal_cache_data(self, data):
-        return pickle.loads(data)
-
-    def marshal_cache_data(self, code):
-        return pickle.dumps(code)
-
-    def verify_cache(self, modname, magic, cache_timestamp, source_mtime, cache_data):
-        try:
-            expected_magic = self.get_cache_magic()
-        except NotImplementedError:
-            pass
-        else:
-            if magic != expected_magic:
-                raise ImportError('bad magic number in "{}" cache'.format(modname))
-
-        if source_mtime is not None:
-            if cache_timestamp != source_mtime:
-                raise ImportError('"{}" cache is stale'.format(modname))
-
-    def code_from_cache(self, modname, data, source_mtime):
-        magic, timestamp = self._cache_struct.unpack_from(data)
-        data = data[self._cache_struct.size:]
-
-        self.verify_cache(modname, magic, timestamp, source_mtime, data)
-
-        data = self.unmarshal_cache_data(data)
-
-        return data
-
+class SourceLoader:
     def code_from_source(self, module, source_bytes):
-        raise NotImplementedError
-
-    def cache_from_code(self, modname, code, source_mtime):
-        try:
-            magic = self.get_cache_magic()
-        except NotImplementedError:
-            magic = 0
-
-        data = bytearray(self._cache_struct.pack(magic, source_mtime))
-        data.extend(self.marshal_cache_data(code))
-
-        return data
-
-
-class SourceLoader(LoaderCommon, importlib.abc.SourceLoader):
-    def path_mtime(self, path):
-        raise NotImplementedError
-
-    def set_data(self, path, data):
         raise NotImplementedError
 
     def get_source_bytes(self, fullname):
@@ -144,64 +102,125 @@ class SourceLoader(LoaderCommon, importlib.abc.SourceLoader):
     def get_source(self, fullname):
         return self.get_source_bytes(fullname).decode()
 
-    def cache_from_source(self, source_path):
-        return imp_utils.cache_from_source(source_path)
+    def get_code(self, module):
+        source_bytes = self.get_source_bytes(module.__name__)
+        return self.code_from_source(module, source_bytes)
+
+
+class CachingLoader:
+    _cache_struct = struct.Struct('!II')
 
     def get_code(self, module):
         modname = module.__name__
-        source_path = self.get_filename(modname)
-        cache_path = self.cache_from_source(source_path)
-        source_mtime = None
+        cache_path = self.get_cache_path(modname)
+
+        source_version = None
 
         code = None
 
         if cache_path is not None:
             try:
-                source_mtime = self.path_mtime(source_path)
+                source_version = self.get_module_version(modname)
             except NotImplementedError:
                 pass
             else:
-                try:
-                    data = self.get_data(cache_path)
-                except IOError:
-                    pass
-                else:
-                    try:
-                        code = self.code_from_cache(modname, data, source_mtime)
-                    except ImportError:
-                        pass
+                code = self.code_from_cache(modname, source_version, cache_path)
 
         if code is None:
             source_bytes = self.get_source_bytes(modname)
-
             code = self.code_from_source(module, source_bytes)
 
-            if not sys.dont_write_bytecode and cache_path is not None and source_mtime is not None:
-                data = self.cache_from_code(modname, code, source_mtime)
+            if not sys.dont_write_bytecode and cache_path is not None and source_version is not None:
+                data = self.cache_from_code(modname, code, source_version)
                 try:
                     self.set_data(cache_path, data)
+                    module.__cached__ = cache_path
                 except NotImplementedError:
                     pass
 
+        module.__sx_module_version__ = source_version
+
         return code
 
+    def cache_from_code(self, modname, code, source_version):
+        try:
+            magic = self.get_cache_magic()
+        except NotImplementedError:
+            magic = 0
 
-class _FileLoader:
+        data = bytearray(self._cache_struct.pack(magic, source_version))
+        data.extend(self.marshal_cache_data(code))
+
+        return data
+
+    def code_from_cache(self, modname, source_version, cache_path):
+        try:
+            data = self.get_data(cache_path)
+        except IOError:
+            pass
+        else:
+            try:
+                magic, cache_version = self._cache_struct.unpack_from(data)
+                cache_data = data[self._cache_struct.size:]
+
+                self.verify_cache(modname, magic, source_version, cache_version, cache_data)
+
+                return self.unmarshal_cache_data(cache_data)
+
+            except ImportError:
+                pass
+
+    def get_cache_magic(self):
+        raise NotImplementedError
+
+    def marshal_cache_data(self, code):
+        return pickle.dumps(code)
+
+    def unmarshal_cache_data(self, data):
+        return pickle.loads(data)
+
+    def verify_cache(self, modname, magic, source_version, cache_version, cache_data):
+        try:
+            expected_magic = self.get_cache_magic()
+        except NotImplementedError:
+            pass
+        else:
+            if magic != expected_magic:
+                raise ImportError('bad magic number in "{}" cache'.format(modname))
+
+        if source_version is not None and cache_version != source_version:
+            raise ImportError('"{}" cache is stale'.format(modname))
+
+
+class FileLoader:
     def __init__(self, modname, path):
         self._name = modname
         self._path = path
 
+    def is_package(self, fullname):
+        filename = self.get_filename(fullname).rpartition(os.path.sep)[2]
+        return filename.rsplit('.', 1)[0] == '__init__'
+
     def get_filename(self, modname):
         return self._path
+
+    def get_module_version(self, modname):
+        source_path = self.get_filename(modname)
+        return self.path_mtime(source_path)
+
+    def cache_path_from_source_path(self, source_path):
+        return imp_utils.cache_from_source(source_path)
+
+    def get_cache_path(self, modname):
+        source_path = self.get_filename(modname)
+        return self.cache_path_from_source_path(source_path)
+
+    def path_mtime(self, path):
+        return int(os.stat(path).st_mtime)
 
     def get_data(self, path):
         with open(path, 'rb') as f:
             return f.read()
-
-
-class SourceFileLoader(_FileLoader, SourceLoader):
-    def path_mtime(self, path):
-        return int(os.stat(path).st_mtime)
 
     def set_data(self, path, data):
         dir = os.path.dirname(path)
@@ -223,3 +242,7 @@ class SourceFileLoader(_FileLoader, SourceLoader):
                 return
             else:
                 raise
+
+
+class SourceFileLoader(LoaderCommon, FileLoader, CachingLoader, SourceLoader, LoaderIface):
+    pass
