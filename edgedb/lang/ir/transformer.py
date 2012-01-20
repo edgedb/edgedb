@@ -211,7 +211,8 @@ class TreeTransformer:
                         else:
                             cpaths.add(path)
                     elif isinstance(path, caos_ast.EntityLink):
-                        if path.target and 'generator' not in path.target.users:
+                        if path.target and 'generator' not in path.target.users \
+                                                        and 'generator' not in path.users:
                             dpaths.add(path)
                         else:
                             cpaths.add(path)
