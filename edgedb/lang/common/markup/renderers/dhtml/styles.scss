@@ -168,8 +168,21 @@ body, html:
         text-decoration: underline
 
     .lng-object:
-        white-space: nowrap
-        color: #555
+        $obj_lbl_color = #3057ad
+
+        > .lng-obj-name:
+            font-weight: bold
+            white-space: nowrap
+            color: $obj_lbl_color
+
+        > .lng-dict:
+            display: inline
+
+            > .sx-markup-bracket:
+                display: inline
+                padding-left: 4px
+                font-weight: bold
+                color: $obj_lbl_color
 
     .lng-dict:
         > ul:

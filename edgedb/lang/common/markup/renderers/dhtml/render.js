@@ -131,10 +131,29 @@ sx.Markup.Renderer.prototype = {
             id = ' at: ' + this._render_id(o.id);
         }
 
+        var obj_name = o.class_module + '.' + o.class_name + id,
+            children = [];
+
+        if (o.attributes) {
+            children.push({tag: 'span', cls: 'lng-obj-name', text: '<' + obj_name});
+
+            if (o.attributes) {
+                children.push(this._render_mapping(o.attributes));
+            }
+
+            children.push({tag: 'span', cls: 'lng-obj-name', text: '>'});
+        } else {
+            if (o.repr) {
+                children.push({tag: 'span', cls: 'lng-obj-name', text: o.repr})
+            } else {
+                children.push({tag: 'span', cls: 'lng-obj-name', text: '<' + obj_name + '>'})
+            }
+        }
+
         return {
-            tag: 'span',
+            tag: 'div',
             cls: 'lng-object',
-            text: '<' + o.class_module + '.' + o.class_name + id + '>'
+            children: children
         };
     },
 
@@ -186,14 +205,14 @@ sx.Markup.Renderer.prototype = {
         return obj;
     },
 
-    'lang.Dict': function(o) {
+    _render_mapping: function(map) {
         var items = [];
 
-        if (o.items) {
-            for (var i in o.items) {
-                if (o.items.hasOwnProperty(i)) {
+        if (map) {
+            for (var i in map) {
+                if (map.hasOwnProperty(i)) {
                     var li = [{tag: 'div', cls: 'lng-dict-key', text: i}]
-                    li.push(this._render(o.items[i]));
+                    li.push(this._render(map[i]));
 
                     items.push({
                         tag: 'li',
@@ -214,6 +233,10 @@ sx.Markup.Renderer.prototype = {
         };
 
         return obj;
+    },
+
+    'lang.Dict': function(o) {
+        return this._render_mapping(o.items);
     },
 
     'lang.TreeNodeChild': function(o) {
