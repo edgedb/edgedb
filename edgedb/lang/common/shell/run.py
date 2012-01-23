@@ -41,6 +41,13 @@ class RunCommand(shell.Command, name='run', expose=True):
         if not os.path.exists(path):
             raise ValueError('path not found: %r' % path)
 
+        if args.debug_logger:
+            import logging
+            from semantix.utils.test.pytest_semantix import LoggingPrintHandler
+            logging.getLogger().addHandler(LoggingPrintHandler(args.color))
+            logging.getLogger().setLevel(logging.INFO)
+            logging.getLogger('semantix').setLevel(logging.DEBUG)
+
         mod_name = os.path.splitext(os.path.split(path)[-1])[0]
         mod = imp.load_source(mod_name, path)
 
@@ -49,13 +56,6 @@ class RunCommand(shell.Command, name='run', expose=True):
         except AttributeError:
             raise ValueError('unable to run file %r: has no callable %r defined' % \
                              (path, args.callable))
-
-        if args.debug_logger:
-            import logging
-            from semantix.utils.test.pytest_semantix import LoggingPrintHandler
-            logging.getLogger().addHandler(LoggingPrintHandler(args.color))
-            logging.getLogger().setLevel(logging.INFO)
-            logging.getLogger('semantix').setLevel(logging.DEBUG)
 
         if args.configs:
             contexts = []
