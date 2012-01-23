@@ -436,13 +436,18 @@ class LangRenderer(BaseRenderer):
                 self.buffer.write(self._render_header(msg), style=self.styles.header1)
                 self.buffer.new_line(2)
 
-            if element.cause:
-                self._render(element.cause)
+            if (element.cause or element.context) is not None:
+                if element.cause is None:
+                    self._render(element.context)
+                    msg = 'During handling of the above exception, another exception occurred'
+                else:
+                    self._render(element.cause)
+                    msg = 'The above exception was the direct cause of the following exception'
 
                 self.buffer.new_line(2)
-                msg = 'The above exception was the direct cause of the following exception'
                 self.buffer.write(self._render_header(msg), style=self.styles.header1)
                 self.buffer.new_line(2)
+
 
             base_excline = '{}.{}: {}'.format(element.class_module, element.class_name, element.msg)
             self.buffer.write('{}. {}'.format(self.ex_depth, base_excline),

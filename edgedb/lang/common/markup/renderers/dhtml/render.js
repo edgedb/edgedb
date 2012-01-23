@@ -291,6 +291,10 @@ sx.Markup.Renderer.prototype = {
             cause.push(this._render(o.cause));
             cause.push(this._render_hr('The above exception was the direct ' +
                                                   'cause of the following exception'));
+        } else if (o.context) {
+            cause.push(this._render(o.context));
+            cause.push(this._render_hr('During handling of the above exception, ' +
+                                                        'another exception occurred'));
         }
 
         var body = [], msg = o.msg, msg_el,

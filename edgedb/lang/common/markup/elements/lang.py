@@ -146,6 +146,5 @@ class Exception(_Exception):
     #
     contexts = Field(ExceptionContextList, default=None, coerce=True)
 
-    # NB: At this point - no distinction between __context__ and __cause__
-    #
+    context = Field(_Exception, None)
     cause = Field(_Exception, None)

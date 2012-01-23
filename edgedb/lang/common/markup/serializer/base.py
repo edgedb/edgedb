@@ -138,22 +138,23 @@ def serialize_exception(obj, *, ctx):
     except AttributeError:
         pass
 
-    cause = obj.__cause__ or obj.__context__
-    if cause is not None:
-        if cause is not obj:
-            # Strangely, but this really happens sometimes.
-            #
-            cause = serialize(cause, ctx=ctx)
+    cause = context = None
+    chained_ex = obj.__cause__ or obj.__context__
+    if chained_ex is not None and chained_ex is not obj:
+        chained_ex = serialize(chained_ex, ctx=ctx)
+
+        if obj.__cause__ is None:
+            context = chained_ex
         else:
-            cause = None
+            cause = chained_ex
 
     details_context = None
     contexts = []
-    for context in exceptions._iter_contexts(obj):
-        if isinstance(context, exceptions.DefaultExceptionContext):
-            details_context = context
+    for ex_context in exceptions._iter_contexts(obj):
+        if isinstance(ex_context, exceptions.DefaultExceptionContext):
+            details_context = ex_context
         else:
-            contexts.append(serialize(context, ctx=ctx))
+            contexts.append(serialize(ex_context, ctx=ctx))
 
     if obj.__traceback__:
         traceback = elements.lang.ExceptionContext(title='Traceback',
@@ -168,6 +169,7 @@ def serialize_exception(obj, *, ctx):
                                      msg=str(obj),
                                      contexts=contexts,
                                      cause=cause,
+                                     context=context,
                                      id=id(obj))
 
     obj.__sx_markup_cached__ = markup
