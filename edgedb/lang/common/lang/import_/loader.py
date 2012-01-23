@@ -7,10 +7,12 @@
 
 
 import errno
+import imp
 import importlib.util
 import os
 import pickle
 import struct
+import types
 import sys
 
 from . import module as module_types
@@ -20,6 +22,9 @@ from . import utils as imp_utils
 class LoaderIface:
     def get_proxy_module_class(self):
         return None
+
+    def new_module(self, fullname):
+        return imp.new_module(fullname)
 
     def invalidate_module(self, module):
         pass
@@ -38,8 +43,23 @@ class LoaderIface:
 
 
 class LoaderCommon:
-    @importlib.util.module_for_loader
-    def _load_module(self, module):
+    def _load_module(self, fullname):
+        try:
+            module = sys.modules[fullname]
+            is_reload = True
+        except KeyError:
+            module = self.new_module(fullname)
+            sys.modules[fullname] = module
+            is_reload = False
+
+        try:
+            return self._init_module(module)
+        except:
+            if not is_reload:
+                del sys.modules[fullname]
+            raise
+
+    def _init_module(self, module):
         orig_mod = module
 
         proxy_cls = self.get_proxy_module_class()
