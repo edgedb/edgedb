@@ -63,6 +63,20 @@ class Resource:
         return tuple(collected)
 
 
+class VirtualFile(Resource):
+    def __init__(self, source, public_path):
+        super().__init__()
+
+        self.__sx_resource_source__ = source
+        self.__sx_resource_public_path__ = public_path
+
+    def __sx_resource_get_source__(self):
+        src = self.__sx_resource_source__
+        if src is None:
+            raise ResourceError('no source for VirtualFile resource')
+        return src
+
+
 class AbstractFileSystemResource(Resource):
     def __init__(self, path, public_path=None):
         super().__init__()
