@@ -99,7 +99,32 @@ class Loader(loader.SourceFileLoader):
     #
     _cache_magic = CACHE_MAGIC_BASE
 
-    _import_detect_hooks = collections.OrderedDict()
+    _import_detect_hooks = {}
+    _module_hooks = {}
+
+    @classmethod
+    def _recalc_magic(cls):
+        # Calculate new magic value, which is a crc32 hash of a special string,
+        # which incorporates the CACHE_MAGIC_BASE constant + names of all registered
+        # hooks
+        #
+        hooks_hames = ', '.join(sorted(itertools.chain(cls._import_detect_hooks.keys(),
+                                                      cls._module_hooks.keys())))
+
+        hash_key = '{};{}'.format(cls.CACHE_MAGIC_BASE, hooks_hames).encode('latin-1')
+        cls._cache_magic = zlib.crc32(hash_key)
+
+    @classmethod
+    def add_module_hook(cls, hook):
+        hook_name = '{}.{}'.format(hook.__class__.__module__, hook.__class__.__name__)
+
+        if hook_name in cls._module_hooks:
+            # Already registered
+            #
+            return
+
+        cls._module_hooks[hook_name] = hook
+        cls._recalc_magic()
 
     @classmethod
     def add_import_detect_hook(cls, hook):
@@ -111,14 +136,7 @@ class Loader(loader.SourceFileLoader):
             return
 
         cls._import_detect_hooks[hook_name] = hook
-
-        # Calculate new magic value, which is a crc32 hash of a special string,
-        # which incorporates the CACHE_MAGIC_BASE constant + names of all registered
-        # hooks
-        #
-        hooks_hames = ','.join(cls._import_detect_hooks.keys())
-        hash_key = '{};{}'.format(cls.CACHE_MAGIC_BASE, hooks_hames).encode('latin-1')
-        cls._cache_magic = zlib.crc32(hash_key)
+        cls._recalc_magic()
 
     def __init__(self, fullname, filename, language):
         super().__init__(fullname, filename)
@@ -229,6 +247,15 @@ class Loader(loader.SourceFileLoader):
                     # We're interested in tracking only resources
                     #
                     deps.append((mod, weak))
+                elif self._module_hooks:
+                    # Python module?  YAML module?  Let's try to get some
+                    # Resources out of it, if any module hooks registered.
+                    #
+                    for hook in self._module_hooks.values():
+                        processed = hook(mod)
+                        if processed:
+                            for dep in processed:
+                                deps.append((dep, weak))
 
         if '.' in module.__name__:
             # Link parent package
