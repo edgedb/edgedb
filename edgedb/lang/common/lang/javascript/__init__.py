@@ -9,6 +9,8 @@
 import re
 import os
 import collections
+import itertools
+import logging
 import importlib
 import types
 import sys
@@ -81,6 +83,8 @@ class _SemantixImportsHook:
 
 
 class Loader(loader.SourceFileLoader):
+    logger = logging.getLogger('semantix')
+
     #: version of cache format
     CACHE_MAGIC_BASE = 2
 
@@ -133,6 +137,10 @@ class Loader(loader.SourceFileLoader):
         # If any imports detect hooks are registered - process the source.
         #
         raw_imports = []
+
+        if len(self._import_detect_hooks):
+            self.logger.debug('parsing javascript module: {!r}'.format(module.__name__))
+
         for hook in self._import_detect_hooks.values():
             hook(module, raw_imports, source)
 
