@@ -6,6 +6,11 @@
 ##
 
 
+"""This module defines necessary abstractions to simplify work with resources,
+such as defining them, managing, publishing etc.
+"""
+
+
 import os
 import shutil
 
@@ -16,16 +21,32 @@ from semantix.utils.debug import timeit
 
 
 class ResourceError(SemantixError):
-    pass
+    """Any error occurred during resource creation or manipulation"""
+
+
+class ResourcePublisherError(SemantixError):
+    """An error occurred during resource publishing"""
 
 
 class Resource:
+    """Resource is an abstract concept of a piece of information.  It may be
+    some code, some image of video file etc."""
+
     def __init__(self):
         self.__sx_resource_deps__ = []
         self.__sx_resource_parent__ = None
 
     @classmethod
     def add_required_resource(cls, resource, dependency, weak=False):
+        """Make ``resource`` dependent on ``dependency``.  ``weak`` means that the
+        ``dependency`` must be loaded with ``resource`` but the loading order is
+        not important.
+
+        :param Resource resource: Resource to add dependency to.
+        :param Resource dependency: A resource required for ``resource`` to work.
+        :param bool weak:
+        """
+
         if not isinstance(dependency, Resource):
             raise ResourceError('an instance of Resource expected, got {!r}'.format(dependency))
 
@@ -65,6 +86,9 @@ class Resource:
 
 
 class VirtualFile(Resource):
+    """A resource that encapsulates some information and stores it in memory, but
+    later, in order to be published, will be dumped to a file"""
+
     def __init__(self, source, public_path):
         super().__init__()
 
@@ -79,6 +103,11 @@ class VirtualFile(Resource):
 
 
 class AbstractFileSystemResource(Resource):
+    """Abstract file system resource.
+
+    .. note:: Don't use it directly, it's a base class for ``File``
+              and ``Directory`` resources."""
+
     def __init__(self, path, public_path=None):
         super().__init__()
 
@@ -93,6 +122,8 @@ class AbstractFileSystemResource(Resource):
 
 
 class File(AbstractFileSystemResource):
+    """A file.  For instance, a stylesheet file required for application front-end."""
+
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
 
@@ -102,6 +133,9 @@ class File(AbstractFileSystemResource):
 
 
 class Directory(AbstractFileSystemResource):
+    """A directory.  For instance, a directory of graphical assets required for
+    the user interface."""
+
     def __init__(self, path):
         super().__init__(path)
 
@@ -111,12 +145,18 @@ class Directory(AbstractFileSystemResource):
 
 
 class Publisher:
+    """Publishers are used to publish resources and make them accessible.
+
+    .. note:: This is a base class, don't use it directly"""
+
     can_publish = ()
 
     def __init__(self):
         self.resources = []
 
     def add_resource(self, resource):
+        """Add a root resource to be published"""
+
         if not self.can_publish or not isinstance(resource, self.can_publish):
             raise ResourceError('publisher {!r} can\'t publish resource {!r}'. \
                                 format(self, resource))
