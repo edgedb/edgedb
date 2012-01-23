@@ -22,14 +22,18 @@ from semantix.utils.lang import meta as lang_meta
 from semantix.utils.lang.import_ import module, loader, utils as imp_utils
 
 
-class JavaScriptModule(module.Module, resource.File):
+class BaseJavaScriptModule(module.Module):
+    pass
+
+
+class JavaScriptModule(BaseJavaScriptModule, resource.File):
     """Whenever you import a javascript file, the resulting module
     will be a subclass of this class"""
 
     def __init__(self, path, name):
-        module.Module.__init__(self, name)
+        BaseJavaScriptModule.__init__(self, name)
 
-        public_path = os.path.join('jsmodules/', name + '.js')
+        public_path = name + '.js'
         resource.File.__init__(self, path, public_path=public_path)
 
 
