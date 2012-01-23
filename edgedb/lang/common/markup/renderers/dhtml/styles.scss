@@ -1,5 +1,6 @@
-%from semantix.rendering.css.extras merge reset
-
+body, html:
+    margin: 0
+    padding: 0
 
 %mixin monospace:
     font-family: Monaco, 'DejaVu Sans Mono', monospace
@@ -30,6 +31,10 @@
 
 
 .semantix-markup:
+    %from semantix.rendering.css.extras merge reset
+    font-family: Arial, Verdana, Helvetica, sans-serif
+    font-size: 12px
+
     .sx-unknown-markup:
         background: #222
         color: white
