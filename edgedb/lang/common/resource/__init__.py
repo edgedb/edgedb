@@ -7,6 +7,7 @@
 
 
 import os
+import shutil
 
 from semantix.exceptions import SemantixError
 from semantix.utils.algos import topological
@@ -132,4 +133,79 @@ class Publisher:
 
 
 class StaticPublisher(Publisher):
-    can_publish = (AbstractFileSystemResource,)
+    """This published should be used to consolidate certain resource in one
+    file-system location.  Creates all necessary directories and symlinks all
+    ``VirtualFile``, ``File`` and ``Directory`` resources."""
+
+    can_publish = (AbstractFileSystemResource, VirtualFile)
+
+    def __init__(self, pubdir, *, autocreate=True):
+        """
+        :param str pubdir: Directory to publish all resources in
+        :param bool autocreate: If ``pubdir`` path does not exist, and this flag is set,
+                                the publisher will create it automatically.
+        """
+
+        super().__init__()
+
+        if not os.path.isabs(pubdir):
+            pubdir = os.path.abspath(pubdir)
+
+        if not os.path.isdir(pubdir):
+            if not autocreate:
+                raise ResourcePublisherError('missing directory {!r}'.format(pubdir))
+
+            try:
+                os.makedirs(pubdir, exist_ok=True)
+            except OSError as ex:
+                raise ResourcePublisherError('an error occurred during {!r} directory ' \
+                                             'autocreation'.format(pubdir)) from ex
+
+        if not os.access(pubdir, os.R_OK | os.W_OK):
+            raise ResourcePublisherError('directory {!r} is not writable and readable')
+
+        self.pubdir = pubdir
+        self._published = None
+
+    published = property(lambda self: self._published)
+
+    def publish_all(self):
+        """Publish all resources in the ``pubdir``"""
+
+        self._published = deps = self._collect_deps()
+
+        for resource in deps:
+            if isinstance(resource, AbstractFileSystemResource):
+                src_path = resource.__sx_resource_path__
+                dest_path = os.path.abspath(os.path.join(self.pubdir,
+                                                         resource.__sx_resource_public_path__))
+
+                if os.path.exists(dest_path):
+                    if os.path.islink(dest_path):
+                        ex_dest = os.readlink(dest_path)
+                        if not os.path.isabs(ex_dest):
+                            ex_dest = os.path.abspath(os.path.join(os.path.dirname(dest_path),
+                                                                   ex_dest))
+
+                        if ex_dest != dest_path:
+                            os.unlink(dest_path)
+                        else:
+                            continue
+
+                    else:
+                        if os.path.isfile(dest_path):
+                            os.remove(dest_path)
+                        else:
+                            os.rmdir(dest_path)
+
+                os.symlink(src_path, dest_path)
+
+            elif isinstance(resource, VirtualFile):
+                dest_path = os.path.abspath(os.path.join(self.pubdir,
+                                                         resource.__sx_resource_public_path__))
+
+                if os.path.exists(dest_path):
+                    os.remove(dest_path)
+
+                with open(dest_path, 'wt+') as dest:
+                    dest.write(resource.__sx_resource_get_source__())
