@@ -10,6 +10,7 @@ import sys
 import random
 import functools
 import operator
+import logging
 
 from semantix.utils.lang import javascript
 
@@ -46,7 +47,8 @@ class TestUtilsLangJSImport:
     @clean_sys_modules
     @no_jsc_cache
     def test_utils_lang_js_import_1(self):
-        from semantix.utils.lang.javascript.tests.testimport import foo
+        with logging.logging_off():
+            from semantix.utils.lang.javascript.tests.testimport import foo
 
         d = _deps(foo)
         assert len(d) == 3
@@ -69,7 +71,8 @@ class TestUtilsLangJSImport:
     @clean_sys_modules
     @no_jsc_cache
     def test_utils_lang_js_import_2(self):
-        from semantix.utils.lang.javascript.tests.testimport import foo
+        with logging.logging_off():
+            from semantix.utils.lang.javascript.tests.testimport import foo
 
         mods = []
         for mod in type(foo)._list_resources(foo):
