@@ -328,9 +328,12 @@ class LangRenderer(BaseRenderer):
                             self.buffer.write(',')
                             self.buffer.smart_break()
 
+            if element.trimmed:
+                self.buffer.write('...')
+
             self.buffer.write(']', style=self.styles.bracket)
 
-    def _render_mapping_(self, mapping):
+    def _render_mapping_(self, mapping, trimmed=False):
         self.buffer.write('{', style=self.styles.bracket)
 
         item_count = len(mapping)
@@ -346,11 +349,14 @@ class LangRenderer(BaseRenderer):
                         self.buffer.write(',')
                         self.buffer.smart_break()
 
+        if trimmed:
+            self.buffer.write('...')
+
         self.buffer.write('}', style=self.styles.bracket)
 
     def _render_lang_Dict(self, element):
         with self.buffer.smart_lines():
-            self._render_mapping_(element.items)
+            self._render_mapping_(element.items, trimmed=element.trimmed)
 
     def _render_lang_Object(self, element):
         if element.attributes or element.repr is None:

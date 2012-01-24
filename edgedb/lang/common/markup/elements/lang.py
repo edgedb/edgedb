@@ -47,10 +47,12 @@ class Object(BaseObject):
 
 class List(BaseObject):
     items = Field(base.MarkupList, default=base.MarkupList, coerce=True)
+    trimmed = Field(bool, default=False)
 
 
 class Dict(BaseObject):
     items = Field(base.MarkupMapping, default=base.MarkupMapping, coerce=True)
+    trimmed = Field(bool, default=False)
 
 
 class TreeNodeChild(BaseObject):

@@ -192,6 +192,10 @@ sx.Markup.Renderer.prototype = {
                     items.push({text: ', '});
                 }
             }
+
+            if (o.trimmed) {
+                items.push({text: '...'});
+            }
         }
 
         items.push({tag: 'span', cls: 'sx-markup-bracket', text: ' ]'});
@@ -205,8 +209,9 @@ sx.Markup.Renderer.prototype = {
         return obj;
     },
 
-    _render_mapping: function(map) {
+    _render_mapping: function(map, trimmed) {
         var items = [];
+        trimmed = trimmed || false;
 
         if (map) {
             for (var i in map) {
@@ -220,6 +225,10 @@ sx.Markup.Renderer.prototype = {
                     });
                 }
             }
+        }
+
+        if (trimmed) {
+            items.push({tag: 'li', text: '...'});
         }
 
         var obj = {
@@ -236,7 +245,7 @@ sx.Markup.Renderer.prototype = {
     },
 
     'lang.Dict': function(o) {
-        return this._render_mapping(o.items);
+        return this._render_mapping(o.items, o.trimmed);
     },
 
     'lang.TreeNodeChild': function(o) {

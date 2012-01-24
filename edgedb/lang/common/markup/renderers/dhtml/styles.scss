@@ -171,7 +171,6 @@ body, html:
         $obj_lbl_color = #3057ad
 
         > .lng-obj-name:
-            font-weight: bold
             white-space: nowrap
             color: $obj_lbl_color
 
@@ -181,7 +180,6 @@ body, html:
             > .sx-markup-bracket:
                 display: inline
                 padding-left: 4px
-                font-weight: bold
                 color: $obj_lbl_color
 
     .lng-dict:

@@ -225,21 +225,27 @@ def serialize_str(obj, *, ctx):
 
 @serializer(handles=(collections.UserList, list, tuple, collections.Set,
                      weakref.WeakSet, set, frozenset))
-def serialize_sequence(obj, *, ctx):
+def serialize_sequence(obj, *, ctx, trim_at=100):
     els = []
-    for item in obj:
+    cnt = 0
+    for cnt, item in enumerate(obj):
         els.append(serialize(item, ctx=ctx))
-    return elements.lang.List(items=els, id=id(obj))
+        if cnt >= trim_at:
+            break
+    return elements.lang.List(items=els, id=id(obj), trimmed=(cnt >= trim_at))
 
 
 @serializer(handles=(dict, collections.Mapping))
-def serialize_mapping(obj, *, ctx):
+def serialize_mapping(obj, *, ctx, trim_at=100):
     map = collections.OrderedDict()
-    for key, value in obj.items():
+    cnt = 0
+    for cnt, (key, value) in enumerate(obj.items()):
         if not isinstance(key, str):
             key = repr(key)
         map[key] = serialize(value, ctx=ctx)
-    return elements.lang.Dict(items=map, id=id(obj))
+        if cnt >= trim_at:
+            break
+    return elements.lang.Dict(items=map, id=id(obj), trimmed=(cnt >= trim_at))
 
 
 @serializer(handles=object)
