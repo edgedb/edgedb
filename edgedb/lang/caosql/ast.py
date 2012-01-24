@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -14,7 +14,7 @@ class RootNode(ast.AST): __fields = ['children']
 
 class ArgListNode(ast.AST): __fields = ['name', ('args', list)]
 class BinOpNode(ast.AST):  __fields = ['left', 'op', 'right']
-class FunctionCallNode(ast.AST): __fields = ['func', ('args', list)]
+class FunctionCallNode(ast.AST): __fields = ['func', ('args', list), ('agg_sort', list)]
 
 class VarNode(ast.AST): __fields = ['name']
 class PathVarNode(VarNode): pass

@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -499,7 +499,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     context.current.in_aggregate.append(expr)
                 context.current.in_func_call = True
                 args = [self._process_expr(context, a) for a in expr.args]
-                node = tree.ast.FunctionCall(name=expr.func, args=args)
+                agg_sort = [tree.ast.SortExpr(expr=self._process_expr(context, e.path),
+                                              direction=e.direction)
+                            for e in expr.agg_sort] if expr.agg_sort else []
+                node = tree.ast.FunctionCall(name=expr.func, args=args, agg_sort=agg_sort)
                 node = self.process_function_call(node)
 
         elif isinstance(expr, qlast.PrototypeRefNode):

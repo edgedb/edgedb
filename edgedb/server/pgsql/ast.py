@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -134,7 +134,8 @@ class SortExprNode(Base):
     __fields = ['expr', 'direction', 'nulls_order']
 
 class FunctionCallNode(Base):
-    __fields = ['name', ('args', list), 'over', ('aggregates', bool), ('noparens', bool)]
+    __fields = ['name', ('args', list), 'over', ('aggregates', bool), ('noparens', bool),
+                'agg_sort']
 
 class IgnoreNode(Base):
     pass

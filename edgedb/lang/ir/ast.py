@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -334,7 +334,7 @@ NonesLast = NonesOrder('last')
 
 
 class SortExpr(Base):
-    __fields = ['expr', 'direction', ('nones_order', NonesOrder)]
+    __fields = ['expr', 'direction', ('nones_order', NonesOrder, None)]
 
 class SelectorExpr(Base): __fields = ['expr', 'name', 'autoname']
 class UpdateExpr(Base): __fields = ['expr', 'value']
@@ -343,7 +343,8 @@ class FunctionCall(Base):
                 'result_type',
                 ('args', list),
                 ('kwargs', dict),
-                ('aggregates', bool)]
+                ('aggregates', bool),
+                ('agg_sort', list)]
 
 class TypeCast(Base):
     __fields = ['expr', 'type']

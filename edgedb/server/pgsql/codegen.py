@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -408,6 +408,15 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.visit(e)
             if i != count - 1:
                 self.write(', ')
+
+        if node.agg_sort:
+            self.write(' ORDER BY ')
+            count = len(node.agg_sort)
+            for i, sortexpr in enumerate(node.agg_sort):
+                self.visit(sortexpr)
+                if i != count - 1:
+                    self.write(',')
+
         if node.args or not node.noparens:
             self.write(')')
 

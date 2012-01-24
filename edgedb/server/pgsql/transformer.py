@@ -1353,11 +1353,19 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         else:
             result = None
+            agg_sort = []
             if expr.aggregates:
                 with context(context.NEW_TRANSPARENT):
                     context.current.in_aggregate = True
                     context.current.query.aggregates = True
                     args = [self._process_expr(context, a, cte) for a in expr.args]
+
+                if expr.agg_sort:
+                    for sortexpr in expr.agg_sort:
+                        _sortexpr = self._process_expr(context, sortexpr.expr, cte)
+                        agg_sort.append(pgsql.ast.SortExprNode(expr=_sortexpr,
+                                                               direction=sortexpr.direction))
+
             else:
                 args = [self._process_expr(context, a, cte) for a in expr.args]
 
@@ -1456,7 +1464,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 name = expr.name
             if not result:
                 result = pgsql.ast.FunctionCallNode(name=name, args=args,
-                                                    aggregates=bool(expr.aggregates))
+                                                    aggregates=bool(expr.aggregates),
+                                                    agg_sort=agg_sort)
 
         return result
 

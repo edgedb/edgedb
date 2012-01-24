@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -967,11 +967,12 @@ class FuncExpr(Nonterm):
         self.val = qlast.TypeCastNode(expr=kids[2].val, type=kids[4].val)
 
     def reduce_FqFuncName_LPAREN_FuncArgList_RPAREN(self, *kids):
-        "%reduce FqFuncName LPAREN FuncArgList RPAREN"
-        self.val = qlast.FunctionCallNode(func=kids[0].val, args=kids[2].val)
+        "%reduce FqFuncName LPAREN FuncArgList OptSortClause RPAREN"
+        self.val = qlast.FunctionCallNode(func=kids[0].val, args=kids[2].val,
+                                          agg_sort=kids[3].val)
 
     def reduce_IDENT_LPAREN_FuncArgList_RPAREN(self, *kids):
-        "%reduce IDENT LPAREN FuncArgList RPAREN"
+        "%reduce IDENT LPAREN FuncArgList OptSortClause RPAREN"
 
         func_name = kids[0].val
         args = kids[2].val
@@ -982,7 +983,7 @@ class FuncExpr(Nonterm):
                 raise CaosQLSyntaxError(msg)
             self.val = qlast.TypeRefNode(expr=args[0])
         else:
-            self.val = qlast.FunctionCallNode(func=func_name, args=args)
+            self.val = qlast.FunctionCallNode(func=func_name, args=args, agg_sort=kids[3].val)
 
 
 class FuncArgList(Nonterm):
