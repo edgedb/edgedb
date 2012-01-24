@@ -256,6 +256,6 @@ def _serialize_known_object(obj, attrs, *, ctx):
     for attr in attrs:
         map[attr] = serialize(getattr(obj, attr, None), ctx=ctx)
     return elements.lang.Object(id=id(obj),
-                                class_module=object.__class__.__module__,
-                                class_name=object.__class__.__name__,
+                                class_module=obj.__class__.__module__,
+                                class_name=obj.__class__.__name__,
                                 attributes=map)
