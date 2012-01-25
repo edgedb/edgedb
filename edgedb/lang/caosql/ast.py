@@ -38,7 +38,10 @@ class LinkPropExprNode(ast.AST): __fields = ['expr']
 
 class SelectQueryNode(ast.AST):
     __fields = ['namespaces', 'distinct', ('targets', list), 'where', ('groupby', list),
-                ('orderby', list), 'offset', 'limit', '_hash']
+                ('orderby', list), 'offset', 'limit', '_hash', ('cges', list)]
+
+class CGENode(ast.AST):
+    __fields = ['expr', 'alias']
 
 class NamespaceDeclarationNode(ast.AST): __fields = ['namespace', 'alias']
 

@@ -255,6 +255,27 @@ class SelectNoParens(Nonterm):
 
         self.val = qry
 
+    def reduce_NsDecl_WithClause_SelectClause_OptSortClause_OptSelectLimit(self, *kids):
+        "%reduce NsDecl WithClause SelectClause OptSortClause OptSelectLimit"
+        qry = kids[2].val
+        qry.orderby = kids[3].val
+        qry.offset = kids[4].val[0]
+        qry.limit = kids[4].val[1]
+        qry.namespaces = kids[0].val
+        qry.cges = kids[1].val
+
+        self.val = qry
+
+    def reduce_WithClause_SelectClause_OptSortClause_OptSelectLimit(self, *kids):
+        "%reduce WithClause SelectClause OptSortClause OptSelectLimit"
+        qry = kids[1].val
+        qry.orderby = kids[2].val
+        qry.offset = kids[3].val[0]
+        qry.limit = kids[3].val[1]
+        qry.cges = kids[0].val
+
+        self.val = qry
+
     def reduce_SimpleSelect(self, *kids):
         "%reduce SimpleSelect OptSelectLimit"
         qry = kids[0].val
@@ -270,6 +291,28 @@ class SelectNoParens(Nonterm):
         qry.limit = kids[2].val[1]
 
         self.val = qry
+
+
+class WithClause(Nonterm):
+    def reduce_WITH_CgeList(self, *kids):
+        "%reduce WITH CgeList"
+        self.val = kids[1].val
+
+
+class CgeList(Nonterm):
+    def reduce_Cge(self, *kids):
+        "%reduce Cge"
+        self.val = [kids[0].val]
+
+    def reduce_CgeList_COMMA_Cge(self, *kids):
+        "%reduce CgeList COMMA Cge"
+        self.val = kids[0].val + [kids[2].val]
+
+
+class Cge(Nonterm):
+    def reduce_AnchorName_AS_LPAREN_SelectNoParens_RPAREN(self, *kids):
+        "%reduce AnchorName AS LPAREN SelectNoParens RPAREN"
+        self.val = qlast.CGENode(expr=kids[3].val, alias=kids[0].val)
 
 
 class SelectClause(Nonterm):

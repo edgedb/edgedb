@@ -1947,6 +1947,10 @@ class TreeTransformer:
                     else:
                         result = newbinop(left, right, uninline=True)
 
+                elif isinstance(right, caos_ast.PathCombination) \
+                        and isinstance(next(iter(right.paths)), caos_ast.SubgraphRef):
+                    result = newbinop(left, right, uninline=True)
+
                 elif isinstance(right, caos_ast.BinOp) and op == right.op and \
                                                            isinstance(left, caos_ast.Path):
                     # Got a bin-op, that was not folded into an atom ref.  Re-check it since

@@ -34,6 +34,7 @@ class ParseContextLevel(object):
                 self.aliascnt = prevlevel.aliascnt.copy()
                 self.subgraphs_map = {}
                 self.resolve_computables = prevlevel.resolve_computables
+                self.cge_map = prevlevel.cge_map.copy()
             else:
                 self.graph = prevlevel.graph
                 self.anchors = prevlevel.anchors
@@ -48,6 +49,7 @@ class ParseContextLevel(object):
                 self.aliascnt = prevlevel.aliascnt
                 self.subgraphs_map = prevlevel.subgraphs_map
                 self.resolve_computables = prevlevel.resolve_computables
+                self.cge_map = prevlevel.cge_map
         else:
             self.graph = None
             self.anchors = {}
@@ -62,6 +64,7 @@ class ParseContextLevel(object):
             self.aliascnt = {}
             self.subgraphs_map = {}
             self.resolve_computables = True
+            self.cge_map = {}
 
     def genalias(self, hint=None):
         if hint is None:
@@ -304,6 +307,15 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
         if context.current.module_aliases:
             context.current.namespaces.update(context.current.module_aliases)
+
+        if caosql_tree.cges:
+            graph.cges = []
+
+            for cge in caosql_tree.cges:
+                with context(ParseContext.SUBQUERY):
+                    _cge = self._transform_select(context, cge.expr, arg_types)
+                context.current.cge_map[cge.alias] = _cge
+                graph.cges.append(tree.ast.CommonGraphExpr(expr=_cge, alias=cge.alias))
 
         graph.generator = self._process_select_where(context, caosql_tree.where)
 
@@ -586,6 +598,11 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                 tips = {concept: {path_copy}}
                         continue
 
+                    elif node.expr in context.current.cge_map and i == 0:
+                        cge = context.current.cge_map[node.expr]
+                        tips = {None: {cge}}
+                        continue
+
                     tip = node
 
                 elif isinstance(node, qlast.TypeRefNode):
@@ -779,29 +796,37 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                 newtips = {}
 
-                for concept, tip in tips.items():
-                    for entset in tip:
-                        if isinstance(entset, tree.ast.EntityLink):
-                            link = entset
+                tip = tips.get(None)
+
+                if tip and isinstance(next(iter(tip)), tree.ast.GraphExpr):
+                    subgraph = next(iter(tip))
+                    subgraph.attrrefs.add(link_expr.name)
+                    sgref = tree.ast.SubgraphRef(ref=subgraph, name=link_expr.name)
+                    newtips = {None: {sgref}}
+                else:
+                    for concept, tip in tips.items():
+                        for entset in tip:
+                            if isinstance(entset, tree.ast.EntityLink):
+                                link = entset
+                                link_proto = next(iter(link.filter.labels))
+                                id = tree.transformer.LinearPath([None])
+                                id.add((link_proto,), caos_types.OutboundDirection, None)
+                            else:
+                                link = entset.rlink
+                                id = entset.id
+
                             link_proto = next(iter(link.filter.labels))
-                            id = tree.transformer.LinearPath([None])
-                            id.add((link_proto,), caos_types.OutboundDirection, None)
-                        else:
-                            link = entset.rlink
-                            id = entset.id
+                            prop_name = (link_expr.namespace, link_expr.name)
+                            ptr_resolution = self._resolve_ptr(context, link_proto,
+                                                               prop_name,
+                                                               caos_types.OutboundDirection,
+                                                               ptr_type=caos_types.ProtoLinkProperty)
+                            sources, outbound, inbound = ptr_resolution
 
-                        link_proto = next(iter(link.filter.labels))
-                        prop_name = (link_expr.namespace, link_expr.name)
-                        ptr_resolution = self._resolve_ptr(context, link_proto,
-                                                           prop_name,
-                                                           caos_types.OutboundDirection,
-                                                           ptr_type=caos_types.ProtoLinkProperty)
-                        sources, outbound, inbound = ptr_resolution
-
-                        for prop_proto in outbound:
-                            propref = tree.ast.LinkPropRefSimple(name=prop_proto.normal_name(),
-                                                                 ref=link, id=id)
-                            newtips[prop_proto] = {propref}
+                            for prop_proto in outbound:
+                                propref = tree.ast.LinkPropRefSimple(name=prop_proto.normal_name(),
+                                                                     ref=link, id=id)
+                                newtips[prop_proto] = {propref}
 
                 tips = newtips
             else:
