@@ -69,7 +69,10 @@ class LanguageLoader:
 
     def invalidate_module(self, module):
         for k in module.__odict__.keys():
-            del module.__dict__[k]
+            try:
+                del module.__dict__[k]
+            except KeyError:
+                pass
 
 
 class LanguageSourceFileLoader(LanguageLoader, loader.SourceFileLoader):

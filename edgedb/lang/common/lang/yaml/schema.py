@@ -17,6 +17,10 @@ class Base(validator.Schema):
     def get_import_context_class(self):
         pass
 
+    @classmethod
+    def get_module_class(cls):
+        raise NotImplementedError
+
 
 class ModuleSchemaBase(Base):
     pass

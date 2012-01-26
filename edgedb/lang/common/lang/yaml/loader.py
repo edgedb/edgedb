@@ -42,6 +42,15 @@ class Loader(yaml.reader.Reader, parser.Scanner, parser.Parser, constructor.Comp
                     raise yaml_errors.YAMLCompositionError(msg, details=details, hint=hint,
                                                            context=context)
 
+                try:
+                    module_class = node.schema.get_module_class()
+                except NotImplementedError:
+                    module_class = None
+
+                if module_class is not None:
+                    yield ('__sx_moduleclass__', module_class)
+
+                yield ('__sx_yamlschema__', node.schema)
                 yield ('__imports__', list(node.imports))
 
                 for d in data.items():
