@@ -139,14 +139,10 @@ def serialize_exception(obj, *, ctx):
         pass
 
     cause = context = None
-    chained_ex = obj.__cause__ or obj.__context__
-    if chained_ex is not None and chained_ex is not obj:
-        chained_ex = serialize(chained_ex, ctx=ctx)
-
-        if obj.__cause__ is None:
-            context = chained_ex
-        else:
-            cause = chained_ex
+    if obj.__cause__ is not None and obj.__cause__ is not obj:
+        cause = serialize(obj.__cause__, ctx=ctx)
+    elif obj.__context__ is not None and obj.__context__ is not obj:
+        context = serialize(obj.__context__, ctx=ctx)
 
     details_context = None
     contexts = []
