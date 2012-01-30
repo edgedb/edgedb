@@ -327,7 +327,7 @@ this.sx = (function() {
                     new_el, i;
 
                 if (text && root && !tag && !html && !children && !id && !cls && !attrs) {
-                    new_el = document.createTextNode(sx.escape(text));
+                    new_el = document.createTextNode(text);
                 } else {
                     new_el = document.createElement(tag || 'div');
 
