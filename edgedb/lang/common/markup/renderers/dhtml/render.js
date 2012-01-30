@@ -558,10 +558,12 @@ sx.Markup.Renderer.prototype = {
         var id = this._gen_id(),
             detect_code = o.detect_code || false,
             add_long_cls = '',
-            text = o.text;
+            text = o.text,
+            match;
 
         if (detect_code) {
-            if (text.match(/\n\s{2,}/g).length > 3) {
+            match = text.match(/\n\s{2,}/g);
+            if (match && match.length > 3) {
                 // at least 4 lines of tabulated text
                 add_long_cls += ' sx-pre'
             }
