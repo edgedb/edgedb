@@ -1,6 +1,6 @@
 sx.Markup = sx.Markup || {};
 
-sx.Markup.Renderer = function(markup, render_to) {
+sx.Markup.Renderer = function(markup) {
     this.ex_depth = 0;
     this.tree_depth = 0;
     this.section_depth = 0;
@@ -13,7 +13,7 @@ sx.Markup.Renderer = function(markup, render_to) {
     this._id = 0;
 
     this.markup = markup;
-    this.render_to = render_to;
+    this._render_ctx = null;
 
     this.top_exc_title = null;
 }
@@ -315,10 +315,14 @@ sx.Markup.Renderer.prototype = {
         return obj;
     },
 
-    'lang.Exception': function(o) {
+    'lang.Exception': function(o, obj) {
         this.ex_depth++;
 
         var cause = [];
+
+        var body = [], msg = o.msg, msg_el,
+            cls_name = o.class_module + '.' + o.class_name + ': ';
+
         if (o.cause) {
             cause.push(this._render(o.cause));
             cause.push(this._render_hr('The above exception was the direct ' +
@@ -328,9 +332,6 @@ sx.Markup.Renderer.prototype = {
             cause.push(this._render_hr('During handling of the above exception, ' +
                                                         'another exception occurred'));
         }
-
-        var body = [], msg = o.msg, msg_el,
-            cls_name = o.class_module + '.' + o.class_name + ': ';
 
         if (msg.length > 200) {
             msg_el = this._render_long_string({
@@ -365,12 +366,14 @@ sx.Markup.Renderer.prototype = {
             children: body
         };
 
+        cause.push(obj);
         this.ex_depth--;
 
-        cause.push(obj);
+        if (this.ex_depth == 0 &&
+                (!this._render_ctx.hasOwnProperty('top_exception_header') ||
+                        this._render_ctx.top_exception_header)) {
 
-        if (this.ex_depth == 0) {
-            this.top_exc_title = this._shorten_str(msg, 50);
+            this.top_exc_title = sx.str.shorten(msg, 50);
 
             var header = {tag: 'div', cls: 'exc-header', children: {
                             tag: 'h1',
@@ -378,7 +381,7 @@ sx.Markup.Renderer.prototype = {
                                {tag: 'span', cls: 'exc-class',
                                 text: cls_name},
 
-                               {tag: 'span', cls: 'exc-msg', text: this._shorten_str(msg, 120)}
+                               {tag: 'span', cls: 'exc-msg', text: sx.str.shorten(msg, 120)}
                             ]
                          }};
 
@@ -579,19 +582,11 @@ sx.Markup.Renderer.prototype = {
                 {tag: 'i', cls: 'sx-icon-plus', attrs: {id: id + '-handler'}},
 
                 {tag: 'span', cls: 'sx-long-str-short',
-                 text: this._shorten_str(text, o.maxlen || 100)},
+                 text: sx.str.shorten(text, o.maxlen || 100)},
 
                 {tag: 'span', cls: 'sx-long-str-long' + add_long_cls, text: text}
             ]
         };
-    },
-
-    _shorten_str: function(str, max) {
-        if (str.length >= max) {
-            str = str.substring(0, max) + ' ...';
-        }
-
-        return str;
     },
 
     _render_collapsible: function(o) {
@@ -690,15 +685,25 @@ sx.Markup.Renderer.prototype = {
         this.handlers = {};
     },
 
-    render: function() {
+    render_spec: function(config) {
+        this._render_ctx = config || {};
         var spec = this._render(this.markup);
-        sx('#' + this.render_to).update({cls: 'semantix-markup', children: spec});
+
+        try {
+            return {cls: 'semantix-markup', children: spec};
+        }
+        finally {
+            this._render_ctx = null;
+        }
+    },
+
+    render: function(render_to, config) {
+        sx('#' + render_to).update(this.render_spec(config));
         this._rebind_handlers();
     },
 
-    destroy: function() {
-        sx('#' + this.render_to).update('');
-        this.handlers = this.objects = this.markup = null;
+    destroy: function(re) {
+        this._render_ctx = this.handlers = this.objects = this.markup = null;
     }
 };
 

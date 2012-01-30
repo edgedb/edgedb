@@ -38,8 +38,8 @@ All rights reserved.
 _HTML_END = ''';
                 sx.dom.on(window, 'load', function(exc_info) {
                     var spec = sx.Markup.Renderer.unpack_markup(exc_info);
-                    var renderer = new sx.Markup.Renderer(spec, 'body');
-                    renderer.render();
+                    var renderer = new sx.Markup.Renderer(spec);
+                    renderer.render('body');
                     if (renderer.top_exc_title) {
                         document.title = renderer.top_exc_title;
                     }
