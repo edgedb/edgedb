@@ -8,7 +8,8 @@
 
 this.sx = (function() {
     var sx = function(selector) { return new sx._fn.init(selector); },
-        _is_id = /^#([\w\-]*)$/;
+        _is_id = /^#([\w\-]*)$/,
+        _id_counter = 0;
 
     function _extend(obj, ex) {
         for (var i in ex) {
@@ -230,7 +231,20 @@ this.sx = (function() {
                                                 s(0x100) + '-' + s(0x1000) + s(0x1000) + s(0x1000);
         },
 
+        str: {
+            shorten: function(str, max) {
+                if (str.length >= max) {
+                    str = str.substring(0, max) + '...';
+                }
+                return str;
+            }
+        },
+
         dom: {
+            id: function(suffix) {
+                return 'sx-id-' + (++_id_counter) + (suffix || '');
+            },
+
             has_class: function(element, class_name) {
                 if (!class_name || !element) {
                     return false;
@@ -353,6 +367,11 @@ this.sx = (function() {
                 }
 
                 return new_el;
+            },
+
+            gen_html: function(spec) {
+                var el = sx.dom._builder(null, {children: spec});
+                return el.innerHTML;
             },
 
             replace: function(element, spec) {
