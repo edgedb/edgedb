@@ -233,6 +233,9 @@ class BaseRenderer:
     def _render_Markup(self, element):
         self.buffer.write(xrepr(element, max_len=120), style=self.styles.unknown_markup)
 
+    def _render_OverflowBarier(self, element):
+        self.buffer.write('<...>', style=self.styles.overflow)
+
     @classmethod
     def renders(cls, markup, styles=None, max_width=None):
         renderer = cls(max_width=max_width, styles=styles)

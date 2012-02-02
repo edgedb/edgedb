@@ -43,3 +43,7 @@ class MarkupList(typed.TypedList, type=Markup):
 
 class MarkupMapping(typed.TypedDict, keytype=str, valuetype=Markup):
     """Mapping ``str -> BaseMarkup``"""
+
+
+class OverflowBarier(Markup):
+    """Represents that the nesting level of objects was too big"""

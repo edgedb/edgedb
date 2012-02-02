@@ -18,6 +18,13 @@ from semantix import exceptions
 from semantix.utils.helper import xrepr
 
 
+#: Maximum level of nested structures that we can serialize.
+#: If we reach it - we'll just stop traversing the objects
+#: tree at that point and yield 'elements.base.OverflowBarier'
+#:
+OVERFLOW_BARIER = 100
+
+
 __all__ = 'serialize',
 
 
@@ -38,11 +45,10 @@ class Context:
     is used to avoid serializing objects that already have been serialized,
     and ``depth`` - recursion depth"""
 
-    __slots__ = 'memo', 'depth'
-
-    def __init__(self):
+    def __init__(self, trim=True):
         self.memo = set()
-        self.depth = 0
+        self.trim = trim
+        self.level = 0
 
 
 def serialize(obj, *, ctx=None):
@@ -61,26 +67,33 @@ def serialize(obj, *, ctx=None):
         #
         ctx = Context()
 
-    ref_detect = True
+    ctx.level += 1
     try:
-        # Was the serializer decorated with ``@no_ref_detect``?
-        #
-        ref_detect = not sr.no_ref_detect
-    except AttributeError:
-        pass
+        if ctx.level >= OVERFLOW_BARIER:
+            return elements.base.OverflowBarier()
 
-    if ref_detect:
-        # OK, so if we've already serialized obj, don't do that again, just
-        # return ``markup.Ref`` element.
-        #
-        obj_id = id(obj)
-        if obj_id in ctx.memo:
-            refname = '{}.{}'.format(type(obj).__module__, type(obj).__name__)
-            return elements.lang.Ref(ref=obj_id, refname=refname)
-        else:
-            ctx.memo.add(obj_id)
+        ref_detect = True
+        try:
+            # Was the serializer decorated with ``@no_ref_detect``?
+            #
+            ref_detect = not sr.no_ref_detect
+        except AttributeError:
+            pass
 
-    return sr(obj, ctx=ctx)
+        if ref_detect:
+            # OK, so if we've already serialized obj, don't do that again, just
+            # return ``markup.Ref`` element.
+            #
+            obj_id = id(obj)
+            if obj_id in ctx.memo:
+                refname = '{}.{}'.format(type(obj).__module__, type(obj).__name__)
+                return elements.lang.Ref(ref=obj_id, refname=refname)
+            else:
+                ctx.memo.add(obj_id)
+
+        return sr(obj, ctx=ctx)
+    finally:
+        ctx.level -= 1
 
 
 @no_ref_detect
@@ -224,24 +237,26 @@ def serialize_str(obj, *, ctx):
 def serialize_sequence(obj, *, ctx, trim_at=100):
     els = []
     cnt = 0
+    trim = ctx.trim
     for cnt, item in enumerate(obj):
         els.append(serialize(item, ctx=ctx))
-        if cnt >= trim_at:
+        if trim and cnt >= trim_at:
             break
-    return elements.lang.List(items=els, id=id(obj), trimmed=(cnt >= trim_at))
+    return elements.lang.List(items=els, id=id(obj), trimmed=(trim and cnt >= trim_at))
 
 
 @serializer(handles=(dict, collections.Mapping))
 def serialize_mapping(obj, *, ctx, trim_at=100):
     map = collections.OrderedDict()
     cnt = 0
+    trim = ctx.trim
     for cnt, (key, value) in enumerate(obj.items()):
         if not isinstance(key, str):
             key = repr(key)
         map[key] = serialize(value, ctx=ctx)
-        if cnt >= trim_at:
+        if trim and cnt >= trim_at:
             break
-    return elements.lang.Dict(items=map, id=id(obj), trimmed=(cnt >= trim_at))
+    return elements.lang.Dict(items=map, id=id(obj), trimmed=(trim and cnt >= trim_at))
 
 
 @serializer(handles=object)

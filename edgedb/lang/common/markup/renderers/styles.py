@@ -73,7 +73,7 @@ class Dark256(StylesTable):
     ref = Style(color='#586c9e')
 
     unknown_object = Style(color='#454545')
-    unknown_markup = Style(color='white', bgcolor='#84345a')
+    unknown_markup = overflow = Style(color='white', bgcolor='#84345a')
 
     diff_anno = Style(color='#777')
     diff_after = Style(color='#4aa336')

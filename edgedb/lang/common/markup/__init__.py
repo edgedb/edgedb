@@ -8,6 +8,7 @@
 
 from . import elements, serializer, renderers
 from .serializer import serialize
+from .serializer import base as _base_serializer
 from semantix.exceptions import ExceptionContext as _ExceptionContext
 from semantix.utils import abc
 
@@ -19,8 +20,13 @@ class MarkupExceptionContext(_ExceptionContext, metaclass=abc.AbstractMeta):
         pass
 
 
-def dumps(obj, header=None):
-    markup = serialize(obj)
+def _serialize(obj, trim=True):
+    ctx = _base_serializer.Context(trim=trim)
+    return serialize(obj, ctx=ctx)
+
+
+def dumps(obj, header=None, trim=True):
+    markup = _serialize(obj, trim=trim)
     if header is not None:
         markup = elements.doc.Section(title=header, body=[markup])
     return renderers.terminal.renders(markup)
@@ -32,8 +38,8 @@ def _dump(markup, header, file):
     renderers.terminal.render(markup, file=file)
 
 
-def dump(obj, *, header=None, file=None):
-    markup = serialize(obj)
+def dump(obj, *, header=None, file=None, trim=True):
+    markup = _serialize(obj, trim=trim)
     _dump(markup, header, file)
 
 
