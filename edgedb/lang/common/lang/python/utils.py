@@ -38,22 +38,20 @@ def source_context_from_frame(frame):
 
 class SourceErrorContext(markup.MarkupExceptionContext):
     def __init__(self, source_context):
-        self.source_context = source_context
+        if inspect.isframe(source_context):
+            self.source_context = source_context_from_frame(source_context)
+        else:
+            self.source_context = source_context
 
     @classmethod
     def as_markup(cls, self, *, ctx):
         me = markup.elements
 
-        if inspect.isframe(self.source_context):
-            source_context = source_context_from_frame(self.source_context)
-        else:
-            source_context = self.source_context
-
-        if source_context:
-            tbp = me.lang.TracebackPoint(name=source_context.name,
-                                         lineno=source_context.start.line,
-                                         filename=source_context.filename or '<unknown>')
-            tbp.load_source(lines=source_context.buffer)
+        if self.source_context:
+            tbp = me.lang.TracebackPoint(name=self.source_context.name,
+                                         lineno=self.source_context.start.line,
+                                         filename=self.source_context.filename or '<unknown>')
+            tbp.load_source(lines=self.source_context.buffer)
         else:
             tbp = me.doc.Text(text='Unknown source context')
 
