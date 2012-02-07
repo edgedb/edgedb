@@ -146,6 +146,12 @@ static void datevalue_to_string (unsigned int n, EncodedData * encodedData, int 
     for (i = 0; i < fill_to_size - size; i++)
         encoder_data_append_ch_nocheck(encodedData, '0');
 
+    if (n == 0)
+    {
+        encoder_data_append_ch_nocheck(encodedData, '0');
+        return;
+    }
+
     int offset = size-1;
     while (n > 0)
     {

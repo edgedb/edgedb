@@ -178,10 +178,12 @@ class _BaseJsonEncoderTest:
 
         dt1 = datetime(2012,2,1,12,20,22,100)
         dt2 = datetime(1990,12,11,1,1,1,0)
+        dt3 = datetime(2222,1,6,22,59,0,99999)
 
         # std encodr does not support datetime
         self.encoder_test(dt1, '"2012-02-01T12:20:22.000100"', False, False)
-        self.encoder_test(dt2, '"1990-12-11T01:01:01"', False, False)
+        self.encoder_test(dt2, '"1990-12-11T01:01:01"',        False, False)
+        self.encoder_test(dt3, '"2222-01-06T22:59:00.099999"', False, False)
 
         class GMT5(tzinfo):
             def utcoffset(self,dt):
