@@ -44,15 +44,50 @@ class MetaDeltaRepository:
         start_rev = start_rev
         end_rev = end_rev or self.resolve_delta_ref('HEAD')
 
-        return delta.DeltaSet(reversed(list(self.walk_deltas(start_rev, end_rev))))
+        return delta.DeltaSet(self.walk_deltas(end_rev, start_rev, reverse=True))
 
-    def walk_deltas(self, start_rev, end_rev):
+    def walk_deltas(self, end_rev, start_rev, reverse=False):
         current_rev = end_rev
 
-        while current_rev and current_rev != start_rev:
-            delta = self.load_delta(current_rev)
-            yield delta
-            current_rev = delta.parent_id
+        if not reverse:
+            while current_rev and current_rev != start_rev:
+                delta = self.load_delta(current_rev)
+                yield delta
+                current_rev = delta.parent_id
+        else:
+            deltas = []
+
+            while current_rev and current_rev != start_rev:
+                delta = self.load_delta(current_rev)
+                deltas.append(delta)
+                current_rev = delta.parent_id
+
+            for delta in reversed(deltas):
+                yield delta
+
+    def upgrade(self, start_rev=None, end_rev=None,
+                      new_format_ver=delta.Delta.CURRENT_FORMAT_VERSION):
+
+        if end_rev is None:
+            end_rev = self.get_delta(id='HEAD').id
+
+        context = delta.DeltaUpgradeContext(delta.Delta.CURRENT_FORMAT_VERSION)
+        for d in self.walk_deltas(end_rev, start_rev, reverse=True):
+            d.upgrade(context)
+            self.write_delta(d)
+
+        self.update_checksums()
+
+    def update_checksums(self):
+        start_rev = None
+        end_rev = self.get_delta(id='HEAD').id
+
+        schema = proto.ProtoSchema()
+
+        for d in self.walk_deltas(end_rev, start_rev, reverse=True):
+            d.apply(schema)
+            d.checksum = schema.get_checksum()
+            self.write_delta(d)
 
     def get_meta(self, delta_obj):
         deltas = self.get_deltas(None, delta_obj.id)

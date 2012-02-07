@@ -281,6 +281,11 @@ class OrderedSet(BaseOrderedSet, collections.MutableSequence):
 
     append = BaseOrderedSet.add
 
+    def appendleft(self, key):
+        self.add(key)
+        k = self.key(key)
+        self.map.move_to_end(k, last=False)
+
     def insert(self, pos, item):
         raise NotImplementedError
 
