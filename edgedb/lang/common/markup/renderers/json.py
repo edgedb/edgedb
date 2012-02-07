@@ -6,13 +6,12 @@
 ##
 
 
-import json
-
 from semantix.utils.datastructures.typed import TypedDict, TypedList
+from semantix.utils.json import Encoder as JsonEncoder, dumps as json_dumps, dumpb as json_dumpb
 from ..elements.base import Markup
 
 
-class Encoder(json.JSONEncoder):
+class Encoder(JsonEncoder):
     """Serializes markup to JSON.
 
     Format: to minimize the encoded JSON string we pack markup objects in
@@ -78,25 +77,29 @@ class Encoder(json.JSONEncoder):
 
         return super().default(obj)
 
-    def encode(self, markup):
-        encoded = super().encode(markup)
-
-        table = json.dumps(self.fields_map, separators=(self.item_separator,
-                                                        self.key_separator))
-        self.fields_map = {}
-
-        return '[' + table + self.item_separator + encoded + ']'
+    def dumps(self, markup, as_bytes):
+        try:
+            if as_bytes:
+                encoded = super().dumpb(markup)
+                table = json_dumpb(self.fields_map)
+                return b'[' + table + b',' + encoded + b']'
+            else:
+                encoded = super().dumps(markup)
+                table = json_dumps(self.fields_map)
+                return '[' + table + ',' + encoded + ']'
+        finally:
+            self.fields_map = {}
 
 
 class Renderer:
     encoder = Encoder
 
-    def _render(self, markup):
-        return type(self).encoder(separators=(',', ':')).encode(markup)
+    def _render(self, markup, as_bytes):
+        return type(self).encoder().dumps(markup, as_bytes)
 
     @classmethod
-    def render(cls, markup):
-        return cls()._render(markup)
+    def render(cls, markup, *, as_bytes=False):
+        return cls()._render(markup, as_bytes)
 
 
 render = Renderer.render
