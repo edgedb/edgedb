@@ -22,7 +22,10 @@ class MarkupExceptionContext(_ExceptionContext, metaclass=abc.AbstractMeta):
 
 def _serialize(obj, trim=True):
     ctx = _base_serializer.Context(trim=trim)
-    return serialize(obj, ctx=ctx)
+    try:
+        return serialize(obj, ctx=ctx)
+    finally:
+        ctx.reset()
 
 
 def dumps(obj, header=None, trim=True):

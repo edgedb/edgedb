@@ -46,8 +46,12 @@ class Context:
     and ``depth`` - recursion depth"""
 
     def __init__(self, trim=True):
-        self.memo = set()
+        self.reset()
         self.trim = trim
+
+    def reset(self):
+        self.memo = set()
+        self.keep_alive = []
         self.level = 0
 
 
@@ -61,11 +65,13 @@ def serialize(obj, *, ctx=None):
     except LookupError:
         raise LookupError('unable to find serializer for object {!r}'.format(obj))
 
+    own_ctx = False
     if ctx is None:
         # No context?  Perhaps, this is a top-level call to ``serialize``.
         # Initialize empty context.
         #
         ctx = Context()
+        own_ctx = True
 
     ctx.level += 1
     try:
@@ -90,10 +96,14 @@ def serialize(obj, *, ctx=None):
                 return elements.lang.Ref(ref=obj_id, refname=refname)
             else:
                 ctx.memo.add(obj_id)
+                ctx.keep_alive.append(obj)
 
         return sr(obj, ctx=ctx)
     finally:
         ctx.level -= 1
+
+        if own_ctx:
+            ctx.memo = ctx.keep_alive = None
 
 
 @no_ref_detect
