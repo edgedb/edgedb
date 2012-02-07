@@ -641,30 +641,52 @@ static void encode_string (PyObject * pystr, EncodedData * encodedData)
 
 static void encode_true (EncodedData * encodedData)
 {
+    // 'true' stored as a 4-byte integer: 't' + 'r'<<8 + 'u'<<16 + 'e'<<24
+    static uint32_t true_string = 1702195828;
+
     if (!encoder_data_reserve_space(encodedData, 4)) return;
-    encoder_data_append_ch_nocheck(encodedData, 't');
-    encoder_data_append_ch_nocheck(encodedData, 'r');
-    encoder_data_append_ch_nocheck(encodedData, 'u');
-    encoder_data_append_ch_nocheck(encodedData, 'e');
+
+    *(uint32_t*)(encodedData->buffer_free) = true_string;
+    encodedData->buffer_free += 4;
+
+    //encoder_data_append_ch_nocheck(encodedData, 't');
+    //encoder_data_append_ch_nocheck(encodedData, 'r');
+    //encoder_data_append_ch_nocheck(encodedData, 'u');
+    //encoder_data_append_ch_nocheck(encodedData, 'e');
 }
 
 static void encode_false (EncodedData * encodedData)
 {
+    // 'fals' stored as a 4-byte integer: 'f' + 'a'<<8 + 'l'<<16 + 's'<<24
+    static uint32_t false_string = 1936482662;
+
     if (!encoder_data_reserve_space(encodedData, 5)) return;
-    encoder_data_append_ch_nocheck(encodedData, 'f');
-    encoder_data_append_ch_nocheck(encodedData, 'a');
-    encoder_data_append_ch_nocheck(encodedData, 'l');
-    encoder_data_append_ch_nocheck(encodedData, 's');
+
+    *(uint32_t*)(encodedData->buffer_free) = false_string;
+    encodedData->buffer_free += 4;
     encoder_data_append_ch_nocheck(encodedData, 'e');
+
+    //encoder_data_append_ch_nocheck(encodedData, 'f');
+    //encoder_data_append_ch_nocheck(encodedData, 'a');
+    //encoder_data_append_ch_nocheck(encodedData, 'l');
+    //encoder_data_append_ch_nocheck(encodedData, 's');
+    //encoder_data_append_ch_nocheck(encodedData, 'e');
 }
 
 static void encode_none (EncodedData * encodedData)
 {
+    // 'fals' stored as a 4-byte integer: 'n' + 'u'<<8 + 'l'<<16 + 'l'<<24
+    static uint32_t null_string = 1819047278;
+
     if (!encoder_data_reserve_space(encodedData, 4)) return;
-    encoder_data_append_ch_nocheck(encodedData, 'n');
-    encoder_data_append_ch_nocheck(encodedData, 'u');
-    encoder_data_append_ch_nocheck(encodedData, 'l');
-    encoder_data_append_ch_nocheck(encodedData, 'l');
+
+    *(uint32_t*)(encodedData->buffer_free) = null_string;
+    encodedData->buffer_free += 4;
+
+    //encoder_data_append_ch_nocheck(encodedData, 'n');
+    //encoder_data_append_ch_nocheck(encodedData, 'u');
+    //encoder_data_append_ch_nocheck(encodedData, 'l');
+    //encoder_data_append_ch_nocheck(encodedData, 'l');
 }
 
 /* used for max-recursion-depth/loop tracking */

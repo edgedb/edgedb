@@ -100,11 +100,13 @@ static void longlong_to_string (long long n, EncodedData * encodedData)
     }
 
     int offset = size-1;
-    while (val > 0)
+    while (val >= 10)
     {
         encoder_data_place_ch_nocheck(encodedData, '0' + (val%10), offset--);
         val /= 10;
     }
+    encoder_data_place_ch_nocheck(encodedData, '0' + val, offset);
+
     encodedData->buffer_free += size;
 }
 
