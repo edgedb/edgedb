@@ -39,7 +39,7 @@ class Encoder:
 
        Can either encode to a python string (see ``dumps``) or a sequence
        of bytes (see ``dumpb``). The string returned by dumps() is guaranteed
-       to have only 7-bit ASCII characters and ``dumps(obj).encode('ascii') = dumpb(obj)``.
+       to have only 7-bit ASCII characters [#f1]_ and ``dumps(obj).encode('ascii') = dumpb(obj)``.
 
 
        Supports custom encoders by using objects' ``__sx_serialize__()``
@@ -49,7 +49,7 @@ class Encoder:
        an __sx_serialize__ method or not be supported).
 
        Natively suports strings, integers, floats, True, False, None, lists, tuples,
-       dicts, sets, frozensets, collections.OrderedDicts, uuid.UUIDs, decimal.Decimals [#f1]_,
+       dicts, sets, frozensets, collections.OrderedDicts, uuid.UUIDs [#f2]_, decimal.Decimals,
        datetime.datetime and objects derived form all listed objects.
 
        For all objects which could not be encoded in any other way an
@@ -61,7 +61,7 @@ class Encoder:
        Exceptions raised:
 
        * Both dumps() and dumpb() raise a TypeError for unsupported objects and
-         for all dictionary keys which are not strings (or UUIDs [#f2]_) and
+         for all dictionary keys which are not strings (or UUIDs [#f3]_) and
          which are not represenatable as strings (or UUIDs) by their __sx_serialize__ method.
 
        * default() raises a TypeError for all unsupported objects, and overwritten default()
@@ -76,8 +76,9 @@ class Encoder:
          desired value as the second argument to dumps() and dumpb() methods)
 
 
-       .. [#f1] Decimals and UUIDs are encoded as strings.
-       .. [#f2] JSON specification only suports string dictionary keys; since UUIDs
+       .. [#f1] All characters required to be escaped by the JSON spec @ http://json.org are escaped
+       .. [#f2] UUIDs and Decimals are encoded as strings.
+       .. [#f3] JSON specification only suports string dictionary keys; since UUIDs
                 are also encoded to strings and are a common key in the semantix framework,
                 this encoder also supports UUIDs as dictionary keys.
     """
@@ -101,7 +102,7 @@ class Encoder:
             try:
                 from semantix.utils.json._encoder import Encoder
             except ImportError:
-                # C version unavailable - import Python version
+                # C version is unavailable - import Python version
                 from semantix.utils.json.encoder import Encoder
 
             class Bar:
@@ -110,12 +111,12 @@ class Encoder:
             class MyEncoder(Encoder):
                 def default(self, obj):
                     if isinstance(obj, Bar):
-                        return ['Bar', 'Bar']
+                        return ['Bar']
                     return super().default(obj)
 
-            MyEncoder().dumps([Bar()]) == '[["Bar","Bar"]]'
+            MyEncoder().dumps([Bar()]) == '[["Bar"]]'
         """
-        raise TypeError('{!r} is not JSON serializable'.format(obj))
+        raise TypeError('{!r} is not JSON serializable by this encoder'.format(obj))
 
     def _increment_nested_level(self):
         self._nested_level += 1

@@ -34,8 +34,9 @@ Completely eqivalent to the semantix.utils.json.encoder.Encoder class:\n\
  - has equivalent dumps(), dumpb() and default() methods\n\
  - natively supports the same set of Python objects (str, int, float, True, \
    False, None, list, tuple, dict, set, frozenset, collections.OrderedDict, \
-   uuid.UUID, decimal.Decimal, datetime.datetime and derived classes.\n\
- - supports __sx_serialize__() method, when vailable.");
+   uuid.UUID, decimal.Decimal, datetime.datetime and derived classes)\n\
+ - supports __sx_serialize__() method, when available\n\
+ - raises the same set of exceptions under the same conditions");
 
 
 // see http://docs.python.org/release/3.2.1/extending/newtypes.html
@@ -209,7 +210,7 @@ encoder_default (PyObject *self, PyObject *args)
 
     if (!PyArg_ParseTuple(args, "O", &obj)) return NULL;
 
-    PyErr_Format(PyExc_TypeError, "%R is not JSON serializable", obj);
+    PyErr_Format(PyExc_TypeError, "%R is not JSON serializable by this encoder", obj);
 
     return NULL;
 }
