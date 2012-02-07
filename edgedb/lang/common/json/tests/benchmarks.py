@@ -28,8 +28,9 @@ class JsonBenchmark:
 
     def timing_test(self, obj, num_loops):
 
-        #gc.collect()
-        #print('before', len(gc.get_objects()))
+        gc.collect()
+        gc.collect()
+        before_objects = len(gc.get_objects())
 
         tsecbase = 0
         tstart = time.clock()
@@ -86,8 +87,10 @@ class JsonBenchmark:
                 print ("   marshal: ", repr(tsec).rjust(7), "sec,   ", \
                        repr(int(num_loops/tsec)).rjust(7), "req/sec")
 
-        #gc.collect()
-        #print('after', len(gc.get_objects()))
+        gc.collect()
+        after_objects = len(gc.get_objects())
+
+        assert before_objects == after_objects
 
     def run(self):
 
