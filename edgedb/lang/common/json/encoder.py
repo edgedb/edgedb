@@ -49,7 +49,8 @@ class Encoder:
        an __sx_serialize__ method or not be supported).
 
        Natively suports strings, integers, floats, True, False, None, lists, tuples,
-       dicts, sets, frozensets, collections.OrderedDicts, uuid.UUIDs [#f2]_, decimal.Decimals,
+       dicts, sets, frozensets, collections.OrderedDicts, colections.Set,
+       collections.Sequence [#f2]_, collections.Mapping, uuid.UUIDs [#f3]_, decimal.Decimals,
        datetime.datetime and objects derived form all listed objects.
 
        For all objects which could not be encoded in any other way an
@@ -61,7 +62,7 @@ class Encoder:
        Exceptions raised:
 
        * Both dumps() and dumpb() raise a TypeError for unsupported objects and
-         for all dictionary keys which are not strings (or UUIDs [#f3]_) and
+         for all dictionary keys which are not strings (or UUIDs [#f4]_) and
          which are not represenatable as strings (or UUIDs) by their __sx_serialize__ method.
 
        * default() raises a TypeError for all unsupported objects, and overwritten default()
@@ -77,8 +78,12 @@ class Encoder:
 
 
        .. [#f1] All characters required to be escaped by the JSON spec @ http://json.org are escaped
-       .. [#f2] UUIDs and Decimals are encoded as strings.
-       .. [#f3] JSON specification only suports string dictionary keys; since UUIDs
+       .. [#f2] To avoid errors in the semantix framework bytes(), bytearray() and derived
+                classes are deliberately not encoded using the built-in sequence encoder;
+                the only way to encode these objects is to either overwrite the encoders' default()
+                method or to provide __sx_serialize__ method in the object being serialized.
+       .. [#f3] UUIDs and Decimals are encoded as strings.
+       .. [#f4] JSON specification only suports string dictionary keys; since UUIDs
                 are also encoded to strings and are a common key in the semantix framework,
                 this encoder also supports UUIDs as dictionary keys.
     """
@@ -290,7 +295,10 @@ class Encoder:
         if isinstance(obj, str):
             return self._encode_str(obj)
 
-        if isinstance(obj, (list, tuple, set, frozenset, Set, Sequence)):
+        if isinstance(obj, (list, tuple, set, frozenset, Set)):
+            return self._encode_list(obj)
+
+        if isinstance(obj, Sequence) and not isinstance(obj, (bytes, bytearray)):
             return self._encode_list(obj)
 
         if isinstance(obj, (dict, OrderedDict, Mapping)):

@@ -34,6 +34,7 @@ Completely eqivalent to the semantix.utils.json.encoder.Encoder class:\n\
  - has equivalent dumps(), dumpb() and default() methods\n\
  - natively supports the same set of Python objects (str, int, float, True, \
    False, None, list, tuple, dict, set, frozenset, collections.OrderedDict, \
+   colections.Set, collections.Sequence, collections.Mapping, \
    uuid.UUID, decimal.Decimal, datetime.datetime and derived classes)\n\
  - supports __sx_serialize__() method, when available\n\
  - raises the same set of exceptions under the same conditions");
@@ -94,9 +95,12 @@ PyInit__encoder(void)
     PyType_UUID = (PyTypeObject*)PyObject_GetAttrString(mod_uuid, "UUID");
     Py_DECREF(mod_uuid);
 
-    PyObject* mod_ordereddict = PyImport_ImportModule("collections");
-    PyType_OrderedDict = (PyTypeObject*)PyObject_GetAttrString(mod_ordereddict, "OrderedDict");
-    Py_DECREF(mod_ordereddict);
+    PyObject* mod_collections = PyImport_ImportModule("collections");
+    PyType_Col_OrderedDict = (PyTypeObject*)PyObject_GetAttrString(mod_collections, "OrderedDict");
+    PyType_Col_Set         = (PyTypeObject*)PyObject_GetAttrString(mod_collections, "Set");
+    PyType_Col_Sequence    = (PyTypeObject*)PyObject_GetAttrString(mod_collections, "Sequence");
+    PyType_Col_Mapping     = (PyTypeObject*)PyObject_GetAttrString(mod_collections, "Mapping");
+    Py_DECREF(mod_collections);
 
     PyDateTime_IMPORT;
 
@@ -220,21 +224,21 @@ encoder_default (PyObject *self, PyObject *args)
  * implemention: internal methods
  *===========================================================================*/
 
-static void encode_default     (PyObject * obj,  EncodedData * encodedData);
-static void encode_integer     (PyObject * obj,  EncodedData * encodedData);
-static void encode_float       (PyObject * obj,  EncodedData * encodedData);
-static void encode_decimal     (PyObject * obj,  EncodedData * encodedData);
-static void encode_string      (PyObject * obj,  EncodedData * encodedData);
-static void encode_uuid        (PyObject * obj,  EncodedData * encodedData);
-static void encode_date        (PyObject * obj,  EncodedData * encodedData);
-static void encode_list        (PyObject * obj,  EncodedData * encodedData);
-static void encode_tuple       (PyObject * obj,  EncodedData * encodedData);
-static void encode_set         (PyObject * obj,  EncodedData * encodedData);
-static void encode_dict        (PyObject * obj,  EncodedData * encodedData);
-static void encode_ordereddict (PyObject * obj,  EncodedData * encodedData);
-static void encode_true        (EncodedData * encodedData);
-static void encode_false       (EncodedData * encodedData);
-static void encode_none        (EncodedData * encodedData);
+static void encode_default (PyObject * obj,  EncodedData * encodedData);
+static void encode_integer (PyObject * obj,  EncodedData * encodedData);
+static void encode_float   (PyObject * obj,  EncodedData * encodedData);
+static void encode_decimal (PyObject * obj,  EncodedData * encodedData);
+static void encode_string  (PyObject * obj,  EncodedData * encodedData);
+static void encode_uuid    (PyObject * obj,  EncodedData * encodedData);
+static void encode_date    (PyObject * obj,  EncodedData * encodedData);
+static void encode_list    (PyObject * obj,  EncodedData * encodedData);
+static void encode_tuple   (PyObject * obj,  EncodedData * encodedData);
+static void encode_set     (PyObject * obj,  EncodedData * encodedData);
+static void encode_dict    (PyObject * obj,  EncodedData * encodedData);
+static void encode_mapping (PyObject * obj,  EncodedData * encodedData);
+static void encode_true    (EncodedData * encodedData);
+static void encode_false   (EncodedData * encodedData);
+static void encode_none    (EncodedData * encodedData);
 
 /*
  * JSON-encodes a python object into the given EncodedData buffer.
@@ -274,9 +278,9 @@ static void encode (PyObject *obj, EncodedData * encodedData)
     if (PyDict_CheckExact(obj))   return encode_dict (obj, encodedData);
     if (PyAnySet_CheckExact(obj)) return encode_set  (obj, encodedData);
 
-    if (obj->ob_type == PyType_UUID)        return encode_uuid        (obj, encodedData);
-    if (obj->ob_type == PyType_Decimal)     return encode_decimal     (obj, encodedData);
-    if (obj->ob_type == PyType_OrderedDict) return encode_ordereddict (obj, encodedData);
+    if (obj->ob_type == PyType_UUID)            return encode_uuid    (obj, encodedData);
+    if (obj->ob_type == PyType_Decimal)         return encode_decimal (obj, encodedData);
+    if (obj->ob_type == PyType_Col_OrderedDict) return encode_mapping (obj, encodedData);
 
     // try __sx_serialize__ method -----------------------------------------
 
@@ -299,12 +303,12 @@ static void encode (PyObject *obj, EncodedData * encodedData)
     // try isinstance() checks ---------------------------------------------
 
     // need to check ordereddict-derived classes before dict-derived classes
-    if (PyObject_TypeCheck(obj, PyType_OrderedDict)) return encode_ordereddict (obj, encodedData);
+    if (PyObject_TypeCheck(obj, PyType_Col_OrderedDict)) return encode_mapping (obj, encodedData);
 
-    if (PyDict_Check(obj))   return encode_dict (obj, encodedData);
-    if (PyList_Check(obj))   return encode_list (obj, encodedData);
-    if (PyTuple_Check(obj))  return encode_tuple(obj, encodedData);
-    if (PyAnySet_Check(obj)) return encode_set  (obj, encodedData);
+    if (PyDict_Check(obj))   return encode_mapping (obj, encodedData);
+    if (PyList_Check(obj))   return encode_list    (obj, encodedData);
+    if (PyTuple_Check(obj))  return encode_tuple   (obj, encodedData);
+    if (PyAnySet_Check(obj)) return encode_set     (obj, encodedData);
 
     if (PyUnicode_Check(obj)) return encode_string (obj, encodedData);
     if (PyLong_Check   (obj)) return encode_integer(obj, encodedData);
@@ -314,6 +318,15 @@ static void encode (PyObject *obj, EncodedData * encodedData)
     if (PyObject_TypeCheck(obj, PyType_Decimal)) return encode_decimal(obj, encodedData);
 
     if (PyDate_Check(obj)) return encode_date(obj, encodedData);
+
+    if (PyBytes_Check(obj) || PyByteArray_Check(obj)) return encode_default(obj, encodedData);
+
+    if (PyObject_IsInstance(obj,(PyObject*)PyType_Col_Mapping )==1)
+        return encode_mapping (obj, encodedData);
+    if (PyObject_IsInstance(obj,(PyObject*)PyType_Col_Set)     ==1)
+        return encode_set (obj, encodedData);
+    if (PyObject_IsInstance(obj,(PyObject*)PyType_Col_Sequence)==1)
+        return encode_set (obj, encodedData);
 
     // try self.default() method -------------------------------------------
 
@@ -818,7 +831,7 @@ static void encode_set (PyObject * obj, EncodedData * encodedData)
     if (PyErr_Occurred()) return encoder_not_serializable(obj, encodedData);
 }
 
-static void encode_ordereddict (PyObject * obj, EncodedData * encodedData)
+static void encode_mapping (PyObject * obj, EncodedData * encodedData)
 {
     inc_depth(encodedData);
 
@@ -842,7 +855,9 @@ static void encode_ordereddict (PyObject * obj, EncodedData * encodedData)
 
         encoder_data_append_char(encodedData, ':');
 
-        value = PyDict_GetItem(obj, key);
+        value = PyObject_GetItem(obj, key);
+
+        if (value==NULL) printf("err\n");
 
         encode(value, encodedData);
 

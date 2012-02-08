@@ -16,7 +16,10 @@
 // type objects for some not-built-in types natively supported by the encoder
 static PyTypeObject* PyType_UUID;
 static PyTypeObject* PyType_Decimal;
-static PyTypeObject* PyType_OrderedDict;
+static PyTypeObject* PyType_Col_OrderedDict;
+static PyTypeObject* PyType_Col_Set;
+static PyTypeObject* PyType_Col_Sequence;
+static PyTypeObject* PyType_Col_Mapping;
 
 // base class for the Encoder class we implement in c
 static PyTypeObject* PyType_BaseEncoder;

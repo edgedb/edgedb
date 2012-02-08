@@ -9,7 +9,7 @@
 import py.test
 from json import loads as std_loads, dumps as std_dumps
 from decimal import Decimal
-import collections
+from collections import OrderedDict, Set, Sequence, Mapping
 from uuid import UUID
 import random
 from datetime import datetime,tzinfo,timedelta
@@ -130,6 +130,14 @@ class _BaseJsonEncoderTest:
         with assert_raises(ValueError, error_re='Exceeded maximum allowed recursion level'):
             self.dumps(a)
 
+        # by design type "bytes" is not serializable and should raise a TypeError
+        with assert_raises(TypeError, error_re='not JSON serializable'):
+            self.encoder_test(bytes([1,2,3]), None)
+
+        # by design type "bytearra" is not serializable and should raise a TypeError
+        with assert_raises(TypeError, error_re='not JSON serializable'):
+            self.encoder_test(bytearray([1,2,3]), '[1,2,3]', False, False)
+
     def test_utils_json_encoder_dict(self):
         self.encoder_test({}, '{}')
         self.encoder_test({'foo':1, 'bar':2}, '{"foo":1,"bar":2}')
@@ -143,7 +151,7 @@ class _BaseJsonEncoderTest:
 
         # std encoder does nto support OrderedDicts
         d = {'banana': 3, 'apple':4, 'pear': 1, 'orange': 2}
-        ordered_d = collections.OrderedDict(sorted(d.items(), key=lambda t: t[0]))
+        ordered_d = OrderedDict(sorted(d.items(), key=lambda t: t[0]))
         self.encoder_test( ordered_d, '{"apple":4,"banana":3,"orange":2,"pear":1}', False, False)
 
         # JSON spec does not support keys which are not a string or a number
@@ -218,7 +226,7 @@ class _BaseJsonEncoderTest:
         big_list = []
         for _ in range(256):
             d = {str(random.random()*20): int(random.random()*1000000), str(random.random()*20): int(random.random()*1000000), str(random.random()*20): int(random.random()*1000000), str(random.random()*20): int(random.random()*1000000)}
-            ordered_d = collections.OrderedDict(sorted(d.items(), key=lambda t: t[0]))
+            ordered_d = OrderedDict(sorted(d.items(), key=lambda t: t[0]))
             big_list.append(ordered_d)
         self.dumps(big_list)
 
@@ -233,7 +241,7 @@ class _BaseJsonEncoderTest:
             assert std_dumps(x) == self.dumps(x)
 
     def test_utils_json_abc_sequence(self):
-        class seq(collections.Sequence):
+        class seq(Sequence):
             len = 10
             def __getitem__(self, idx):
                 if idx < self.len:
@@ -245,8 +253,8 @@ class _BaseJsonEncoderTest:
         assert self.dumps(seq()) == '[0,1,4,9,16,25,36,49,64,81]'
 
     def test_utils_json_abc_mapping(self):
-        class map(collections.Mapping):
-            data = collections.OrderedDict((('a', 'b'), ('c', 'd'), ('e', 'f')))
+        class map(Mapping):
+            data = OrderedDict((('a', 'b'), ('c', 'd'), ('e', 'f')))
             def __getitem__(self, key):
                 return self.data[key]
             def __len__(self):
@@ -257,7 +265,7 @@ class _BaseJsonEncoderTest:
         assert self.dumps(map()) == self.dumps(map.data)
 
     def test_utils_json_abc_set(self):
-        class set(collections.Set):
+        class set(Set):
             items = [100, 20, 42]
             def __contains__(self, el):
                 return el in self.items
