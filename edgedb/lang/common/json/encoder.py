@@ -10,7 +10,7 @@ from re import compile as re_compile
 from numbers import Number
 from decimal import Decimal
 from math import isnan, isinf
-from collections import OrderedDict
+from collections import OrderedDict, Set, Sequence, Mapping
 from uuid import UUID
 from datetime import datetime
 
@@ -284,17 +284,17 @@ class Encoder:
 
         # do more in-depth class analysis
 
-        if isinstance(obj, (list, tuple, set, frozenset)):
-            return self._encode_list(obj)
-
-        if isinstance(obj, (dict, OrderedDict)):
-            return self._encode_dict(obj)
-
         if isinstance(obj, UUID):
             return '"' + str(obj) + '"'
 
         if isinstance(obj, str):
             return self._encode_str(obj)
+
+        if isinstance(obj, (list, tuple, set, frozenset, Set, Sequence)):
+            return self._encode_list(obj)
+
+        if isinstance(obj, (dict, OrderedDict, Mapping)):
+            return self._encode_dict(obj)
 
         # note: number checks using isinstance should come after True/False checks
         if isinstance(obj, Number):
