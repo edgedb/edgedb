@@ -57,16 +57,19 @@ class Encoder(JsonEncoder):
 
             for field_name in fields:
                 field = getattr(obj, field_name)
-                result.append(field)
 
-            return result
+                if isinstance(field, TypedList):
+                    to_append = None
 
-        elif isinstance(obj, TypedList):
-            if not len(obj):
-                return None
+                    if len(field):
+                        to_append = list(field)
+                        to_append.insert(0, 1)
 
-            result = list(obj)
-            result.insert(0, 1)
+                    result.append(to_append)
+
+                else:
+                    result.append(field)
+
             return result
 
         elif isinstance(obj, TypedDict):
