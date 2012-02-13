@@ -17,9 +17,13 @@
  * declaration and export to python
  *===========================================================================*/
 
+/* public methods */
 static PyObject * encoder_dumps   (PyObject *self, PyObject *args);
 static PyObject * encoder_dumpb   (PyObject *self, PyObject *args);
 static PyObject * encoder_default (PyObject *self, PyObject *args);
+
+/* serves as __init__; only needed to support the encode_hook() functionality */
+static int _encoder_init (PyEncoderObject *self, PyObject *args, PyObject *kwds);
 
 static PyMethodDef EncodeMethods[] = {
     {"dumps",   encoder_dumps,   METH_VARARGS, "JSON-encode a Python object to a Python string."},
@@ -36,9 +40,8 @@ Completely eqivalent to the semantix.utils.json.encoder.Encoder class:\n\
    False, None, list, tuple, dict, set, frozenset, collections.OrderedDict, \
    colections.Set, collections.Sequence, collections.Mapping, \
    uuid.UUID, decimal.Decimal, datetime.datetime and derived classes)\n\
- - supports __sx_serialize__() method, when available\n\
+ - supports __sx_serialize__() and encode_hook() methods, when available\n\
  - raises the same set of exceptions under the same conditions");
-
 
 // see http://docs.python.org/release/3.2.1/extending/newtypes.html
 PyTypeObject PyEncoder_Type = {
@@ -69,7 +72,15 @@ PyTypeObject PyEncoder_Type = {
     0,                                          /* tp_weaklistoffset */
     0,                                          /* tp_iter */
     0,                                          /* tp_iternext */
-    EncodeMethods                               /* tp_methods */
+    EncodeMethods,                              /* tp_methods */
+    0,                                          /* tp_members */
+    0,                                          /* tp_getset */
+    0,                                          /* tp_base */
+    0,                                          /* tp_dict */
+    0,                                          /* tp_descr_get */
+    0,                                          /* tp_descr_set */
+    0,                                          /* tp_dictoffset */
+    (initproc)_encoder_init                     /* tp_init */
 };
 
 static struct PyModuleDef encodermodule = {
@@ -152,7 +163,7 @@ encoder_dumps (PyObject *self, PyObject *args)
 
     EncodedData output;
 
-    encoder_data_init(&output, self, max_recursion_depth);
+    encoder_data_init(&output, self, max_recursion_depth, ((PyEncoderObject*)self)->use_hook);
 
     encode(obj, &output);
 
@@ -190,7 +201,7 @@ encoder_dumpb (PyObject *self, PyObject *args)
 
     EncodedData output;
 
-    encoder_data_init(&output, self, max_recursion_depth);
+    encoder_data_init(&output, self, max_recursion_depth, ((PyEncoderObject*)self)->use_hook);
 
     encode(obj, &output);
 
@@ -219,11 +230,26 @@ encoder_default (PyObject *self, PyObject *args)
     return NULL;
 }
 
+/*
+ * __init__ method: needed to suport the encode_hook functionality: at construction time
+ * check if the class has encode_hook() method and if it does flip the use_hook flag.
+ *
+ * The idea is to avoid checking the existence of the method at every dumps/dumpb call.
+ *
+ */
+static int _encoder_init (PyEncoderObject *self, PyObject *args, PyObject *kwds)
+{
+    if (PyObject_HasAttrString((PyObject*)self, "encode_hook"))
+        self->use_hook = true;
+    else
+        self->use_hook = false;
+}
 
 /*===========================================================================
  * implemention: internal methods
  *===========================================================================*/
 
+static void _encode        (PyObject * obj,  EncodedData * encodedData);
 static void encode_default (PyObject * obj,  EncodedData * encodedData);
 static void encode_integer (PyObject * obj,  EncodedData * encodedData);
 static void encode_float   (PyObject * obj,  EncodedData * encodedData);
@@ -240,22 +266,26 @@ static void encode_true    (EncodedData * encodedData);
 static void encode_false   (EncodedData * encodedData);
 static void encode_none    (EncodedData * encodedData);
 
+
 /*
  * JSON-encodes a python object into the given EncodedData buffer.
  *
  * The order in which various encoders are applied to the given 'obj' is as follows:
  *
- *  1) first, the exact check for some known types (strings, int/float, true/false/none,
- *  list/tuple/dict/set, OrderedDict, UUID and Decimal) is performed and if type matches
- *  the corresponding encoder is used and the result stored in EncodedData buffer.
+ *  1) iff encoder class has encode_hook() method (not present by default) it
+ *     is called first and the rest of the processing is applied to the output of encode_hook(obj).
  *
- *  2) Next, the object's __sx_serialize__() method is tried and this function is applied
- *  to the output of __sx_serialize__.
+ *  2) next, the exact check for some known types (strings, int/float, true/false/none,
+ *     list/tuple/dict/set, OrderedDict, UUID and Decimal) is performed and if type matches
+ *     the corresponding encoder is used and the result stored in EncodedData buffer.
  *
- *  3) If none of the baove worked, the more generic isinstance() check is performed
+ *  3) next, the object's __sx_serialize__() method is tried and this function is applied
+ *     to the output of __sx_serialize__.
+ *
+ *  4) If none of the baove worked, the more generic isinstance() check is performed
  *     against the same known object types.
  *
- *  4) If there were no match self.default() method is applied to the object and in case
+ *  5) If there were no match self.default() method is applied to the object and in case
  *     there were no exceptions this function is applied to the result.
  */
 static void encode (PyObject *obj, EncodedData * encodedData)
@@ -263,7 +293,33 @@ static void encode (PyObject *obj, EncodedData * encodedData)
     // if we already found an error stop and do not encode anything else
     if (encoder_data_has_error(encodedData)) return;
 
-    // first try strict checks ---------------------------------------------
+    // first try the special hook ------------------------------------------
+
+    if (encodedData->use_hook)
+    {
+        PyObject* _encode_hook_ = PyObject_GetAttrString(encodedData->self, "encode_hook");
+
+        if (_encode_hook_ != NULL)
+        {
+            PyObject* obj_encoded = PyObject_CallFunctionObjArgs(_encode_hook_, obj, NULL);
+
+            _encode(obj_encoded, encodedData);
+
+            Py_DECREF(_encode_hook_);
+            Py_DECREF(obj_encoded);
+            return;
+        }
+        else
+            PyErr_Clear();
+    }
+
+    _encode(obj, encodedData);
+}
+
+/* internal encoder - does all of the processing except encode_hook() */
+static void _encode (PyObject * obj, EncodedData * encodedData)
+{
+    // First try strict checks ---------------------------------------------
 
     if (PyUnicode_CheckExact(obj)) return encode_string (obj, encodedData);
     if (PyLong_CheckExact   (obj)) return encode_integer(obj, encodedData);

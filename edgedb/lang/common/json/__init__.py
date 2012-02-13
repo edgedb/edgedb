@@ -38,11 +38,24 @@ def dumps(obj, encoder=Encoder):
        .. code-block:: pycon
 
            >>> class Foo:
-           ... def __sx_serialize__(self):
-           ...     return 'foo/bar'
+           ...     def __sx_serialize__(self):
+           ...         return 'foo/bar'
 
            >>> dumps(Foo())
            '"foo\/bar"'
+
+       Using ``encode_hook()`` (see the Encoder class docs for more info):
+
+       .. code-block:: pycon
+
+           >>> class MyEncoder(Encoder):
+           ...     def encode_hook(self, obj):
+           ...         if isinstance(obj, int):
+           ...             return '*' + str(obj)
+           ...         return obj
+
+           >>> MyEncoder().dumps([1])
+           '["*1"]'
     '''
     return Encoder().dumps(obj)
 

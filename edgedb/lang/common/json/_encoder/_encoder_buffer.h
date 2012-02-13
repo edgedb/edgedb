@@ -30,10 +30,12 @@ typedef struct
     BUFFERTYPE * buffer_end;                    // == buffer + buffer_size  - for speed
 
     PyObject *self;
+
+    bool use_hook;
 }
 EncodedData;
 
-static void encoder_data_init (EncodedData * data, PyObject *self, int max_depth);
+static void encoder_data_init (EncodedData * data, PyObject *self, int max_depth, bool use_hook);
 static bool encoder_data_destruct (EncodedData * data);
 
 static bool encoder_data_reserve_space (EncodedData * data, Py_ssize_t size);

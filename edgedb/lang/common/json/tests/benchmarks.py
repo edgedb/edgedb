@@ -64,6 +64,16 @@ class JsonBenchmark:
             print (" my c json: ", repr(tsec).rjust(7), "sec,   ", \
                    repr(int(num_loops/tsec)).rjust(7), "req/sec  ( " + repr(ratio) + "x )")
 
+            tstart = time.clock()
+            encoder = CEncoder()
+            for _ in range(num_loops):
+                encoder.dumps(obj)
+            tend = time.clock()
+            tsec = round(tend-tstart,5)
+            ratio = round(tsecbase/tsec,1)
+            print (" my c 1ini: ", repr(tsec).rjust(7), "sec,   ", \
+                   repr(int(num_loops/tsec)).rjust(7), "req/sec  ( " + repr(ratio) + "x )")
+
         if self.test_c_binary:
             tstart = time.clock()
             for _ in range(num_loops):

@@ -276,6 +276,19 @@ class _BaseJsonEncoderTest:
 
         assert self.dumps(set()) == self.dumps(set.items)
 
+    def test_utils_json_hook(self):
+        class Encoder(self.encoder):
+            def encode_hook(self, obj):
+                if isinstance(obj, list):
+                    return {str(i): el for i, el in enumerate(obj)}
+                if isinstance(obj, int):
+                    return '*' + str(obj)
+                return obj
+
+        assert Encoder().dumps([1.11]) == '{"0":1.11}'
+        assert Encoder().dumps([1])    == '{"0":"*1"}'
+
+
 from ..encoder import Encoder as PyEncoder
 
 class TestPyJsonEncoder(_BaseJsonEncoderTest):

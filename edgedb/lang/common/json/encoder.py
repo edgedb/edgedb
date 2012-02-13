@@ -41,16 +41,20 @@ class Encoder:
        of bytes (see ``dumpb``). The string returned by dumps() is guaranteed
        to have only 7-bit ASCII characters [#f1]_ and ``dumps(obj).encode('ascii') = dumpb(obj)``.
 
+       Supports a special encoder class method `encode_hook(obj)` which, if present, is applied to
+       the input object and the rest of the processing is applied to the output of encode_hook().
+       Note: encode_hook() should always return an object; for objects which should not be
+       specially encoded encode_hook() shold return the original object.
 
        Supports custom encoders by using objects' ``__sx_serialize__()``
        method, if available. It is guaranteed that for all non-native types __sx_serialize__
-       will be tried before any other attempt to encode the object. The output
+       will be tried before any other attempt to encode the object [#f2]_. The output
        of __sx_serialize__ is in turn encoded as any other object (and may in turn have
        an __sx_serialize__ method or not be supported).
 
        Natively suports strings, integers, floats, True, False, None, lists, tuples,
        dicts, sets, frozensets, collections.OrderedDicts, colections.Set,
-       collections.Sequence [#f2]_, collections.Mapping, uuid.UUIDs [#f3]_, decimal.Decimals,
+       collections.Sequence [#f3]_, collections.Mapping, uuid.UUIDs [#f4]_, decimal.Decimals,
        datetime.datetime and objects derived form all listed objects.
 
        For all objects which could not be encoded in any other way an
@@ -62,7 +66,7 @@ class Encoder:
        Exceptions raised:
 
        * Both dumps() and dumpb() raise a TypeError for unsupported objects and
-         for all dictionary keys which are not strings (or UUIDs [#f4]_) and
+         for all dictionary keys which are not strings (or UUIDs [#f5]_) and
          which are not represenatable as strings (or UUIDs) by their __sx_serialize__ method.
 
        * default() raises a TypeError for all unsupported objects, and overwritten default()
@@ -78,21 +82,31 @@ class Encoder:
 
 
        .. [#f1] All characters required to be escaped by the JSON spec @ http://json.org are escaped
-       .. [#f2] To avoid errors in the semantix framework bytes(), bytearray() and derived
+       .. [#f2] If present, encode_hook() is applied before and independently of all other encoders
+       .. [#f3] To avoid errors in the semantix framework bytes(), bytearray() and derived
                 classes are deliberately not encoded using the built-in sequence encoder;
                 the only way to encode these objects is to either overwrite the encoders' default()
                 method or to provide __sx_serialize__ method in the object being serialized.
-       .. [#f3] UUIDs and Decimals are encoded as strings.
-       .. [#f4] JSON specification only suports string dictionary keys; since UUIDs
+       .. [#f4] UUIDs and Decimals are encoded as strings.
+       .. [#f5] JSON specification only suports string dictionary keys; since UUIDs
                 are also encoded to strings and are a common key in the semantix framework,
                 this encoder also supports UUIDs as dictionary keys.
     """
 
     _nested_level     = 0            # current recursion level
     _max_nested_level = 100          # max allowed level
+    _use_hook_        = False
 
     def __init__(self):
-        pass
+        if hasattr(self, "encode_hook"):
+            self._use_hook_ = True
+
+    # sample encode_hook:
+    #
+    # def encode_hook(self, obj):
+    #     if (isinstance(obj, MyClass):
+    #         return special_processing(obj)
+    #     return obj
 
     def default(self, obj):
         """In this implementation always raises a TypeError.
@@ -246,6 +260,9 @@ class Encoder:
         """Returns a JSON representation of a Python object - see dumps.
         Accepts objects of any type, calls the appropriate type-specific encoder.
         """
+
+        if self._use_hook_:
+            obj = self.encode_hook(obj)
 
         # first try simple strict checks
 

@@ -7,11 +7,12 @@
 
 #include "_encoder_buffer.h"
 
-static void encoder_data_init (EncodedData * data, PyObject *self, int max_depth)
+static void encoder_data_init (EncodedData * data, PyObject *self, int max_depth, bool use_hook)
 {
     data->depth     = 0;
     data->max_depth = max_depth;
     data->self      = self;
+    data->use_hook  = use_hook;
 
     _encoder_buffer_allocate(data, DEFAULT_BUFFER_SIZE);
 

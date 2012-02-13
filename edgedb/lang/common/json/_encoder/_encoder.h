@@ -26,6 +26,7 @@ static PyTypeObject* PyType_BaseEncoder;
 
 typedef struct {
     PyObject_HEAD
+    bool use_hook;
 } PyEncoderObject;
 
 #endif
