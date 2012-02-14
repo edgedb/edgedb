@@ -305,10 +305,15 @@ static void encode (PyObject *obj, EncodedData * encodedData)
         {
             PyObject* obj_encoded = PyObject_CallFunctionObjArgs(_encode_hook_, obj, NULL);
 
-            _encode(obj_encoded, encodedData);
+            if (PyErr_Occurred())
+                encoder_data_set_error(encodedData);
+            else
+            {
+                _encode(obj_encoded, encodedData);
+                Py_DECREF(obj_encoded);
+            }
 
             Py_DECREF(_encode_hook_);
-            Py_DECREF(obj_encoded);
             return;
         }
         else
@@ -348,9 +353,14 @@ static void _encode (PyObject * obj, EncodedData * encodedData)
     {
         PyObject* obj_encoded = PyObject_CallObject(_sx_serialize_, NULL);
 
-        encode(obj_encoded, encodedData);
+        if (PyErr_Occurred())
+            encoder_data_set_error(encodedData);
+        else
+        {
+            encode(obj_encoded, encodedData);
+            Py_DECREF(obj_encoded);
+        }
 
-        Py_DECREF(obj_encoded);
         Py_DECREF(_sx_serialize_);
 
         return;
@@ -422,9 +432,14 @@ static void encode_key (PyObject *obj, EncodedData * encodedData)
     {
         PyObject* obj_encoded = PyObject_CallObject(_sx_serialize_, NULL);
 
-        encode_key(obj_encoded, encodedData);
+        if (PyErr_Occurred())
+            encoder_data_set_error(encodedData);
+        else
+        {
+            encode_key(obj_encoded, encodedData);
+            Py_DECREF(obj_encoded);
+        }
 
-        Py_DECREF(obj_encoded);
         Py_DECREF(_sx_serialize_);
 
         return;
@@ -465,9 +480,12 @@ static void encode_default (PyObject * obj, EncodedData * encodedData)
     {
         PyObject* obj_encoded = PyObject_CallFunctionObjArgs(default_method, obj, NULL);
 
-        if (!PyErr_Occurred()) encode(obj_encoded, encodedData);
+        if (!PyErr_Occurred())
+        {
+            encode(obj_encoded, encodedData);
+            Py_DECREF(obj_encoded);
+        }
 
-        Py_XDECREF(obj_encoded);
         Py_DECREF(default_method);
     }
 

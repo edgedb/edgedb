@@ -193,7 +193,6 @@ class _BaseJsonEncoderTest:
         self.encoder_test(dt3, '"2012-02-01T12:20:22.000100+05:30"', False, False)
 
     def test_utils_json_encoder_sx_json(self):
-
         class Foo:
             def __sx_serialize__(self):
                 return 'foo'
@@ -203,6 +202,16 @@ class _BaseJsonEncoderTest:
         self.encoder_test({Foo():'bar'}, '{"foo":"bar"}', False, False)
         self.encoder_test({'bar':Foo()}, '{"bar":"foo"}', False, False)
 
+        class Spam:
+            def __sx_serialize__(self):
+                1/0
+
+        with assert_raises(ZeroDivisionError):
+            self.dumps({'1': Spam()})
+
+        with assert_raises(ZeroDivisionError):
+            self.dumps({Spam(): 1})
+
     def test_utils_json_default(self):
         class Foo:
             pass
@@ -210,16 +219,27 @@ class _BaseJsonEncoderTest:
         class Bar:
             pass
 
+        class Spam:
+            pass
+
         class Encoder(self.encoder):
             def default(self, obj):
                 if isinstance(obj, Foo):
                     return ['Foo', 'Foo']
+                if isinstance(obj, Spam):
+                    1/0
                 return super().default(obj)
 
-        assert Encoder().dumps([Foo()]) == '[["Foo","Foo"]]'
+        assert Encoder().dumps([Foo(), Foo()]) == '[["Foo","Foo"],["Foo","Foo"]]'
 
         with assert_raises(TypeError, error_re='is not JSON seri'):
             Encoder().dumps(Bar())
+
+        # let's check that the exceptions propagate fine
+        with assert_raises(ZeroDivisionError):
+            Encoder().dumps([Spam()])
+        with assert_raises(ZeroDivisionError):
+            Encoder().dumpb({Spam(): 1})
 
     def test_utils_json_c_reftest(self):
         # test for leaked references
@@ -277,16 +297,24 @@ class _BaseJsonEncoderTest:
         assert self.dumps(set()) == self.dumps(set.items)
 
     def test_utils_json_hook(self):
+        class Spam:
+            pass
+
         class Encoder(self.encoder):
             def encode_hook(self, obj):
                 if isinstance(obj, list):
                     return {str(i): el for i, el in enumerate(obj)}
                 if isinstance(obj, int):
                     return '*' + str(obj)
+                if isinstance(obj, Spam):
+                    1/0
                 return obj
 
         assert Encoder().dumps([1.11]) == '{"0":1.11}'
         assert Encoder().dumps([1])    == '{"0":"*1"}'
+
+        with assert_raises(ZeroDivisionError):
+            Encoder().dumps([Spam()])
 
 
 from ..encoder import Encoder as PyEncoder
