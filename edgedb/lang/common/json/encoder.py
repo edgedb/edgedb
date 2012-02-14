@@ -330,8 +330,8 @@ class Encoder:
 
         return self._encode(self.default(obj))
 
-    def dumps(self, obj, max_nested_level = 100):
-        """Returns a string representing a JSON-encoding of 'obj'.
+    def dumps(self, obj, *, max_nested_level=100):
+        """Returns a string representing a JSON-encoding of ``obj``.
 
            The second optional 'max_nested_level' argument controls the maximum
            allowed recursion/nesting level.
@@ -341,7 +341,7 @@ class Encoder:
         self._max_nested_level = max_nested_level
         return self._encode(obj)
 
-    def dumpb(self, obj, max_nested_level = 100):
-        """Similar to dumps(), but returns bytes() instead of a string"""
+    def dumpb(self, obj, *, max_nested_level=100):
+        """Similar to ``dumps()``, but returns ``bytes`` instead of a ``string``"""
         self._max_nested_level = max_nested_level
         return self._encode(obj).encode('ascii')

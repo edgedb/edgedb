@@ -18,17 +18,23 @@
  *===========================================================================*/
 
 /* public methods */
-static PyObject * encoder_dumps   (PyObject *self, PyObject *args);
-static PyObject * encoder_dumpb   (PyObject *self, PyObject *args);
+static PyObject * encoder_dumps   (PyObject *self, PyObject *args, PyObject *kwargs);
+static PyObject * encoder_dumpb   (PyObject *self, PyObject *args, PyObject *kwargs);
 static PyObject * encoder_default (PyObject *self, PyObject *args);
 
 /* serves as __init__; only needed to support the encode_hook() functionality */
 static int _encoder_init (PyEncoderObject *self, PyObject *args, PyObject *kwds);
 
 static PyMethodDef EncodeMethods[] = {
-    {"dumps",   encoder_dumps,   METH_VARARGS, "JSON-encode a Python object to a Python string."},
-    {"dumpb",   encoder_dumpb,   METH_VARARGS, "JSON-encode a Python object to a Python bytes() array."},
-    {"default", encoder_default, METH_VARARGS, "Encodes an object to a dumpable object or throws a TypeError"},
+    {"dumps", (PyCFunction)encoder_dumps, METH_VARARGS | METH_KEYWORDS,
+            "JSON-encode a Python object to a Python string."},
+
+    {"dumpb", (PyCFunction)encoder_dumpb, METH_VARARGS | METH_KEYWORDS,
+            "JSON-encode a Python object to a Python bytes() array."},
+
+    {"default", encoder_default, METH_VARARGS,
+            "Encodes an object to a dumpable object or throws a TypeError"},
+
     {NULL, NULL, 0, NULL}
 };
 
@@ -153,12 +159,14 @@ static void encode (PyObject *obj, EncodedData * encodedData);
  * For details see encode() function.
  */
 static PyObject *
-encoder_dumps (PyObject *self, PyObject *args)
+encoder_dumps (PyObject *self, PyObject *args, PyObject *kwargs)
 {
     long max_recursion_depth = 100;
     PyObject *obj;
 
-    if (!PyArg_ParseTuple(args, "O|l", &obj, &max_recursion_depth))
+    static char *kwlist[] = {"obj", "max_nested_level", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|l", kwlist,
+                                     &obj, &max_recursion_depth))
         return NULL;
 
     EncodedData output;
@@ -191,12 +199,14 @@ encoder_dumps (PyObject *self, PyObject *args)
  * For details see encode() function.
  */
 static PyObject *
-encoder_dumpb (PyObject *self, PyObject *args)
+encoder_dumpb (PyObject *self, PyObject *args, PyObject *kwargs)
 {
     long max_recursion_depth = 100;
     PyObject *obj;
 
-    if (!PyArg_ParseTuple(args, "O|l", &obj, &max_recursion_depth))
+    static char *kwlist[] = {"obj", "max_nested_level", NULL};
+    if (!PyArg_ParseTupleAndKeywords(args, kwargs, "O|l", kwlist,
+                                     &obj, &max_recursion_depth))
         return NULL;
 
     EncodedData output;

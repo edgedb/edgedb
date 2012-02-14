@@ -119,11 +119,11 @@ class _BaseJsonEncoderTest:
 
         # test max recursion level checks
         with assert_raises(ValueError, error_re='Exceeded maximum allowed recursion level'):
-            self.dumps([[[1,2],3],4],1)
+            self.dumps([[[1,2],3],4], max_nested_level=1)
         with assert_raises(ValueError, error_re='Exceeded maximum allowed recursion level'):
-            self.dumps([[[1,2],3],4],2)
+            self.dumps([[[1,2],3],4], max_nested_level=2)
         # this should work
-        assert(self.dumps([[[1,2],3],4],3) == '[[[1,2],3],4]')
+        assert(self.dumps([[[1,2],3],4], max_nested_level=3) == '[[[1,2],3],4]')
         # create infinite recursion
         a=[1]
         a[0]=a
