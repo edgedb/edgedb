@@ -243,6 +243,8 @@ static int _encoder_init (PyEncoderObject *self, PyObject *args, PyObject *kwds)
         self->use_hook = true;
     else
         self->use_hook = false;
+
+    return 0;
 }
 
 /*===========================================================================

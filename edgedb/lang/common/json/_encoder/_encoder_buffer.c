@@ -42,7 +42,7 @@ static bool _encoder_buffer_allocate (EncodedData * data, Py_ssize_t size)
 static bool _encoder_buffer_grow (EncodedData * data, Py_ssize_t new_size)
 // current data is saved (if present)
 {
-    if (new_size <= data->buffer_size) return;
+    if (new_size <= data->buffer_size) return true;
 
     BUFFERTYPE * old_buffer      = data->buffer;
     Py_ssize_t   old_buffer_size = data->buffer_size;
@@ -60,7 +60,7 @@ static bool _encoder_buffer_grow (EncodedData * data, Py_ssize_t new_size)
     return true;
 }
 
-static bool encoder_data_destruct (EncodedData * data)
+static void encoder_data_destruct (EncodedData * data)
 {
     free(data->buffer);
 }
