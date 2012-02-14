@@ -35,7 +35,7 @@ class Encoder(JsonEncoder):
 
         self.fields_map = {}
 
-    def default(self, obj):
+    def encode_hook(self, obj):
         if isinstance(obj, Markup):
             cls = obj.__class__
             cls_name = cls._markup_name
@@ -48,37 +48,26 @@ class Encoder(JsonEncoder):
                     if parent is not Markup and issubclass(parent, Markup):
                         mro.append(parent._markup_name)
 
-                desc = self.fields_map[cls_name] = (len(self.fields_map),
-                                                    mro,
-                                                    tuple(cls.get_fields().keys()))
-                cls_id, mro, fields = desc
+                cls_id = len(self.fields_map)
+                desc = self.fields_map[cls_name] = (cls_id, mro, tuple(cls.get_fields().keys()))
+                fields = desc[2]
 
             result = [0, cls_id]
-
-            for field_name in fields:
-                field = getattr(obj, field_name)
-
-                if isinstance(field, TypedList):
-                    to_append = None
-
-                    if len(field):
-                        to_append = list(field)
-                        to_append.insert(0, 1)
-
-                    result.append(to_append)
-
-                else:
-                    result.append(field)
-
+            for field in fields:
+                result.append(getattr(obj, field))
             return result
 
+        elif isinstance(obj, TypedList):
+            if len(obj):
+                obj = list(obj)
+                obj.insert(0, 1)
+            else:
+                obj = None
+
         elif isinstance(obj, TypedDict):
-            if not len(obj):
-                return None
+            obj = dict(obj)
 
-            return dict(obj)
-
-        return super().default(obj)
+        return obj
 
     def dumps(self, markup, as_bytes):
         try:
