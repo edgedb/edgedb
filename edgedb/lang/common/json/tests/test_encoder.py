@@ -134,7 +134,7 @@ class _BaseJsonEncoderTest:
         with assert_raises(TypeError, error_re='not JSON serializable'):
             self.encoder_test(bytes([1,2,3]), None)
 
-        # by design type "bytearra" is not serializable and should raise a TypeError
+        # by design type "bytearray" is not serializable and should raise a TypeError
         with assert_raises(TypeError, error_re='not JSON serializable'):
             self.encoder_test(bytearray([1,2,3]), '[1,2,3]', False, False)
 

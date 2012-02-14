@@ -45,7 +45,7 @@ class Encoder:
        Supports a special encoder class method `encode_hook(obj)` which, if present, is applied to
        the input object and the rest of the processing is applied to the output of encode_hook().
        Note: encode_hook() should always return an object; for objects which should not be
-       specially encoded encode_hook() shold return the original object.
+       specially encoded encode_hook() should return the original object.
 
        Supports custom encoders by using objects' ``__sx_serialize__()``
        method, if available. It is guaranteed that for all non-native types __sx_serialize__
@@ -53,43 +53,43 @@ class Encoder:
        of __sx_serialize__ is in turn encoded as any other object (and may in turn have
        an __sx_serialize__ method or not be supported).
 
-       Natively suports strings, integers, floats, True, False, None, lists, tuples,
+       Natively supports strings, integers, floats, True, False, None, lists, tuples,
        dicts, sets, frozensets, collections.OrderedDicts, colections.Set,
        collections.Sequence [#f3]_, collections.Mapping, uuid.UUIDs [#f4]_, decimal.Decimals,
        datetime.datetime and objects derived form all listed objects.
 
        For all objects which could not be encoded in any other way an
-       attempt is made to convert an object to an encodable one using ``self.default(obj)``
-       method (which can be overwritte in derived classes). If self.default succeeds,
+       attempt is made to convert an object to an encodeable one using ``self.default(obj)``
+       method (which can be overwrite in derived classes). If self.default succeeds,
        the output is again encoded as any other object.
 
 
        Exceptions raised:
 
-       * Both dumps() and dumpb() raise a TypeError for unsupported objects and
+       * Both ``dumps()`` and ``dumpb()`` raise a TypeError for unsupported objects and
          for all dictionary keys which are not strings (or UUIDs [#f5]_) and
-         which are not represenatable as strings (or UUIDs) by their __sx_serialize__ method.
+         which are not representable as strings (or UUIDs) by their __sx_serialize__ method.
 
-       * default() raises a TypeError for all unsupported objects, and overwritten default()
+       * ``default()`` raises a TypeError for all unsupported objects, and overwritten ``default()``
          is also expected to raise a TypeError for all objects it does not support.
 
-       * When encoding integers, dumps() and dumpb() raise a ValueError if integer
-         value is greater than the maximum integer value supported by JavaScript (9007199254740992,
-         see http://ecma262-5.com/ELS5_HTML.htm#Section_8.5).
+       * When encoding integers, ``dumps()`` and ``dumpb()`` raise a ValueError if integer
+         value is greater than the maximum integer value supported by JavaScript
+         (``9007199254740992``, see http://ecma262-5.com/ELS5_HTML.htm#Section_8.5).
 
        * When encoding a nested object a ValueError is raised when going deeper than
-         the allowed nesting level (100 by defaul, can be overwritten by passing the
-         desired value as the second argument to dumps() and dumpb() methods)
+         the allowed nesting level (100 by default, can be overwritten by passing the
+         desired value as the second argument to ``dumps()`` and ``dumpb()`` methods)
 
 
        .. [#f1] All characters required to be escaped by the JSON spec @ http://json.org are escaped
        .. [#f2] If present, encode_hook() is applied before and independently of all other encoders
-       .. [#f3] To avoid errors in the semantix framework bytes(), bytearray() and derived
+       .. [#f3] To avoid errors in the semantix framework ``bytes()``, ``bytearray()`` and derived
                 classes are deliberately not encoded using the built-in sequence encoder;
                 the only way to encode these objects is to either overwrite the encoders' default()
                 method or to provide __sx_serialize__ method in the object being serialized.
        .. [#f4] UUIDs and Decimals are encoded as strings.
-       .. [#f5] JSON specification only suports string dictionary keys; since UUIDs
+       .. [#f5] JSON specification only supports string dictionary keys; since UUIDs
                 are also encoded to strings and are a common key in the semantix framework,
                 this encoder also supports UUIDs as dictionary keys.
     """
@@ -116,7 +116,7 @@ class Encoder:
         """In this implementation always raises a TypeError.
 
            In order to support new object types can be overwritten to return an
-           object natively suported by the encoder (see class description for
+           object natively supported by the encoder (see class description for
            the list of supported objects).
 
            Example::
@@ -337,7 +337,7 @@ class Encoder:
     def dumps(self, obj, *, max_nested_level=100):
         """Returns a string representing a JSON-encoding of ``obj``.
 
-           The second optional 'max_nested_level' argument controls the maximum
+           The second optional ``max_nested_level`` argument controls the maximum
            allowed recursion/nesting level.
 
            See class description for details.
