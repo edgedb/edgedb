@@ -6,6 +6,7 @@
 ##
 
 
+import types
 from re import compile as re_compile
 from numbers import Number
 from decimal import Decimal
@@ -95,18 +96,21 @@ class Encoder:
 
     _nested_level     = 0            # current recursion level
     _max_nested_level = 100          # max allowed level
-    _use_hook_        = False
+    _use_hook        = False
 
     def __init__(self):
-        if hasattr(self, "encode_hook"):
-            self._use_hook_ = True
+        # If 'Encoder.encode_hook' wasn't overridden then don't call it.
+        #
+        func = self.encode_hook
+        if isinstance(func, types.MethodType):
+            func = func.__func__
+        self._use_hook = func is not Encoder.encode_hook
 
-    # sample encode_hook:
-    #
-    # def encode_hook(self, obj):
-    #     if (isinstance(obj, MyClass):
-    #         return special_processing(obj)
-    #     return obj
+    def encode_hook(self, obj):
+        """Override this method to hook in the encoding process.  Should either
+        return a modified/coerced or the same ``obj`` argument.
+        """
+        return obj
 
     def default(self, obj):
         """In this implementation always raises a TypeError.
@@ -261,7 +265,7 @@ class Encoder:
         Accepts objects of any type, calls the appropriate type-specific encoder.
         """
 
-        if self._use_hook_:
+        if self._use_hook:
             obj = self.encode_hook(obj)
 
         # first try simple strict checks
