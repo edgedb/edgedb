@@ -6,13 +6,12 @@
 ##
 
 
+import collections
 import errno
 import imp
-import importlib.util
 import os
 import pickle
 import struct
-import types
 import sys
 
 from . import module as module_types
@@ -99,6 +98,17 @@ class LoaderCommon:
             _module.__dict__.update(module.__dict__)
             del _module.__sx_moduleclass__
             module = _module
+
+        try:
+            finalize_load = module.__sx_finalize_load__
+        except AttributeError:
+            pass
+        else:
+            if isinstance(finalize_load, collections.Callable):
+                try:
+                    finalize_load()
+                except NotImplementedError:
+                    pass
 
         module.__loaded__ = True
 
