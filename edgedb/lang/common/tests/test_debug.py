@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.debug import assert_raises, ErrorExpected
+from semantix.utils.debug import assert_raises, ErrorExpected, less_than, more_than
 
 
 class TestAssertRaises:
@@ -84,3 +84,26 @@ class TestAssertRaises:
                 ex = Ex()
                 ex.foo = 'foo'
                 raise ex
+
+    def test_utils_debug_less_than(self):
+        import time
+
+        with assert_raises(AssertionError, error_re='block was expected'):
+            with less_than(0.1):
+                time.sleep(0.2)
+
+        with less_than(0.01):
+            1 + 2
+
+        with less_than(1):
+            1 + 2
+
+    def test_utils_debug_more_than(self):
+        import time
+
+        with more_than(0.1):
+            time.sleep(0.2)
+
+        with assert_raises(AssertionError, error_re='block was expected'):
+            with more_than(0.01):
+                1 + 2

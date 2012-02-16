@@ -11,6 +11,7 @@ import re
 import ast
 import contextlib
 import cProfile
+import time
 
 from semantix import bootstrap
 from semantix.utils.functional import decorate
@@ -270,6 +271,54 @@ def assert_raises(exception_cls, *, cause=None, error_re=None, attrs=None):
         raise ErrorExpected('%s was expected to be raised' % exception_cls.__name__)
 
 
+@contextlib.contextmanager
+def less_than(timeout):
+    '''Context manager, that ensures that the wrapped block of code will
+    execute in less period of time than the specified.
+
+    .. code-block:: pycon
+
+        >>> with less_than(0.1):
+        ...     import time
+        ...     time.sleep(0.2)
+        AssertionError ...
+    '''
+
+    timeout = float(timeout)
+    start = time.time()
+    try:
+        yield
+    finally:
+        total = time.time() - start
+        if total > timeout:
+            raise AssertionError('block was expected to execute within {:.4} seconds, ' \
+                                 'but took {:.4}'.format(timeout, total))
+
+
+@contextlib.contextmanager
+def more_than(timeout):
+    '''Context manager, that ensures that the wrapped block of code will
+    execute longer than the specified period of time.
+
+    .. code-block:: pycon
+
+        >>> with more_than(0.1):
+        ...     import time
+        ...     time.sleep(0.01)
+        AssertionError ...
+    '''
+
+    timeout = float(timeout)
+    start = time.time()
+    try:
+        yield
+    finally:
+        total = time.time() - start
+        if total < timeout:
+            raise AssertionError('block was expected to execute longer than {:.4} seconds, ' \
+                                 'but took {:.4}'.format(timeout, total))
+
+
 def timeit(target):
     """
     Utility function to simplify writing performance benchmarks.
@@ -302,8 +351,6 @@ def timeit(target):
         >>> list = test(10**5)
         <function test at 0x71f978>, in 0.098 seconds
     """
-
-    import time
 
     class Timer:
         def __init__(self, message):
