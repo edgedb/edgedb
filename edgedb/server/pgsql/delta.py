@@ -33,7 +33,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 4
+BACKEND_FORMAT_VERSION = 5
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -2692,6 +2692,111 @@ class UpgradeBackend(MetaCommand):
         cmd.add_operation(add_column)
 
         cmd.execute(context)
+
+    def update_to_version_5(self, context):
+        """\
+        Backend format 5 adds imports attribute to module description table.  It also changes
+        specialized pointer name format.
+        """
+        op = CommandGroup()
+
+        cond = ColumnExists(table_name=('caos', 'module'), column_name='imports')
+        cmd = AlterTable(('caos', 'module'), neg_conditions=(cond,))
+        column = Column(name='imports', type='varchar[]', required=False)
+        add_column = AlterTableAddColumn(column)
+        cmd.add_operation(add_column)
+
+        op.add_command(cmd)
+
+        from semantix.caos.backends.yaml import schemas as caos_schemas
+        from semantix.utils.lang import protoschema
+        schema = protoschema.get_loaded_proto_schema(caos_schemas.CaosSchemaModule)
+
+        modtab = ModuleTable()
+
+        for module in schema.iter_modules():
+            module = schema.get_module(module)
+
+            rec = modtab.record()
+            rec.imports = module.imports
+            condition = [('name', module.name)]
+            op.add_command(Update(table=modtab, record=rec, condition=condition))
+
+        update_schedule = [
+            (
+                LinkTable(),
+                """
+                    SELECT
+                        l.name AS ptr_name,
+                        l.base AS ptr_bases,
+                        s.name AS source_name,
+                        t.name AS target_name
+                    FROM
+                        caos.link l
+                        INNER JOIN caos.concept s ON (l.source_id = s.id)
+                        INNER JOIN caos.metaobject t ON (l.target_id = t.id)
+                """
+            ),
+            (
+                LinkPropertyTable(),
+                """
+                    SELECT
+                        l.name AS ptr_name,
+                        l.base AS ptr_bases,
+                        s.name AS source_name,
+                        t.name AS target_name
+                    FROM
+                        caos.link_property l
+                        INNER JOIN caos.link s ON (l.source_id = s.id)
+                        INNER JOIN caos.metaobject t ON (l.target_id = t.id)
+                """
+            ),
+            (
+                ComputableTable(),
+                """
+                    SELECT
+                        l.name AS ptr_name,
+                        s.name AS source_name,
+                        t.name AS target_name
+                    FROM
+                        caos.computable l
+                        INNER JOIN caos.metaobject s ON (l.source_id = s.id)
+                        INNER JOIN caos.metaobject t ON (l.target_id = t.id)
+                """
+            )
+        ];
+
+        updates = CommandGroup()
+
+        for table, query in update_schedule:
+            ps = context.db.prepare(query)
+
+            for row in ps.rows():
+                hash_ = None
+
+                try:
+                    base = row['ptr_bases'][0]
+                except KeyError:
+                    base, _, hash_ = row['ptr_name'].rpartition('_')
+                    hash_ = int(hash_, 16)
+
+                source = row['source_name']
+                target = row['target_name']
+
+                if hash_ is not None:
+                    new_name = caos.types.ProtoPointer._generate_specialized_name(hash_, base)
+                else:
+                    new_name = caos.types.ProtoPointer.generate_specialized_name(source, target,
+                                                                                 base)
+                new_name = caos.name.Name(name=new_name, module=caos.name.Name(source).module)
+
+                rec = table.record()
+                rec.name = new_name
+                condition = [('name', row['ptr_name'])]
+                updates.add_command(Update(table=table, record=rec, condition=condition))
+
+        op.add_command(updates)
+        op.execute(context)
 
     @classmethod
     def update_backend_info(cls):
