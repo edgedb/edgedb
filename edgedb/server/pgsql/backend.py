@@ -2279,7 +2279,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         name = caos.Name(tables[0]['comment'])
 
-        concept = proto.Concept(name=name, is_virtual=True, is_abstract=True)
+        concept_meta = datasources.meta.concepts.ConceptList(self.connection).fetch(name=name)
+
+        concept = proto.Concept(name=name, is_virtual=True, is_abstract=True,
+                                automatic=concept_meta[0]['automatic'])
+
         concept.materialize(meta)
 
         columns = self.get_table_columns(table_name)
@@ -2352,7 +2356,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def provide_virtual_concept_table(self, concept, schema, session):
         table_name = common.concept_name_to_table_name(concept.name, catenate=False)
 
-        my_schema = self.meta
+        my_schema = self.getmeta()
         stored_concept = self.virtual_concept_from_table(my_schema, table_name)
 
         updated_concept = concept.copy()
@@ -2376,6 +2380,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                 ptr.required = False
                 ptr.readonly = False
+                ptr.search = None
+                ptr.title = None
+                ptr.description = None
 
                 updated_concept.add_pointer(ptr)
 
@@ -2390,7 +2397,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 schema.delete(updated_concept)
 
         for c in updated_concept.children():
-            if updated_concept.name not in c.base:
+            c_table_name = common.concept_name_to_table_name(c.name, catenate=False)
+
+            bases = self.pg_table_inheritance(c_table_name[1], c_table_name[0])
+            if table_name not in bases:
                 alter = base_delta.AlterConcept(prototype_name=c.name,
                                                 prototype_class=c.__class__.get_canonical_class())
                 prop = base_delta.AlterPrototypeProperty(property='base', old_value=c.base,
@@ -2607,17 +2617,19 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         connection.execute(query)
 
 
-    def pg_table_inheritance_to_bases(self, table_name, schema_name, table_to_concept_map):
+    def pg_table_inheritance(self, table_name, schema_name):
         inheritance = introspection.tables.TableInheritance(self.connection)
         inheritance = inheritance.fetch(table_name=table_name, schema_name=schema_name, max_depth=1)
-        inheritance = [i[:2] for i in inheritance[1:]]
+        return tuple(i[:2] for i in inheritance[1:])
 
+
+    def pg_table_inheritance_to_bases(self, table_name, schema_name, table_to_concept_map):
         bases = []
-        if len(inheritance) > 0:
-            for table in inheritance:
-                base = table_to_concept_map[table[:2]]
-                if not base['automatic']:
-                    bases.append(base['name'])
+
+        for table in self.pg_table_inheritance(table_name, schema_name):
+            base = table_to_concept_map[table[:2]]
+            if not base['automatic']:
+                bases.append(base['name'])
 
         return tuple(bases)
 
