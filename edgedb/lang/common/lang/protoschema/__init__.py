@@ -455,26 +455,6 @@ class ProtoModule:
     def __call__(self, type=None):
         return ProtoSchemaIterator(self, type)
 
-
-    def resolve_module(self, module, module_aliases):
-        if module_aliases:
-            if module:
-                parts = str(module).split('.')
-                aliased = module_aliases.get(parts[0])
-
-                if aliased and len(parts) > 1:
-                    aliased += '.' + '.'.join(parts[1:])
-            else:
-                aliased = module_aliases.get(module)
-
-            if aliased:
-                module = aliased
-            else:
-                module = self.modules.get(module)
-        else:
-            module = self.modules.get(module)
-        return module
-
     def get_namespace(self, obj, name=None):
         if obj is None:
             ns = None
@@ -622,6 +602,20 @@ class ProtoSchema:
             module = self.modules[module_name]
             module.reorder(module_order)
 
+    def module_name_by_alias(self, module, module_aliases):
+        aliased = None
+
+        if module:
+            parts = str(module).split('.')
+            aliased = module_aliases.get(parts[0])
+
+            if aliased and len(parts) > 1:
+                aliased += '.' + '.'.join(parts[1:])
+        else:
+            aliased = module_aliases.get(module)
+
+        return aliased
+
     def get(self, name, default=default_err, module_aliases=None, type=None,
                   include_pyobjects=False, index_only=True, implicit_builtins=True,
                   nsname=None):
@@ -631,10 +625,10 @@ class ProtoSchema:
         fq_module = None
 
         if module_aliases is not None:
-            fq_module = module_aliases.get(module)
+            fq_module = self.module_name_by_alias(module, module_aliases)
 
         if fq_module is None:
-            fq_module = self.module_aliases.get(module)
+            fq_module = self.module_name_by_alias(module, self.module_aliases)
 
         if fq_module is not None:
             module = fq_module
