@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 ##
-# Copyright (c) 2010 Sprymix Inc.
+# Copyright (c) 2010-2011 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
