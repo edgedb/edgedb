@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2010, 2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -12,6 +12,7 @@ import ast
 import contextlib
 import cProfile
 
+from semantix import bootstrap
 from semantix.utils.functional import decorate
 from semantix.exceptions import MultiError
 
@@ -19,7 +20,6 @@ from semantix.exceptions import MultiError
 """A collection of useful debugging routines"""
 
 
-enabled = __debug__
 channels = set()
 
 class DebugDecoratorParseError(Exception): pass
@@ -49,6 +49,7 @@ def _indent_code(source, absolute=None, relative=None):
 
     return source
 
+
 def _set_location(node, lineno):
     if 'lineno' in node._attributes:
         node.lineno = lineno
@@ -57,11 +58,13 @@ def _set_location(node, lineno):
         _set_location(c, lineno)
     return node
 
-class debug(object):
+
+class debug:
+    enabled = bootstrap.debug_enabled
     active = False
 
     def __new__(cls, func):
-        if cls.active or not enabled:
+        if cls.active or not cls.enabled:
             return func
 
         cls.active = True
