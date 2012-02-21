@@ -1388,8 +1388,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 if not isinstance(link, proto.Computable) and link.source.name == concept.name:
                     if not isinstance(link.target, proto.Prototype):
                         link.target = localschema.get(link.target, index_only=False)
-                        if isinstance(link.target, caos.types.ProtoConcept):
-                            link.target.add_rlink(link)
 
                     if isinstance(link.target, proto.Atom):
                         link.is_atom = True

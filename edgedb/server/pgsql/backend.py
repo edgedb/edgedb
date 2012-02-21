@@ -2080,9 +2080,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             if source:
                 source.add_pointer(link)
-                if isinstance(target, caos.types.ProtoConcept) \
-                        and source.name.module != 'semantix.caos.builtins':
-                    target.add_rlink(link)
 
             meta.add(link)
 
