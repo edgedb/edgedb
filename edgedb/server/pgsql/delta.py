@@ -2503,7 +2503,7 @@ class DeleteModule(CompositePrototypeMetaCommand, adapts=delta_cmds.DeleteModule
 
         cmd = CommandGroup()
         cmd.add_command(DropSchema(name=schema_name, neg_conditions={condition}))
-        cmd.add(Delete(table=ModuleTable(), condition=[('name', str(module.name))]))
+        cmd.add_command(Delete(table=ModuleTable(), condition=[('name', str(module.name))]))
 
         self.pgops.add(cmd)
 
