@@ -7,7 +7,7 @@
 
 
 from semantix.utils.lang import yaml
-from semantix.utils.datastructures import StructMeta
+from semantix.utils.datastructures import StructMeta, MixedStructMeta
 
 
 class StructMeta(StructMeta):
@@ -95,3 +95,7 @@ class StructMeta(StructMeta):
             else:
                 value = field.adapt(value)
         return value
+
+
+class MixedStructMeta(MixedStructMeta, StructMeta):
+    pass

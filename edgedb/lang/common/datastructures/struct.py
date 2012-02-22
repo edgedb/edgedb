@@ -50,7 +50,7 @@ class Field:
 
 
 class StructMeta(type):
-    def __new__(mcls, name, bases, clsdict, *, use_slots=None):
+    def __new__(mcls, name, bases, clsdict, *, use_slots=True):
         fields = {}
         myfields = {k: v for k, v in clsdict.items() if isinstance(v, Field)}
 
@@ -99,7 +99,8 @@ class Struct(metaclass=StructMeta):
     Each struct has a collection of ``Field`` objects, which should be defined as class
     attributes of the ``Struct`` subclass.  Unlike ``collections.namedtuple``, ``Struct`` is
     much easier to mix in and define.  Furthermore, fields are strictly typed and can be
-    declared as required.
+    declared as required.  By default, Struct will reject attributes, which have not been
+    declared as fields.  A ``MixedStruct`` subclass does have this restriction.
 
     .. code-block:: pycon
 
@@ -146,6 +147,7 @@ class Struct(metaclass=StructMeta):
         :raises: TypeError if invalid field value was provided or a value was not provided
                  for a field without a default value and `_relaxrequired_` is False.
         """
+        self._check_init_argnames(kwargs)
         self._init_fields(_setdefaults_, _relaxrequired_, kwargs)
 
     def update(self, *args, **kwargs):
@@ -153,6 +155,8 @@ class Struct(metaclass=StructMeta):
 
         values = {}
         values.update(values, *args, **kwargs)
+
+        self._check_init_argnames(values)
 
         for k, v in values.items():
             setattr(self, k, v)
@@ -215,6 +219,15 @@ class Struct(metaclass=StructMeta):
                 value = self._check_field_type(field, name, value)
             super().__setattr__(name, value)
 
+    def _check_init_argnames(self, args):
+        extra = set(args) - set(self.__class__._fields)
+        if extra:
+            fmt = '{} {} invalid argument{} for struct {}.{}'
+            plural = len(extra) > 1
+            msg = fmt.format(', '.join(extra), 'are' if plural else 'is an', 's' if plural else '',
+                             self.__class__.__module__, self.__class__.__name__)
+            raise TypeError(msg)
+
     def _check_field_type(self, field, name, value):
         if field.type and value is not None and not isinstance(value, field.type):
             if field.coerce:
@@ -246,3 +259,13 @@ class Struct(metaclass=StructMeta):
         else:
             value = field.default
         return value
+
+
+class MixedStructMeta(StructMeta):
+    def __new__(mcls, name, bases, clsdict, *, use_slots=False):
+        return super().__new__(mcls, name, bases, clsdict, use_slots=use_slots)
+
+
+class MixedStruct(Struct, metaclass=MixedStructMeta):
+    def _check_init_argnames(self, args):
+        pass

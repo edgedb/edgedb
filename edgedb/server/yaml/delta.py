@@ -10,10 +10,10 @@ from semantix import caos
 from semantix.caos import delta, proto
 from semantix.utils import datastructures, helper
 from semantix.utils.lang import yaml
-from semantix.utils.lang.yaml.struct import StructMeta
+from semantix.utils.lang.yaml.struct import MixedStructMeta
 
 
-class DeltaMeta(type(yaml.Object), delta.DeltaMeta, StructMeta):
+class DeltaMeta(type(yaml.Object), delta.DeltaMeta, MixedStructMeta):
     pass
 
 
@@ -28,11 +28,11 @@ class Delta(yaml.Object, adapts=delta.Delta, metaclass=DeltaMeta):
                 else:
                     fields[f] = v
 
-        datastructures.Struct.__init__(self, **fields)
+        datastructures.MixedStruct.__init__(self, **fields)
 
     @classmethod
     def __sx_getstate__(cls, data):
-        result = StructMeta.__sx_getstate__(cls, data)
+        result = MixedStructMeta.__sx_getstate__(cls, data)
 
         result['id'] = '%x' % result['id']
         if result['parent_id']:
@@ -44,7 +44,7 @@ class Delta(yaml.Object, adapts=delta.Delta, metaclass=DeltaMeta):
     """
     @classmethod
     def get_yaml_validator_config(cls):
-        config = StructMeta.get_yaml_validator_config(cls)
+        config = MixedStructMeta.get_yaml_validator_config(cls)
 
         for f in ('id', 'parent_id', 'checksum'):
             config[f]['type'] = 'str'
@@ -65,13 +65,13 @@ class DeltaSet(yaml.Object, adapts=delta.DeltaSet):
         return {d.id: d for d in data.deltas}
 
 
-class CommandMeta(type(yaml.Object), type(delta.Command), StructMeta):
+class CommandMeta(type(yaml.Object), type(delta.Command), MixedStructMeta):
     pass
 
 
 class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
     def adapt_value(self, field, value):
-        return StructMeta.adapt_value(field, value)
+        return MixedStructMeta.adapt_value(field, value)
 
     @classmethod
     def __sx_getstate__(cls, data):

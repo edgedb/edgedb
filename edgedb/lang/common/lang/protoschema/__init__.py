@@ -20,7 +20,7 @@ from semantix.utils import lang
 from semantix.utils.datastructures import OrderedSet, ExtendedSet
 from semantix.utils import abc
 from semantix.utils.functional import hybridmethod
-from semantix.utils.datastructures.struct import Struct, StructMeta, Field
+from semantix.utils.datastructures.struct import MixedStruct, MixedStructMeta, Field
 from semantix.utils.datastructures import Void
 from semantix.utils import helper
 
@@ -169,11 +169,11 @@ class ProtoObject(metaclass=PrototypeClass):
             return isinstance(obj, ProtoObject)
 
 
-class PrototypeMeta(PrototypeClass, StructMeta):
+class PrototypeMeta(PrototypeClass, MixedStructMeta):
     pass
 
 
-class Prototype(Struct, ProtoObject, metaclass=PrototypeMeta):
+class Prototype(MixedStruct, ProtoObject, metaclass=PrototypeMeta):
     pass
 
 

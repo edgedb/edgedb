@@ -19,7 +19,7 @@ from semantix.utils.lang import context as lang_context
 from semantix.utils.lang import yaml
 from semantix.utils.lang import protoschema as lang_protoschema
 from semantix.utils.lang.yaml import protoschema as yaml_protoschema
-from semantix.utils.lang.yaml.struct import StructMeta
+from semantix.utils.lang.yaml.struct import MixedStructMeta
 from semantix.utils.nlang import morphology
 from semantix.utils.algos.persistent_hash import persistent_hash
 from semantix.utils.algos import topological
@@ -152,7 +152,7 @@ class LinkSearchWeight(StrLangObject, adapts=caos.types.LinkSearchWeight, ignore
         return str(data)
 
 
-class PrototypeMeta(LangObjectMeta, StructMeta):
+class PrototypeMeta(LangObjectMeta, MixedStructMeta):
     pass
 
 

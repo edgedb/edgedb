@@ -8,7 +8,7 @@
 
 import pickle
 
-from semantix.utils.datastructures.struct import Struct, Field
+from semantix.utils.datastructures.struct import Struct, MixedStruct, Field
 from semantix.utils.debug import assert_raises
 
 
@@ -16,7 +16,7 @@ class PickleTest(Struct):
     a = Field(str, default='42')
     b = Field(int)
 
-class PickleTestSlots(Struct, use_slots=True):
+class PickleTestMixed(MixedStruct):
     a = Field(str, default='42')
     b = Field(int)
 
@@ -36,8 +36,6 @@ class TestUtilsDSStruct:
 
         assert set(t) == {'field1', 'field2'}
 
-        Test(foo='bar', field2=True)
-
     def test_utils_ds_struct_coercion(self):
         class Test(Struct):
             field = Field(type=int, coerce=True)
@@ -53,8 +51,8 @@ class TestUtilsDSStruct:
         with assert_raises(TypeError, error_re='expected int'):
             Test(field='42')
 
-    def test_utils_ds_struct_slots(self):
-        class Test(Struct, use_slots=True):
+    def test_utils_ds_struct_strictness(self):
+        class Test(Struct):
             field = Field(str, None)
 
         assert Test.__slots__ == ('field',)
@@ -76,13 +74,32 @@ class TestUtilsDSStruct:
         with assert_raises(AttributeError, error_re='has no attribute'):
             t.foo = 'bar'
 
+        with assert_raises(TypeError, error_re='field3 is an invalid argument'):
+            DTest(field='1', field2=2, field3='aaa')
+
+        t = DTest()
+
+        with assert_raises(TypeError, error_re='field3 is an invalid argument'):
+            t.update(field='1', field2=2, field3='aaa')
+
+    def test_utils_ds_struct_mixed(self):
+        class Test(MixedStruct):
+            field1 = Field(type=str, default='42')
+            field2 = Field(type=bool)
+
+        t1 = Test(field1='field1', field2=True, spam='ham')
+        t1.update(ham='spam')
+
+        t1.monty = 'python'
+        assert t1.monty == 'python'
+
     def test_utils_ds_struct_pickle(self):
         s1 = PickleTest(b=41)
         s2 = pickle.loads(pickle.dumps(s1))
         assert s2.b == 41 and s2.a == '42'
         assert s2.__class__.__name__ == 'PickleTest'
 
-        s1 = PickleTestSlots(b=41)
+        s1 = PickleTestMixed(b=41)
         s2 = pickle.loads(pickle.dumps(s1))
         assert s2.b == 41 and s2.a == '42'
-        assert s2.__class__.__name__ == 'PickleTestSlots'
+        assert s2.__class__.__name__ == 'PickleTestMixed'
