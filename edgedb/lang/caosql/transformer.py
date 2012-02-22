@@ -654,9 +654,14 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 newtips = {}
                 sources = set()
 
+                linkname = (link_expr.namespace, link_expr.name)
+
                 for concept, tip in tips.items():
-                    linkname = (link_expr.namespace, link_expr.name)
-                    ptr_resolution = self._resolve_ptr(context, concept, linkname, direction)
+                    try:
+                        ptr_resolution = self._resolve_ptr(context, concept, linkname, direction)
+                    except errors.CaosQLReferenceError:
+                        continue
+
                     sources, outbound, inbound = ptr_resolution
 
                     seen_concepts = seen_atoms = False
@@ -776,7 +781,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                     assert False, 'unexpected link target type: %s' % target
 
                 if not newtips:
-                    raise errors.CaosQLReferenceError
+                    source_name = ','.join(concept.name for concept in tips)
+                    ptr_fqname = '.'.join(filter(None, linkname))
+                    raise errors.CaosQLReferenceError('could not resolve "{}"."{}" pointer'\
+                                                      .format(source_name, ptr_fqname))
 
                 if anchor:
                     paths = itertools.chain.from_iterable(newtips.values())
