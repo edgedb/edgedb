@@ -880,17 +880,23 @@ class CaosTreeTransformer(CaosExprTransformer):
                 data_backend = context.current.session.backend
 
                 if isinstance(value, caos_types.ProtoConcept):
-                    children = value.children(recursive=True)
+                    classes = (value,)
+                elif isinstance(value, tuple) and value and \
+                                                    isinstance(value[0], caos_types.ProtoConcept):
+                    classes = value
+                else:
+                    classes = None
 
-                    concept_ids = [data_backend.get_concept_id(value, context.current.session,
-                                                               cache='always')]
+                if classes:
+                    concept_ids = {data_backend.get_concept_id(cls, context.current.session,
+                                                               cache='always') for cls in classes}
+                    for cls in classes:
+                        for c in cls.children(recursive=True):
+                            concept_id = data_backend.get_concept_id(c, context.current.session,
+                                                                     cache='always')
+                            concept_ids.add(concept_id)
 
-                    for c in children:
-                        concept_id = data_backend.get_concept_id(c, context.current.session,
-                                                                 cache='always')
-                        concept_ids.append(concept_id)
-
-                    const_type = common.py_type_to_pg_type(value.__class__)
+                    const_type = common.py_type_to_pg_type(classes[0].__class__)
                     elements = [pgsql.ast.ConstantNode(value=cid) for cid in concept_ids]
                     const_expr = pgsql.ast.SequenceNode(elements=elements)
                     value = None

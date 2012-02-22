@@ -214,6 +214,17 @@ class PreparedQuery:
                 children = proto.children(recursive=True)
                 arg = [self._concept_map[proto.name]]
                 arg.extend(self._concept_map[c.name] for c in children)
+            elif isinstance(arg, tuple) and arg and isinstance(arg[0], caos.types.ConceptClass):
+                ids = set()
+
+                for cls in arg:
+                    proto = caos.types.prototype(cls)
+                    children = proto.children(recursive=True)
+                    ids.add(self._concept_map[proto.name])
+                    ids.update(self._concept_map[c.name] for c in children)
+
+                arg = ids
+
             result.append(arg)
 
         return result

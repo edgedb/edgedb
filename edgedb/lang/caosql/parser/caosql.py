@@ -732,7 +732,7 @@ class InExpr(Nonterm):
 class IsExpr(Nonterm):
     def reduce_LPAREN_FqNodeNameList_RPAREN(self, *kids):
         "%reduce LPAREN FqNodeNameList RPAREN"
-        self.val = kids[1].val
+        self.val = qlast.SequenceNode(elements=kids[1].val)
 
     def reduce_FqNodeName(self, *kids):
         "%reduce FqNodeName"

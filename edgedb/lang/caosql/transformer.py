@@ -503,7 +503,12 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         elif isinstance(expr, qlast.SequenceNode):
             elements=[self._process_expr(context, e) for e in expr.elements]
             node = tree.ast.Sequence(elements=elements)
-            node = self.process_sequence(node)
+            # Squash the sequence if it comes from IS (type,...), since we unconditionally
+            # transform PrototypeRefNodes into list-type constants below.
+            #
+            squash_homogeneous = expr.elements and isinstance(expr.elements[0],
+                                                              qlast.PrototypeRefNode)
+            node = self.process_sequence(node, squash_homogeneous=squash_homogeneous)
 
         elif isinstance(expr, qlast.FunctionCallNode):
             with context():
@@ -525,7 +530,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             node = self.proto_schema.get(name=name, module_aliases=context.current.namespaces,
                                          type=caos_types.ProtoNode)
 
-            node = tree.ast.Constant(value=node, type=(list, node.__class__))
+            node = tree.ast.Constant(value=(node,), type=(list, node.__class__))
 
         elif isinstance(expr, qlast.UnaryOpNode):
             node = self.process_unaryop(self._process_expr(context, expr.operand), expr.op)

@@ -18,7 +18,7 @@ from semantix.caos.tree import ast as caos_ast
 
 from semantix.utils.algos import boolean
 from semantix.utils import datastructures, ast, debug, markup
-from semantix.utils.datastructures import xvalue
+from semantix.utils.datastructures import xvalue, Void
 from semantix.utils.functional import checktypes
 
 from semantix import exceptions
@@ -1610,12 +1610,13 @@ class TreeTransformer:
 
         return node
 
-    def process_sequence(self, seq):
+    def process_sequence(self, seq, squash_homogeneous=False):
         pathdict = {}
         proppathdict = {}
         elems = []
 
         const = True
+        const_type = Void
 
         for elem in seq.elements:
             if isinstance(elem, (caos_ast.BaseRef, caos_ast.Disjunction)):
@@ -1639,13 +1640,40 @@ class TreeTransformer:
                 elems.append(next(iter(elem.paths)))
                 const = False
             elif const and isinstance(elem, caos_ast.Constant):
-                continue
+                if elem.index is None:
+                    if const_type is Void:
+                        const_type = elem.type
+                    elif const_type != elem.type:
+                        const_type = None
             else:
                 # The sequence is not all atoms
                 break
         else:
             if const:
-                return caos_ast.Constant(expr=seq)
+                if const_type in (None, Void) or not squash_homogeneous:
+                    # Non-homogeneous sequence
+                    return caos_ast.Constant(expr=seq)
+                else:
+                    val = []
+
+                    if isinstance(const_type, tuple) and const_type[0] == list:
+                        for elem in seq.elements:
+                            if elem.value is not None:
+                                val.extend(elem.value)
+
+                        val = tuple(val)
+                    else:
+                        val.extend(c.value for c in seq.elements if c.value is not None)
+
+                        if len(val) == 1:
+                            val = val[0]
+                        elif len(val) == 0:
+                            val = None
+                        else:
+                            val = tuple(val)
+                            const_type = (list, const_type)
+
+                    return caos_ast.Constant(value=val, type=const_type)
             else:
                 if len(pathdict) == 1:
                     exprtype = caos_ast.AtomicRefExpr
