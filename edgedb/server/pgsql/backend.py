@@ -935,7 +935,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 src_table = common.get_table_name(caos.types.prototype(source.__class__),
                                                   catenate=False)
                 if source_table == src_table:
-                    pointer = caos.concept.link(getattr(source.__class__, str(pointer_name)))
+                    pointer = getattr(source.__class__, str(pointer_name)).as_link()
                 elif pointer:
                     src_table = common.get_table_name(caos.types.prototype(pointer), catenate=False)
                     if source_table == src_table:
