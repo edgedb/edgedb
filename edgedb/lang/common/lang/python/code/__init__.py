@@ -7,7 +7,11 @@
 
 
 """This package provides utilities to allow creation and modification of
-python code objects on the opcode level"""
+python code objects on the opcode level.
+
+Opcodes are defined in the ``semantix.utils.lang.python.code.opcodes`` module.
+Some information about the opcodes themselves can be found in documentation
+of the standard library module ``dis``."""
 
 
 import dis
@@ -42,6 +46,12 @@ CO_VARKEYWORDS      = 0x0008
 CO_GENERATOR        = 0x0020
 CO_NOFREE           = 0x0040
 
+#: ``co_flags`` we support.
+#: The constant is for the testing purposes.
+#:
+_SUPPORTED_FLAGS    = CO_OPTIMIZED | CO_NEWLOCALS | CO_VARARGS | CO_VARKEYWORDS | \
+                      CO_GENERATOR | CO_NOFREE
+
 
 class Code:
     '''A more convenient to modify representation of python code block.
@@ -59,19 +69,51 @@ class Code:
         def pow2(a):
             return a ** 2
 
+    That's how it looks like down to opcodes (``dis.dis(pow2)``)::
+
+        2           0 LOAD_FAST                0 (a)
+                    3 LOAD_CONST               1 (2)
+                    6 BINARY_POWER
+                    7 RETURN_VALUE
+
+    So, we need to remove the ``RETURN_VALUE`` opcode and insert ``YIELD_VALUE``,
+    followed by ``RETURN_VALUE``, which should return ``None``:
+
+    .. code-block:: python
+
+        # Create an instance of `Code` object from standard
+        # python code object
+        #
         code = Code.from_code(pow2.__code__)
 
-        del code.ops[-1] # Delete the RETURN_VALUE opcode
+        # Delete the RETURN_VALUE opcode
+        #
+        del code.ops[-1]
 
         # And add opcodes necessary to define and correctly
-        # terminate a generator function:
+        # terminate a generator function
         #
         code.ops.extend((opcodes.YIELD_VALUE(),
                          opcodes.POP_TOP(),
                          opcodes.LOAD_CONST(const=None),
                          opcodes.RETURN_VALUE()))
 
+        # Override code object of `pow2` with the new,
+        # augmented one
+        #
         pow2.__code__ = code.to_code()
+
+    Let's look at the updated ``pow2`` opcodes::
+
+        2           0 LOAD_FAST                0 (a)
+                    3 LOAD_CONST               1 (2)
+                    6 BINARY_POWER
+                    7 YIELD_VALUE
+                    8 POP_TOP
+                    9 LOAD_CONST               0 (None)
+                   12 RETURN_VALUE
+
+    And now we can call the patched ``pow2``:
 
     .. code-block:: pycon
 
@@ -83,14 +125,11 @@ class Code:
     '''
 
     __slots__ = 'ops', 'vararg', 'varkwarg', 'newlocals', 'filename', \
-                'firstlineno', 'name', 'args', 'kwonlyargs', 'varnames', \
-                'freevars', 'cellvars', 'docstring'
+                'firstlineno', 'name', 'args', 'kwonlyargs', 'docstring'
 
     def __init__(self, ops=None, *, vararg=None, varkwarg=None, newlocals=False,
                  filename='<string>', firstlineno=0, name='<code>',
-                 args=None, kwonlyargs=None, varnames=None,
-                 freevars=None, cellvars=None,
-                 docstring=None):
+                 args=None, kwonlyargs=None, docstring=None):
 
         '''
         :param ops: List of ``opcode.OpCode`` instances.
@@ -103,6 +142,12 @@ class Code:
         :param string name: Name of the code object.  I.e. for functions it contains the
                             function name.
 
+        :param tuple(string) args: Names of function's arguments. Only for a code object
+                                   of a function.
+
+        :param tuple(string) kwonlyargs: Names of function's arguments. Only for a code object
+                                         of a function.
+
         :param string vararg: Name of ``*args`` argument. I.e. for ``*arg``
                               it is going to be ``'arg'``. Only for a code object
                               of a function.
@@ -111,30 +156,11 @@ class Code:
                                 it is going to be ``'kwarg'``. Only for a code object
                                 of a function.
 
-        :param tuple(string) args: Names of function's arguments. Only for a code object
-                                   of a function.
-
-        :param tuple(string) kwonlyargs: Names of function's arguments. Only for a code object
-                                         of a function.
-
-        :param tuple(string) varnames: Names of local variables of the code object.
-                                       **Different** from the standard 'co_varnames' as does
-                                       not describe function arguments.
-
-        :param tuple(string) freevars: Names of free variables (the ones that are from outer
-                                       scopes)
-
-        :param tuple(string) cellvars: Names of cell variables (the ones that are used from
-                                       the inner scopes)
-
         :param str docstring: Documentation string for the code object.
 
-        .. note:: We don't have a ``co_names`` property.  It is computed dynamically, on the
-                  assumption, that ``co_names`` are the variable names that are not in
-                  ``co_varnames``, ``co_freevars``, ``co_cellvars``.
-
-                  Same for ``co_consts`` - it is computed dynamically too, extracting values
-                  of constants from opcodes.
+        .. note:: We don't have ``co_names``, ``co_consts``, ``co_varnames``, ``co_freevars``
+                  and ``co_cellvars`` arrays, they are computed dynamically, deducing their
+                  values from the opcodes in ``Code.ops``.
         '''
 
         if ops is None:
@@ -150,9 +176,6 @@ class Code:
         self.name = name
         self.args = args
         self.kwonlyargs = kwonlyargs
-        self.varnames = varnames
-        self.freevars = freevars
-        self.cellvars = cellvars
         self.docstring = docstring
 
     def _calc_stack_size(self):
@@ -253,8 +276,6 @@ class Code:
             co_varnames.append(self.vararg)
         if self.varkwarg:
             co_varnames.append(self.varkwarg)
-        if self.varnames:
-            co_varnames.extend(self.varnames)
 
         co_names = OrderedSet()
         co_cellvars = OrderedSet()
@@ -282,6 +303,14 @@ class Code:
                     co_cellvars.add(cell)
             elif op.has_const:
                 co_consts.add(op.const)
+
+        # Now we have the following lists at their final state.
+        #
+        co_varnames = tuple(co_varnames)
+        co_names = tuple(co_names)
+        co_cellvars = tuple(co_cellvars)
+        co_freevars = tuple(co_freevars)
+        co_consts = tuple(co_consts)
 
         # Stage 2.
         # Now we start to write opcodes to the 'code' bytearray.
@@ -381,6 +410,10 @@ class Code:
                 code.append(arg & 0xFF)
                 code.append((arg >> 8) & 0xFF)
 
+        # 'co_lnotab' is ready to go.
+        #
+        co_lnotab = bytes(lnotab)
+
         # Stage 3.
         # Resolve jump addresses.
         #
@@ -390,7 +423,7 @@ class Code:
                 to -= (jump[1] + 3)
 
             if to > 0xFFFF:
-                raise Exception('extended jumps are not currently supported')
+                raise OverflowError('extended jumps are not currently supported')
 
             code[jump[1] + 1] = to & 0xFF
             code[jump[1] + 2] = (to >> 8) & 0xFF
@@ -399,13 +432,6 @@ class Code:
         # Assemble the new code object.
 
         co_code = bytes(code)
-        co_lnotab = bytes(lnotab)
-
-        co_varnames = tuple(co_varnames)
-        co_names = tuple(co_names)
-        co_cellvars = tuple(co_cellvars)
-        co_freevars = tuple(co_freevars)
-        co_consts = tuple(co_consts)
 
         return types.CodeType(co_argcount,
                               co_kwonlyargcount,
@@ -440,9 +466,6 @@ class Code:
         OPMAP = opcodes.OPMAP
 
         lines = dict(dis.findlinestarts(pycode))
-
-        freevars = OrderedSet()
-        cellvars = OrderedSet()
 
         extended_arg = 0
 
@@ -491,9 +514,6 @@ class Code:
                         op.cell = pycode.co_cellvars[arg]
                     except IndexError:
                         op.free = pycode.co_freevars[arg - cell_len]
-                        freevars.add(op.free)
-                    else:
-                        cellvars.add(op.cell)
 
             ops.append(op)
 
@@ -529,9 +549,6 @@ class Code:
         varkwarg = None
         if pycode.co_flags & CO_VARKEYWORDS:
             varkwarg = varnames[argstop]
-            argstop += 1
-
-        varnames = OrderedSet(pycode.co_varnames[argstop:])
 
         # Docstring is just a first string element in the 'co_consts' tuple
         #
@@ -549,9 +566,6 @@ class Code:
                   name=pycode.co_name,
                   args=args,
                   kwonlyargs=kwonlyargs,
-                  varnames=varnames,
-                  freevars=freevars,
-                  cellvars=cellvars,
                   docstring=docstring)
 
         return obj

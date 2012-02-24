@@ -11,13 +11,14 @@ import types
 
 from semantix.utils.debug import assert_raises
 
-from ..code import Code, opcodes
+from ..code import Code, opcodes, _SUPPORTED_FLAGS
 
 
 class TestLangPythonCode:
     def disassemble(self, co):
         code = co.co_code
         linestarts = dict(dis.findlinestarts(co))
+        labels = dis.findlabels(code)
         n = len(code)
         i = 0
         extended_arg = 0
@@ -29,6 +30,11 @@ class TestLangPythonCode:
                 result.append(linestarts[i])
             else:
                 result.append('#')
+
+            if i in labels:
+                result.append('>>')
+            else:
+                result.append('--')
 
             result.append(i)
             result.append(dis.opname[op])
@@ -84,6 +90,10 @@ class TestLangPythonCode:
         lines2 = dict(dis.findlinestarts(code2))
         assert lines1 == lines2
 
+        code1_flags = code1.co_flags & _SUPPORTED_FLAGS
+        code2_flags = code2.co_flags & _SUPPORTED_FLAGS
+        assert code1_flags == code2_flags
+
     def check_on(self, code_obj):
         new_code_obj = Code.from_code(code_obj).to_code()
         self.compare_codes(code_obj, new_code_obj)
@@ -117,9 +127,6 @@ class TestLangPythonCode:
 
         assert code.args == {'a', 'b', 'c'}
         assert code.kwonlyargs == {'kw', 'kwonly'}
-        assert code.varnames == {'func'}
-        assert code.freevars == {'free'}
-        assert code.cellvars == {'local'}
 
         assert opcodes.YIELD_VALUE in {op.__class__ for op in code.ops}
         new_code = code.to_code()
