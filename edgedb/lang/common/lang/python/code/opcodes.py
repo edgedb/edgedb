@@ -7,8 +7,8 @@
 
 
 """Contains definitions and specifications of CPython VM opcodes.
-Used by 'semantix.utils.lang.python.code.Code' class to allow
-augmenting python code objects."""
+Used by :py:class:`semantix.utils.lang.python.code.Code` to enable
+python code object augmentation."""
 
 
 import opcode as _opcode
