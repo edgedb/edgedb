@@ -7,11 +7,11 @@
 
 
 """This package provides utilities to allow creation and modification of
-python code objects on the opcode level.
+python code objects at the opcode level.
 
 Opcodes are defined in the ``semantix.utils.lang.python.code.opcodes`` module.
-Some information about the opcodes themselves can be found in documentation
-of the standard library module ``dis``."""
+Some information about opcodes themselves can be found in :py:mod:`dis` module
+documentation in the standard library."""
 
 
 import dis
@@ -56,28 +56,29 @@ _SUPPORTED_FLAGS    = CO_OPTIMIZED | CO_NEWLOCALS | CO_VARARGS | CO_VARKEYWORDS 
 class Code:
     '''A more convenient to modify representation of python code block.
 
-    To simplify working with opcodes and their arguments, we treat an opcode as
-    an object (see ``utils.lang.python.code.opcodes`` module for details), which
-    encapsulartes its argument and its actual meaning. For instance, the ``LOAD_FAST``
-    opcode has an attribute 'local', which contains the name of a local variable.
+    To simplify working with opcodes and their arguments, we treat opcodes as
+    objects (see ``utils.lang.python.code.opcodes`` module for details), which
+    encapsulate their arguments and their meaning.  For instance, the ``LOAD_FAST``
+    opcode has attribute 'local', which contains the name of a local variable.
 
-    As a usage example, let's say we need to transform a regular python function
-    to a generator.
+    As a usage example, imagine we need to transform a regular python function
+    into a generator.
 
     .. code-block:: python
 
         def pow2(a):
             return a ** 2
 
-    That's how it looks like down to opcodes (``dis.dis(pow2)``)::
+    The above code produces the following bytecode (``dis.dis(pow2)``)::
 
         2           0 LOAD_FAST                0 (a)
                     3 LOAD_CONST               1 (2)
                     6 BINARY_POWER
                     7 RETURN_VALUE
 
-    So, we need to remove the ``RETURN_VALUE`` opcode and insert ``YIELD_VALUE``,
-    followed by ``RETURN_VALUE``, which should return ``None``:
+    To transform ``pow2`` into a generator, we need to remove the ``RETURN_VALUE``
+    opcode and insert ``YIELD_VALUE``, followed by ``RETURN_VALUE``, which should
+    return ``None``:
 
     .. code-block:: python
 
@@ -90,7 +91,7 @@ class Code:
         #
         del code.ops[-1]
 
-        # And add opcodes necessary to define and correctly
+        # Add opcodes necessary to define and correctly
         # terminate a generator function
         #
         code.ops.extend((opcodes.YIELD_VALUE(),
@@ -98,7 +99,7 @@ class Code:
                          opcodes.LOAD_CONST(const=None),
                          opcodes.RETURN_VALUE()))
 
-        # Override code object of `pow2` with the new,
+        # Replace the code object of ``pow2`` with the new,
         # augmented one
         #
         pow2.__code__ = code.to_code()
@@ -113,7 +114,7 @@ class Code:
                     9 LOAD_CONST               0 (None)
                    12 RETURN_VALUE
 
-    And now we can call the patched ``pow2``:
+    The patched ``pow2`` is now a generator:
 
     .. code-block:: pycon
 
@@ -134,33 +135,30 @@ class Code:
         '''
         :param ops: List of ``opcode.OpCode`` instances.
 
-        :param bool newlocals: Should a new local namespace be created.  Should be
-                               set to ``True`` for functions' code objects.
+        :param bool newlocals: Determines if a new local namespace should be created.
+                               Should always be ``True`` for function code objects.
 
-        :param string filename: Filename of the code object.
-        :param int firstlineno: First line number of first instruction of the code object.
-        :param string name: Name of the code object.  I.e. for functions it contains the
-                            function name.
+        :param string filename: The filename of the code object.
+        :param int firstlineno: The starting line number of the first instruction of
+                                the code object.
+        :param string name: The name of the code object.  For function code objects it
+                            is usually set to the name of the function.
 
-        :param tuple(string) args: Names of function's arguments. Only for a code object
-                                   of a function.
+        :param tuple(string) args: Function argument names.  Only valid for function code objects.
 
-        :param tuple(string) kwonlyargs: Names of function's arguments. Only for a code object
-                                         of a function.
+        :param tuple(string) kwonlyargs: Function keyword argument names.  Only valid for
+                                         function code objects.
 
-        :param string vararg: Name of ``*args`` argument. I.e. for ``*arg``
-                              it is going to be ``'arg'``. Only for a code object
-                              of a function.
+        :param string vararg: The name of the ``*args`` argument, i.e. for ``*arg``
+                              it will be ``'arg'``.  Only valid for function code objects.
 
-        :param string varkwarg: Name of ``**kwargs`` argument. I.e. for ``**kwarg``
-                                it is going to be ``'kwarg'``. Only for a code object
-                                of a function.
+        :param string varkwarg: The name of the ``**kwargs`` argument, i.e. for ``**kwarg``
+                                it will be ``'kwarg'``.  Only valid for function code objects.
 
-        :param str docstring: Documentation string for the code object.
+        :param str docstring: Code object documenation string.
 
-        .. note:: We don't have ``co_names``, ``co_consts``, ``co_varnames``, ``co_freevars``
-                  and ``co_cellvars`` arrays, they are computed dynamically, deducing their
-                  values from the opcodes in ``Code.ops``.
+        .. note:: ``co_names``, ``co_consts``, ``co_varnames``, ``co_freevars``
+                  and ``co_cellvars`` are computed dynamically from the opcodes in ``Code.ops``.
         '''
 
         if ops is None:
@@ -451,7 +449,7 @@ class Code:
 
     @classmethod
     def from_code(cls, pycode):
-        '''Creates semantix code object out of python's one'''
+        '''Creates ``Code`` object instance from python code object'''
 
         assert isinstance(pycode, types.CodeType)
 
