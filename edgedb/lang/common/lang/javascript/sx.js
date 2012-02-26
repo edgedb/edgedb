@@ -84,8 +84,8 @@ this.sx = (function() {
         each: function(obj, func, scope) {
             scope = scope || window;
 
-            if (func.length < 1 || func.length > 2) {
-                throw 'invalid each function "' + func + '", should have one or two arguments only';
+            if (func.length < 1 || func.length > 3) {
+                throw 'invalid each function "' + func + '", should have one, two or three arguments only';
             }
 
             var i, r, no_desc = (func.length <= 2);
