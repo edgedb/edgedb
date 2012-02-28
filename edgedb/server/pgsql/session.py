@@ -109,7 +109,7 @@ class Session(session.Session):
                                       pointers, self)
 
     def load(self, id, concept=None):
-        if not concept:
+        if concept is None:
             concept_name = self.backend.concept_name_from_id(id, session=self)
             if not concept_name:
                 return None
