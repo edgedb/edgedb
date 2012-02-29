@@ -659,13 +659,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             markup.dump(delta)
         """
         delta = self.adapt_delta(delta)
-        context = delta_cmds.CommandContext(session.connection if session else self.connection)
+        context = delta_cmds.CommandContext(session.connection if session else self.connection,
+                                            session=session)
         delta.apply(meta, context)
         return delta
 
 
     def execute_delta_plan(self, plan, session=None):
-        plan.execute(delta_cmds.CommandContext(session.connection if session else self.connection))
+        plan.execute(delta_cmds.CommandContext(session.connection if session else self.connection,
+                                               session=session))
 
 
     @debug
@@ -691,7 +693,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 session.replace_schema(proto_schema)
 
                 # Run preprocess pass
-                delta.do_preprocess(session)
+                delta.call_hook(session, stage='preprocess', hook='main')
 
                 # Apply and adapt delta, build native delta plan
                 plan = self.process_delta(delta, proto_schema)
@@ -699,7 +701,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 # Reinitialize the session with the mutated schema
                 session.replace_schema(proto_schema)
 
-                context = delta_cmds.CommandContext(session.connection)
+                context = delta_cmds.CommandContext(session.connection, session)
 
                 try:
                     plan.execute(context)
@@ -714,7 +716,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 self._init_introspection_cache()
 
                 # Run postprocess pass
-                delta.do_postprocess(session)
+                delta.call_hook(session, stage='postprocess', hook='main')
 
             self._update_repo(session, deltas)
 
@@ -749,7 +751,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                   )
             records.append(rec)
 
-        context = delta_cmds.CommandContext(session.connection)
+        context = delta_cmds.CommandContext(session.connection, session)
         delta_cmds.Insert(table, records=records).execute(context)
 
         table = delta_cmds.DeltaRefTable()
@@ -961,7 +963,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         connection = session.connection if session else self.connection
         concept_map = self.get_concept_map(session)
-        context = delta_cmds.CommandContext(session.connection)
+        context = delta_cmds.CommandContext(session.connection, session)
 
         idquery = delta_cmds.Query(text='caos.uuid_generate_v1mc()', params=(), type='uuid')
         now = delta_cmds.Query(text="'NOW'", params=(), type='timestamptz')
@@ -1119,7 +1121,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             colmap = {c.name: c for c in model_table.columns()}
             batch_table.add_columns(colmap[col] for col in cols)
 
-            context = delta_cmds.CommandContext(session.connection)
+            context = delta_cmds.CommandContext(session.connection, session)
             delta_cmds.CreateTable(batch_table).execute(context)
 
             merger_func = self.create_batch_merger(prototype, session)
@@ -1228,7 +1230,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def store_entity_batch(self, entities, session, batch_id):
-        context = delta_cmds.CommandContext(session.connection)
+        context = delta_cmds.CommandContext(session.connection, session)
 
         key = lambda i: i.__class__._metadata.name
         for concept, entities in itertools.groupby(sorted(entities, key=key), key=key):
@@ -1399,7 +1401,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         cmds = []
         records = []
 
-        context = delta_cmds.CommandContext(session.connection)
+        context = delta_cmds.CommandContext(session.connection, session)
 
         for target in targets:
             """LOG [caos.sync]
@@ -1454,7 +1456,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def store_link_batch(self, links, session, batch_id):
-        context = delta_cmds.CommandContext(session.connection)
+        context = delta_cmds.CommandContext(session.connection, session)
 
         def flatten_links(links):
             for source, linksets in links:
@@ -2355,7 +2357,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         cond = delta_cmds.CompositeTypeExists(name)
         op = delta_cmds.CreateCompositeType(type, neg_conditions=[cond])
 
-        context = delta_cmds.CommandContext(session.connection)
+        context = delta_cmds.CommandContext(session.connection, session)
         op.execute(context)
 
         return common.qname(*name)

@@ -214,6 +214,21 @@ class CommandGroup(Command):
         return iter(self.commands)
 
 
+class CallDeltaHook(Command):
+    def __init__(self, *, hook, stage, op, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+
+        self.hook = hook
+        self.stage = stage
+        self.op = op
+
+    def execute(self, context):
+        try:
+            self.op.call_hook(context.session, stage=self.stage, hook=self.hook)
+        except delta_cmds.DeltaHookNotFoundError:
+            pass
+
+
 class PrototypeMetaCommand(MetaCommand, delta_cmds.PrototypeCommand):
     pass
 
@@ -2428,9 +2443,10 @@ class UpdateMappingIndexes(MetaCommand):
 
 
 class CommandContext(delta_cmds.CommandContext):
-    def __init__(self, db):
+    def __init__(self, db, session=None):
         super().__init__()
         self.db = db
+        self.session = session
         self.link_name_to_id_map = None
 
     def _get_link_map(self, reverse=False):
