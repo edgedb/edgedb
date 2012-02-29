@@ -68,7 +68,7 @@ class WeakObjectRegistry(collections.MutableMapping):
         return ref is not None and ref() is not None
 
     def __len__(self):
-        return len(self.data)
+        return len(self.data) - len(self._pending_removals)
 
     def __getitem__(self, key):
         return self.data[id(key)]
