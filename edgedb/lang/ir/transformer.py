@@ -874,12 +874,14 @@ class TreeTransformer:
         if match:
             if isinstance(left, caos_ast.EntityLink):
                 left_link = left
-                right_link = right
-
                 left = left.target
-                right = right.target
             else:
                 left_link = left.rlink
+
+            if isinstance(right, caos_ast.EntityLink):
+                right_link = right
+                right = right.target
+            else:
                 right_link = right.rlink
 
             if left_link:
