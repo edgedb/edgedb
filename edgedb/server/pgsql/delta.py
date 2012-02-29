@@ -148,6 +148,10 @@ class Command(BaseCommand):
                 else:
                     result = context.db.execute(code)
 
+                """LINE [caos.delta.execute] EXECUTION RESULT
+                repr(result)
+                """
+
                 extra = self.extra(context)
                 if extra:
                     for cmd in extra:
@@ -1506,7 +1510,8 @@ class PointerMetaCommand(MetaCommand):
         assert old_target
         new_target = meta.get(new_type)
 
-        alter_table = context.get(delta_cmds.ConceptCommandContext).op.get_alter_table(context)
+        alter_table = context.get(delta_cmds.ConceptCommandContext).op.get_alter_table(context,
+                                                                                       priority=1)
         column_name = common.caos_name_to_pg_name(link.normal_name())
 
         if isinstance(new_target, caos.types.ProtoAtom):
@@ -1795,8 +1800,6 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
                 self.pgops.add(Update(table=self.table, record=rec,
                                       condition=[('name', str(link.name))], priority=1))
 
-            self.attach_alter_table(context)
-
             new_type = None
             for op in self(delta_cmds.AlterPrototypeProperty):
                 if op.property == 'target':
@@ -1807,6 +1810,12 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
             if new_type:
                 if not isinstance(link.target, caos.types.ProtoObject):
                     link.target = meta.get(link.target)
+
+                op = CallDeltaHook(hook='exec_alter_link_target', stage='preprocess',
+                                   op=self, priority=1)
+                self.pgops.add(op)
+
+            self.attach_alter_table(context)
 
             if new_type and (isinstance(link.target, caos.types.ProtoAtom) or \
                              isinstance(self.old_link.target, caos.types.ProtoAtom)):
