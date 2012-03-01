@@ -1235,7 +1235,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         key = lambda i: i.__class__._metadata.name
         for concept, entities in itertools.groupby(sorted(entities, key=key), key=key):
             concept = session.schema.get(concept)
-            concept_proto = concept._metadata.prototype
+            concept_proto = concept.__sx_prototype__
             table, _, _ = self.get_batch_instruments(concept_proto, session, batch_id)
 
             self.batches.setdefault(batch_id, {}).setdefault('objects', set()).add(concept_proto)
