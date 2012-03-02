@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2010 Sprymix Inc.
+# Copyright (c) 2010-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -12,6 +12,9 @@ from semantix.utils import ast
 from . import ast as caosql_ast, parser, transformer, codegen
 from semantix.caos.tree import ast as caos_ast
 from semantix.caos.tree import transformer as caos_transformer
+from semantix.caos import caosql
+
+from semantix.utils import debug
 
 from . import errors
 
@@ -48,6 +51,34 @@ class CaosQLExpression:
         tree = self.parser.parse(expr)
         return self.transformer.transform_fragment(tree, (), anchors=anchors,
                                                    resolve_computables=resolve_computables)
+
+    @debug.debug
+    def transform_expr(self, expr, anchors=None, context=None, arg_types=None):
+        """LOG [caos.query] CaosQL query:
+        print(expr)
+        """
+
+        caosql_tree = self.parser.parse(expr)
+
+        if context is not None:
+            caosql_tree, _ = self.parser.normalize_select_query(caosql_tree, context=context)
+
+        """LOG [caos.query] CaosQL tree:
+        markup.dump(caosql_tree)
+        """
+
+        if not isinstance(caosql_tree, caosql.ast.SelectQueryNode):
+            selnode = caosql.ast.SelectQueryNode()
+            selnode.targets = [caosql.ast.SelectExprNode(expr=caosql_tree)]
+            caosql_tree = selnode
+
+        query_tree = self.transformer.transform(caosql_tree, arg_types,
+                                                module_aliases=self.module_aliases)
+        """LOG [caos.query] Caos tree:
+        markup.dump(caos_tree)
+        """
+
+        return query_tree
 
     def get_path_targets(self, expr, session, anchors=None):
         if not self.path_resolver:
