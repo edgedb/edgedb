@@ -75,7 +75,7 @@ class BaseImplementation(AbstractImplementation):
             meth = self._provider_method(provider, 'get')
 
             try:
-                value = meth
+                value = meth(key)
             except LookupError:
                 pass
             else:
