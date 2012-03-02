@@ -2204,6 +2204,111 @@ class TreeTransformer:
 
 
 class PathResolver(TreeTransformer):
+    def serialize_path(self, path, session):
+        return self._serialize_path(path, session)
+
+    def _serialize_path(self, path, session):
+        if isinstance(path, caos_ast.Disjunction):
+            result = []
+
+            for path in path.paths:
+                result.extend(self._serialize_path(path, session))
+
+            result = [('set',) + tuple(result)]
+
+        elif isinstance(path, caos_ast.AtomicRefSimple):
+            source = self._serialize_path(path.ref, session)
+            result = [('getattr', source, path.name)]
+
+        elif isinstance(path, caos_ast.AtomicRefExpr) and path.caoslink is not None:
+            source = self._serialize_path(path.ref, session)
+            result = [('getattr', source, path.caoslink.normal_name())]
+
+        elif isinstance(path, caos_ast.LinkPropRefSimple):
+            source = self._serialize_path(path.ref, session)
+            result = [('getattr', source, path.name)]
+
+        elif isinstance(path, caos_ast.EntitySet):
+            target = [('getcls', path.concept.name)]
+
+            if path.rlink:
+                link_proto = next(iter(path.rlink.filter.labels))
+                dir = path.rlink.filter.direction
+                source = self._serialize_path(path.rlink.source, session)
+
+                result = [('step', source, target, link_proto.normal_name(), dir)]
+            else:
+                result = target
+
+        elif isinstance(path, caos_ast.EntityLink):
+            link = path
+            link_proto = next(iter(link.filter.labels))
+            source = self._serialize_path(link.source, session)
+
+            result = [('as_link', [('getattr', source, link_proto.normal_name())])]
+
+        elif isinstance(path, caos_ast.TypeCast):
+            result = self._serialize_path(path.expr, session)
+
+        elif isinstance(path, caos_ast.Record):
+            result = self._serialize_path(path.elements[0].ref, session)
+
+        elif isinstance(path, caos_ast.Constant):
+            result = []
+
+        else:
+            raise TreeError('unexpected node: "%r"' % path)
+
+        return result
+
+    def unserialize_path(self, script, session):
+        result = []
+
+        for cmd in script:
+            result.extend(self._exec_cmd(cmd, session))
+
+        return result
+
+    def _exec_cmd(self, cmd, session):
+        cmd, *args = cmd
+
+        if cmd == 'set':
+            result = []
+
+            for a in args:
+                result.extend(self._exec_cmd(a, session))
+
+        elif cmd == 'getattr':
+            sources = []
+            for a in args[0]:
+                sources.extend(self._exec_cmd(a, session))
+            result = [getattr(src, args[1]) for src in sources]
+
+        elif cmd == 'step':
+            sources = []
+            for a in args[0]:
+                sources.extend(self._exec_cmd(a, session))
+            targets = []
+            for a in args[1]:
+                targets.extend(self._exec_cmd(a, session))
+
+            result = [caos_utils.create_path_step(session, expr, targets[0],
+                                                  args[2], args[3]) for expr in sources]
+
+        elif cmd == 'getcls':
+            result = [session.schema.get(args[0])]
+
+        elif cmd == 'as_link':
+            sources = []
+            for a in args[0]:
+                sources.extend(self._exec_cmd(a, session))
+            result = [expr.as_link() for expr in sources]
+
+        else:
+            raise TreeError('unexpected path resolver command: "{}"'.format(cmd))
+
+        return result
+
     def resolve_path(self, tree, session):
         return list(self._resolve_path(tree, session))
 
