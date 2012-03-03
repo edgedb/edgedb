@@ -113,6 +113,8 @@ class Adapter:
             if v is not None: # XXX get_expr_type
                 if isinstance(v, tuple):
                     argtypes[k] = (v[0], v[1].name)
+                else:
+                    argtypes[k] = v.name
             else:
                 argtypes[k] = v
 
