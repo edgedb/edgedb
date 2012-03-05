@@ -282,13 +282,13 @@ def assert_raises(exception_cls, *, cause=None, context=None, error_re=None, att
 
 
 @contextlib.contextmanager
-def less_than(timeout):
+def assert_shorter_than(timeout):
     '''Context manager, that ensures that the wrapped block of code will
     execute in less period of time than the specified.
 
     .. code-block:: pycon
 
-        >>> with less_than(0.1):
+        >>> with assert_shorter_than(0.1):
         ...     import time
         ...     time.sleep(0.2)
         AssertionError ...
@@ -306,13 +306,13 @@ def less_than(timeout):
 
 
 @contextlib.contextmanager
-def more_than(timeout):
+def assert_longer_than(timeout):
     '''Context manager, that ensures that the wrapped block of code will
     execute longer than the specified period of time.
 
     .. code-block:: pycon
 
-        >>> with more_than(0.1):
+        >>> with assert_longer_than(0.1):
         ...     import time
         ...     time.sleep(0.01)
         AssertionError ...
