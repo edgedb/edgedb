@@ -21,6 +21,11 @@ from semantix.utils.datastructures import OrderedSet
 from . import opcodes
 
 
+#: Used to order cellvars & freevars inthe  'to_code' method
+#:
+_MAX_CELL_WEIGHT = 1000000
+
+
 OP_SETUP_EXCEPT     = opcodes.SETUP_EXCEPT
 OP_SETUP_FINALLY    = opcodes.SETUP_FINALLY
 OP_JUMP_ABSOLUTE    = opcodes.JUMP_ABSOLUTE
@@ -126,11 +131,12 @@ class Code:
     '''
 
     __slots__ = 'ops', 'vararg', 'varkwarg', 'newlocals', 'filename', \
-                'firstlineno', 'name', 'args', 'kwonlyargs', 'docstring'
+                'firstlineno', 'name', 'args', 'kwonlyargs', 'docstring', \
+                'has_class_freevar'
 
     def __init__(self, ops=None, *, vararg=None, varkwarg=None, newlocals=False,
                  filename='<string>', firstlineno=0, name='<code>',
-                 args=None, kwonlyargs=None, docstring=None):
+                 args=None, kwonlyargs=None, docstring=None, has_class_freevar=False):
 
         '''
         :param ops: List of ``opcode.OpCode`` instances.
@@ -157,6 +163,12 @@ class Code:
 
         :param str docstring: Code object documenation string.
 
+        :param bool has_class_freevar: Should be set to ``True``, if the code contains calls
+                                       to ``super()``.  In this case ``Code.to_code()`` will
+                                       generate one extra slot named ``__class__`` in
+                                       ``co_freevars`` (see CPython's ``super()`` implementation
+                                       in 'Objects/typeobject.c'.)
+
         .. note:: ``co_names``, ``co_consts``, ``co_varnames``, ``co_freevars``
                   and ``co_cellvars`` are computed dynamically from the opcodes in ``Code.ops``.
         '''
@@ -175,6 +187,7 @@ class Code:
         self.args = args
         self.kwonlyargs = kwonlyargs
         self.docstring = docstring
+        self.has_class_freevar = has_class_freevar
 
     def _calc_stack_size(self):
         # The algorithm is almost directly translated to python from c,
@@ -241,7 +254,7 @@ class Code:
         if OP_YIELD_VALUE in ops_set:
             flags |= CO_GENERATOR
 
-        if not len(opcodes.FREE_OPS & ops_set):
+        if not len(opcodes.FREE_OPS & ops_set) and not self.has_class_freevar:
             flags |= CO_NOFREE
 
         if self.vararg:
@@ -280,6 +293,11 @@ class Code:
         co_freevars = OrderedSet()
         co_consts = OrderedSet([self.docstring])
 
+        if self.has_class_freevar:
+            # Should be the last cell always
+            #
+            co_freevars.add((_MAX_CELL_WEIGHT + 1, '__class__'))
+
         # Stage 1.
         # Go through all opcodes and fill up 'co_varnames', 'co_names',
         # 'co_freevars', 'co_cellvars' and 'co_consts'
@@ -293,12 +311,13 @@ class Code:
             elif op.has_name:
                 co_names.add(op.name)
             elif op.has_free:
+                arg = getattr(op, 'arg', _MAX_CELL_WEIGHT)
                 try:
                     cell = op.cell
                 except AttributeError:
-                    co_freevars.add(op.free)
+                    co_freevars.add((arg, op.free))
                 else:
-                    co_cellvars.add(cell)
+                    co_cellvars.add((arg, cell))
             elif op.has_const:
                 co_consts.add(op.const)
 
@@ -306,8 +325,8 @@ class Code:
         #
         co_varnames = tuple(co_varnames)
         co_names = tuple(co_names)
-        co_cellvars = tuple(co_cellvars)
-        co_freevars = tuple(co_freevars)
+        co_cellvars = tuple((cell for arg, cell in sorted(co_cellvars, key=lambda el: el[0])))
+        co_freevars = tuple((free for arg, free in sorted(co_freevars, key=lambda el: el[0])))
         co_consts = tuple(co_consts)
 
         # Stage 2.
@@ -345,26 +364,27 @@ class Code:
             except AttributeError:
                 pass
             else:
-                inc_line = line - lastlineno
-                inc_pos = addr - lastlinepos
-                lastlineno = line
-                lastlinepos = addr
+                if line is not None:
+                    inc_line = line - lastlineno
+                    inc_pos = addr - lastlinepos
+                    lastlineno = line
+                    lastlinepos = addr
 
-                if inc_line == inc_pos == 0:
-                    lnotab.extend((0, 0))
-                else:
-                    # See 'Objects/lnotab_notes.txt' (in python source code)
-                    # for details
-                    #
-                    while inc_pos > 255:
-                        lnotab.extend((255, 0))
-                        inc_pos -= 255
-                    while inc_line > 255:
-                        lnotab.extend((inc_pos, 255))
-                        inc_pos = 0
-                        inc_line -= 255
-                    if inc_pos != 0  or inc_line != 0:
-                        lnotab.extend((inc_pos, inc_line))
+                    if inc_line == inc_pos == 0:
+                        lnotab.extend((0, 0))
+                    else:
+                        # See 'Objects/lnotab_notes.txt' (in python source code)
+                        # for details
+                        #
+                        while inc_pos > 255:
+                            lnotab.extend((255, 0))
+                            inc_pos -= 255
+                        while inc_line > 255:
+                            lnotab.extend((inc_pos, 255))
+                            inc_pos = 0
+                            inc_line -= 255
+                        if inc_pos != 0  or inc_line != 0:
+                            lnotab.extend((inc_pos, inc_line))
 
             arg = no_arg
 
@@ -564,6 +584,7 @@ class Code:
                   name=pycode.co_name,
                   args=args,
                   kwonlyargs=kwonlyargs,
-                  docstring=docstring)
+                  docstring=docstring,
+                  has_class_freevar='__class__' in pycode.co_freevars)
 
         return obj

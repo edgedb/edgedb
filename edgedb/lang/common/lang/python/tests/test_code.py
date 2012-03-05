@@ -14,8 +14,8 @@ from semantix.utils.debug import assert_raises
 from ..code import Code, opcodes, _SUPPORTED_FLAGS
 
 
-class TestLangPythonCode:
-    def disassemble(self, co):
+class BaseTestLangPythonCode:
+    def disassemble(self, co, skip_lines=False):
         code = co.co_code
         linestarts = dict(dis.findlinestarts(co))
         labels = dis.findlabels(code)
@@ -26,10 +26,11 @@ class TestLangPythonCode:
         result = []
         while i < n:
             op = code[i]
-            if i in linestarts:
-                result.append(linestarts[i])
-            else:
-                result.append('#')
+            if not skip_lines:
+                if i in linestarts:
+                    result.append(linestarts[i])
+                else:
+                    result.append('#')
 
             if i in labels:
                 result.append('>>')
@@ -63,12 +64,23 @@ class TestLangPythonCode:
                     result.append(('free', free[oparg]))
                 else:
                     result.append(('arg', oparg))
+
         return tuple(result)
 
-    def compare_codes(self, code1, code2):
-        fields = 'co_argcount', 'co_kwonlyargcount', 'co_nlocals', \
-                 'co_varnames', 'co_filename', 'co_name', 'co_firstlineno', \
-                 'co_freevars', 'co_cellvars'
+    def compare_codes(self, code1, code2,
+                      skip_filename=False, skip_name=False,
+                      skip_firstlineno=False, skip_lines=False):
+
+        fields = 'co_argcount', 'co_kwonlyargcount', 'co_nlocals', 'co_varnames'
+
+        if not skip_filename:
+            fields = fields + ('co_filename',)
+
+        if not skip_firstlineno:
+            fields = fields + ('co_firstlineno',)
+
+        if not skip_name:
+            fields = fields + ('co_name',)
 
         for field in fields:
             attr1 = getattr(code1, field)
@@ -82,23 +94,30 @@ class TestLangPythonCode:
 
             assert attr1 == attr2, field
 
-        dis_code1 = self.disassemble(code1)
-        dis_code2 = self.disassemble(code2)
+        dis_code1 = self.disassemble(code1, skip_lines=skip_lines)
+        dis_code2 = self.disassemble(code2, skip_lines=skip_lines)
         assert dis_code1 == dis_code2
 
-        lines1 = dict(dis.findlinestarts(code1))
-        lines2 = dict(dis.findlinestarts(code2))
-        assert lines1 == lines2
+        if not skip_lines:
+            lines1 = dict(dis.findlinestarts(code1))
+            lines2 = dict(dis.findlinestarts(code2))
+            assert lines1 == lines2
 
         code1_flags = code1.co_flags & _SUPPORTED_FLAGS
         code2_flags = code2.co_flags & _SUPPORTED_FLAGS
         assert code1_flags == code2_flags
+
+        # we need exact equality here, as positions can be
+        # mapped to the __closure__ function attribute or so
+        assert code1.co_freevars == code2.co_freevars
+        assert code1.co_cellvars == code2.co_cellvars
 
     def check_on(self, code_obj):
         new_code_obj = Code.from_code(code_obj).to_code()
         self.compare_codes(code_obj, new_code_obj)
 
 
+class TestLangPythonCode(BaseTestLangPythonCode):
     def test_utils_lang_python_code_object(self):
         '''Basic test of the Code object.  Tests that all internal
         structures (varnames, cellvars, freenames etc) are initialized
@@ -175,6 +194,90 @@ class TestLangPythonCode:
 
         def test10(*, foo, **args): pass
         self.check_on(test10.__code__)
+
+    def test_utils_lang_python_code_super_1(self):
+        '''Tests that super() works fine with one more freevar defined
+        (besides just __class__)'''
+
+        class A:
+            def test(self, a):
+                return a + 10
+
+        class B(A):
+            def make_test():
+                CONST = 32
+
+                def test(self, a):
+                    # will have two freevars: 'CONST', and '__class__'
+                    return CONST + super().test(a)
+
+                return test
+
+            test = make_test()
+            del make_test
+
+        assert B().test(100) == 142
+
+        old = B.test.__code__
+        new = B.test.__code__ = Code.from_code(B.test.__code__).to_code()
+
+        self.compare_codes(old, new)
+        assert B().test(100) == 142
+
+    def test_utils_lang_python_code_super_2(self):
+        '''Tests that super() works'''
+
+        class A:
+            def test(self, a):
+                return a + 10
+
+        class B(A):
+            def test(self, a):
+                # will have one freevar: '__class__'
+                return super().test(a)
+
+        assert B().test(100) == 110
+
+
+        old = B.test.__code__
+        new = B.test.__code__ = Code.from_code(B.test.__code__).to_code()
+
+        self.compare_codes(old, new)
+        assert B().test(100) == 110
+
+    def test_utils_lang_python_code_super_3(self):
+        '''Tests that super() works when there are extra cell- and freevars'''
+
+        class A:
+            def test(self, a):
+                return a + 10
+
+        class B(A):
+            def make_test():
+                CONST = 32
+
+                def test(self, a):
+                    # will have two freevars: 'CONST', and '__class__'; one cellvar - 'foo'
+
+                    foo = 11
+
+                    def calc(a):
+                        return a + foo
+
+                    return CONST + super().test(calc(a))
+
+                return test
+
+            test = make_test()
+            del make_test
+
+        assert B().test(100) == 153
+
+        old = B.test.__code__
+        new = B.test.__code__ = Code.from_code(B.test.__code__).to_code()
+
+        self.compare_codes(old, new)
+        assert B().test(100) == 153
 
     def test_utils_lang_python_code_mod(self):
         '''Test how we can modify the __code__ object.
