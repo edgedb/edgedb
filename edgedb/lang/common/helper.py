@@ -103,7 +103,7 @@ def get_function_class(func):
                         return obj
 
                 if isinstance(item, types.FunctionType) and tools.isdecorated(item):
-                    if tools.unwrap(item, True) is func:
+                    if tools.unwrap(item) is func:
                         return obj
 
                 try:

@@ -91,7 +91,7 @@ _marker = object()
 class Decorator(BaseDecorator):
     def __new__(cls, func=_marker, *args, __sx_completed__=False, **kwargs):
         if not __sx_completed__ and func is not _marker and callable(func) and (args or kwargs):
-            original_function = unwrap(func, True)
+            original_function = unwrap(func)
             frame = sys._getframe(1)
             try:
                 while frame and frame.f_code.co_filename != original_function.__code__.co_filename:
@@ -156,32 +156,81 @@ class Decorator(BaseDecorator):
         return self(cls, *args, **kwargs)
 
 
-def unwrap(func, deep=False):
-    def _unwrap(func):
+def _unwrap_once(func):
+    try:
+        return func.__wrapped__
+    except AttributeError:
         try:
-            return func.__wrapped__
+            return func.__func__
         except AttributeError:
-            try:
-                return func.__func__
-            except AttributeError:
-                pass
+            pass
 
-        raise TypeError('unable to unwrap decorated function %r' % func)
+    raise TypeError('unable to unwrap decorated function {!r}'.format(func))
 
-    if deep:
-        while isdecorated(func):
-            func = _unwrap(func)
 
-    else:
-        if isdecorated(func):
-            func = _unwrap(func)
+def unwrap(func, *, verify=False):
+    '''Extracts the inner-most callable of a decorated callable.
+    It does this by following ``__wrapped__`` attributes on regular
+    functions (that's how ``functools.wraps`` provides the reference
+    to the decorated function), then tries ``__file__`` (works for
+    ``@staticmethod`` and ``@classmethod``.
 
-    return func
+    Example:
+
+    .. code-block:: python
+
+        def extract(func):
+            func = unwrap(func)
+            print(func.__name__)
+
+        def some_other_decorator(func):
+            """A decorator that doesn't save the decorated function's
+            name.  So its name will be set to '__wrapper__'"""
+            def wrapper(*args, **kwargs):
+                return func(*args, **kwargs)
+            wrapper.__wrapped__ = func
+            return wrapper
+
+        @extract
+        @some_other_decorator
+        def test():
+            pass
+
+    After executing the above example, 'test' will be printed.
+
+    :param bool verify: If set to ``True``, checks that the ``unwrap`` was
+                        called from the same file where the ``func`` was
+                        defined.  This ensures that we found the inner-most
+                        decorated function, with the one exception: it won't
+                        detect an error, if the ``func`` and the code that
+                        calls ``unwrap`` are in the same file.
+    '''
+
+    orig_func = func
+    while isdecorated(orig_func):
+        orig_func = _unwrap_once(orig_func)
+
+    if verify:
+        orig_file = orig_func.__code__.co_filename
+
+        frame = sys._getframe()
+        try:
+            while frame is not None:
+                file = frame.f_code.co_filename
+                if file == orig_file:
+                    break
+                frame = frame.f_back
+            else:
+                raise RuntimeError('unable to unwrap callable {!r}'.format(func))
+        finally:
+            del frame
+
+    return orig_func
 
 
 def get_argsspec(func):
     if isdecorated(func):
-        func = unwrap(func, True)
+        func = unwrap(func)
     return inspect.getfullargspec(func)
 
 
