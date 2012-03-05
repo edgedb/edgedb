@@ -216,7 +216,7 @@ def profiler(filename=None, sort='time'):
 
 
 @contextlib.contextmanager
-def assert_raises(exception_cls, *, cause=None, error_re=None, attrs=None):
+def assert_raises(exception_cls, *, cause=None, context=None, error_re=None, attrs=None):
     try:
         yield
 
@@ -230,6 +230,9 @@ def assert_raises(exception_cls, *, cause=None, error_re=None, attrs=None):
     except exception_cls as ex:
         if cause is not None:
             assert isinstance(ex.__cause__, cause)
+
+        if context is not None:
+            assert isinstance(ex.__context__, context)
 
         try:
             msg = ex.args[0]
@@ -246,6 +249,13 @@ def assert_raises(exception_cls, *, cause=None, error_re=None, attrs=None):
                                             'cause message that matches %r, got %r' % \
                                             (exception_cls.__name__, cause.__name__,
                                              error_re, ex.__cause__.args[0])) from ex
+                elif context is not None:
+                    if not err_re.search(ex.__context__.args[0]):
+                        raise ErrorExpected('%s with cause %s was expected to be raised with ' \
+                                            'context message that matches %r, got %r' % \
+                                            (exception_cls.__name__, cause.__name__,
+                                             error_re, ex.__cause__.args[0])) from ex
+
                 else:
                     raise ErrorExpected('%s was expected to be raised with ' \
                                         'message that matches %r, got %r' % \

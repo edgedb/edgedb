@@ -22,6 +22,13 @@ class TestAssertRaises:
             except Exception as ex:
                 raise Exception from ex
 
+        with assert_raises(Exception, context=ValueError):
+            # Cascaded case
+            try:
+                int('a')
+            except Exception as ex:
+                raise Exception
+
         with assert_raises(TypeError):
             # Test other exception
             set((list(),))
@@ -52,6 +59,13 @@ class TestAssertRaises:
                 int('a')
             except Exception as ex:
                 raise Exception from ex
+
+        with assert_raises(Exception, context=ValueError, error_re='invalid literal for int()'):
+            # Cascaded case
+            try:
+                int('a')
+            except Exception as ex:
+                raise Exception
 
         with assert_raises(ErrorExpected, error_re='''Exception with cause ValueError was ''' \
                                                    '''expected to be raised with cause message ''' \
