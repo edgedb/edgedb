@@ -10,7 +10,6 @@ import abc
 import sys
 import types
 import inspect
-import weakref
 from types import MethodType as _method
 from functools import partial
 
@@ -75,7 +74,10 @@ def decorate(wrapper, wrapped, *, assigned=WRAPPER_ASSIGNMENTS):
 
 
 def isdecorated(func):
-    return callable(func) and (isinstance(func, BaseDecorator) or hasattr(func, '__wrapped__'))
+    return (callable(func) \
+                and (hasattr(func, '__wrapped__') or hasattr(func, '__func__') \
+                                                        or isinstance(func, BaseDecorator))) or \
+            isinstance(func, (staticmethod, classmethod))
 
 
 class BaseDecorator(metaclass=abc.ABCMeta):
