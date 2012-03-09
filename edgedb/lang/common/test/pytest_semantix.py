@@ -216,11 +216,8 @@ def pytest_configure(config):
     if config.option.shell_on_ex:
         config.pluginmanager.register(ShellInvoker(), 'shell')
 
-    if config.option.colorize:
-        PyTestPatcher.patch()
-        logging.getLogger().addHandler(LoggingPrintHandler(True))
-    else:
-        logging.getLogger().addHandler(LoggingPrintHandler(False))
+    PyTestPatcher.patch()
+    logging.getLogger().addHandler(LoggingPrintHandler(config.option.colorize))
 
     logging.getLogger().setLevel(logging.INFO)
     logging.getLogger('semantix').setLevel(logging.DEBUG)

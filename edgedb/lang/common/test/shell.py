@@ -9,7 +9,7 @@
 import sys
 
 import py
-from semantix.utils import shell
+from semantix.utils import shell, term
 from semantix.utils.test import Exceptions as ExceptionConfig
 
 
@@ -70,7 +70,7 @@ class TestCommand(shell.Command, name='test', expose=True):
         if args.skipped:
             test_args.extend('--skip-tests=%s' % i for i in args.skipped)
 
-        if args.color:
+        if term.use_colors():
             test_args.append('--colorize')
 
         if not args.magic:
