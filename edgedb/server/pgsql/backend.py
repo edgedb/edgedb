@@ -318,7 +318,7 @@ class BinaryCopyProducer(postgresql.copyman.IteratorProducer):
         self.table = table
         self.data = data
         self.typid = backend.typrelid_for_source_name(proto.name)
-        self.pack = session.connection.typio.resolve_pack(self.typid)
+        self.pack = session.get_connection().typio.resolve_pack(self.typid)
         self.session = session
         self.proto = proto
 
@@ -659,15 +659,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             markup.dump(delta)
         """
         delta = self.adapt_delta(delta)
-        context = delta_cmds.CommandContext(session.connection if session else self.connection,
-                                            session=session)
+        connection = session.get_connection() if session else self.connection
+        context = delta_cmds.CommandContext(connection, session=session)
         delta.apply(meta, context)
         return delta
 
 
     def execute_delta_plan(self, plan, session=None):
-        plan.execute(delta_cmds.CommandContext(session.connection if session else self.connection,
-                                               session=session))
+        connection = session.get_connection() if session else self.connection
+        plan.execute(delta_cmds.CommandContext(connection, session=session))
 
 
     @debug
@@ -681,7 +681,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         with session.transaction():
             old_conn = self.connection
-            self.connection = session.connection
+            self.connection = session.get_connection()
 
             for d in deltas:
                 delta = d.deltas[0]
@@ -702,7 +702,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 # Reinitialize the session with the mutated schema
                 session.replace_schema(proto_schema)
 
-                context = delta_cmds.CommandContext(session.connection, session)
+                context = delta_cmds.CommandContext(session.get_connection(), session)
 
                 try:
                     plan.execute(context)
@@ -752,7 +752,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                   )
             records.append(rec)
 
-        context = delta_cmds.CommandContext(session.connection, session)
+        context = delta_cmds.CommandContext(session.get_connection(), session)
         delta_cmds.Insert(table, records=records).execute(context)
 
         table = delta_cmds.DeltaRefTable()
@@ -794,7 +794,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                        INNER JOIN caos.concept AS c ON c.id = e.concept_id
                    WHERE e."semantix.caos.builtins.id" = $1
                 ''' % (common.concept_name_to_table_name(concept))
-        ps = session.connection.prepare(query)
+        ps = session.get_connection().prepare(query)
         concept_name = ps.first(id)
         if concept_name:
             concept_name = caos.Name(ps.first(id))
@@ -831,7 +831,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         query = 'SELECT * FROM %s WHERE "semantix.caos.builtins.id" = $1' % \
                                                 (common.concept_name_to_table_name(concept))
 
-        ps = session.connection.prepare(query)
+        ps = session.get_connection().prepare(query)
         result = ps.first(id)
 
         if result is not None:
@@ -880,7 +880,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                        AND l.target_id IS NOT DISTINCT FROM $2
                        AND l.link_type_id = $3''' % (', '.join(targets), table)
 
-        ps = session.connection.prepare(query)
+        ps = session.get_connection().prepare(query)
         if isinstance(target.__class__, caos.types.AtomClass):
             target_id = None
         else:
@@ -962,9 +962,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         links = entity._instancedata.pointers
         table = self.get_table(prototype, session)
 
-        connection = session.connection if session else self.connection
+        connection = session.get_connection() if session else self.connection
         concept_map = self.get_concept_map(session)
-        context = delta_cmds.CommandContext(session.connection, session)
+        context = delta_cmds.CommandContext(connection, session)
 
         idquery = delta_cmds.Query(text='caos.uuid_generate_v1mc()', params=(), type='uuid')
         now = delta_cmds.Query(text="'NOW'", params=(), type='timestamptz')
@@ -1102,7 +1102,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                       'keys': ','.join('t.%s' % common.quote_ident(k) for k in keys),
                       'vals': vals, 'key': key}
 
-        self.execquery(qry, session.connection)
+        self.execquery(qry, session.get_connection())
 
         return func_name
 
@@ -1122,7 +1122,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             colmap = {c.name: c for c in model_table.columns()}
             batch_table.add_columns(colmap[col] for col in cols)
 
-            context = delta_cmds.CommandContext(session.connection, session)
+            context = delta_cmds.CommandContext(session.get_connection(), session)
             delta_cmds.CreateTable(batch_table).execute(context)
 
             merger_func = self.create_batch_merger(prototype, session)
@@ -1159,8 +1159,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             batch_table, updates_table, merger = self.get_batch_instruments(prototype, session,
                                                                             batch_id)
 
-            self.execquery('DROP TABLE %s' % common.qname(*batch_table.name), session.connection)
-            self.execquery('DROP TABLE %s' % common.qname(*updates_table.name), session.connection)
+            connection = session.get_connection()
+            self.execquery('DROP TABLE %s' % common.qname(*batch_table.name), connection)
+            self.execquery('DROP TABLE %s' % common.qname(*updates_table.name), connection)
 
         self.batch_instrument_cache.pop(batch_id, None)
         del self.batches[batch_id]
@@ -1192,23 +1193,24 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                {'batch_table': common.qname(*batch_table.name), 'keys': keys,
                 'batch_index_name': common.quote_ident(batch_index_name)}
 
-        self.execquery(qry, session.connection)
+        connection = session.get_connection()
+        self.execquery(qry, connection)
 
-        with session.connection.xact():
+        with connection.xact():
             self.execquery('LOCK TABLE %s IN ROW EXCLUSIVE MODE' % common.qname(*table),
-                           session.connection)
+                           connection)
 
             qry = '''INSERT INTO %(tab)s (%(keys)s) (SELECT * FROM %(proc_name)s('%(batch_id)x'))''' \
                   % {'tab': common.qname(*updates_table.name),
                      'proc_name': merger_func,
                      'keys': keys,
                      'batch_id': batch_id}
-            self.execquery(qry, session.connection)
+            self.execquery(qry, connection)
 
             qry = 'CREATE UNIQUE INDEX %(updates_index_name)s ON %(batch_table)s (%(keys)s)' % \
                    {'batch_table': common.qname(*updates_table.name), 'keys': keys,
                     'updates_index_name': common.quote_ident(updates_index_name)}
-            self.execquery(qry, session.connection)
+            self.execquery(qry, connection)
 
             qry = '''INSERT INTO %(table_name)s (%(cols)s)
                      (SELECT * FROM %(batch_table)s
@@ -1218,20 +1220,20 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                          'batch_table': common.qname(*batch_table.name),
                          'condkeys': condkeys,
                          'updated': common.qname(*updates_table.name)}
-            self.execquery(qry, session.connection)
+            self.execquery(qry, connection)
 
-            self.execquery('TRUNCATE %s' % common.qname(*batch_table.name), session.connection)
+            self.execquery('TRUNCATE %s' % common.qname(*batch_table.name), connection)
             self.execquery('DROP INDEX %s' % common.qname(batch_table.name[0], batch_index_name),
-                           session.connection)
-            self.execquery('TRUNCATE %s' % common.qname(*updates_table.name), session.connection)
+                           connection)
+            self.execquery('TRUNCATE %s' % common.qname(*updates_table.name), connection)
             self.execquery('DROP INDEX %s' % common.qname(updates_table.name[0], updates_index_name),
-                           session.connection)
+                           connection)
 
-        self.execquery('ANALYZE %s' % common.qname(*table), session.connection)
+        self.execquery('ANALYZE %s' % common.qname(*table), connection)
 
 
     def store_entity_batch(self, entities, session, batch_id):
-        context = delta_cmds.CommandContext(session.connection, session)
+        context = delta_cmds.CommandContext(session.get_connection(), session)
 
         key = lambda i: i.__class__._metadata.name
         for concept, entities in itertools.groupby(sorted(entities, key=key), key=key):
@@ -1265,7 +1267,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                            "semantix.caos.builtins.id", "semantix.caos.builtins.mtime"
                     ''' % (table, modstat_t)
 
-            deleted = list(self.runquery(query, (bunch,), session.connection, compat=False))
+            deleted = list(self.runquery(query, (bunch,), session.get_connection(), compat=False))
 
             if len(deleted) < len(bunch):
                 # Not everything was removed
@@ -1285,7 +1287,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def get_link_map(self, session):
         if not self.link_cache:
-            cl_ds = datasources.meta.links.ConceptLinks(session.connection)
+            cl_ds = datasources.meta.links.ConceptLinks(session.get_connection())
 
             for row in cl_ds.fetch():
                 self.link_cache[row['name']] = row['id']
@@ -1294,7 +1296,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def get_concept_map(self, session=None, force_reload=False):
-        connection = session.connection if session is not None else self.connection
+        connection = session.get_connection() if session is not None else self.connection
 
         if not self.concept_cache or force_reload:
             cl_ds = datasources.meta.concepts.ConceptList(connection)
@@ -1402,7 +1404,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         cmds = []
         records = []
 
-        context = delta_cmds.CommandContext(session.connection, session)
+        context = delta_cmds.CommandContext(session.get_connection(), session)
 
         for target in targets:
             """LOG [caos.sync]
@@ -1457,7 +1459,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def store_link_batch(self, links, session, batch_id):
-        context = delta_cmds.CommandContext(session.connection, session)
+        context = delta_cmds.CommandContext(session.get_connection(), session)
 
         def flatten_links(links):
             for source, linksets in links:
@@ -1492,7 +1494,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             params = (complete_source_ids,)
 
             result = self.runquery(qry, params,
-                                   connection=session.connection,
+                                   connection=session.get_connection(),
                                    compat=False, return_stmt=True)
             count += result.first(*params)
 
@@ -1503,7 +1505,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             params = (partial_endpoints,)
 
             result = self.runquery(qry, params,
-                                   connection=session.connection,
+                                   connection=session.get_connection(),
                                    compat=False, return_stmt=True)
             partial_count = result.first(*params)
 
@@ -2358,7 +2360,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         cond = delta_cmds.CompositeTypeExists(name)
         op = delta_cmds.CreateCompositeType(type, neg_conditions=[cond])
 
-        context = delta_cmds.CommandContext(session.connection, session)
+        context = delta_cmds.CommandContext(session.get_connection(), session)
         op.execute(context)
 
         return common.qname(*name)
@@ -2428,7 +2430,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.execute_delta_plan(delta, session)
 
         # Update oid to proto name mapping cache
-        ds = introspection.tables.TableList(session.connection)
+        ds = introspection.tables.TableList(session.get_connection())
         table_name = common.concept_name_to_table_name(updated_concept.name, catenate=False)
         tables = ds.fetch(schema_name=table_name[0], table_pattern=table_name[1])
 
@@ -2443,7 +2445,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.proto_name_to_table_id_cache[updated_concept.name] = table['typoid']
 
         # Update virtual concept table column cache
-        self.get_table_columns(table_name, connection=session.connection, cache=None)
+        self.get_table_columns(table_name, connection=session.get_connection(), cache=None)
 
 
     def read_concepts(self, meta):

@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2010 Sprymix Inc.
+# Copyright (c) 2010, 2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -21,5 +21,18 @@ class ConnectionPool(pool.ConnectionPool):
         return c
 
     def recycle(self, connection):
-        super().recycle(connection)
-        connection.reset()
+        try:
+            connection.reset()
+        except Exception:
+            # Failure to reset the connection for any reason means we should try to close it
+            # and forget about it.
+            self.remove(connection)
+            raise
+        else:
+            super().recycle(connection)
+
+    def remove(self, connection):
+        try:
+            connection.close()
+        finally:
+            super().remove(connection)

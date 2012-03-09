@@ -6,7 +6,7 @@
 ##
 
 
-import postgresql
+import postgresql.exceptions
 import postgresql.protocol.xact3
 
 from semantix.caos import session
@@ -30,7 +30,7 @@ class AsyncSessionPool(SessionPool):
 class Transaction(session.Transaction):
     def __init__(self, session, parent=None):
         super().__init__(session, parent=parent)
-        self.xact = self.session.connection.xact()
+        self.xact = self.session.get_connection().xact()
         self._begin_impl()
 
     @debug
@@ -64,27 +64,30 @@ class Session(session.Session):
                                 proto_schema=proto_schema)
         self.backend = backend
         self.prepared_statements = {}
-        self.init_connection(connection)
+        self._connection = connection
 
-    def init_connection(self, connection=None):
-        if connection is None:
-            self.connection = self.backend.connection_pool(self)
-        else:
-            self.connection = connection
+    def init_connection(self):
+        self._connection = self.backend.connection_pool(self)
 
     def get_connection(self):
-        return self.connection
+        if self._connection is None:
+            self.init_connection()
+        return self._connection
 
     def get_prepared_statement(self, query):
-        ps = self.prepared_statements.get(self.connection)
-        if ps:
-            ps = ps.get(query)
+        connection = self.get_connection()
 
-        if not ps:
-            ps = self.connection.prepare(query)
-            self.prepared_statements.setdefault(self.connection, {})[query] = ps
+        try:
+            connection_statements = self.prepared_statements[connection]
+        except KeyError:
+            connection_statements = self.prepared_statements[connection] = {}
 
-        return ps
+        try:
+            statement = connection_statements[query]
+        except KeyError:
+            statement = connection_statements[query] = connection.prepare(query)
+
+        return statement
 
     def _transaction(self, parent):
         return Transaction(session=self, parent=parent)
@@ -149,27 +152,49 @@ class Session(session.Session):
         self.do_sync(skipbatch=skipbatch)
 
     def interrupt(self):
-        if self.connection.pq.xact and \
-           self.connection.pq.xact.state != postgresql.protocol.xact3.Complete:
+        if self._connection is not None and self._connection.pq.xact and \
+           self._connection.pq.xact.state != postgresql.protocol.xact3.Complete:
             try:
-                self.connection.interrupt()
-                self.connection.pq.complete()
+                self._connection.interrupt()
+                self._connection.pq.complete()
             except postgresql.exceptions.QueryCanceledError:
                 pass
 
-    def _release_cleanup(self):
-        self.connection.reset()
+    def _drop_connection(self):
+        if self._connection is not None:
+            try:
+                self._connection.release()
+            except (postgresql.exceptions.Error, IOError) as e:
+                # The session is likely already dying horribly, quite likely due to a
+                # backend/driver exception, so we must expect further breakage when releasing
+                # the connection.
+                msg = 'Unhandled backend exception while dropping session connection, masking'
+                self.logger.error(msg, exc_info=(type(e), e, e.__traceback__))
+            self._connection = None
 
-    def close(self):
-        self.connection.release()
-        self.connection = None
-        self.prepared_statements.clear()
-        super().close()
+    def _abortive_cleanup(self):
+        self._drop_connection()
+
+    def _release_cleanup(self):
+        try:
+            self.prepared_statements.clear()
+            super()._release_cleanup()
+            if self._connection is not None:
+                self._connection.reset()
+        except (postgresql.exceptions.Error, IOError) as e:
+            # Backend could not release gracefully, abort and drop backend connection.
+            msg = 'Unhandled backend exception in session.release(), attempting to recover'
+            self.logger.error(msg, exc_info=(type(e), e, e.__traceback__))
+            self._abortive_cleanup()
+        except Exception:
+            self._abortive_cleanup()
+            raise
+
+    def _close_cleanup(self):
+        super()._close_cleanup()
+        self._drop_connection()
 
 
 class AsyncSession(Session):
-    def init_connection(self, connection=None):
-        if connection is None:
-            self.connection = self.backend.async_connection_pool(self)
-        else:
-            self.connection = connection
+    def init_connection(self):
+        self._connection = self.backend.async_connection_pool(self)
