@@ -7,7 +7,6 @@
 
 
 from semantix.utils.config import ConfigurableMeta, cvalue
-from .pytest_semantix import logging_off
 
 
 class Exceptions(metaclass=ConfigurableMeta):

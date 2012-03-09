@@ -102,6 +102,22 @@ class TestAssertRaises:
                 ex.foo = 'foo'
                 raise ex
 
+        with assert_raises(AssertionError):
+            with assert_raises(Exception, cause=None):
+                # Cascaded case
+                try:
+                    int('a')
+                except Exception as ex:
+                    raise Exception from ex
+
+        with assert_raises(AssertionError):
+            with assert_raises(Exception, cause=None, context=None):
+                # Cascaded case
+                try:
+                    int('a')
+                except Exception as ex:
+                    raise Exception
+
 
     def test_utils_debug_assert_logs(self):
         logger = logging.getLogger('semantix.tests.debug')

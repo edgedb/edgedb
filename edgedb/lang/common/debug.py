@@ -345,7 +345,7 @@ def assert_logs(message_re, *, logger_re=None):
 
 
 @contextlib.contextmanager
-def assert_raises(exception_cls, *, cause=None, context=None, error_re=None, attrs=None):
+def assert_raises(exception_cls, *, cause=Void, context=Void, error_re=None, attrs=None):
     try:
         yield
 
@@ -357,11 +357,17 @@ def assert_raises(exception_cls, *, cause=None, context=None, error_re=None, att
                             format(exception_cls.__class__.__name__))
 
     except exception_cls as ex:
-        if cause is not None:
-            assert isinstance(ex.__cause__, cause)
+        if cause is not Void:
+            if cause is None:
+                assert ex.__cause__ is None
+            else:
+                assert isinstance(ex.__cause__, cause)
 
-        if context is not None:
-            assert isinstance(ex.__context__, context)
+        if context is not Void:
+            if context is None:
+                assert ex.__context__ is None
+            else:
+                assert isinstance(ex.__context__, context)
 
         try:
             msg = ex.args[0]
@@ -369,16 +375,16 @@ def assert_raises(exception_cls, *, cause=None, context=None, error_re=None, att
             msg = str(ex)
 
         if error_re is not None:
-            err_re = re.compile('%s' % error_re)
+            err_re = re.compile(str(error_re))
 
             if not err_re.search(msg):
-                if cause is not None:
+                if cause not in (Void, None):
                     if not err_re.search(ex.__cause__.args[0]):
                         raise ErrorExpected('%s with cause %s was expected to be raised with ' \
                                             'cause message that matches %r, got %r' % \
                                             (exception_cls.__name__, cause.__name__,
                                              error_re, ex.__cause__.args[0])) from ex
-                elif context is not None:
+                elif context not in (Void, None):
                     if not err_re.search(ex.__context__.args[0]):
                         raise ErrorExpected('%s with cause %s was expected to be raised with ' \
                                             'context message that matches %r, got %r' % \
@@ -412,8 +418,8 @@ def assert_raises(exception_cls, *, cause=None, context=None, error_re=None, att
 
 @contextlib.contextmanager
 def assert_shorter_than(timeout):
-    '''Context manager, that ensures that the wrapped block of code will
-    execute in less period of time than the specified.
+    '''Context manager, that ensures that the wrapped block of code
+    executes in shorter period of time than the specified.
 
     .. code-block:: pycon
 
@@ -436,8 +442,8 @@ def assert_shorter_than(timeout):
 
 @contextlib.contextmanager
 def assert_longer_than(timeout):
-    '''Context manager, that ensures that the wrapped block of code will
-    execute longer than the specified period of time.
+    '''Context manager, that ensures that the wrapped block of code
+    executes longer than the specified period of time.
 
     .. code-block:: pycon
 
