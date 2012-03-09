@@ -344,12 +344,19 @@ def assert_logs(message_re, *, logger_re=None):
                                      format(message_re, logger_re))
 
 
+class _ExceptionContainer:
+    __slots__ = ('exception',)
+
+
 @contextlib.contextmanager
 def assert_raises(exception_cls, *, cause=Void, context=Void, error_re=None, attrs=None):
+    cnt = _ExceptionContainer()
+
     try:
-        yield
+        yield cnt
 
     except MultiError as ex:
+        cnt.exception = ex
         for error in ex.errors:
             if isinstance(error, exception_cls):
                 return
@@ -357,6 +364,7 @@ def assert_raises(exception_cls, *, cause=Void, context=Void, error_re=None, att
                             format(exception_cls.__class__.__name__))
 
     except exception_cls as ex:
+        cnt.exception = ex
         if cause is not Void:
             if cause is None:
                 assert ex.__cause__ is None
@@ -409,6 +417,7 @@ def assert_raises(exception_cls, *, cause=Void, context=Void, error_re=None, att
                                                                 (exception_cls.__name__, attr))
 
     except Exception as ex:
+        cnt.exception = ex
         raise ErrorExpected('%s was expected to be raised, got %s' % \
                                     (exception_cls.__name__, ex.__class__.__name__)) from ex
 

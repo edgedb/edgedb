@@ -18,12 +18,13 @@ class TestAssertRaises:
             # Simple case
             int('a')
 
-        with assert_raises(Exception, cause=ValueError):
+        with assert_raises(Exception, cause=ValueError) as ctx:
             # Cascaded case
             try:
                 int('a')
             except Exception as ex:
                 raise Exception from ex
+        assert ctx.exception.__cause__
 
         with assert_raises(Exception, context=ValueError):
             # Cascaded case
