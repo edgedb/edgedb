@@ -6,41 +6,11 @@
 ##
 
 
-import os
 import py
 import re
-import sys
-import logging
-import datetime
-import contextlib
-import io
 
-from semantix.exceptions import SemantixError, _iter_contexts
 from semantix.utils.debug import highlight
-from semantix.utils.io import terminal
 from semantix.utils import markup
-
-
-setattr(logging, '_semantix_logging_running', True)
-
-def _logging_on():
-    setattr(logging, '_semantix_logging_running', True)
-def _logging_off():
-    setattr(logging, '_semantix_logging_running', False)
-
-setattr(logging, '_logging_on', _logging_on)
-setattr(logging, '_logging_off', _logging_off)
-
-
-@contextlib.contextmanager
-def logging_off():
-    logging._logging_off()
-    try:
-        yield
-    finally:
-        logging._logging_on()
-
-logging.logging_off = logging_off
 
 
 class ShellInvoker:
@@ -87,31 +57,6 @@ class ShellInvoker:
                 pass
 
             shell.interact(message)
-
-
-class LoggingPrintHandler(logging.Handler):
-    def __init__(self, colorize, *args, **kwargs):
-        self.colorize = colorize
-        super().__init__(*args, **kwargs)
-
-    def emit(self, record):
-        dt = datetime.datetime.fromtimestamp(record.created)
-        str_dt = '@{}@'.format(dt)
-
-        if getattr(logging, '_semantix_logging_running'):
-            if self.colorize:
-                level = record.levelname
-                level_color = 'blue'
-                if level == 'ERROR':
-                    level_color = 'red'
-
-                print(terminal.colorize(level, 'white', level_color), os.getpid(),
-                      str_dt, record.getMessage())
-            else:
-                print(record.levelname, os.getpid(), str_dt, record.getMessage())
-
-            if record.exc_info:
-                sys.excepthook(*record.exc_info)
 
 
 test_patterns = []
@@ -217,10 +162,8 @@ def pytest_configure(config):
         config.pluginmanager.register(ShellInvoker(), 'shell')
 
     PyTestPatcher.patch()
-    logging.getLogger().addHandler(LoggingPrintHandler(config.option.colorize))
-
-    logging.getLogger().setLevel(logging.INFO)
-    logging.getLogger('semantix').setLevel(logging.DEBUG)
+    from semantix.utils.debug import _LoggingDebugHandler
+    _LoggingDebugHandler.install()
 
     patterns = []
     tp = config.getvalue('test_patterns')

@@ -13,6 +13,7 @@ import operator
 import logging
 
 from semantix.utils.lang import javascript
+from semantix.utils.debug import debug_logger_off
 
 
 def no_jsc_cache(func):
@@ -47,7 +48,7 @@ class TestUtilsLangJSImport:
     @clean_sys_modules
     @no_jsc_cache
     def test_utils_lang_js_import_1(self):
-        with logging.logging_off():
+        with debug_logger_off():
             from semantix.utils.lang.javascript.tests.testimport import foo
 
         d = _deps(foo)
@@ -71,7 +72,7 @@ class TestUtilsLangJSImport:
     @clean_sys_modules
     @no_jsc_cache
     def test_utils_lang_js_import_2(self):
-        with logging.logging_off():
+        with debug_logger_off():
             from semantix.utils.lang.javascript.tests.testimport import foo
 
         mods = []

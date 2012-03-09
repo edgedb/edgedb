@@ -6,8 +6,12 @@
 ##
 
 
+import datetime
+import logging
 import inspect
 import re
+import os
+import sys
 import ast
 import contextlib
 import cProfile
@@ -16,6 +20,8 @@ import time
 from semantix import bootstrap
 from semantix.utils.functional import decorate
 from semantix.exceptions import MultiError
+from semantix.utils import config, term
+from semantix.utils.datastructures import Void
 
 
 """A collection of useful debugging routines"""
@@ -213,6 +219,129 @@ def profiler(filename=None, sort='time'):
             prof.print_stats(sort)
         else:
             prof.dump_stats(filename)
+
+
+class _LoggingDebugHandler(logging.Handler, metaclass=config.ConfigurableMeta):
+    _enabled = config.cvalue(True, type=bool)
+
+    _style_error = term.Style16(color='white', bgcolor='red')
+    _style_other = term.Style16(color='white', bgcolor='blue')
+
+    _logger = logging.getLogger()
+    _installed = False
+
+    def emit(self, record):
+        dt = datetime.datetime.fromtimestamp(record.created)
+        str_dt = '@{}@'.format(dt)
+
+        if self._enabled:
+            if term.use_colors():
+                style = self._style_other
+                level = record.levelname
+                if level == 'ERROR':
+                    style = self._style_error
+
+                print(style.apply(level), os.getpid(), str_dt, record.getMessage())
+            else:
+                print(record.levelname, os.getpid(), str_dt, record.getMessage())
+
+            if record.exc_info:
+                sys.excepthook(*record.exc_info)
+
+    @classmethod
+    def install(cls):
+        if not cls._installed:
+            cls._installed = cls()
+
+            cls._logger.setLevel(logging.INFO)
+            logging.getLogger('semantix').setLevel(logging.DEBUG)
+
+            cls._logger.addHandler(cls._installed)
+
+    @classmethod
+    def uninstall(cls):
+        if cls._installed:
+            cls._logger.removeHandler(cls._installed)
+            cls._installed = False
+
+            cls._logger.setLevel(logging.NOTSET)
+            logging.getLogger('semantix').setLevel(logging.NOTSET)
+
+
+@contextlib.contextmanager
+def debug_logger_on(logger_cls=_LoggingDebugHandler):
+    '''Context manager, that enables printing log messages to stdout
+    for the wrapped code'''
+
+    if not logger_cls._installed:
+        logger_cls.install()
+
+    conf_name = '{}.{}._enabled'.format(logger_cls.__module__, logger_cls.__name__)
+    with config.inline({conf_name: True}):
+        yield
+
+
+@contextlib.contextmanager
+def debug_logger_off(logger_cls=_LoggingDebugHandler):
+    '''Context manager, that disables printing log messages to stdout
+    for the wrapped code'''
+
+    conf_name = '{}.{}._enabled'.format(logger_cls.__module__, logger_cls.__name__)
+    with config.inline({conf_name: False}):
+        yield
+
+
+class _LoggingAssertHandler(logging.Handler):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.buffer = []
+
+    def emit(self, record):
+        self.buffer.append(record)
+
+
+@contextlib.contextmanager
+def assert_logs(message_re, *, logger_re=None):
+    '''Context manager, that ensures that the wrapped block of code
+    logs a message matching ``message_re``, with the logger matching ``logger_re``.
+
+    .. code-block:: pycon
+
+        >>> with assert_logs('foo'):
+        ...     pass
+        AssertionError
+    '''
+
+    logger = logging.getLogger()
+    handler = _LoggingAssertHandler(level=logging.DEBUG)
+    logger.addHandler(handler)
+
+    msg_re = re.compile(message_re)
+    lgr_re = None
+    if logger_re is not None:
+        lgr_re = re.compile(logger_re)
+
+    try:
+        with debug_logger_off():
+            yield
+    finally:
+        logger.removeHandler(handler)
+
+        for record in handler.buffer:
+            if msg_re.search(record.msg):
+
+                if lgr_re is None:
+                    break
+                else:
+                    if lgr_re.search(record.name):
+                        break
+        else:
+            if lgr_re is None:
+                raise AssertionError('no expected message matching {!r} was logged'.\
+                                     format(message_re))
+            else:
+                raise AssertionError('no expected message matching {!r} on logger {!r} was logged'.\
+                                     format(message_re, logger_re))
 
 
 @contextlib.contextmanager

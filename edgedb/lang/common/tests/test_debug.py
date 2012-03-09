@@ -6,7 +6,10 @@
 ##
 
 
-from semantix.utils.debug import assert_raises, ErrorExpected, assert_shorter_than, assert_longer_than
+import logging
+
+from semantix.utils.debug import assert_raises, ErrorExpected, assert_logs, \
+                                 assert_shorter_than, assert_longer_than
 
 
 class TestAssertRaises:
@@ -98,6 +101,32 @@ class TestAssertRaises:
                 ex = Ex()
                 ex.foo = 'foo'
                 raise ex
+
+
+    def test_utils_debug_assert_logs(self):
+        logger = logging.getLogger('semantix.tests.debug')
+
+        with assert_raises(AssertionError,
+                           error_re="no expected message matching 'spam' was logged"):
+            with assert_logs('spam'):
+                pass
+
+        with assert_raises(AssertionError,
+                           error_re="no expected message matching 'spam' was logged"):
+            with assert_logs('spam'):
+                logger.debug('ham')
+
+        with assert_raises(AssertionError,
+                           error_re="no expected message matching 'spam' on logger " \
+                                                                        "'foo.bar' was logged"):
+            with assert_logs('spam', logger_re='foo.bar'):
+                logger.debug('spam')
+
+        with assert_logs('spam'):
+            logger.debug('spam')
+
+        with assert_logs('spam', logger_re='semantix.tests.debug'):
+            logger.debug('spam')
 
     def test_utils_debug_assert_shorter_than(self):
         import time
