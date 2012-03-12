@@ -64,6 +64,7 @@ class CaosQLExpression:
             caosql_tree, _ = self.parser.normalize_select_query(caosql_tree, context=context)
 
         """LOG [caos.query] CaosQL tree:
+        from semantix.utils import markup
         markup.dump(caosql_tree)
         """
 
@@ -75,7 +76,8 @@ class CaosQLExpression:
         query_tree = self.transformer.transform(caosql_tree, arg_types,
                                                 module_aliases=self.module_aliases)
         """LOG [caos.query] Caos tree:
-        markup.dump(caos_tree)
+        from semantix.utils import markup
+        markup.dump(query_tree)
         """
 
         return query_tree
