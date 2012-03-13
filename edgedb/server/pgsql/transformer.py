@@ -50,11 +50,11 @@ class TransformerContextLevel(object):
             self.session = prevlevel.session
             self.proto_schema = prevlevel.proto_schema
             self.unwind_rlinks = prevlevel.unwind_rlinks
+            self.aliascnt = prevlevel.aliascnt
 
             if mode == TransformerContext.NEW_TRANSPARENT:
                 self.vars = prevlevel.vars
                 self.ctes = prevlevel.ctes
-                self.aliascnt = prevlevel.aliascnt
                 self.ctemap = prevlevel.ctemap
                 self.explicit_cte_map = prevlevel.explicit_cte_map
                 self.concept_node_map = prevlevel.concept_node_map
@@ -66,7 +66,6 @@ class TransformerContextLevel(object):
             elif mode == TransformerContext.SUBQUERY:
                 self.vars = {}
                 self.ctes = prevlevel.ctes.copy()
-                self.aliascnt = prevlevel.aliascnt.copy()
                 self.ctemap = prevlevel.ctemap.copy()
                 self.explicit_cte_map = prevlevel.explicit_cte_map.copy()
                 self.concept_node_map = prevlevel.concept_node_map.copy()
@@ -82,7 +81,6 @@ class TransformerContextLevel(object):
             else:
                 self.vars = prevlevel.vars.copy()
                 self.ctes = prevlevel.ctes.copy()
-                self.aliascnt = prevlevel.aliascnt.copy()
                 self.ctemap = prevlevel.ctemap.copy()
                 self.explicit_cte_map = prevlevel.explicit_cte_map.copy()
                 self.concept_node_map = prevlevel.concept_node_map.copy()
