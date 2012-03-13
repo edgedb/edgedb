@@ -11,10 +11,9 @@ import sys
 import warnings
 import functools
 
-import py.test
-
 from semantix.utils import functional
 from semantix.utils.functional import types
+from semantix.utils.debug import assert_raises
 
 
 class TestUtilsFunctionalChecktypes:
@@ -54,7 +53,8 @@ class TestUtilsFunctionalChecktypes:
             return True
 
         assert tmp({'foo': True})
-        py.test.raises(TypeError, tmp, {'bar': True})
+        with assert_raises(TypeError):
+            tmp({'bar': True})
 
 
     def test_utils_functional_checktypes_class_methods(self):
@@ -74,14 +74,17 @@ class TestUtilsFunctionalChecktypes:
                 return foo + bar
 
         assert T.tmp1(3) == 9
-        py.test.raises(TypeError, T.tmp1, 3.0)
+        with assert_raises(TypeError):
+            T.tmp1(3.0)
 
         assert T.tmp2(3) == 12
-        py.test.raises(TypeError, T.tmp2, 3.0)
+        with assert_raises(TypeError):
+            T.tmp2(3.0)
 
         t1, t2 = T(), T()
         assert t1.tmp0(3.0, 4) == 7.0 and t2.tmp0(3.0, 5) == 8.0
-        py.test.raises(TypeError, t1.tmp0, 4, 4.0)
+        with assert_raises(TypeError):
+            t1.tmp0(4, 4.0)
 
         assert isinstance(t1.tmp0, std_types.MethodType)
         assert id(t1.tmp0) == id(t2.tmp0)
@@ -135,28 +138,34 @@ class TestUtilsFunctionalChecktypes:
         assert T._property == 123
 
         assert T.tmp1(3) == 9
-        py.test.raises(TypeError, T.tmp1, 3.0)
+        with assert_raises(TypeError):
+            T.tmp1(3.0)
 
         assert T.tmp2(3) == 12
-        py.test.raises(TypeError, T.tmp2, 3.0)
+        with assert_raises(TypeError):
+            T.tmp2(3.0)
 
         assert T.tmp4(b'') == 3
-        py.test.raises(TypeError, T.tmp4, '')
+        with assert_raises(TypeError):
+            T.tmp4('')
 
         t1, t2 = T(), T()
         assert t1.tmp0(3.0, 4) == 7.0 and t2.tmp0(3.0, 5) == 8.0
-        py.test.raises(TypeError, t1.tmp0, 4, 4.0)
+        with assert_raises(TypeError):
+            t1.tmp0(4, 4.0)
         assert isinstance(t1.tmp0, std_types.MethodType)
         assert id(t1.tmp0) == id(t2.tmp0)
 
         assert t1.tmp4(b'') == 3
-        py.test.raises(TypeError, t1.tmp4, '')
-
+        with assert_raises(TypeError):
+            t1.tmp4('')
 
         t1 = T()
         assert t1.tmp5(a=b'') == 134
-        py.test.raises(TypeError, t1.tmp5, a='')
-        py.test.raises(TypeError, t1.tmp5, '')
+        with assert_raises(TypeError):
+            t1.tmp5(a='')
+        with assert_raises(TypeError):
+            t1.tmp5('')
 
         assert T.tmp6(a=10) == 1241
         assert t1.tmp5(a=b'') == 134
@@ -166,15 +175,18 @@ class TestUtilsFunctionalChecktypes:
         def tmp1(a:lambda arg: arg > 0 and isinstance(arg, int)):
             return a**a
 
-        py.test.raises(TypeError, tmp1, -1)
-        py.test.raises(TypeError, tmp1, 0.1)
+        with assert_raises(TypeError):
+            tmp1(-1)
+        with assert_raises(TypeError):
+            tmp1(0.1)
         assert tmp1(3) == 27
 
     def test_utils_functional_checktypes_validation(self):
         @functional.checktypes
         def tmp1(a, b:bytes=b'', d=3) -> bytes:
             return b*a
-        py.test.raises(TypeError, tmp1, 2, 4)
+        with assert_raises(TypeError):
+            tmp1(2, 4)
         assert tmp1(3, b'123') == 3 * b'123'
 
 
@@ -182,25 +194,32 @@ class TestUtilsFunctionalChecktypes:
         def tmp2(a, b, d=3) -> bytes:
             return b*a
         assert tmp2(2, b'1') == b'11'
-        py.test.raises(TypeError, tmp2, 2, 4)
+        with assert_raises(TypeError):
+            tmp2(2, 4)
 
         @functional.checktypes
         def tmp4(a, b, d=3) -> (bytes, str):
             return b*a
         assert tmp4(2, b'1') == b'11'
         assert tmp4(2, '1') == '11'
-        py.test.raises(TypeError, tmp4, 2, 4)
+        with assert_raises(TypeError):
+            tmp4(2, 4)
 
 
         @functional.checktypes
         def tmp3(a:int, *, b:int=1, d:bytes=b'a') -> bytes:
             return (a + b) * d
         assert tmp3(1, b=2) == b'aaa'
-        py.test.raises(TypeError, tmp3, 1, 2)
-        py.test.raises(TypeError, tmp3, 2.0, 4)
-        py.test.raises(TypeError, tmp3, 2.0, b=4)
-        py.test.raises(TypeError, tmp3, 2.0)
-        py.test.raises(TypeError, tmp3, d='a')
+        with assert_raises(TypeError):
+            tmp3(1, 2)
+        with assert_raises(TypeError):
+            tmp3(2.0, 4)
+        with assert_raises(TypeError):
+            tmp3(2.0, b=4)
+        with assert_raises(TypeError):
+            tmp3(2.0)
+        with assert_raises(TypeError):
+            tmp3(d='a')
 
 
         @functional.checktypes
