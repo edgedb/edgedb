@@ -61,10 +61,6 @@ class BoundArguments:
             return dict(self._kwargs)
 
 
-class KwonlyArgumentError(TypeError):
-    pass
-
-
 class Signature:
     __slots__ = ('name', 'args', 'kwonlyargs', 'vararg', 'varkwarg', '_map', 'return_annotation')
 
@@ -145,13 +141,14 @@ class Signature:
         return self._map[arg_name]
 
     def __iter__(self):
-        chain = [self.args]
+        for arg in self.args:
+            yield arg
         if self.vararg:
-            chain.append((self.vararg,))
-        chain.append(self.kwonlyargs)
+            yield self.vararg
+        for arg in self.kwonlyargs:
+            yield arg
         if self.varkwarg:
-            chain.append((self.varkwarg,))
-        return itertools.chain(*chain)
+            yield self.varkwarg
 
     def _find_annotation(self, func, name):
         try:

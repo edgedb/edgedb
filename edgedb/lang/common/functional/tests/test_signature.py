@@ -179,6 +179,17 @@ class TestUtilsSignature(object):
         assert s.varkwarg.name == 'y'
         assert s.varkwarg.annotation == 2
 
+        l = list(s)
+        assert l[0].name == 'a'
+        assert l[1].name == 'b'
+        assert l[2].name == 'c'
+        assert l[3].name == 'd'
+        assert l[4].name == 'args'
+        assert l[5].name == 'k'
+        assert l[6].name == 'v'
+        assert l[7].name == 'x'
+        assert l[8].name == 'y'
+
     def test_utils_signature_render_args_1(self):
         def test(): pass
         assert signature(test).render_args() == ''
