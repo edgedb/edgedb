@@ -236,6 +236,11 @@ class BaseRenderer:
     def _render_OverflowBarier(self, element):
         self.buffer.write('<...>', style=self.styles.overflow)
 
+    def _render_SerializationError(self, element):
+        self.buffer.write('Exception during serialization to markup: <{}: {}>'. \
+                                                            format(element.cls, element.text),
+                          style=self.styles.serialization_error)
+
     @classmethod
     def renders(cls, markup, styles=None, max_width=None):
         renderer = cls(max_width=max_width, styles=styles)

@@ -43,7 +43,7 @@ class Dark16(StylesTable):
     ref = Style(color='red')
 
     unknown_object = Style(color='blue', bold=True)
-    unknown_markup = Style(color='white', bgcolor='red')
+    serialization_error = unknown_markup = Style(color='white', bgcolor='red')
 
 
 class Dark256(StylesTable):
@@ -74,6 +74,7 @@ class Dark256(StylesTable):
 
     unknown_object = Style(color='#454545')
     unknown_markup = overflow = Style(color='white', bgcolor='#84345a')
+    serialization_error = Style(color='white', bgcolor='#900')
 
     diff_anno = Style(color='#777')
     diff_after = Style(color='#4aa336')

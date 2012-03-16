@@ -47,3 +47,9 @@ class MarkupMapping(typed.TypedDict, keytype=str, valuetype=Markup):
 
 class OverflowBarier(Markup):
     """Represents that the nesting level of objects was too big"""
+
+
+class SerializationError(Markup):
+    """An error during object serialization occurred"""
+    text = Field(str)
+    cls = Field(str)

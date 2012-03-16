@@ -98,7 +98,12 @@ def serialize(obj, *, ctx=None):
                 ctx.memo.add(obj_id)
                 ctx.keep_alive.append(obj)
 
-        return sr(obj, ctx=ctx)
+        try:
+            return sr(obj, ctx=ctx)
+        except Exception as ex:
+            return elements.base.SerializationError(text=str(ex),
+                                                    cls='{}.{}'.format(ex.__class__.__module__,
+                                                                       ex.__class__.__name__))
     finally:
         ctx.level -= 1
 
