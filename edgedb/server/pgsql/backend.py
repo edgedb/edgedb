@@ -698,6 +698,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 # Apply and adapt delta, build native delta plan
                 plan = self.process_delta(delta, proto_schema)
 
+                proto_schema.clear_class_cache()
                 # Reinitialize the session with the mutated schema
                 session.replace_schema(proto_schema)
 
