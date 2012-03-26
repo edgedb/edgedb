@@ -1,0 +1,15 @@
+##
+# Copyright (c) 2012 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%SCHEMA semantix.utils.lang.yaml.schema.Schema
+%IMPORT semantix.utils.lang.yaml.validator.tests.ymls.imported AS imported
+%NAME Schema
+---
+
+extends: imported.Common
+object: semantix.utils.lang.yaml.validator.tests.test_inheritance.A

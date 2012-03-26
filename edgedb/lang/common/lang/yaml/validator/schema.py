@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2010, 2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -21,26 +21,30 @@ class Schema(object):
         self.root = None
 
     def _build(self, dct):
+        dct_id = id(dct)
+
+        if dct_id in self.refs:
+            return self.refs[dct_id]
+
         if isinstance(dct, type) and issubclass(dct, Schema):
             # This happens when top-level anchor is assigned to the schema
             dct = dct.__dct
 
         elif isinstance(dct, str):
-            # Reference to an external schema
-            head, dot, tail = dct.partition('.')
+            imported_schema = self._get_imported_schema(dct)
+            dct = imported_schema.__dct
 
-            imported = self.__class__._context.document.imports.get(head)
-            if imported:
-                head = imported.__name__
+        elif dct.get('extends'):
+            imported_schema = self._get_imported_schema(dct['extends'])()
 
-            schema = helper.get_object(head + '.' + tail)
-            dct = schema.__dct
+            imported_schema._build(imported_schema.__dct)
+            self.refs.update(imported_schema.refs)
 
-        dct_id = id(dct)
+            _dct = imported_schema.__dct.copy()
+            _dct.update(dct)
+            dct = _dct
+
         dct_type = dct['type']
-
-        if dct_id in self.refs:
-            return self.refs[dct_id]
 
         if dct_type == 'choice':
             tp = types.ChoiceType(self)
@@ -73,6 +77,18 @@ class Schema(object):
 
         tp.load(dct)
         return tp
+
+    def _get_imported_schema(self, schema_name):
+        # Reference to an external schema
+        head, _, tail = schema_name.partition('.')
+
+        imported = self.__class__._context.document.imports.get(head)
+        if imported:
+            head = imported.__name__
+
+        schema = helper.get_object(head + '.' + tail)
+
+        return schema
 
     def check(self, node):
         if self.root is None:
