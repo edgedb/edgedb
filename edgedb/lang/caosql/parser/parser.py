@@ -118,13 +118,15 @@ class CaosQLParser(parsing.Parser):
             targets = {t.alias: t.expr for t in qtree.targets}
             newsort = []
 
-            for name, direction in sort:
+            for name, direction, *nones in sort:
                 target = targets.get(name)
                 if not target:
                     err = 'sort reference column %s which is not in query targets' % name
                     raise CaosQLQueryError(err)
 
-                newsort.append(qlast.SortExprNode(path=target, direction=direction))
+                nones_order = qlast.NonesOrder(nones[0].lower()) if nones else None
+                newsort.append(qlast.SortExprNode(path=target, direction=direction,
+                                                  nones_order=nones_order))
 
             qtree.orderby = newsort
 
