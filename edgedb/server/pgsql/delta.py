@@ -244,13 +244,26 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeC
         myrec = self.table.record()
 
         if not obj:
-            for name, value in itertools.chain(self.get_struct_properties(True).items(),
-                                               self.get_properties(('source', 'target'), True).items()):
-                updates[name] = value
+            fields = self.get_struct_properties(include_old_value=True)
+
+            for name, value in fields.items():
+                # XXX: for backwards compatibility, should convert the delta code
+                #      to expect objects in 'source' and 'target' fields of pointers,
+                if isinstance(value[0], caos.proto.PrototypeRef):
+                    v0 = value[0].prototype_name
+                else:
+                    v0 = value[0]
+
+                if isinstance(value[1], caos.proto.PrototypeRef):
+                    v1 = value[1].prototype_name
+                else:
+                    v1 = value[1]
+
+                updates[name] = (v0, v1)
                 if hasattr(myrec, name):
                     if not rec:
                         rec = self.table.record()
-                    setattr(rec, name, value[1])
+                    setattr(rec, name, v1)
         else:
             for field in obj.__class__._fields:
                 value = getattr(obj, field)
@@ -1803,8 +1816,8 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
             new_type = None
             for op in self(delta_cmds.AlterPrototypeProperty):
                 if op.property == 'target':
-                    new_type = op.new_value
-                    old_type = op.old_value
+                    new_type = op.new_value.prototype_name if op.new_value is not None else None
+                    old_type = op.old_value.prototype_name if op.old_value is not None else None
                     break
 
             if new_type:
@@ -2073,8 +2086,8 @@ class AlterLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.AlterLinkProp
             new_type = None
             for op in self(delta_cmds.AlterPrototypeProperty):
                 if op.property == 'target':
-                    new_type = op.new_value
-                    old_type = op.old_value
+                    new_type = op.new_value.prototype_name if op.new_value is not None else None
+                    old_type = op.old_value.prototype_name if op.old_value is not None else None
                     break
 
             if new_type:

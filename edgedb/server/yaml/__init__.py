@@ -400,7 +400,7 @@ class Concept(Prototype, adapts=proto.Concept):
                     if isinstance(ptr.target, proto.Concept) and ptr.target.is_virtual:
                         key = tuple(t.name for t in ptr.target.children())
                     else:
-                        key = ptr.target.name
+                        key = ptr.target.name if ptr.target else 'unknown'
 
                 section = 'computables' if isinstance(ptr, proto.Computable) else 'links'
 
@@ -471,7 +471,9 @@ class LinkPropertyDef(Prototype, proto.LinkProperty):
 class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
     def __sx_setstate__(self, data):
         if isinstance(data, str):
-            proto.LinkProperty.__init__(self, name=default_name, target=data, _relaxrequired_=True)
+            proto.LinkProperty.__init__(self, name=default_name,
+                                              _setdefaults_=False, _relaxrequired_=True)
+            self._target = data
         else:
             atom_name, info = next(iter(data.items()))
 
@@ -479,13 +481,14 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
             if default and not isinstance(default, list):
                 default = [default]
 
-            proto.LinkProperty.__init__(self, name=default_name, target=atom_name,
+            proto.LinkProperty.__init__(self, name=default_name,
                                         title=info['title'], description=info['description'],
                                         readonly=info['readonly'], default=default,
                                         loading=info['loading'], required=info['required'],
                                         _setdefaults_=False, _relaxrequired_=True)
             self._constraints = info.get('constraints')
             self._abstract_constraints = info.get('abstract-constraints')
+            self._target = atom_name
 
     @classmethod
     def __sx_getstate__(cls, data):
@@ -996,8 +999,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 property_qname = property_base.name
 
             if link.generic():
-                target = localschema.get(property.target)
-                property.target = target.name
+                property.target = localschema.get(property._target)
+                proptarget = property.target
             else:
                 link_base = localschema.get(link.base[0], type=proto.Link, index_only=False)
                 propdef = link_base.pointers.get(property_qname)
@@ -1005,11 +1008,13 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     raise caos.MetaError('link "%s" does not define property "%s"' \
                                          % (link.name, property_qname))
                 property_qname = propdef.normal_name()
+                proptarget = propdef.target
 
             # A new specialized subclass of the link property is created for each
             # (source, property_name, target_atom) combination
             property.base = (property_qname,)
-            prop_genname = proto.LinkProperty.generate_specialized_name(link.name, property.target,
+            prop_genname = proto.LinkProperty.generate_specialized_name(link.name,
+                                                                        proptarget.name,
                                                                         property_qname)
             property.name = caos.Name(name=prop_genname, module=self.module.name)
             property.source = link
@@ -1230,7 +1235,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 else:
                     link_qname = link_base.name
 
-                link.source = concept.name
+                link.source = concept
 
                 targets = []
                 for t in link._targets:
@@ -1238,8 +1243,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     targets.append(target.name)
 
                 link._targets = targets
-                link.target = self._normalize_link_target_name(link_qname, link._targets,
-                                                               localschema)
+                link._target = self._normalize_link_target_name(link_qname, link._targets,
+                                                                localschema)
 
                 atom_constraints = self._get_link_atom_constraints(link)
 
@@ -1247,13 +1252,13 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     target_name = Atom.gen_atom_name(concept, link_qname)
                     target_name = caos.Name(name=target_name, module=concept.name.module)
                 else:
-                    target_name = link.target
+                    target_name = link._target
 
                 # A new specialized subclass of the link is created for each
                 # (source, link_name, target) combination
                 link.base = (link_qname,)
 
-                link_genname = proto.Link.generate_specialized_name(link.source, target_name,
+                link_genname = proto.Link.generate_specialized_name(link.source.name, target_name,
                                                                     link_qname)
                 link.name = caos.Name(name=link_genname, module=self.module.name)
 
@@ -1266,7 +1271,9 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             for link_name, link in concept._links.items():
                 link = link.link
                 if len(link._targets) > 1:
-                    self._create_link_target(concept, link, localschema)
+                    link.target = self._create_link_target(concept, link, localschema)
+                else:
+                    link.target = localschema.get(link._target)
 
         for concept in self.module('concept'):
             self._read_computables(concept, localschema)
@@ -1281,12 +1288,13 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
     def _create_link_target(self, source, pointer, localschema):
         targets = [localschema.get(t, type=proto.Concept) for t in pointer._targets]
 
-        target = pointer.get_common_target(localschema, targets)
-
-        existing = localschema.get(pointer.target, default=None, type=proto.Concept,
-                                   index_only=False)
-        if not existing:
+        target = localschema.get(pointer._target, default=None, type=proto.Concept,
+                                 index_only=False)
+        if target is None:
+            target = pointer.get_common_target(localschema, targets)
             self._add_proto(localschema, target)
+
+        return target
 
 
     def _normalize_link_target_name(self, link_fqname, targets, localschema):
@@ -1386,9 +1394,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     link.source = localschema.get(link.source)
 
                 if not isinstance(link, proto.Computable) and link.source.name == concept.name:
-                    if not isinstance(link.target, proto.Prototype):
-                        link.target = localschema.get(link.target, index_only=False)
-
                     if isinstance(link.target, proto.Atom):
                         link.is_atom = True
 

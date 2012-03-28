@@ -71,7 +71,18 @@ class CommandMeta(type(yaml.Object), type(delta.Command), MixedStructMeta):
 
 class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
     def adapt_value(self, field, value):
-        return MixedStructMeta.adapt_value(field, value)
+        if isinstance(value, str) and isinstance(field.type[0], caos.types.PrototypeClass):
+            value = caos.name.Name(value)
+            value = proto.PrototypeRef(prototype_name=value)
+
+        elif isinstance(value, proto.PrototypeRef) \
+                                and isinstance(field.type[0], caos.types.PrototypeClass):
+            pass
+
+        else:
+            value = MixedStructMeta.adapt_value(field, value)
+
+        return value
 
     @classmethod
     def __sx_getstate__(cls, data):
@@ -203,8 +214,18 @@ class AlterNamedPrototype(NamedPrototypeCommand, adapts=delta.AlterNamedPrototyp
 class AlterPrototypeProperty(Command, adapts=delta.AlterPrototypeProperty):
     @classmethod
     def __sx_getstate__(cls, data):
+        if isinstance(data.old_value, set):
+            old_value = list(data.old_value)
+        else:
+            old_value = data.old_value
+
+        if isinstance(data.new_value, set):
+            new_value = list(data.new_value)
+        else:
+            new_value = data.new_value
+
         result = {
-            data.property: [data.old_value, data.new_value]
+            data.property: [old_value, new_value]
         }
 
         return result
