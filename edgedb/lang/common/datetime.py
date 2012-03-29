@@ -23,7 +23,7 @@ class DateTimeConfig(metaclass=config.ConfigurableMeta):
 class DateTime(datetime.datetime):
     local_tz = None
 
-    def __new__(cls, value=None):
+    def __new__(cls, value=None, format=None):
         tzinfo = None
 
         if isinstance(value, datetime.datetime):
@@ -34,12 +34,29 @@ class DateTime(datetime.datetime):
             args = [value.tm_year, value.tm_mon, value.tm_mday, value.tm_hour, value.tm_min,
                     value.tm_sec, 0]
         elif isinstance(value, str):
-            try:
-                dt = dateutil.parser.parse(value)
-                args = [dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond]
-                tzinfo = dt.tzinfo
-            except ValueError as e:
-                raise ValueError("invalid value for DateTime object: %s" % value) from e
+            dt = None
+
+            if format is not None:
+                if isinstance(format, str):
+                    format = (format,)
+
+                for f in format:
+                    try:
+                        dt = datetime.datetime.strptime(value, f)
+                    except ValueError:
+                        pass
+                    else:
+                        break
+                else:
+                    raise ValueError("invalid value for DateTime object: %s" % value)
+            else:
+                try:
+                    dt = dateutil.parser.parse(value)
+                except ValueError as e:
+                    raise ValueError("invalid value for DateTime object: %s" % value) from e
+
+            args = [dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond]
+            tzinfo = dt.tzinfo
         else:
             raise ValueError("invalid value for DateTime object: %s" % value)
 
@@ -86,17 +103,34 @@ class DateTime(datetime.datetime):
 
 
 class Date(datetime.date):
-    def __new__(cls, value=None):
+    def __new__(cls, value=None, format=None):
         if isinstance(value, datetime.date):
             args = [value.year, value.month, value.day]
         elif isinstance(value, time.struct_time):
             args = [value.tm_year, value.tm_mon, value.tm_mday]
         elif isinstance(value, str):
-            try:
-                dt = dateutil.parser.parse(value)
-                args = [dt.year, dt.month, dt.day]
-            except ValueError as e:
-                raise ValueError("invalid value for Date object: %s" % value) from e
+            dt = None
+
+            if format is not None:
+                if isinstance(format, str):
+                    format = (format,)
+
+                for f in format:
+                    try:
+                        dt = datetime.datetime.strptime(value, f)
+                    except ValueError:
+                        pass
+                    else:
+                        break
+                else:
+                    raise ValueError("invalid value for Date object: %s" % value)
+            else:
+                try:
+                    dt = dateutil.parser.parse(value)
+                except ValueError as e:
+                    raise ValueError("invalid value for Date object: %s" % value) from e
+
+            args = [dt.year, dt.month, dt.day]
         else:
             raise ValueError("invalid value for Date object: %s" % value)
 
@@ -286,13 +320,24 @@ class Time(TimeDelta):
         if isinstance(value, (Time, datetime.time)):
             d = value
         elif isinstance(value, str):
-            try:
-                if format:
-                    d = datetime.datetime.strptime(value, format)
+            if format is not None:
+                if isinstance(format, str):
+                    format = (format,)
+
+                for f in format:
+                    try:
+                        d = datetime.datetime.strptime(value, f)
+                    except ValueError:
+                        pass
+                    else:
+                        break
                 else:
+                    raise ValueError("invalid value for Time object: %s" % value)
+            else:
+                try:
                     d = dateutil.parser.parse(value)
-            except ValueError as e:
-                raise ValueError("invalid value for Time object: %s" % value) from e
+                except ValueError as e:
+                    raise ValueError("invalid value for Time object: %s" % value) from e
         else:
             raise ValueError("invalid value for Time object: %s" % value)
 
