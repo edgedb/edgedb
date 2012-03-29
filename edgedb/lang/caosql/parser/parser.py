@@ -124,7 +124,7 @@ class CaosQLParser(parsing.Parser):
                     err = 'sort reference column %s which is not in query targets' % name
                     raise CaosQLQueryError(err)
 
-                nones_order = qlast.NonesOrder(nones[0].lower()) if nones else None
+                nones_order = qlast.NonesOrder(nones[0].lower()) if nones and nones[0] else None
                 newsort.append(qlast.SortExprNode(path=target, direction=direction,
                                                   nones_order=nones_order))
 
