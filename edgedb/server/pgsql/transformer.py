@@ -1445,6 +1445,10 @@ class CaosTreeTransformer(CaosExprTransformer):
                 args = list(reversed(args))
             elif expr.name == ('agg', 'count'):
                 name = 'count'
+            elif expr.name == ('agg', 'stddev_pop'):
+                name = 'stddev_pop'
+            elif expr.name == ('agg', 'stddev_samp'):
+                name = 'stddev_samp'
             elif expr.name == ('window', 'lag'):
                 name = 'lag'
                 if len(args) > 1:
