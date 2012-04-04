@@ -2578,6 +2578,10 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
                                      neg_conditions=[FunctionExists(('caos', 'levenshtein'))],
                                      priority=-2))
 
+        self.pgops.add(EnableFeature(feature=ProductAggregateFeature(),
+                                     neg_conditions=[FunctionExists(('caos', 'agg_product'))],
+                                     priority=-2))
+
         deltalogtable = DeltaLogTable()
         self.pgops.add(CreateTable(table=deltalogtable,
                                    neg_conditions=[TableExists(name=deltalogtable.name)],
@@ -3719,6 +3723,17 @@ class FuzzystrmatchFeature(Feature):
 
     def __init__(self, schema='caos'):
         super().__init__(name='fuzzystrmatch', schema=schema)
+
+
+class ProductAggregateFeature(Feature):
+    def __init__(self, schema='caos'):
+        super().__init__(name='agg_product', schema=schema)
+
+    def code(self, context):
+        return """
+            CREATE AGGREGATE {schema}.agg_product(double precision) (SFUNC=float8mul, STYPE=double precision, INITCOND=1);
+            CREATE AGGREGATE {schema}.agg_product(numeric) (SFUNC=numeric_mul, STYPE=numeric, INITCOND=1);
+        """.format(schema=self.schema)
 
 
 class EnableFeature(DDLOperation):

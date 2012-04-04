@@ -1434,6 +1434,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 result = pgsql.ast.CaseExprNode(args=[when_expr], default=neg)
             elif expr.name == ('agg', 'sum'):
                 name = 'sum'
+            elif expr.name == ('agg', 'product'):
+                name = common.qname('caos', 'agg_product')
             elif expr.name == ('agg', 'avg'):
                 name = 'avg'
             elif expr.name == ('agg', 'list'):
