@@ -1043,6 +1043,9 @@ class TreeTransformer:
             elif isinstance(right, caos_ast.Conjunction):
                 result = self.add_conjunctions(left, right)
 
+        else:
+            assert False, 'unexpected nodes "{!r}", "{!r}"'.format(left, right)
+
         return result
 
 
@@ -1309,7 +1312,8 @@ class TreeTransformer:
         caos_ast.Base.fixup_refs(refs, newref)
 
     @classmethod
-    def extract_paths(cls, path, reverse=False, resolve_arefs=True, recurse_subqueries=False):
+    def extract_paths(cls, path, reverse=False, resolve_arefs=True, recurse_subqueries=False,
+                                 extract_subgraph_refs=False):
         if isinstance(path, caos_ast.GraphExpr):
             if not recurse_subqueries:
                 return None
@@ -1321,7 +1325,7 @@ class TreeTransformer:
 
                 if path.generator:
                     normalized = cls.extract_paths(path.generator, reverse, resolve_arefs,
-                                                   recurse_subqueries)
+                                                   recurse_subqueries, extract_subgraph_refs)
                     if normalized:
                         paths.add(normalized)
 
@@ -1330,7 +1334,8 @@ class TreeTransformer:
                     if e:
                         for p in e:
                             normalized = cls.extract_paths(p, reverse, resolve_arefs,
-                                                           recurse_subqueries)
+                                                           recurse_subqueries,
+                                                           extract_subgraph_refs)
                             if normalized:
                                 paths.add(normalized)
 
@@ -1343,13 +1348,19 @@ class TreeTransformer:
                     return cls.flatten_path_combination(result)
 
         elif isinstance(path, caos_ast.SubgraphRef):
-            return cls.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries)
+            if not recurse_subqueries and extract_subgraph_refs:
+                return path
+            else:
+                return cls.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries,
+                                         extract_subgraph_refs)
 
         elif isinstance(path, caos_ast.SelectorExpr):
-            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
+            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries,
+                                     extract_subgraph_refs)
 
         elif isinstance(path, caos_ast.SortExpr):
-            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
+            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries,
+                                     extract_subgraph_refs)
 
         elif isinstance(path, (caos_ast.EntitySet, caos_ast.InlineFilter, caos_ast.AtomicRef)):
             if isinstance(path, (caos_ast.InlineFilter, caos_ast.AtomicRef)) and \
@@ -1365,11 +1376,13 @@ class TreeTransformer:
             return result
 
         elif isinstance(path, caos_ast.InlinePropFilter):
-            return cls.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries)
+            return cls.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries,
+                                     extract_subgraph_refs)
 
         elif isinstance(path, caos_ast.LinkPropRef):
             if resolve_arefs or reverse:
-                return cls.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries)
+                return cls.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries,
+                                         extract_subgraph_refs)
             else:
                 return path
 
@@ -1387,7 +1400,8 @@ class TreeTransformer:
         elif isinstance(path, caos_ast.PathCombination):
             result = set()
             for p in path.paths:
-                normalized = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
+                normalized = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries,
+                                               extract_subgraph_refs)
                 if normalized:
                     result.add(normalized)
             if len(result) == 1:
@@ -1402,7 +1416,8 @@ class TreeTransformer:
 
             paths = set()
             for p in (path.left, path.right):
-                normalized = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
+                normalized = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries,
+                                               extract_subgraph_refs)
                 if normalized:
                     paths.add(normalized)
 
@@ -1414,26 +1429,32 @@ class TreeTransformer:
                 return cls.flatten_path_combination(combination(paths=frozenset(paths)))
 
         elif isinstance(path, caos_ast.UnaryOp):
-            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
+            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries,
+                                     extract_subgraph_refs)
 
         elif isinstance(path, caos_ast.ExistPred):
-            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
+            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries,
+                                     extract_subgraph_refs)
 
         elif isinstance(path, caos_ast.TypeCast):
-            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
+            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries,
+                                     extract_subgraph_refs)
 
         elif isinstance(path, caos_ast.NoneTest):
-            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries)
+            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries,
+                                     extract_subgraph_refs)
 
         elif isinstance(path, caos_ast.FunctionCall):
             paths = set()
             for p in path.args:
-                p = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
+                p = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries,
+                                      extract_subgraph_refs)
                 if p:
                     paths.add(p)
 
             for p in path.agg_sort:
-                p = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
+                p = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries,
+                                      extract_subgraph_refs)
                 if p:
                     paths.add(p)
 
@@ -1447,7 +1468,8 @@ class TreeTransformer:
         elif isinstance(path, (caos_ast.Sequence, caos_ast.Record)):
             paths = set()
             for p in path.elements:
-                p = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries)
+                p = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries,
+                                      extract_subgraph_refs)
                 if p:
                     paths.add(p)
 
@@ -1781,7 +1803,8 @@ class TreeTransformer:
             else:
                 return caos_ast.BinOp(left=left, op=operation, right=right)
 
-        left_paths = self.extract_paths(left, reverse=False, resolve_arefs=False)
+        left_paths = self.extract_paths(left, reverse=False, resolve_arefs=False,
+                                              extract_subgraph_refs=True)
 
         if isinstance(left_paths, caos_ast.Path):
             # If both left and right operands are references to atoms of the same node,
@@ -1889,7 +1912,8 @@ class TreeTransformer:
                 if not result:
                     result = newbinop(left, right, uninline=True)
             else:
-                right_paths = self.extract_paths(right, reverse=False, resolve_arefs=False)
+                right_paths = self.extract_paths(right, reverse=False, resolve_arefs=False,
+                                                        extract_subgraph_refs=True)
 
                 if isinstance(right, caos_ast.Constant):
                     paths = set()
