@@ -349,6 +349,7 @@ class FunctionCall(Base):
                 ('args', list),
                 ('kwargs', dict),
                 ('aggregates', bool),
+                ('window', bool),
                 ('agg_sort', list)]
 
 class TypeCast(Base):

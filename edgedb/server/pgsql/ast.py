@@ -137,6 +137,9 @@ class FunctionCallNode(Base):
     __fields = ['name', ('args', list), 'over', ('aggregates', bool), ('noparens', bool),
                 'agg_sort']
 
+class WindowDefNode(Base):
+    __fields = ['partition', ('orderby', list), 'frame']
+
 class IgnoreNode(Base):
     pass
 

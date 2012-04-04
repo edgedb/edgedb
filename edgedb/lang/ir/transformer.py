@@ -709,7 +709,8 @@ class TreeTransformer:
                 self.flatten_and_unify_path_combination(e)
 
             expr = expr.__class__(name=expr.name, args=args, aggregates=expr.aggregates,
-                                  kwargs=expr.kwargs, agg_sort=expr.agg_sort)
+                                  kwargs=expr.kwargs, agg_sort=expr.agg_sort,
+                                  window=expr.window)
 
         elif isinstance(expr, (caos_ast.Sequence, caos_ast.Record)):
             elements = []
@@ -1587,6 +1588,9 @@ class TreeTransformer:
 
         elif node.name[0] == 'agg':
             node.aggregates = True
+
+        elif node.name[0] == 'window':
+            node.window = True
 
         elif node.name == 'type':
             if len(node.args) != 1:

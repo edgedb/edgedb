@@ -1443,6 +1443,16 @@ class CaosTreeTransformer(CaosExprTransformer):
                 args = list(reversed(args))
             elif expr.name == ('agg', 'count'):
                 name = 'count'
+            elif expr.name == ('window', 'lag'):
+                name = 'lag'
+                if len(args) > 1:
+                    args[1] = pgsql.ast.TypeCastNode(expr=args[1],
+                                                     type=pgsql.ast.TypeNode(name='int'))
+            elif expr.name == ('window', 'lead'):
+                name = 'lead'
+                if len(args) > 1:
+                    args[1] = pgsql.ast.TypeCastNode(expr=args[1],
+                                                     type=pgsql.ast.TypeNode(name='int'))
             elif expr.name == ('math', 'abs'):
                 name = 'abs'
             elif expr.name == ('math', 'round'):
@@ -1524,6 +1534,9 @@ class CaosTreeTransformer(CaosExprTransformer):
                 result = pgsql.ast.FunctionCallNode(name=name, args=args,
                                                     aggregates=bool(expr.aggregates),
                                                     agg_sort=agg_sort)
+
+                if expr.window:
+                    result.over = pgsql.ast.WindowDefNode()
 
         return result
 

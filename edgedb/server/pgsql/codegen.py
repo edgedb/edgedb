@@ -420,6 +420,29 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.args or not node.noparens:
             self.write(')')
 
+        if node.over:
+            self.write(' OVER (')
+            if node.over.partition:
+                self.write('PARTITION BY')
+
+                count = len(node.over.partition)
+                for i, groupexpr in enumerate(node.over.partition):
+                    self.visit(groupexpr)
+                    if i != count - 1:
+                        self.write(',')
+
+            if node.over.orderby:
+                self.write(' ORDER BY ')
+                count = len(node.over.orderby)
+                for i, sortexpr in enumerate(node.over.orderby):
+                    self.visit(sortexpr)
+                    if i != count - 1:
+                        self.write(',')
+
+            # XXX: add support for frame definition
+
+            self.write(')')
+
     def visit_SortExprNode(self, node):
         self.visit(node.expr)
         if node.direction:
