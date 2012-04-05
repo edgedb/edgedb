@@ -1438,6 +1438,10 @@ class CaosTreeTransformer(CaosExprTransformer):
                 name = common.qname('caos', 'agg_product')
             elif expr.name == ('agg', 'avg'):
                 name = 'avg'
+            elif expr.name == ('agg', 'min'):
+                name = 'min'
+            elif expr.name == ('agg', 'max'):
+                name = 'max'
             elif expr.name == ('agg', 'list'):
                 name = 'array_agg'
             elif expr.name == ('agg', 'join'):
