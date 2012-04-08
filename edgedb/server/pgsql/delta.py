@@ -1673,12 +1673,22 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
 
     def has_table(self, link, meta, context):
         if link.generic():
-            nonatomic = (l for l in link.children() if not l.generic() and not l.atomic())
-            return bool(link.pointers or bool(nonatomic))
+            if link.name == 'semantix.caos.builtins.link':
+                return True
+            elif link.pointers:
+                return True
+            else:
+                nonatomic = (l for l in link.children() if not l.generic() and not l.atomic())
+                return bool(tuple(nonatomic))
         else:
             return False
 
     def provide_table(self, link, meta, context):
+        if not link.generic():
+            base = next(iter(link.base))
+            link = meta.get(base, include_pyobjects=True, default=None,
+                            type=type(link).get_canonical_class(), index_only=False)
+
         if self.has_table(link, meta, context):
             self.create_table(link, meta, context, conditional=True)
 
@@ -1789,11 +1799,15 @@ class RebaseLink(LinkMetaCommand, adapts=delta_cmds.RebaseLink):
         result = delta_cmds.RebaseLink.apply(self, meta, context)
         LinkMetaCommand.apply(self, meta, context)
 
+        result.acquire_parent_data(meta)
+
         link_ctx = context.get(delta_cmds.LinkCommandContext)
         source = link_ctx.proto
 
         orig_source = link_ctx.original_proto
-        self.apply_base_delta(orig_source, source, meta, context)
+
+        if self.has_table(orig_source, meta, context) and self.has_table(source, meta, context):
+            self.apply_base_delta(orig_source, source, meta, context)
 
         return result
 
