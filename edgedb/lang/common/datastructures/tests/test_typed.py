@@ -8,7 +8,7 @@
 
 import pickle
 
-from semantix.utils.datastructures.typed import TypedDict, TypedList, StrList
+from semantix.utils.datastructures.typed import TypedDict, TypedList, StrList, TypedSet
 from semantix.utils.debug import assert_raises
 
 
@@ -130,3 +130,48 @@ class TestUtilsDSTyped:
         assert sd.type is str
         assert type(sd) is StrList
         assert sd[0] == '123'
+
+
+    def test_utils_ds_typedset_basics(self):
+        class StrSet(TypedSet, type=str):
+            pass
+
+        tl = StrSet()
+        tl.add('1')
+        tl.update(('2', '3'))
+        tl |= ['4']
+        tl |= ('5',)
+        tl = tl | ('6',)
+        tl = {'0'} | tl
+        assert set(tl) == {'0', '1', '2', '3', '4', '5', '6'}
+
+        tl = {'6', '7', '8', '9'} - tl
+        assert set(tl) == {'7', '8', '9'}
+        assert set(tl - {'8', '9'}) == {'7'}
+
+        assert set(tl ^ {'8', '9', '10'}) == {'7', '10'}
+        assert set({'8', '9', '10'} ^ tl) == {'7', '10'}
+
+        with assert_raises(ValueError):
+            tl.add(42)
+
+        with assert_raises(ValueError):
+            tl.update((42,))
+
+        with assert_raises(ValueError):
+            tl |= {42}
+
+        with assert_raises(ValueError):
+            tl = tl | {42}
+
+        with assert_raises(ValueError):
+            tl = {42} | tl
+
+        with assert_raises(ValueError):
+            tl = {42} ^ tl
+
+        with assert_raises(ValueError):
+            tl &= {42}
+
+        with assert_raises(ValueError):
+            tl ^= {42}
