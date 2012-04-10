@@ -7,6 +7,10 @@
 
 
 this.sx = (function() {
+    'use strict';
+
+    var undefined = void(0);
+
     var sx = function(selector) { return new sx._fn.init(selector); },
         _is_id = /^#([\w\-]*)$/,
         _id_counter = 0;
@@ -89,30 +93,44 @@ this.sx = (function() {
             }
 
             var i, r, no_desc = (func.length <= 2);
+            var call_func;
 
             if (sx.is_array(obj) || obj instanceof sx) {
-                for (i = 0; i < obj.length; i++) {
-                    if (no_desc) {
-                        r = func.call(scope, obj[i], i);
-                    } else {
-                        r = func.call(scope, obj[i], i, {first: i == 0, last: i == obj.length - 1, key: i});
-                    }
+                if (no_desc) {
+                    call_func = function(i) {
+                        return func.call(scope, obj[i], i);
+                    };
+                } else {
+                    call_func = function(i) {
+                        return func.call(scope, obj[i], i, {first: i == 0, last: i == obj.length - 1, key: i});
+                    };
+                }
 
-                    if (typeof r != 'undefined') {
+                for (i = 0; i < obj.length; i++) {
+                    r = call_func(i);
+
+                    if (r !== undefined) {
                         return r;
                     }
                 }
             } else if (sx.is_object(obj)) {
                 var cnt = 0, len = sx.len(obj);
+
+                if (no_desc) {
+                    call_func = function(i) {
+                        return func.call(scope, obj[i], i);
+                    };
+                } else {
+                    call_func = function(i) {
+                        return func.call(scope, obj[i], i, {first: cnt == 0, last: cnt == len - 1, key: i});
+                    };
+                }
+
                 for (i in obj) {
                     if (obj.hasOwnProperty(i)) {
-                        if (no_desc) {
-                            r = func.call(scope, obj[i], i);
-                        } else {
-                            r = func.call(scope, obj[i], i, {first: cnt == 0, last: cnt == len - 1, key: i});
-                        }
+                        r = call_func(i);
 
-                        if (typeof r != 'undefined') {
+                        if (r !== undefined) {
                             return r;
                         }
                         cnt++;
@@ -120,8 +138,57 @@ this.sx = (function() {
                 }
             } else {
                 throw "unable to iterate non-iterable object '" + obj +
-                      "', has to be eother array or object";
+                      "', has to be either array or object";
             }
+        },
+
+        map: function(obj, func, scope) {
+            scope = scope || window;
+
+            var result;
+
+            if (sx.is_array(obj) || obj instanceof sx) {
+                result = [];
+            } else if (sx.is_object(obj)) {
+                result = {};
+            } else {
+                throw "unable to map on non-iterable object '" + obj +
+                      "', has to be either array or object";
+            }
+
+            sx.each(obj, function(el, i, options) {
+                result[i] = func.call(scope, el, i, options);
+            }, scope);
+
+            return result;
+        },
+
+        filter: function(obj, func, scope) {
+            scope = scope || window;
+
+            var is_array = (sx.is_array(obj) || obj instanceof sx);
+            var result;
+
+            if (is_array) {
+                result = [];
+            } else if (sx.is_object(obj)) {
+                result = {};
+            } else {
+                throw "unable to filter on non-iterable object '" + obj +
+                      "', has to be either array or object";
+            }
+
+            sx.each(obj, function(el, i, options) {
+                if (func.call(scope, el, i, options)) {
+                    if (is_array) {
+                        result.push(el);
+                    } else {
+                        result[i] = el;
+                    }
+                }
+            });
+
+            return result;
         },
 
         keys: function(obj) {
