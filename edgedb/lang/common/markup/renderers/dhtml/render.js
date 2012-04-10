@@ -269,8 +269,10 @@ sx.Markup.Renderer.prototype = {
         this.tree_depth++;
         var children = [], i;
 
-        for (i = 0; i < o.children.length; i++) {
-            children.push(this._render(o.children[i]));
+        if (o.children != null) {
+            for (i = 0; i < o.children.length; i++) {
+                children.push(this._render(o.children[i]));
+            }
         }
 
         var label = o.name;
