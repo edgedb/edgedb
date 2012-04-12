@@ -33,6 +33,8 @@ class DateTime(datetime.datetime):
         elif isinstance(value, time.struct_time):
             args = [value.tm_year, value.tm_mon, value.tm_mday, value.tm_hour, value.tm_min,
                     value.tm_sec, 0]
+        elif isinstance(value, datetime.date):
+            args = [value.year, value.month, value.day, 0, 0, 0, 0]
         elif isinstance(value, str):
             dt = None
 
