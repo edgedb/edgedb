@@ -2278,10 +2278,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return cols
 
 
-    def virtual_concept_from_table(self, meta, table_name):
+    def virtual_concept_from_table(self, session, meta, table_name):
         """Interpret concept relying exclusively on the specified table without supporting metadata."""
-        tables = introspection.tables.TableList(self.connection).fetch(schema_name=table_name[0],
-                                                                       table_pattern=table_name[1])
+        ds = introspection.tables.TableList(session.get_connection())
+        tables = ds.fetch(schema_name=table_name[0], table_pattern=table_name[1])
 
         if not tables:
             return None
@@ -2292,7 +2292,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         name = caos.Name(tables[0]['comment'])
 
-        concept_meta = datasources.meta.concepts.ConceptList(self.connection).fetch(name=name)
+        ds = datasources.meta.concepts.ConceptList(session.get_connection())
+        concept_meta = ds.fetch(name=name)
 
         concept = proto.Concept(name=name, is_virtual=True, is_abstract=True,
                                 automatic=concept_meta[0]['automatic'])
@@ -2370,7 +2371,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         table_name = common.concept_name_to_table_name(concept.name, catenate=False)
 
         my_schema = self.getmeta()
-        stored_concept = self.virtual_concept_from_table(my_schema, table_name)
+        stored_concept = self.virtual_concept_from_table(session, my_schema, table_name)
 
         updated_concept = concept.copy()
         updated_concept._children = concept._children.copy()
