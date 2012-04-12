@@ -1529,6 +1529,14 @@ class CaosTreeTransformer(CaosExprTransformer):
                 r = pgsql.ast.FunctionCallNode(name='strpos', args=args)
                 result = pgsql.ast.BinOpNode(left=r, right=pgsql.ast.ConstantNode(value=1),
                                              op=ast.ops.SUB)
+            elif expr.name == ('str', 'substr'):
+                name = 'substr'
+                args[1] = pgsql.ast.TypeCastNode(expr=args[1], type=pgsql.ast.TypeNode(name='int'))
+                args[1] = pgsql.ast.BinOpNode(left=args[1], right=pgsql.ast.ConstantNode(value=1),
+                                              op=ast.ops.ADD)
+                if args[2] is not None:
+                    args[2] = pgsql.ast.TypeCastNode(expr=args[2],
+                                                     type=pgsql.ast.TypeNode(name='int'))
             elif expr.name == 'getitem':
                 index = self._process_expr(context, expr.args[1], cte)
                 upper = pgsql.ast.BinOpNode(left=index, op=ast.ops.ADD,
