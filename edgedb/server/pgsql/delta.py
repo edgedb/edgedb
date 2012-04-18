@@ -1175,9 +1175,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
         alter_table = source_ctx.op.get_alter_table(context)
 
-        if isinstance(source, caos.types.ProtoConcept) or \
-                    (source_ctx.op.has_table(orig_source, meta, context) and \
-                     source_ctx.op.has_table(source, meta, context)):
+        if isinstance(source, caos.types.ProtoConcept) \
+                        or source_ctx.op.has_table(source, meta, context):
 
             source.acquire_parent_data(meta)
             orig_source.acquire_parent_data(meta)
@@ -1806,7 +1805,7 @@ class RebaseLink(LinkMetaCommand, adapts=delta_cmds.RebaseLink):
 
         orig_source = link_ctx.original_proto
 
-        if self.has_table(orig_source, meta, context) and self.has_table(source, meta, context):
+        if self.has_table(source, meta, context):
             self.apply_base_delta(orig_source, source, meta, context)
 
         return result
