@@ -27,6 +27,7 @@ from semantix.caos.backends.pgsql import dbops, deltadbops, features
 from . import ast as pg_ast
 from . import codegen
 from . import datasources
+from . import schemamech
 from . import transformer
 from . import types
 
@@ -534,6 +535,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         self.pointer_constraints = {}
         self.abstract_pointer_constraints = {}
         self.dropped_pointer_constraints = {}
+        self._constr_mech = schemamech.ConstraintMech()
 
     def get_alter_table(self, context, priority=0, force_new=False, contained=False, manual=False):
         key = (priority, contained)
@@ -655,7 +657,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
     @classmethod
     def get_pointer_constraint(cls, meta, context, constraint, original=False,
                                                                source=None, pointer_name=None):
-        if not source:
+        if source is None:
             host, pointer = cls.get_source_and_pointer_ctx(meta, context)
 
             if original:
@@ -663,22 +665,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             else:
                 source, pointer_name = host.proto, pointer.proto.normal_name()
 
-        column_name = common.caos_name_to_pg_name(pointer_name)
-        prefix = (source.name, pointer_name)
-        table_name = common.get_table_name(source, catenate=False)
-
-        if isinstance(constraint, proto.AtomConstraint):
-            constraint = deltadbops.AtomConstraintTableConstraint(table_name=table_name,
-                                                                  column_name=column_name,
-                                                                  prefix=prefix,
-                                                                  constraint=constraint)
-        else:
-            constraint = deltadbops.PointerConstraintTableConstraint(table_name=table_name,
-                                                                     column_name=column_name,
-                                                                     prefix=prefix,
-                                                                     constraint=constraint)
-
-        return constraint
+        schemac_to_backendc = schemamech.ConstraintMech.schema_constraint_to_backend_constraint
+        return schemac_to_backendc(constraint, source, pointer_name)
 
     def apply_inherited_deltas(self, source, meta, context):
         top_ctx = context.get(delta_cmds.RealmCommandContext)
@@ -852,8 +840,10 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             constraint_origins = source.get_constraint_origins(meta, pointer_name, constraint)
             assert constraint_origins
 
-            self.pgops.add(self.create_unique_constraint_trigger(source, pointer_name, constr,
-                                                                 constraint_origins, meta, context))
+            cuct = self._constr_mech.create_unique_constraint_trigger(source, pointer_name, constr,
+                                                                      constraint_origins, meta,
+                                                                      context)
+            self.pgops.add(cuct)
 
             self.pointer_constraints.setdefault(pointer_name, {})[constr_key] = constraint
 
@@ -874,18 +864,24 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 constraint_origins = source.get_constraint_origins(meta, pointer_name, constraint)
                 assert constraint_origins
 
-            drop_trig = self.drop_unique_constraint_trigger(source, pointer_name, constr,
-                                                            meta, context)
+            drop_trig = self._constr_mech.drop_unique_constraint_trigger(source, pointer_name,
+                                                                         constr, meta, context)
 
             if conditional:
-                cond = self.unique_constraint_trigger_exists(source, pointer_name, constr,
-                                                             meta, context)
-                op = dbops.CommandGroup(conditions=[cond])
+                conds = self._constr_mech.unique_constraint_trigger_exists(source, pointer_name,
+                                                                           constr)
+                op = dbops.CommandGroup(conditions=conds)
                 op.add_commands([alter_table, drop_trig])
                 self.pgops.add(op)
             else:
                 self.pgops.add(drop_trig)
-                self.dropped_pointer_constraints.setdefault(pointer_name, {})[constr_key] = constraint
+
+            try:
+                ptr_dropped_constr = self.dropped_pointer_constraints[pointer_name]
+            except KeyError:
+                ptr_dropped_constr = self.dropped_pointer_constraints[pointer_name] = {}
+
+            ptr_dropped_constr[constr_key] = constraint
 
     def rename_pointer_constraint(self, orig_source, source, pointer_name,
                                         old_constraint, new_constraint, meta, context):
@@ -898,132 +894,11 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                                                             constraint=old_constraint,
                                                             new_constraint=new_constraint))
 
-        ops = self.rename_unique_constraint_trigger(orig_source, source, pointer_name,
-                                                    old_constraint, new_constraint, meta, context)
+        ops = self._constr_mech.rename_unique_constraint_trigger(orig_source, source, pointer_name,
+                                                                 old_constraint, new_constraint,
+                                                                 meta, context)
 
         result.add_commands(ops)
-
-        return result
-
-    def create_unique_constraint_trigger(self, source, pointer_name, constraint,
-                                               constraint_origins, meta, context, priority=3):
-
-        colname = common.quote_ident(common.caos_name_to_pg_name(pointer_name))
-        if len(constraint_origins) == 1:
-            origin = common.get_table_name(next(iter(constraint_origins)))
-        else:
-            origin = []
-            for o in constraint_origins:
-                origin.append('(SELECT * FROM %s)' % common.get_table_name(o))
-            origin = ' UNION ALL '.join(origin)
-
-        text = '''
-                  BEGIN
-                  PERFORM
-                        TRUE
-                      FROM %(origin)s
-                      WHERE %(colname)s = NEW.%(colname)s;
-                  IF FOUND THEN
-                      RAISE unique_violation
-                          USING
-                              MESSAGE = 'duplicate key value violates unique constraint %(constr)s',
-                              DETAIL = 'Key (%(colname)s)=(' || NEW.%(colname)s || ') already exists.';
-                  END IF;
-                  RETURN NEW;
-                  END;
-               ''' % {'colname': colname,
-                      'origin': origin,
-                      'constr': constraint.constraint_name()}
-
-        schema = common.caos_module_name_to_schema_name(source.name.module)
-        proc_name = constraint.raw_constraint_name() + '_trigproc'
-        proc_name = schema, common.caos_name_to_pg_name(proc_name)
-        table_name = common.get_table_name(source, catenate=False)
-        proc = dbops.CreateTriggerFunction(name=proc_name, text=text, volatility='stable')
-
-        trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_instrigger')
-        instrigger = dbops.CreateConstraintTrigger(trigger_name=trigger_name,
-                                                   table_name=table_name,
-                                                   events=('insert',), procedure=proc_name)
-
-        trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_updtrigger')
-        condition = 'OLD.%(colname)s IS DISTINCT FROM NEW.%(colname)s' % {'colname': colname}
-        updtrigger = dbops.CreateConstraintTrigger(trigger_name=trigger_name,
-                                                   table_name=table_name,
-                                                   events=('update',),
-                                                   condition=condition, procedure=proc_name)
-
-        result = dbops.CommandGroup(priority=priority,
-                                    neg_conditions=[dbops.FunctionExists(name=proc_name)])
-        result.add_command(proc)
-        result.add_command(instrigger)
-        result.add_command(updtrigger)
-
-        return result
-
-    def unique_constraint_trigger_exists(self, source, pointer_name, constraint, meta, context):
-        schema = common.caos_module_name_to_schema_name(source.name.module)
-        proc_name = constraint.raw_constraint_name() + '_trigproc'
-        proc_name = schema, common.caos_name_to_pg_name(proc_name)
-        return dbops.FunctionExists(proc_name)
-
-    def drop_unique_constraint_trigger(self, source, pointer_name, constraint, meta, context):
-        schema = common.caos_module_name_to_schema_name(source.name.module)
-        table_name = common.get_table_name(source, catenate=False)
-
-        result = dbops.CommandGroup()
-
-        trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_instrigger')
-        result.add_command(dbops.DropTrigger(trigger_name=trigger_name, table_name=table_name))
-        trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_updtrigger')
-        result.add_command(dbops.DropTrigger(trigger_name=trigger_name, table_name=table_name))
-
-        proc_name = constraint.raw_constraint_name() + '_trigproc'
-        proc_name = schema, common.caos_name_to_pg_name(proc_name)
-        result.add_command(dbops.DropFunction(name=proc_name, args=()))
-
-        return result
-
-    def rename_unique_constraint_trigger(self, orig_source, source, pointer_name,
-                                               old_constraint, new_constraint, meta, context):
-
-        result = dbops.CommandGroup()
-
-        table_name = common.get_table_name(source, catenate=False)
-        orig_table_name = common.get_table_name(orig_source, catenate=False)
-
-        old_trigger_name = common.caos_name_to_pg_name('%s_instrigger' % \
-                                                       old_constraint.raw_constraint_name())
-        new_trigger_name = common.caos_name_to_pg_name('%s_instrigger' % \
-                                                       new_constraint.raw_constraint_name())
-
-        result.add_command(dbops.AlterTriggerRenameTo(trigger_name=old_trigger_name,
-                                                      new_trigger_name=new_trigger_name,
-                                                      table_name=table_name))
-
-        old_trigger_name = common.caos_name_to_pg_name('%s_updtrigger' % \
-                                                       old_constraint.raw_constraint_name())
-        new_trigger_name = common.caos_name_to_pg_name('%s_updtrigger' % \
-                                                       new_constraint.raw_constraint_name())
-
-        result.add_command(dbops.AlterTriggerRenameTo(trigger_name=old_trigger_name,
-                                                      new_trigger_name=new_trigger_name,
-                                                      table_name=table_name))
-
-        old_proc_name = common.caos_name_to_pg_name('%s_trigproc' % \
-                                                    old_constraint.raw_constraint_name())
-        old_proc_name = orig_table_name[0], old_proc_name
-
-
-        new_proc_name = common.caos_name_to_pg_name('%s_trigproc' % \
-                                                    new_constraint.raw_constraint_name())
-        new_proc_name = table_name[0], new_proc_name
-
-        result.add_command(dbops.RenameFunction(name=old_proc_name, args=(), new_name=new_proc_name))
-        old = common.get_table_name(orig_source)
-        new = common.get_table_name(source)
-        result.add_command(dbops.AlterFunctionReplaceText(name=new_proc_name, args=(), old_text=old,
-                                                          new_text=new))
 
         return result
 
@@ -1885,7 +1760,8 @@ class DeletePointerConstraint(PointerConstraintMetaCommand, adapts=delta_cmds.De
                     cmd = source.op.__class__(prototype_name=child.name, prototype_class=protoclass)
 
                     with context(source.op.__class__.context_class(cmd, child)):
-                        cmd.del_pointer_constraint(child, pointer_name, constraint, meta, context)
+                        cmd.del_pointer_constraint(child, pointer_name, constraint, meta, context,
+                                                   conditional=True)
                         cmd.attach_alter_table(context)
                         self.pgops.add(cmd)
 

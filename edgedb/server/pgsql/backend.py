@@ -57,6 +57,7 @@ from . import types
 from . import transformer
 from . import pool
 from . import session
+from . import schemamech
 
 
 class Cursor:
@@ -435,14 +436,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         .*_(?P<language>\w+)_(?P<index_class>\w+)_search_idx$
     """, re.X)
 
-    atom_constraint_name_re = re.compile(r"""
-        ^(?P<concept_name>[.\w]+):(?P<link_name>[.\w]+)::(?P<constraint_class>[.\w]+)::atom_constr$
-    """, re.X)
-
-    ptr_constraint_name_re = re.compile(r"""
-        ^(?P<concept_name>[.\w]+):(?P<link_name>[.\w]+)::(?P<constraint_class>[.\w]+)::ptr_constr$
-    """, re.X)
-
     error_res = {
         postgresql.exceptions.UniqueError: collections.OrderedDict((
             ('link_mapping',
@@ -467,6 +460,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.connection = connector(pool=self.connection_pool)
         self.connection.connect()
 
+        self._constr_mech = schemamech.ConstraintMech()
+
         self.link_cache = {}
         self.concept_cache = {}
         self.table_cache = {}
@@ -478,13 +473,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.proto_name_to_table_id_cache = {}
         self.attribute_link_map_cache = {}
 
-        self._table_atom_constraints_cache = None
-        self._table_ptr_constraints_cache = None
-
         self.parser = parser.PgSQLParser()
         self.search_idx_expr = astexpr.TextSearchExpr()
         self.type_expr = astexpr.TypeExpr()
-        self.atom_constr_exprs = {}
         self.constant_expr = None
 
         self.meta = proto.ProtoSchema()
@@ -770,13 +761,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.meta = proto.ProtoSchema()
         self.backend_info = self.read_backend_info()
         self.features = self.read_features()
-        self._table_atom_constraints_cache = None
-        self._table_ptr_constraints_cache = None
-
         self.invalidate_transient_cache()
 
 
     def invalidate_transient_cache(self):
+        self._constr_mech.invalidate_meta_cache()
+
         self.link_cache.clear()
         self.concept_cache.clear()
         self.table_cache.clear()
@@ -907,7 +897,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             return {}
 
 
-    def _interpret_db_error(self, err, source, pointer=None):
+    def _interpret_db_error(self, connection, err, source, pointer=None):
         if isinstance(err, postgresql.exceptions.UniqueError):
             eres = self.error_res[postgresql.exceptions.UniqueError]
 
@@ -929,7 +919,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 return errcls(err, source=source, pointer=pointer)
 
             elif error_type == 'ptr_constraint':
-                constraint = self.constraint_from_pg_name(error_data)
+                constraint = self._constr_mech.constraint_from_pg_name(connection, error_data)
                 if constraint is None:
                     return caos.error.UninterpretedStorageError(err.message)
 
@@ -1014,7 +1004,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             try:
                 rows = cmd.execute(context)
             except postgresql.exceptions.Error as e:
-                raise self._interpret_db_error(e, entity) from e
+                raise self._interpret_db_error(connection, e, entity) from e
 
             id = list(rows)
             if not id:
@@ -1457,7 +1447,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 for cmd in cmds:
                     cmd.execute(context)
             except postgresql.exceptions.UniqueError as e:
-                raise self._interpret_db_error(e, source, link_cls) from e
+                raise self._interpret_db_error(session.get_connection(), e, source, link_cls) from e
 
 
     def store_link_batch(self, links, session, batch_id):
@@ -1780,150 +1770,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return value
 
 
-    def read_table_constraints(self, suffix, interpreter):
-        constraints = {}
-        index_by_pg_name = {}
-        constraints_ds = introspection.tables.TableConstraints(self.connection)
-
-        for row in constraints_ds.fetch(schema_pattern='caos%',
-                                        constraint_pattern='%%::%s' % suffix):
-            concept_constr = constraints[tuple(row['table_name'])] = {}
-
-            for pg_name, (link_name, constraint) in interpreter(row):
-                idx = datastructures.OrderedIndex(key=lambda i: i.get_canonical_class())
-                ptr_constraints = concept_constr.setdefault(link_name, idx)
-                cls = constraint.get_canonical_class()
-                try:
-                    existing_constraint = ptr_constraints[cls]
-                    existing_constraint.merge(constraint)
-                except KeyError:
-                    ptr_constraints.add(constraint)
-                index_by_pg_name[pg_name] = constraint, link_name, tuple(row['table_name'])
-
-        return constraints, index_by_pg_name
-
-
-    def interpret_atom_constraint(self, constraint_class, expr, name):
-
-        try:
-            expr_tree = self.parser.parse(expr)
-        except parser.PgSQLParserError as e:
-            msg = 'could not interpret constraint %s' % name
-            details = 'Syntax error when parsing expression: %s' % e.args[0]
-            raise caos.MetaError(msg, details=details) from e
-
-        pattern = self.atom_constr_exprs.get(constraint_class)
-        if not pattern:
-            adapter = astexpr.AtomConstraintAdapterMeta.get_adapter(constraint_class)
-
-            if not adapter:
-                msg = 'could not interpret constraint %s' % name
-                details = 'No matching pattern defined for constraint class "%s"' % constraint_class
-                hint = 'Implement matching pattern for "%s"' % constraint_class
-                hint += '\nExpression:\n{}'.format(markup.dumps(expr_tree))
-                raise caos.MetaError(msg, details=details, hint=hint)
-
-            pattern = adapter()
-            self.atom_constr_exprs[constraint_class] = pattern
-
-        constraint_data = pattern.match(expr_tree)
-
-        if constraint_data is None:
-            msg = 'could not interpret constraint {!r}'.format(str(name))
-            details = 'Pattern "{!r}" could not match expression:\n{}'. \
-                                        format(pattern.__class__, markup.dumps(expr_tree))
-            hint = 'Take a look at the matching pattern and adjust'
-            raise caos.MetaError(msg, details=details, hint=hint)
-
-        return constraint_data
-
-
-    def interpret_table_atom_constraint(self, name, expr):
-        m = self.atom_constraint_name_re.match(name)
-        if not m:
-            raise caos.MetaError('could not interpret table constraint %s' % name)
-
-        link_name = m.group('link_name')
-        constraint_class = helper.get_object(m.group('constraint_class'))
-        constraint_data = self.interpret_atom_constraint(constraint_class, expr, name)
-
-        return link_name, constraint_class(constraint_data)
-
-
-    def interpret_table_atom_constraints(self, constr):
-        cs = zip(constr['constraint_names'], constr['constraint_expressions'],
-                 constr['constraint_descriptions'])
-
-        for name, expr, description in cs:
-            yield name, self.interpret_table_atom_constraint(description, expr)
-
-
-    def read_table_atom_constraints(self):
-        if self._table_atom_constraints_cache is None:
-            constraints, index = self.read_table_constraints('atom_constr',
-                                                             self.interpret_table_atom_constraints)
-            self._table_atom_constraints_cache = (constraints, index)
-
-        return self._table_atom_constraints_cache
-
-
-    def get_table_atom_constraints(self):
-        return self.read_table_atom_constraints()[0]
-
-
-    def interpret_table_ptr_constraint(self, name, expr, columns):
-        m = self.ptr_constraint_name_re.match(name)
-        if not m:
-            raise caos.MetaError('could not interpret table constraint %s' % name)
-
-        link_name = m.group('link_name')
-        constraint_class = helper.get_object(m.group('constraint_class'))
-
-        if issubclass(constraint_class, proto.PointerConstraintUnique):
-            col_name = common.caos_name_to_pg_name(link_name)
-            if len(columns) != 1 or not col_name in columns:
-                msg = 'internal metadata inconsistency'
-                details = ('Link constraint "%s" expected to have exactly one column "%s" '
-                           'in the expression, got: %s') % (name, col_name,
-                                                            ','.join('"%s"' % c for c in columns))
-                raise caos.MetaError(msg, details=details)
-
-            constraint_data = {True}
-        else:
-            msg = 'internal metadata inconsistency'
-            details = 'Link constraint "%s" has an unexpected class "%s"' % \
-                      (name, m.group('constraint_class'))
-            raise caos.MetaError(msg, details=details)
-
-        return link_name, constraint_class(constraint_data)
-
-
-    def interpret_table_ptr_constraints(self, constr):
-        cs = zip(constr['constraint_names'], constr['constraint_expressions'],
-                 constr['constraint_descriptions'], constr['constraint_columns'])
-
-        for name, expr, description, cols in cs:
-            cols = cols.split('~~~~')
-            yield name, self.interpret_table_ptr_constraint(description, expr, cols)
-
-
-    def read_table_ptr_constraints(self):
-        if self._table_ptr_constraints_cache is None:
-            constraints, index = self.read_table_constraints('ptr_constr',
-                                                             self.interpret_table_ptr_constraints)
-            self._table_ptr_constraints_cache = (constraints, index)
-
-        return self._table_ptr_constraints_cache
-
-
-    def get_table_ptr_constraints(self):
-        return self.read_table_ptr_constraints()[0]
-
-
-    def constraint_from_pg_name(self, pg_name):
-        return self.read_table_ptr_constraints()[1].get(pg_name)
-
-
     def read_pointer_target_column(self, meta, source, pointer_name, constraints_cache):
         host_schema, host_table = common.get_table_name(source, catenate=False)
         cols = self.get_table_columns((host_schema, host_table))
@@ -1962,15 +1808,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                                   module=source.name.module))
 
         return target, col['column_required']
-
-
-    def unpack_constraints(self, meta, constraints):
-        result = []
-        if constraints:
-            for cls, val in constraints.items():
-                constraint = helper.get_object(cls)(next(iter(yaml.Language.load(val))))
-                result.append(constraint)
-        return result
 
 
     def verify_ptr_const_defaults(self, meta, ptr_name, target_atom, tab_default, schema_defaults):
@@ -2022,8 +1859,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         links_list = datasources.meta.links.ConceptLinks(self.connection).fetch()
         links_list = collections.OrderedDict((caos.Name(r['name']), r) for r in links_list)
 
-        concept_constraints = self.get_table_atom_constraints()
-        ptr_constraints = self.get_table_ptr_constraints()
+        concept_constraints = self._constr_mech.get_table_atom_constraints(self.connection)
+        ptr_constraints = self._constr_mech.get_table_ptr_constraints(self.connection)
 
         concept_indexes = self.read_search_indexes()
 
@@ -2044,8 +1881,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             description = r['description']
             source = meta.get(r['source']) if r['source'] else None
             link_search = None
-            constraints = self.unpack_constraints(meta, r['constraints'])
-            abstract_constraints = self.unpack_constraints(meta, r['abstract_constraints'])
+            constraints = self._constr_mech.unpack_constraints(meta, r['constraints'])
+            abstract_constraints = self._constr_mech.unpack_constraints(meta, r['abstract_constraints'])
 
             if r['default']:
                 r['default'] = self.unpack_default(r['default'])
@@ -2144,8 +1981,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def read_link_properties(self, meta):
         link_props = datasources.meta.links.LinkProperties(self.connection).fetch()
         link_props = collections.OrderedDict((caos.Name(r['name']), r) for r in link_props)
-        atom_constraints = self.get_table_atom_constraints()
-        ptr_constraints = self.get_table_ptr_constraints()
+        atom_constraints = self._constr_mech.get_table_atom_constraints(self.connection)
+        ptr_constraints = self._constr_mech.get_table_ptr_constraints(self.connection)
 
         for name, r in link_props.items():
             bases = ()
@@ -2174,8 +2011,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 target, required = self.read_pointer_target_column(meta, source, bases[0],
                                                                    atom_constraints)
 
-                constraints = self.unpack_constraints(meta, r['constraints'])
-                abstract_constraints = self.unpack_constraints(meta, r['abstract_constraints'])
+                constraints = self._constr_mech.unpack_constraints(meta, r['constraints'])
+                abstract_constraints = self._constr_mech.unpack_constraints(meta, r['abstract_constraints'])
 
                 link_table = common.get_table_name(source, catenate=False)
                 constr = ptr_constraints.get(link_table)
@@ -2303,10 +2140,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         concept.materialize(meta)
 
         columns = self.get_table_columns(table_name)
-        atom_constraints = self.get_table_atom_constraints()
+        atom_constraints = self._constr_mech.get_table_atom_constraints(session.get_connection())
         atom_constraints = atom_constraints.get(table_name)
 
-        ptr_constraints = self.get_table_ptr_constraints()
+        ptr_constraints = self._constr_mech.get_table_ptr_constraints(session.get_connection())
         ptr_constraints = ptr_constraints.get(table_name)
 
         for col in columns.values():
@@ -2576,7 +2413,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                          (constr_name, constr_expr))
 
                 constr_type = helper.get_object(constr_type)
-                constr_data = self.interpret_atom_constraint(constr_type, constr_expr, constr_name)
+                constr_data = self._constr_mech.interpret_atom_constraint(constr_type, constr_expr,
+                                                                          constr_name)
                 constraints.append(constr_type(constr_data))
 
             d['constraints'] = constraints

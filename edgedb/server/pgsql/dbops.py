@@ -1511,6 +1511,25 @@ class DropTrigger(DDLOperation):
                  'table_name': common.qname(*self.table_name)}
 
 
+class TriggerExists(Condition):
+    def __init__(self, trigger_name, table_name):
+        self.trigger_name = trigger_name
+        self.table_name = table_name
+
+    def code(self, context):
+        code = '''SELECT
+                        tg.tgname
+                    FROM
+                        pg_catalog.pg_trigger tg
+                        INNER JOIN pg_catalog.pg_class tab ON (tab.oid = tg.tgrelid)
+                        INNER JOIN pg_catalog.pg_namespace ns ON (ns.oid = tab.relnamespace)
+                    WHERE
+                        tab.relname = $3 AND ns.nspname = $2 AND tg.tgname = $1
+                '''
+
+        return code, (self.trigger_name,) + self.table_name
+
+
 class Comment(DDLOperation):
     def __init__(self, object, text, *, conditions=None, neg_conditions=None, priority=0):
         super().__init__()
