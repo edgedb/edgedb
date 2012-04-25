@@ -101,7 +101,7 @@ class cvalue(ChecktypeExempt, metaclass=SlotsMeta):
                 return result
 
         if self._default is _no_default:
-            raise ValueError('{!r} is a required value'.format(self._name))
+            raise ValueError('{!r} is a required config value'.format(self.fullname))
 
         if top_conf_link is not None:
             top_conf_link.cache_set((cls, self), self._default)
