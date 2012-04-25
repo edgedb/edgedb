@@ -228,7 +228,7 @@ this.sx = (function() {
             if (obj.hasOwnProperty(attr)) {
                 return obj[attr];
             } else {
-                if (typeof def == 'undefined') {
+                if (def === undefined) {
                     throw (typeof obj) + ': unable to get attribute ' + attr;
                 }
                 return def;
@@ -264,7 +264,7 @@ this.sx = (function() {
                 args = Array.prototype.slice.call(arguments, 2);
             }
 
-            if (typeof scope == 'undefined') {
+            if (scope === undefined) {
                 scope = window;
             }
 
@@ -368,7 +368,7 @@ this.sx = (function() {
             },
 
             on: function(element, event, callback, scope/*, arg0, arg1, ... */) {
-                if (typeof scope == 'undefined') {
+                if (scope === undefined) {
                     scope = element;
                 }
 
