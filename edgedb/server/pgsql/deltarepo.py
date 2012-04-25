@@ -11,7 +11,7 @@ from semantix.caos.backends import deltarepo
 from semantix.caos import delta as base_delta
 
 from . import common
-from . import delta
+from . import dbops, deltadbops, delta
 
 from .datasources import deltalog
 
@@ -21,8 +21,8 @@ class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
         self.connection = connection
 
     def delta_ref_to_id(self, ref):
-        table = delta.DeltaRefTable()
-        condition = delta.TableExists(table.name)
+        table = deltadbops.DeltaRefTable()
+        condition = dbops.TableExists(table.name)
         have_deltaref = condition.execute(delta.CommandContext(self.connection))
 
         result = []

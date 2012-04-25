@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -7,10 +7,8 @@
 
 
 import itertools
+import postgresql.string
 import re
-
-import postgresql
-import postgresql.installation
 
 from semantix import caos
 from semantix.caos import proto
@@ -18,14 +16,14 @@ from semantix.caos import delta as delta_cmds
 from semantix.caos.caosql import expr as caosql_expr
 from semantix.caos import objects as caos_objects
 
-from semantix.caos.backends.pgsql import common, Config
-
 from semantix.utils import datastructures
 from semantix.utils.debug import debug
 from semantix.utils.lang import yaml
 from semantix.utils.algos.persistent_hash import persistent_hash
-from semantix.utils import helper, markup
+from semantix.utils import markup
 
+from semantix.caos.backends.pgsql import common
+from semantix.caos.backends.pgsql import dbops, deltadbops, features
 from . import ast as pg_ast
 from . import codegen
 from . import datasources
@@ -33,7 +31,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 5
+BACKEND_FORMAT_VERSION = 6
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -71,166 +69,6 @@ class CommandGroupAdapted(MetaCommand, adapts=delta_cmds.CommandGroup):
     def apply(self, meta, context):
         delta_cmds.CommandGroup.apply(self, meta, context)
         MetaCommand.apply(self, meta, context)
-
-
-@markup.serializer.serializer(method='as_markup')
-class BaseCommand:
-    def get_code_and_vars(self, context):
-        code = self.code(context)
-        assert code is not None
-        if isinstance(code, tuple):
-            code, vars = code
-        else:
-            vars = None
-
-        return code, vars
-
-    @debug
-    def execute(self, context):
-        code, vars = self.get_code_and_vars(context)
-
-        if code:
-            """LOG [caos.sql] Sync command code:
-            print(code, vars)
-            """
-
-            """LINE [caos.delta.execute] EXECUTING
-            repr(self)
-            """
-            result = context.db.prepare(code)(*vars)
-            extra = self.extra(context)
-            if extra:
-                for cmd in extra:
-                    cmd.execute(context)
-            return result
-
-    @classmethod
-    def as_markup(cls, self, *, ctx):
-        return markup.serialize(str(self))
-
-    def dump(self):
-        return str(self)
-
-    def code(self, context):
-        return ''
-
-    def extra(self, context, *args, **kwargs):
-        return None
-
-
-class Command(BaseCommand):
-    def __init__(self, *, conditions=None, neg_conditions=None, priority=0):
-        self.opid = id(self)
-        self.conditions = conditions or set()
-        self.neg_conditions = neg_conditions or set()
-        self.priority = priority
-
-    @debug
-    def execute(self, context):
-        ok = self.check_conditions(context, self.conditions, True) and \
-             self.check_conditions(context, self.neg_conditions, False)
-
-        result = None
-        if ok:
-            code, vars = self.get_code_and_vars(context)
-
-            if code:
-                """LOG [caos.sql] Sync command code:
-                print(code, vars)
-                """
-
-                """LINE [caos.delta.execute] EXECUTING
-                repr(self)
-                """
-
-                if vars is not None:
-                    result = context.db.prepare(code)(*vars)
-                else:
-                    result = context.db.execute(code)
-
-                """LINE [caos.delta.execute] EXECUTION RESULT
-                repr(result)
-                """
-
-                extra = self.extra(context)
-                if extra:
-                    for cmd in extra:
-                        cmd.execute(context)
-        return result
-
-    @debug
-    def check_conditions(self, context, conditions, positive):
-        result = True
-        if conditions:
-            for condition in conditions:
-                code, vars = condition.get_code_and_vars(context)
-
-                """LOG [caos.sql] Sync command condition:
-                print(code, vars)
-                """
-
-                result = context.db.prepare(code)(*vars)
-
-                """LOG [caos.sql] Sync command condition result:
-                print('actual:', bool(result), 'expected:', positive)
-                """
-
-                if bool(result) ^ positive:
-                    result = False
-                    break
-            else:
-                result = True
-
-        return result
-
-
-class CommandGroup(Command):
-    def __init__(self, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-        self.commands = []
-
-    def add_command(self, cmd):
-        self.commands.append(cmd)
-
-    def add_commands(self, cmds):
-        self.commands.extend(cmds)
-
-    def execute(self, context):
-        result = None
-        ok = self.check_conditions(context, self.conditions, True) and \
-             self.check_conditions(context, self.neg_conditions, False)
-
-        if ok:
-            result = [c.execute(context) for c in self.commands]
-
-        return result
-
-    @classmethod
-    def as_markup(cls, self, *, ctx):
-        node = markup.elements.lang.TreeNode(name=repr(self))
-
-        for op in self.commands:
-            node.add_child(node=markup.serialize(op, ctx=ctx))
-
-        return node
-
-    def __iter__(self):
-        return iter(self.commands)
-
-
-class CallDeltaHook(Command):
-    def __init__(self, *, hook, stage, op, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-
-        self.hook = hook
-        self.stage = stage
-        self.op = op
-
-    def execute(self, context):
-        try:
-            self.op.call_hook(context.session, stage=self.stage, hook=self.hook)
-        except delta_cmds.DeltaHookNotFoundError:
-            pass
 
 
 class PrototypeMetaCommand(MetaCommand, delta_cmds.PrototypeCommand):
@@ -291,7 +129,7 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeC
 
     def create_object(self, prototype):
         rec, updates = self.fill_record()
-        self.pgops.add(Insert(table=self.table, records=[rec]))
+        self.pgops.add(dbops.Insert(table=self.table, records=[rec]))
         return updates
 
     def rename(self, old_name, new_name):
@@ -334,7 +172,7 @@ class DeleteAtomConstraint(PrototypeMetaCommand, adapts=delta_cmds.DeleteAtomCon
 class AtomMetaCommand(NamedPrototypeMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.table = AtomTable()
+        self.table = deltadbops.AtomTable()
 
     def fill_record(self, rec=None, obj=None):
         rec, updates = super().fill_record(rec, obj)
@@ -372,16 +210,23 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
             simple_alter = atom.automatic and not new_constraints
             if not simple_alter:
                 new_name = domain_name[0], domain_name[1] + '_tmp'
-                self.pgops.add(RenameDomain(domain_name, new_name))
+                self.pgops.add(dbops.RenameDomain(domain_name, new_name))
                 target_type = common.qname(*domain_name)
 
-                self.pgops.add(CreateDomain(name=domain_name, base=new_type))
+                self.pgops.add(dbops.CreateDomain(name=domain_name, base=new_type))
+
+                adapt = deltadbops.SchemaDBObjectMeta.adapt
                 for constraint in new_constraints:
-                    self.pgops.add(AlterDomainAddConstraint(name=domain_name, constraint=constraint))
+                    adapted = adapt(constraint)
+                    constraint_name = adapted.get_backend_constraint_name()
+                    constraint_code = adapted.get_backend_constraint_check_code()
+                    self.pgops.add(dbops.AlterDomainAddConstraint(name=domain_name,
+                                                                  constraint_name=constraint_name,
+                                                                  constraint_code=constraint_code))
 
                 domain_name = new_name
         elif intent == 'create':
-            self.pgops.add(CreateDomain(name=domain_name, base=base))
+            self.pgops.add(dbops.CreateDomain(name=domain_name, base=base))
 
         for host_proto, item_proto in users:
             if isinstance(item_proto, proto.Link):
@@ -392,8 +237,8 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
             table_name = common.get_table_name(host_proto, catenate=False)
             column_name = common.caos_name_to_pg_name(name)
 
-            alter_type = AlterTableAlterColumnType(column_name, target_type)
-            alter_table = AlterTable(table_name)
+            alter_type = dbops.AlterTableAlterColumnType(column_name, target_type)
+            alter_table = dbops.AlterTable(table_name)
             alter_table.add_operation(alter_type)
             self.pgops.add(alter_table)
 
@@ -403,7 +248,7 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
                     self.alter_atom_type(child_atom, meta, None, None, target_type, 'alter')
 
         if intent == 'drop' or (intent == 'alter' and not simple_alter):
-            self.pgops.add(DropDomain(domain_name))
+            self.pgops.add(dbops.DropDomain(domain_name))
 
 
 class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
@@ -417,14 +262,20 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
         updates = self.create_object(atom)
 
         if not atom.automatic:
-            self.pgops.add(CreateDomain(name=new_domain_name, base=base))
+            self.pgops.add(dbops.CreateDomain(name=new_domain_name, base=base))
 
             if atom.issubclass(meta, caos_objects.sequence.Sequence):
                 seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
-                self.pgops.add(CreateSequence(name=seq_name))
+                self.pgops.add(dbops.CreateSequence(name=seq_name))
 
+            adapt = deltadbops.SchemaDBObjectMeta.adapt
             for constraint in constraints:
-                self.pgops.add(AlterDomainAddConstraint(name=new_domain_name, constraint=constraint))
+                adapted = adapt(constraint)
+                constraint_name = adapted.get_backend_constraint_name()
+                constraint_code = adapted.get_backend_constraint_check_code()
+                self.pgops.add(dbops.AlterDomainAddConstraint(name=new_domain_name,
+                                                              constraint_name=constraint_name,
+                                                              constraint_code=constraint_code))
 
             default = list(self(delta_cmds.AlterDefault))
 
@@ -437,8 +288,8 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
                     # since the database forbids queries for DEFAULT and pre-calculating
                     # the value does not make sense either since the whole point of
                     # query defaults is for them to be dynamic.
-                    self.pgops.add(AlterDomainAlterDefault(name=new_domain_name,
-                                                           default=default.new_value[0].value))
+                    self.pgops.add(dbops.AlterDomainAlterDefault(name=new_domain_name,
+                                                                 default=default.new_value[0].value))
         else:
             source, pointer = CompositePrototypeMetaCommand.get_source_and_pointer_ctx(meta, context)
 
@@ -448,7 +299,7 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
 
                 for constraint in constraints:
                     constraint = source.op.get_pointer_constraint(meta, context, constraint)
-                    op = AlterTableAddConstraint(constraint=constraint)
+                    op = dbops.AlterTableAddConstraint(constraint=constraint)
                     alter_table.add_operation(op)
 
 
@@ -463,7 +314,7 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
             rec = self.table.record()
             rec.constraints = values
             condition = [('name', str(atom.name))]
-            self.pgops.add(Update(table=self.table, record=rec, condition=condition))
+            self.pgops.add(dbops.Update(table=self.table, record=rec, condition=condition))
 
         return atom
 
@@ -478,16 +329,16 @@ class RenameAtom(AtomMetaCommand, adapts=delta_cmds.RenameAtom):
         domain_name = common.atom_name_to_domain_name(self.prototype_name, catenate=False)
         new_domain_name = common.atom_name_to_domain_name(self.new_name, catenate=False)
 
-        self.pgops.add(RenameDomain(name=domain_name, new_name=new_domain_name))
+        self.pgops.add(dbops.RenameDomain(name=domain_name, new_name=new_domain_name))
         updaterec = self.table.record(name=str(self.new_name))
         condition = [('name', str(self.prototype_name))]
-        self.pgops.add(Update(table=self.table, record=updaterec, condition=condition))
+        self.pgops.add(dbops.Update(table=self.table, record=updaterec, condition=condition))
 
         if not proto.automatic and proto.issubclass(meta, caos_objects.sequence.Sequence):
             seq_name = common.atom_name_to_sequence_name(self.prototype_name, catenate=False)
             new_seq_name = common.atom_name_to_sequence_name(self.new_name, catenate=False)
 
-            self.pgops.add(RenameSequence(name=seq_name, new_name=new_seq_name))
+            self.pgops.add(dbops.RenameSequence(name=seq_name, new_name=new_seq_name))
 
         return proto
 
@@ -502,7 +353,7 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
 
         if updaterec:
             condition = [('name', str(old_atom.name))]
-            self.pgops.add(Update(table=self.table, record=updaterec, condition=condition))
+            self.pgops.add(dbops.Update(table=self.table, record=updaterec, condition=condition))
 
         self.alter_atom(self, meta, context, old_atom, new_atom, updates=updates)
 
@@ -564,27 +415,42 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
                         # Only non-automatic atoms can get their own defaults.
                         # Automatic atoms are not represented by domains and inherit
                         # their defaults from parent.
-                        op.pgops.add(AlterDomainAlterDefault(name=domain_name, default=new_default))
+                        adad = dbops.AlterDomainAlterDefault(name=domain_name, default=new_default)
+                        op.pgops.add(adad)
 
             if new_atom.automatic:
                 alter_table = source.op.get_alter_table(context)
 
                 for constraint in old_constraints - new_constraints:
                     constraint = source.op.get_pointer_constraint(meta, context, constraint)
-                    op = AlterTableDropConstraint(constraint=constraint)
+                    op = dbops.AlterTableDropConstraint(constraint=constraint)
                     alter_table.add_operation(op)
 
                 for constraint in new_constraints - old_constraints:
                     constraint = source.op.get_pointer_constraint(meta, context, constraint)
-                    op = AlterTableAddConstraint(constraint=constraint)
+                    op = dbops.AlterTableAddConstraint(constraint=constraint)
                     alter_table.add_operation(op)
 
             else:
+                adapt = deltadbops.SchemaDBObjectMeta.adapt
+
                 for constraint in old_constraints - new_constraints:
-                    op.pgops.add(AlterDomainDropConstraint(name=domain_name, constraint=constraint))
+                    adapted = adapt(constraint)
+                    constraint_name = adapted.get_backend_constraint_name()
+                    constraint_code = adapted.get_backend_constraint_check_code()
+                    addc = dbops.AlterDomainDropConstraint(name=domain_name,
+                                                           constraint_name=constraint_name,
+                                                           constraint_code=constraint_code)
+                    op.pgops.add(addc)
 
                 for constraint in new_constraints - old_constraints:
-                    op.pgops.add(AlterDomainAddConstraint(name=domain_name, constraint=constraint))
+                    adapted = adapt(constraint)
+                    constraint_name = adapted.get_backend_constraint_name()
+                    constraint_code = adapted.get_backend_constraint_check_code()
+                    adac = dbops.AlterDomainAddConstraint(name=domain_name,
+                                                          constraint_name=constraint_name,
+                                                          constraint_code=constraint_code)
+                    op.pgops.add(adac)
         else:
             # We need to drop orphan constraints
             if old_atom.automatic:
@@ -592,7 +458,7 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
 
                 for constraint in old_constraints:
                     constraint = source.op.get_pointer_constraint(meta, context, constraint)
-                    op = AlterTableDropConstraint(constraint=constraint)
+                    op = dbops.AlterTableDropConstraint(constraint=constraint)
                     alter_table.add_operation(op)
 
 
@@ -611,13 +477,14 @@ class DeleteAtom(AtomMetaCommand, adapts=delta_cmds.DeleteAtom):
         old_domain_name = common.atom_name_to_domain_name(self.prototype_name, catenate=False)
 
         # Domain dropping gets low priority since other things may depend on it
-        cond = DomainExists(old_domain_name)
-        ops.add(DropDomain(name=old_domain_name, conditions=[cond], priority=3))
-        ops.add(Delete(table=AtomTable(), condition=[('name', str(self.prototype_name))]))
+        cond = dbops.DomainExists(old_domain_name)
+        ops.add(dbops.DropDomain(name=old_domain_name, conditions=[cond], priority=3))
+        ops.add(dbops.Delete(table=deltadbops.AtomTable(),
+                             condition=[('name', str(self.prototype_name))]))
 
         if not atom.automatic and atom.issubclass(meta, caos_objects.sequence.Sequence):
             seq_name = common.atom_name_to_sequence_name(self.prototype_name, catenate=False)
-            self.pgops.add(DropSequence(name=seq_name))
+            self.pgops.add(dbops.DropSequence(name=seq_name))
 
         return atom
 
@@ -641,19 +508,20 @@ class UpdateSearchIndexes(MetaCommand):
                 for link in self.host.pointers[link_name]:
                     if getattr(link, 'search', None):
                         column_name = common.caos_name_to_pg_name(link_name)
-                        columns.append(TextSearchIndexColumn(column_name, link.search.weight,
-                                                             'english'))
+                        columns.append(dbops.TextSearchIndexColumn(column_name, link.search.weight,
+                                                                   'english'))
 
             if columns:
                 table_name = common.get_table_name(self.host, catenate=False)
 
                 index_name = self.get_index_name(table_name, 'default')
-                index = TextSearchIndex(name=index_name, table_name=table_name, columns=columns)
+                index = dbops.TextSearchIndex(name=index_name, table_name=table_name,
+                                              columns=columns)
 
-                cond = IndexExists(index_name=(table_name[0], index_name))
-                op = DropIndex(index_name=(table_name[0], index_name), conditions=(cond,))
+                cond = dbops.IndexExists(index_name=(table_name[0], index_name))
+                op = dbops.DropIndex(index_name=(table_name[0], index_name), conditions=(cond,))
                 self.pgops.add(op)
-                op = CreateIndex(index=index)
+                op = dbops.CreateIndex(index=index)
                 self.pgops.add(op)
 
 
@@ -676,7 +544,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 ctx = context.get(self.__class__.context_class)
                 assert ctx
                 self.table_name = common.get_table_name(ctx.proto, catenate=False)
-            alter_table = AlterTable(self.table_name, priority=priority, contained=contained)
+            alter_table = dbops.AlterTable(self.table_name, priority=priority, contained=contained)
             if not manual:
                 self.alter_tables.setdefault(key, []).append(alter_table)
         else:
@@ -709,28 +577,28 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             old_table_name = common.concept_name_to_table_name(old_name, catenate=False)
             new_table_name = common.concept_name_to_table_name(new_name, catenate=False)
 
-        cond = TableExists(name=old_table_name)
+        cond = dbops.TableExists(name=old_table_name)
 
         if old_name.module != new_name.module:
-            self.pgops.add(AlterTableSetSchema(old_table_name, new_table_name[0],
-                                               conditions=(cond,)))
+            self.pgops.add(dbops.AlterTableSetSchema(old_table_name, new_table_name[0],
+                                                     conditions=(cond,)))
             old_table_name = (new_table_name[0], old_table_name[1])
 
         if old_name.name != new_name.name:
-            self.pgops.add(AlterTableRenameTo(old_table_name, new_table_name[1],
-                                              conditions=(cond,)))
+            self.pgops.add(dbops.AlterTableRenameTo(old_table_name, new_table_name[1],
+                                                    conditions=(cond,)))
 
         updaterec = self.table.record(name=str(new_name))
         condition = [('name', str(old_name))]
-        self.pgops.add(Update(table=self.table, record=updaterec, condition=condition))
+        self.pgops.add(dbops.Update(table=self.table, record=updaterec, condition=condition))
 
         old_func_name = (old_table_name[0],
                          common.caos_name_to_pg_name(old_name.name + '_batch_merger'))
         new_func_name = (new_table_name[0],
                          common.caos_name_to_pg_name(new_name.name + '_batch_merger'))
 
-        cond = FunctionExists(old_func_name, args=('text',),)
-        cmd = RenameFunction(old_func_name, args=('text',), new_name=new_func_name,
+        cond = dbops.FunctionExists(old_func_name, args=('text',),)
+        cmd = dbops.RenameFunction(old_func_name, args=('text',), new_name=new_func_name,
                              conditions=(cond,))
         self.pgops.add(cmd)
 
@@ -738,8 +606,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         schema = common.caos_module_name_to_schema_name(proto.name.module)
         name = common.caos_name_to_pg_name(proto.name.name + '_batch_merger')
         func_name = (schema, name)
-        cond = FunctionExists(func_name, args=('text',),)
-        cmd = DropFunction(func_name, args=('text',), conditions=(cond,))
+        cond = dbops.FunctionExists(func_name, args=('text',),)
+        cmd = dbops.DropFunction(func_name, args=('text',), conditions=(cond,))
         self.pgops.add(cmd)
 
     def search_index_add(self, host, pointer, meta, context):
@@ -763,7 +631,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             old_name = SourceIndexCommand.get_index_name(source_context.original_proto, index)
             new_name = SourceIndexCommand.get_index_name(source_context.proto, index)
 
-            self.pgops.add(RenameIndex(old_name=(source_table[0], old_name), new_name=new_name))
+            self.pgops.add(dbops.RenameIndex(old_name=(source_table[0], old_name),
+                                             new_name=new_name))
 
     @classmethod
     def get_source_and_pointer_ctx(cls, meta, context):
@@ -799,15 +668,15 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         table_name = common.get_table_name(source, catenate=False)
 
         if isinstance(constraint, proto.AtomConstraint):
-            constraint = AtomConstraintTableConstraint(table_name=table_name,
-                                                column_name=column_name,
-                                                prefix=prefix,
-                                                constraint=constraint)
+            constraint = deltadbops.AtomConstraintTableConstraint(table_name=table_name,
+                                                                  column_name=column_name,
+                                                                  prefix=prefix,
+                                                                  constraint=constraint)
         else:
-            constraint = PointerConstraintTableConstraint(table_name=table_name,
-                                                          column_name=column_name,
-                                                          prefix=prefix,
-                                                          constraint=constraint)
+            constraint = deltadbops.PointerConstraintTableConstraint(table_name=table_name,
+                                                                     column_name=column_name,
+                                                                     prefix=prefix,
+                                                                     constraint=constraint)
 
         return constraint
 
@@ -860,8 +729,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             if default is not None:
                 alter_table = self.get_alter_table(context, priority=3, contained=True)
                 column_name = common.caos_name_to_pg_name(pointer_name)
-                alter_table.add_operation(AlterTableAlterColumnDefault(column_name=column_name,
-                                                                       default=default))
+                alter_table.add_operation(dbops.AlterTableAlterColumnDefault(column_name=column_name,
+                                                                             default=default))
 
     def create_pointer_constraints(self, source, meta, context):
         for pointer_name, pointer in source.pointers.items():
@@ -908,8 +777,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
             drop_constraints = {}
 
-            for op in alter_table(TableConstraintCommand):
-                if isinstance(op, AlterTableDropConstraint):
+            for op in alter_table(dbops.TableConstraintCommand):
+                if isinstance(op, dbops.AlterTableDropConstraint):
                     name = op.constraint.raw_constraint_name()
                     drop_constraints[name] = op
 
@@ -937,9 +806,9 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
                             new_constraint = self.get_pointer_constraint(meta, context, constraint)
 
-                            op = AlterTableRenameConstraint(table_name=table,
-                                                            constraint=old_constraint,
-                                                            new_constraint=new_constraint)
+                            op = dbops.AlterTableRenameConstraint(table_name=table,
+                                                                  constraint=old_constraint,
+                                                                  new_constraint=new_constraint)
                             self.pgops.add(op)
 
             if not pointer.generic():
@@ -977,7 +846,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             alter_table = self.get_alter_table(context, priority=2)
             constr = self.get_pointer_constraint(meta, context, constraint,
                                                  source=source, pointer_name=pointer_name)
-            op = AlterTableAddConstraint(constraint=constr)
+            op = dbops.AlterTableAddConstraint(constraint=constr)
             alter_table.add_operation(op)
 
             constraint_origins = source.get_constraint_origins(meta, pointer_name, constraint)
@@ -998,7 +867,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                                                manual=conditional)
             constr = self.get_pointer_constraint(meta, context, constraint,
                                                  source=source, pointer_name=pointer_name)
-            op = AlterTableDropConstraint(constraint=constr)
+            op = dbops.AlterTableDropConstraint(constraint=constr)
             alter_table.add_operation(op)
 
             if not conditional:
@@ -1011,7 +880,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             if conditional:
                 cond = self.unique_constraint_trigger_exists(source, pointer_name, constr,
                                                              meta, context)
-                op = CommandGroup(conditions=[cond])
+                op = dbops.CommandGroup(conditions=[cond])
                 op.add_commands([alter_table, drop_trig])
                 self.pgops.add(op)
             else:
@@ -1023,11 +892,11 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
         table = common.get_table_name(source, catenate=False)
 
-        result = CommandGroup()
+        result = dbops.CommandGroup()
 
-        result.add_command(AlterTableRenameConstraint(table_name=table,
-                                                      constraint=old_constraint,
-                                                      new_constraint=new_constraint))
+        result.add_command(dbops.AlterTableRenameConstraint(table_name=table,
+                                                            constraint=old_constraint,
+                                                            new_constraint=new_constraint))
 
         ops = self.rename_unique_constraint_trigger(orig_source, source, pointer_name,
                                                     old_constraint, new_constraint, meta, context)
@@ -1070,21 +939,22 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         proc_name = constraint.raw_constraint_name() + '_trigproc'
         proc_name = schema, common.caos_name_to_pg_name(proc_name)
         table_name = common.get_table_name(source, catenate=False)
-        proc = CreateTriggerFunction(name=proc_name, text=text, volatility='stable')
+        proc = dbops.CreateTriggerFunction(name=proc_name, text=text, volatility='stable')
 
         trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_instrigger')
-        instrigger = CreateConstraintTrigger(trigger_name=trigger_name,
-                                             table_name=table_name,
-                                             events=('insert',), procedure=proc_name)
+        instrigger = dbops.CreateConstraintTrigger(trigger_name=trigger_name,
+                                                   table_name=table_name,
+                                                   events=('insert',), procedure=proc_name)
 
         trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_updtrigger')
         condition = 'OLD.%(colname)s IS DISTINCT FROM NEW.%(colname)s' % {'colname': colname}
-        updtrigger = CreateConstraintTrigger(trigger_name=trigger_name,
-                                             table_name=table_name,
-                                             events=('update',),
-                                             condition=condition, procedure=proc_name)
+        updtrigger = dbops.CreateConstraintTrigger(trigger_name=trigger_name,
+                                                   table_name=table_name,
+                                                   events=('update',),
+                                                   condition=condition, procedure=proc_name)
 
-        result = CommandGroup(priority=priority, neg_conditions=[FunctionExists(name=proc_name)])
+        result = dbops.CommandGroup(priority=priority,
+                                    neg_conditions=[dbops.FunctionExists(name=proc_name)])
         result.add_command(proc)
         result.add_command(instrigger)
         result.add_command(updtrigger)
@@ -1095,29 +965,29 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         schema = common.caos_module_name_to_schema_name(source.name.module)
         proc_name = constraint.raw_constraint_name() + '_trigproc'
         proc_name = schema, common.caos_name_to_pg_name(proc_name)
-        return FunctionExists(proc_name)
+        return dbops.FunctionExists(proc_name)
 
     def drop_unique_constraint_trigger(self, source, pointer_name, constraint, meta, context):
         schema = common.caos_module_name_to_schema_name(source.name.module)
         table_name = common.get_table_name(source, catenate=False)
 
-        result = CommandGroup()
+        result = dbops.CommandGroup()
 
         trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_instrigger')
-        result.add_command(DropTrigger(trigger_name=trigger_name, table_name=table_name))
+        result.add_command(dbops.DropTrigger(trigger_name=trigger_name, table_name=table_name))
         trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_updtrigger')
-        result.add_command(DropTrigger(trigger_name=trigger_name, table_name=table_name))
+        result.add_command(dbops.DropTrigger(trigger_name=trigger_name, table_name=table_name))
 
         proc_name = constraint.raw_constraint_name() + '_trigproc'
         proc_name = schema, common.caos_name_to_pg_name(proc_name)
-        result.add_command(DropFunction(name=proc_name, args=()))
+        result.add_command(dbops.DropFunction(name=proc_name, args=()))
 
         return result
 
     def rename_unique_constraint_trigger(self, orig_source, source, pointer_name,
                                                old_constraint, new_constraint, meta, context):
 
-        result = CommandGroup()
+        result = dbops.CommandGroup()
 
         table_name = common.get_table_name(source, catenate=False)
         orig_table_name = common.get_table_name(orig_source, catenate=False)
@@ -1127,18 +997,18 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         new_trigger_name = common.caos_name_to_pg_name('%s_instrigger' % \
                                                        new_constraint.raw_constraint_name())
 
-        result.add_command(AlterTriggerRenameTo(trigger_name=old_trigger_name,
-                                                new_trigger_name=new_trigger_name,
-                                                table_name=table_name))
+        result.add_command(dbops.AlterTriggerRenameTo(trigger_name=old_trigger_name,
+                                                      new_trigger_name=new_trigger_name,
+                                                      table_name=table_name))
 
         old_trigger_name = common.caos_name_to_pg_name('%s_updtrigger' % \
                                                        old_constraint.raw_constraint_name())
         new_trigger_name = common.caos_name_to_pg_name('%s_updtrigger' % \
                                                        new_constraint.raw_constraint_name())
 
-        result.add_command(AlterTriggerRenameTo(trigger_name=old_trigger_name,
-                                                new_trigger_name=new_trigger_name,
-                                                table_name=table_name))
+        result.add_command(dbops.AlterTriggerRenameTo(trigger_name=old_trigger_name,
+                                                      new_trigger_name=new_trigger_name,
+                                                      table_name=table_name))
 
         old_proc_name = common.caos_name_to_pg_name('%s_trigproc' % \
                                                     old_constraint.raw_constraint_name())
@@ -1149,11 +1019,11 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                                                     new_constraint.raw_constraint_name())
         new_proc_name = table_name[0], new_proc_name
 
-        result.add_command(RenameFunction(name=old_proc_name, args=(), new_name=new_proc_name))
+        result.add_command(dbops.RenameFunction(name=old_proc_name, args=(), new_name=new_proc_name))
         old = common.get_table_name(orig_source)
         new = common.get_table_name(source)
-        result.add_command(AlterFunctionReplaceText(name=new_proc_name, args=(), old_text=old,
-                                                    new_text=new))
+        result.add_command(dbops.AlterFunctionReplaceText(name=new_proc_name, args=(), old_text=old,
+                                                          new_text=new))
 
         return result
 
@@ -1202,20 +1072,20 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                     col_name = common.caos_name_to_pg_name(added_ptr)
                     col_type = types.pg_type_from_atom(meta, ptr.target)
                     col_required = ptr.required
-                    col = Column(name=col_name, type=col_type, required=col_required)
-                    alter_table.add_operation(AlterTableAddColumn(col))
+                    col = dbops.Column(name=col_name, type=col_type, required=col_required)
+                    alter_table.add_operation(dbops.AlterTableAddColumn(col))
 
             if dropped_bases:
                 for dropped_base in dropped_bases:
                     parent_table_name = nameconv(caos.name.Name(dropped_base), catenate=False)
-                    op = AlterTableDropParent(parent_name=parent_table_name)
+                    op = dbops.AlterTableDropParent(parent_name=parent_table_name)
                     alter_table.add_operation(op)
 
             for added_base in added_bases:
                 parent_table_name = nameconv(caos.name.Name(added_base), catenate=False)
                 table_name = nameconv(source.name, catenate=False)
-                cond = TableInherits(table_name, parent_table_name)
-                op = AlterTableAddParent(parent_name=parent_table_name)
+                cond = dbops.TableInherits(table_name, parent_table_name)
+                op = dbops.AlterTableAddParent(parent_name=parent_table_name)
                 alter_table.add_operation((op, None, [cond]))
 
 
@@ -1246,8 +1116,8 @@ class CreateSourceIndex(SourceIndexCommand, adapts=delta_cmds.CreateSourceIndex)
             #
             sql_expr = sql_expr[1:-1]
         index_name = self.get_index_name(source.proto, index)
-        pg_index = Index(name=index_name, table_name=table_name, expr=sql_expr, unique=False)
-        self.pgops.add(CreateIndex(pg_index, priority=3))
+        pg_index = dbops.Index(name=index_name, table_name=table_name, expr=sql_expr, unique=False)
+        self.pgops.add(dbops.CreateIndex(pg_index, priority=3))
 
         return index
 
@@ -1274,9 +1144,9 @@ class DeleteSourceIndex(SourceIndexCommand, adapts=delta_cmds.DeleteSourceIndex)
             #
             table_name = common.get_table_name(source.proto, catenate=False)
             index_name = self.get_index_name(source.proto, index)
-            index_exists = IndexExists((table_name[0], index_name))
-            self.pgops.add(DropIndex((table_name[0], index_name), priority=3,
-                                     conditions=(index_exists,)))
+            index_exists = dbops.IndexExists((table_name[0], index_name))
+            self.pgops.add(dbops.DropIndex((table_name[0], index_name), priority=3,
+                                           conditions=(index_exists,)))
 
         return index
 
@@ -1284,7 +1154,7 @@ class DeleteSourceIndex(SourceIndexCommand, adapts=delta_cmds.DeleteSourceIndex)
 class ConceptMetaCommand(CompositePrototypeMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.table = ConceptTable()
+        self.table = deltadbops.ConceptTable()
 
     def fill_record(self, rec=None):
         rec, updates = super().fill_record(rec)
@@ -1297,8 +1167,8 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
     def apply(self, meta, context=None):
         new_table_name = common.concept_name_to_table_name(self.prototype_name, catenate=False)
         self.table_name = new_table_name
-        concept_table = Table(name=new_table_name)
-        self.pgops.add(CreateTable(table=concept_table))
+        concept_table = dbops.Table(name=new_table_name)
+        self.pgops.add(dbops.CreateTable(table=concept_table))
 
         alter_table = self.get_alter_table(context)
 
@@ -1308,13 +1178,13 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
         fields = self.create_object(concept)
 
         if concept.name == 'semantix.caos.builtins.BaseObject' or concept.is_virtual:
-            col = Column(name='concept_id', type='integer', required=True)
-            alter_table.add_operation(AlterTableAddColumn(col))
+            col = dbops.Column(name='concept_id', type='integer', required=True)
+            alter_table.add_operation(dbops.AlterTableAddColumn(col))
 
         if not concept.is_virtual:
-            constraint = PrimaryKey(table_name=alter_table.name,
-                                    columns=['semantix.caos.builtins.id'])
-            alter_table.add_operation(AlterTableAddConstraint(constraint))
+            constraint = dbops.PrimaryKey(table_name=alter_table.name,
+                                          columns=['semantix.caos.builtins.id'])
+            alter_table.add_operation(dbops.AlterTableAddConstraint(constraint))
 
         bases = (common.concept_name_to_table_name(p, catenate=False)
                  for p in fields['base'][1] if proto.Concept.is_prototype(meta, p))
@@ -1331,7 +1201,7 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
             self.update_search_indexes.apply(meta, context)
             self.pgops.add(self.update_search_indexes)
 
-        self.pgops.add(Comment(object=concept_table, text=self.prototype_name))
+        self.pgops.add(dbops.Comment(object=concept_table, text=self.prototype_name))
 
         return concept
 
@@ -1393,7 +1263,7 @@ class AlterConcept(ConceptMetaCommand, adapts=delta_cmds.AlterConcept):
 
         if updaterec:
             condition = [('name', str(concept.name))]
-            self.pgops.add(Update(table=self.table, record=updaterec, condition=condition))
+            self.pgops.add(dbops.Update(table=self.table, record=updaterec, condition=condition))
 
         self.attach_alter_table(context)
 
@@ -1413,8 +1283,8 @@ class DeleteConcept(ConceptMetaCommand, adapts=delta_cmds.DeleteConcept):
 
         self.delete(concept, meta, concept)
 
-        self.pgops.add(DropTable(name=old_table_name))
-        self.pgops.add(Delete(table=self.table, condition=[('name', str(concept.name))]))
+        self.pgops.add(dbops.DropTable(name=old_table_name))
+        self.pgops.add(dbops.Delete(table=self.table, condition=[('name', str(concept.name))]))
 
         return concept
 
@@ -1468,14 +1338,14 @@ class PointerMetaCommand(MetaCommand):
                 source = host.proto.name
 
             if source:
-                rec.source_id = Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
-                                      [str(source)], type='integer')
+                rec.source_id = dbops.Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
+                                            [str(source)], type='integer')
 
             target = updates.get('target')
             if target:
-                rec.target_id = Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
-                                      [str(target[1])],
-                                      type='integer')
+                rec.target_id = dbops.Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
+                                            [str(target[1])],
+                                            type='integer')
 
             if rec.base:
                 if isinstance(rec.base, caos.Name):
@@ -1531,16 +1401,16 @@ class PointerMetaCommand(MetaCommand):
 
             if isinstance(old_target, caos.types.ProtoAtom):
                 AlterAtom.alter_atom(self, meta, context, old_target, new_target, in_place=False)
-                alter_type = AlterTableAlterColumnType(column_name, target_type)
+                alter_type = dbops.AlterTableAlterColumnType(column_name, target_type)
                 alter_table.add_operation(alter_type)
             else:
                 cols = self.get_columns(link, meta)
-                ops = [AlterTableAddColumn(col) for col in cols]
+                ops = [dbops.AlterTableAddColumn(col) for col in cols]
                 for op in ops:
                     alter_table.add_operation(op)
         else:
-            col = Column(name=column_name, type='text')
-            alter_table.add_operation(AlterTableDropColumn(col))
+            col = dbops.Column(name=column_name, type='text')
+            alter_table.add_operation(dbops.AlterTableDropColumn(col))
 
     def get_pointer_default(self, pointer, meta, context):
         default = list(self(delta_cmds.AlterDefault))
@@ -1578,8 +1448,8 @@ class PointerMetaCommand(MetaCommand):
                 concept_op = context.get(delta_cmds.ConceptCommandContext).op
                 alter_table = concept_op.get_alter_table(context, contained=True, priority=3)
                 column_name = common.caos_name_to_pg_name(pointer.normal_name())
-                alter_table.add_operation(AlterTableAlterColumnDefault(column_name=column_name,
-                                                                       default=new_default))
+                alter_table.add_operation(dbops.AlterTableAlterColumnDefault(column_name=column_name,
+                                                                             default=new_default))
 
     def get_columns(self, pointer, meta, default=None):
         columns = []
@@ -1593,9 +1463,9 @@ class PointerMetaCommand(MetaCommand):
             name = pointer.normal_name()
             column_name = common.caos_name_to_pg_name(name)
 
-            columns.append(Column(name=column_name, type=column_type,
-                                  required=pointer.required,
-                                  default=default, comment=pointer.normal_name()))
+            columns.append(dbops.Column(name=column_name, type=column_type,
+                                        required=pointer.required,
+                                        default=default, comment=pointer.normal_name()))
 
         return columns
 
@@ -1612,20 +1482,20 @@ class PointerMetaCommand(MetaCommand):
                 old_col_name = common.caos_name_to_pg_name(old_name)
                 new_col_name = common.caos_name_to_pg_name(new_name)
 
-                rename = AlterTableRenameColumn(table_name, old_col_name, new_col_name)
+                rename = dbops.AlterTableRenameColumn(table_name, old_col_name, new_col_name)
                 self.pgops.add(rename)
 
         rec = self.table.record()
         rec.name = str(self.new_name)
-        self.pgops.add(Update(table=self.table, record=rec,
-                              condition=[('name', str(self.prototype_name))], priority=1))
+        self.pgops.add(dbops.Update(table=self.table, record=rec,
+                                    condition=[('name', str(self.prototype_name))], priority=1))
 
 
 
 class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.table = LinkTable()
+        self.table = deltadbops.LinkTable()
 
     def create_table(self, link, meta, context, conditional=False):
         self.table_name = new_table_name = common.link_name_to_table_name(link.name, catenate=False)
@@ -1634,16 +1504,16 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         columns = []
 
         if link.name == 'semantix.caos.builtins.link':
-            columns.append(Column(name='source_id', type='uuid', required=True))
+            columns.append(dbops.Column(name='source_id', type='uuid', required=True))
             # target_id column is not required, since there may be records for atomic links,
             # and atoms are stored in the source table.
-            columns.append(Column(name='target_id', type='uuid', required=False))
-            columns.append(Column(name='link_type_id', type='integer', required=True))
+            columns.append(dbops.Column(name='target_id', type='uuid', required=False))
+            columns.append(dbops.Column(name='link_type_id', type='integer', required=True))
 
-        constraints.append(UniqueConstraint(table_name=new_table_name,
-                                            columns=['source_id', 'target_id', 'link_type_id']))
+        constraints.append(dbops.UniqueConstraint(table_name=new_table_name,
+                                                  columns=['source_id', 'target_id', 'link_type_id']))
 
-        table = Table(name=new_table_name)
+        table = dbops.Table(name=new_table_name)
         table.add_columns(columns)
         table.constraints = constraints
 
@@ -1652,17 +1522,17 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
                      for p in link.base if proto.Concept.is_prototype(meta, p))
             table.bases = list(bases)
 
-        ct = CreateTable(table=table)
+        ct = dbops.CreateTable(table=table)
 
         index_name = common.caos_name_to_pg_name(str(link.name)  + 'target_id_default_idx')
-        index = Index(index_name, new_table_name, unique=False)
+        index = dbops.Index(index_name, new_table_name, unique=False)
         index.add_columns(['target_id'])
-        ci = CreateIndex(index)
+        ci = dbops.CreateIndex(index)
 
         if conditional:
-            c = CommandGroup(neg_conditions=[TableExists(new_table_name)])
+            c = dbops.CommandGroup(neg_conditions=[dbops.TableExists(new_table_name)])
         else:
-            c = CommandGroup()
+            c = dbops.CommandGroup()
 
         c.add_command(ct)
         c.add_command(ci)
@@ -1739,8 +1609,8 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
 
             for col in cols:
                 # The column may already exist as inherited from parent table
-                cond = ColumnExists(table_name=table_name, column_name=col.name)
-                cmd = AlterTableAddColumn(col)
+                cond = dbops.ColumnExists(table_name=table_name, column_name=col.name)
+                cmd = dbops.AlterTableAddColumn(col)
                 concept_alter_table.add_operation((cmd, None, (cond,)))
 
         if link.generic():
@@ -1755,7 +1625,7 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
         concept = context.get(delta_cmds.ConceptCommandContext)
         if not concept or not concept.proto.is_virtual:
             rec, updates = self.record_metadata(link, None, meta, context)
-            self.pgops.add(Insert(table=self.table, records=[rec], priority=1))
+            self.pgops.add(dbops.Insert(table=self.table, records=[rec], priority=1))
 
         if not link.generic() and link.mapping != caos.types.ManyToMany:
             self.schedule_mapping_update(link, meta, context)
@@ -1823,8 +1693,8 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
             self.provide_table(link, meta, context)
 
             if rec:
-                self.pgops.add(Update(table=self.table, record=rec,
-                                      condition=[('name', str(link.name))], priority=1))
+                self.pgops.add(dbops.Update(table=self.table, record=rec,
+                                            condition=[('name', str(link.name))], priority=1))
 
             new_type = None
             for op in self(delta_cmds.AlterPrototypeProperty):
@@ -1837,8 +1707,8 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
                 if not isinstance(link.target, caos.types.ProtoObject):
                     link.target = meta.get(link.target)
 
-                op = CallDeltaHook(hook='exec_alter_link_target', stage='preprocess',
-                                   op=self, priority=1)
+                op = deltadbops.CallDeltaHook(hook='exec_alter_link_target', stage='preprocess',
+                                              op=self, priority=1)
                 self.pgops.add(op)
 
             self.attach_alter_table(context)
@@ -1853,8 +1723,8 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
 
                 alter_table = context.get(delta_cmds.ConceptCommandContext).op.get_alter_table(context)
                 column_name = common.caos_name_to_pg_name(link.normal_name())
-                alter_table.add_operation(AlterTableAlterColumnNull(column_name=column_name,
-                                                                    null=not link.required))
+                alter_table.add_operation(dbops.AlterTableAlterColumnNull(column_name=column_name,
+                                                                          null=not link.required))
 
             if isinstance(link.target, caos.types.ProtoAtom):
                 self.alter_pointer_default(link, meta, context)
@@ -1883,19 +1753,19 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
                 column_type = 'text'
 
                 alter_table = concept.op.get_alter_table(context)
-                col = AlterTableDropColumn(Column(name=column_name, type=column_type))
+                col = dbops.AlterTableDropColumn(dbops.Column(name=column_name, type=column_type))
                 alter_table.add_operation(col)
 
         elif result.generic() and \
                             [l for l in result.children() if not l.generic() and not l.atomic()]:
             old_table_name = common.link_name_to_table_name(result.name, catenate=False)
-            self.pgops.add(DropTable(name=old_table_name))
+            self.pgops.add(dbops.DropTable(name=old_table_name))
             self.cancel_mapping_update(result, meta, context)
 
         if not result.generic() and result.mapping != caos.types.ManyToMany:
             self.schedule_mapping_update(result, meta, context)
 
-        self.pgops.add(Delete(table=self.table, condition=[('name', str(result.name))]))
+        self.pgops.add(dbops.Delete(table=self.table, condition=[('name', str(result.name))]))
 
         return result
 
@@ -2025,7 +1895,7 @@ class DeletePointerConstraint(PointerConstraintMetaCommand, adapts=delta_cmds.De
 class LinkPropertyMetaCommand(NamedPrototypeMetaCommand, PointerMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.table = LinkPropertyTable()
+        self.table = deltadbops.LinkPropertyTable()
 
 
 class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkProperty):
@@ -2044,12 +1914,13 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
             cols = self.get_columns(property, meta, default_value)
             for col in cols:
                 # The column may already exist as inherited from parent table
-                cond = ColumnExists(table_name=alter_table.name, column_name=col.name)
+                cond = dbops.ColumnExists(table_name=alter_table.name, column_name=col.name)
 
-                cmd = AlterTableAlterColumnNull(column_name=col.name, null=not property.required)
+                cmd = dbops.AlterTableAlterColumnNull(column_name=col.name,
+                                                      null=not property.required)
                 alter_table.add_operation((cmd, (cond,), None))
 
-                cmd = AlterTableAddColumn(col)
+                cmd = dbops.AlterTableAddColumn(col)
                 alter_table.add_operation((cmd, None, (cond,)))
 
 
@@ -2059,7 +1930,7 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
         # Priority is set to 2 to make sure that INSERT is run after the host link
         # is INSERTed into caos.link.
         #
-        self.pgops.add(Insert(table=self.table, records=[rec], priority=2))
+        self.pgops.add(dbops.Insert(table=self.table, records=[rec], priority=2))
 
         return property
 
@@ -2084,8 +1955,8 @@ class AlterLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.AlterLinkProp
             rec, updates = self.record_metadata(prop, old_prop, meta, context)
 
             if rec:
-                self.pgops.add(Update(table=self.table, record=rec,
-                                      condition=[('name', str(prop.name))], priority=1))
+                self.pgops.add(dbops.Update(table=self.table, record=rec,
+                                            condition=[('name', str(prop.name))], priority=1))
 
             if isinstance(prop.target, caos.types.ProtoAtom) and \
                     isinstance(self.old_prop.target, caos.types.ProtoAtom) and \
@@ -2093,8 +1964,8 @@ class AlterLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.AlterLinkProp
 
                 alter_table = context.get(delta_cmds.LinkCommandContext).op.get_alter_table(context)
                 column_name = common.caos_name_to_pg_name(prop.normal_name())
-                alter_table.add_operation(AlterTableAlterColumnNull(column_name=column_name,
-                                                                    null=not prop.required))
+                alter_table.add_operation(dbops.AlterTableAlterColumnNull(column_name=column_name,
+                                                                          null=not prop.required))
 
             new_type = None
             for op in self(delta_cmds.AlterPrototypeProperty):
@@ -2125,10 +1996,10 @@ class DeleteLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.DeleteLinkPr
             # We don't really care about the type -- we're dropping the thing
             column_type = 'text'
 
-            col = AlterTableDropColumn(Column(name=column_name, type=column_type))
+            col = dbops.AlterTableDropColumn(dbops.Column(name=column_name, type=column_type))
             alter_table.add_operation(col)
 
-        self.pgops.add(Delete(table=self.table, condition=[('name', str(property.name))]))
+        self.pgops.add(dbops.Delete(table=self.table, condition=[('name', str(property.name))]))
 
         return property
 
@@ -2136,7 +2007,7 @@ class DeleteLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.DeleteLinkPr
 class ComputableMetaCommand(NamedPrototypeMetaCommand, PointerMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-        self.table = ComputableTable()
+        self.table = deltadbops.ComputableTable()
 
     def record_metadata(self, pointer, old_pointer, meta, context):
         rec, updates = self.fill_record()
@@ -2151,14 +2022,14 @@ class ComputableMetaCommand(NamedPrototypeMetaCommand, PointerMetaCommand):
                 source = host.proto.name
 
             if source:
-                rec.source_id = Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
-                                      [str(source)], type='integer')
+                rec.source_id = dbops.Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
+                                            [str(source)], type='integer')
 
             target = updates.get('target')
             if target:
-                rec.target_id = Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
-                                      [str(target[1])],
-                                      type='integer')
+                rec.target_id = dbops.Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
+                                            [str(target[1])],
+                                            type='integer')
 
         return rec, updates
 
@@ -2173,7 +2044,7 @@ class CreateComputable(ComputableMetaCommand, adapts=delta_cmds.CreateComputable
         with context(self.context_class(self, computable)):
             rec, updates = self.record_metadata(computable, None, meta, context)
 
-        self.pgops.add(Insert(table=self.table, records=[rec], priority=2))
+        self.pgops.add(dbops.Insert(table=self.table, records=[rec], priority=2))
 
         return computable
 
@@ -2185,8 +2056,8 @@ class RenameComputable(ComputableMetaCommand, adapts=delta_cmds.RenameComputable
 
         rec = self.table.record()
         rec.name = str(self.new_name)
-        self.pgops.add(Update(table=self.table, record=rec,
-                              condition=[('name', str(self.prototype_name))], priority=1))
+        self.pgops.add(dbops.Update(table=self.table, record=rec,
+                                    condition=[('name', str(self.prototype_name))], priority=1))
 
         return result
 
@@ -2201,8 +2072,8 @@ class AlterComputable(ComputableMetaCommand, adapts=delta_cmds.AlterComputable):
             rec, updates = self.record_metadata(computable, old_computable, meta, context)
 
             if rec:
-                self.pgops.add(Update(table=self.table, record=rec,
-                                      condition=[('name', str(computable.name))], priority=1))
+                self.pgops.add(dbops.Update(table=self.table, record=rec,
+                                            condition=[('name', str(computable.name))], priority=1))
 
         return computable
 
@@ -2212,7 +2083,7 @@ class DeleteComputable(ComputableMetaCommand, adapts=delta_cmds.DeleteComputable
         computable = delta_cmds.DeleteComputable.apply(self, meta, context)
         ComputableMetaCommand.apply(self, meta, context)
 
-        self.pgops.add(Delete(table=self.table, condition=[('name', str(computable.name))]))
+        self.pgops.add(dbops.Delete(table=self.table, condition=[('name', str(computable.name))]))
 
         return computable
 
@@ -2294,9 +2165,9 @@ class CreateMappingIndexes(MetaCommand):
             sides = ()
 
         for side in sides:
-            index = MappingIndex(key + '_%s' % side, mapping, maplinks, table_name)
+            index = deltadbops.MappingIndex(key + '_%s' % side, mapping, maplinks, table_name)
             index.add_columns(('%s_id' % side, 'link_type_id'))
-            self.pgops.add(CreateIndex(index, priority=3))
+            self.pgops.add(dbops.CreateIndex(index, priority=3))
 
 
 class AlterMappingIndexes(MetaCommand):
@@ -2311,13 +2182,13 @@ class DropMappingIndexes(MetaCommand):
     def __init__(self, idx_names, table_name, mapping):
         super().__init__()
 
-        table_exists = TableExists(table_name)
-        group = CommandGroup(conditions=(table_exists,), priority=3)
+        table_exists = dbops.TableExists(table_name)
+        group = dbops.CommandGroup(conditions=(table_exists,), priority=3)
 
         for idx_name in idx_names:
             fq_idx_name = (table_name[0], idx_name)
-            index_exists = IndexExists(fq_idx_name)
-            drop = DropIndex(fq_idx_name, conditions=(index_exists,), priority=3)
+            index_exists = dbops.IndexExists(fq_idx_name)
+            drop = dbops.DropIndex(fq_idx_name, conditions=(index_exists,), priority=3)
             group.add_command(drop)
 
         self.pgops.add(group)
@@ -2337,7 +2208,7 @@ class UpdateMappingIndexes(MetaCommand):
                                   (?P<type_id>\d+))
                               \s* \)
                            ''', re.X)
-        self.schema_exists = SchemaExists(name='caos')
+        self.schema_exists = dbops.SchemaExists(name='caos')
 
     def interpret_index(self, index_name, index_predicate, link_map):
         m = self.idx_name_re.match(index_name)
@@ -2509,17 +2380,17 @@ class CreateModule(CompositePrototypeMetaCommand, adapts=delta_cmds.CreateModule
 
         module_name = module.name
         schema_name = common.caos_module_name_to_schema_name(module_name)
-        condition = SchemaExists(name=schema_name)
+        condition = dbops.SchemaExists(name=schema_name)
 
-        cmd = CommandGroup(neg_conditions={condition})
-        cmd.add_command(CreateSchema(name=schema_name))
+        cmd = dbops.CommandGroup(neg_conditions={condition})
+        cmd.add_command(dbops.CreateSchema(name=schema_name))
 
-        modtab = ModuleTable()
+        modtab = deltadbops.ModuleTable()
         rec = modtab.record()
         rec.name = module_name
         rec.schema_name = schema_name
         rec.imports = module.imports
-        cmd.add_command(Insert(modtab, [rec]))
+        cmd.add_command(dbops.Insert(modtab, [rec]))
 
         self.pgops.add(cmd)
 
@@ -2528,7 +2399,7 @@ class CreateModule(CompositePrototypeMetaCommand, adapts=delta_cmds.CreateModule
 
 class AlterModule(CompositePrototypeMetaCommand, adapts=delta_cmds.AlterModule):
     def apply(self, schema, context):
-        self.table = ModuleTable()
+        self.table = deltadbops.ModuleTable()
         module = delta_cmds.AlterModule.apply(self, schema, context=context)
         CompositePrototypeMetaCommand.apply(self, schema, context)
 
@@ -2536,7 +2407,7 @@ class AlterModule(CompositePrototypeMetaCommand, adapts=delta_cmds.AlterModule):
 
         if updaterec:
             condition = [('name', str(module.name))]
-            self.pgops.add(Update(table=self.table, record=updaterec, condition=condition))
+            self.pgops.add(dbops.Update(table=self.table, record=updaterec, condition=condition))
 
         self.attach_alter_table(context)
 
@@ -2550,11 +2421,12 @@ class DeleteModule(CompositePrototypeMetaCommand, adapts=delta_cmds.DeleteModule
 
         module_name = module.name
         schema_name = common.caos_module_name_to_schema_name(module_name)
-        condition = SchemaExists(name=schema_name)
+        condition = dbops.SchemaExists(name=schema_name)
 
-        cmd = CommandGroup()
-        cmd.add_command(DropSchema(name=schema_name, neg_conditions={condition}))
-        cmd.add_command(Delete(table=ModuleTable(), condition=[('name', str(module.name))]))
+        cmd = dbops.CommandGroup()
+        cmd.add_command(dbops.DropSchema(name=schema_name, neg_conditions={condition}))
+        cmd.add_command(dbops.Delete(table=deltadbops.ModuleTable(),
+                                     condition=[('name', str(module.name))]))
 
         self.pgops.add(cmd)
 
@@ -2567,88 +2439,88 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
         self._renames = {}
 
     def apply(self, meta, context):
-        self.pgops.add(CreateSchema(name='caos', priority=-3))
+        self.pgops.add(dbops.CreateSchema(name='caos', priority=-3))
 
-        featuretable = FeatureTable()
-        self.pgops.add(CreateTable(table=featuretable,
-                                   neg_conditions=[TableExists(name=featuretable.name)],
-                                   priority=-3))
+        featuretable = deltadbops.FeatureTable()
+        self.pgops.add(dbops.CreateTable(table=featuretable,
+                                         neg_conditions=[dbops.TableExists(name=featuretable.name)],
+                                         priority=-3))
 
-        backendinfotable = BackendInfoTable()
-        self.pgops.add(CreateTable(table=backendinfotable,
-                                   neg_conditions=[TableExists(name=backendinfotable.name)],
-                                   priority=-3))
+        backendinfotable = deltadbops.BackendInfoTable()
+        self.pgops.add(dbops.CreateTable(table=backendinfotable,
+                                         neg_conditions=[dbops.TableExists(name=backendinfotable.name)],
+                                         priority=-3))
 
-        self.pgops.add(EnableFeature(feature=UuidFeature(),
-                                     neg_conditions=[FunctionExists(('caos', 'uuid_nil'))],
-                                     priority=-2))
+        self.pgops.add(deltadbops.EnableFeature(feature=features.UuidFeature(),
+                                                neg_conditions=[dbops.FunctionExists(('caos', 'uuid_nil'))],
+                                                priority=-2))
 
-        self.pgops.add(EnableFeature(feature=HstoreFeature(),
-                                     neg_conditions=[TypeExists(('caos', 'hstore'))],
-                                     priority=-2))
+        self.pgops.add(deltadbops.EnableFeature(feature=features.HstoreFeature(),
+                                                neg_conditions=[dbops.TypeExists(('caos', 'hstore'))],
+                                                priority=-2))
 
-        self.pgops.add(EnableFeature(feature=FuzzystrmatchFeature(),
-                                     neg_conditions=[FunctionExists(('caos', 'levenshtein'))],
-                                     priority=-2))
+        self.pgops.add(deltadbops.EnableFeature(feature=features.FuzzystrmatchFeature(),
+                                                neg_conditions=[dbops.FunctionExists(('caos', 'levenshtein'))],
+                                                priority=-2))
 
-        self.pgops.add(EnableFeature(feature=ProductAggregateFeature(),
-                                     neg_conditions=[FunctionExists(('caos', 'agg_product'))],
-                                     priority=-2))
+        self.pgops.add(deltadbops.EnableFeature(feature=features.ProductAggregateFeature(),
+                                                neg_conditions=[dbops.FunctionExists(('caos', 'agg_product'))],
+                                                priority=-2))
 
-        deltalogtable = DeltaLogTable()
-        self.pgops.add(CreateTable(table=deltalogtable,
-                                   neg_conditions=[TableExists(name=deltalogtable.name)],
-                                   priority=-1))
+        deltalogtable = deltadbops.DeltaLogTable()
+        self.pgops.add(dbops.CreateTable(table=deltalogtable,
+                                         neg_conditions=[dbops.TableExists(name=deltalogtable.name)],
+                                         priority=-1))
 
-        deltareftable = DeltaRefTable()
-        self.pgops.add(CreateTable(table=deltareftable,
-                                   neg_conditions=[TableExists(name=deltareftable.name)],
-                                   priority=-1))
+        deltareftable = deltadbops.DeltaRefTable()
+        self.pgops.add(dbops.CreateTable(table=deltareftable,
+                                         neg_conditions=[dbops.TableExists(name=deltareftable.name)],
+                                         priority=-1))
 
-        moduletable = ModuleTable()
-        self.pgops.add(CreateTable(table=moduletable,
-                                   neg_conditions=[TableExists(name=moduletable.name)],
-                                   priority=-1))
+        moduletable = deltadbops.ModuleTable()
+        self.pgops.add(dbops.CreateTable(table=moduletable,
+                                         neg_conditions=[dbops.TableExists(name=moduletable.name)],
+                                         priority=-1))
 
-        metatable = MetaObjectTable()
-        self.pgops.add(CreateTable(table=metatable,
-                                   neg_conditions=[TableExists(name=metatable.name)],
-                                   priority=-1))
+        metatable = deltadbops.MetaObjectTable()
+        self.pgops.add(dbops.CreateTable(table=metatable,
+                                         neg_conditions=[dbops.TableExists(name=metatable.name)],
+                                         priority=-1))
 
-        atomtable = AtomTable()
-        self.pgops.add(CreateTable(table=atomtable,
-                                   neg_conditions=[TableExists(name=atomtable.name)],
-                                   priority=-1))
+        atomtable = deltadbops.AtomTable()
+        self.pgops.add(dbops.CreateTable(table=atomtable,
+                                         neg_conditions=[dbops.TableExists(name=atomtable.name)],
+                                         priority=-1))
 
-        concepttable = ConceptTable()
-        self.pgops.add(CreateTable(table=concepttable,
-                                   neg_conditions=[TableExists(name=concepttable.name)],
-                                   priority=-1))
+        concepttable = deltadbops.ConceptTable()
+        self.pgops.add(dbops.CreateTable(table=concepttable,
+                                         neg_conditions=[dbops.TableExists(name=concepttable.name)],
+                                         priority=-1))
 
-        linktable = LinkTable()
-        self.pgops.add(CreateTable(table=linktable,
-                                   neg_conditions=[TableExists(name=linktable.name)],
-                                   priority=-1))
+        linktable = deltadbops.LinkTable()
+        self.pgops.add(dbops.CreateTable(table=linktable,
+                                         neg_conditions=[dbops.TableExists(name=linktable.name)],
+                                         priority=-1))
 
-        linkproptable = LinkPropertyTable()
-        self.pgops.add(CreateTable(table=linkproptable,
-                                   neg_conditions=[TableExists(name=linkproptable.name)],
-                                   priority=-1))
+        linkproptable = deltadbops.LinkPropertyTable()
+        self.pgops.add(dbops.CreateTable(table=linkproptable,
+                                         neg_conditions=[dbops.TableExists(name=linkproptable.name)],
+                                         priority=-1))
 
-        computabletable = ComputableTable()
-        self.pgops.add(CreateTable(table=computabletable,
-                                   neg_conditions=[TableExists(name=computabletable.name)],
-                                   priority=-1))
+        computabletable = deltadbops.ComputableTable()
+        self.pgops.add(dbops.CreateTable(table=computabletable,
+                                         neg_conditions=[dbops.TableExists(name=computabletable.name)],
+                                         priority=-1))
 
-        entity_modstat_type = EntityModStatType()
-        self.pgops.add(CreateCompositeType(type=entity_modstat_type,
-                                neg_conditions=[CompositeTypeExists(name=entity_modstat_type.name)],
-                                priority=-1))
+        entity_modstat_type = deltadbops.EntityModStatType()
+        self.pgops.add(dbops.CreateCompositeType(type=entity_modstat_type,
+                                                 neg_conditions=[dbops.CompositeTypeExists(name=entity_modstat_type.name)],
+                                                 priority=-1))
 
-        link_endpoints_type = LinkEndpointsType()
-        self.pgops.add(CreateCompositeType(type=link_endpoints_type,
-                                neg_conditions=[CompositeTypeExists(name=link_endpoints_type.name)],
-                                priority=-1))
+        link_endpoints_type = deltadbops.LinkEndpointsType()
+        self.pgops.add(dbops.CreateCompositeType(type=link_endpoints_type,
+                                                 neg_conditions=[dbops.CompositeTypeExists(name=link_endpoints_type.name)],
+                                                 priority=-1))
 
         self.update_mapping_indexes = UpdateMappingIndexes()
 
@@ -2698,19 +2570,19 @@ class UpgradeBackend(MetaCommand):
         op.execute(context)
 
     def update_to_version_1(self, context):
-        featuretable = FeatureTable()
-        ct = CreateTable(table=featuretable,
-                         neg_conditions=[TableExists(name=featuretable.name)])
+        featuretable = deltadbops.FeatureTable()
+        ct = dbops.CreateTable(table=featuretable,
+                               neg_conditions=[dbops.TableExists(name=featuretable.name)])
         ct.execute(context)
 
-        backendinfotable = BackendInfoTable()
-        ct = CreateTable(table=backendinfotable,
-                         neg_conditions=[TableExists(name=backendinfotable.name)])
+        backendinfotable = deltadbops.BackendInfoTable()
+        ct = dbops.CreateTable(table=backendinfotable,
+                               neg_conditions=[dbops.TableExists(name=backendinfotable.name)])
         ct.execute(context)
 
         # Version 0 did not have feature registry, fix that up
-        for feature in (UuidFeature, HstoreFeature):
-            cmd = EnableFeature(feature=feature())
+        for feature in (features.UuidFeature, features.HstoreFeature):
+            cmd = deltadbops.EnableFeature(feature=feature())
             ins = cmd.extra(context)[0]
             ins.execute(context)
 
@@ -2719,11 +2591,11 @@ class UpgradeBackend(MetaCommand):
         Backend format 2 adds LinkEndpointsType required for improved link deletion
         procedure.
         """
-        group = CommandGroup()
+        group = dbops.CommandGroup()
 
-        link_endpoints_type = LinkEndpointsType()
-        cond = CompositeTypeExists(name=link_endpoints_type.name)
-        cmd = CreateCompositeType(type=link_endpoints_type, neg_conditions=[cond])
+        link_endpoints_type = deltadbops.LinkEndpointsType()
+        cond = dbops.CompositeTypeExists(name=link_endpoints_type.name)
+        cmd = dbops.CreateCompositeType(type=link_endpoints_type, neg_conditions=[cond])
         group.add_command(cmd)
 
         group.execute(context)
@@ -2732,10 +2604,10 @@ class UpgradeBackend(MetaCommand):
         """
         Backend format 3 adds is_virtual attribute to concept description table.
         """
-        cond = ColumnExists(table_name=('caos', 'concept'), column_name='is_virtual')
-        cmd = AlterTable(('caos', 'concept'), neg_conditions=(cond,))
-        column = Column(name='is_virtual', type='boolean', required=True, default=False)
-        add_column = AlterTableAddColumn(column)
+        cond = dbops.ColumnExists(table_name=('caos', 'concept'), column_name='is_virtual')
+        cmd = dbops.AlterTable(('caos', 'concept'), neg_conditions=(cond,))
+        column = dbops.Column(name='is_virtual', type='boolean', required=True, default=False)
+        add_column = dbops.AlterTableAddColumn(column)
         cmd.add_operation(add_column)
 
         cmd.execute(context)
@@ -2744,10 +2616,10 @@ class UpgradeBackend(MetaCommand):
         """
         Backend format 4 adds automatic attribute to concept description table.
         """
-        cond = ColumnExists(table_name=('caos', 'concept'), column_name='automatic')
-        cmd = AlterTable(('caos', 'concept'), neg_conditions=(cond,))
-        column = Column(name='automatic', type='boolean', required=True, default=False)
-        add_column = AlterTableAddColumn(column)
+        cond = dbops.ColumnExists(table_name=('caos', 'concept'), column_name='automatic')
+        cmd = dbops.AlterTable(('caos', 'concept'), neg_conditions=(cond,))
+        column = dbops.Column(name='automatic', type='boolean', required=True, default=False)
+        add_column = dbops.AlterTableAddColumn(column)
         cmd.add_operation(add_column)
 
         cmd.execute(context)
@@ -2757,12 +2629,12 @@ class UpgradeBackend(MetaCommand):
         Backend format 5 adds imports attribute to module description table.  It also changes
         specialized pointer name format.
         """
-        op = CommandGroup()
+        op = dbops.CommandGroup()
 
-        cond = ColumnExists(table_name=('caos', 'module'), column_name='imports')
-        cmd = AlterTable(('caos', 'module'), neg_conditions=(cond,))
-        column = Column(name='imports', type='varchar[]', required=False)
-        add_column = AlterTableAddColumn(column)
+        cond = dbops.ColumnExists(table_name=('caos', 'module'), column_name='imports')
+        cmd = dbops.AlterTable(('caos', 'module'), neg_conditions=(cond,))
+        column = dbops.Column(name='imports', type='varchar[]', required=False)
+        add_column = dbops.AlterTableAddColumn(column)
         cmd.add_operation(add_column)
 
         op.add_command(cmd)
@@ -2771,7 +2643,7 @@ class UpgradeBackend(MetaCommand):
         from semantix.utils.lang import protoschema
         schema = protoschema.get_loaded_proto_schema(caos_schemas.CaosSchemaModule)
 
-        modtab = ModuleTable()
+        modtab = deltadbops.ModuleTable()
 
         for module in schema.iter_modules():
             module = schema.get_module(module)
@@ -2779,11 +2651,11 @@ class UpgradeBackend(MetaCommand):
             rec = modtab.record()
             rec.imports = module.imports
             condition = [('name', module.name)]
-            op.add_command(Update(table=modtab, record=rec, condition=condition))
+            op.add_command(dbops.Update(table=modtab, record=rec, condition=condition))
 
         update_schedule = [
             (
-                LinkTable(),
+                deltadbops.LinkTable(),
                 """
                     SELECT
                         l.name AS ptr_name,
@@ -2797,7 +2669,7 @@ class UpgradeBackend(MetaCommand):
                 """
             ),
             (
-                LinkPropertyTable(),
+                deltadbops.LinkPropertyTable(),
                 """
                     SELECT
                         l.name AS ptr_name,
@@ -2811,7 +2683,7 @@ class UpgradeBackend(MetaCommand):
                 """
             ),
             (
-                ComputableTable(),
+                deltadbops.ComputableTable(),
                 """
                     SELECT
                         l.name AS ptr_name,
@@ -2825,7 +2697,7 @@ class UpgradeBackend(MetaCommand):
             )
         ];
 
-        updates = CommandGroup()
+        updates = dbops.CommandGroup()
 
         for table, query in update_schedule:
             ps = context.db.prepare(query)
@@ -2852,1891 +2724,36 @@ class UpgradeBackend(MetaCommand):
                 rec = table.record()
                 rec.name = new_name
                 condition = [('name', row['ptr_name'])]
-                updates.add_command(Update(table=table, record=rec, condition=condition))
+                updates.add_command(dbops.Update(table=table, record=rec, condition=condition))
 
         op.add_command(updates)
         op.execute(context)
 
+    def update_to_version_6(self, context):
+        """
+        Backend format 6 moves db feature classes to a separate module.
+        """
+
+        features = datasources.meta.features.FeatureList(context.db).fetch()
+
+        table = deltadbops.FeatureTable()
+
+        ops = dbops.CommandGroup()
+
+        for feature in features:
+            clsname = feature['class_name']
+            oldmod = 'semantix.caos.backends.pgsql.delta.'
+            if clsname.startswith(oldmod):
+                rec = table.record()
+                rec.class_name = 'semantix.caos.backends.pgsql.features.' + clsname[len(oldmod):]
+                cond = [('name', feature['name'])]
+                ops.add_command(dbops.Update(table=table, record=rec, condition=cond))
+
+        ops.execute(context)
+
     @classmethod
     def update_backend_info(cls):
-        backendinfotable = BackendInfoTable()
+        backendinfotable = deltadbops.BackendInfoTable()
         record = backendinfotable.record()
         record.format_version = BACKEND_FORMAT_VERSION
-        return Merge(table=backendinfotable, record=record, condition=None)
-
-
-#
-# Primitive commands follow
-#
-
-class DDLOperation(Command):
-    pass
-
-
-class DMLOperation(Command):
-    pass
-
-
-class Condition(BaseCommand):
-    pass
-
-
-class Query:
-    def __init__(self, text, params, type):
-        self.text = text
-        self.params = params
-        self.type = type
-
-
-class Insert(DMLOperation):
-    def __init__(self, table, records, returning=None, *, conditions=None, neg_conditions=None,
-                                                                           priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-
-        self.table = table
-        self.records = records
-        self.returning = returning
-
-    def code(self, context):
-        cols = [(c.name, c.type) for c in self.table.columns(writable_only=True)]
-        l = len(cols)
-
-        vals = []
-        placeholders = []
-        i = 1
-        for row in self.records:
-            placeholder_row = []
-            for col, coltype in cols:
-                val = getattr(row, col, None)
-                if val and isinstance(val, Query):
-                    vals.extend(val.params)
-                    qtext = re.sub(r'\$(\d+)', lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1), val.text)
-                    placeholder_row.append('(%s)::%s' % (qtext, val.type))
-                    i += len(val.params)
-                elif val is Default:
-                    placeholder_row.append('DEFAULT')
-                else:
-                    vals.append(val)
-                    placeholder_row.append('$%d::%s' % (i, coltype))
-                    i += 1
-            placeholders.append('(%s)' % ','.join(placeholder_row))
-
-        code = 'INSERT INTO %s (%s) VALUES %s' % \
-                (common.qname(*self.table.name),
-                 ','.join(common.quote_ident(c[0]) for c in cols),
-                 ','.join(placeholders))
-
-        if self.returning:
-            code += ' RETURNING ' + ', '.join(self.returning)
-
-        return (code, vals)
-
-    def __repr__(self):
-        vals = (('(%s)' % ', '.join('%s=%r' % (col, v) for col, v in row.items())) for row in self.records)
-        return '<caos.sync.%s %s (%s)>' % (self.__class__.__name__, self.table.name, ', '.join(vals))
-
-
-class Update(DMLOperation):
-    def __init__(self, table, record, condition, returning=None, *, priority=0):
-        super().__init__(priority=priority)
-
-        self.table = table
-        self.record = record
-        self.fields = [f for f, v in record.items() if v is not Default]
-        self.condition = condition
-        self.returning = returning
-        self.cols = {c.name: c.type for c in self.table.columns(writable_only=True)}
-
-
-    def code(self, context):
-        e = common.quote_ident
-
-        placeholders = []
-        vals = []
-
-        i = 1
-        for f in self.fields:
-            val = getattr(self.record, f)
-
-            if val is Default:
-                continue
-
-            if isinstance(val, Query):
-                expr = re.sub(r'\$(\d+)', lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1), val.text)
-                i += len(val.params)
-                vals.extend(val.params)
-            else:
-                expr = '$%d::%s' % (i, self.cols[f])
-                i += 1
-                vals.append(val)
-
-            placeholders.append('%s = %s' % (e(f), expr))
-
-        if self.condition:
-            cond = []
-            for field, value in self.condition:
-                field = e(field)
-
-                if value is None:
-                    cond.append('%s IS NULL' % field)
-                else:
-                    cond.append('%s = $%d' % (field, i))
-                    vals.append(value)
-                    i += 1
-
-            where = 'WHERE ' +  ' AND '.join(cond)
-        else:
-            where = ''
-
-        code = 'UPDATE %s SET %s %s' % \
-                (common.qname(*self.table.name), ', '.join(placeholders), where)
-
-        if self.returning:
-            code += ' RETURNING ' + ', '.join(self.returning)
-
-        return (code, vals)
-
-    def __repr__(self):
-        expr = ','.join('%s=%s' % (f, getattr(self.record, f)) for f in self.fields)
-        where = ','.join('%s=%s' % (c[0], c[1]) for c in self.condition) if self.condition else ''
-        return '<caos.sync.%s %s %s (%s)>' % (self.__class__.__name__, self.table.name, expr, where)
-
-
-class Merge(Update):
-    def code(self, context):
-        code = super().code(context)
-        if self.condition:
-            cols = (common.quote_ident(c[0]) for c in self.condition)
-            returning = ','.join(cols)
-        else:
-            returning = '*'
-
-        code = (code[0] + ' RETURNING %s' % returning, code[1])
-        return code
-
-    def execute(self, context):
-        result = super().execute(context)
-
-        if not result:
-            op = Insert(self.table, records=[self.record])
-            result = op.execute(context)
-
-        return result
-
-
-class Delete(DMLOperation):
-    def __init__(self, table, condition, *, priority=0):
-        super().__init__(priority=priority)
-
-        self.table = table
-        self.condition = condition
-
-    def code(self, context):
-        e = common.quote_ident
-        where = ' AND '.join('%s = $%d' % (e(c[0]), i + 1) for i, c in enumerate(self.condition))
-
-        code = 'DELETE FROM %s WHERE %s' % (common.qname(*self.table.name), where)
-
-        vals = [c[1] for c in self.condition]
-
-        return (code, vals)
-
-    def __repr__(self):
-        where = ','.join('%s=%s' % (c[0], c[1]) for c in self.condition)
-        return '<caos.sync.%s %s (%s)>' % (self.__class__.__name__, self.table.name, where)
-
-
-class CopyFrom(DMLOperation):
-    def __init__(self, table, producer, *, format='text', priority=0):
-        super().__init__(priority=priority)
-
-        self.table = table
-        self.producer = producer
-        self.format = format
-
-    def code(self, context):
-        code = 'COPY %s FROM STDIN WITH (FORMAT "%s")' % (common.qname(*self.table.name), self.format)
-        return code, ()
-
-    def execute(self, context):
-        code, vars = self.code(context)
-        receive_stmt = context.db.prepare(code)
-        receiver = postgresql.copyman.StatementReceiver(receive_stmt)
-
-        cm = postgresql.copyman.CopyManager(self.producer, receiver)
-        cm.run()
-
-
-class DBObject:
-    pass
-
-
-class TableConstraint(DBObject):
-    def __init__(self, table_name, column_name=None):
-        self.table_name = table_name
-        self.column_name = column_name
-
-    def constraint_name(self):
-        raise NotImplementedError
-
-    def code(self, context):
-        return None
-
-    def rename_code(self, context):
-        return None
-
-    def extra(self, context, alter_table):
-        return None
-
-    def rename_extra(self, context, new_name):
-        return None
-
-
-class PrimaryKey(TableConstraint):
-    def __init__(self, table_name, columns):
-        super().__init__(table_name)
-        self.columns = columns
-
-    def code(self, context):
-        code = 'PRIMARY KEY (%s)' % ', '.join(common.quote_ident(c) for c in self.columns)
-        return code
-
-
-class UniqueConstraint(TableConstraint):
-    def __init__(self, table_name, columns):
-        super().__init__(table_name)
-        self.columns = columns
-
-    def code(self, context):
-        code = 'UNIQUE (%s)' % ', '.join(common.quote_ident(c) for c in self.columns)
-        return code
-
-
-class TableClassConstraint(TableConstraint):
-    def __init__(self, table_name, column_name, prefix, constrobj):
-        super().__init__(table_name, column_name)
-        self.prefix = prefix if isinstance(prefix, tuple) else (prefix,)
-        self.constrobj = constrobj
-
-    def code(self, context):
-        return 'CONSTRAINT %s %s' % (self.constraint_name(),
-                                     self.constraint_code(context, self.column_name))
-
-    def extra(self, context, alter_table):
-        text = self.raw_constraint_name()
-        cmd = Comment(object=self, text=text)
-        return [cmd]
-
-    def raw_constraint_name(self):
-        cls = self.constrobj.__class__.get_canonical_class()
-        name = '%s::%s.%s::%s' % (':'.join(str(p) for p in self.prefix),
-                                  cls.__module__, cls.__name__, self.suffix)
-        return name
-
-    def constraint_name(self):
-        name = self.raw_constraint_name()
-        name = common.caos_name_to_pg_name(name)
-        return common.quote_ident(name)
-
-    def rename_code(self, context, new_constraint):
-        return '''UPDATE
-                        pg_catalog.pg_constraint AS con
-                    SET
-                        conname = $1
-                    FROM
-                        pg_catalog.pg_class AS c,
-                        pg_catalog.pg_namespace AS ns
-                    WHERE
-                        con.conrelid = c.oid
-                        AND c.relnamespace = ns.oid
-                        AND ns.nspname = $3
-                        AND c.relname = $4
-                        AND con.conname = $2
-               ''', [common.caos_name_to_pg_name(new_constraint.raw_constraint_name()),
-                     common.caos_name_to_pg_name(self.raw_constraint_name()),
-                     new_constraint.table_name[0], new_constraint.table_name[1]]
-
-    def rename_extra(self, context, new_constraint):
-        new_name = new_constraint.raw_constraint_name()
-        cmd = Comment(object=new_constraint, text=new_name)
-        return [cmd]
-
-    def __repr__(self):
-        return '<%s.%s "%s" "%r">' % (self.__class__.__module__, self.__class__.__name__,
-                                      self.column_name, self.constrobj)
-
-
-class AtomConstraintTableConstraint(TableClassConstraint):
-    def __init__(self, table_name, column_name, prefix, constraint):
-        super().__init__(table_name, column_name, prefix, constraint)
-        self.constraint = constraint
-        self.suffix = 'atom_constr'
-
-    def constraint_code(self, context, value_holder='VALUE'):
-        ql = postgresql.string.quote_literal
-        value_holder = common.quote_ident(value_holder)
-
-        if isinstance(self.constraint, proto.AtomConstraintRegExp):
-            expr = ['%s ~ %s' % (value_holder, ql(re)) for re in self.constraint.values]
-            expr = ' AND '.join(expr)
-        elif isinstance(self.constraint, proto.AtomConstraintMaxLength):
-            expr = 'length(%s::text) <= %s' % (value_holder, str(self.constraint.value))
-        elif isinstance(self.constraint, proto.AtomConstraintMinLength):
-            expr = 'length(%s::text) >= %s' % (value_holder, str(self.constraint.value))
-        elif isinstance(self.constraint, proto.AtomConstraintMaxValue):
-            expr = '%s <= %s' % (value_holder, ql(str(self.constraint.value)))
-        elif isinstance(self.constraint, proto.AtomConstraintMaxExValue):
-            expr = '%s < %s' % (value_holder, ql(str(self.constraint.value)))
-        elif isinstance(self.constraint, proto.AtomConstraintMinValue):
-            expr = '%s >= %s' % (value_holder, ql(str(self.constraint.value)))
-        elif isinstance(self.constraint, proto.AtomConstraintMinExValue):
-            expr = '%s > %s' % (value_holder, ql(str(self.constraint.value)))
-        else:
-            assert False, 'unexpected constraint type: "%r"' % self.constraint
-
-        return 'CHECK (%s)' % expr
-
-
-class PointerConstraintTableConstraint(TableClassConstraint):
-    def __init__(self, table_name, column_name, prefix, constraint):
-        super().__init__(table_name, column_name, prefix, constraint)
-        self.constraint = constraint
-        self.suffix = 'ptr_constr'
-
-    def constraint_code(self, context, value_holder='VALUE'):
-        ql = postgresql.string.quote_literal
-        value_holder = common.quote_ident(value_holder)
-
-        if isinstance(self.constraint, proto.PointerConstraintUnique):
-            expr = 'UNIQUE (%s)' % common.quote_ident(self.column_name)
-        else:
-            assert False, 'unexpected constraint type: "%r"' % self.constr
-
-        return expr
-
-
-class Column(DBObject):
-    def __init__(self, name, type, required=False, default=None, readonly=False, comment=None):
-        self.name = name
-        self.type = type
-        self.required = required
-        self.default = default
-        self.readonly = readonly
-        self.comment = comment
-
-    def code(self, context):
-        e = common.quote_ident
-        return '%s %s %s %s' % (common.quote_ident(self.name), self.type,
-                                'NOT NULL' if self.required else '',
-                                ('DEFAULT %s' % self.default) if self.default is not None else '')
-
-    def extra(self, context, alter_table):
-        if self.comment is not None:
-            col = TableColumn(table_name=alter_table.name, column=self)
-            cmd = Comment(object=col, text=self.comment)
-            return [cmd]
-
-    def __repr__(self):
-        return '<%s.%s "%s" %s>' % (self.__class__.__module__, self.__class__.__name__,
-                                    self.name, self.type)
-
-
-class TableColumn(DBObject):
-    def __init__(self, table_name, column):
-        self.table_name = table_name
-        self.column = column
-
-
-class IndexColumn(DBObject):
-    def __init__(self, name):
-        self.name = name
-
-    def __repr__(self):
-        return '<%s.%s "%s">' % (self.__class__.__module__, self.__class__.__name__, self.name)
-
-
-class TextSearchIndexColumn(IndexColumn):
-    def __init__(self, name, weight, language):
-        super().__init__(name)
-        self.weight = weight
-        self.language = language
-
-    def code(self, context):
-        ql = postgresql.string.quote_literal
-        qi = common.quote_ident
-
-        return "setweight(to_tsvector(%s, coalesce(%s, '')), %s)" % \
-                (ql(self.language), qi(self.name), ql(self.weight))
-
-
-
-class DefaultMeta(type):
-    def __bool__(cls):
-        return False
-
-    def __repr__(self):
-        return '<DEFAULT>'
-
-    __str__ = __repr__
-
-
-class Default(metaclass=DefaultMeta):
-    pass
-
-
-class Index(DBObject):
-    def __init__(self, name, table_name, unique=True, expr=None):
-        super().__init__()
-
-        self.name = name
-        self.table_name = table_name
-        self.__columns = datastructures.OrderedSet()
-        self.predicate = None
-        self.unique = unique
-        self.expr = expr
-
-    def add_columns(self, columns):
-        self.__columns.update(columns)
-
-    def creation_code(self, context):
-        if self.expr:
-            expr = self.expr
-        else:
-            expr = ', '.join(self.columns)
-
-        code = 'CREATE %(unique)s INDEX %(name)s ON %(table)s (%(expr)s) %(predicate)s' % \
-                {'unique': 'UNIQUE' if self.unique else '',
-                 'name': common.qname(self.name),
-                 'table': common.qname(*self.table_name),
-                 'expr': expr,
-                 'predicate': 'WHERE %s' % self.predicate if self.predicate else ''
-                }
-        return code
-
-    @property
-    def columns(self):
-        return iter(self.__columns)
-
-    def __repr__(self):
-        return '<%(mod)s.%(cls)s name=%(name)s cols=(%(cols)s) unique=%(uniq)s predicate=%(pred)s>'\
-               % {'mod': self.__class__.__module__, 'cls': self.__class__.__name__,
-                  'name': self.name, 'cols': ','.join('%r' % c for c in self.columns),
-                  'uniq': self.unique, 'pred': self.predicate}
-
-
-class TextSearchIndex(Index):
-    def __init__(self, name, table_name, columns):
-        super().__init__(name, table_name)
-        self.add_columns(columns)
-
-    def creation_code(self, context):
-        code = 'CREATE INDEX %(name)s ON %(table)s USING gin((%(cols)s)) %(predicate)s' % \
-                {'name': common.qname(self.name),
-                 'table': common.qname(*self.table_name),
-                 'cols': ' || '.join(c.code(context) for c in self.columns),
-                 'predicate': 'WHERE %s' % self.predicate if self.predicate else ''
-                }
-        return code
-
-
-class MappingIndex(Index):
-    def __init__(self, name_prefix, mapping, link_names, table_name):
-        super().__init__(None, table_name, True)
-        self.link_names = link_names
-        self.name_prefix = name_prefix
-        self.mapping = mapping
-
-    def creation_code(self, context):
-        link_map = context.get_link_map()
-
-        ids = tuple(sorted(list(link_map[n] for n in self.link_names)))
-        id_str = '_'.join(str(i) for i in ids)
-
-        name = '%s_%s_%s_link_mapping_idx' % (self.name_prefix, id_str, self.mapping)
-        name = common.caos_name_to_pg_name(name)
-        predicate = 'link_type_id IN (%s)' % ', '.join(str(id) for id in ids)
-
-        code = 'CREATE %(unique)s INDEX %(name)s ON %(table)s (%(cols)s) %(predicate)s' % \
-                {'unique': 'UNIQUE',
-                 'name': common.qname(name),
-                 'table': common.qname(*self.table_name),
-                 'cols': ', '.join(self.columns),
-                 'predicate': ('WHERE %s' % predicate)
-                }
-        return code
-
-    def __repr__(self):
-        name = '%s_%s_%s_link_mapping_idx' % (self.name_prefix, '<HASH>', self.mapping)
-        predicate = 'link_type_id IN (%s)' % ', '.join(str(n) for n in self.link_names)
-
-        return '<%(mod)s.%(cls)s name="%(name)s" cols=(%(cols)s) unique=%(uniq)s ' \
-               'predicate=%(pred)s>' \
-               % {'mod': self.__class__.__module__, 'cls': self.__class__.__name__,
-                  'name': name, 'cols': ','.join(self.columns), 'uniq': self.unique,
-                  'pred': predicate}
-
-
-class CompositeDBObject(DBObject):
-    def __init__(self, name, columns=None):
-        super().__init__()
-        self.name = name
-        self._columns = columns
-
-    @property
-    def record(self):
-        return datastructures.Record(self.__class__.__name__ + '_record',
-                                     [c.name for c in self._columns],
-                                     default=Default)
-
-
-class Table(CompositeDBObject):
-    def __init__(self, name):
-        super().__init__(name)
-
-        self.__columns = datastructures.OrderedSet()
-        self._columns = []
-
-        self.constraints = set()
-        self.bases = set()
-        self.data = []
-
-    def columns(self, writable_only=False, only_self=False):
-        cols = []
-        tables = [self.__class__] if only_self else reversed(self.__class__.__mro__)
-        for c in tables:
-            if issubclass(c, Table):
-                columns = getattr(self, '_' + c.__name__ + '__columns', [])
-                if writable_only:
-                    cols.extend(c for c in columns if not c.readonly)
-                else:
-                    cols.extend(columns)
-        return cols
-
-    def __iter__(self):
-        return iter(self._columns)
-
-    def add_columns(self, iterable):
-        self.__columns.update(iterable)
-        self._columns = self.columns()
-
-
-class DeltaRefTable(Table):
-    def __init__(self, name=None):
-        name = name or ('caos', 'deltaref')
-        super().__init__(name=name)
-
-        self.__columns = datastructures.OrderedSet([
-            Column(name='id', type='varchar', required=True),
-            Column(name='ref', type='text', required=True)
-        ])
-
-        self.constraints = set([
-            PrimaryKey(name, columns=('ref',))
-        ])
-
-        self._columns = self.columns()
-
-
-class DeltaLogTable(Table):
-    def __init__(self, name=None):
-        name = name or ('caos', 'deltalog')
-        super().__init__(name=name)
-
-        self.__columns = datastructures.OrderedSet([
-            Column(name='id', type='varchar', required=True),
-            Column(name='parents', type='varchar[]', required=False),
-            Column(name='checksum', type='varchar', required=True),
-            Column(name='commit_date', type='timestamp with time zone', required=True,
-                                                                        default='CURRENT_TIMESTAMP'),
-            Column(name='committer', type='text', required=True),
-            Column(name='comment', type='text', required=False)
-        ])
-
-        self.constraints = set([
-            PrimaryKey(name, columns=('id',))
-        ])
-
-        self._columns = self.columns()
-
-
-class ModuleTable(Table):
-    def __init__(self, name=None):
-        name = name or ('caos', 'module')
-        super().__init__(name=name)
-
-        self.__columns = datastructures.OrderedSet([
-            Column(name='name', type='text', required=True),
-            Column(name='schema_name', type='text', required=True),
-            Column(name='imports', type='varchar[]', required=False)
-        ])
-
-        self.constraints = set([
-            PrimaryKey(name, columns=('name',)),
-        ])
-
-        self._columns = self.columns()
-
-
-class MetaObjectTable(Table):
-    def __init__(self, name=None):
-        name = name or ('caos', 'metaobject')
-        super().__init__(name=name)
-
-        self.__columns = datastructures.OrderedSet([
-            Column(name='id', type='serial', required=True, readonly=True),
-            Column(name='name', type='text', required=True),
-            Column(name='is_abstract', type='boolean', required=True, default=False),
-            Column(name='is_final', type='boolean', required=True, default=False),
-            Column(name='title', type='caos.hstore'),
-            Column(name='description', type='text')
-        ])
-
-        self.constraints = set([
-            PrimaryKey(name, columns=('id',)),
-            UniqueConstraint(name, columns=('name',))
-        ])
-
-        self._columns = self.columns()
-
-
-class AtomTable(MetaObjectTable):
-    def __init__(self):
-        super().__init__(name=('caos', 'atom'))
-
-        self.bases = [('caos', 'metaobject')]
-
-        self.__columns = datastructures.OrderedSet([
-            Column(name='automatic', type='boolean', required=True, default=False),
-            Column(name='base', type='text', required=True),
-            Column(name='constraints', type='caos.hstore'),
-            Column(name='default', type='text'),
-            Column(name='attributes', type='caos.hstore')
-        ])
-
-        self.constraints = set([
-            PrimaryKey(('caos', 'atom'), columns=('id',)),
-            UniqueConstraint(('caos', 'atom'), columns=('name',))
-        ])
-
-        self._columns = self.columns()
-
-
-class ConceptTable(MetaObjectTable):
-    def __init__(self):
-        super().__init__(name=('caos', 'concept'))
-
-        self.bases = [('caos', 'metaobject')]
-
-        self.__columns = datastructures.OrderedSet([
-            Column(name='custombases', type='text[]'),
-            Column(name='is_virtual', type='boolean', required=True, default=False),
-            Column(name='automatic', type='boolean', required=True, default=False)
-        ])
-
-        self.constraints = set([
-            PrimaryKey(('caos', 'concept'), columns=('id',)),
-            UniqueConstraint(('caos', 'concept'), columns=('name',))
-        ])
-
-        self._columns = self.columns()
-
-
-class LinkTable(MetaObjectTable):
-    def __init__(self):
-        super().__init__(name=('caos', 'link'))
-
-        self.bases = [('caos', 'metaobject')]
-
-        self.__columns = datastructures.OrderedSet([
-            Column(name='source_id', type='integer'),
-            Column(name='target_id', type='integer'),
-            Column(name='mapping', type='char(2)', required=True),
-            Column(name='required', type='boolean', required=True, default=False),
-            Column(name='is_atom', type='boolean'),
-            Column(name='readonly', type='boolean', required=True, default=False),
-            Column(name='loading', type='text'),
-            Column(name='base', type='text[]'),
-            Column(name='default', type='text'),
-            Column(name='constraints', type='caos.hstore'),
-            Column(name='abstract_constraints', type='caos.hstore')
-        ])
-
-        self.constraints = set([
-            PrimaryKey(('caos', 'link'), columns=('id',)),
-            UniqueConstraint(('caos', 'link'), columns=('name',))
-        ])
-
-        self._columns = self.columns()
-
-
-class LinkPropertyTable(MetaObjectTable):
-    def __init__(self):
-        super().__init__(name=('caos', 'link_property'))
-
-        self.bases = [('caos', 'metaobject')]
-
-        self.__columns = datastructures.OrderedSet([
-            Column(name='source_id', type='integer'),
-            Column(name='target_id', type='integer'),
-            Column(name='required', type='boolean', required=True, default=False),
-            Column(name='readonly', type='boolean', required=True, default=False),
-            Column(name='loading', type='text'),
-            Column(name='base', type='text[]'),
-            Column(name='default', type='text'),
-            Column(name='constraints', type='caos.hstore'),
-            Column(name='abstract_constraints', type='caos.hstore')
-        ])
-
-        self.constraints = set([
-            PrimaryKey(('caos', 'link_property'), columns=('id',)),
-            UniqueConstraint(('caos', 'link_property'), columns=('name',))
-        ])
-
-        self._columns = self.columns()
-
-
-class ComputableTable(MetaObjectTable):
-    def __init__(self):
-        super().__init__(name=('caos', 'computable'))
-
-        self.bases = [('caos', 'metaobject')]
-
-        self.__columns = datastructures.OrderedSet([
-            Column(name='source_id', type='integer'),
-            Column(name='target_id', type='integer'),
-            Column(name='expression', type='text'),
-            Column(name='is_local', type='bool')
-        ])
-
-        self.constraints = set([
-            PrimaryKey(('caos', 'link'), columns=('id',)),
-            UniqueConstraint(('caos', 'link'), columns=('name',))
-        ])
-
-        self._columns = self.columns()
-
-
-class FeatureTable(Table):
-    def __init__(self, name=None):
-        name = name or ('caos', 'feature')
-        super().__init__(name=name)
-
-        self.__columns = datastructures.OrderedSet([
-            Column(name='name', type='text', required=True),
-            Column(name='class_name', type='text', required=True)
-        ])
-
-        self.constraints = set([
-            PrimaryKey(name, columns=('name',)),
-        ])
-
-        self._columns = self.columns()
-
-
-class BackendInfoTable(Table):
-    def __init__(self, name=None):
-        name = name or ('caos', 'backend_info')
-        super().__init__(name=name)
-
-        self.__columns = datastructures.OrderedSet([
-            Column(name='format_version', type='int', required=True),
-        ])
-
-        self._columns = self.columns()
-
-
-class CompositeType(CompositeDBObject):
-    def columns(self):
-        return self.__columns
-
-
-class EntityModStatType(CompositeType):
-    def __init__(self):
-        super().__init__(name=('caos', 'entity_modstat_rec_t'))
-
-        self._columns = datastructures.OrderedSet([
-            Column(name='semantix.caos.builtins.id', type='uuid'),
-            Column(name='semantix.caos.builtins.mtime', type='timestamptz'),
-        ])
-
-
-class LinkEndpointsType(CompositeType):
-    def __init__(self):
-        super().__init__(name=('caos', 'link_endpoints_rec_t'))
-
-        self._columns = datastructures.OrderedSet([
-            Column(name='source_id', type='uuid'),
-            Column(name='target_id', type='uuid'),
-        ])
-
-
-class Feature:
-    def __init__(self, name, schema='caos'):
-        self.name = name
-        self.schema = schema
-
-    def code(self, context):
-        source = self.get_source(context)
-
-        with open(source, 'r') as f:
-            code = re.sub(r'SET\s+search_path\s*=\s*[^;]+;',
-                          'SET search_path = %s;' % common.quote_ident(self.schema),
-                          f.read())
-        return code
-
-    def get_source(self, context):
-        pg_config_path = Config.get_pg_config_path()
-        config = postgresql.installation.pg_config_dictionary(pg_config_path)
-        installation = postgresql.installation.Installation(config)
-        return self.source % {'pgpath': installation.sharedir}
-
-    @classmethod
-    def init_feature(cls, db):
-        pass
-
-
-class TypeExists(Condition):
-    def __init__(self, name):
-        self.name = name
-
-    def code(self, context):
-        code = '''SELECT
-                        t.oid
-                    FROM
-                        pg_catalog.pg_type t
-                        INNER JOIN pg_catalog.pg_namespace ns ON t.typnamespace = ns.oid
-                    WHERE
-                        t.typname = $2 and ns.nspname = $1'''
-        return code, self.name
-
-
-class UuidFeature(Feature):
-    source = '%(pgpath)s/contrib/uuid-ossp.sql'
-
-    def __init__(self, schema='caos'):
-        super().__init__(name='uuid', schema=schema)
-
-
-class HstoreFeature(Feature):
-    source = '%(pgpath)s/contrib/hstore.sql'
-
-    def __init__(self, schema='caos'):
-        super().__init__(name='hstore', schema=schema)
-
-    @classmethod
-    def init_feature(cls, db):
-        try:
-            db.typio.identify(contrib_hstore='caos.hstore')
-        except postgresql.exceptions.SchemaNameError:
-            pass
-
-
-class FuzzystrmatchFeature(Feature):
-    source = '%(pgpath)s/contrib/fuzzystrmatch.sql'
-
-    def __init__(self, schema='caos'):
-        super().__init__(name='fuzzystrmatch', schema=schema)
-
-
-class ProductAggregateFeature(Feature):
-    def __init__(self, schema='caos'):
-        super().__init__(name='agg_product', schema=schema)
-
-    def code(self, context):
-        return """
-            CREATE AGGREGATE {schema}.agg_product(double precision) (SFUNC=float8mul, STYPE=double precision, INITCOND=1);
-            CREATE AGGREGATE {schema}.agg_product(numeric) (SFUNC=numeric_mul, STYPE=numeric, INITCOND=1);
-        """.format(schema=self.schema)
-
-
-class EnableFeature(DDLOperation):
-    def __init__(self, feature, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-
-        self.feature = feature
-        self.opid = feature.name
-
-    def code(self, context):
-        return self.feature.code(context)
-
-    def extra(self, context, *args, **kwargs):
-        table = FeatureTable()
-        record = table.record()
-        record.name = self.feature.name
-        record.class_name = '%s.%s' % (self.feature.__class__.__module__,
-                                       self.feature.__class__.__name__)
-        return [Insert(table, records=[record])]
-
-    def execute(self, context):
-        super().execute(context)
-        self.feature.init_feature(context.db)
-
-    def __repr__(self):
-        return '<caos.sync.%s %s>' % (self.__class__.__name__, self.feature.name)
-
-
-class SchemaExists(Condition):
-    def __init__(self, name):
-        self.name = name
-
-    def code(self, context):
-        return ('SELECT oid FROM pg_catalog.pg_namespace WHERE nspname = $1', [self.name])
-
-
-class CreateSchema(DDLOperation):
-    def __init__(self, name, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-
-        self.name = name
-        self.opid = name
-        self.neg_conditions.add(SchemaExists(self.name))
-
-    def code(self, context):
-        return 'CREATE SCHEMA %s' % common.quote_ident(self.name)
-
-    def __repr__(self):
-        return '<caos.sync.%s %s>' % (self.__class__.__name__, self.name)
-
-
-class DropSchema(DDLOperation):
-    def __init__(self, name, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-        self.name = name
-
-    def code(self, context):
-        return 'DROP SCHEMA %s' % common.quote_ident(self.name)
-
-    def __repr__(self):
-        return '<caos.sync.%s %s>' % (self.__class__.__name__, self.name)
-
-
-class SchemaObjectOperation(DDLOperation):
-    def __init__(self, name, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-
-        self.name = name
-        self.opid = name
-
-    def __repr__(self):
-        return '<caos.sync.%s %s>' % (self.__class__.__name__, self.name)
-
-
-class CreateSequence(SchemaObjectOperation):
-    def __init__(self, name):
-        super().__init__(name)
-
-    def code(self, context):
-        return 'CREATE SEQUENCE %s' % common.qname(*self.name)
-
-
-class RenameSequence(CommandGroup):
-    def __init__(self, name, new_name, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-
-        self.name = name
-        self.new_name = new_name
-
-        if name[0] != new_name[0]:
-            cmd = AlterSequenceSetSchema(name, new_name[0])
-            self.add_command(cmd)
-            name = (new_name[0], name[1])
-
-        if name[1] != new_name[1]:
-            cmd = AlterSequenceRenameTo(name, new_name[1])
-            self.add_command(cmd)
-
-    def __repr__(self):
-        return '<%s.%s "%s.%s" to "%s.%s">' % (self.__class__.__module__, self.__class__.__name__,
-                                               self.name[0], self.name[1], self.new_name[0],
-                                               self.new_name[1])
-
-
-class AlterSequenceSetSchema(DDLOperation):
-    def __init__(self, name, new_schema, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-        self.name = name
-        self.new_schema = new_schema
-
-    def code(self, context):
-        code = 'ALTER SEQUENCE %s SET SCHEMA %s' % \
-                (common.qname(*self.name),
-                 common.quote_ident(self.new_schema))
-        return code
-
-    def __repr__(self):
-        return '<%s.%s "%s.%s" to "%s">' % (self.__class__.__module__, self.__class__.__name__,
-                                               self.name[0], self.name[1], self.new_schema)
-
-
-class AlterSequenceRenameTo(DDLOperation):
-    def __init__(self, name, new_name, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-        self.name = name
-        self.new_name = new_name
-
-    def code(self, context):
-        code = 'ALTER SEQUENCE %s RENAME TO %s' % \
-                (common.qname(*self.name),
-                 common.quote_ident(self.new_name))
-        return code
-
-    def __repr__(self):
-        return '<%s.%s "%s.%s" to "%s">' % (self.__class__.__module__, self.__class__.__name__,
-                                               self.name[0], self.name[1], self.new_name)
-
-
-class DropSequence(SchemaObjectOperation):
-    def __init__(self, name):
-        super().__init__(name)
-
-    def code(self, context):
-        return 'DROP SEQUENCE %s' % common.qname(*self.name)
-
-
-class DomainExists(Condition):
-    def __init__(self, name):
-        self.name = name
-
-    def code(self, context):
-        code = '''SELECT
-                        domain_name
-                    FROM
-                        information_schema.domains
-                    WHERE
-                        domain_schema = $1 AND domain_name = $2'''
-        return code, self.name
-
-
-class CreateDomain(SchemaObjectOperation):
-    def __init__(self, name, base):
-        super().__init__(name)
-        self.base = base
-
-    def code(self, context):
-        return 'CREATE DOMAIN %s AS %s' % (common.qname(*self.name), self.base)
-
-
-class RenameDomain(SchemaObjectOperation):
-    def __init__(self, name, new_name):
-        super().__init__(name)
-        self.new_name = new_name
-
-    def code(self, context):
-        return '''UPDATE
-                        pg_catalog.pg_type AS t
-                    SET
-                        typname = $1,
-                        typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = $2)
-                    FROM
-                        pg_catalog.pg_namespace ns
-                    WHERE
-                        t.typname = $3
-                        AND t.typnamespace = ns.oid
-                        AND ns.nspname = $4
-                        AND t.typtype = 'd'
-               ''', [self.new_name[1], self.new_name[0], self.name[1], self.name[0]]
-
-
-class DropDomain(SchemaObjectOperation):
-    def code(self, context):
-        return 'DROP DOMAIN %s' % common.qname(*self.name)
-
-
-class AlterDomain(DDLOperation):
-    def __init__(self, name):
-        super().__init__()
-
-        self.name = name
-
-
-    def code(self, context):
-        return 'ALTER DOMAIN %s ' % common.qname(*self.name)
-
-    def __repr__(self):
-        return '<caos.sync.%s %s>' % (self.__class__.__name__, self.name)
-
-
-class AlterDomainAlterDefault(AlterDomain):
-    def __init__(self, name, default):
-        super().__init__(name)
-        self.default = default
-
-    def code(self, context):
-        code = super().code(context)
-        if self.default is None:
-            code += ' DROP DEFAULT ';
-        else:
-            value = postgresql.string.quote_literal(str(self.default)) if self.default is not None else 'None'
-            code += ' SET DEFAULT ' + value
-        return code
-
-
-class AlterDomainAlterNull(AlterDomain):
-    def __init__(self, name, null):
-        super().__init__(name)
-        self.null = null
-
-    def code(self, context):
-        code = super().code(context)
-        if self.null:
-            code += ' DROP NOT NULL ';
-        else:
-            code += ' SET NOT NULL ';
-        return code
-
-
-class AlterDomainAlterConstraint(AlterDomain):
-    def __init__(self, name, constraint):
-        super().__init__(name)
-        self.constraint = constraint
-
-    def constraint_name(self, constraint):
-        canonical = constraint.__class__.get_canonical_class()
-        return common.quote_ident('%s.%s' % (canonical.__module__, canonical.__name__))
-
-    def constraint_code(self, constraint):
-        if isinstance(constraint, proto.AtomConstraintRegExp):
-            expr = ['VALUE ~ %s' % postgresql.string.quote_literal(re) for re in constraint.values]
-            expr = ' AND '.join(expr)
-        elif isinstance(constraint, proto.AtomConstraintMaxLength):
-            expr = 'length(VALUE::text) <= ' + str(constraint.value)
-        elif isinstance(constraint, proto.AtomConstraintMinLength):
-            expr = 'length(VALUE::text) >= ' + str(constraint.value)
-        elif isinstance(constraint, proto.AtomConstraintMaxValue):
-            expr = 'VALUE <= ' + postgresql.string.quote_literal(str(constraint.value))
-        elif isinstance(constraint, proto.AtomConstraintMaxExValue):
-            expr = 'VALUE < ' + postgresql.string.quote_literal(str(constraint.value))
-        elif isinstance(constraint, proto.AtomConstraintMinValue):
-            expr = 'VALUE >= ' + postgresql.string.quote_literal(str(constraint.value))
-        elif isinstance(constraint, proto.AtomConstraintMinExValue):
-            expr = 'VALUE > ' + postgresql.string.quote_literal(str(constraint.value))
-
-        return 'CHECK (%s)' % expr
-
-
-class AlterDomainDropConstraint(AlterDomainAlterConstraint):
-    def code(self, context):
-        code = super().code(context)
-        code += ' DROP CONSTRAINT %s ' % self.constraint_name(self.constraint)
-        return code
-
-
-class AlterDomainAddConstraint(AlterDomainAlterConstraint):
-    def code(self, context):
-        code = super().code(context)
-        code += ' ADD CONSTRAINT %s %s' % (self.constraint_name(self.constraint),
-                                           self.constraint_code(self.constraint))
-        return code
-
-
-class TableExists(Condition):
-    def __init__(self, name):
-        self.name = name
-
-    def code(self, context):
-        code = '''SELECT
-                        tablename
-                    FROM
-                        pg_catalog.pg_tables
-                    WHERE
-                        schemaname = $1 AND tablename = $2'''
-        return code, self.name
-
-
-class TableInherits(Condition):
-    def __init__(self, name, parent_name):
-        self.name = name
-        self.parent_name = parent_name
-
-    def code(self, context):
-        code = '''SELECT
-                        c.relname
-                    FROM
-                        pg_class c
-                        INNER JOIN pg_namespace ns ON ns.oid = c.relnamespace
-                        INNER JOIN pg_inherits i ON i.inhrelid = c.oid
-                        INNER JOIN pg_class pc ON i.inhparent = pc.oid
-                        INNER JOIN pg_namespace pns ON pns.oid = pc.relnamespace
-                    WHERE
-                        ns.nspname = $1 AND c.relname = $2
-                        AND pns.nspname = $3 AND pc.relname = $4
-               '''
-        return code, self.name + self.parent_name
-
-
-class CreateTable(SchemaObjectOperation):
-    def __init__(self, table, temporary=False, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(table.name, conditions=conditions, neg_conditions=neg_conditions,
-                         priority=priority)
-        self.table = table
-        self.temporary = temporary
-
-    def code(self, context):
-        elems = [c.code(context) for c in self.table.columns(only_self=True)]
-        elems += [c.code(context) for c in self.table.constraints]
-
-        name = common.qname(*self.table.name)
-        cols = ', '.join(c for c in elems)
-        temp = 'TEMPORARY ' if self.temporary else ''
-
-        code = 'CREATE %sTABLE %s (%s)' % (temp, name, cols)
-
-        if self.table.bases:
-            code += ' INHERITS (' + ','.join(common.qname(*b) for b in self.table.bases) + ')'
-
-        return code
-
-
-class DropTable(SchemaObjectOperation):
-    def code(self, context):
-        return 'DROP TABLE %s' % common.qname(*self.name)
-
-
-class AlterTableBase(DDLOperation):
-    def __init__(self, name, contained=False, **kwargs):
-        super().__init__(**kwargs)
-        self.name = name
-        self.contained = contained
-
-    def code(self, context):
-        return 'ALTER TABLE %s%s' % ('ONLY ' if self.contained else '', common.qname(*self.name))
-
-    def __repr__(self):
-        return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__, self.name)
-
-
-class AlterTableFragment(DDLOperation):
-    pass
-
-
-class AlterTable(AlterTableBase):
-    def __init__(self, name, **kwargs):
-        super().__init__(name, **kwargs)
-        self.ops = []
-
-    def add_operation(self, op):
-        self.ops.append(op)
-
-    def code(self, context):
-        if self.ops:
-            code = super().code(context)
-            ops = []
-            for op in self.ops:
-                if isinstance(op, tuple):
-                    cond = True
-                    if op[1]:
-                        cond = cond and self.check_conditions(context, op[1], True)
-                    if op[2]:
-                        cond = cond and self.check_conditions(context, op[2], False)
-                    if cond:
-                        ops.append(op[0].code(context))
-                else:
-                    ops.append(op.code(context))
-            if ops:
-                return code + ' ' + ', '.join(ops)
-        return False
-
-    def extra(self, context):
-        extra = []
-        for op in self.ops:
-            if isinstance(op, tuple):
-                op = op[0]
-            op_extra = op.extra(context, self)
-            if op_extra:
-                extra.extend(op_extra)
-
-        return extra
-
-    @classmethod
-    def as_markup(cls, self, *, ctx):
-        node = markup.elements.lang.TreeNode(name=repr(self))
-
-        for op in self.ops:
-            if isinstance(op, tuple):
-                op = op[0]
-
-            node.add_child(node=markup.serialize(op, ctx=ctx))
-
-        return node
-
-    def __iter__(self):
-        return iter(self.ops)
-
-    def __call__(self, typ):
-        return filter(lambda i: isinstance(i, typ), self.ops)
-
-
-class CompositeTypeExists(Condition):
-    def __init__(self, name):
-        self.name = name
-
-    def code(self, context):
-        code = '''SELECT
-                        typname
-                    FROM
-                        pg_catalog.pg_type typ
-                        INNER JOIN pg_catalog.pg_namespace nsp ON nsp.oid = typ.typnamespace
-                    WHERE
-                        nsp.nspname = $1 AND typ.typname = $2'''
-        return code, self.name
-
-
-class CreateCompositeType(SchemaObjectOperation):
-    def __init__(self, type, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(type.name, conditions=conditions, neg_conditions=neg_conditions,
-                         priority=priority)
-        self.type = type
-
-    def code(self, context):
-        elems = [c.code(context) for c in self.type._columns]
-
-        name = common.qname(*self.type.name)
-        cols = ', '.join(c for c in elems)
-
-        code = 'CREATE TYPE %s AS (%s)' % (name, cols)
-
-        return code
-
-
-class DropCompositeType(SchemaObjectOperation):
-    def code(self, context):
-        return 'DROP TYPE %s' % common.qname(*self.name)
-
-
-class IndexExists(Condition):
-    def __init__(self, index_name):
-        self.index_name = index_name
-
-    def code(self, context):
-        code = '''SELECT
-                       i.indexrelid
-                   FROM
-                       pg_catalog.pg_index i
-                       INNER JOIN pg_catalog.pg_class ic ON ic.oid = i.indexrelid
-                       INNER JOIN pg_catalog.pg_namespace icn ON icn.oid = ic.relnamespace
-                   WHERE
-                       icn.nspname = $1 AND ic.relname = $2'''
-
-        return code, self.index_name
-
-
-class CreateIndex(DDLOperation):
-    def __init__(self, index, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-        self.index = index
-
-    def code(self, context):
-        code = self.index.creation_code(context)
-        return code
-
-    def __repr__(self):
-        return '<%s.%s "%r">' % (self.__class__.__module__, self.__class__.__name__, self.index)
-
-
-class RenameIndex(DDLOperation):
-    def __init__(self, old_name, new_name, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-        self.old_name = old_name
-        self.new_name = new_name
-
-    def code(self, context):
-        code = 'ALTER INDEX %s RENAME TO %s' % (common.qname(*self.old_name),
-                                                common.quote_ident(self.new_name))
-        return code
-
-    def __repr__(self):
-        return '<%s.%s "%s" to "%s">' % (self.__class__.__module__, self.__class__.__name__,
-                                         common.qname(*self.old_name),
-                                         common.quote_ident(self.new_name))
-
-
-class DropIndex(DDLOperation):
-    def __init__(self, index_name, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-        self.index_name = index_name
-
-    def code(self, context):
-        return 'DROP INDEX %s' % common.qname(*self.index_name)
-
-    def __repr__(self):
-        return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__,
-                               common.qname(*self.index_name))
-
-
-class ColumnExists(Condition):
-    def __init__(self, table_name, column_name):
-        self.table_name = table_name
-        self.column_name = column_name
-
-    def code(self, context):
-        code = '''SELECT
-                        column_name
-                    FROM
-                        information_schema.columns
-                    WHERE
-                        table_schema = $1 AND table_name = $2 AND column_name = $3'''
-        return code, self.table_name + (self.column_name,)
-
-
-class AlterTableAddParent(AlterTableFragment):
-    def __init__(self, parent_name, **kwargs):
-        super().__init__(**kwargs)
-        self.parent_name = parent_name
-
-    def code(self, context):
-        return 'INHERIT %s' % common.qname(*self.parent_name)
-
-    def __repr__(self):
-        return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__, self.parent_name)
-
-
-class AlterTableDropParent(AlterTableFragment):
-    def __init__(self, parent_name):
-        self.parent_name = parent_name
-
-    def code(self, context):
-        return 'NO INHERIT %s' % common.qname(*self.parent_name)
-
-    def __repr__(self):
-        return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__, self.parent_name)
-
-
-class AlterTableAddColumn(AlterTableFragment):
-    def __init__(self, column):
-        self.column = column
-
-    def code(self, context):
-        return 'ADD COLUMN ' + self.column.code(context)
-
-    def extra(self, context, alter_table):
-        return self.column.extra(context, alter_table)
-
-    def __repr__(self):
-        return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__, self.column)
-
-
-class AlterTableDropColumn(AlterTableFragment):
-    def __init__(self, column):
-        self.column = column
-
-    def code(self, context):
-        return 'DROP COLUMN %s' % common.quote_ident(self.column.name)
-
-    def __repr__(self):
-        return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__, self.column)
-
-
-class AlterTableAlterColumnType(AlterTableFragment):
-    def __init__(self, column_name, new_type):
-        self.column_name = column_name
-        self.new_type = new_type
-
-    def code(self, context):
-        return 'ALTER COLUMN %s SET DATA TYPE %s' % \
-                (common.quote_ident(str(self.column_name)), self.new_type)
-
-    def __repr__(self):
-        return '<%s.%s "%s" to %s>' % (self.__class__.__module__, self.__class__.__name__,
-                                       self.column_name, self.new_type)
-
-
-class AlterTableAlterColumnNull(AlterTableFragment):
-    def __init__(self, column_name, null):
-        self.column_name = column_name
-        self.null = null
-
-    def code(self, context):
-        return 'ALTER COLUMN %s %s NOT NULL' % \
-                (common.quote_ident(str(self.column_name)), 'DROP' if self.null else 'SET')
-
-    def __repr__(self):
-        return '<%s.%s "%s" %s NOT NULL>' % (self.__class__.__module__, self.__class__.__name__,
-                                             self.column_name, 'DROP' if self.null else 'SET')
-
-
-class AlterTableAlterColumnDefault(AlterTableFragment):
-    def __init__(self, column_name, default):
-        self.column_name = column_name
-        self.default = default
-
-    def code(self, context):
-        if self.default is None:
-            return 'ALTER COLUMN %s DROP DEFAULT' % (common.quote_ident(str(self.column_name)),)
-        else:
-            return 'ALTER COLUMN %s SET DEFAULT %s' % \
-                    (common.quote_ident(str(self.column_name)),
-                     postgresql.string.quote_literal(str(self.default)))
-
-    def __repr__(self):
-        return '<%s.%s "%s" %s DEFAULT%s>' % (self.__class__.__module__, self.__class__.__name__,
-                                              self.column_name,
-                                              'DROP' if self.default is None else 'SET',
-                                              '' if self.default is None else ' %r' % self.default)
-
-
-class TableConstraintCommand:
-    pass
-
-
-class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
-    def __init__(self, constraint):
-        self.constraint = constraint
-
-    def code(self, context):
-        return 'ADD  ' + self.constraint.code(context)
-
-    def extra(self, context, alter_table):
-        return self.constraint.extra(context, alter_table)
-
-    def __repr__(self):
-        return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__,
-                               self.constraint)
-
-
-class AlterTableRenameConstraint(AlterTableBase, TableConstraintCommand):
-    def __init__(self, table_name, constraint, new_constraint):
-        super().__init__(table_name)
-        self.constraint = constraint
-        self.new_constraint = new_constraint
-
-    def code(self, context):
-        return self.constraint.rename_code(context, self.new_constraint)
-
-    def extra(self, context):
-        return self.constraint.rename_extra(context, self.new_constraint)
-
-    def __repr__(self):
-        return '<%s.%s %r to %r>' % (self.__class__.__module__, self.__class__.__name__,
-                                       self.constraint, self.new_constraint)
-
-
-class AlterTableDropConstraint(AlterTableFragment, TableConstraintCommand):
-    def __init__(self, constraint):
-        self.constraint = constraint
-
-    def code(self, context):
-        return 'DROP CONSTRAINT ' + self.constraint.constraint_name()
-
-    def __repr__(self):
-        return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__,
-                               self.constraint)
-
-
-class AlterTableSetSchema(AlterTableBase):
-    def __init__(self, name, schema, **kwargs):
-        super().__init__(name, **kwargs)
-        self.schema = schema
-
-    def code(self, context):
-        code = super().code(context)
-        code += ' SET SCHEMA %s ' % common.quote_ident(self.schema)
-        return code
-
-
-class AlterTableRenameTo(AlterTableBase):
-    def __init__(self, name, new_name, **kwargs):
-        super().__init__(name, **kwargs)
-        self.new_name = new_name
-
-    def code(self, context):
-        code = super().code(context)
-        code += ' RENAME TO %s ' % common.quote_ident(self.new_name)
-        return code
-
-
-class AlterTableRenameColumn(AlterTableBase):
-    def __init__(self, name, old_col_name, new_col_name):
-        super().__init__(name)
-        self.old_col_name = old_col_name
-        self.new_col_name = new_col_name
-
-    def code(self, context):
-        code = super().code(context)
-        code += ' RENAME COLUMN %s TO %s ' % (common.quote_ident(self.old_col_name),
-                                              common.quote_ident(self.new_col_name))
-        return code
-
-
-class CreateFunction(DDLOperation):
-    def __init__(self, name, args, returns, text, language='plpgsql', volatility='volatile',
-                                                                      **kwargs):
-        super().__init__(**kwargs)
-        self.name = name
-        self.args = args
-        self.returns = returns
-        self.text = text
-        self.volatility = volatility
-        self.language = language
-
-    def code(self, context):
-        code = '''CREATE FUNCTION %(name)s(%(args)s)
-                  RETURNS %(return)s
-                  LANGUAGE %(lang)s
-                  %(volatility)s
-                  AS $____funcbody____$
-                      %(text)s
-                  $____funcbody____$;
-               ''' % {
-                   'name': common.qname(*self.name),
-                   'args': ', '.join(common.quote_ident(a) for a in self.args),
-                   'return': common.quote_ident(self.returns),
-                   'lang': self.language,
-                   'volatility': self.volatility,
-                   'text': self.text
-               }
-        return code
-
-
-class CreateTriggerFunction(CreateFunction):
-    def __init__(self, name, text, language='plpgsql', volatility='volatile', **kwargs):
-        super().__init__(name, args=(), returns='trigger', text=text, language=language,
-                         volatility=volatility, **kwargs)
-
-
-class RenameFunction(CommandGroup):
-    def __init__(self, name, args, new_name, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-
-        if name[0] != new_name[0]:
-            cmd = AlterFunctionSetSchema(name, args, new_name[0])
-            self.add_command(cmd)
-            name = (new_name[0], name[1])
-
-        if name[1] != new_name[1]:
-            cmd = AlterFunctionRenameTo(name, args, new_name[1])
-            self.add_command(cmd)
-
-
-class AlterFunctionReplaceText(DDLOperation):
-    def __init__(self, name, args, old_text, new_text, *, conditions=None, neg_conditions=None,
-                                                                           priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-        self.name = name
-        self.args = args
-        self.old_text = old_text
-        self.new_text = new_text
-
-    def code(self, context):
-        code = '''SELECT
-                        replace(p.prosrc, $4, $5) AS text,
-                        l.lanname AS lang,
-                        p.provolatile AS volatility,
-                        retns.nspname AS retnamens,
-                        ret.typname AS retname
-                    FROM
-                        pg_catalog.pg_proc p
-                        INNER JOIN pg_catalog.pg_namespace ns ON (ns.oid = p.pronamespace)
-                        INNER JOIN pg_catalog.pg_language l ON (p.prolang = l.oid)
-                        INNER JOIN pg_catalog.pg_type ret ON (p.prorettype = ret.oid)
-                        INNER JOIN pg_catalog.pg_namespace retns ON (retns.oid = ret.typnamespace)
-                    WHERE
-                        p.proname = $2 AND ns.nspname = $1
-                        AND ($3::text[] IS NULL
-                             OR $3::text[] = ARRAY(SELECT
-                                                      format_type(t, NULL)::text
-                                                    FROM
-                                                      unnest(p.proargtypes) t))
-                '''
-
-        vars = self.name + (self.args, self.old_text, self.new_text)
-        new_text, lang, volatility, *returns = context.db.prepare(code)(*vars)[0]
-
-        code = '''CREATE OR REPLACE FUNCTION {name} ({args})
-                  RETURNS {returns}
-                  LANGUAGE {lang}
-                  {volatility}
-                  AS $____funcbody____$
-                      {text}
-                  $____funcbody____$;
-               '''.format(name=common.qname(*self.name),
-                          args=', '.join(common.quote_ident(a) for a in self.args),
-                          text=new_text,
-                          lang=lang,
-                          returns=common.qname(*returns),
-                          volatility={b'i': 'IMMUTABLE', b's': 'STABLE', b'v': 'VOLATILE'}[volatility])
-
-        return code, ()
-
-
-class AlterFunctionSetSchema(DDLOperation):
-    def __init__(self, name, args, new_schema, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-        self.name = name
-        self.args = args
-        self.new_schema = new_schema
-
-    def code(self, context):
-        code = 'ALTER FUNCTION %s(%s) SET SCHEMA %s' % \
-                (common.qname(*self.name),
-                 ', '.join(common.quote_ident(a) for a in self.args),
-                 common.quote_ident(self.new_schema))
-        return code
-
-
-class AlterFunctionRenameTo(DDLOperation):
-    def __init__(self, name, args, new_name, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-        self.name = name
-        self.args = args
-        self.new_name = new_name
-
-    def code(self, context):
-        code = 'ALTER FUNCTION %s(%s) RENAME TO %s' % \
-                (common.qname(*self.name),
-                 ', '.join(common.quote_ident(a) for a in self.args),
-                 common.quote_ident(self.new_name))
-        return code
-
-
-class DropFunction(DDLOperation):
-    def __init__(self, name, args, *, conditions=None, neg_conditions=None, priority=0):
-        self.conditional = False
-        if conditions:
-            c = []
-            for cond in conditions:
-                if isinstance(cond, FunctionExists) and cond.name == name and cond.args == args:
-                    self.conditional = True
-                else:
-                    c.append(cond)
-            conditions = c
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-        self.name = name
-        self.args = args
-
-    def code(self, context):
-        code = 'DROP FUNCTION%s %s(%s)' % \
-                (' IF EXISTS' if self.conditional else '',
-                 common.qname(*self.name),
-                 ', '.join(common.quote_ident(a) for a in self.args))
-        return code
-
-
-class FunctionExists(Condition):
-    def __init__(self, name, args=None):
-        self.name = name
-        self.args = args
-
-    def code(self, context):
-        code = '''SELECT
-                        p.proname
-                    FROM
-                        pg_catalog.pg_proc p
-                        INNER JOIN pg_catalog.pg_namespace ns ON (ns.oid = p.pronamespace)
-                    WHERE
-                        p.proname = $2 AND ns.nspname = $1
-                        AND ($3::text[] IS NULL
-                             OR $3::text[] = ARRAY(SELECT
-                                                      format_type(t, NULL)::text
-                                                    FROM
-                                                      unnest(p.proargtypes) t))
-                '''
-
-        return code, self.name + (self.args,)
-
-
-class CreateTrigger(DDLOperation):
-    def __init__(self, trigger_name, *, table_name, events, timing='after', granularity='row',
-                                                            procedure, condition=None, **kwargs):
-        super().__init__(**kwargs)
-
-        self.trigger_name = trigger_name
-        self.table_name = table_name
-        self.events = events
-        self.timing = timing
-        self.granularity = granularity
-        self.procedure = procedure
-        self.condition = condition
-
-    def code(self, context):
-        return '''CREATE TRIGGER %(trigger_name)s %(timing)s %(events)s ON %(table_name)s
-                  FOR EACH %(granularity)s %(condition)s EXECUTE PROCEDURE %(procedure)s
-               ''' % {
-                      'trigger_name': common.quote_ident(self.trigger_name),
-                      'timing': self.timing,
-                      'events': ' OR '.join(self.events),
-                      'table_name': common.qname(*self.table_name),
-                      'granularity': self.granularity,
-                      'condition': ('WHEN (%s)' % self.condition) if self.condition else '',
-                      'procedure': '%s()' % common.qname(*self.procedure)
-                     }
-
-
-class CreateConstraintTrigger(CreateTrigger):
-    def __init__(self, trigger_name, *, table_name, events, procedure, condition=None,
-                                        conditions=None, neg_conditions=None, priority=0):
-
-        super().__init__(trigger_name=trigger_name, table_name=table_name, events=events,
-                         procedure=procedure, condition=condition,
-                         conditions=conditions, neg_conditions=neg_conditions, priority=priority)
-
-    def code(self, context):
-        return '''CREATE CONSTRAINT TRIGGER %(trigger_name)s %(timing)s %(events)s
-                  ON %(table_name)s
-                  FOR EACH %(granularity)s %(condition)s EXECUTE PROCEDURE %(procedure)s
-               ''' % {
-                      'trigger_name': common.quote_ident(self.trigger_name),
-                      'timing': self.timing,
-                      'events': ' OR '.join(self.events),
-                      'table_name': common.qname(*self.table_name),
-                      'granularity': self.granularity,
-                      'condition': ('WHEN (%s)' % self.condition) if self.condition else '',
-                      'procedure': '%s()' % common.qname(*self.procedure)
-                     }
-
-
-class AlterTriggerRenameTo(DDLOperation):
-    def __init__(self, *, trigger_name, new_trigger_name, table_name, **kwargs):
-        super().__init__(**kwargs)
-
-        self.trigger_name = trigger_name
-        self.new_trigger_name = new_trigger_name
-        self.table_name = table_name
-
-    def code(self, context):
-        return 'ALTER TRIGGER %s ON %s RENAME TO %s' % \
-                (common.quote_ident(self.trigger_name), common.qname(*self.table_name),
-                 common.quote_ident(self.new_trigger_name))
-
-
-class DropTrigger(DDLOperation):
-    def __init__(self, trigger_name, *, table_name, **kwargs):
-        super().__init__(**kwargs)
-
-        self.trigger_name = trigger_name
-        self.table_name = table_name
-
-    def code(self, context):
-        return 'DROP TRIGGER %(trigger_name)s ON %(table_name)s' % \
-                {'trigger_name': common.quote_ident(self.trigger_name),
-                 'table_name': common.qname(*self.table_name)}
-
-
-class Comment(DDLOperation):
-    def __init__(self, object, text, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__()
-
-        self.object = object
-        self.text = text
-
-    def code(self, context):
-        if isinstance(self.object, TableConstraint):
-            object_type = 'CONSTRAINT'
-            object_id = self.object.constraint_name()
-            if self.object.table_name:
-                object_id += ' ON {}'.format(common.qname(*self.object.table_name))
-            else:
-                object_id
-        elif isinstance(self.object, Table):
-            object_type = 'TABLE'
-            object_id = common.qname(*self.object.name)
-        elif isinstance(self.object, TableColumn):
-            object_type = 'COLUMN'
-            object_id = common.qname(self.object.table_name[0], self.object.table_name[1],
-                                     self.object.column.name)
-        else:
-            assert False, "unexpected COMMENT target: {}".format(self.object)
-
-        code = 'COMMENT ON {type} {id} IS {text}'.format(
-                    type=object_type, id=object_id, text=postgresql.string.quote_literal(self.text))
-
-        return code
+        return dbops.Merge(table=backendinfotable, record=record, condition=None)

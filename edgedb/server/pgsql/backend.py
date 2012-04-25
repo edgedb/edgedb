@@ -41,7 +41,9 @@ from semantix.caos.caosql import codegen as caosql_codegen
 
 from semantix.caos.backends import query as backend_query
 from semantix.caos.backends.pgsql import common
+from semantix.caos.backends.pgsql import dbops
 from semantix.caos.backends.pgsql import delta as delta_cmds
+from semantix.caos.backends.pgsql import deltadbops
 
 from . import datasources
 from .datasources import introspection
@@ -493,8 +495,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def init_connection(self, connection):
-        if self.features is None:
-            self.features = self.read_features()
         if self.backend_info is None:
             self.backend_info = self.read_backend_info()
 
@@ -506,6 +506,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         % delta_cmds.BACKEND_FORMAT_VERSION
             raise caos.MetaError(msg, details=details)
 
+        if self.features is None:
+            self.features = self.read_features()
         self.init_features(connection)
 
 
@@ -741,7 +743,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             self.connection = old_conn
 
     def _update_repo(self, session, deltas):
-        table = delta_cmds.DeltaLogTable()
+        table = deltadbops.DeltaLogTable()
         records = []
         for d in deltas:
             rec = table.record(
@@ -753,15 +755,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             records.append(rec)
 
         context = delta_cmds.CommandContext(session.get_connection(), session)
-        delta_cmds.Insert(table, records=records).execute(context)
+        dbops.Insert(table, records=records).execute(context)
 
-        table = delta_cmds.DeltaRefTable()
+        table = deltadbops.DeltaRefTable()
         rec = table.record(
                 id='%x' % d.id,
                 ref='HEAD'
               )
         condition = [('ref', str('HEAD'))]
-        delta_cmds.Merge(table, record=rec, condition=condition).execute(context)
+        dbops.Merge(table, record=rec, condition=condition).execute(context)
 
 
     def invalidate_meta_cache(self):
@@ -966,8 +968,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         concept_map = self.get_concept_map(session)
         context = delta_cmds.CommandContext(connection, session)
 
-        idquery = delta_cmds.Query(text='caos.uuid_generate_v1mc()', params=(), type='uuid')
-        now = delta_cmds.Query(text="'NOW'", params=(), type='timestamptz')
+        idquery = dbops.Query(text='caos.uuid_generate_v1mc()', params=(), type='uuid')
+        now = dbops.Query(text="'NOW'", params=(), type='timestamptz')
 
         is_object = issubclass(cls, session.schema.semantix.caos.builtins.Object)
 
@@ -995,9 +997,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     setattr(rec, 'semantix.caos.builtins.mtime', now)
                     condition.append(('semantix.caos.builtins.mtime', entity.mtime))
 
-                cmd = delta_cmds.Update(table=table, record=rec,
-                                        condition=condition,
-                                        returning=returning)
+                cmd = dbops.Update(table=table, record=rec,
+                                   condition=condition,
+                                   returning=returning)
             else:
                 setattr(rec, 'semantix.caos.builtins.id', idquery)
 
@@ -1007,7 +1009,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                 rec.concept_id = concept_map[concept]
 
-                cmd = delta_cmds.Insert(table=table, records=[rec], returning=returning)
+                cmd = dbops.Insert(table=table, records=[rec], returning=returning)
 
             try:
                 rows = cmd.execute(context)
@@ -1116,14 +1118,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             model_table = self.get_table(prototype, session)
             name = '%x_batch_%x' % (persistent_hash.persistent_hash(prototype.name.name), batch_id)
             table_name = (model_table.name[0], common.caos_name_to_pg_name(name))
-            batch_table = delta_cmds.Table(table_name)
+            batch_table = dbops.Table(table_name)
 
             cols = self.get_table_columns(model_table.name)
             colmap = {c.name: c for c in model_table.columns()}
             batch_table.add_columns(colmap[col] for col in cols)
 
             context = delta_cmds.CommandContext(session.get_connection(), session)
-            delta_cmds.CreateTable(batch_table).execute(context)
+            dbops.CreateTable(batch_table).execute(context)
 
             merger_func = self.create_batch_merger(prototype, session)
 
@@ -1137,9 +1139,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             schema = common.caos_module_name_to_schema_name(prototype.name.module)
             updates_table_name = (schema, common.caos_name_to_pg_name(name))
 
-            updates_table = delta_cmds.Table(updates_table_name)
+            updates_table = dbops.Table(updates_table_name)
             updates_table.add_columns(colmap[col] for col in keys)
-            delta_cmds.CreateTable(updates_table).execute(context)
+            dbops.CreateTable(updates_table).execute(context)
 
             result = (batch_table, updates_table, merger_func)
 
@@ -1245,14 +1247,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             producer = EntityCopyProducer(self, session, table, concept, entities)
 
-            cmd = delta_cmds.CopyFrom(table=table, producer=producer, format='binary')
+            cmd = dbops.CopyFrom(table=table, producer=producer, format='binary')
             cmd.execute(context)
 
     @debug
     def delete_entities(self, entities, session):
         key = lambda i: i.__class__._metadata.name
         result = set()
-        modstat_t = common.qname(*delta_cmds.EntityModStatType().name)
+        modstat_t = common.qname(*deltadbops.EntityModStatType().name)
 
         for concept, entities in itertools.groupby(sorted(entities, key=key), key=key):
             table = common.concept_name_to_table_name(concept)
@@ -1358,20 +1360,20 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         if not table:
             table_name = common.get_table_name(prototype, catenate=False)
-            table = delta_cmds.Table(table_name)
+            table = dbops.Table(table_name)
 
             cols = []
 
             if isinstance(prototype, caos.types.ProtoLink):
                 cols.extend([
-                    delta_cmds.Column(name='source_id', type='uuid'),
-                    delta_cmds.Column(name='target_id', type='uuid'),
-                    delta_cmds.Column(name='link_type_id', type='int'),
+                    dbops.Column(name='source_id', type='uuid'),
+                    dbops.Column(name='target_id', type='uuid'),
+                    dbops.Column(name='link_type_id', type='int'),
                 ])
 
             elif isinstance(prototype, caos.types.ProtoConcept):
                 cols.extend([
-                    delta_cmds.Column(name='concept_id', type='int')
+                    dbops.Column(name='concept_id', type='int')
                 ])
 
             else:
@@ -1382,7 +1384,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     col_type = types.pg_type_from_atom(session.proto_schema, pointer.target,
                                                        topbase=True)
                     col_name = common.caos_name_to_pg_name(pointer_name)
-                    cols.append(delta_cmds.Column(name=col_name, type=col_type))
+                    cols.append(dbops.Column(name=col_name, type=col_type))
             table.add_columns(cols)
 
             self.table_cache[prototype] = table
@@ -1443,12 +1445,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 condition = [('source_id', rec.source_id), ('target_id', rec.target_id),
                              ('link_type_id', rec.link_type_id)]
 
-                cmds.append(delta_cmds.Merge(table, rec, condition=condition))
+                cmds.append(dbops.Merge(table, rec, condition=condition))
             else:
                 records.append(rec)
 
         if records:
-            cmds.append(delta_cmds.Insert(table, records))
+            cmds.append(dbops.Insert(table, records))
 
         if cmds:
             try:
@@ -1476,7 +1478,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             self.batches.setdefault(batch_id, {'objects': set()})['objects'].add(link_proto)
 
             producer = LinkCopyProducer(self, session, table, link, pairs)
-            cmd = delta_cmds.CopyFrom(table=table, producer=producer, format='binary')
+            cmd = dbops.CopyFrom(table=table, producer=producer, format='binary')
             cmd.execute(context)
 
 
@@ -1528,7 +1530,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         schemas = {s['name'] for s in schemas}
 
         context = delta_cmds.CommandContext(self.connection)
-        cond = delta_cmds.TableExists(name=('caos', 'module'))
+        cond = dbops.TableExists(name=('caos', 'module'))
         module_index_exists = cond.execute(context)
 
         if 'caos' in schemas and module_index_exists:
@@ -2356,10 +2358,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         type_elems = datastructures.OrderedSet();
 
         for i, pg_type in enumerate(pg_types):
-            type_elems.add(delta_cmds.Column(name='f_{}'.format(i), type=pg_type))
-        type = delta_cmds.CompositeType(name, type_elems)
-        cond = delta_cmds.CompositeTypeExists(name)
-        op = delta_cmds.CreateCompositeType(type, neg_conditions=[cond])
+            type_elems.add(dbops.Column(name='f_{}'.format(i), type=pg_type))
+        type = dbops.CompositeType(name, type_elems)
+        cond = dbops.CompositeTypeExists(name)
+        op = dbops.CreateCompositeType(type, neg_conditions=[cond])
 
         context = delta_cmds.CommandContext(session.get_connection(), session)
         op.execute(context)
