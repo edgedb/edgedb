@@ -409,7 +409,16 @@ class JSParser():
 
         self.prevtoken = self.token
         self.lexer.regexp_possible = regexp
-        token = self.lexer.token()
+
+        try:
+            token = self.lexer.token()
+        except Exception as ex:
+            new_ex = ParseError('unhandled lexer error')
+            new_ex.__cause__ = ex
+            ex_ctx = ExceptionContext(lineno=self.token.start[0], colno=self.token.start[1],
+                       filename=self.filename, source=self.source)
+            _add_context(new_ex, ex_ctx)
+            raise new_ex
 
         # identifier-looking tokens can be a number of things
         #
