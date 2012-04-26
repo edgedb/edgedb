@@ -110,7 +110,7 @@ class ConfigNode(TreeNode):
 
 
 class ConfigRootNode(ConfigNode, TreeRootNode):
-    __slots__ = ('__node_head_links__',)
+    __slots__ = ('__node_head_links__', '__node_ctx__')
 
     node_cls = ConfigNode
     value_cls = ConfigValue
@@ -119,6 +119,7 @@ class ConfigRootNode(ConfigNode, TreeRootNode):
     def __init__(self, name):
         super().__init__(name)
         self.__node_head_links__ = {}
+        self.__node_ctx__ = {}
 
     def __enter__(self):
         self.__class__.link_cls(self).__enter__()

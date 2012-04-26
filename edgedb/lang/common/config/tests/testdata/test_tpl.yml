@@ -1,0 +1,16 @@
+##
+# Copyright (c) 2012 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+%SCHEMA semantix.utils.config.yaml.schema.Schema
+%NAME config
+---
+semantix.utils.config.tests.test_conf.TestTpl:
+    tpl1: !tpl '$__dir__/../'
+    tpl2: !tpl '${__dir__}foo'
+    tpl3: '$__dir__'
+    tpl4: !tpl '$__NE__'
+    tpl5: !tpl 'tpl5'

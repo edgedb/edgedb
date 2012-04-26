@@ -1,10 +1,12 @@
 ##
-# Copyright (c) 2011 Sprymix Inc.
+# Copyright (c) 2011-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
+
+from string import Template
 
 from semantix.utils.slots import SlotsMeta
 from semantix.utils.datastructures.all import _Marker
@@ -89,8 +91,15 @@ class cvalue(ChecktypeExempt, metaclass=SlotsMeta):
                     except AttributeError:
                         conf_link = conf_link.parent
                     else:
-                        self._validate(value.value, fullname, value.context)
-                        result = value.value
+                        cval = value.value
+                        if isinstance(cval, Template):
+                            try:
+                                cval = cval.substitute(conf_link.node.__node_ctx__)
+                            except KeyError:
+                                raise ConfigError('Exception during template evaluation of {!r} ' \
+                                                  'config value'.format(self.fullname))
+                        self._validate(cval, fullname, value.context)
+                        result = cval
                         break
 
                 if result is not _no_default or base is self._owner:

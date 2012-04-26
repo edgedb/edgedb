@@ -1,17 +1,17 @@
 ##
-# Copyright (c) 2011 Sprymix Inc.
+# Copyright (c) 2011-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
 
-import types
+import os
 
 from semantix.utils.config import ConfigurableMeta, cvalue, inline
 from semantix.utils.config import base as config_base
 from semantix.utils.debug import assert_raises
-from semantix.utils.functional import checktypes
+from semantix.utils.config.exceptions import ConfigError
 
 
 class TestConfig:
@@ -113,3 +113,23 @@ class TestConfig:
 
         with inline({'semantix.utils.config.tests.test_conf.NDV1.bar': '142'}):
             assert NDV1.bar == '142'
+
+    def test_utils_config_tpl(self):
+        class TestTpl(metaclass=ConfigurableMeta):
+            tpl1 = cvalue(type=str)
+            tpl2 = cvalue(type=str)
+            tpl3 = cvalue(type=str)
+            tpl4 = cvalue(type=str)
+            tpl5 = cvalue(type=str)
+
+        from semantix.utils.config.tests.testdata.test_tpl import config
+
+        with config:
+            assert os.path.abspath(TestTpl.tpl1).endswith('/config/tests')
+            assert os.path.abspath(TestTpl.tpl2).endswith('/config/tests/testdata/foo')
+            assert TestTpl.tpl3 == '$__dir__'
+
+            with assert_raises(ConfigError, error_re='Exception during template evaluation'):
+                TestTpl.tpl4
+
+            assert TestTpl.tpl5 == 'tpl5'

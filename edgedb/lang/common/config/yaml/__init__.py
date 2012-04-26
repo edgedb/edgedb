@@ -1,16 +1,19 @@
 ##
-# Copyright (c) 2011 Sprymix Inc.
+# Copyright (c) 2011-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
 
-from .schema import Schema
-from ..base import ConfigRootNode
+import os
+
 from semantix.utils.lang import yaml
 from semantix.utils.lang import context as lang_context
 from semantix.utils.slots import SlotsMeta
+
+from ..base import ConfigRootNode
+from .schema import Schema # <- this must be imported in this module.
 
 
 class _YamlObjectMeta(yaml.ObjectMeta, SlotsMeta):
@@ -43,3 +46,8 @@ class ConfigYAMLAdapter(_YamlObject, adapts=ConfigRootNode):
         ConfigRootNode.__init__(self, 'config')
 
         self.__class__.traverse(self, self)
+
+        context = lang_context.SourceContext.from_object(self)
+        file = self.__node_ctx__['__file__'] = context.document.module.__file__
+        dir = self.__node_ctx__['__dir__'] = os.path.dirname(file) + os.path.sep
+        self.__node_ctx__['__realdir__'] = os.path.realpath(dir) + os.path.sep
