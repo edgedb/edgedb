@@ -10,6 +10,7 @@ import yaml
 import importlib
 import collections
 import copy
+from string import Template
 
 from semantix.utils.lang import meta as lang_base
 from semantix.utils.lang import context as lang_context
@@ -206,4 +207,9 @@ Constructor.add_multi_constructor(
 Constructor.add_constructor(
     'tag:semantix.sprymix.com,2009/semantix/orderedmap',
     Constructor.construct_ordered_map
+)
+
+Constructor.add_constructor(
+    '!tpl',
+    lambda loader, node: Template(node.value)
 )
