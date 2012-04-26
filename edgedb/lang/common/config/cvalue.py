@@ -64,6 +64,13 @@ class cvalue(ChecktypeExempt, metaclass=SlotsMeta):
 
     def _get_value(self, cls):
         if self._name is None:
+            if getattr(cls, '__sx_configurable__', False):
+                # The class is configurable and currently is initializing
+                # (to be precise, it's between ConfigurableMeta.__new__ and
+                # ConfigurableMeta.__init__ calls)
+                # The attribute is probably inspected from the metaclass
+                #
+                return self
             raise ConfigError('Unable to get value of uninitialized cvalue: ' \
                               'no name set {!r}'.format(self),
                               hint='Perhaps, class that hosts the cvalue is not configurable; ' \

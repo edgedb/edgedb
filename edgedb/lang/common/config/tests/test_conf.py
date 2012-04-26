@@ -15,6 +15,12 @@ from semantix.utils.config.exceptions import ConfigError
 
 
 class TestConfig:
+    def test_utils_config_invalid_class(self):
+        class Test:
+            test = cvalue(42)
+        with assert_raises(ConfigError, error_re='Unable to get value of uninitialized cvalue'):
+            Test.test
+
     def test_utils_config_inheritance(self):
         class InhBase_1(metaclass=ConfigurableMeta):
             attr = cvalue(42, type=int)

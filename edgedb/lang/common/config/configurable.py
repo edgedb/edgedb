@@ -13,10 +13,14 @@ __all__ = 'ConfigurableMeta', 'Configurable'
 
 
 class ConfigurableMeta(type):
+    def __new__(mcls, name, bases, dct):
+        dct['__sx_configurable__'] = True
+        return super().__new__(mcls, name, bases, dct)
+
     def __init__(cls, name, bases, dct):
         super().__init__(name, bases, dct)
 
-        for attrname, attrval in tuple(cls.__dict__.items()):
+        for attrname, attrval in dct.items():
             if not callable(attrval) and isinstance(attrval, cvalue):
                 attrval._owner = cls
                 attrval._set_name(attrname)
