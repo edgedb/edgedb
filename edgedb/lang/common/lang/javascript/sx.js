@@ -89,53 +89,66 @@ this.sx = (function() {
             scope = scope || window;
 
             if (func.length < 1 || func.length > 3) {
-                throw 'invalid each function "' + func + '", should have one, two or three arguments only';
+                throw ('invalid each function "' + func +
+                       '", should have one, two or three arguments only');
             }
 
             var i, r, no_desc = (func.length <= 2);
-            var call_func;
 
             if (sx.is_array(obj) || obj instanceof sx) {
                 if (no_desc) {
-                    call_func = function(i) {
-                        return func.call(scope, obj[i], i);
-                    };
-                } else {
-                    call_func = function(i) {
-                        return func.call(scope, obj[i], i, {first: i == 0, last: i == obj.length - 1, key: i});
-                    };
-                }
-
-                for (i = 0; i < obj.length; i++) {
-                    r = call_func(i);
-
-                    if (r !== undefined) {
-                        return r;
-                    }
-                }
-            } else if (sx.is_object(obj)) {
-                var cnt = 0, len = sx.len(obj);
-
-                if (no_desc) {
-                    call_func = function(i) {
-                        return func.call(scope, obj[i], i);
-                    };
-                } else {
-                    call_func = function(i) {
-                        return func.call(scope, obj[i], i, {first: cnt == 0, last: cnt == len - 1, key: i});
-                    };
-                }
-
-                for (i in obj) {
-                    if (obj.hasOwnProperty(i)) {
-                        r = call_func(i);
+                    for (i = 0; i < obj.length; i++) {
+                        r = func.call(scope, obj[i], i);
 
                         if (r !== undefined) {
                             return r;
                         }
-                        cnt++;
+                    }
+                } else {
+                    for (i = 0; i < obj.length; i++) {
+                        r = func.call(scope, obj[i], i, {
+                            first: i == 0,
+                            last: i == obj.length - 1,
+                            key: i
+                        });
+
+                        if (r !== undefined) {
+                            return r;
+                        }
                     }
                 }
+
+            } else if (sx.is_object(obj)) {
+                var cnt = 0, len = sx.len(obj);
+
+                if (no_desc) {
+                    for (i in obj) {
+                        if (obj.hasOwnProperty(i)) {
+                            r = func.call(scope, obj[i], i);
+
+                            if (r !== undefined) {
+                                return r;
+                            }
+                            cnt++;
+                        }
+                    }
+                } else {
+                    for (i in obj) {
+                        if (obj.hasOwnProperty(i)) {
+                            r = func.call(scope, obj[i], i, {
+                                first: cnt == 0,
+                                last: cnt == len - 1,
+                                key: i
+                            });
+
+                            if (r !== undefined) {
+                                return r;
+                            }
+                            cnt++;
+                        }
+                    }
+                }
+
             } else {
                 throw "unable to iterate non-iterable object '" + obj +
                       "', has to be either array or object";
@@ -146,6 +159,8 @@ this.sx = (function() {
             scope = scope || window;
 
             var result;
+            var no_desc = (func.length <= 2);
+            var map_func;
 
             if (sx.is_array(obj) || obj instanceof sx) {
                 result = [];
@@ -156,9 +171,17 @@ this.sx = (function() {
                       "', has to be either array or object";
             }
 
-            sx.each(obj, function(el, i, options) {
-                result[i] = func.call(scope, el, i, options);
-            }, scope);
+            if (no_desc) {
+                map_func = function(el, i) {
+                    result[i] = func.call(scope, el, i);
+                };
+            } else {
+                map_func = function(el, i, options) {
+                    result[i] = func.call(scope, el, i, options);
+                };
+            }
+
+            sx.each(obj, map_func, scope);
 
             return result;
         },
@@ -168,25 +191,47 @@ this.sx = (function() {
 
             var is_array = (sx.is_array(obj) || obj instanceof sx);
             var result;
+            var no_desc = (func.length <= 2);
+            var filter_func;
 
             if (is_array) {
                 result = [];
+
+                if (no_desc) {
+                    filter_func = function(el, i) {
+                        if (func.call(scope, el, i)) {
+                            result.push(el);
+                        }
+                    };
+                } else {
+                    filter_func = function(el, i, options) {
+                        if (func.call(scope, el, i, options)) {
+                            result.push(el);
+                        }
+                    };
+                }
             } else if (sx.is_object(obj)) {
                 result = {};
+
+                if (no_desc) {
+                    filter_func = function(el, i) {
+                        if (func.call(scope, el, i)) {
+                            result[i] = el;
+                        }
+                    };
+                } else {
+                    filter_func = function(el, i, options) {
+                        if (func.call(scope, el, i, options)) {
+                            result[i] = el;
+                        }
+                    };
+                }
             } else {
                 throw "unable to filter on non-iterable object '" + obj +
                       "', has to be either array or object";
             }
 
-            sx.each(obj, function(el, i, options) {
-                if (func.call(scope, el, i, options)) {
-                    if (is_array) {
-                        result.push(el);
-                    } else {
-                        result[i] = el;
-                    }
-                }
-            });
+            sx.each(obj, filter_func, scope);
 
             return result;
         },
@@ -485,7 +530,8 @@ this.sx = (function() {
                         if (selector[i].nodeType) {
                             this[i] = selector[i];
                         } else {
-                            throw "non-DOM element passed in array to sx() function: " + selector[i];
+                            throw ("non-DOM element passed in array to sx() function: " +
+                                   selector[i]);
                         }
                     }
 
