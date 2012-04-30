@@ -41,6 +41,11 @@ def _dump(markup, header, file):
     renderers.terminal.render(markup, file=file)
 
 
+def dump_header(header, file=None):
+    markup = elements.doc.Section(title=header, body=[])
+    renderers.terminal.render(markup, file=file)
+
+
 def dump(obj, *, header=None, file=None, trim=True):
     markup = _serialize(obj, trim=trim)
     _dump(markup, header, file)
