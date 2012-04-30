@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2011 Sprymix Inc.
+* Copyright (c) 2011-2012 Sprymix Inc.
 * All rights reserved.
 *
 * See LICENSE for details.
@@ -9,11 +9,11 @@
 this.sx = (function() {
     'use strict';
 
-    var undefined = void(0);
-
-    var sx = function(selector) { return new sx._fn.init(selector); },
+    var undefined = void(0),
+        sx = function(selector) { return new sx._fn.init(selector); },
         _is_id = /^#([\w\-]*)$/,
-        _id_counter = 0;
+        _id_counter = 0,
+        global = (typeof window == 'undefined' ? this : window);
 
     function _extend(obj, ex) {
         for (var i in ex) {
@@ -24,7 +24,22 @@ this.sx = (function() {
         return obj;
     };
 
+    var Error = function(msg) {
+        this.message = msg;
+    };
+    Error.prototype = {
+        name: 'sx.Error',
+        toString: function() {
+            return this.name + ': ' + this.message;
+        }
+    };
+    Error.toString = function() {
+        return 'sx.Error';
+    };
+
     _extend(sx, {
+        Error: Error,
+
         is_array: function(obj) {
             return Object.prototype.toString.call(obj) === '[object Array]';
         },
@@ -86,11 +101,11 @@ this.sx = (function() {
         },
 
         each: function(obj, func, scope) {
-            scope = scope || window;
+            scope = scope || global;
 
             if (func.length < 1 || func.length > 3) {
-                throw ('invalid each function "' + func +
-                       '", should have one, two or three arguments only');
+                throw new Error('invalid each function "' + func +
+                                '", should have one, two or three arguments only');
             }
 
             var i, r, no_desc = (func.length <= 2);
@@ -150,8 +165,8 @@ this.sx = (function() {
                 }
 
             } else {
-                throw "unable to iterate non-iterable object '" + obj +
-                      "', has to be either array or object";
+                throw new Error("unable to iterate non-iterable object '" + obj +
+                                "', has to be either array or object");
             }
         },
 
@@ -167,8 +182,8 @@ this.sx = (function() {
             } else if (sx.is_object(obj)) {
                 result = {};
             } else {
-                throw "unable to map on non-iterable object '" + obj +
-                      "', has to be either array or object";
+                throw new Error("unable to map on non-iterable object '" + obj +
+                                "', has to be either array or object");
             }
 
             if (no_desc) {
@@ -227,8 +242,8 @@ this.sx = (function() {
                     };
                 }
             } else {
-                throw "unable to filter on non-iterable object '" + obj +
-                      "', has to be either array or object";
+                throw new Error("unable to filter on non-iterable object '" + obj +
+                                "', has to be either array or object");
             }
 
             sx.each(obj, filter_func, scope);
@@ -247,7 +262,7 @@ this.sx = (function() {
 
                 return result;
             } else {
-                throw 'sx.keys function only supports objects, got ' + (typeof obj);
+                throw new Error('sx.keys function only supports objects, got ' + (typeof obj));
             }
         },
 
@@ -266,7 +281,8 @@ this.sx = (function() {
                 return len;
             }
 
-            throw 'sx.len function supports only objects and arrays, got ' + (typeof obj);
+            throw new Error('sx.len function supports only objects and arrays, got ' +
+                            (typeof obj));
         },
 
         getattr: function(obj, attr, def) {
@@ -274,7 +290,7 @@ this.sx = (function() {
                 return obj[attr];
             } else {
                 if (def === undefined) {
-                    throw (typeof obj) + ': unable to get attribute ' + attr;
+                    throw new Error((typeof obj) + ': unable to get attribute ' + attr);
                 }
                 return def;
             }
@@ -299,7 +315,8 @@ this.sx = (function() {
                 }
             }
 
-            throw 'sx.contains function supports only objects and arrays, got ' + (typeof obj);
+            throw new Error('sx.contains function supports only objects and arrays, got ' +
+                            (typeof obj));
         },
 
         partial: function(func, scope/*, arg0, arg2, ...*/) {
@@ -310,7 +327,7 @@ this.sx = (function() {
             }
 
             if (scope === undefined) {
-                scope = window;
+                scope = global;
             }
 
             if (args && args.length) {
@@ -530,8 +547,8 @@ this.sx = (function() {
                         if (selector[i].nodeType) {
                             this[i] = selector[i];
                         } else {
-                            throw ("non-DOM element passed in array to sx() function: " +
-                                   selector[i]);
+                            throw new Error("non-DOM element passed in array to sx() function: " +
+                                            selector[i]);
                         }
                     }
 
@@ -542,7 +559,7 @@ this.sx = (function() {
             }
 
             if (typeof selector != 'string') {
-                throw "non-string selector passed to 'sx' function: " + selector;
+                throw new Error("non-string selector passed to 'sx' function: " + selector);
             }
 
             var match = _is_id.exec(selector);
