@@ -45,7 +45,7 @@ ParsedImport = collections.namedtuple('ParsedImport', 'name, frm, weak')
 
 class _SemantixImportsHook:
     import_re = re.compile(r'''
-        ^//(
+        ^(\s*)//(
             \s*(%import|%from)\s+
                 (?P<name>.+?)
                 (
@@ -148,7 +148,7 @@ class Loader(loader.SourceFileLoader):
     def cache_path_from_source_path(self, source_path):
         return imp_utils.cache_from_source(source_path, cache_ext='.js')
 
-    def code_from_source(self, module, source_bytes):
+    def code_from_source(self, module, source_bytes, log=True):
         if not len(self._import_detect_hooks):
             # No import hooks?  We can't find any imports then.
             #
@@ -160,7 +160,7 @@ class Loader(loader.SourceFileLoader):
         #
         raw_imports = []
 
-        if len(self._import_detect_hooks):
+        if log and len(self._import_detect_hooks):
             self.logger.debug('parsing javascript module: {!r}'.format(module.__name__))
 
         for hook in self._import_detect_hooks.values():

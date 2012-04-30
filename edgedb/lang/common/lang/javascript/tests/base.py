@@ -6,17 +6,17 @@
 ##
 
 
-import os
 import re
 import subprocess
 import tempfile
 import py.test
+import importlib
 
-from semantix.utils import ast, debug, functional, config, markup
-from semantix.utils.debug import _indent_code, highlight
+from semantix.utils import debug, functional, config, markup
 import semantix.utils.lang.javascript.parser.jsparser as jsp
 from semantix.utils.lang.javascript.codegen import JavascriptSourceGenerator
-from semantix.utils.lang.javascript.ast import ForEachNode
+from semantix.utils.lang.javascript import Loader as JSLoader, BaseJavaScriptModule, \
+                                           Language as JSLanguage
 
 
 def jxfail(*args, **kwargs):
@@ -36,9 +36,95 @@ def flags(**args):
 filter = re.compile(r'(\s|\'|\"|\\|;)+')
 
 
-class MetaJSParserTest_Base(type, metaclass=config.ConfigurableMeta):
+class BaseJSFunctionalTestMeta(type, metaclass=config.ConfigurableMeta):
+    v8_executable = config.cvalue('v8', type=str, doc='path to v8 executable')
+    v8_found = None
+
     # flag to be used for disabling tests
     #
+    skipif = False
+
+
+    def __new__(mcls, name, bases, dct):
+        if mcls.v8_found is None:
+            result = subprocess.getoutput('{} {}'.format(mcls.v8_executable,
+                                                         """-e 'print("semantix")'"""))
+            mcls.v8_found = result == 'semantix'
+            mcls.skipif = not mcls.v8_found
+
+        return super().__new__(mcls, name, bases, dct)
+
+
+class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
+    TEST_TPL_START = '''
+    (function() {
+        'use strict';
+
+        // %from semantix.utils.lang.javascript.tests import assert
+    '''
+
+    TEST_TPL_END = '''
+        print('OK');
+    })();
+    ''';
+
+    def __new__(mcls, name, bases, dct):
+        for meth_name, meth in dct.items():
+            if not meth_name.startswith('test_'):
+                continue
+
+            doc = getattr(meth, '__doc__', '')
+            if not doc.startswith('JS\n'):
+                continue
+
+            dct[meth_name] = py.test.mark.skipif(str(mcls.skipif))(mcls.make_test(meth, doc))
+
+        return super().__new__(mcls, name, bases, dct)
+
+    @classmethod
+    def run_v8(mcls, source):
+        with tempfile.NamedTemporaryFile('w') as file:
+            file.write(source)
+            file.flush()
+
+            result = subprocess.getoutput('{} {}'.format(mcls.v8_executable, file.name))
+            if result != 'OK':
+                print()
+                markup.dump_code(source, lexer='javascript', header='Test Source')
+                markup.dump_header('Test Execution Trace')
+                print(result)
+
+            assert result =='OK'
+
+    @classmethod
+    def make_test(mcls, meth, doc):
+        def do_test(self, meth=meth, source=doc, mcls=mcls):
+            source = source[3:]
+            source = mcls.TEST_TPL_START + source + mcls.TEST_TPL_END
+
+            # XXX heads up, ugly hacks ahead
+            module = BaseJavaScriptModule('tmp_mod_' + meth.__name__)
+            module.__file__ = '<tmp>'
+
+            loader = JSLoader(module.__name__, '', JSLanguage)
+            imports = loader.code_from_source(module, source.encode('utf-8'), log=False)
+
+            for dep_name, dep_weak in imports:
+                dep = importlib.import_module(dep_name)
+                with open(dep.__file__, 'rt') as dep_f:
+                    source = dep_f.read() + source
+
+            mcls.run_v8(source)
+
+        functional.decorate(do_test, meth)
+        return do_test
+
+
+class JSFunctionalTest(metaclass=JSFunctionalTestMeta):
+    pass
+
+
+class MetaJSParserTest_Base(type, metaclass=config.ConfigurableMeta):
     skipif = False
 
     @debug.debug
@@ -82,10 +168,7 @@ class MetaJSParserTest_Base(type, metaclass=config.ConfigurableMeta):
         return super().__new__(cls, name, bases, dct)
 
 
-class MetaJSParserTest_Functional(MetaJSParserTest_Base):
-    v8_executable = config.cvalue('v8', type=str, doc='path to v8 executable')
-    v8_found = None
-
+class MetaJSParserTest_Functional(BaseJSFunctionalTestMeta, MetaJSParserTest_Base):
     @debug.debug
     def do_test(src, flags):
         jsparser = jsp.JSParser(**flags)
@@ -129,13 +212,3 @@ class MetaJSParserTest_Functional(MetaJSParserTest_Base):
             """
 
         assert processed.replace(' ', '') == result.replace(' ', '')
-
-    def __new__(cls, name, bases, dct):
-        if MetaJSParserTest_Functional.v8_found is None:
-            result = subprocess.getoutput('%s %s' % (cls.v8_executable,
-                                                     """-e 'print("semantix")'"""))
-            MetaJSParserTest_Functional.v8_found = result == 'semantix'
-            MetaJSParserTest_Functional.skipif = not MetaJSParserTest_Functional.v8_found
-
-        return super().__new__(cls, name, bases, dct)
-
