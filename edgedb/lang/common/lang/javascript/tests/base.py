@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -12,11 +12,11 @@ import tempfile
 import py.test
 import importlib
 
-from semantix.utils import debug, functional, config, markup
+from semantix.utils import debug, functional, config, markup, resource
 import semantix.utils.lang.javascript.parser.jsparser as jsp
 from semantix.utils.lang.javascript.codegen import JavascriptSourceGenerator
 from semantix.utils.lang.javascript import Loader as JSLoader, BaseJavaScriptModule, \
-                                           Language as JSLanguage
+                                           Language as JSLanguage, JavaScriptModule
 
 
 def jxfail(*args, **kwargs):
@@ -57,7 +57,7 @@ class BaseJSFunctionalTestMeta(type, metaclass=config.ConfigurableMeta):
 
 class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
     TEST_TPL_START = '''
-    (function() {
+    ;(function() {
         'use strict';
 
         // %from semantix.utils.lang.javascript.tests import assert
@@ -82,14 +82,16 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
         return super().__new__(mcls, name, bases, dct)
 
     @classmethod
-    def run_v8(mcls, source):
+    def run_v8(mcls, imports, bootstrap, source):
         with tempfile.NamedTemporaryFile('w') as file:
+            file.write(bootstrap)
             file.write(source)
             file.flush()
 
             result = subprocess.getoutput('{} {}'.format(mcls.v8_executable, file.name))
             if result != 'OK':
                 print()
+                markup.dump(imports, header='Imports', trim=False)
                 markup.dump_code(source, lexer='javascript', header='Test Source')
                 markup.dump_header('Test Execution Trace')
                 print(result)
@@ -107,14 +109,24 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
             module.__file__ = '<tmp>'
 
             loader = JSLoader(module.__name__, '', JSLanguage)
-            imports = loader.code_from_source(module, source.encode('utf-8'), log=False)
+            with debug.debug_logger_off():
+                imports = loader.code_from_source(module, source.encode('utf-8'), log=False)
 
+            deps = []
             for dep_name, dep_weak in imports:
-                dep = importlib.import_module(dep_name)
-                with open(dep.__file__, 'rt') as dep_f:
-                    source = dep_f.read() + source
+                with debug.debug_logger_off():
+                    dep = importlib.import_module(dep_name)
+                deps.extend(resource.Resource._list_resources(dep))
 
-            mcls.run_v8(source)
+            imports = []
+            bootstrap = []
+            for dep in deps:
+                if isinstance(dep, JavaScriptModule):
+                    imports.append(dep.__name__)
+                    with open(dep.__file__, 'rt') as dep_f:
+                        bootstrap.append(dep_f.read())
+
+            mcls.run_v8(imports, '\n;\n'.join(bootstrap), source)
 
         functional.decorate(do_test, meth)
         return do_test
