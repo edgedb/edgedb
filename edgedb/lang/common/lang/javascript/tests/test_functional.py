@@ -95,3 +95,26 @@ class TestJSFunctionalTestEngine(JSFunctionalTest):
             assert.ok(false);
         }, {error: assert.AssertionError});
         '''
+
+    def test_utils_lang_js_functional_assert_not(self):
+        '''JS
+        assert.not('');
+        assert.not(0);
+        assert.not(false);
+
+        assert.raises(function() {
+            assert.not(1);
+        }, {error: assert.AssertionError});
+
+        assert.raises(function() {
+            assert.not(true);
+        }, {error: assert.AssertionError});
+
+        assert.raises(function() {
+            assert.not({});
+        }, {error: assert.AssertionError});
+
+        assert.raises(function() {
+            assert.not([]);
+        }, {error: assert.AssertionError});
+        '''

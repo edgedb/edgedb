@@ -26,6 +26,12 @@
         }
     };
 
+    assert.not = function(value, message) {
+        if (!!value) {
+            assert.fail(message);
+        }
+    };
+
     assert.equal = function(arg1, arg2, weak) {
         weak = weak || false;
         if (weak) {
