@@ -13,7 +13,8 @@ this.sx = (function() {
         sx = function(selector) { return new sx._fn.init(selector); },
         _is_id = /^#([\w\-]*)$/,
         _id_counter = 0,
-        global = (typeof window == 'undefined' ? this : window);
+        global = (typeof window == 'undefined' ? this : window),
+        has_own_property = Object.hasOwnProperty;
 
     function _extend(obj, ex) {
         for (var i in ex) {
@@ -285,8 +286,16 @@ this.sx = (function() {
                             (typeof obj));
         },
 
+        hasattr: function(obj, attr, weak) {
+            if (weak) {
+                return obj[attr] !== undefined;
+            } else {
+                return has_own_property.call(obj, attr);
+            }
+        },
+
         getattr: function(obj, attr, def) {
-            if (obj.hasOwnProperty(attr)) {
+            if (has_own_property.call(obj, attr)) {
                 return obj[attr];
             } else {
                 if (def === undefined) {

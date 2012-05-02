@@ -18,6 +18,33 @@ class TestJSsx(JSFunctionalTest):
         assert.equal(String(sx.Error), 'sx.Error');
         '''
 
+    def test_utils_lang_js_sx_hasattr(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import sx
+
+        assert.ok(sx.hasattr({'a': 'b'}, 'a'));
+        assert.not(sx.hasattr({}, 'hasOwnProperty'));
+
+        // ----
+
+        var foo = function() {};
+        foo.prototype = {
+            'a': 'b',
+            'hasOwnProperty': function() {
+                return true;
+            }
+        };
+        foo = new foo();
+        foo.b = 'c';
+
+        assert.ok(sx.hasattr(foo, 'b'));
+        assert.ok(sx.hasattr(foo, 'a', true)); // weak
+
+        assert.not(sx.hasattr(foo, 'a'));
+        assert.not(sx.hasattr(foo, 'hasOwnProperty'));
+        assert.not(sx.hasattr(foo, 'c', true)); // weak
+        '''
+
     def test_utils_lang_js_sx_len(self):
         '''JS
         // %from semantix.utils.lang.javascript import sx
