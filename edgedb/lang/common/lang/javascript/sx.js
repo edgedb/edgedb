@@ -294,6 +294,36 @@ this.sx = (function() {
             }
         },
 
+        first: function(obj, def) {
+            var is_array = (sx.is_array(obj) || obj instanceof sx);
+            if (is_array) {
+                if (obj.length > 0) {
+                    return obj[0];
+                } else {
+                    if (def !== undefined) {
+                        return def;
+                    } else {
+                        throw new Error('sx.first: empty array passed with no default value set');
+                    }
+                }
+            } else if (sx.is_object(obj)) {
+                var i;
+                for (i in obj) {
+                    if (has_own_property.call(obj, i)) {
+                        return obj[i];
+                    }
+                }
+
+                if (def !== undefined) {
+                    return def;
+                }
+
+                throw new Error('sx.first: empty object passed with no default value set');
+            }
+
+            throw new Error('sx.first supports only arrays and objects');
+        },
+
         getattr: function(obj, attr, def) {
             if (has_own_property.call(obj, attr)) {
                 return obj[attr];
