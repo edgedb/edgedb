@@ -109,11 +109,12 @@ this.sx = (function() {
                                 '", should have one, two or three arguments only');
             }
 
-            var i, r, no_desc = (func.length <= 2);
+            var i, r, no_desc = (func.length <= 2), len;
 
             if (sx.is_array(obj) || obj instanceof sx) {
+                len = obj.length;
                 if (no_desc) {
-                    for (i = 0; i < obj.length; i++) {
+                    for (i = 0; i < len; i++) {
                         r = func.call(scope, obj[i], i);
 
                         if (r !== undefined) {
@@ -121,7 +122,7 @@ this.sx = (function() {
                         }
                     }
                 } else {
-                    for (i = 0; i < obj.length; i++) {
+                    for (i = 0; i < len; i++) {
                         r = func.call(scope, obj[i], i, {
                             first: i == 0,
                             last: i == obj.length - 1,
@@ -135,7 +136,8 @@ this.sx = (function() {
                 }
 
             } else if (sx.is_object(obj)) {
-                var cnt = 0, len = sx.len(obj);
+                var cnt = 0;
+                len = sx.len(obj);
 
                 if (no_desc) {
                     for (i in obj) {
