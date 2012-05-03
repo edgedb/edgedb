@@ -2515,9 +2515,8 @@ class UpgradeBackend(MetaCommand):
 
         op.add_command(cmd)
 
-        from semantix.caos.backends.yaml import schemas as caos_schemas
         from semantix.utils.lang import protoschema
-        schema = protoschema.get_loaded_proto_schema(caos_schemas.CaosSchemaModule)
+        schema = protoschema.get_loaded_proto_schema(proto.SchemaModule)
 
         modtab = deltadbops.ModuleTable()
 
