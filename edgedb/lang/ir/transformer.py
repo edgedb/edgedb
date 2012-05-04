@@ -18,8 +18,9 @@ from semantix.caos.tree import ast as caos_ast
 
 from semantix.utils.algos import boolean
 from semantix.utils import datastructures, ast, debug, markup
-from semantix.utils.datastructures import xvalue, Void
+from semantix.utils.datastructures import Void
 from semantix.utils.functional import checktypes
+from semantix.utils import helper
 
 from semantix import exceptions
 
@@ -2420,28 +2421,28 @@ class TreeTransformer:
 
 
 class PathResolver(TreeTransformer):
-    def serialize_path(self, path, session):
-        return self._serialize_path(path, session)
+    def serialize_path(self, path):
+        return self._serialize_path(path)
 
-    def _serialize_path(self, path, session):
+    def _serialize_path(self, path):
         if isinstance(path, caos_ast.Disjunction):
             result = []
 
             for path in path.paths:
-                result.extend(self._serialize_path(path, session))
+                result.extend(self._serialize_path(path))
 
             result = [('set',) + tuple(result)]
 
         elif isinstance(path, caos_ast.AtomicRefSimple):
-            source = self._serialize_path(path.ref, session)
+            source = self._serialize_path(path.ref)
             result = [('getattr', source, path.name)]
 
         elif isinstance(path, caos_ast.AtomicRefExpr) and path.ptr_proto is not None:
-            source = self._serialize_path(path.ref, session)
+            source = self._serialize_path(path.ref)
             result = [('getattr', source, path.ptr_proto.normal_name())]
 
         elif isinstance(path, caos_ast.LinkPropRefSimple):
-            source = self._serialize_path(path.ref, session)
+            source = self._serialize_path(path.ref)
             result = [('getattr', source, path.name)]
 
         elif isinstance(path, caos_ast.EntitySet):
@@ -2450,7 +2451,7 @@ class PathResolver(TreeTransformer):
             if path.rlink:
                 link_proto = path.rlink.link_proto
                 dir = path.rlink.direction
-                source = self._serialize_path(path.rlink.source, session)
+                source = self._serialize_path(path.rlink.source)
 
                 result = [('step', source, target, link_proto.normal_name(), dir)]
             else:
@@ -2459,15 +2460,15 @@ class PathResolver(TreeTransformer):
         elif isinstance(path, caos_ast.EntityLink):
             link = path
             link_proto = link.link_proto
-            source = self._serialize_path(link.source, session)
+            source = self._serialize_path(link.source)
 
             result = [('as_link', [('getattr', source, link_proto.normal_name())])]
 
         elif isinstance(path, caos_ast.TypeCast):
-            result = self._serialize_path(path.expr, session)
+            result = self._serialize_path(path.expr)
 
         elif isinstance(path, caos_ast.Record):
-            result = self._serialize_path(path.elements[0].ref, session)
+            result = self._serialize_path(path.elements[0].ref)
 
         elif isinstance(path, caos_ast.Constant):
             result = []
@@ -2477,47 +2478,47 @@ class PathResolver(TreeTransformer):
 
         return result
 
-    def unserialize_path(self, script, session):
+    def unserialize_path(self, script, class_factory):
         result = []
 
         for cmd in script:
-            result.extend(self._exec_cmd(cmd, session))
+            result.extend(self._exec_cmd(cmd, class_factory))
 
         return result
 
-    def _exec_cmd(self, cmd, session):
+    def _exec_cmd(self, cmd, class_factory):
         cmd, *args = cmd
 
         if cmd == 'set':
             result = []
 
             for a in args:
-                result.extend(self._exec_cmd(a, session))
+                result.extend(self._exec_cmd(a, class_factory))
 
         elif cmd == 'getattr':
             sources = []
             for a in args[0]:
-                sources.extend(self._exec_cmd(a, session))
+                sources.extend(self._exec_cmd(a, class_factory))
             result = [getattr(src, args[1]) for src in sources]
 
         elif cmd == 'step':
             sources = []
             for a in args[0]:
-                sources.extend(self._exec_cmd(a, session))
+                sources.extend(self._exec_cmd(a, class_factory))
             targets = []
             for a in args[1]:
-                targets.extend(self._exec_cmd(a, session))
+                targets.extend(self._exec_cmd(a, class_factory))
 
-            result = [caos_utils.create_path_step(session, expr, targets[0],
+            result = [caos_utils.create_path_step(class_factory, expr, targets[0],
                                                   args[2], args[3]) for expr in sources]
 
         elif cmd == 'getcls':
-            result = [session.schema.get(args[0])]
+            result = [class_factory.get_class(args[0])]
 
         elif cmd == 'as_link':
             sources = []
             for a in args[0]:
-                sources.extend(self._exec_cmd(a, session))
+                sources.extend(self._exec_cmd(a, class_factory))
             result = [expr.as_link() for expr in sources]
 
         else:
@@ -2525,47 +2526,47 @@ class PathResolver(TreeTransformer):
 
         return result
 
-    def resolve_path(self, tree, session):
-        return list(self._resolve_path(tree, session))
+    def resolve_path(self, tree, class_factory=None):
+        return list(self._resolve_path(tree, class_factory))
 
-    def _resolve_path(self, path, session):
+    def _resolve_path(self, path, class_factory):
         if isinstance(path, caos_ast.Disjunction):
             result = set()
 
             for path in path.paths:
-                result.update(self._resolve_path(path, session))
+                result.update(self._resolve_path(path, class_factory))
 
         elif isinstance(path, caos_ast.AtomicRefSimple):
-            expr = self._resolve_path(path.ref, session)
+            expr = self._resolve_path(path.ref, class_factory)
             result = (getattr(e, path.name) for e in expr)
 
         elif isinstance(path, caos_ast.AtomicRefExpr) and path.ptr_proto is not None:
-            expr = self._resolve_path(path.ref, session)
+            expr = self._resolve_path(path.ref, class_factory)
             result = (getattr(e, path.ptr_proto.normal_name()) for e in expr)
 
         elif isinstance(path, caos_ast.LinkPropRefSimple):
-            expr = self._resolve_path(path.ref, session)
+            expr = self._resolve_path(path.ref, class_factory)
             result = (getattr(e, path.name) for e in expr)
 
         elif isinstance(path, caos_ast.EntitySet):
-            result = session.schema.get(path.concept.name)
+            result = class_factory.get_class(path.concept.name)
 
             if path.rlink:
-                result = self._step_from_link(path.rlink, result, session)
+                result = self._step_from_link(path.rlink, result, class_factory)
             else:
                 result = (result,)
 
         elif isinstance(path, caos_ast.EntityLink):
             link = path
             link_proto = link.link_proto
-            source = self._resolve_path(link.source, session)
+            source = self._resolve_path(link.source, class_factory)
             result = (getattr(e, link_proto.normal_name()).as_link() for e in source)
 
         elif isinstance(path, caos_ast.TypeCast):
-            result = self._resolve_path(path.expr, session)
+            result = self._resolve_path(path.expr, class_factory)
 
         elif isinstance(path, caos_ast.Record):
-            result = self._resolve_path(path.elements[0].ref, session)
+            result = self._resolve_path(path.elements[0].ref, class_factory)
 
         elif isinstance(path, caos_ast.Constant):
             result = ()
@@ -2575,11 +2576,11 @@ class PathResolver(TreeTransformer):
 
         return result
 
-    def _step_from_link(self, link, target, session):
+    def _step_from_link(self, link, target, class_factory):
         link_proto = link.link_proto
         dir = link.direction
-        source = self._resolve_path(link.source, session)
-        result = (caos_utils.create_path_step(session, expr, target,
-                                             link_proto.normal_name(),
-                                             dir) for expr in source)
+        source = self._resolve_path(link.source, class_factory)
+        result = (caos_utils.create_path_step(class_factory, expr, target,
+                                              link_proto.normal_name(),
+                                              dir) for expr in source)
         return result
