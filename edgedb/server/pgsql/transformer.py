@@ -1782,10 +1782,10 @@ class CaosTreeTransformer(CaosExprTransformer):
                                           alias=context.current.genalias(hint='map'))
                 link_ref_map[link_proto] = map
 
-            source_ref = pgsql.ast.FieldRefNode(table=map, field='source_id',
-                                                origin=map, origin_field='source_id')
-            target_ref = pgsql.ast.FieldRefNode(table=map, field='target_id',
-                                                origin=map, origin_field='target_id')
+            source_ref = pgsql.ast.FieldRefNode(table=map, field='semantix.caos.builtins.source',
+                                                origin=map, origin_field='semantix.caos.builtins.source')
+            target_ref = pgsql.ast.FieldRefNode(table=map, field='semantix.caos.builtins.target',
+                                                origin=map, origin_field='semantix.caos.buitlins.target')
             valent_bond = join.bonds(link.source.concept)[-1]
             forward_bond = self._join_condition(context, valent_bond, source_ref, op='=')
             backward_bond = self._join_condition(context, valent_bond, target_ref, op='=')

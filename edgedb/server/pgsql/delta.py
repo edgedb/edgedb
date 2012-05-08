@@ -32,7 +32,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 6
+BACKEND_FORMAT_VERSION = 7
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -704,7 +704,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
     def affirm_pointer_defaults(self, source, meta, context):
         for pointer_name, pointer in source.pointers.items():
-            if pointer.generic() or not pointer.atomic() or \
+            if pointer.generic() or not pointer.atomic() or not pointer.singular() or \
                     isinstance(pointer, proto.Computable) or not pointer.default:
                 continue
 
@@ -1327,22 +1327,10 @@ class PointerMetaCommand(MetaCommand):
                                                                              default=new_default))
 
     def get_columns(self, pointer, meta, default=None):
-        columns = []
-
-        if pointer.atomic():
-            if not isinstance(pointer.target, proto.Atom):
-                pointer.target = meta.get(pointer.target)
-
-            column_type = types.pg_type_from_atom(meta, pointer.target)
-
-            name = pointer.normal_name()
-            column_name = common.caos_name_to_pg_name(name)
-
-            columns.append(dbops.Column(name=column_name, type=column_type,
-                                        required=pointer.required,
-                                        default=default, comment=pointer.normal_name()))
-
-        return columns
+        column_name, column_type = types.get_pointer_column_info(meta, pointer)
+        return [dbops.Column(name=column_name, type=column_type,
+                             required=pointer.required,
+                             default=default, comment=pointer.normal_name())]
 
     def rename_pointer(self, pointer, meta, context, old_name, new_name):
         if context:
@@ -1365,6 +1353,22 @@ class PointerMetaCommand(MetaCommand):
         self.pgops.add(dbops.Update(table=self.table, record=rec,
                                     condition=[('name', str(self.prototype_name))], priority=1))
 
+    def has_nontrivial_properties(self, link, meta, context):
+        return bool([l for l in link.pointers if l not in {'semantix.caos.builtins.source',
+                                                           'semantix.caos.builtins.target'}])
+
+    def has_table(self, link, meta, context):
+        if link.generic():
+            if link.name == 'semantix.caos.builtins.link':
+                return True
+            elif self.has_nontrivial_properties(link, meta, context):
+                return True
+            else:
+                nonatomic_or_nonsingular = (l for l in link.children() if not l.generic() \
+                                            and (not l.atomic() or not l.singular()))
+                return bool(tuple(nonatomic_or_nonsingular))
+        else:
+            return False
 
 
 class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
@@ -1378,15 +1382,16 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         constraints = []
         columns = []
 
+        src_col = common.caos_name_to_pg_name('semantix.caos.builtins.source')
+        tgt_col = common.caos_name_to_pg_name('semantix.caos.builtins.target')
+
         if link.name == 'semantix.caos.builtins.link':
-            columns.append(dbops.Column(name='source_id', type='uuid', required=True))
-            # target_id column is not required, since there may be records for atomic links,
-            # and atoms are stored in the source table.
-            columns.append(dbops.Column(name='target_id', type='uuid', required=False))
+            columns.append(dbops.Column(name=src_col, type='uuid', required=True))
+            columns.append(dbops.Column(name=tgt_col, type='uuid', required=False))
             columns.append(dbops.Column(name='link_type_id', type='integer', required=True))
 
         constraints.append(dbops.UniqueConstraint(table_name=new_table_name,
-                                                  columns=['source_id', 'target_id', 'link_type_id']))
+                                                  columns=[src_col, tgt_col, 'link_type_id']))
 
         table = dbops.Table(name=new_table_name)
         table.add_columns(columns)
@@ -1401,7 +1406,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
 
         index_name = common.caos_name_to_pg_name(str(link.name)  + 'target_id_default_idx')
         index = dbops.Index(index_name, new_table_name, unique=False)
-        index.add_columns(['target_id'])
+        index.add_columns([tgt_col])
         ci = dbops.CreateIndex(index)
 
         if conditional:
@@ -1415,18 +1420,6 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         self.pgops.add(c)
         self.table_name = new_table_name
 
-    def has_table(self, link, meta, context):
-        if link.generic():
-            if link.name == 'semantix.caos.builtins.link':
-                return True
-            elif link.pointers:
-                return True
-            else:
-                nonatomic = (l for l in link.children() if not l.generic() and not l.atomic())
-                return bool(tuple(nonatomic))
-        else:
-            return False
-
     def provide_table(self, link, meta, context):
         if not link.generic():
             base = next(iter(link.base))
@@ -1437,7 +1430,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
             self.create_table(link, meta, context, conditional=True)
 
     def schedule_mapping_update(self, link, meta, context):
-        if (not link.atomic() or link.pointers):
+        if not link.atomic() or self.has_nontrivial_properties(link, meta, context):
             mapping_indexes = context.get(delta_cmds.RealmCommandContext).op.update_mapping_indexes
             link_name = link.normal_name()
             ops = mapping_indexes.links.get(link_name)
@@ -1460,8 +1453,9 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
         link = delta_cmds.CreateLink.apply(self, meta, context)
         LinkMetaCommand.apply(self, meta, context)
 
-        # We do not want to create a separate table for atomic links (unless they have
-        # properties) since those are represented by table columns.
+        # We do not want to create a separate table for atomic links, unless they have
+        # properties, or are non-singular, since those are stored directly in the source
+        # table.
         #
         # Implicit derivative links also do not get their own table since they're just
         # a special case of the parent.
@@ -1781,7 +1775,16 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
 
         link = context.get(delta_cmds.LinkCommandContext)
 
-        if link and link.proto.generic():
+        if link:
+            generic_link = link.proto if link.proto.generic() else meta.get(link.proto.base[0])
+        else:
+            generic_link = None
+
+        if link and (link.proto.generic() or \
+                        (property.normal_name() in
+                         {'semantix.caos.builtins.source', 'semantix.caos.builtins.target'}
+                         and self.has_table(generic_link, meta, context))):
+
             link.op.provide_table(link.proto, meta, context)
             alter_table = link.op.get_alter_table(context)
 
@@ -1845,7 +1848,8 @@ class AlterLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.AlterLinkProp
 
             new_type = None
             for op in self(delta_cmds.AlterPrototypeProperty):
-                if op.property == 'target':
+                if op.property == 'target' and prop.normal_name() not in \
+                                {'semantix.caos.builtins.source', 'semantix.caos.builtins.target'}:
                     new_type = op.new_value.prototype_name if op.new_value is not None else None
                     old_type = op.old_value.prototype_name if op.old_value is not None else None
                     break
@@ -2025,24 +2029,24 @@ class CreateMappingIndexes(MetaCommand):
         if mapping == caos.types.OneToOne:
             # Each source can have only one target and
             # each target can have only one source
-            sides = ('source', 'target')
+            sides = ('semantix.caos.builtins.source', 'semantix.caos.builtins.target')
 
         elif mapping == caos.types.OneToMany:
             # Each target can have only one source, but
             # one source can have many targets
-            sides = ('target',)
+            sides = ('semantix.caos.builtins.target',)
 
         elif mapping == caos.types.ManyToOne:
             # Each source can have only one target, but
             # one target can have many sources
-            sides = ('source',)
+            sides = ('semantix.caos.builtins.source',)
 
         else:
             sides = ()
 
         for side in sides:
             index = deltadbops.MappingIndex(key + '_%s' % side, mapping, maplinks, table_name)
-            index.add_columns(('%s_id' % side, 'link_type_id'))
+            index.add_columns((side, 'link_type_id'))
             self.pgops.add(dbops.CreateIndex(index, priority=3))
 
 
@@ -2162,7 +2166,7 @@ class UpdateMappingIndexes(MetaCommand):
 
                 if isinstance(op, CreateLink):
                     # CreateLink can only happen once
-                    assert not already_processed
+                    assert not already_processed, "duplicate CreateLink: {}".format(proto.name)
                     new_indexes[proto.mapping].append((proto.name, None, None))
 
                 elif isinstance(op, AlterLink):
@@ -2625,6 +2629,24 @@ class UpgradeBackend(MetaCommand):
                 ops.add_command(dbops.Update(table=table, record=rec, condition=cond))
 
         ops.execute(context)
+
+    def update_to_version_7(self, context):
+        """
+        Backend format 7 renames source_id and target_id in link tables into link property cols.
+        """
+
+        tabname = common.link_name_to_table_name(caos.Name('semantix.caos.builtins.link'),
+                                                 catenate=False)
+        src_col = common.caos_name_to_pg_name('semantix.caos.builtins.source')
+        tgt_col = common.caos_name_to_pg_name('semantix.caos.builtins.target')
+
+        cond = dbops.ColumnExists(table_name=tabname, column_name=src_col)
+        cmd = dbops.CommandGroup(neg_conditions=[cond])
+
+        cmd.add_command(dbops.AlterTableRenameColumn(tabname, 'source_id', src_col))
+        cmd.add_command(dbops.AlterTableRenameColumn(tabname, 'target_id', tgt_col))
+
+        cmd.execute(context)
 
     @classmethod
     def update_backend_info(cls):

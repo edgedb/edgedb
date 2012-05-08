@@ -134,7 +134,7 @@ source: |
         FROM
             caos.link_property p
             LEFT JOIN caos.link l ON l.id = p.source_id
-            LEFT JOIN caos.atom a ON a.id = p.target_id
+            LEFT JOIN caos.metaobject a ON a.id = p.target_id
         WHERE
             (%(source)s::text IS NULL OR %(source)s::text = l.name)
             AND (%(target)s::text IS NULL OR %(target)s::text = a.name)

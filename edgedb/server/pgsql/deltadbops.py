@@ -229,7 +229,7 @@ class MappingIndex(dbops.Index):
                 {'unique': 'UNIQUE',
                  'name': common.qname(name),
                  'table': common.qname(*self.table_name),
-                 'cols': ', '.join(self.columns),
+                 'cols': ', '.join(common.quote_ident(c) for c in self.columns),
                  'predicate': ('WHERE %s' % predicate)
                 }
         return code

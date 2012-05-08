@@ -365,7 +365,8 @@ class TreeTransformer:
                 ptrs = concept.pointers
 
             for link_name, link in ptrs.items():
-                if link.atomic() and not isinstance(link, caos_types.ProtoComputable):
+                if link.atomic() and link.singular() \
+                                 and not isinstance(link, caos_types.ProtoComputable):
                     link_proto = schema.get(link_name)
                     target_proto = link.target
                     id = LinearPath(ref.id)

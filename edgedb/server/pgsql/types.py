@@ -122,3 +122,21 @@ def pg_type_from_atom(meta, atom, topbase=False):
         column_type = base
 
     return column_type
+
+
+def get_pointer_column_info(proto_schema, pointer):
+    assert pointer.singular(), "only singular pointers can be stored in a column"
+
+    ptr_name = pointer.normal_name()
+
+    if pointer.atomic():
+        col_type = pg_type_from_atom(proto_schema, pointer.target)
+
+        if ptr_name == 'semantix.caos.builtins.target':
+            ptr_name += '@{}'.format(col_type)
+    else:
+        col_type = 'uuid'
+
+    col_name = common.caos_name_to_pg_name(ptr_name)
+
+    return col_name, col_type

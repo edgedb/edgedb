@@ -392,6 +392,9 @@ class LinkCopyProducer(SourceCopyProducer):
         self.colcount = len(self.attrmap) + 3
 
     def data_feed(self):
+        source_col = common.caos_name_to_pg_name('semantix.caos.builtins.source')
+        target_col = common.caos_name_to_pg_name('semantix.caos.builtins.target')
+
         for link_name, source, targets in self.data:
             target = getattr(source.__class__, str(link_name))
 
@@ -414,9 +417,9 @@ class LinkCopyProducer(SourceCopyProducer):
                     colname = column.name
                     if colname == 'link_type_id':
                         tup.append(link_id)
-                    elif colname == 'source_id':
+                    elif colname == source_col:
                         tup.append(source.id)
-                    elif colname == 'target_id':
+                    elif colname == target_col:
                         id = target.id if not isinstance(target, caos.atom.Atom) else None
                         tup.append(id)
                     else:
@@ -445,6 +448,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         ))
     }
 
+    link_source_colname = common.quote_ident(
+                                common.caos_name_to_pg_name('semantix.caos.builtins.source'))
+    link_target_colname = common.quote_ident(
+                                common.caos_name_to_pg_name('semantix.caos.builtins.target'))
 
     def __init__(self, deltarepo, connector_factory):
         connector = connector_factory()
@@ -462,6 +469,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         self._constr_mech = schemamech.ConstraintMech()
 
+        self.atom_cache = {}
         self.link_cache = {}
         self.concept_cache = {}
         self.table_cache = {}
@@ -771,6 +779,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         self.link_cache.clear()
         self.concept_cache.clear()
+        self.atom_cache.clear()
         self.table_cache.clear()
         self.batch_instrument_cache.clear()
         self.domain_to_atom_map.clear()
@@ -834,7 +843,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             for link_name, link in concept_proto.pointers.items():
 
-                if link.atomic() and not isinstance(link, caos.types.ProtoComputable) \
+                if link.atomic() and link.singular() \
+                                 and not isinstance(link, caos.types.ProtoComputable) \
                             and link_name != 'semantix.caos.builtins.id' \
                             and link.loading != caos.types.LazyLoading:
                     colname = common.caos_name_to_pg_name(link_name)
@@ -855,10 +865,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         if pointers:
             protopointers = [caos.types.prototype(p) for p in pointers]
-            pointers = {p.normal_name(): p for p in protopointers}
+            pointers = {p.normal_name(): p for p in protopointers \
+                        if p.normal_name() not in {'semantix.caos.builtins.source',
+                                                   'semantix.caos.builtins.target'}}
         else:
             pointers = {n: p for n, p in proto_link.pointers.items()
-                             if p.loading != caos.types.LazyLoading}
+                             if p.loading != caos.types.LazyLoading
+                                and n not in {'semantix.caos.builtins.source',
+                                              'semantix.caos.builtins.target'}}
 
         targets = []
 
@@ -866,13 +880,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             targets.append(common.qname('l', common.caos_name_to_pg_name(prop_name)))
 
         query = '''SELECT
-                       %s
+                       {targets}
                    FROM
-                       %s AS l
+                       {table} AS l
                    WHERE
-                       l.source_id = $1
-                       AND l.target_id IS NOT DISTINCT FROM $2
-                       AND l.link_type_id = $3''' % (', '.join(targets), table)
+                       l.{source_col} = $1
+                       AND l.{target_col} IS NOT DISTINCT FROM $2
+                       AND l.link_type_id = $3
+                '''.format(targets=', '.join(targets), table=table,
+                           source_col=self.link_source_colname,
+                           target_col=self.link_target_colname)
 
         ps = session.get_connection().prepare(query)
         if isinstance(target.__class__, caos.types.AtomClass):
@@ -1080,8 +1097,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             condkeys = keys = ('semantix.caos.builtins.id', 'concept_id')
             key = common.concept_name_to_table_name(caos.Name('semantix.caos.builtins.BaseObject'))
         elif isinstance(prototype, caos.types.ProtoLink):
-            keys = ('source_id', 'target_id', 'link_type_id')
-            condkeys = ('source_id', ("coalesce(%(tab)s.target_id, ''00000000-0000-0000-0000-000000000000'')",), 'link_type_id')
+            keys = (self.link_source_colname, self.link_target_colname, 'link_type_id')
+            condkeys = (self.link_source_colname,
+                        ("coalesce(%(tab)s.{}, ''00000000-0000-0000-0000-000000000000'')"
+                            .format(self.link_target_colname),),
+                        'link_type_id')
             key = common.link_name_to_table_name(caos.Name('semantix.caos.builtins.link'))
 
         def _format_row(tabname, cols):
@@ -1124,7 +1144,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if isinstance(prototype, caos.types.ProtoConcept):
                 keys = ('semantix.caos.builtins.id', 'concept_id')
             elif isinstance(prototype, caos.types.ProtoLink):
-                keys = ('source_id', 'target_id', 'link_type_id')
+                keys = ('semantix.caos.builtins.source', 'semantix.caos.builtins.target',
+                        'link_type_id')
 
             name = '%x_batch_%x_updated' % (persistent_hash.persistent_hash(prototype.name.name),
                                             batch_id)
@@ -1173,8 +1194,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         if isinstance(prototype, caos.types.ProtoConcept):
             condkeys = keys = ('semantix.caos.builtins.id', 'concept_id')
         elif isinstance(prototype, caos.types.ProtoLink):
-            keys = ('source_id', 'target_id', 'link_type_id')
-            condkeys = ('source_id', ("coalesce(target_id, '00000000-0000-0000-0000-000000000000')",), 'link_type_id')
+            keys = (self.link_source_colname, self.link_target_colname, 'link_type_id')
+            condkeys = (self.link_source_colname,
+                        ("coalesce({}, '00000000-0000-0000-0000-000000000000')"
+                            .format(self.link_target_colname),),
+                        'link_type_id')
 
         keys = ', '.join(common.quote_ident(k) for k in keys)
         condkeys = ', '.join(common.quote_ident(k) if not isinstance(k, tuple) else k[0]
@@ -1329,7 +1353,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         except KeyError:
             attribute_link_map = {}
             for link_name, link in concept.pointers.items():
-                if link.atomic() and not isinstance(link, caos.types.ProtoComputable) \
+                if link.atomic() and link.singular() \
+                                 and not isinstance(link, caos.types.ProtoComputable) \
                                  and (include_lazy or link.loading != caos.types.LazyLoading):
                     col_name = common.caos_name_to_pg_name(link_name)
                     attribute_link_map[link_name] = attribute_map[col_name]
@@ -1358,9 +1383,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             if isinstance(prototype, caos.types.ProtoLink):
                 cols.extend([
-                    dbops.Column(name='source_id', type='uuid'),
-                    dbops.Column(name='target_id', type='uuid'),
                     dbops.Column(name='link_type_id', type='int'),
+                    dbops.Column(name='semantix.caos.builtins.source', type='uuid'),
+                    dbops.Column(name='semantix.caos.builtins.target', type='uuid')
                 ])
 
             elif isinstance(prototype, caos.types.ProtoConcept):
@@ -1372,10 +1397,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 assert False
 
             for pointer_name, pointer in prototype.pointers.items():
-                if pointer.atomic() and not isinstance(pointer, caos.types.ProtoComputable):
-                    col_type = types.pg_type_from_atom(session.proto_schema, pointer.target,
-                                                       topbase=True)
-                    col_name = common.caos_name_to_pg_name(pointer_name)
+                if isinstance(pointer, caos.types.ProtoComputable) or not pointer.singular():
+                    continue
+
+                if pointer_name == 'semantix.caos.builtins.source':
+                    continue
+
+                if pointer.atomic():
+                    col_name, col_type = types.get_pointer_column_info(session.proto_schema,
+                                                                       pointer)
                     cols.append(dbops.Column(name=col_name, type=col_type))
             table.add_columns(cols)
 
@@ -1390,8 +1420,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         target = getattr(source.__class__, str(link_name))
         link_cls = target.as_link()
+        link_proto = link_cls.__sx_prototype__
+        target_prop = link_proto.pointers['semantix.caos.builtins.target']
 
-        table = self.get_table(link_cls._metadata.root_prototype, session)
+        source_col = common.caos_name_to_pg_name('semantix.caos.builtins.source')
+        target_col, _ = types.get_pointer_column_info(session.proto_schema, target_prop)
+
+        table = self.get_table(link_cls.__sx_prototype__, session)
 
         link_names = [(target, caos.types.prototype(link_cls).name)]
 
@@ -1421,20 +1456,22 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             attrs = {}
             for prop_name, prop_cls in link_cls.iter_pointers():
                 if not isinstance(prop_cls._class_metadata.link, caos.types.ComputableClass):
-                    attrs[common.caos_name_to_pg_name(prop_name)] = getattr(link_obj, str(prop_name))
+                    if prop_name not in {'semantix.caos.builtins.source', 'semantix.caos.builtins.target'}:
+                        attrs[common.caos_name_to_pg_name(prop_name)] = getattr(link_obj, str(prop_name))
 
             rec = table.record(**attrs)
 
-            rec.source_id = source.id
+            setattr(rec, source_col, source.id)
             rec.link_type_id = link_map[full_link_name]
 
-            if isinstance(target, caos.atom.Atom):
-                rec.target_id = None
+            if not isinstance(target, caos.atom.Atom):
+                setattr(rec, target_col, target.id)
             else:
-                rec.target_id = target.id
+                setattr(rec, target_col, None)
 
             if merge:
-                condition = [('source_id', rec.source_id), ('target_id', rec.target_id),
+                condition = [(source_col, getattr(rec, source_col)),
+                             (target_col, getattr(rec, target_col)),
                              ('link_type_id', rec.link_type_id)]
 
                 cmds.append(dbops.Merge(table, rec, condition=condition))
@@ -1484,7 +1521,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         count = 0
 
         if complete_source_ids:
-            qry = '''DELETE FROM %s WHERE source_id = any($1)''' % table
+            qry = '''
+                DELETE FROM {table} WHERE {source_col} = any($1)
+            '''.format(table=table, source_col=self.link_source_colname)
             params = (complete_source_ids,)
 
             result = self.runquery(qry, params,
@@ -1493,9 +1532,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             count += result.first(*params)
 
         if partial_endpoints:
-            qry = '''DELETE FROM %s
-                     WHERE (source_id, target_id) = any($1::caos.link_endpoints_rec_t[])
-                  ''' % table
+            qry = '''DELETE FROM {table}
+                     WHERE ({source_col}, {target_col}) = any($1::caos.link_endpoints_rec_t[])
+                  '''.format(table=table, source_col=self.link_source_colname,
+                             target_col=self.link_target_colname)
             params = (partial_endpoints,)
 
             result = self.runquery(qry, params,
@@ -1602,14 +1642,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         for row in atom_list:
             name = caos.Name(row['name'])
 
-            domain_name = common.atom_name_to_domain_name(name, catenate=False)
-
-            domain = domains.get(domain_name)
-            if not domain:
-                # That's fine, automatic atoms are not represented by domains, skip them,
-                # they'll be handled by read_links()
-                continue
-
             atom_data = {'name': name,
                          'title': self.hstore_to_word_combination(row['title']),
                          'description': row['description'],
@@ -1617,10 +1649,20 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                          'is_abstract': row['is_abstract'],
                          'is_final': row['is_final'],
                          'base': row['base'],
-                         'constraints': row['constraints'],
+                         'constraints': self._constr_mech.unpack_constraints(meta, row['constraints']),
                          'default': row['default'],
                          'attributes': row['attributes'] or {}
                          }
+
+            self.atom_cache[name] = atom_data
+
+            domain_name = common.atom_name_to_domain_name(name, catenate=False)
+            domain = domains.get(domain_name)
+
+            if not domain:
+                # That's fine, automatic atoms are not represented by domains, skip them,
+                # they'll be handled by read_links()
+                continue
 
             if atom_data['default']:
                 atom_data['default'] = self.unpack_default(row['default'])
@@ -2006,8 +2048,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             abstract_constraints = []
 
             required = r['required']
+            target = None
 
-            if source:
+            if source and bases[0] not in {'semantix.caos.builtins.target',
+                                           'semantix.caos.builtins.source'}:
                 # The property is attached to a link, check out link table columns for
                 # target information.
                 target, required = self.read_pointer_target_column(meta, source, bases[0],
@@ -2023,7 +2067,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     if ptr_constr:
                         constraints.extend(ptr_constr)
             else:
-                target = None
+                if bases:
+                    if bases[0] == 'semantix.caos.builtins.target' and source is not None:
+                        target = source.target
+                    elif bases[0] == 'semantix.caos.builtins.source' and source is not None:
+                        target = source.source
 
             loading = caos.types.PointerLoading(r['loading']) if r['loading'] else None
             prop = proto.LinkProperty(name=name, base=bases, source=source, target=target,
@@ -2167,6 +2215,28 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             link = ptr.derive(meta, concept, target)
             link.required = required
             link.is_atom = True
+            link.readonly = False
+
+            src_pname = 'semantix.caos.builtins.source'
+            src_pname_s = proto.LinkProperty.generate_specialized_name(link.name, concept.name,
+                                                                       src_pname)
+
+            src_pname_s = caos.Name(name=src_pname_s, module=link.name.module)
+            src_p = caos.proto.LinkProperty(name=src_pname_s, base=(src_pname,),
+                                            source=link, target=concept)
+            src_p.acquire_parent_data(meta)
+
+            link.add_pointer(src_p)
+
+            tgt_pname = 'semantix.caos.builtins.target'
+            tgt_pname_s = proto.LinkProperty.generate_specialized_name(link.name, target.name,
+                                                                       tgt_pname)
+            tgt_pname_s = caos.Name(name=tgt_pname_s, module=link.name.module)
+            tgt_p = caos.proto.LinkProperty(name=tgt_pname_s, base=(tgt_pname,),
+                                            source=link, target=target)
+            tgt_p.acquire_parent_data(meta)
+
+            link.add_pointer(tgt_p)
 
             if ptr_constraints:
                 constraints = ptr_constraints.get(pointer_name)
@@ -2227,6 +2297,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 else:
                     target = ptr.target
                 ptr = ptr.derive(schema, updated_concept, target)
+
+                for prop in ptr.own_pointers.values():
+                    prop.required = False
+                    prop.readonly = False
+                    prop.search = None
+                    prop.title = None
+                    prop.description = None
 
                 # Drop all constraints on virtual concept links --- they are needless and
                 # potentially harmful.

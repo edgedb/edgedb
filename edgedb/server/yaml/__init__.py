@@ -494,7 +494,8 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
     def __sx_getstate__(cls, data):
         result = {}
 
-        if data.target and data.target.constraints and data.target.automatic:
+        if data.target and isinstance(data.target, caos.types.ProtoAtom) \
+                       and data.target.constraints and data.target.automatic:
             items = itertools.chain.from_iterable(data.target.constraints.values())
             result['constraints'] = list(items)
 
@@ -974,6 +975,9 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         if not props:
             return
 
+        return self._read_properties_for_link(link, props, localschema)
+
+    def _read_properties_for_link(self, link, props, localschema):
         for property_name, property in props.items():
 
             property_base = localschema.get(property_name, type=proto.LinkProperty, default=None,
@@ -998,7 +1002,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             else:
                 property_qname = property_base.name
 
-            if link.generic():
+            if link.generic() or getattr(property, '_target', None) is not None:
                 property.target = localschema.get(property._target)
                 proptarget = property.target
             else:
@@ -1010,12 +1014,21 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 property_qname = propdef.normal_name()
                 proptarget = propdef.target
 
+            atom_constraints = self._get_link_atom_constraints(property)
+
+            if atom_constraints:
+                target_name = Atom.gen_atom_name(link, property_qname)
+                target_name = caos.Name(name=target_name, module=link.name.module)
+            else:
+                target_name = proptarget.name
+
             # A new specialized subclass of the link property is created for each
             # (source, property_name, target_atom) combination
             property.base = (property_qname,)
             prop_genname = proto.LinkProperty.generate_specialized_name(link.name,
-                                                                        proptarget.name,
+                                                                        target_name,
                                                                         property_qname)
+
             property.name = caos.Name(name=prop_genname, module=self.module.name)
             property.source = link
 
@@ -1119,7 +1132,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
             for property_name, property in link.pointers.items():
                 if property.target:
-                    if not isinstance(property.target, caos.types.ProtoAtom):
+                    if isinstance(property.target, str):
                         property.target = localschema.get(property.target, index_only=False)
 
                     constraints = getattr(property, 'constraints', None)
@@ -1275,6 +1288,21 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 else:
                     link.target = localschema.get(link._target)
 
+                target_pname = caos.Name('semantix.caos.builtins.target')
+                target = proto.LinkProperty(name=target_pname,
+                                            base=tuple(target_pname,),
+                                            _setdefaults_=False, _relaxrequired_=True)
+                target._target = link.target.name
+
+                source_pname = caos.Name('semantix.caos.builtins.source')
+                source = proto.LinkProperty(name=source_pname,
+                                            base=tuple(source_pname,),
+                                            _setdefaults_=False, _relaxrequired_=True)
+                source._target = link.source.name
+
+                props = {target_pname: target, source_pname: source}
+                self._read_properties_for_link(link, props, localschema)
+
         for concept in self.module('concept'):
             self._read_computables(concept, localschema)
 
@@ -1408,11 +1436,10 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                                 localschema.get(atom.name, type=proto.Atom)
                             except caos.MetaError:
                                 self._add_proto(localschema, atom)
-                            link.target = atom
 
-                        if link.mapping and link.mapping != caos.types.OneToOne:
-                            raise caos.MetaError('%s: links to atoms can only have a "1 to 1" mapping'
-                                                 % link_name)
+                            link.target = atom
+                            tgt_prop = link.pointers['semantix.caos.builtins.target']
+                            tgt_prop.target = atom
 
             if concept.base:
                 for base_name in concept.base:

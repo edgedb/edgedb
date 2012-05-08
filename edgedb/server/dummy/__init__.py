@@ -53,10 +53,7 @@ class Session(session.Session):
     def _delete_links(self, link_name, endpoints):
         raise NotImplementedError
 
-    def _load_link(self, link):
-        raise NotImplementedError
-
-    def load_link(self, link):
+    def _load_link(self, link, pointers):
         raise NotImplementedError
 
     def start_batch(self, batch):
