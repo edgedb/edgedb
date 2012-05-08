@@ -9,4 +9,3 @@
 from . import introspection
 from . import meta
 from . import deltalog
-from . import entities

@@ -2372,34 +2372,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     concept.add_index(proto.SourceIndex(expr=expr))
 
 
-    def load_links(self, this_concept, this_id, other_concepts=None, link_names=None,
-                                                                     reverse=False):
-
-        if link_names is not None and not isinstance(link_names, list):
-            link_names = [link_names]
-
-        if other_concepts is not None and not isinstance(other_concepts, list):
-            other_concepts = [other_concepts]
-
-        if not reverse:
-            source_id = this_id
-            target_id = None
-            source_concepts = [this_concept]
-            target_concepts = other_concepts
-        else:
-            source_id = None
-            target_id = this_id
-            target_concepts = [this_concept]
-            source_concepts = other_concepts
-
-        links = datasources.entities.EntityLinks(self.connection).fetch(
-                                        source_id=source_id, target_id=target_id,
-                                        target_concepts=target_concepts,
-                                        source_concepts=source_concepts,
-                                        link_names=link_names)
-
-        return links
-
     def normalize_domain_descr(self, d):
         constraints = []
 
