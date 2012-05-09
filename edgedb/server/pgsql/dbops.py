@@ -272,13 +272,19 @@ class Update(DMLOperation):
 
         if self.condition:
             cond = []
-            for field, value in self.condition:
+            for condval in self.condition:
+                if len(condval) == 3:
+                    field, op, value = condval
+                else:
+                    field, value = condval
+                    op = '='
+
                 field = e(field)
 
                 if value is None:
                     cond.append('%s IS NULL' % field)
                 else:
-                    cond.append('%s = $%d' % (field, i))
+                    cond.append('%s %s $%d' % (field, op, i))
                     vals.append(value)
                     i += 1
 

@@ -2632,4 +2632,5 @@ class UpgradeBackend(MetaCommand):
         backendinfotable = deltadbops.BackendInfoTable()
         record = backendinfotable.record()
         record.format_version = BACKEND_FORMAT_VERSION
-        return dbops.Merge(table=backendinfotable, record=record, condition=None)
+        condition = [('format_version', '<', BACKEND_FORMAT_VERSION)]
+        return dbops.Merge(table=backendinfotable, record=record, condition=condition)
