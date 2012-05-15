@@ -376,6 +376,7 @@ class LinkTable(MetaObjectTable):
             dbops.Column(name='source_id', type='integer'),
             dbops.Column(name='target_id', type='integer'),
             dbops.Column(name='mapping', type='char(2)', required=True),
+            dbops.Column(name='exposed_behaviour', type='text'),
             dbops.Column(name='required', type='boolean', required=True, default=False),
             dbops.Column(name='is_atom', type='boolean'),
             dbops.Column(name='readonly', type='boolean', required=True, default=False),

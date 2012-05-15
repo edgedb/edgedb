@@ -255,6 +255,12 @@ mapping:
                         enum: ["1*", "11", "**", "*1"]
                         default: null
 
+                    "exposed_behaviour": &LINK_EXPOSED_BEHAVIOUR
+                        type: str
+                        object: semantix.caos.backends.yaml.LinkExposedBehaviour
+                        enum: ["first-item", "set"]
+                        default: null
+
                     "properties":
                         type: map
                         default: {}
@@ -330,6 +336,8 @@ mapping:
                                             type: str
                                         "mapping":
                                             *LINK_MAPPING
+                                        "exposed_behaviour":
+                                            *LINK_EXPOSED_BEHAVIOUR
 
                     "indexes":
                         &INDEXES
@@ -405,6 +413,8 @@ mapping:
                                                   *POINTER_LOADING
                                               "mapping":
                                                   *LINK_MAPPING
+                                              "exposed_behaviour":
+                                                  *LINK_EXPOSED_BEHAVIOUR
                                               "constraints":
                                                   type: choice
                                                   choice:

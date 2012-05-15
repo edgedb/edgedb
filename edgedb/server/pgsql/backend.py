@@ -995,7 +995,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                        and link_name != 'semantix.caos.builtins.id' \
                                        and not isinstance(link_proto, caos.types.ProtoComputable) \
                                        and link_name in links:
-                    attrs[common.caos_name_to_pg_name(link_name)] = links[link_name]
+                    value = links[link_name]
+                    if isinstance(value, caos.types.NodeClass):
+                        # The singular atomic link will be represented as a selector if
+                        # it has exposed_behaviour of "set".
+                        value = value[0]
+                    attrs[common.caos_name_to_pg_name(link_name)] = value
 
             rec = table.record(**attrs)
 
@@ -1426,6 +1431,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         target = getattr(source.__class__, str(link_name))
         link_cls = target.as_link()
         link_proto = link_cls.__sx_prototype__
+
+        if link_proto.atomic() and link_proto.singular() and len(link_proto.pointers) <= 2:
+            return
+
         target_prop = link_proto.pointers['semantix.caos.builtins.target']
 
         source_col = common.caos_name_to_pg_name('semantix.caos.builtins.source')
@@ -1521,6 +1530,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     @debug
     def delete_links(self, link_name, endpoints, session):
         table = common.link_name_to_table_name(link_name)
+
+        link = getattr(next(iter(endpoints))[0].__class__, link_name).as_link()
+        link_proto = link.__sx_prototype__
+        if link_proto.atomic() and link_proto.singular() and len(link_proto.pointers) <= 2:
+            return
 
         complete_source_ids = [s.id for s, t in endpoints if t is None]
         partial_endpoints = [(s.id, t.id) for s, t in endpoints if t is not None]
@@ -1971,8 +1985,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 target = meta.get(r['target']) if r['target'] else None
 
             loading = caos.types.PointerLoading(r['loading']) if r['loading'] else None
+            exposed_behaviour = caos.types.LinkExposedBehaviour(r['exposed_behaviour']) \
+                                        if r['exposed_behaviour'] else None
             link = proto.Link(name=name, base=bases, source=source, target=target,
                                 mapping=caos.types.LinkMapping(r['mapping']),
+                                exposed_behaviour=exposed_behaviour,
                                 required=required,
                                 title=title, description=description,
                                 is_abstract=r['is_abstract'],

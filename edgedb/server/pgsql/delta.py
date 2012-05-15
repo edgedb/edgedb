@@ -32,7 +32,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 7
+BACKEND_FORMAT_VERSION = 8
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -2646,6 +2646,24 @@ class UpgradeBackend(MetaCommand):
         cmd.add_command(dbops.AlterTableRenameColumn(tabname, 'source_id', src_col))
         cmd.add_command(dbops.AlterTableRenameColumn(tabname, 'target_id', tgt_col))
 
+        cmd.execute(context)
+
+    def update_to_version_8(self, context):
+        """
+        Backend format 8 adds exposed_behaviour attribute to link description table.
+        """
+
+        links_table = deltadbops.LinkTable()
+
+        cond = dbops.ColumnExists(table_name=links_table.name, column_name='exposed_behaviour')
+
+        cmd = dbops.CommandGroup(neg_conditions=(cond,))
+
+        alter = dbops.AlterTable(links_table.name, )
+        column = dbops.Column(name='exposed_behaviour', type='text')
+        add_column = dbops.AlterTableAddColumn(column)
+        alter.add_operation(add_column)
+        cmd.add_command(alter)
         cmd.execute(context)
 
     @classmethod

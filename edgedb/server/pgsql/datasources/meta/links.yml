@@ -67,6 +67,7 @@ source: |
             l.name AS name,
             l.base AS base,
             l.mapping,
+            l.exposed_behaviour,
             l.required,
             l.title,
             l.description,

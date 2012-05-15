@@ -134,6 +134,16 @@ class LinkMapping(StrLangObject, adapts=caos.types.LinkMapping, ignore_aliases=T
         return str(data)
 
 
+class LinkExposedBehaviour(StrLangObject, adapts=caos.types.LinkExposedBehaviour,
+                                          ignore_aliases=True):
+    def __new__(cls, data):
+        return caos.types.LinkExposedBehaviour.__new__(cls, data)
+
+    @classmethod
+    def __sx_getstate__(cls, data):
+        return str(data)
+
+
 class PointerLoading(StrLangObject, adapts=caos.types.PointerLoading, ignore_aliases=True):
     def __new__(cls, data):
         return caos.types.PointerLoading.__new__(cls, data)
@@ -555,6 +565,7 @@ class LinkDef(Prototype, adapts=proto.Link):
                             is_abstract=data.get('abstract'), is_final=data.get('final'),
                             readonly=data.get('readonly'),
                             mapping=data.get('mapping'),
+                            exposed_behaviour=data.get('exposed_behaviour'),
                             loading=data.get('loading'),
                             default=default,
                             _setdefaults_=False, _relaxrequired_=True)
@@ -591,6 +602,9 @@ class LinkDef(Prototype, adapts=proto.Link):
 
         if data.mapping:
             result['mapping'] = data.mapping
+
+        if data.exposed_behaviour:
+            result['exposed_behaviour'] = data.exposed_behaviour
 
         if isinstance(data.target, proto.Atom) and data.target.automatic:
             result['constraints'] = list(itertools.chain.from_iterable(data.target.constraints.values()))
@@ -711,6 +725,7 @@ class SpecializedLink(LangObject):
             props = info['properties']
 
             link = proto.Link(name=default_name, target=None, mapping=info['mapping'],
+                              exposed_behaviour=info['exposed_behaviour'],
                               required=info['required'], title=info['title'],
                               description=info['description'], readonly=info['readonly'],
                               loading=info['loading'],
