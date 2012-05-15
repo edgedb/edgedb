@@ -743,7 +743,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                         link = tree.ast.EntityLink(source=t, target=target_set,
                                                                    direction=dir,
                                                                    link_proto=link_proto,
-                                                                   anchor=link_anchor)
+                                                                   anchor=link_anchor,
+                                                                   users={context.current.location})
 
                                         t.disjunction.update(link)
                                         target_set.rlink = link
@@ -763,17 +764,36 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                                     newtips[target] = set()
                                     for t in tip:
-                                        link = tree.ast.EntityLink(source=t, target=None,
+                                        target_set = tree.ast.EntitySet()
+                                        target_set.concept = target
+                                        target_set.id = tree.transformer.LinearPath(t.id)
+                                        target_set.id.add(link_proto, dir,
+                                                          target_set.concept)
+                                        target_set.users.add(context.current.location)
+
+                                        link = tree.ast.EntityLink(source=t, target=target_set,
                                                                    link_proto=link_proto,
                                                                    direction=dir,
-                                                                   anchor=link_anchor)
+                                                                   anchor=link_anchor,
+                                                                   users={context.current.location})
+
+                                        target_set.rlink = link
+
                                         anchor_links.append(link)
 
                                         atomref_id = tree.transformer.LinearPath(t.id)
                                         atomref_id.add(link_item, dir, target)
-                                        atomref = tree.ast.AtomicRefSimple(name=linkset_proto.normal_name(),
-                                                                           ref=t, id=atomref_id,
-                                                                           rlink=link)
+
+                                        if not link_proto.singular():
+                                            ptr_name = caos_name.Name('semantix.caos.builtins.target')
+                                            atomref = tree.ast.LinkPropRefSimple(name=ptr_name,
+                                                                                 ref=link,
+                                                                                 id=atomref_id)
+                                            t.disjunction.update(link)
+                                        else:
+                                            atomref = tree.ast.AtomicRefSimple(name=linkset_proto.normal_name(),
+                                                                               ref=t, id=atomref_id,
+                                                                               rlink=link)
                                         newtips[target].add(atomref)
 
                                 else:
@@ -818,6 +838,9 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                 link_proto = link.link_proto
                                 id = tree.transformer.LinearPath([None])
                                 id.add(link_proto, caos_types.OutboundDirection, None)
+                            elif isinstance(entset, tree.ast.LinkPropRefSimple):
+                                link = entset.ref
+                                id = entset.id
                             else:
                                 link = entset.rlink
                                 id = entset.id

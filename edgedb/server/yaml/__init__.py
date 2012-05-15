@@ -809,8 +809,21 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         for link in links:
             link.materialize(localschema)
 
+        csql_expr = caosql_expr.CaosQLExpression(localschema)
+
         for concept in concepts:
             concept.setdefaults()
+
+            try:
+                for index in concept.own_indexes:
+                    csql_expr.check_source_atomic_expr(index.tree, concept)
+
+                self.normalize_pointer_defaults(concept, localschema)
+                self.normalize_computables(concept, localschema)
+
+            except caosql_exc.CaosQLReferenceError as e:
+                index_context = lang_context.SourceContext.from_object(index)
+                raise MetaError(e.args[0], context=index_context) from e
 
         for concept in concepts:
             concept.materialize(localschema)
@@ -1450,20 +1463,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
         concepts = list(filter(lambda c: c.name.module == self.module.name,
                                topological.normalize(g, merger=proto.Concept.merge)))
-
-        csql_expr = caosql_expr.CaosQLExpression(localschema)
-
-        try:
-            for concept in concepts:
-                for index in concept.own_indexes:
-                    csql_expr.check_source_atomic_expr(index.tree, concept)
-
-                self.normalize_pointer_defaults(concept, localschema)
-                self.normalize_computables(concept, localschema)
-
-        except caosql_exc.CaosQLReferenceError as e:
-            index_context = lang_context.SourceContext.from_object(index)
-            raise MetaError(e.args[0], context=index_context) from e
 
         return concepts
 

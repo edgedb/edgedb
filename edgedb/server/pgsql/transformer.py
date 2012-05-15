@@ -709,6 +709,10 @@ class CaosTreeTransformer(CaosExprTransformer):
         result = self._process_expr(context, generator)
         if isinstance(result, pgsql.ast.IgnoreNode):
             result = None
+        elif isinstance(result, pgsql.ast.FieldRefNode):
+            result = pgsql.ast.UnaryOpNode(operand=pgsql.ast.NullTestNode(expr=result),
+                                           op=ast.ops.NOT)
+
         context.current.location = None
         return result
 
@@ -1720,7 +1724,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         id_field = common.caos_name_to_pg_name('semantix.caos.builtins.id')
 
-        if caos_path_tip:
+        if caos_path_tip and isinstance(caos_path_tip.concept, caos_types.ProtoConcept):
             concept_table = self._relation_from_concepts(context, caos_path_tip)
 
             bond = pgsql.ast.FieldRefNode(table=concept_table, field=id_field,
@@ -1828,7 +1832,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 #
                 self._pull_fieldrefs(context, step_cte, sql_path_tip)
 
-        if caos_path_tip:
+        if caos_path_tip and isinstance(caos_path_tip.concept, caos_types.ProtoConcept):
             # Process references to atoms.
             #
             atomrefs = {'semantix.caos.builtins.id'} | \
@@ -1994,7 +1998,13 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                 maptable = link_ref_map[link_proto]
 
-                colname = common.caos_name_to_pg_name(propref.name)
+                prop_name = propref.name
+                if link.target is not None \
+                        and isinstance(link.target.concept, caos_types.ProtoAtom) \
+                        and propref.name == 'semantix.caos.builtins.target':
+                    prop_name += '@atom'
+
+                colname = common.caos_name_to_pg_name(prop_name)
 
                 fieldref = pgsql.ast.FieldRefNode(table=maptable, field=colname,
                                                   origin=maptable, origin_field=colname)
@@ -2047,7 +2057,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         if is_root:
             step_cte.fromlist.append(fromnode)
 
-        if caos_path_tip:
+        if caos_path_tip and isinstance(caos_path_tip.concept, caos_types.ProtoConcept):
             step_cte._source_graph = caos_path_tip
 
             has_bonds = step_cte.bonds(caos_path_tip.concept)

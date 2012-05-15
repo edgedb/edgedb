@@ -879,6 +879,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         for prop_name in pointers:
             targets.append(common.qname('l', common.caos_name_to_pg_name(prop_name)))
 
+        source_col = common.caos_name_to_pg_name('semantix.caos.builtins.source')
+        target_prop = proto_link.pointers['semantix.caos.builtins.target']
+        target_col, _ = types.get_pointer_column_info(session.proto_schema, target_prop)
+
         query = '''SELECT
                        {targets}
                    FROM
@@ -888,19 +892,19 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                        AND l.{target_col} IS NOT DISTINCT FROM $2
                        AND l.link_type_id = $3
                 '''.format(targets=', '.join(targets), table=table,
-                           source_col=self.link_source_colname,
-                           target_col=self.link_target_colname)
+                           source_col=common.quote_ident(source_col),
+                           target_col=common.quote_ident(target_col))
 
         ps = session.get_connection().prepare(query)
         if isinstance(target.__class__, caos.types.AtomClass):
-            target_id = None
+            target_value = target
         else:
-            target_id = target.id
+            target_value = target.id
 
         link_map = self.get_link_map(session)
         link_id = link_map[proto_link.name]
 
-        result = ps(source.id, target_id, link_id)
+        result = ps(source.id, target_value, link_id)
 
         if result:
             result = result[0]
@@ -986,11 +990,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             attrs = {}
             for link_name, link_cls in cls.iter_pointers():
-                if isinstance(link_cls, caos.types.AtomClass) and \
-                                                    link_name != 'semantix.caos.builtins.id':
-                    if not isinstance(link_cls._class_metadata.link, caos.types.ComputableClass) \
-                                                                        and link_name in links:
-                        attrs[common.caos_name_to_pg_name(link_name)] = links[link_name]
+                link_proto = link_cls._class_metadata.link.__sx_prototype__
+                if link_proto.atomic() and link_proto.singular() \
+                                       and link_name != 'semantix.caos.builtins.id' \
+                                       and not isinstance(link_proto, caos.types.ProtoComputable) \
+                                       and link_name in links:
+                    attrs[common.caos_name_to_pg_name(link_name)] = links[link_name]
 
             rec = table.record(**attrs)
 
@@ -1435,6 +1440,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         context = delta_cmds.CommandContext(session.get_connection(), session)
 
+        target_is_concept = not link_proto.atomic()
+
         for target in targets:
             """LOG [caos.sync]
             print('Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
@@ -1464,10 +1471,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             setattr(rec, source_col, source.id)
             rec.link_type_id = link_map[full_link_name]
 
-            if not isinstance(target, caos.atom.Atom):
+            if target_is_concept:
                 setattr(rec, target_col, target.id)
             else:
-                setattr(rec, target_col, None)
+                setattr(rec, target_col, target)
 
             if merge:
                 condition = [(source_col, getattr(rec, source_col)),
@@ -1903,7 +1910,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         links_list = datasources.meta.links.ConceptLinks(self.connection).fetch()
         links_list = collections.OrderedDict((caos.Name(r['name']), r) for r in links_list)
 
-        concept_constraints = self._constr_mech.get_table_atom_constraints(self.connection)
+        atom_constraints = self._constr_mech.get_table_atom_constraints(self.connection)
         ptr_constraints = self._constr_mech.get_table_ptr_constraints(self.connection)
 
         concept_indexes = self.read_search_indexes()
@@ -1934,8 +1941,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             required = r['required']
 
             if r['source_id'] and r['is_atom']:
-                target, required = self.read_pointer_target_column(meta, source, bases[0],
-                                                                   concept_constraints)
+                if r['mapping'] == caos.types.OneToMany:
+                    link_source = proto.Link(name=bases[0], _relaxrequired_=True)
+                    ptr_name = caos.Name('semantix.caos.builtins.target@atom')
+                else:
+                    link_source = source
+                    ptr_name = bases[0]
+
+                target, required = self.read_pointer_target_column(meta, link_source, ptr_name,
+                                                                   atom_constraints)
 
                 concept_schema, concept_table = common.concept_name_to_table_name(source.name,
                                                                                   catenate=False)
@@ -2014,9 +2028,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         expr = caosql_codegen.CaosQLSourceGenerator.to_source(caosql_tree)
                         link.add_index(proto.SourceIndex(expr=expr))
             elif link.atomic():
-                source_table_name = common.get_table_name(link.source, catenate=False)
+                source_table_name, col_name, col_type = types.get_pointer_storage_info(meta, link)
                 cols = self.get_table_columns(source_table_name)
-                col_name = common.caos_name_to_pg_name(link.normal_name())
                 col = cols[col_name]
                 self.verify_ptr_const_defaults(meta, link.name, link.target,
                                                col['column_default'], link.default)

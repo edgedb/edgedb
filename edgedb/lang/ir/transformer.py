@@ -339,9 +339,15 @@ class TreeTransformer:
     def add_path_user(self, path, user):
         while path:
             path.users.add(user)
-            if path.rlink:
-                path.rlink.users.add(user)
-                path = path.rlink.source
+
+            if isinstance(path, caos_ast.EntitySet):
+                rlink = path.rlink
+            else:
+                rlink = path
+
+            if rlink:
+                rlink.users.add(user)
+                path = rlink.source
             else:
                 path = None
         return path
@@ -371,7 +377,8 @@ class TreeTransformer:
                     target_proto = link.target
                     id = LinearPath(ref.id)
                     id.add(link_proto, caos_types.OutboundDirection, target_proto)
-                    el = caos_ast.AtomicRefSimple(ref=ref, name=link_name, id=id)
+                    el = caos_ast.AtomicRefSimple(ref=ref, name=link_name, id=id,
+                                                  caoslink=link_proto)
 
                     if link.loading == caos_types.LazyLoading:
                         el = caos_ast.Constant(value=None,

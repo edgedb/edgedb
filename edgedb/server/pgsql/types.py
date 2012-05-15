@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2010 Sprymix Inc.
+# Copyright (c) 2010-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -125,18 +125,33 @@ def pg_type_from_atom(meta, atom, topbase=False):
 
 
 def get_pointer_column_info(proto_schema, pointer):
-    assert pointer.singular(), "only singular pointers can be stored in a column"
-
     ptr_name = pointer.normal_name()
 
     if pointer.atomic():
         col_type = pg_type_from_atom(proto_schema, pointer.target)
 
         if ptr_name == 'semantix.caos.builtins.target':
-            ptr_name += '@{}'.format(col_type)
+            ptr_name += '@atom'
     else:
         col_type = 'uuid'
 
     col_name = common.caos_name_to_pg_name(ptr_name)
 
     return col_name, col_type
+
+
+def get_pointer_storage_info(proto_schema, pointer):
+    assert not pointer.generic(), "only specialized pointers can be stored"
+
+    col_type = pg_type_from_atom(proto_schema, pointer.target)
+
+    if not pointer.atomic() or not pointer.singular():
+        table = common.get_table_name(pointer, catenate=False)
+        col_name = 'semantix.caos.builtins.target'
+        if pointer.atomic():
+            col_name += '@atom'
+    else:
+        table = common.get_table_name(pointer.source, catenate=False)
+        col_name = common.caos_name_to_pg_name(pointer.normal_name())
+
+    return table, col_name, col_type

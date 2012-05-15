@@ -1466,7 +1466,7 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
         #
         self.provide_table(link, meta, context)
 
-        if not link.generic() and link.atomic():
+        if not link.generic() and link.atomic() and link.singular():
             concept = context.get(delta_cmds.ConceptCommandContext)
             assert concept, "Link command must be run in Concept command context"
 
