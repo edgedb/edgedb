@@ -19,6 +19,9 @@ class UuidFeature(deltadbops.Feature):
     def __init__(self, schema='caos'):
         super().__init__(name='uuid', schema=schema)
 
+    def get_extension_name(self):
+        return 'uuid-ossp'
+
 
 class HstoreFeature(deltadbops.Feature):
     source = '%(pgpath)s/contrib/hstore.sql'

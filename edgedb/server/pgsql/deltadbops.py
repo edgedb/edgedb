@@ -495,7 +495,20 @@ class Feature:
         self.name = name
         self.schema = schema
 
+    def get_extension_name(self):
+        return self.name
+
     def code(self, context):
+        pg_ver = context.db.version_info
+
+        if pg_ver[:2] <= (9, 0):
+            return self._manual_extension_code(context)
+        else:
+            name = common.quote_ident(self.get_extension_name())
+            schema = common.quote_ident(self.schema)
+            return 'CREATE EXTENSION {} WITH SCHEMA {}'.format(name, schema)
+
+    def _manual_extension_code(self, context):
         source = self.get_source(context)
 
         with open(source, 'r') as f:
