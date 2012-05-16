@@ -14,6 +14,7 @@ import postgresql
 from postgresql.python import socket as pg_socket
 from postgresql.driver import pq3
 from postgresql import types as pg_types
+from postgresql.types.io import lib as pg_types_io_lib
 from postgresql.string import quote_ident
 
 from semantix.caos.objects import numeric, string
@@ -70,14 +71,37 @@ class TypeIO(pq3.TypeIO):
         else:
             return None
 
-    def RowTypeFactory(self, attribute_map={}, _Row=pg_types.Row.from_sequence,
-                       composite_relid = None):
+    def array_io_factory(self, pack_element, unpack_element, typoid, hasbin_input, hasbin_output,
+                               array_unpack=pg_types_io_lib.array_unpack):
+        pack_array, unpack_array, atype = super().array_io_factory(pack_element, unpack_element,
+                                                                   typoid,
+                                                                   hasbin_input, hasbin_output)
 
         session = self.get_session()
-        if session:
+        if session is not None:
+            backend = session.backend
+            source = backend.source_name_from_relid(int(typoid))
+            if source is not None and hasbin_output:
+                # Override unpacking of arrays containing source node records to filter
+                # out None values.  This is necessary due to the absense of support for FILTER
+                # in aggregates in Postgres.  In absolute majority of calls to array_agg(<concept>),
+                # None values in the resulting array are an unndesired side effect of an outer join.
+                #
+                def unpack_array(data, array_from_parts = self.array_from_parts):
+                    flags, typoid, dims, lbs, elements = array_unpack(data)
+                    elements = tuple(unpack_element(x) for x in elements if x is not None)
+                    dims[0] = len(elements)
+                    return array_from_parts((elements, dims, lbs))
+
+        return (pack_array, unpack_array, atype)
+
+    def RowTypeFactory(self, attribute_map={}, _Row=pg_types.Row.from_sequence,
+                       composite_relid = None):
+        session = self.get_session()
+        if session is not None:
             backend = session.backend
             source = backend.source_name_from_relid(composite_relid)
-            if source:
+            if source is not None:
                 return partial(backend.entity_from_row, session, source, attribute_map)
         return partial(_Row, attribute_map)
 

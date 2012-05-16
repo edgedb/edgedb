@@ -544,6 +544,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 t = link_tables.get(link_table_name)
                 if t:
                     table_id_to_proto_name_cache[t['oid']] = link_name
+                    table_id_to_proto_name_cache[t['typoid']] = link_name
                     proto_name_to_table_id_cache[link_name] = t['typoid']
 
         tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
@@ -563,6 +564,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 raise caos.MetaError(msg, details=details)
 
             table_id_to_proto_name_cache[table['oid']] = name
+            table_id_to_proto_name_cache[table['typoid']] = name
             proto_name_to_table_id_cache[name] = table['typoid']
 
         return table_id_to_proto_name_cache, proto_name_to_table_id_cache

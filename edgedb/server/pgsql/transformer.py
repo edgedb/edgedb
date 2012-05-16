@@ -298,10 +298,17 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
 
     def _process_record(self, context, expr, cte):
         elements = [self._process_expr(context, e, cte) for e in expr.elements]
-        elements = self._sort_record(context, elements, expr.concept)
+        idref, elements = self._sort_record(context, elements, expr.concept)
         type = pgsql.ast.TypeNode(name=common.concept_name_to_table_name(expr.concept.name))
         result = pgsql.ast.TypeCastNode(expr=pgsql.ast.RowExprNode(args=elements),
                                         type=type)
+
+        when_cond = pgsql.ast.NullTestNode(expr=idref)
+
+        when_expr = pgsql.ast.CaseWhenNode(expr=when_cond,
+                                           result=pgsql.ast.ConstantNode(value=None))
+        result = pgsql.ast.CaseExprNode(args=[when_expr], default=result)
+
         return result
 
 
@@ -1366,8 +1373,23 @@ class CaosTreeTransformer(CaosExprTransformer):
         data_backend = context.current.session.backend
         cols = data_backend.get_table_columns(table_name, cache='always')
 
-        elts = {e.origin_field: e for e in elements}
-        return [elts[col] for col in cols]
+        elts = {}
+
+        idref = None
+        idcol = common.caos_name_to_pg_name('semantix.caos.builtins.id')
+
+        for e in elements:
+            if isinstance(e, pgsql.ast.TypeCastNode):
+                fieldref = e.expr
+            else:
+                fieldref = e
+
+            elts[fieldref.origin_field] = e
+
+            if fieldref.origin_field == idcol:
+                idref = fieldref
+
+        return idref, [elts[col] for col in cols]
 
     def _process_function(self, context, expr, cte):
         if expr.name == ('search', 'rank'):

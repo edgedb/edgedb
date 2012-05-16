@@ -346,7 +346,7 @@ class TreeTransformer:
                 path = None
         return path
 
-    def entityref_to_idref(self, expr, schema, full_record=False):
+    def entityref_to_record(self, expr, schema):
         p = next(iter(expr.paths))
         if isinstance(p, caos_ast.EntitySet):
             concepts = {c.concept for c in expr.paths}
@@ -357,45 +357,53 @@ class TreeTransformer:
             concept = p.concept
             ref = p if len(expr.paths) == 1 else expr
 
-            if full_record:
-                if concept.is_virtual:
-                    ptrs = concept.get_children_common_pointers(schema)
-                    ptrs = {ptr.normal_name(): ptr for ptr in ptrs}
-                    ptrs.update(concept.pointers)
-                else:
-                    ptrs = concept.pointers
-
-                for link_name, link in ptrs.items():
-                    if link.atomic() and not isinstance(link, caos_types.ProtoComputable):
-                        link_proto = schema.get(link_name)
-                        target_proto = link.target
-                        id = LinearPath(ref.id)
-                        id.add(link_proto, caos_types.OutboundDirection, target_proto)
-                        el = caos_ast.AtomicRefSimple(ref=ref, name=link_name, id=id)
-
-                        if link.loading == caos_types.LazyLoading:
-                            el = caos_ast.Constant(value=None,
-                                                   type=target_proto,
-                                                   substitute_for=el.name)
-
-                        elements.append(el)
-
-                metaref = caos_ast.MetaRef(name='id', ref=ref)
-
-                for p in expr.paths:
-                    p.atomrefs.update((e for e in elements if isinstance(e, caos_ast.AtomicRefSimple)))
-                    p.metarefs.add(metaref)
-
-                elements.append(metaref)
-
-                expr = caos_ast.Record(elements=elements, concept=concept)
+            if concept.is_virtual:
+                ptrs = concept.get_children_common_pointers(schema)
+                ptrs = {ptr.normal_name(): ptr for ptr in ptrs}
+                ptrs.update(concept.pointers)
             else:
-                link_name = caos_name.Name('semantix.caos.builtins.id')
-                link_proto = schema.get(link_name)
-                target_proto = link_proto.target
-                id = LinearPath(ref.id)
-                id.add(link_proto, caos_types.OutboundDirection, target_proto)
-                expr = caos_ast.AtomicRefSimple(ref=ref, name=link_name, id=id)
+                ptrs = concept.pointers
+
+            for link_name, link in ptrs.items():
+                if link.atomic() and not isinstance(link, caos_types.ProtoComputable):
+                    link_proto = schema.get(link_name)
+                    target_proto = link.target
+                    id = LinearPath(ref.id)
+                    id.add(link_proto, caos_types.OutboundDirection, target_proto)
+                    el = caos_ast.AtomicRefSimple(ref=ref, name=link_name, id=id)
+
+                    if link.loading == caos_types.LazyLoading:
+                        el = caos_ast.Constant(value=None,
+                                               type=target_proto,
+                                               substitute_for=el.name)
+
+                    elements.append(el)
+
+            metaref = caos_ast.MetaRef(name='id', ref=ref)
+
+            for p in expr.paths:
+                p.atomrefs.update((e for e in elements if isinstance(e, caos_ast.AtomicRefSimple)))
+                p.metarefs.add(metaref)
+
+            elements.append(metaref)
+
+            expr = caos_ast.Record(elements=elements, concept=concept)
+
+        return expr
+
+    def entityref_to_idref(self, expr, schema):
+        p = next(iter(expr.paths))
+        if isinstance(p, caos_ast.EntitySet):
+            concepts = {c.concept for c in expr.paths}
+            assert len(concepts) == 1
+
+            ref = p if len(expr.paths) == 1 else expr
+            link_name = caos_name.Name('semantix.caos.builtins.id')
+            link_proto = schema.get(link_name)
+            target_proto = link_proto.target
+            id = LinearPath(ref.id)
+            id.add(link_proto, caos_types.OutboundDirection, target_proto)
+            expr = caos_ast.AtomicRefSimple(ref=ref, name=link_name, id=id, caoslink=link_proto)
 
         return expr
 
@@ -2103,6 +2111,7 @@ class TreeTransformer:
     def get_expr_type(self, expr, schema):
         if isinstance(expr, caos_ast.MetaRef):
             result = schema.get('semantix.caos.builtins.str')
+
         elif isinstance(expr, caos_ast.AtomicRefSimple):
             if isinstance(expr.ref, caos_ast.PathCombination):
                 targets = [t.concept for t in expr.ref.paths]
@@ -2110,18 +2119,15 @@ class TreeTransformer:
             else:
                 concept = expr.ref.concept
 
-            if expr.name == 'semantix.caos.builtins.id':
-                result = concept
-            else:
-                sources, outbound, inbound = concept.resolve_pointer(schema, expr.name,
-                                                                    look_in_children=True)
-                assert sources, '"%s" is not a link of "%s"' % (expr.name, concept.name)
-                targets = [l.target for linkset in outbound for l in linkset]
+            sources, outbound, inbound = concept.resolve_pointer(schema, expr.name,
+                                                                look_in_children=True)
+            assert sources, '"%s" is not a link of "%s"' % (expr.name, concept.name)
+            targets = [l.target for linkset in outbound for l in linkset]
 
-                if len(targets) == 1:
-                    result = targets[0]
-                else:
-                    result = caos_utils.get_prototype_nearest_common_ancestor(targets, schema)
+            if len(targets) == 1:
+                result = targets[0]
+            else:
+                result = caos_utils.get_prototype_nearest_common_ancestor(targets, schema)
 
         elif isinstance(expr, caos_ast.LinkPropRefSimple):
             if isinstance(expr.ref, caos_ast.PathCombination):

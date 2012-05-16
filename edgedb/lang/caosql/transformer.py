@@ -463,7 +463,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             left = self._process_expr(context, expr.left)
             right = self._process_expr(context, expr.right)
 
-            # The entityref_to_idref transform must be reverted for typecheck ops
+            # The entityref_to_record transform must be reverted for typecheck ops
             if isinstance(expr.op, ast.ops.EquivalenceOperator) \
                     and isinstance(left, tree.ast.AtomicRefSimple) \
                     and left.name == 'semantix.caos.builtins.id' \
@@ -486,7 +486,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
             if (context.current.location not in {'generator', 'selector'} \
                             and not context.current.in_func_call) or context.current.in_aggregate:
-                node = self.entityref_to_idref(node, self.proto_schema)
+                node = self.entityref_to_record(node, self.proto_schema)
 
         elif isinstance(expr, qlast.ConstantNode):
             if expr.index is not None:
@@ -894,7 +894,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 if isinstance(expr, tree.ast.Disjunction):
                     path = next(iter(expr.paths))
                     if isinstance(path, tree.ast.EntitySet):
-                        expr = self.entityref_to_idref(expr, self.proto_schema, full_record=True)
+                        expr = self.entityref_to_record(expr, self.proto_schema)
 
                 t = tree.ast.SelectorExpr(expr=expr, **params)
                 selector.append(t)
