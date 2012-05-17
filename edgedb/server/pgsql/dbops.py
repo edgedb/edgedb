@@ -71,7 +71,6 @@ class Command(BaseCommand):
         self.neg_conditions = neg_conditions or set()
         self.priority = priority
 
-    @debug
     def execute(self, context):
         ok = self.check_conditions(context, self.conditions, True) and \
              self.check_conditions(context, self.neg_conditions, False)
@@ -79,29 +78,33 @@ class Command(BaseCommand):
         result = None
         if ok:
             code, vars = self.get_code_and_vars(context)
+            result = self.execute_code(context, code, vars)
+        return result
 
-            if code:
-                """LOG [caos.delta.execute] Sync command code:
-                print(code, vars)
-                """
+    @debug
+    def execute_code(self, context, code, vars):
+        """LOG [caos.delta.execute] Sync command code:
+        print(code, vars)
+        """
 
-                """LINE [caos.delta.execute] EXECUTING
-                repr(self)
-                """
+        """LINE [caos.delta.execute] EXECUTING
+        repr(self)
+        """
 
-                if vars is not None:
-                    result = context.db.prepare(code)(*vars)
-                else:
-                    result = context.db.execute(code)
+        if vars is not None:
+            result = context.db.prepare(code)(*vars)
+        else:
+            result = context.db.execute(code)
 
-                """LINE [caos.delta.execute] EXECUTION RESULT
-                repr(result)
-                """
+        """LINE [caos.delta.execute] EXECUTION RESULT
+        repr(result)
+        """
 
-                extra = self.extra(context)
-                if extra:
-                    for cmd in extra:
-                        cmd.execute(context)
+        extra = self.extra(context)
+        if extra:
+            for cmd in extra:
+                cmd.execute(context)
+
         return result
 
     @debug
@@ -147,9 +150,19 @@ class CommandGroup(Command):
              self.check_conditions(context, self.neg_conditions, False)
 
         if ok:
-            result = [c.execute(context) for c in self.commands]
+            code, vars = self.get_code_and_vars(context)
+            if code:
+                result = self.execute_code(context, code, vars)
+            else:
+                result = self.execute_commands(context)
 
         return result
+
+    def execute_commands(self, context):
+        return [c.execute(context) for c in self.commands]
+
+    def get_code(self, context):
+        return None
 
     @classmethod
     def as_markup(cls, self, *, ctx):
@@ -163,8 +176,58 @@ class CommandGroup(Command):
     def __iter__(self):
         return iter(self.commands)
 
+    def __call__(self, typ):
+        return filter(lambda i: isinstance(i, typ), self.commands)
+
     def __len__(self):
         return len(self.commands)
+
+
+class CompositeCommandGroup(CommandGroup):
+    def code(self, context):
+        if self.commands:
+            prefix_code = self.prefix_code(context)
+            subcommands_code = self.subcommands_code(context)
+
+            if subcommands_code:
+                return prefix_code + ' ' + subcommands_code
+        return False
+
+    def prefix_code(self):
+        return ''
+
+    def subcommands_code(self, context):
+        cmds = []
+        for cmd in self.commands:
+            if isinstance(cmd, tuple):
+                cond = True
+                if cmd[1]:
+                    cond = cond and self.check_conditions(context, cmd[1], True)
+                if cmd[2]:
+                    cond = cond and self.check_conditions(context, cmd[2], False)
+                if cond:
+                    cmds.append(cmd[0].code(context))
+            else:
+                cmds.append(cmd.code(context))
+        if cmds:
+            return ', '.join(cmds)
+        else:
+            return False
+
+    def execute_commands(self, context):
+        # Sub-commands are always executed as part of code()
+        return None
+
+    def extra(self, context):
+        extra = []
+        for cmd in self.commands:
+            if isinstance(cmd, tuple):
+                cmd = cmd[0]
+            cmd_extra = cmd.extra(context, self)
+            if cmd_extra:
+                extra.extend(cmd_extra)
+
+        return extra
 
 
 class DDLOperation(Command):
@@ -589,20 +652,9 @@ class CompositeType(CompositeDBObject):
         return self.__columns
 
 
-class TypeExists(Condition):
-    def __init__(self, name):
-        self.name = name
-
-    def code(self, context):
-        code = '''SELECT
-                        t.oid
-                    FROM
-                        pg_catalog.pg_type t
-                        INNER JOIN pg_catalog.pg_namespace ns ON t.typnamespace = ns.oid
-                    WHERE
-                        t.typname = $2 and ns.nspname = $1'''
-        return code, self.name
-
+#
+# ------------------------------------------ Schemas ----------------------------------------------
+#
 
 class SchemaExists(Condition):
     def __init__(self, name):
@@ -649,6 +701,10 @@ class SchemaObjectOperation(DDLOperation):
     def __repr__(self):
         return '<caos.sync.%s %s>' % (self.__class__.__name__, self.name)
 
+
+#
+# ----------------------------------------- Sequences ---------------------------------------------
+#
 
 class CreateSequence(SchemaObjectOperation):
     def __init__(self, name):
@@ -722,6 +778,10 @@ class DropSequence(SchemaObjectOperation):
         return 'DROP SEQUENCE %s' % common.qname(*self.name)
 
 
+#
+# ----------------------------------------- Domains  ----------------------------------------------
+#
+
 class DomainExists(Condition):
     def __init__(self, name):
         self.name = name
@@ -764,11 +824,6 @@ class RenameDomain(SchemaObjectOperation):
                         AND ns.nspname = $4
                         AND t.typtype = 'd'
                ''', [self.new_name[1], self.new_name[0], self.name[1], self.name[0]]
-
-
-class DropDomain(SchemaObjectOperation):
-    def code(self, context):
-        return 'DROP DOMAIN %s' % common.qname(*self.name)
 
 
 class AlterDomain(DDLOperation):
@@ -835,144 +890,72 @@ class AlterDomainAddConstraint(AlterDomainAlterConstraint):
         return code
 
 
-class TableExists(Condition):
-    def __init__(self, name):
-        self.name = name
+class DropDomain(SchemaObjectOperation):
+    def code(self, context):
+        return 'DROP DOMAIN %s' % common.qname(*self.name)
+
+
+#
+# -------------------------------------- Composite objects ----------------------------------------
+#
+
+class CompositeAttributeCommand:
+    def __init__(self, attribute):
+        self.attribute = attribute
+
+    def __repr__(self):
+        return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__, self.attribute)
+
+
+class AlterCompositeAddAttribute(CompositeAttributeCommand):
+    def code(self, context):
+        return 'ADD {} {}'.format(self.get_attribute_term(), self.attribute.code(context))
+
+    def extra(self, context, alter_type):
+        return self.attribute.extra(context, alter_type)
+
+
+class AlterCompositeDropAttribute(CompositeAttributeCommand):
+    def code(self, context):
+        attrname = common.qname(self.attribute.name)
+        return 'DROP {} {}'.format(self.get_attribute_term(), attrname)
+
+
+class AlterCompositeAlterAttributeType:
+    def __init__(self, attribute_name, new_type):
+        self.attribute_name = attribute_name
+        self.new_type = new_type
 
     def code(self, context):
-        code = '''SELECT
-                        tablename
-                    FROM
-                        pg_catalog.pg_tables
-                    WHERE
-                        schemaname = $1 AND tablename = $2'''
-        return code, self.name
+        attrterm = self.get_attribute_term()
+        attrname = common.quote_ident(str(self.attribute_name))
+        return 'ALTER {} {} SET DATA TYPE {}'.format(attrterm, attrname, self.new_type)
+
+    def __repr__(self):
+        return '<%s.%s "%s" to %s>' % (self.__class__.__module__, self.__class__.__name__,
+                                       self.attribute_name, self.new_type)
 
 
-class TableInherits(Condition):
-    def __init__(self, name, parent_name):
-        self.name = name
-        self.parent_name = parent_name
-
-    def code(self, context):
-        code = '''SELECT
-                        c.relname
-                    FROM
-                        pg_class c
-                        INNER JOIN pg_namespace ns ON ns.oid = c.relnamespace
-                        INNER JOIN pg_inherits i ON i.inhrelid = c.oid
-                        INNER JOIN pg_class pc ON i.inhparent = pc.oid
-                        INNER JOIN pg_namespace pns ON pns.oid = pc.relnamespace
-                    WHERE
-                        ns.nspname = $1 AND c.relname = $2
-                        AND pns.nspname = $3 AND pc.relname = $4
-               '''
-        return code, self.name + self.parent_name
-
-
-class CreateTable(SchemaObjectOperation):
-    def __init__(self, table, temporary=False, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__(table.name, conditions=conditions, neg_conditions=neg_conditions,
-                         priority=priority)
-        self.table = table
-        self.temporary = temporary
+class AlterCompositeRenameAttribute:
+    def __init__(self, name, old_attr_name, new_attr_name):
+        super().__init__(name)
+        self.old_attr_name = old_attr_name
+        self.new_attr_name = new_attr_name
 
     def code(self, context):
-        elems = [c.code(context) for c in self.table.columns(only_self=True)]
-        elems += [c.code(context) for c in self.table.constraints]
-
-        name = common.qname(*self.table.name)
-        cols = ', '.join(c for c in elems)
-        temp = 'TEMPORARY ' if self.temporary else ''
-
-        code = 'CREATE %sTABLE %s (%s)' % (temp, name, cols)
-
-        if self.table.bases:
-            code += ' INHERITS (' + ','.join(common.qname(*b) for b in self.table.bases) + ')'
-
+        code = super().prefix_code(context)
+        attrterm = self.get_attribute_term()
+        old_attr_name = common.quote_ident(str(self.old_attr_name))
+        new_attr_name = common.quote_ident(str(self.new_attr_name))
+        code += ' RENAME {} {} TO {}'.format(attrterm, old_attr_name, new_attr_name)
         return code
 
 
-class DropTable(SchemaObjectOperation):
-    def code(self, context):
-        return 'DROP TABLE %s' % common.qname(*self.name)
+#
+# -------------------------------------- Composite types ------------------------------------------
+#
 
-
-class AlterTableBase(DDLOperation):
-    def __init__(self, name, contained=False, **kwargs):
-        super().__init__(**kwargs)
-        self.name = name
-        self.contained = contained
-
-    def code(self, context):
-        return 'ALTER TABLE %s%s' % ('ONLY ' if self.contained else '', common.qname(*self.name))
-
-    def __repr__(self):
-        return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__, self.name)
-
-
-class AlterTableFragment(DDLOperation):
-    pass
-
-
-class AlterTable(AlterTableBase):
-    def __init__(self, name, **kwargs):
-        super().__init__(name, **kwargs)
-        self.ops = []
-
-    def add_operation(self, op):
-        self.ops.append(op)
-
-    def code(self, context):
-        if self.ops:
-            code = super().code(context)
-            ops = []
-            for op in self.ops:
-                if isinstance(op, tuple):
-                    cond = True
-                    if op[1]:
-                        cond = cond and self.check_conditions(context, op[1], True)
-                    if op[2]:
-                        cond = cond and self.check_conditions(context, op[2], False)
-                    if cond:
-                        ops.append(op[0].code(context))
-                else:
-                    ops.append(op.code(context))
-            if ops:
-                return code + ' ' + ', '.join(ops)
-        return False
-
-    def extra(self, context):
-        extra = []
-        for op in self.ops:
-            if isinstance(op, tuple):
-                op = op[0]
-            op_extra = op.extra(context, self)
-            if op_extra:
-                extra.extend(op_extra)
-
-        return extra
-
-    @classmethod
-    def as_markup(cls, self, *, ctx):
-        node = markup.elements.lang.TreeNode(name=repr(self))
-
-        for op in self.ops:
-            if isinstance(op, tuple):
-                op = op[0]
-
-            node.add_child(node=markup.serialize(op, ctx=ctx))
-
-        return node
-
-    def __iter__(self):
-        return iter(self.ops)
-
-    def __call__(self, typ):
-        return filter(lambda i: isinstance(i, typ), self.ops)
-
-
-class CompositeTypeExists(Condition):
+class TypeExists(Condition):
     def __init__(self, name):
         self.name = name
 
@@ -985,6 +968,23 @@ class CompositeTypeExists(Condition):
                     WHERE
                         nsp.nspname = $1 AND typ.typname = $2'''
         return code, self.name
+
+CompositeTypeExists = TypeExists
+
+
+class CompositeTypeAttributeExists(Condition):
+    def __init__(self, type_name, attribute_name):
+        self.type_name = type_name
+        self.attribute_name = attribute_name
+
+    def code(self, context):
+        code = '''SELECT
+                        attribute_name
+                    FROM
+                        information_schema.attributes
+                    WHERE
+                        udt_schema = $1 AND udt_name = $2 AND attribute_name = $3'''
+        return code, self.type_name + (self.attribute_name,)
 
 
 class CreateCompositeType(SchemaObjectOperation):
@@ -1004,10 +1004,83 @@ class CreateCompositeType(SchemaObjectOperation):
         return code
 
 
+class AlterCompositeTypeBaseMixin:
+    def __init__(self, name, **kwargs):
+        self.name = name
+
+    def prefix_code(self, context):
+        return 'ALTER TYPE {}'.format(common.qname(*self.name))
+
+    def __repr__(self):
+        return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__, self.name)
+
+
+class AlterCompositeTypeBase(AlterCompositeTypeBaseMixin, DDLOperation):
+    def __init__(self, name, *, conditions=None, neg_conditions=None, priority=0):
+        DDLOperation.__init__(self, conditions=conditions, neg_conditions=neg_conditions,
+                                    priority=priority)
+        AlterTableBaseMixin.__init__(self, name=name)
+
+
+class AlterCompositeTypeFragment(DDLOperation):
+    def get_attribute_term(self):
+        return 'ATTRIBUTE'
+
+
+class AlterCompositeType(AlterCompositeTypeBaseMixin, CompositeCommandGroup):
+    def __init__(self, name, *, conditions=None, neg_conditions=None, priority=0):
+        CompositeCommandGroup.__init__(self, conditions=conditions, neg_conditions=neg_conditions,
+                                             priority=priority)
+        AlterTableBaseMixin.__init__(self, name=name)
+
+
+class AlterCompositeTypeAddAttribute(AlterCompositeAddAttribute, AlterCompositeTypeFragment):
+    pass
+
+
+class AlterCompositeTypeDropAttribute(AlterCompositeDropAttribute, AlterCompositeTypeFragment):
+    pass
+
+
+class AlterCompositeTypeAlterAttributeType(AlterCompositeAlterAttributeType,
+                                           AlterCompositeTypeFragment):
+    pass
+
+
+class AlterCompositeTypeSetSchema(AlterCompositeTypeBase):
+    def __init__(self, name, schema, **kwargs):
+        super().__init__(name, **kwargs)
+        self.schema = schema
+
+    def code(self, context):
+        code = super().prefix_code(context)
+        code += ' SET SCHEMA %s ' % common.quote_ident(self.schema)
+        return code
+
+
+class AlterCompositeTypeRenameTo(AlterCompositeTypeBase):
+    def __init__(self, name, new_name, **kwargs):
+        super().__init__(name, **kwargs)
+        self.new_name = new_name
+
+    def code(self, context):
+        code = super().prefix_code(context)
+        code += ' RENAME TO %s ' % common.quote_ident(self.new_name)
+        return code
+
+
+class AlterCompositeTypeRenameAttribute(AlterCompositeRenameAttribute, AlterCompositeTypeBase):
+    pass
+
+
 class DropCompositeType(SchemaObjectOperation):
     def code(self, context):
         return 'DROP TYPE %s' % common.qname(*self.name)
 
+
+#
+# ------------------------------------------ Indexes ----------------------------------------------
+#
 
 class IndexExists(Condition):
     def __init__(self, index_name):
@@ -1069,6 +1142,45 @@ class DropIndex(DDLOperation):
                                common.qname(*self.index_name))
 
 
+#
+# ------------------------------------------- Tables ----------------------------------------------
+#
+
+class TableExists(Condition):
+    def __init__(self, name):
+        self.name = name
+
+    def code(self, context):
+        code = '''SELECT
+                        tablename
+                    FROM
+                        pg_catalog.pg_tables
+                    WHERE
+                        schemaname = $1 AND tablename = $2'''
+        return code, self.name
+
+
+class TableInherits(Condition):
+    def __init__(self, name, parent_name):
+        self.name = name
+        self.parent_name = parent_name
+
+    def code(self, context):
+        code = '''SELECT
+                        c.relname
+                    FROM
+                        pg_class c
+                        INNER JOIN pg_namespace ns ON ns.oid = c.relnamespace
+                        INNER JOIN pg_inherits i ON i.inhrelid = c.oid
+                        INNER JOIN pg_class pc ON i.inhparent = pc.oid
+                        INNER JOIN pg_namespace pns ON pns.oid = pc.relnamespace
+                    WHERE
+                        ns.nspname = $1 AND c.relname = $2
+                        AND pns.nspname = $3 AND pc.relname = $4
+               '''
+        return code, self.name + self.parent_name
+
+
 class ColumnExists(Condition):
     def __init__(self, table_name, column_name):
         self.table_name = table_name
@@ -1082,6 +1194,63 @@ class ColumnExists(Condition):
                     WHERE
                         table_schema = $1 AND table_name = $2 AND column_name = $3'''
         return code, self.table_name + (self.column_name,)
+
+
+class CreateTable(SchemaObjectOperation):
+    def __init__(self, table, temporary=False, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(table.name, conditions=conditions, neg_conditions=neg_conditions,
+                         priority=priority)
+        self.table = table
+        self.temporary = temporary
+
+    def code(self, context):
+        elems = [c.code(context) for c in self.table.columns(only_self=True)]
+        elems += [c.code(context) for c in self.table.constraints]
+
+        name = common.qname(*self.table.name)
+        cols = ', '.join(c for c in elems)
+        temp = 'TEMPORARY ' if self.temporary else ''
+
+        code = 'CREATE %sTABLE %s (%s)' % (temp, name, cols)
+
+        if self.table.bases:
+            code += ' INHERITS (' + ','.join(common.qname(*b) for b in self.table.bases) + ')'
+
+        return code
+
+
+class AlterTableBaseMixin:
+    def __init__(self, name, contained=False, **kwargs):
+        self.name = name
+        self.contained = contained
+
+    def prefix_code(self, context):
+        return 'ALTER TABLE %s%s' % ('ONLY ' if self.contained else '', common.qname(*self.name))
+
+    def __repr__(self):
+        return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__, self.name)
+
+
+class AlterTableBase(AlterTableBaseMixin, DDLOperation):
+    def __init__(self, name, *, contained=False, conditions=None, neg_conditions=None, priority=0):
+        DDLOperation.__init__(self, conditions=conditions, neg_conditions=neg_conditions,
+                                    priority=priority)
+        AlterTableBaseMixin.__init__(self, name=name, contained=contained)
+
+
+class AlterTableFragment(DDLOperation):
+    def get_attribute_term(self):
+        return 'COLUMN'
+
+
+class AlterTable(AlterTableBaseMixin, CompositeCommandGroup):
+    def __init__(self, name, *, contained=False, conditions=None, neg_conditions=None, priority=0):
+        CompositeCommandGroup.__init__(self, conditions=conditions, neg_conditions=neg_conditions,
+                                             priority=priority)
+        AlterTableBaseMixin.__init__(self, name=name, contained=contained)
+        self.ops = self.commands
+
+    add_operation = CommandGroup.add_command
 
 
 class AlterTableAddParent(AlterTableFragment):
@@ -1107,43 +1276,16 @@ class AlterTableDropParent(AlterTableFragment):
         return '<%s.%s %s>' % (self.__class__.__module__, self.__class__.__name__, self.parent_name)
 
 
-class AlterTableAddColumn(AlterTableFragment):
-    def __init__(self, column):
-        self.column = column
-
-    def code(self, context):
-        return 'ADD COLUMN ' + self.column.code(context)
-
-    def extra(self, context, alter_table):
-        return self.column.extra(context, alter_table)
-
-    def __repr__(self):
-        return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__, self.column)
+class AlterTableAddColumn(AlterCompositeAddAttribute, AlterTableFragment):
+    pass
 
 
-class AlterTableDropColumn(AlterTableFragment):
-    def __init__(self, column):
-        self.column = column
-
-    def code(self, context):
-        return 'DROP COLUMN %s' % common.quote_ident(self.column.name)
-
-    def __repr__(self):
-        return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__, self.column)
+class AlterTableDropColumn(AlterCompositeDropAttribute, AlterTableFragment):
+    pass
 
 
-class AlterTableAlterColumnType(AlterTableFragment):
-    def __init__(self, column_name, new_type):
-        self.column_name = column_name
-        self.new_type = new_type
-
-    def code(self, context):
-        return 'ALTER COLUMN %s SET DATA TYPE %s' % \
-                (common.quote_ident(str(self.column_name)), self.new_type)
-
-    def __repr__(self):
-        return '<%s.%s "%s" to %s>' % (self.__class__.__module__, self.__class__.__name__,
-                                       self.column_name, self.new_type)
+class AlterTableAlterColumnType(AlterCompositeAlterAttributeType, AlterTableFragment):
+    pass
 
 
 class AlterTableAlterColumnNull(AlterTableFragment):
@@ -1234,7 +1376,7 @@ class AlterTableSetSchema(AlterTableBase):
         self.schema = schema
 
     def code(self, context):
-        code = super().code(context)
+        code = super().prefix_code(context)
         code += ' SET SCHEMA %s ' % common.quote_ident(self.schema)
         return code
 
@@ -1245,22 +1387,45 @@ class AlterTableRenameTo(AlterTableBase):
         self.new_name = new_name
 
     def code(self, context):
-        code = super().code(context)
+        code = super().prefix_code(context)
         code += ' RENAME TO %s ' % common.quote_ident(self.new_name)
         return code
 
 
-class AlterTableRenameColumn(AlterTableBase):
-    def __init__(self, name, old_col_name, new_col_name):
-        super().__init__(name)
-        self.old_col_name = old_col_name
-        self.new_col_name = new_col_name
+class AlterTableRenameColumn(AlterCompositeRenameAttribute, AlterTableBase):
+    pass
+
+
+class DropTable(SchemaObjectOperation):
+    def code(self, context):
+        return 'DROP TABLE %s' % common.qname(*self.name)
+
+
+#
+# ----------------------------------------- Functions ---------------------------------------------
+#
+
+class FunctionExists(Condition):
+    def __init__(self, name, args=None):
+        self.name = name
+        self.args = args
 
     def code(self, context):
-        code = super().code(context)
-        code += ' RENAME COLUMN %s TO %s ' % (common.quote_ident(self.old_col_name),
-                                              common.quote_ident(self.new_col_name))
-        return code
+        code = '''SELECT
+                        p.proname
+                    FROM
+                        pg_catalog.pg_proc p
+                        INNER JOIN pg_catalog.pg_namespace ns ON (ns.oid = p.pronamespace)
+                    WHERE
+                        p.proname = $2 AND ns.nspname = $1
+                        AND ($3::text[] IS NULL
+                             OR $3::text[] = ARRAY(SELECT
+                                                      format_type(t, NULL)::text
+                                                    FROM
+                                                      unnest(p.proargtypes) t))
+                '''
+
+        return code, self.name + (self.args,)
 
 
 class CreateFunction(DDLOperation):
@@ -1417,27 +1582,27 @@ class DropFunction(DDLOperation):
         return code
 
 
-class FunctionExists(Condition):
-    def __init__(self, name, args=None):
-        self.name = name
-        self.args = args
+#
+# ----------------------------------------- Triggers ----------------------------------------------
+#
+
+class TriggerExists(Condition):
+    def __init__(self, trigger_name, table_name):
+        self.trigger_name = trigger_name
+        self.table_name = table_name
 
     def code(self, context):
         code = '''SELECT
-                        p.proname
+                        tg.tgname
                     FROM
-                        pg_catalog.pg_proc p
-                        INNER JOIN pg_catalog.pg_namespace ns ON (ns.oid = p.pronamespace)
+                        pg_catalog.pg_trigger tg
+                        INNER JOIN pg_catalog.pg_class tab ON (tab.oid = tg.tgrelid)
+                        INNER JOIN pg_catalog.pg_namespace ns ON (ns.oid = tab.relnamespace)
                     WHERE
-                        p.proname = $2 AND ns.nspname = $1
-                        AND ($3::text[] IS NULL
-                             OR $3::text[] = ARRAY(SELECT
-                                                      format_type(t, NULL)::text
-                                                    FROM
-                                                      unnest(p.proargtypes) t))
+                        tab.relname = $3 AND ns.nspname = $2 AND tg.tgname = $1
                 '''
 
-        return code, self.name + (self.args,)
+        return code, (self.trigger_name,) + self.table_name
 
 
 class CreateTrigger(DDLOperation):
@@ -1517,24 +1682,9 @@ class DropTrigger(DDLOperation):
                  'table_name': common.qname(*self.table_name)}
 
 
-class TriggerExists(Condition):
-    def __init__(self, trigger_name, table_name):
-        self.trigger_name = trigger_name
-        self.table_name = table_name
-
-    def code(self, context):
-        code = '''SELECT
-                        tg.tgname
-                    FROM
-                        pg_catalog.pg_trigger tg
-                        INNER JOIN pg_catalog.pg_class tab ON (tab.oid = tg.tgrelid)
-                        INNER JOIN pg_catalog.pg_namespace ns ON (ns.oid = tab.relnamespace)
-                    WHERE
-                        tab.relname = $3 AND ns.nspname = $2 AND tg.tgname = $1
-                '''
-
-        return code, (self.trigger_name,) + self.table_name
-
+#
+# -------------------------------------------- Misc -----------------------------------------------
+#
 
 class Comment(DDLOperation):
     def __init__(self, object, text, *, conditions=None, neg_conditions=None, priority=0):
