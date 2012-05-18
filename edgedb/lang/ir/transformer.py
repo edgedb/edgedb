@@ -353,6 +353,12 @@ class TreeTransformer:
         return path
 
     def entityref_to_record(self, expr, schema):
+        """Convert an EntitySet node into an Record referencing eager-pointers of EntitySet concept
+        """
+
+        if not isinstance(expr, caos_ast.PathCombination):
+            expr = caos_ast.Conjunction(paths=frozenset((expr,)))
+
         p = next(iter(expr.paths))
         if isinstance(p, caos_ast.EntitySet):
             concepts = {c.concept for c in expr.paths}
@@ -371,19 +377,68 @@ class TreeTransformer:
                 ptrs = concept.pointers
 
             for link_name, link in ptrs.items():
-                if link.atomic() and link.singular() \
-                                 and not isinstance(link, caos_types.ProtoComputable):
-                    link_proto = schema.get(link_name)
+                if not isinstance(link, caos_types.ProtoComputable) \
+                                        and link.get_loading_behaviour() != caos_types.LazyLoading:
+
+                    root_link_proto = schema.get(link_name)
+                    link_proto = link
                     target_proto = link.target
                     id = LinearPath(ref.id)
-                    id.add(link_proto, caos_types.OutboundDirection, target_proto)
-                    el = caos_ast.AtomicRefSimple(ref=ref, name=link_name, id=id,
-                                                  caoslink=link_proto)
 
-                    if link.loading == caos_types.LazyLoading:
-                        el = caos_ast.Constant(value=None,
-                                               type=target_proto,
-                                               substitute_for=el.name)
+                    id.add(link_proto, caos_types.OutboundDirection, target_proto)
+
+                    if not link.singular():
+                        lref = self.copy_path(ref)
+                    else:
+                        lref = ref
+
+                    targetstep = caos_ast.EntitySet(conjunction=caos_ast.Conjunction(),
+                                                    disjunction=caos_ast.Disjunction(),
+                                                    users={self.context.current.location},
+                                                    concept=target_proto, id=id)
+
+                    if link.atomic():
+                        if link.singular():
+                            newstep = caos_ast.AtomicRefSimple(ref=lref, name=link_name, id=id,
+                                                               caoslink=link_proto)
+                        else:
+                            ptr_name = caos_name.Name('semantix.caos.builtins.target')
+                            prop_id = LinearPath(ref.id)
+                            prop_id.add(root_link_proto, caos_types.OutboundDirection, None)
+                            newstep = caos_ast.LinkPropRefSimple(name=ptr_name, id=id)
+
+                        el = newstep
+                    else:
+                        newstep = targetstep
+                        el = self.entityref_to_record(newstep, schema)
+
+                    link_node = caos_ast.EntityLink(source=lref, target=targetstep,
+                                                    link_proto=link_proto,
+                                                    direction=caos_types.OutboundDirection,
+                                                    users={'selector'})
+
+                    targetstep.rlink = link_node
+                    if not link.atomic():
+                        lref.conjunction.update(link_node)
+
+                    if isinstance(newstep, caos_ast.LinkPropRefSimple):
+                        newstep.ref = link_node
+                        lref.disjunction.update(link_node)
+
+                    if not link.singular():
+                        if link.atomic():
+                            link_node.proprefs.add(newstep)
+
+                        generator = caos_ast.Conjunction(paths=frozenset((targetstep,)))
+                        generator = self.merge_paths(generator)
+
+                        subgraph = caos_ast.GraphExpr()
+                        subgraph.generator = generator
+                        subexpr = caos_ast.FunctionCall(name=('agg', 'list'), args=[el],
+                                                        aggregates=True)
+                        selexpr = caos_ast.SelectorExpr(expr=subexpr, name=link_name)
+                        subgraph.selector.append(selexpr)
+                        el = caos_ast.SubgraphRef(ref=subgraph, name=link_name)
 
                     elements.append(el)
 

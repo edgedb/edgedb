@@ -465,13 +465,12 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
             # The entityref_to_record transform must be reverted for typecheck ops
             if isinstance(expr.op, ast.ops.EquivalenceOperator) \
-                    and isinstance(left, tree.ast.AtomicRefSimple) \
-                    and left.name == 'semantix.caos.builtins.id' \
+                    and isinstance(left, tree.ast.Record) \
                     and isinstance(right, tree.ast.Constant) \
                     and (isinstance(right.type, caos_types.PrototypeClass) or
                          isinstance(right.type, tuple) and
                          isinstance(right.type[1], caos_types.PrototypeClass)):
-                left = left.ref
+                left = left.elements[0].ref
             node = self.process_binop(left, right, expr.op)
 
         elif isinstance(expr, qlast.PathNode):

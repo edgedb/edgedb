@@ -6,6 +6,7 @@
 ##
 
 
+import collections
 import re
 
 from semantix import caos
@@ -130,12 +131,21 @@ class ConstraintMech:
         return self.read_table_atom_constraints(connection)[0]
 
     def interpret_table_ptr_constraint(self, name, expr, columns):
-        m = self.ptr_constraint_name_re.match(name)
-        if not m:
+        name_parts = name.split('::')
+
+        try:
+            if len(name_parts) < 3 or name_parts[2] != 'ptr_constr':
+                raise ValueError
+
+            constraint_class_name = name_parts[1]
+            subject_parts = name_parts[0].rsplit(':', 1)
+            if len(subject_parts) < 2:
+                raise ValueError
+            link_name = subject_parts[1]
+        except ValueError:
             raise caos.MetaError('could not interpret table constraint %s' % name)
 
-        link_name = m.group('link_name')
-        constraint_class = helper.get_object(m.group('constraint_class'))
+        constraint_class = helper.get_object(constraint_class_name)
 
         if issubclass(constraint_class, proto.PointerConstraintUnique):
             col_name = common.caos_name_to_pg_name(link_name)
@@ -150,7 +160,7 @@ class ConstraintMech:
         else:
             msg = 'internal metadata inconsistency'
             details = 'Link constraint "%s" has an unexpected class "%s"' % \
-                      (name, m.group('constraint_class'))
+                      (name, constraint_class_name)
             raise caos.MetaError(msg, details=details)
 
         return link_name, constraint_class(constraint_data)
@@ -346,3 +356,69 @@ class ConstraintMech:
                                                                      constraint=constraint)
 
         return constraint
+
+
+class TypeMech:
+    def __init__(self):
+        self._column_cache = None
+
+    def invalidate_meta_cache(self):
+        self._column_cache = None
+
+    def init_cache(self, connection):
+        self._load_table_columns(('caos_%', None), connection)
+        self._load_type_attributes(('caos_%', '%_record'), connection)
+
+    def _load_table_columns(self, table_name, connection):
+        cols = introspection.tables.TableColumns(connection)
+        cols = cols.fetch(table_name=table_name[1], schema_name=table_name[0])
+
+        if self._column_cache is None:
+            self._column_cache = {}
+
+        for col in cols:
+            try:
+                table_cols = self._column_cache[(col['table_schema'], col['table_name'])]
+            except KeyError:
+                table_cols = collections.OrderedDict()
+                self._column_cache[(col['table_schema'], col['table_name'])] = table_cols
+
+            table_cols[col['column_name']] = col
+
+    def get_table_columns(self, table_name, connection, cache='auto'):
+        if cache is not None and self._column_cache is not None:
+            cols = self._column_cache.get(table_name)
+        else:
+            cols = None
+
+        if cols is None and cache != 'always':
+            cols = self._load_table_columns(table_name, connection)
+
+        return self._column_cache.get(table_name)
+
+    def _load_type_attributes(self, type_name, connection):
+        cols = introspection.types.CompositeTypeAttributes(connection)
+        cols = cols.fetch(type_name=type_name[1], schema_name=type_name[0])
+
+        if self._column_cache is None:
+            self._column_cache = {}
+
+        for col in cols:
+            try:
+                type_attrs = self._column_cache[(col['type_schema'], col['type_name'])]
+            except KeyError:
+                type_attrs = collections.OrderedDict()
+                self._column_cache[(col['type_schema'], col['type_name'])] = type_attrs
+
+            type_attrs[col['attribute_name']] = col
+
+    def get_type_attributes(self, type_name, connection, cache='auto'):
+        if cache is not None and self._column_cache is not None:
+            cols = self._column_cache.get(type_name)
+        else:
+            cols = None
+
+        if cols is None and cache != 'always':
+            self._load_type_attributes(type_name, connection)
+
+        return self._column_cache.get(type_name)

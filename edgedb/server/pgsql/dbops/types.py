@@ -6,6 +6,8 @@
 ##
 
 
+from semantix.utils import datastructures
+
 from .. import common
 from . import base
 from . import composites
@@ -13,8 +15,14 @@ from . import ddl
 
 
 class CompositeType(composites.CompositeDBObject):
+    def __init__(self, name, columns=()):
+        super().__init__(name)
+
+        self.__columns = datastructures.OrderedSet(columns)
+        self._columns = []
+
     def columns(self):
-        return self.__columns
+        return getattr(self, '_' + self.__class__.__name__ + '__columns', [])
 
 
 class TypeExists(base.Condition):
@@ -56,7 +64,7 @@ class CreateCompositeType(ddl.SchemaObjectOperation):
         self.type = type
 
     def code(self, context):
-        elems = [c.code(context) for c in self.type._columns]
+        elems = [c.code(context, short=True) for c in self.type.columns()]
 
         name = common.qname(*self.type.name)
         cols = ', '.join(c for c in elems)
@@ -98,7 +106,9 @@ class AlterCompositeType(AlterCompositeTypeBaseMixin, base.CompositeCommandGroup
 
 class AlterCompositeTypeAddAttribute(composites.AlterCompositeAddAttribute,
                                      AlterCompositeTypeFragment):
-    pass
+    def code(self, context):
+        return 'ADD {} {}'.format(self.get_attribute_term(),
+                                  self.attribute.code(context, short=True))
 
 
 class AlterCompositeTypeDropAttribute(composites.AlterCompositeDropAttribute,

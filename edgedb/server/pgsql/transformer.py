@@ -299,7 +299,7 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
     def _process_record(self, context, expr, cte):
         elements = [self._process_expr(context, e, cte) for e in expr.elements]
         idref, elements = self._sort_record(context, elements, expr.concept)
-        type = pgsql.ast.TypeNode(name=common.concept_name_to_table_name(expr.concept.name))
+        type = pgsql.ast.TypeNode(name=common.get_record_name(expr.concept))
         result = pgsql.ast.TypeCastNode(expr=pgsql.ast.RowExprNode(args=elements),
                                         type=type)
 
@@ -719,8 +719,9 @@ class CaosTreeTransformer(CaosExprTransformer):
     def _process_selector(self, context, selector, query):
         context.current.location = 'selector'
         for expr in selector:
+            alias = common.caos_name_to_pg_name(expr.name or expr.autoname)
             target = pgsql.ast.SelectExprNode(expr=self._process_expr(context, expr.expr, query),
-                                              alias=expr.name or expr.autoname)
+                                              alias=alias)
             query.targets.append(target)
 
     def _process_sorter(self, context, sorter):
@@ -1082,6 +1083,12 @@ class CaosTreeTransformer(CaosExprTransformer):
                 for callback in callbacks:
                     callback(expr)
 
+        elif isinstance(expr, tree.ast.EntityLink):
+            if expr.target:
+                self._process_expr(context, expr.target, cte)
+            else:
+                self._process_expr(context, expr.source, cte)
+
         elif isinstance(expr, tree.ast.BinOp):
             left_is_universal_set = self.is_universal_set(expr.left)
 
@@ -1324,10 +1331,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 result = result.expr
 
         elif isinstance(expr, tree.ast.LinkPropRefSimple):
-            if expr.ref.target:
-                self._process_expr(context, expr.ref.target, cte)
-            else:
-                self._process_expr(context, expr.ref.source, cte)
+            self._process_expr(context, expr.ref, cte)
 
             link = expr.ref
 
@@ -1373,9 +1377,9 @@ class CaosTreeTransformer(CaosExprTransformer):
         return result
 
     def _sort_record(self, context, elements, concept):
-        table_name = common.get_table_name(concept, catenate=False)
+        type_name = common.get_record_name(concept, catenate=False)
         data_backend = context.current.session.backend
-        cols = data_backend.get_table_columns(table_name, cache='always')
+        cols = data_backend.get_type_attributes(type_name, cache='always')
 
         elts = {}
 
@@ -1385,12 +1389,16 @@ class CaosTreeTransformer(CaosExprTransformer):
         for e in elements:
             if isinstance(e, pgsql.ast.TypeCastNode):
                 fieldref = e.expr
+                colref = fieldref.origin_field
+            elif isinstance(e, pgsql.ast.SelectQueryNode):
+                colref = e.targets[0].alias
             else:
                 fieldref = e
+                colref = fieldref.origin_field
 
-            elts[fieldref.origin_field] = e
+            elts[colref] = e
 
-            if fieldref.origin_field == idcol:
+            if colref == idcol:
                 idref = fieldref
 
         return idref, [elts[col] for col in cols]

@@ -124,34 +124,69 @@ def pg_type_from_atom(meta, atom, topbase=False):
     return column_type
 
 
-def get_pointer_column_info(proto_schema, pointer):
-    ptr_name = pointer.normal_name()
-
-    if pointer.atomic():
-        col_type = pg_type_from_atom(proto_schema, pointer.target)
-
-        if ptr_name == 'semantix.caos.builtins.target':
-            ptr_name += '@atom'
+def pg_type_from_object(schema, obj, topbase=False):
+    if isinstance(obj, caos.types.ProtoAtom):
+        return pg_type_from_atom(schema, obj, topbase=topbase)
     else:
-        col_type = 'uuid'
-
-    col_name = common.caos_name_to_pg_name(ptr_name)
-
-    return col_name, col_type
+        return common.get_record_name(obj, catenate=True)
 
 
-def get_pointer_storage_info(proto_schema, pointer):
+class PointerStorageInfo:
+    def __init__(self, proto_schema, pointer, resolve_type=True, record_mode=False):
+        is_prop = isinstance(pointer, caos.types.ProtoLinkProperty)
+
+        if is_prop and pointer.normal_name() in {'semantix.caos.builtins.source',
+                                                 'semantix.caos.builtins.target'}:
+            record_mode = False
+
+        if not is_prop and (not pointer.atomic() or not pointer.singular()):
+            table = common.get_table_name(pointer, catenate=False)
+            ptr_type = 'generic'
+            if not record_mode:
+                col_name = 'semantix.caos.builtins.target'
+                if pointer.atomic():
+                    col_name += '@atom'
+                    ptr_type = 'specialized'
+            else:
+                col_name = pointer.normal_name()
+
+            table_type = ('pointer', ptr_type)
+            col_name = common.caos_name_to_pg_name(col_name)
+        else:
+            table = common.get_table_name(pointer.source, catenate=False)
+            ptr_name = pointer.normal_name()
+
+            if ptr_name == 'semantix.caos.builtins.target' and pointer.atomic():
+                ptr_name += '@atom'
+
+            col_name = common.caos_name_to_pg_name(ptr_name)
+            table_type = ('source', 'generic')
+
+        self.table_name = table
+        self.table_type = table_type
+        self.column_name = col_name
+        self.in_record = pointer.get_loading_behaviour() == caos.types.EagerLoading
+        self.column_type = None
+
+        if resolve_type:
+            if pointer.target is not None:
+                if isinstance(pointer.target, caos.types.ProtoConcept) and not record_mode:
+                    self.column_type = 'uuid'
+                else:
+                    self.column_type = pg_type_from_object(proto_schema, pointer.target)
+            elif not record_mode:
+                # The target may not be known in circular concept-to-concept linking scenarios
+                self.column_type = 'uuid'
+
+            if self.column_type is None:
+                msg = '{}: cannot determine pointer storage coltype: target is None'
+                raise ValueError(msg.format(pointer.name))
+
+            if not pointer.singular() and record_mode:
+                self.column_type += '[]'
+
+
+def get_pointer_storage_info(proto_schema, pointer, resolve_type=True, record_mode=False):
     assert not pointer.generic(), "only specialized pointers can be stored"
-
-    col_type = pg_type_from_atom(proto_schema, pointer.target)
-
-    if not pointer.atomic() or not pointer.singular():
-        table = common.get_table_name(pointer, catenate=False)
-        col_name = 'semantix.caos.builtins.target'
-        if pointer.atomic():
-            col_name += '@atom'
-    else:
-        table = common.get_table_name(pointer.source, catenate=False)
-        col_name = common.caos_name_to_pg_name(pointer.normal_name())
-
-    return table, col_name, col_type
+    return PointerStorageInfo(proto_schema, pointer, resolve_type=resolve_type,
+                                                     record_mode=record_mode)

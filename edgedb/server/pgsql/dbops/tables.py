@@ -62,11 +62,12 @@ class Column(base.DBObject):
         self.readonly = readonly
         self.comment = comment
 
-    def code(self, context):
-        e = common.quote_ident
-        return '%s %s %s %s' % (common.quote_ident(self.name), self.type,
-                                'NOT NULL' if self.required else '',
-                                ('DEFAULT %s' % self.default) if self.default is not None else '')
+    def code(self, context, short=False):
+        code = '{} {}'.format(common.quote_ident(self.name), self.type)
+        if not short:
+            default = 'DEFAULT {}'.format(self.default) if self.default is not None else ''
+            code += ' {} {}'.format('NOT NULL' if self.required else '', default)
+        return code
 
     def extra(self, context, alter_table):
         if self.comment is not None:
@@ -233,6 +234,9 @@ class AlterTableBase(AlterTableBaseMixin, ddl.DDLOperation):
         ddl.DDLOperation.__init__(self, conditions=conditions, neg_conditions=neg_conditions,
                                   priority=priority)
         AlterTableBaseMixin.__init__(self, name=name, contained=contained)
+
+    def get_attribute_term(self):
+        return 'COLUMN'
 
 
 class AlterTableFragment(ddl.DDLOperation):

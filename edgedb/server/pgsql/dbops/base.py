@@ -43,7 +43,7 @@ class BaseCommand:
 
     @classmethod
     def as_markup(cls, self, *, ctx):
-        return markup.serialize(str(self))
+        return markup.elements.lang.TreeNode(name=repr(self))
 
     def dump(self):
         return str(self)
@@ -226,7 +226,7 @@ class Condition(BaseCommand):
 
 
 class Query:
-    def __init__(self, text, params, type):
+    def __init__(self, text, params=(), type=None):
         self.text = text
         self.params = params
         self.type = type

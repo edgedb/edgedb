@@ -461,13 +461,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.backend_info = None
         self.modules = None
 
+        self.meta = proto.ProtoSchema()
+
         self.connection_pool = pool.ConnectionPool(connector, backend=self)
         self.async_connection_pool = pool.ConnectionPool(async_connector, backend=self)
 
-        self.connection = connector(pool=self.connection_pool)
-        self.connection.connect()
-
         self._constr_mech = schemamech.ConstraintMech()
+        self._type_mech = schemamech.TypeMech()
 
         self.atom_cache = {}
         self.link_cache = {}
@@ -476,7 +476,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.batch_instrument_cache = {}
         self.batches = {}
         self.domain_to_atom_map = {}
-        self.column_cache = {}
         self.table_id_to_proto_name_cache = {}
         self.proto_name_to_table_id_cache = {}
         self.attribute_link_map_cache = {}
@@ -486,7 +485,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.type_expr = astexpr.TypeExpr()
         self.constant_expr = None
 
-        self.meta = proto.ProtoSchema()
+        self.connection = connector(pool=self.connection_pool)
+        self.connection.connect()
 
         repo = deltarepo(self.connection)
         self._init_introspection_cache()
@@ -494,51 +494,54 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def init_connection(self, connection):
+        need_upgrade = False
+
         if self.backend_info is None:
             self.backend_info = self.read_backend_info()
 
         if self.backend_info['format_version'] < delta_cmds.BACKEND_FORMAT_VERSION:
+            need_upgrade = True
             self.upgrade_backend(connection)
+
         elif self.backend_info['format_version'] > delta_cmds.BACKEND_FORMAT_VERSION:
             msg = 'unsupported backend format version: %d' % self.backend_info['format_version']
             details = 'The largest supported backend format version is %d' \
                         % delta_cmds.BACKEND_FORMAT_VERSION
             raise caos.MetaError(msg, details=details)
 
+        if need_upgrade:
+            with connection.xact():
+                self.upgrade_backend(connection)
+                self._read_and_init_features(connection)
+                self.getmeta()
+        else:
+            self._read_and_init_features(connection)
+
+
+    def _read_and_init_features(self, connection):
         if self.features is None:
-            self.features = self.read_features()
+            self.features = self.read_features(connection)
         self.init_features(connection)
 
 
     def _init_introspection_cache(self):
         if self.backend_info['initialized']:
-            self.column_cache = self._init_column_cache()
+            self._type_mech.init_cache(self.connection)
             self.table_id_to_proto_name_cache, self.proto_name_to_table_id_cache = self._init_relid_cache()
             self.domain_to_atom_map = self._init_atom_map_cache()
             # Concept map needed early for type filtering operations in schema queries
             self.get_concept_map(force_reload=True)
 
 
-    def _init_column_cache(self):
-        colsds = introspection.tables.TableColumns(self.connection)
-        cols = colsds.fetch(schema_name='caos_%')
-
-        column_cache = {}
-
-        for col in cols:
-            table_name = (col['table_schema'], col['table_name'])
-            cache = column_cache.get(table_name)
-            if cache is None:
-                column_cache[table_name] = cache = collections.OrderedDict()
-            cache[col['column_name']] = col
-
-        return column_cache
-
-
     def _init_relid_cache(self):
         link_tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
                                                                             table_pattern='%_link')
         link_tables = {(t['schema'], t['name']): t for t in link_tables}
+
+        records = introspection.types.TypesList(self.connection).fetch(schema_name='caos%',
+                                                                       type_name='%_record',
+                                                                       include_arrays=False)
+        records = {(t['schema'], t['name']): t for t in records}
 
         links_list = datasources.meta.links.ConceptLinks(self.connection).fetch()
         links_list = collections.OrderedDict((caos.Name(r['name']), r) for r in links_list)
@@ -547,13 +550,19 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         proto_name_to_table_id_cache = {}
 
         for link_name, link in links_list.items():
-            if not link['source_id']:
-                link_table_name = common.link_name_to_table_name(link_name, catenate=False)
-                t = link_tables.get(link_table_name)
-                if t:
-                    table_id_to_proto_name_cache[t['oid']] = link_name
-                    table_id_to_proto_name_cache[t['typoid']] = link_name
-                    proto_name_to_table_id_cache[link_name] = t['typoid']
+            link_table_name = common.link_name_to_table_name(link_name, catenate=False)
+            t = link_tables.get(link_table_name)
+            if t:
+                table_id_to_proto_name_cache[t['oid']] = link_name
+                table_id_to_proto_name_cache[t['typoid']] = link_name
+                proto_name_to_table_id_cache[link_name] = t['typoid']
+
+            record_name = common.concept_name_to_record_name(link_name, catenate=False)
+            record = records.get(record_name)
+
+            if record:
+                table_id_to_proto_name_cache[record['oid']] = link_name
+                table_id_to_proto_name_cache[record['typrelid']] = link_name
 
         tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
                                                                        table_pattern='%_data')
@@ -574,6 +583,17 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             table_id_to_proto_name_cache[table['oid']] = name
             table_id_to_proto_name_cache[table['typoid']] = name
             proto_name_to_table_id_cache[name] = table['typoid']
+
+            record_name = common.concept_name_to_record_name(name, catenate=False)
+            record = records.get(record_name)
+
+            if not record:
+                msg = 'internal metadata incosistency'
+                details = 'Record for concept "%s" exists but the composite type is missing' % name
+                raise caos.MetaError(msg, details=details)
+
+            table_id_to_proto_name_cache[record['oid']] = name
+            table_id_to_proto_name_cache[record['typrelid']] = name
 
         return table_id_to_proto_name_cache, proto_name_to_table_id_cache
 
@@ -610,7 +630,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def upgrade_backend(self, connection):
-        with self.connection.xact() as xact:
+        with self.connection.xact():
             context = delta_cmds.CommandContext(connection)
             upgrade = delta_cmds.UpgradeBackend(self.backend_info)
             upgrade.execute(context)
@@ -711,13 +731,18 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     plan.execute(context)
                 except Exception as e:
                     msg = 'failed to apply delta {:032x} to data backend'.format(d.id)
-                    raise base_delta.DeltaError(msg, delta=d) from e
+                    self._raise_delta_error(msg, d, plan, e)
 
                 # Invalidate transient structure caches
                 self.invalidate_transient_cache()
 
-                # Update introspection caches
-                self._init_introspection_cache()
+                try:
+                    # Update introspection caches
+                    self._init_introspection_cache()
+                except caos.MetaError as e:
+                    msg = 'failed to verify metadata after applying delta {:032x} to data backend'
+                    msg = msg.format(d.id)
+                    self._raise_delta_error(msg, d, plan, e)
 
                 # Run postprocess pass
                 delta.call_hook(session, stage='postprocess', hook='main')
@@ -726,7 +751,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             self.invalidate_meta_cache()
 
-            introspected_schema = self.getmeta()
+            try:
+                introspected_schema = self.getmeta()
+            except caos.MetaError as e:
+                msg = 'failed to verify metadata after applying delta {:032x} to data backend'
+                msg = msg.format(d.id)
+                self._raise_delta_error(msg, d, plan, e)
 
             if introspected_schema.get_checksum() != d.checksum:
                 details = ('Schema checksum verification failed (expected "%x", got "%x") when '
@@ -742,6 +772,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                                     schema2_title='Schema in Backend')
 
             self.connection = old_conn
+
+    def _raise_delta_error(self, msg, d, plan, e=None):
+        hint = 'This usually indicates a bug in backend delta adapter.'
+        d = base_delta.Delta(parent_id=d.parent_id, checksum=d.checksum,
+                             comment=d.comment, deltas=[plan])
+        raise base_delta.DeltaError(msg, delta=d) from e
+
 
     def _update_repo(self, session, deltas):
         table = deltadbops.DeltaLogTable()
@@ -770,12 +807,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def invalidate_meta_cache(self):
         self.meta = proto.ProtoSchema()
         self.backend_info = self.read_backend_info()
-        self.features = self.read_features()
+        self.features = self.read_features(self.connection)
         self.invalidate_transient_cache()
 
 
     def invalidate_transient_cache(self):
         self._constr_mech.invalidate_meta_cache()
+        self._type_mech.invalidate_meta_cache()
 
         self.link_cache.clear()
         self.concept_cache.clear()
@@ -783,7 +821,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.table_cache.clear()
         self.batch_instrument_cache.clear()
         self.domain_to_atom_map.clear()
-        self.column_cache.clear()
         self.table_id_to_proto_name_cache.clear()
         self.proto_name_to_table_id_cache.clear()
         self.attribute_link_map_cache.clear()
@@ -861,7 +898,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def load_link(self, source, target, link, pointers, session):
         proto_link = caos.types.prototype(link.__class__)
-        table = common.link_name_to_table_name(proto_link.normal_name(), catenate=True)
+        table = common.get_table_name(proto_link, catenate=True)
 
         if pointers:
             protopointers = [caos.types.prototype(p) for p in pointers]
@@ -880,8 +917,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             targets.append(common.qname('l', common.caos_name_to_pg_name(prop_name)))
 
         source_col = common.caos_name_to_pg_name('semantix.caos.builtins.source')
-        target_prop = proto_link.pointers['semantix.caos.builtins.target']
-        target_col, _ = types.get_pointer_column_info(session.proto_schema, target_prop)
+        ptr_stor_info = types.get_pointer_storage_info(session.proto_schema, proto_link)
 
         query = '''SELECT
                        {targets}
@@ -889,22 +925,31 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                        {table} AS l
                    WHERE
                        l.{source_col} = $1
-                       AND l.{target_col} IS NOT DISTINCT FROM $2
-                       AND l.link_type_id = $3
+                       AND l.link_type_id = $2
                 '''.format(targets=', '.join(targets), table=table,
-                           source_col=common.quote_ident(source_col),
-                           target_col=common.quote_ident(target_col))
+                           source_col=common.quote_ident(source_col))
+
+        if ptr_stor_info.table_type[0] == 'pointer':
+            query += ' AND l.{target_col} IS NOT DISTINCT FROM $3'.format(
+                        target_col=common.quote_ident(ptr_stor_info.column_name)
+                     )
 
         ps = session.get_connection().prepare(query)
-        if isinstance(target.__class__, caos.types.AtomClass):
-            target_value = target
-        else:
-            target_value = target.id
 
         link_map = self.get_link_map(session)
         link_id = link_map[proto_link.name]
 
-        result = ps(source.id, target_value, link_id)
+        args = [source.id, link_id]
+
+        if ptr_stor_info.table_type[0] == 'pointer':
+            if isinstance(target.__class__, caos.types.AtomClass):
+                target_value = target
+            else:
+                target_value = target.id
+
+            args.append(target_value)
+
+        result = ps(*args)
 
         if result:
             result = result[0]
@@ -1098,7 +1143,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         func_name = common.qname(table_name[0],
                                  common.caos_name_to_pg_name(prototype.name.name + '_batch_merger'))
 
-        columns = self.get_table_columns(table_name)
+        columns = self._type_mech.get_table_columns(table_name,
+                                                    connection=session.get_connection())
 
         cols = ','.join(common.qname(col) for col in columns.keys())
         vals = ','.join('batch.%s' % common.qname(col) for col in columns.keys())
@@ -1142,7 +1188,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             table_name = (model_table.name[0], common.caos_name_to_pg_name(name))
             batch_table = dbops.Table(table_name)
 
-            cols = self.get_table_columns(model_table.name)
+            cols = self._type_mech.get_table_columns(model_table.name,
+                                                     connection=session.get_connection())
             colmap = {c.name: c for c in model_table.columns()}
             batch_table.add_columns(colmap[col] for col in cols)
 
@@ -1197,7 +1244,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         batch_table, updates_table, merger_func = self.get_batch_instruments(prototype,
                                                                              session, batch_id)
 
-        columns = self.get_table_columns(table)
+        columns = self._type_mech.get_table_columns(table, connection=session.get_connection())
 
         cols = ','.join(common.qname(col) for col in columns.keys())
 
@@ -1363,9 +1410,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         except KeyError:
             attribute_link_map = {}
             for link_name, link in concept.pointers.items():
-                if link.atomic() and link.singular() \
-                                 and not isinstance(link, caos.types.ProtoComputable) \
-                                 and (include_lazy or link.loading != caos.types.LazyLoading):
+                if not isinstance(link, caos.types.ProtoComputable) \
+                    and (link.get_loading_behaviour() == caos.types.EagerLoading or include_lazy):
                     col_name = common.caos_name_to_pg_name(link_name)
                     attribute_link_map[link_name] = attribute_map[col_name]
 
@@ -1413,10 +1459,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 if pointer_name == 'semantix.caos.builtins.source':
                     continue
 
-                if pointer.atomic():
-                    col_name, col_type = types.get_pointer_column_info(session.proto_schema,
-                                                                       pointer)
-                    cols.append(dbops.Column(name=col_name, type=col_type))
+                ptr_stor_info = types.get_pointer_storage_info(session.proto_schema, pointer)
+
+                if ptr_stor_info.column_name == 'semantix.caos.builtins.target':
+                    continue
+
+                if ptr_stor_info.table_type[0] == 'source':
+                    cols.append(dbops.Column(name=ptr_stor_info.column_name,
+                                             type=ptr_stor_info.column_type))
             table.add_columns(cols)
 
             self.table_cache[prototype] = table
@@ -1435,10 +1485,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         if link_proto.atomic() and link_proto.singular() and len(link_proto.pointers) <= 2:
             return
 
-        target_prop = link_proto.pointers['semantix.caos.builtins.target']
-
         source_col = common.caos_name_to_pg_name('semantix.caos.builtins.source')
-        target_col, _ = types.get_pointer_column_info(session.proto_schema, target_prop)
+        target_ptr_stor_info = types.get_pointer_storage_info(session.proto_schema, link_proto)
+        target_col = target_ptr_stor_info.column_name
 
         table = self.get_table(link_cls.__sx_prototype__, session)
 
@@ -1450,6 +1499,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         context = delta_cmds.CommandContext(session.get_connection(), session)
 
         target_is_concept = not link_proto.atomic()
+        target_in_table = target_ptr_stor_info.table_type[0] == 'pointer'
 
         for target in targets:
             """LOG [caos.sync]
@@ -1480,15 +1530,18 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             setattr(rec, source_col, source.id)
             rec.link_type_id = link_map[full_link_name]
 
-            if target_is_concept:
-                setattr(rec, target_col, target.id)
-            else:
-                setattr(rec, target_col, target)
+            if target_in_table:
+                if target_is_concept:
+                    setattr(rec, target_col, target.id)
+                else:
+                    setattr(rec, target_col, target)
 
             if merge:
                 condition = [(source_col, getattr(rec, source_col)),
-                             (target_col, getattr(rec, target_col)),
                              ('link_type_id', rec.link_type_id)]
+
+                if target_in_table:
+                    condition.append((target_col, getattr(rec, target_col)))
 
                 cmds.append(dbops.Merge(table, rec, condition=condition))
             else:
@@ -1628,9 +1681,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         self.meta.add_module(impmod)
 
 
-    def read_features(self):
+    def read_features(self, connection):
         try:
-            features = datasources.meta.features.FeatureList(self.connection).fetch()
+            features = datasources.meta.features.FeatureList(connection).fetch()
             return {f['name']: f['class_name'] for f in features}
         except (postgresql.exceptions.SchemaNameError, postgresql.exceptions.UndefinedTableError):
             return {}
@@ -1835,20 +1888,22 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return value
 
 
-    def read_pointer_target_column(self, meta, source, pointer_name, constraints_cache):
-        host_schema, host_table = common.get_table_name(source, catenate=False)
-        cols = self.get_table_columns((host_schema, host_table))
-        constraints = constraints_cache.get((host_schema, host_table))
+    def read_pointer_target_column(self, meta, pointer, constraints_cache):
+        ptr_stor_info = types.get_pointer_storage_info(meta, pointer, resolve_type=False)
+        cols = self._type_mech.get_table_columns(ptr_stor_info.table_name,
+                                                 connection=self.connection)
+        constraints = constraints_cache.get(ptr_stor_info.table_name)
 
-        col = cols.get(common.caos_name_to_pg_name(pointer_name))
+        col = cols.get(ptr_stor_info.column_name)
 
         if not col:
             msg = 'internal metadata inconsistency'
             details = ('Record for "%s" hosted by "%s" exists, but corresponding table column '
-                       'is missing' % (pointer_name, source.name))
+                       'is missing' % (pointer.normal_name(), pointer.source.name))
             raise caos.MetaError(msg, details=details)
 
-        return self._get_pointer_column_target(meta, source, pointer_name, col, constraints)
+        return self._get_pointer_column_target(meta, pointer.source, pointer.normal_name(),
+                                               col, constraints)
 
 
     def _get_pointer_column_target(self, meta, source, pointer_name, col, constraints):
@@ -1873,6 +1928,33 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                                   module=source.name.module))
 
         return target, col['column_required']
+
+
+    def _get_pointer_attribute_target(self, meta, source, pointer_name, attr):
+        derived_atom_name = proto.Atom.gen_atom_name(source, pointer_name)
+        if attr['attribute_type_schema'] == 'pg_catalog':
+            col_type_schema = common.caos_module_name_to_schema_name('semantix.caos.builtins')
+            col_type = attr['attribute_type_formatted']
+        else:
+            col_type_schema = attr['attribute_type_schema']
+            col_type = attr['attribute_type_formatted'] or attr['attribute_type']
+
+        if attr['attribute_default'] is not None:
+            atom_default = self.interpret_constant(attr['attribute_default'])
+        else:
+            atom_default = None
+
+        if attr['attribute_type_composite_id']:
+            # composite record
+            source_name = self.source_name_from_relid(attr['attribute_type_composite_id'])
+            target = meta.get(source_name)
+        else:
+            target = self.atom_from_pg_type(col_type, col_type_schema,
+                                            (), atom_default, meta,
+                                            caos.Name(name=derived_atom_name,
+                                                      module=source.name.module))
+
+        return target, attr['attribute_required']
 
 
     def verify_ptr_const_defaults(self, meta, ptr_name, target_atom, tab_default, schema_defaults):
@@ -1929,9 +2011,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         concept_indexes = self.read_search_indexes()
 
-        table_to_name_map = {common.link_name_to_table_name(name, catenate=False): name \
-                                                                    for name in links_list}
-
         for name, r in links_list.items():
             bases = tuple()
 
@@ -1954,16 +2033,25 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             required = r['required']
 
-            if r['source_id'] and r['is_atom']:
-                if r['mapping'] == caos.types.OneToMany:
-                    link_source = proto.Link(name=bases[0], _relaxrequired_=True)
-                    ptr_name = caos.Name('semantix.caos.builtins.target@atom')
-                else:
-                    link_source = source
-                    ptr_name = bases[0]
+            loading = caos.types.PointerLoading(r['loading']) if r['loading'] else None
 
-                target, required = self.read_pointer_target_column(meta, link_source, ptr_name,
-                                                                   atom_constraints)
+            exposed_behaviour = caos.types.LinkExposedBehaviour(r['exposed_behaviour']) \
+                                        if r['exposed_behaviour'] else None
+
+            link = proto.Link(name=name, base=bases, source=source,
+                              mapping=caos.types.LinkMapping(r['mapping']),
+                              exposed_behaviour=exposed_behaviour,
+                              required=required,
+                              title=title, description=description,
+                              is_abstract=r['is_abstract'],
+                              is_final=r['is_final'],
+                              is_atom=r['is_atom'],
+                              readonly=r['readonly'],
+                              loading=loading,
+                              default=r['default'])
+
+            if r['source_id'] and r['is_atom']:
+                target, required = self.read_pointer_target_column(meta, link, atom_constraints)
 
                 concept_schema, concept_table = common.concept_name_to_table_name(source.name,
                                                                                   catenate=False)
@@ -1984,20 +2072,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             else:
                 target = meta.get(r['target']) if r['target'] else None
 
-            loading = caos.types.PointerLoading(r['loading']) if r['loading'] else None
-            exposed_behaviour = caos.types.LinkExposedBehaviour(r['exposed_behaviour']) \
-                                        if r['exposed_behaviour'] else None
-            link = proto.Link(name=name, base=bases, source=source, target=target,
-                                mapping=caos.types.LinkMapping(r['mapping']),
-                                exposed_behaviour=exposed_behaviour,
-                                required=required,
-                                title=title, description=description,
-                                is_abstract=r['is_abstract'],
-                                is_final=r['is_final'],
-                                is_atom=r['is_atom'] if target else None,
-                                readonly=r['readonly'],
-                                loading=loading,
-                                default=r['default'])
+            if not r['source_id']:
+                link.is_atom = None
+
+            link.target = target
 
             if link_search:
                 link.search = link_search
@@ -2045,9 +2123,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         expr = caosql_codegen.CaosQLSourceGenerator.to_source(caosql_tree)
                         link.add_index(proto.SourceIndex(expr=expr))
             elif link.atomic():
-                source_table_name, col_name, col_type = types.get_pointer_storage_info(meta, link)
-                cols = self.get_table_columns(source_table_name)
-                col = cols[col_name]
+                ptr_stor_info = types.get_pointer_storage_info(meta, link)
+                cols = self._type_mech.get_table_columns(ptr_stor_info.table_name,
+                                                         connection=self.connection)
+                col = cols[ptr_stor_info.column_name]
                 self.verify_ptr_const_defaults(meta, link.name, link.target,
                                                col['column_default'], link.default)
 
@@ -2080,12 +2159,20 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             required = r['required']
             target = None
 
+            loading = caos.types.PointerLoading(r['loading']) if r['loading'] else None
+
+            prop = proto.LinkProperty(name=name, base=bases, source=source, target=target,
+                                      required=required,
+                                      title=title, description=description,
+                                      readonly=r['readonly'],
+                                      loading=loading,
+                                      default=default)
+
             if source and bases[0] not in {'semantix.caos.builtins.target',
                                            'semantix.caos.builtins.source'}:
                 # The property is attached to a link, check out link table columns for
                 # target information.
-                target, required = self.read_pointer_target_column(meta, source, bases[0],
-                                                                   atom_constraints)
+                target, required = self.read_pointer_target_column(meta, prop, atom_constraints)
 
                 constraints = self._constr_mech.unpack_constraints(meta, r['constraints'])
                 abstract_constraints = self._constr_mech.unpack_constraints(meta, r['abstract_constraints'])
@@ -2103,13 +2190,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     elif bases[0] == 'semantix.caos.builtins.source' and source is not None:
                         target = source.source
 
-            loading = caos.types.PointerLoading(r['loading']) if r['loading'] else None
-            prop = proto.LinkProperty(name=name, base=bases, source=source, target=target,
-                                      required=required,
-                                      title=title, description=description,
-                                      readonly=r['readonly'],
-                                      loading=loading,
-                                      default=default)
+            prop.target = target
 
             if source:
                 if source.generic():
@@ -2138,7 +2219,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         for prop in meta(type='link_property', include_automatic=True):
             if not prop.generic() and prop.source.generic():
                 source_table_name = common.get_table_name(prop.source, catenate=False)
-                cols = self.get_table_columns(source_table_name)
+                cols = self._type_mech.get_table_columns(source_table_name,
+                                                         connection=self.connection)
                 col_name = common.caos_name_to_pg_name(prop.normal_name())
                 col = cols[col_name]
                 self.verify_ptr_const_defaults(meta, prop.name, prop.target,
@@ -2173,30 +2255,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         pass
 
 
-    def get_table_columns(self, table_name, cache='auto', connection=None):
-        cols = self.column_cache.get(table_name) if cache is not None else None
-
-        if cols is None and cache != 'always':
-            if connection is None:
-                connection = self.connection
-
-            cols = introspection.tables.TableColumns(connection)
-            cols = cols.fetch(table_name=table_name[1], schema_name=table_name[0])
-            cols = collections.OrderedDict((col['column_name'], col) for col in cols)
-            self.column_cache[table_name] = cols
-
-            if not cols:
-                tlist = introspection.tables.TableList(connection)
-                table = tlist.fetch(schema_name=table_name[0], table_pattern=table_name[1])
-
-                if not table:
-                    msg = 'internal metadata incosistency'
-                    details = 'Could not obtain columns for "%s"."%s"' % table_name
-                    raise caos.MetaError(msg, details=details)
-
-        return cols
-
-
     def virtual_concept_from_table(self, session, meta, table_name):
         """Interpret concept relying exclusively on the specified table without supporting metadata."""
         ds = introspection.tables.TableList(session.get_connection())
@@ -2219,7 +2277,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         concept.materialize(meta)
 
-        columns = self.get_table_columns(table_name)
+        columns = self._type_mech.get_table_columns(table_name,
+                                                    connection=session.get_connection())
         atom_constraints = self._constr_mech.get_table_atom_constraints(session.get_connection())
         atom_constraints = atom_constraints.get(table_name)
 
@@ -2321,7 +2380,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         ptrs = updated_concept.get_children_common_pointers(schema)
 
         for ptr in ptrs:
-            if ptr.atomic():
+            ptr_stor_info = types.get_pointer_storage_info(schema, ptr)
+
+            if ptr_stor_info.table_type[0] == 'source' or ptr_stor_info.in_record:
                 if ptr.target.automatic:
                     target = schema.get(ptr.target.base, type=ptr.target.get_canonical_class())
                 else:
@@ -2391,11 +2452,30 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         table = next(iter(tables))
 
         self.table_id_to_proto_name_cache[table['oid']] = updated_concept.name
+        self.table_id_to_proto_name_cache[table['typoid']] = updated_concept.name
         self.proto_name_to_table_id_cache[updated_concept.name] = table['typoid']
 
-        # Update virtual concept table column cache
-        self.get_table_columns(table_name, connection=session.get_connection(), cache=None)
+        ds = introspection.types.TypesList(session.get_connection())
+        record_name = common.concept_name_to_record_name(updated_concept.name, catenate=False)
+        records = ds.fetch(schema_name=record_name[0], type_name=record_name[1])
 
+        if not records:
+            msg = 'internal metadata incosistency'
+            details = 'Record for concept "%s" exists but the composite type is missing' % updated_concept.name
+            raise caos.MetaError(msg, details=details)
+
+        record = next(iter(records))
+        self.table_id_to_proto_name_cache[record['oid']] = updated_concept.name
+        self.table_id_to_proto_name_cache[record['typrelid']] = updated_concept.name
+
+        # Update virtual concept table column cache
+        self._type_mech.get_table_columns(table_name, connection=session.get_connection(),
+                                          cache=None)
+        self._type_mech.get_type_attributes(record_name, connection=session.get_connection(),
+                                            cache=None)
+
+    def get_type_attributes(self, type_name, connection=None, cache='auto'):
+        return self._type_mech.get_type_attributes(type_name, connection, cache)
 
     def read_concepts(self, meta):
         tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
@@ -2479,6 +2559,104 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     caosql_tree = reverse_caosql_transformer.transform(caos_tree)
                     expr = caosql_codegen.CaosQLSourceGenerator.to_source(caosql_tree)
                     concept.add_index(proto.SourceIndex(expr=expr))
+
+        self._validate_source_composites(meta)
+
+
+    def _validate_source_composites(self, meta):
+        records = introspection.types.TypesList(self.connection).fetch(schema_name='caos%',
+                                                                       type_name='%_record',
+                                                                       include_arrays=False)
+
+        attr_ds = introspection.types.CompositeTypeAttributes(self.connection)
+
+        records = {(t['schema'], t['name']): t for t in records}
+
+        visited_records = set()
+
+        for source in itertools.chain(meta(type='concept', include_automatic=True)):
+
+            record_name = common.get_record_name(source, catenate=False)
+
+            try:
+                record = records[record_name]
+            except KeyError as e:
+                msg = 'internal metadata inconsistency'
+                details = 'Missing composite type for "{}": {}'.format(source.name,
+                                                                       common.qname(*record_name))
+                raise caos.MetaError(msg, details=details) from e
+
+            attrs = attr_ds.fetch(type_name=record_name[1], schema_name=record_name[0])
+            attrs = {a['attribute_name']: a for a in attrs}
+
+            attr_types = {}
+            for an, a in attrs.items():
+                if an not in {'concept_id', 'link_type_id'}:
+                    ptr_name = caos.Name(a['attribute_comment'] or an)
+                    typ = self._get_pointer_attribute_target(meta, source, ptr_name, a)[0]
+                    attr_types[an] = types.pg_type_from_object(meta, typ)
+                    if a['attribute_type_is_array']:
+                        attr_types[an] += '[]'
+                else:
+                    attr_types[an] = 'integer'
+
+            expected_attrs = {}
+
+            if isinstance(source, caos.types.ProtoLink):
+                expected_attrs['link_type_id'] = 'integer'
+            else:
+                expected_attrs['concept_id'] = 'integer'
+
+            if source.is_virtual:
+                ptrs = source.get_children_common_pointers(meta)
+            else:
+                ptrs = source.pointers.values()
+
+            for ptr in ptrs:
+                if isinstance(ptr, caos.types.ProtoComputable):
+                    continue
+
+                ptr_stor_info = types.get_pointer_storage_info(meta, ptr, record_mode=True)
+
+                if ptr_stor_info.in_record:
+                    expected_attrs[ptr_stor_info.column_name] = ptr_stor_info.column_type
+
+            missing_attrs = set(expected_attrs) - set(attr_types)
+
+            if missing_attrs:
+                msg = 'internal metadata incosistency'
+                details = 'Missing composite type attributes for {}: {}'\
+                            .format(source.name, ', '.join(missing_attrs))
+                raise caos.MetaError(msg, details=details)
+
+            extra_attrs = set(attr_types) - set(expected_attrs)
+
+            if extra_attrs:
+                msg = 'internal metadata incosistency'
+                details = 'Extraneous composite type attributes for {}: {}'\
+                            .format(source.name, ', '.join(extra_attrs))
+                raise caos.MetaError(msg, details=details)
+
+            for attr_name, attr_type in attr_types.items():
+                expected_type = expected_attrs[attr_name]
+
+                if attr_type != expected_type:
+                    msg = 'internal metadata incosistency'
+                    details = 'Unexpected type of composite type attribute {}.{}: {}, expected {}'\
+                                .format(source.name, attr_name, attr_type, expected_type)
+                    raise caos.MetaError(msg, details=details)
+
+            visited_records.add(record_name)
+
+        recdiff = set(records.keys()) - visited_records
+
+        """ XXX: this triggers false positives on records for virtual concepts
+        if recdiff:
+            msg = 'internal metadata incosistency'
+            details = 'Extraneous composite types exist: %s' \
+                        % (', '.join('"%s.%s"' % t for t in recdiff))
+            raise caos.MetaError(msg, details=details)
+        """
 
 
     def normalize_domain_descr(self, d):

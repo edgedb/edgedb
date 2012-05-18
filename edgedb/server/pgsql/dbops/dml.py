@@ -33,27 +33,36 @@ class Insert(DMLOperation):
         vals = []
         placeholders = []
         i = 1
-        for row in self.records:
-            placeholder_row = []
-            for col, coltype in cols:
-                val = getattr(row, col, None)
-                if val and isinstance(val, base.Query):
-                    vals.extend(val.params)
-                    qtext = re.sub(r'\$(\d+)', lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1), val.text)
-                    placeholder_row.append('(%s)::%s' % (qtext, val.type))
-                    i += len(val.params)
-                elif val is base.Default:
-                    placeholder_row.append('DEFAULT')
-                else:
-                    vals.append(val)
-                    placeholder_row.append('$%d::%s' % (i, coltype))
-                    i += 1
-            placeholders.append('(%s)' % ','.join(placeholder_row))
 
-        code = 'INSERT INTO %s (%s) VALUES %s' % \
+        if isinstance(self.records, base.Query):
+            vals.extend(self.records.params)
+            qtext = re.sub(r'\$(\d+)', lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1),
+                           self.records.text)
+            values_expr = '({})'.format(qtext)
+        else:
+            for row in self.records:
+                placeholder_row = []
+                for col, coltype in cols:
+                    val = getattr(row, col, None)
+                    if val and isinstance(val, base.Query):
+                        vals.extend(val.params)
+                        qtext = re.sub(r'\$(\d+)', lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1), val.text)
+                        placeholder_row.append('(%s)::%s' % (qtext, val.type))
+                        i += len(val.params)
+                    elif val is base.Default:
+                        placeholder_row.append('DEFAULT')
+                    else:
+                        vals.append(val)
+                        placeholder_row.append('$%d::%s' % (i, coltype))
+                        i += 1
+                placeholders.append('(%s)' % ','.join(placeholder_row))
+
+            values_expr = 'VALUES {}'.format(','.join(placeholders))
+
+        code = 'INSERT INTO %s (%s) %s' % \
                 (common.qname(*self.table.name),
                  ','.join(common.quote_ident(c[0]) for c in cols),
-                 ','.join(placeholders))
+                 values_expr)
 
         if self.returning:
             code += ' RETURNING ' + ', '.join(self.returning)
@@ -61,8 +70,12 @@ class Insert(DMLOperation):
         return (code, vals)
 
     def __repr__(self):
-        vals = (('(%s)' % ', '.join('%s=%r' % (col, v) for col, v in row.items())) for row in self.records)
-        return '<caos.sync.%s %s (%s)>' % (self.__class__.__name__, self.table.name, ', '.join(vals))
+        if isinstance(self.records, base.Query):
+            vals = self.records.text
+        else:
+            vals = (('(%s)' % ', '.join('%s=%r' % (col, v) for col, v in row.items())) for row in self.records)
+            vals = ', '.join(vals)
+        return '<caos.sync.%s %s (%s)>' % (self.__class__.__name__, self.table.name, vals)
 
 
 class Update(DMLOperation):
@@ -160,17 +173,21 @@ class Merge(Update):
 
 
 class Delete(DMLOperation):
-    def __init__(self, table, condition, *, priority=0):
+    def __init__(self, table, condition, *, include_children=True, priority=0):
         super().__init__(priority=priority)
 
         self.table = table
         self.condition = condition
+        self.include_children = include_children
 
     def code(self, context):
         e = common.quote_ident
         where = ' AND '.join('%s = $%d' % (e(c[0]), i + 1) for i, c in enumerate(self.condition))
 
-        code = 'DELETE FROM %s WHERE %s' % (common.qname(*self.table.name), where)
+        tabname = common.qname(*self.table.name)
+        if not self.include_children:
+            tabname = 'ONLY {}'.format(tabname)
+        code = 'DELETE FROM %s WHERE %s' % (tabname, where)
 
         vals = [c[1] for c in self.condition]
 

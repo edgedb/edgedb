@@ -475,20 +475,24 @@ class EntityModStatType(dbops.CompositeType):
     def __init__(self):
         super().__init__(name=('caos', 'entity_modstat_rec_t'))
 
-        self._columns = datastructures.OrderedSet([
+        self.__columns = datastructures.OrderedSet([
             dbops.Column(name='semantix.caos.builtins.id', type='uuid'),
             dbops.Column(name='semantix.caos.builtins.mtime', type='timestamptz'),
         ])
+
+        self._columns = self.columns()
 
 
 class LinkEndpointsType(dbops.CompositeType):
     def __init__(self):
         super().__init__(name=('caos', 'link_endpoints_rec_t'))
 
-        self._columns = datastructures.OrderedSet([
+        self.__columns = datastructures.OrderedSet([
             dbops.Column(name='source_id', type='uuid'),
             dbops.Column(name='target_id', type='uuid'),
         ])
+
+        self._columns = self.columns()
 
 
 class Feature:

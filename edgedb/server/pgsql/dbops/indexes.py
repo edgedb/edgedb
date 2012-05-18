@@ -104,7 +104,8 @@ class IndexExists(base.Condition):
                        INNER JOIN pg_catalog.pg_class ic ON ic.oid = i.indexrelid
                        INNER JOIN pg_catalog.pg_namespace icn ON icn.oid = ic.relnamespace
                    WHERE
-                       icn.nspname = $1 AND ic.relname = $2'''
+                       icn.nspname = $1 AND ic.relname = $2
+               '''
 
         return code, self.index_name
 

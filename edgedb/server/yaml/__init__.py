@@ -1319,12 +1319,14 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 target_pname = caos.Name('semantix.caos.builtins.target')
                 target = proto.LinkProperty(name=target_pname,
                                             base=tuple(target_pname,),
+                                            loading=caos.types.EagerLoading,
                                             _setdefaults_=False, _relaxrequired_=True)
                 target._target = link.target.name
 
                 source_pname = caos.Name('semantix.caos.builtins.source')
                 source = proto.LinkProperty(name=source_pname,
                                             base=tuple(source_pname,),
+                                            loading=caos.types.EagerLoading,
                                             _setdefaults_=False, _relaxrequired_=True)
                 source._target = link.source.name
 

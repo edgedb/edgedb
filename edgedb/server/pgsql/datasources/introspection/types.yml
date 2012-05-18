@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -16,6 +16,9 @@ params:
     type_name:
         type: str
         default: null
+    include_arrays:
+        type: bool
+        default: True
 
 filters:
     - format: dict
@@ -23,10 +26,63 @@ filters:
 source: |
         SELECT
                 tp.oid                                AS oid,
-                tp.typname                            AS name
+                tp.typrelid                           AS typrelid,
+                tp.typname                            AS name,
+                ns.nspname                            AS schema,
+                cmt.description                       AS comment
             FROM
                 pg_type AS tp
                 INNER JOIN pg_namespace AS ns ON ns.oid = tp.typnamespace
+                LEFT JOIN pg_description AS cmt ON (cmt.objoid = tp.oid AND cmt.objsubid = 0)
             WHERE
                 (%(schema_name)s::text IS NULL OR ns.nspname LIKE %(schema_name)s)
                 AND (%(type_name)s::text IS NULL OR tp.typname LIKE %(type_name)s)
+                AND (%(include_arrays)s::bool OR tp.typcategory != 'A')
+...
+
+
+%SCHEMA semantix.caos.datasources.schemas.Sql
+%NAME CompositeTypeAttributes
+---
+params:
+    type_name:
+        type: str
+    schema_name:
+        type: str
+        default: "public"
+
+filters:
+    - format: dict
+
+source: |
+        SELECT
+                ns.nspname                              AS type_schema,
+                ct.typname                              AS type_name,
+                a.attname                               AS attribute_name,
+                t.typname                               AS attribute_type,
+                format_type(t.oid, a.atttypmod)         AS attribute_type_formatted,
+                tns.nspname                             AS attribute_type_schema,
+                coalesce(elemt.typrelid, t.typrelid)    AS attribute_type_composite_id,
+                t.typcategory = 'A'                     AS attribute_type_is_array,
+                a.attnotnull                            AS attribute_required,
+                pg_get_expr(def.adbin, c.oid, true)     AS attribute_default,
+                a.attislocal                            AS attribute_is_local,
+                a.attinhcount                           AS attribute_ancestors,
+                cmt.description                         AS attribute_comment
+            FROM
+                pg_type ct
+                INNER JOIN pg_namespace ns ON ct.typnamespace = ns.oid
+                INNER JOIN pg_class c ON ct.typrelid = c.oid
+                INNER JOIN pg_attribute a ON c.oid = a.attrelid
+                INNER JOIN pg_type t ON a.atttypid = t.oid
+                INNER JOIN pg_namespace tns ON t.typnamespace = tns.oid
+                LEFT JOIN pg_attrdef def ON def.adrelid = c.oid AND def.adnum = a.attnum
+                LEFT JOIN pg_description cmt ON (cmt.objoid = c.oid AND cmt.objsubid = a.attnum)
+                LEFT JOIN pg_type elemt ON t.typelem = elemt.oid
+            WHERE
+                ns.nspname LIKE %(schema_name)s::text
+                AND (%(type_name)s::text IS NULL OR ct.typname LIKE %(type_name)s::text)
+                AND a.attnum > 0
+            ORDER BY
+                a.attnum
+...
