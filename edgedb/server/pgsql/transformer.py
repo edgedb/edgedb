@@ -947,10 +947,15 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         return cols, query
 
+    def _is_subquery(self, path):
+        return isinstance(path, (tree.ast.ExistPred, tree.ast.GraphExpr)) \
+               or (isinstance(path, tree.ast.UnaryOp) and isinstance(path.expr, tree.ast.ExistPred))
+
     def _path_weight(self, path):
-        if isinstance(path, (tree.ast.ExistPred, tree.ast.GraphExpr)):
+        if self._is_subquery(path):
             return 2
-        elif isinstance(path, tree.ast.UnaryOp) and isinstance(path.expr, tree.ast.ExistPred):
+        elif isinstance(path, tree.ast.BinOp) and \
+                (self._is_subquery(path.left) or self._is_subquery(path.right)):
             return 2
         else:
             return 1
