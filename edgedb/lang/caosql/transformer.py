@@ -179,10 +179,10 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
 
             while expr.rlink:
                 linknode = expr.rlink
-                linkproto = next(iter(linknode.filter.labels))
+                linkproto = linknode.link_proto
 
                 link = qlast.LinkNode(name=linkproto.name.name, namespace=linkproto.name.module,
-                                      direction=linknode.filter.direction)
+                                      direction=linknode.direction)
                 link = qlast.LinkExprNode(expr=link)
                 links.append(link)
 
@@ -219,7 +219,7 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
             else:
                 path = qlast.PathNode()
 
-            linkproto = next(iter(expr.filter.labels))
+            linkproto = expr.link_proto
 
             if path.steps:
                 link = qlast.LinkNode(name=linkproto.name.name, namespace=linkproto.name.module)
@@ -290,8 +290,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 # XXX
                 # step.users =
             else:
-                linkspec = tree.ast.EntityLinkSpec(labels=frozenset((proto,)))
-                step = tree.ast.EntityLink(filter=linkspec, link_proto=proto)
+                step = tree.ast.EntityLink(link_proto=proto)
                 step.anchor = anchor
 
             context.current.anchors[anchor] = step
@@ -630,8 +629,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                     step.users.add(context.current.location)
                 else:
-                    linkspec = tree.ast.EntityLinkSpec(labels=frozenset((proto,)))
-                    step = tree.ast.EntityLink(filter=linkspec)
+                    step = tree.ast.EntityLink(link_proto=proto)
                     tips = {None: {step}}
 
                 if anchor:
@@ -678,9 +676,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                 paths = set(t.rlink.source.disjunction.paths)
 
                                 for source in sources:
-                                    link_spec = t.rlink.filter
                                     t_id = tree.transformer.LinearPath(t.id[:-2])
-                                    t_id.add(link_spec.labels, link_spec.direction, source)
+                                    t_id.add(t.rlink.link_proto, t.rlink.direction, source)
 
                                     new_target = tree.ast.EntitySet()
                                     new_target.concept = source
@@ -691,8 +688,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                                     link = tree.ast.EntityLink(source=t.rlink.source,
                                                                target=new_target,
-                                                               filter=link_spec,
-                                                               link_proto=t.rlink.link_proto)
+                                                               link_proto=t.rlink.link_proto,
+                                                               direction=t.rlink.direction)
 
                                     new_target.rlink = link
                                     paths.add(link)
@@ -729,9 +726,6 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                                 anchor_links = []
 
-                                link_spec = tree.ast.EntityLinkSpec(labels=frozenset([link_item]),
-                                                                    direction=dir)
-
                                 if isinstance(target, caos_types.ProtoConcept):
                                     if seen_atoms:
                                         raise errors.CaosQLError('path expression results in an '
@@ -742,12 +736,12 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                         target_set = tree.ast.EntitySet()
                                         target_set.concept = target
                                         target_set.id = tree.transformer.LinearPath(t.id)
-                                        target_set.id.add(link_spec.labels, link_spec.direction,
+                                        target_set.id.add(link_item, dir,
                                                           target_set.concept)
                                         target_set.users.add(context.current.location)
 
                                         link = tree.ast.EntityLink(source=t, target=target_set,
-                                                                   filter=link_spec,
+                                                                   direction=dir,
                                                                    link_proto=link_proto,
                                                                    anchor=link_anchor)
 
@@ -770,8 +764,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                     newtips[target] = set()
                                     for t in tip:
                                         link = tree.ast.EntityLink(source=t, target=None,
-                                                                   filter=link_spec,
                                                                    link_proto=link_proto,
+                                                                   direction=dir,
                                                                    anchor=link_anchor)
                                         anchor_links.append(link)
 
@@ -821,14 +815,14 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                         for entset in tip:
                             if isinstance(entset, tree.ast.EntityLink):
                                 link = entset
-                                link_proto = next(iter(link.filter.labels))
+                                link_proto = link.link_proto
                                 id = tree.transformer.LinearPath([None])
-                                id.add((link_proto,), caos_types.OutboundDirection, None)
+                                id.add(link_proto, caos_types.OutboundDirection, None)
                             else:
                                 link = entset.rlink
                                 id = entset.id
 
-                            link_proto = next(iter(link.filter.labels))
+                            link_proto = link.link_proto
                             prop_name = (link_expr.namespace, link_expr.name)
                             ptr_resolution = self._resolve_ptr(context, link_proto,
                                                                prop_name,

@@ -1247,7 +1247,7 @@ class TreeTransformer:
             our_node = our.target
             if our_node is None:
                 our_id = caos_utils.LinearPath(our.source.id)
-                our_id.add(link.filter.labels, link.filter.direction, None)
+                our_id.add(link.link_proto, link.direction, None)
                 our_node = our.source
             else:
                 our_id = our_node.id
@@ -1262,7 +1262,7 @@ class TreeTransformer:
             if other_node is None:
                 other_node = other.source
                 other_id = caos_utils.LinearPath(other.source.id)
-                other_id.add(other_link.filter.labels, other_link.filter.direction, None)
+                other_id.add(other_link.link_proto, other_link.direction, None)
             else:
                 other_id = other_node.id
         else:
@@ -1294,7 +1294,8 @@ class TreeTransformer:
                                          and not our_node.conjunction.paths
                                          and our_node.conceptfilter == other_node.conceptfilter
                                          and not other_node.conjunction.paths))))
-              and (not link or (link.filter == other_link.filter)))
+              and (not link or (link.link_proto == other_link.link_proto
+                                and link.direction == other_link.direction)))
 
         if ok:
             if other_link:
@@ -1547,8 +1548,9 @@ class TreeTransformer:
         current = result
 
         while rlink:
-            link = caos_ast.EntityLink(filter=rlink.filter, target=current,
+            link = caos_ast.EntityLink(target=current,
                                        link_proto=rlink.link_proto,
+                                       direction=rlink.direction,
                                        propfilter=rlink.propfilter,
                                        users=rlink.users.copy(),
                                        anchor=rlink.anchor)
@@ -1592,7 +1594,7 @@ class TreeTransformer:
             cols = []
             for link_name, link in ref.concept.get_searchable_links():
                 id = LinearPath(ref.id)
-                id.add(frozenset((link,)), caos_types.OutboundDirection, link.target)
+                id.add(link, caos_types.OutboundDirection, link.target)
                 cols.append(caos_ast.AtomicRefSimple(ref=ref, name=link_name,
                                                      caoslink=link,
                                                      id=id))
@@ -2260,8 +2262,8 @@ class PathResolver(TreeTransformer):
             target = [('getcls', path.concept.name)]
 
             if path.rlink:
-                link_proto = next(iter(path.rlink.filter.labels))
-                dir = path.rlink.filter.direction
+                link_proto = path.rlink.link_proto
+                dir = path.rlink.direction
                 source = self._serialize_path(path.rlink.source, session)
 
                 result = [('step', source, target, link_proto.normal_name(), dir)]
@@ -2270,7 +2272,7 @@ class PathResolver(TreeTransformer):
 
         elif isinstance(path, caos_ast.EntityLink):
             link = path
-            link_proto = next(iter(link.filter.labels))
+            link_proto = link.link_proto
             source = self._serialize_path(link.source, session)
 
             result = [('as_link', [('getattr', source, link_proto.normal_name())])]
@@ -2369,7 +2371,7 @@ class PathResolver(TreeTransformer):
 
         elif isinstance(path, caos_ast.EntityLink):
             link = path
-            link_proto = next(iter(link.filter.labels))
+            link_proto = link.link_proto
             source = self._resolve_path(link.source, session)
             result = (getattr(e, link_proto.normal_name()).as_link() for e in source)
 
@@ -2388,8 +2390,8 @@ class PathResolver(TreeTransformer):
         return result
 
     def _step_from_link(self, link, target, session):
-        link_proto = next(iter(link.filter.labels))
-        dir = link.filter.direction
+        link_proto = link.link_proto
+        dir = link.direction
         source = self._resolve_path(link.source, session)
         result = (caos_utils.create_path_step(session, expr, target,
                                              link_proto.normal_name(),

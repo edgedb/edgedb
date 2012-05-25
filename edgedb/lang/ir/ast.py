@@ -193,8 +193,8 @@ class LinkPropRefExpr(LinkPropRef, BaseRefExpr):
 
 
 class EntityLink(Base):
-    __fields = ['filter', 'propfilter', 'source', 'target', 'link_proto', ('proprefs', set),
-                ('users', set), 'anchor']
+    __fields = ['propfilter', 'source', 'target', 'link_proto', ('proprefs', set),
+                ('users', set), 'anchor', 'direction']
 
     def replace_refs(self, old, new, deep=False):
         # Since EntityLink can be a member of PathCombination set
@@ -203,20 +203,6 @@ class EntityLink(Base):
         super().replace_refs(old, new, deep)
         if replace:
             self.fixup_refs([self], self)
-
-
-class EntityLinkSpec(ast.AST):
-    __fields = [('labels', frozenset), 'direction']
-
-    def __eq__(self, other):
-        if not isinstance(other, self.__class__):
-            return NotImplemented
-        if other is None:
-            return False
-        return self.labels == other.labels and self.direction == other.direction
-
-    def __hash__(self):
-        return hash((self.labels, self.direction))
 
 
 class PathCombination(Path):
