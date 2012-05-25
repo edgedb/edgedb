@@ -1770,13 +1770,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 forward_bond = self._join_condition(context, valent_bond, source_ref, op='=')
                 backward_bond = self._join_condition(context, valent_bond, target_ref, op='=')
 
-                if link.filter.direction == caos_types.AnyDirection:
-                    map_join_cond = pgsql.ast.BinOpNode(left=forward_bond, op='or', right=backward_bond)
-                    left = pgsql.ast.BinOpNode(left=target_ref, op='=', right=target_id_field)
-                    right = pgsql.ast.BinOpNode(left=source_ref, op='=', right=target_id_field)
-                    cond_expr = pgsql.ast.BinOpNode(left=left, op='or', right=right)
-
-                elif link.filter.direction == caos_types.InboundDirection:
+                if link.filter.direction == caos_types.InboundDirection:
                     map_join_cond = backward_bond
                     cond_expr = pgsql.ast.BinOpNode(left=source_ref, op='=', right=target_id_field)
 

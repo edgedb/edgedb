@@ -991,10 +991,6 @@ class SimpleFqLinkExpr(Nonterm):
 
 
 class LinkDirection(Nonterm):
-    def reduce_LANGBRACKET_RANGBRACKET(self, *kids):
-        "%reduce LANGBRACKET_RANGBRACKET"
-        self.val = caos_types.AnyDirection
-
     def reduce_LANGBRACKET(self, *kids):
         "%reduce LANGBRACKET"
         self.val = caos_types.InboundDirection
