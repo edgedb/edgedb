@@ -12,7 +12,7 @@ import itertools
 from semantix.caos import name as caos_name
 from semantix.caos import error as caos_error
 from semantix.caos import utils as caos_utils
-from semantix.caos.utils import LinearPath, MultiPath
+from semantix.caos.utils import LinearPath
 from semantix.caos import types as caos_types
 from semantix.caos.tree import ast as caos_ast
 
