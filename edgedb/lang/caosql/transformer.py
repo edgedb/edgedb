@@ -29,6 +29,7 @@ class ParseContextLevel(object):
                 self.in_aggregate = []
                 self.in_func_call = False
                 self.arguments = prevlevel.arguments
+                self.context_vars = prevlevel.context_vars
                 self.proto_schema = prevlevel.proto_schema
                 self.module_aliases = prevlevel.module_aliases
                 self.aliascnt = prevlevel.aliascnt.copy()
@@ -44,6 +45,7 @@ class ParseContextLevel(object):
                 self.in_aggregate = prevlevel.in_aggregate[:]
                 self.in_func_call = prevlevel.in_func_call
                 self.arguments = prevlevel.arguments
+                self.context_vars = prevlevel.context_vars
                 self.proto_schema = prevlevel.proto_schema
                 self.module_aliases = prevlevel.module_aliases
                 self.aliascnt = prevlevel.aliascnt
@@ -59,6 +61,7 @@ class ParseContextLevel(object):
             self.in_aggregate = []
             self.in_func_call = False
             self.arguments = {}
+            self.context_vars = {}
             self.proto_schema = None
             self.module_aliases = None
             self.aliascnt = {}
@@ -235,6 +238,10 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
             result = qlast.SequenceNode(elements=elements)
             result = self.process_sequence(result)
 
+        elif isinstance(expr, tree.ast.TypeCast):
+            result = qlast.TypeCastNode(expr=self._process_expr(expr.expr),
+                                        type=expr.type.name)
+
         else:
             assert False, "Unexpected expression type: %r" % expr
 
@@ -262,6 +269,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         context = self._init_context(arg_types, module_aliases, anchors)
         stree = self._transform_select(context, caosql_tree, arg_types)
         self.apply_fixups(stree)
+        self.apply_rewrites(stree)
         return stree
 
     def transform_fragment(self, caosql_tree, arg_types, module_aliases=None, anchors=None,
@@ -357,6 +365,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
         graph.result_types = self.get_selector_types(graph.selector, self.proto_schema)
         graph.argument_types = self.context.current.arguments
+        graph.context_vars = self.context.current.context_vars
 
         path_idx = self.build_paths_index(graph)
         self.link_subqueries(graph, path_idx)

@@ -12,10 +12,11 @@ from semantix.caos import types as caos_types
 
 
 class Query:
-    def __init__(self, text, *, argument_types, result_types):
+    def __init__(self, text, *, argument_types, result_types, context_vars):
         self.text = text
         self.argument_types = argument_types
         self.result_types = result_types
+        self.context_vars = context_vars
 
     def first(self, **kwargs):
         raise NotImplementedError

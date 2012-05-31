@@ -713,7 +713,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             if cte.where_strong:
                 cte.where = self.extend_predicate(cte.where, cte.where_strong, ast.ops.AND,
                                                   strong=getattr(cte.where_strong, 'strong', False))
-            if cte.where_weak:
+            if cte.where_weak and cte.where is not cte.where_weak:
                 op = ast.ops.AND if getattr(cte.where, 'strong', False) else ast.ops.OR
                 cte.where = self.extend_predicate(cte.where, cte.where_weak, op)
 

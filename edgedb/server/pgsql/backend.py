@@ -116,7 +116,7 @@ class Cursor:
 
 class Query(backend_query.Query):
     def __init__(self, chunks, arg_index, argmap, result_types, argument_types,
-                 scrolling_cursor=False, offset=None, limit=None, query_type=None):
+                 context_vars, scrolling_cursor=False, offset=None, limit=None, query_type=None):
         self.chunks = chunks
         self.text = ''.join(chunks)
         self.argmap = argmap
@@ -124,6 +124,7 @@ class Query(backend_query.Query):
         self.result_types = result_types
         self.argument_types = collections.OrderedDict((k, argument_types[k]) for k in argmap
                                                       if k in argument_types)
+        self.context_vars = context_vars
 
         self.scrolling_cursor = scrolling_cursor
         self.offset = offset.index if offset is not None else None
@@ -301,7 +302,8 @@ class CaosQLAdapter:
                 argtypes[k] = v
 
         return Query(chunks=qchunks, arg_index=arg_index, argmap=argmap, result_types=restypes,
-                     argument_types=argtypes, scrolling_cursor=scrolling_cursor,
+                     argument_types=argtypes, context_vars=query.context_vars,
+                     scrolling_cursor=scrolling_cursor,
                      offset=offset, limit=limit, query_type=query_type)
 
 

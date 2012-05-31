@@ -53,10 +53,11 @@ _operator_map = {
 
 
 class PythonQuery(backend_query.Query):
-    def __init__(self, text, result_types, argument_types):
+    def __init__(self, text, result_types, argument_types, context_vars):
         self.text = text
         self.result_types = result_types
         self.argument_types = argument_types
+        self.context_vars = context_vars
 
     def prepare(self, session):
         return PreparedPythonQuery(self, session)
@@ -118,7 +119,8 @@ class Adapter:
             else:
                 argtypes[k] = v
 
-        return PythonQuery(text, result_types=restypes, argument_types=argtypes)
+        return PythonQuery(text, result_types=restypes, argument_types=argtypes,
+                                 context_vars=tree.context_vars)
 
 
 class CaosToPythonTransformerContext:

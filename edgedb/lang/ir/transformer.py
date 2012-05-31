@@ -291,6 +291,120 @@ class TreeTransformer:
         else:
             assert False, 'unexpected node: "%r"' % expr
 
+    def apply_rewrites(self, expr):
+        """Apply rewrites from policies
+        """
+
+        if isinstance(expr, caos_ast.PathCombination):
+            for path in expr.paths:
+                self.apply_rewrites(path)
+
+        elif isinstance(expr, caos_ast.AtomicRefSimple):
+            self.apply_rewrites(expr.ref)
+
+        elif isinstance(expr, caos_ast.EntitySet):
+            if expr.rlink:
+                self.apply_rewrites(expr.rlink)
+
+        elif isinstance(expr, caos_ast.EntityLink):
+            if expr.source is not None:
+                self.apply_rewrites(expr.source)
+
+            if not getattr(expr, '_lang_rewrite', None):
+                schema = self.context.current.proto_schema
+                localizable = schema.get('semantix.caos.extras.l10n.localizable',
+                                         default=None)
+
+                link_proto = expr.link_proto
+
+                if localizable is not None and link_proto.issubclass(schema, localizable):
+                    cvars = self.context.current.context_vars
+
+                    lang = caos_ast.Constant(index='__context_lang',
+                                             type=schema.get('semantix.caos.builtins.str'))
+                    cvars['lang'] = 'en_US'
+
+                    propn = caos_name.Name('semantix.caos.extras.l10n.lang')
+
+                    for langprop in expr.proprefs:
+                        if langprop.name == propn:
+                            break
+                    else:
+                        lprop_proto = link_proto.pointers[propn]
+                        langprop = caos_ast.LinkPropRefSimple(name=propn, ref=expr,
+                                                              ptr_proto=lprop_proto)
+                        expr.proprefs.add(langprop)
+
+                    eq_lang = caos_ast.BinOp(left=langprop, right=lang, op=ast.ops.EQ)
+                    lang_none = caos_ast.NoneTest(expr=lang)
+                    lang_test = caos_ast.BinOp(left=lang_none, right=eq_lang, op=ast.ops.OR)
+                    expr.propfilter = self.extend_binop(expr.propfilter, lang_test)
+                    expr._lang_rewrite = True
+
+        elif isinstance(expr, caos_ast.LinkPropRefSimple):
+            self.apply_rewrites(expr.ref)
+
+        elif isinstance(expr, caos_ast.BinOp):
+            self.apply_rewrites(expr.left)
+            self.apply_rewrites(expr.right)
+
+        elif isinstance(expr, caos_ast.UnaryOp):
+            self.apply_rewrites(expr.expr)
+
+        elif isinstance(expr, caos_ast.ExistPred):
+            self.apply_rewrites(expr.expr)
+
+        elif isinstance(expr, (caos_ast.InlineFilter, caos_ast.InlinePropFilter)):
+            self.apply_rewrites(expr.ref)
+            self.apply_rewrites(expr.expr)
+
+        elif isinstance(expr, (caos_ast.AtomicRefExpr, caos_ast.LinkPropRefExpr)):
+            self.apply_rewrites(expr.expr)
+
+        elif isinstance(expr, caos_ast.FunctionCall):
+            for arg in expr.args:
+                self.apply_rewrites(arg)
+            for sortexpr in expr.agg_sort:
+                self.apply_rewrites(sortexpr.expr)
+
+        elif isinstance(expr, caos_ast.TypeCast):
+            self.apply_rewrites(expr.expr)
+
+        elif isinstance(expr, caos_ast.NoneTest):
+            self.apply_rewrites(expr.expr)
+
+        elif isinstance(expr, (caos_ast.Sequence, caos_ast.Record)):
+            for path in expr.elements:
+                self.apply_rewrites(path)
+
+        elif isinstance(expr, caos_ast.Constant):
+            pass
+
+        elif isinstance(expr, caos_ast.GraphExpr):
+            if expr.generator:
+                self.apply_rewrites(expr.generator)
+
+            if expr.selector:
+                for e in expr.selector:
+                    self.apply_rewrites(e.expr)
+
+            if expr.grouper:
+                for e in expr.grouper:
+                    self.apply_rewrites(e)
+
+            if expr.sorter:
+                for e in expr.sorter:
+                    self.apply_rewrites(e)
+
+        elif isinstance(expr, caos_ast.SortExpr):
+            self.apply_rewrites(expr.expr)
+
+        elif isinstance(expr, caos_ast.SubgraphRef):
+            self.apply_rewrites(expr.ref)
+
+        else:
+            assert False, 'unexpected node: "%r"' % expr
+
     def replace_atom_refs(self, expr, prefixes):
 
         if isinstance(expr, caos_ast.AtomicRefSimple):
@@ -436,6 +550,7 @@ class TreeTransformer:
 
                         subgraph = caos_ast.GraphExpr()
                         subgraph.generator = generator
+
                         subexpr = caos_ast.FunctionCall(name=('agg', 'list'), args=[el],
                                                         aggregates=True)
                         selexpr = caos_ast.SelectorExpr(expr=subexpr, name=link_name)
