@@ -400,12 +400,14 @@ class TreeTransformer:
                     if link.atomic():
                         if link.singular():
                             newstep = caos_ast.AtomicRefSimple(ref=lref, name=link_name, id=id,
-                                                               caoslink=link_proto)
+                                                               ptr_proto=link_proto)
                         else:
                             ptr_name = caos_name.Name('semantix.caos.builtins.target')
                             prop_id = LinearPath(ref.id)
                             prop_id.add(root_link_proto, caos_types.OutboundDirection, None)
-                            newstep = caos_ast.LinkPropRefSimple(name=ptr_name, id=id)
+                            prop_proto = link.pointers[ptr_name]
+                            newstep = caos_ast.LinkPropRefSimple(name=ptr_name, id=id,
+                                                                 ptr_proto=prop_proto)
 
                         el = newstep
                     else:
@@ -466,7 +468,7 @@ class TreeTransformer:
             target_proto = link_proto.target
             id = LinearPath(ref.id)
             id.add(link_proto, caos_types.OutboundDirection, target_proto)
-            expr = caos_ast.AtomicRefSimple(ref=ref, name=link_name, id=id, caoslink=link_proto)
+            expr = caos_ast.AtomicRefSimple(ref=ref, name=link_name, id=id, ptr_proto=link_proto)
 
         return expr
 
@@ -1667,7 +1669,7 @@ class TreeTransformer:
                 id = LinearPath(ref.id)
                 id.add(link, caos_types.OutboundDirection, link.target)
                 cols.append(caos_ast.AtomicRefSimple(ref=ref, name=link_name,
-                                                     caoslink=link,
+                                                     ptr_proto=link,
                                                      id=id))
 
             if not cols:
@@ -2283,14 +2285,14 @@ class TreeTransformer:
                                            caos_ast.LinkPropRefSimple, caos_ast.Record)):
                 expr_kind = 'path'
             elif isinstance(selexpr.expr, caos_ast.AtomicRefExpr) and \
-                                                                  selexpr.expr.caoslink is not None:
+                                                                  selexpr.expr.ptr_proto is not None:
                 # RefExpr represents a computable
                 expr_kind = 'path'
             elif isinstance(selexpr.expr, caos_ast.PathCombination):
                 for p in selexpr.expr.paths:
                     if not isinstance(p, (caos_ast.EntitySet, caos_ast.AtomicRefSimple,
                                           caos_ast.LinkPropRefSimple)) \
-                       and not (isinstance(p, caos_ast.AtomicRefExpr) and p.caoslink is not None):
+                       and not (isinstance(p, caos_ast.AtomicRefExpr) and p.ptr_proto is not None):
                         expr_kind = 'expression'
                         break
                 else:
@@ -2319,9 +2321,9 @@ class PathResolver(TreeTransformer):
             source = self._serialize_path(path.ref, session)
             result = [('getattr', source, path.name)]
 
-        elif isinstance(path, caos_ast.AtomicRefExpr) and path.caoslink is not None:
+        elif isinstance(path, caos_ast.AtomicRefExpr) and path.ptr_proto is not None:
             source = self._serialize_path(path.ref, session)
-            result = [('getattr', source, path.caoslink.normal_name())]
+            result = [('getattr', source, path.ptr_proto.normal_name())]
 
         elif isinstance(path, caos_ast.LinkPropRefSimple):
             source = self._serialize_path(path.ref, session)
@@ -2422,9 +2424,9 @@ class PathResolver(TreeTransformer):
             expr = self._resolve_path(path.ref, session)
             result = (getattr(e, path.name) for e in expr)
 
-        elif isinstance(path, caos_ast.AtomicRefExpr) and path.caoslink is not None:
+        elif isinstance(path, caos_ast.AtomicRefExpr) and path.ptr_proto is not None:
             expr = self._resolve_path(path.ref, session)
-            result = (getattr(e, path.caoslink.normal_name()) for e in expr)
+            result = (getattr(e, path.ptr_proto.normal_name()) for e in expr)
 
         elif isinstance(path, caos_ast.LinkPropRefSimple):
             expr = self._resolve_path(path.ref, session)

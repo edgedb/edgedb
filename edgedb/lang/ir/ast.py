@@ -117,7 +117,8 @@ class SubgraphRef(Path):
 
 
 class BaseRef(Path):
-    __fields = ['id', ('ref', Base, None, False), ('rlink', Base, None, False, False, True)]
+    __fields = ['id', ('ref', Base, None, False), ('rlink', Base, None, False, False, True),
+                'ptr_proto']
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -135,7 +136,7 @@ class BaseRef(Path):
 
 
 class AtomicRef(BaseRef):
-    __fields = ['caoslink']
+    pass
 
 
 class AtomicRefSimple(AtomicRef):
@@ -194,7 +195,7 @@ class LinkPropRefExpr(LinkPropRef, BaseRefExpr):
 
 class EntityLink(Base):
     __fields = ['propfilter', 'source', 'target', 'link_proto', ('proprefs', set),
-                ('users', set), 'anchor', 'direction']
+                ('metarefs', set), ('users', set), 'anchor', 'direction']
 
     def replace_refs(self, old, new, deep=False):
         # Since EntityLink can be a member of PathCombination set

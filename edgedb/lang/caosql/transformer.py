@@ -785,14 +785,17 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                                         if not link_proto.singular():
                                             ptr_name = caos_name.Name('semantix.caos.builtins.target')
+                                            ptr_proto = link_proto.pointers[ptr_name]
                                             atomref = tree.ast.LinkPropRefSimple(name=ptr_name,
                                                                                  ref=link,
-                                                                                 id=atomref_id)
+                                                                                 id=atomref_id,
+                                                                                 ptr_proto=ptr_proto)
                                             t.disjunction.update(link)
                                         else:
                                             atomref = tree.ast.AtomicRefSimple(name=linkset_proto.normal_name(),
                                                                                ref=t, id=atomref_id,
-                                                                               rlink=link)
+                                                                               rlink=link,
+                                                                               ptr_proto=link_proto)
                                         newtips[target].add(atomref)
 
                                 else:
@@ -854,7 +857,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                             for prop_proto in outbound:
                                 propref = tree.ast.LinkPropRefSimple(name=prop_proto.normal_name(),
-                                                                     ref=link, id=id)
+                                                                     ref=link, id=id,
+                                                                     ptr_proto=prop_proto)
                                 newtips[prop_proto] = {propref}
 
                 tips = newtips
@@ -970,5 +974,5 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         caosql_tree = self.parser.parse(computable_proto.expression)
         result = self.transform_fragment(caosql_tree, (), anchors=anchors,
                                        location='computable')
-        result.caoslink = computable_proto
+        result.ptr_proto = computable_proto
         return result

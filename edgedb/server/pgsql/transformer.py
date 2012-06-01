@@ -289,7 +289,7 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
         return relation
 
     def _relation_from_link(self, context, node):
-        table_schema_name, table_name = common.link_name_to_table_name(link.name, catenate=False)
+        table_schema_name, table_name = common.get_table_name(node.link_proto, catenate=False)
         table = pgsql.ast.TableNode(name=table_name,
                                     schema=table_schema_name,
                                     alias=context.current.genalias(hint=table_name),
@@ -349,7 +349,10 @@ class SimpleExprTransformer(CaosExprTransformer):
             result = self._process_expr(context, expr.expr)
 
         elif isinstance(expr, tree.ast.LinkPropRefSimple):
-            field_name = common.caos_name_to_pg_name(expr.name)
+            proto_schema = context.current.proto_schema
+            stor_info = types.get_pointer_storage_info(proto_schema, expr.ptr_proto,
+                                                       resolve_type=False)
+            field_name = stor_info.column_name
 
             if not context.current.local:
                 table = self._relation_from_link(context, expr.ref)
@@ -430,11 +433,11 @@ class CaosTreeTransformer(CaosExprTransformer):
     def _dump(self, tree):
         markup.dump(tree)
 
-    def _transform_tree(self, context, tree):
-        context.current.query.subquery_referrers = tree.referrers
+    def _transform_tree(self, context, graph):
+        context.current.query.subquery_referrers = graph.referrers
 
-        if tree.cges:
-            for cge in tree.cges:
+        if graph.cges:
+            for cge in graph.cges:
                 with context(TransformerContext.SUBQUERY):
                     context.current.query = pgsql.ast.CTENode()
                     cte = self._transform_tree(context, cge.expr)
@@ -442,8 +445,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 context.current.query.ctes.add(cte)
                 context.current.explicit_cte_map[cge.expr] = cte
 
-        if tree.generator:
-            expr = self._process_generator(context, tree.generator)
+        if graph.generator:
+            expr = self._process_generator(context, graph.generator)
             if getattr(expr, 'aggregates', False):
                 context.current.query.having = expr
             else:
@@ -455,7 +458,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         # for easy reference in the main query.
         #
         non_generating_subgraphs = []
-        for subgraph in tree.subgraphs:
+        for subgraph in graph.subgraphs:
             if 'generator' not in subgraph.referrers and 'exists' not in subgraph.referrers:
                 non_generating_subgraphs.append(subgraph)
 
@@ -464,46 +467,104 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                                  non_generating_subgraphs)
 
 
-        self._process_selector(context, tree.selector, context.current.query)
-        self._process_sorter(context, tree.sorter)
+        self._process_selector(context, graph.selector, context.current.query)
+        self._process_sorter(context, graph.sorter)
 
-        self._process_groupby(context, tree.grouper)
+        self._process_groupby(context, graph.grouper)
 
-        if tree.offset:
-            context.current.query.offset = self._process_constant(context, tree.offset)
+        if graph.offset:
+            context.current.query.offset = self._process_constant(context, graph.offset)
 
-        if tree.limit:
-            context.current.query.limit = self._process_constant(context, tree.limit)
+        if graph.limit:
+            context.current.query.limit = self._process_constant(context, graph.limit)
 
-        if tree.op in ('update', 'delete'):
-            if tree.op == 'delete':
+        if graph.op in ('update', 'delete'):
+            if graph.op == 'delete':
                 query = pgsql.ast.DeleteQueryNode()
             else:
                 query = pgsql.ast.UpdateQueryNode()
+
+            op_is_update = graph.op == 'update'
+            opvalues = graph.opvalues
 
             # Standard entity set processing produces a whole CTE, while for UPDATE and DELETE
             # we need just the origin table.  Thus, use a dummy CTE here and repace the op's
             # fromexpr with a direct reference to a table
             #
-            query.fromexpr = self._relation_from_concepts(context, tree.optarget)
-            ref_map = {aref.name: query.fromexpr for aref in tree.optarget.atomrefs}
-            context.current.concept_node_map[tree.optarget] = {'local_ref_map': ref_map}
-            context.current.ctemap[query] = {tree.optarget: query}
+            if isinstance(graph.optarget, tree.ast.LinkPropRefSimple):
+                prop = graph.optarget
 
-            idref = pgsql.ast.FieldRefNode(table=query.fromexpr, field='semantix.caos.builtins.id',
-                                           origin=query.fromexpr,
-                                           origin_field='semantix.caos.builtins.id')
-            query.where = pgsql.ast.BinOpNode(left=idref, op='IN', right=context.current.query)
+                query.fromexpr = self._relation_from_link(context, prop.ref)
+
+                ref_map = {prop.ref.link_proto: query.fromexpr}
+                context.current.link_node_map[prop.ref] = {'local_ref_map': ref_map}
+
+                proto_schema = context.current.proto_schema
+                prop_stor_info = types.get_pointer_storage_info(proto_schema, prop.ptr_proto,
+                                                                resolve_type=False)
+                prop_col_name = prop_stor_info.column_name
+
+                tref = pgsql.ast.FieldRefNode(table=query.fromexpr,
+                                                field=prop_col_name,
+                                                origin=query.fromexpr,
+                                                origin_field=prop_col_name)
+
+                sprop_name = common.caos_name_to_pg_name('semantix.caos.builtins.source')
+                sref = pgsql.ast.FieldRefNode(table=query.fromexpr,
+                                              field=sprop_name,
+                                              origin=query.fromexpr,
+                                              origin_field=sprop_name)
+
+                filter = pgsql.ast.SequenceNode(elements=[sref, tref])
+
+            elif isinstance(graph.optarget, tree.ast.AtomicRefSimple):
+                # Singular atom delete op translates into source table update
+                query = pgsql.ast.UpdateQueryNode()
+                op_is_update = True
+                opvalues = [tree.ast.UpdateExpr(expr=graph.optarget,
+                                                value=tree.ast.Constant(value=None))]
+
+                query.fromexpr = self._relation_from_concepts(context, graph.optarget.ref)
+
+                ref_map = {aref.name: query.fromexpr for aref in graph.optarget.ref.atomrefs}
+                context.current.concept_node_map[graph.optarget.ref] = {'local_ref_map': ref_map}
+                context.current.ctemap[query] = {graph.optarget.ref: query}
+
+                filter = pgsql.ast.FieldRefNode(table=query.fromexpr,
+                                                field='semantix.caos.builtins.id',
+                                                origin=query.fromexpr,
+                                                origin_field='semantix.caos.builtins.id')
+
+                sref = filter
+
+            else:
+                query.fromexpr = self._relation_from_concepts(context, graph.optarget)
+
+                ref_map = {aref.name: query.fromexpr for aref in graph.optarget.atomrefs}
+                context.current.concept_node_map[graph.optarget] = {'local_ref_map': ref_map}
+                context.current.ctemap[query] = {graph.optarget: query}
+
+                filter = pgsql.ast.FieldRefNode(table=query.fromexpr,
+                                                field='semantix.caos.builtins.id',
+                                                origin=query.fromexpr,
+                                                origin_field='semantix.caos.builtins.id')
+
+            query.where = pgsql.ast.BinOpNode(left=filter, op='IN', right=context.current.query)
 
             with context(TransformerContext.NEW_TRANSPARENT):
                 # Make sure there's no walking back on links -- we're processing
                 # _only_ the path tip here and "glue" the path head with the above WHERE.
                 #
                 context.current.unwind_rlinks = False
-                self._process_selector(context, tree.opselector, query)
 
-                if tree.op == 'update':
-                    for expr in tree.opvalues:
+                if isinstance(graph.optarget, (tree.ast.LinkPropRefSimple, tree.ast.AtomicRefSimple)):
+                    sexpr = pgsql.ast.SelectExprNode(expr=sref, alias='source')
+                    query.targets.append(sexpr)
+
+                self._process_selector(context, graph.opselector, query)
+
+                if op_is_update:
+                    for expr in opvalues:
                         field = self._process_expr(context, expr.expr)
                         value = self._process_expr(context, expr.value)
                         query.values.append(pgsql.ast.UpdateExprNode(expr=field, value=value))
@@ -920,7 +981,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
     def _text_search_refs(self, context, vector):
         for link_name, link in vector.concept.get_searchable_links():
-            yield tree.ast.AtomicRefSimple(ref=vector, name=link_name, caoslink=link)
+            yield tree.ast.AtomicRefSimple(ref=vector, name=link_name, ptr_proto=link)
 
     def _text_search_args(self, context, vector, query, tsvector=True, extended=False):
         empty_str = pgsql.ast.ConstantNode(value='')
@@ -934,7 +995,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             refs = vector.elements
         elif isinstance(vector, tree.ast.AtomicRef):
             link = vector.ref.concept.getptr(context.current.proto_schema, vector.name)
-            ref = tree.ast.AtomicRefSimple(ref=vector.ref, name=vector.name, caoslink=link)
+            ref = tree.ast.AtomicRefSimple(ref=vector.ref, name=vector.name, ptr_proto=link)
             refs = (ref,)
 
         if tsvector:
@@ -942,7 +1003,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 ref = self._process_expr(context, atomref)
                 ref = pgsql.ast.FunctionCallNode(name='coalesce', args=[ref, empty_str])
                 ref = pgsql.ast.FunctionCallNode(name='to_tsvector', args=[lang_const, ref])
-                weight_const = pgsql.ast.ConstantNode(value=atomref.caoslink.search.weight)
+                weight_const = pgsql.ast.ConstantNode(value=atomref.ptr_proto.search.weight)
                 ref = pgsql.ast.FunctionCallNode(name='setweight', args=[ref, weight_const])
                 cols = self.extend_predicate(cols, ref, op='||')
         else:
@@ -1084,7 +1145,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                     callback(expr)
 
         elif isinstance(expr, tree.ast.EntityLink):
-            if expr.target:
+            if expr.target and not isinstance(expr.target.concept, caos_types.ProtoAtom):
                 self._process_expr(context, expr.target, cte)
             else:
                 self._process_expr(context, expr.source, cte)
@@ -1340,8 +1401,10 @@ class CaosTreeTransformer(CaosExprTransformer):
             if local_ref_map:
                 cteref = local_ref_map[expr.ref.link_proto]
 
-                colname = common.caos_name_to_pg_name(expr.name)
-
+                proto_schema = context.current.proto_schema
+                stor_info = types.get_pointer_storage_info(proto_schema, expr.ptr_proto,
+                                                           resolve_type=False)
+                colname = stor_info.column_name
                 fieldref = pgsql.ast.FieldRefNode(table=cteref, field=colname,
                                                   origin=cteref, origin_field=colname)
             else:
@@ -1614,15 +1677,16 @@ class CaosTreeTransformer(CaosExprTransformer):
                     cte.ctes.add(q)
                     q.referrers.add(cte)
 
-        if not cte.fromlist or not context.current.append_graphs:
-            fromnode = pgsql.ast.FromExprNode()
-            cte.fromlist.append(fromnode)
-            fromnode.expr = sqlpath
-        else:
-            last = cte.fromlist.pop()
-            sql_paths = [last.expr, sqlpath]
-            union = self.unify_paths(context, sql_paths)
-            cte.fromlist.append(union)
+        if isinstance(cte, pgsql.ast.SelectQueryNode):
+            if not cte.fromlist or not context.current.append_graphs:
+                fromnode = pgsql.ast.FromExprNode()
+                cte.fromlist.append(fromnode)
+                fromnode.expr = sqlpath
+            else:
+                last = cte.fromlist.pop()
+                sql_paths = [last.expr, sqlpath]
+                union = self.unify_paths(context, sql_paths)
+                cte.fromlist.append(union)
 
     def _join_condition(self, context, left_refs, right_refs, op='='):
         if not isinstance(left_refs, tuple):
@@ -2006,13 +2070,10 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                 maptable = link_ref_map[link_proto]
 
-                prop_name = propref.name
-                if link.target is not None \
-                        and isinstance(link.target.concept, caos_types.ProtoAtom) \
-                        and propref.name == 'semantix.caos.builtins.target':
-                    prop_name += '@atom'
-
-                colname = common.caos_name_to_pg_name(prop_name)
+                proto_schema = context.current.proto_schema
+                prop_stor_info = types.get_pointer_storage_info(proto_schema, propref.ptr_proto,
+                                                                resolve_type=False)
+                colname = prop_stor_info.column_name
 
                 fieldref = pgsql.ast.FieldRefNode(table=maptable, field=colname,
                                                   origin=maptable, origin_field=colname)
