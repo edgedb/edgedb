@@ -46,6 +46,11 @@ def resolve(typid):
     return pg_types_io.resolve(typid)
 
 
+class Array(pg_types.Array):
+    def __sx_serialize__(self):
+        return tuple(self)
+
+
 class TypeIO(pq3.TypeIO):
     def __init__(self, database):
         super().__init__(database)
@@ -70,6 +75,9 @@ class TypeIO(pq3.TypeIO):
             return self._pool.get_holder(self.database)
         else:
             return None
+
+    def array_from_parts(self, parts):
+        return super().array_from_parts(parts, ArrayType=Array)
 
     def array_io_factory(self, pack_element, unpack_element, typoid, hasbin_input, hasbin_output,
                                array_unpack=pg_types_io_lib.array_unpack):
