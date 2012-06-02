@@ -115,6 +115,18 @@ class CaosDatasource(Datasource):
         super().__init__()
         self.session = session
 
+        arg_types = {}
+
+        for arg_name, arg in self.params.items():
+            if isinstance(arg['type'], (list, tuple)):
+                arg_type = self.session.proto_schema.get(arg['type'][0])
+                arg_type = (list, arg_type)
+            else:
+                arg_type = self.session.proto_schema.get(arg['type'])
+            arg_types[arg_name] = arg_type
+
+        self._arg_types = arg_types
+
     def check_type(self, name, value, typ):
         if typ == 'any' or value is None:
             return value

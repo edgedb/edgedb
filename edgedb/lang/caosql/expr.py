@@ -53,15 +53,24 @@ class CaosQLExpression:
                                                    resolve_computables=resolve_computables)
 
     @debug.debug
-    def transform_expr(self, expr, anchors=None, context=None, arg_types=None):
+    def transform_expr(self, expr, anchors=None, context=None, arg_types=None, result_filters=None,
+                                                                               result_sort=None):
         """LOG [caos.query] CaosQL query:
         print(expr)
         """
 
         caosql_tree = self.parser.parse(expr)
 
-        if context is not None:
-            caosql_tree, _ = self.parser.normalize_select_query(caosql_tree, context=context)
+        if context is not None or result_filters is not None or result_sort is not None:
+            caosql_tree, aux_arg_types = self.parser.normalize_select_query(caosql_tree,
+                                                                            context=context,
+                                                                            filters=result_filters,
+                                                                            sort=result_sort)
+        else:
+            aux_arg_types = {}
+
+        if arg_types:
+            aux_arg_types.update(arg_types)
 
         """LOG [caos.query] CaosQL tree:
         from semantix.utils import markup
@@ -73,7 +82,7 @@ class CaosQLExpression:
             selnode.targets = [caosql.ast.SelectExprNode(expr=caosql_tree)]
             caosql_tree = selnode
 
-        query_tree = self.transformer.transform(caosql_tree, arg_types,
+        query_tree = self.transformer.transform(caosql_tree, aux_arg_types,
                                                 module_aliases=self.module_aliases)
         """LOG [caos.query] Caos tree:
         from semantix.utils import markup
