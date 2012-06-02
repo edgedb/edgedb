@@ -268,7 +268,9 @@ static void encode_float   (PyObject * obj,  EncodedData * encodedData);
 static void encode_decimal (PyObject * obj,  EncodedData * encodedData);
 static void encode_string  (PyObject * obj,  EncodedData * encodedData);
 static void encode_uuid    (PyObject * obj,  EncodedData * encodedData);
+static void encode_datetime(PyObject * obj,  EncodedData * encodedData);
 static void encode_date    (PyObject * obj,  EncodedData * encodedData);
+static void encode_time    (PyObject * obj,  EncodedData * encodedData);
 static void encode_list    (PyObject * obj,  EncodedData * encodedData);
 static void encode_tuple   (PyObject * obj,  EncodedData * encodedData);
 static void encode_set     (PyObject * obj,  EncodedData * encodedData);
@@ -395,7 +397,9 @@ static void _encode (PyObject * obj, EncodedData * encodedData)
     if (PyObject_TypeCheck(obj, PyType_UUID))    return encode_uuid   (obj, encodedData);
     if (PyObject_TypeCheck(obj, PyType_Decimal)) return encode_decimal(obj, encodedData);
 
+    if (PyDateTime_Check(obj)) return encode_datetime(obj, encodedData);
     if (PyDate_Check(obj)) return encode_date(obj, encodedData);
+    if (PyTime_Check(obj)) return encode_time(obj, encodedData);
 
     if (PyBytes_Check(obj) || PyByteArray_Check(obj)) return encode_default(obj, encodedData);
 
@@ -604,7 +608,7 @@ static void encode_uuid (PyObject * obj, EncodedData * encodedData)
  *
  * outputs date/time in ISO format "YYYY-MM-DDTHH:MM:SS.mmmmmm+HH:MM" to EncodedData
  */
-static void encode_date (PyObject * obj, EncodedData * encodedData)
+static void encode_datetime (PyObject * obj, EncodedData * encodedData)
 {
     if (encoder_data_has_error(encodedData)) return;
 
@@ -658,6 +662,86 @@ static void encode_date (PyObject * obj, EncodedData * encodedData)
 
     encoder_data_append_ch_nocheck(encodedData,'"');
 }
+
+
+/*
+ * 'obj' is assumed to be based on datetime.date.
+ *
+ * outputs date in ISO format "YYYY-MM-DD" to EncodedData
+ */
+static void encode_date (PyObject * obj, EncodedData * encodedData)
+{
+    if (encoder_data_has_error(encodedData)) return;
+
+    // date in ISO format is at most 10 characters long, plus need two enclosing quotes
+    encoder_data_reserve_space(encodedData, 12);
+
+    encoder_data_append_ch_nocheck(encodedData,'"');
+
+    datevalue_to_string(PyDateTime_GET_YEAR(obj), encodedData, 4);
+    encoder_data_append_ch_nocheck(encodedData,'-');
+    datevalue_to_string(PyDateTime_GET_MONTH(obj), encodedData, 2);
+    encoder_data_append_ch_nocheck(encodedData,'-');
+    datevalue_to_string(PyDateTime_GET_DAY(obj), encodedData, 2);
+
+    encoder_data_append_ch_nocheck(encodedData,'"');
+}
+
+
+/*
+ * 'obj' is assumed to be based on datetime.time.
+ *
+ * outputs date in ISO format "HH:MM:SS.mmmmmm+HH:MM" to EncodedData
+ */
+static void encode_time (PyObject * obj, EncodedData * encodedData)
+{
+    if (encoder_data_has_error(encodedData)) return;
+
+    // date in ISO format is at most 21 characters long, plus need two enclosing quotes
+    encoder_data_reserve_space(encodedData, 23);
+
+    encoder_data_append_ch_nocheck(encodedData,'"');
+
+    datevalue_to_string(PyDateTime_TIME_GET_HOUR(obj), encodedData, 2);
+    encoder_data_append_ch_nocheck(encodedData,':');
+    datevalue_to_string(PyDateTime_TIME_GET_MINUTE(obj), encodedData, 2);
+    encoder_data_append_ch_nocheck(encodedData,':');
+    datevalue_to_string(PyDateTime_TIME_GET_SECOND(obj), encodedData, 2);
+
+    int microseconds = PyDateTime_TIME_GET_MICROSECOND(obj);
+    if (microseconds != 0)
+    {
+        encoder_data_append_ch_nocheck(encodedData,'.');
+        datevalue_to_string(microseconds, encodedData, 6);
+    }
+
+    if (HASTZINFO(obj))
+    {
+        PyObject* timedelta = PyObject_CallMethod(obj, "utcoffset", NULL);
+
+        if (timedelta != NULL)
+        {
+            // tzinfo's timedelta can't be more than a day and is usually with a minute
+            // precision, so getting only seconds and ignoring days & microseconds is ok
+            int tz_total_seconds = GET_TD_SECONDS(timedelta);
+
+            Py_DECREF(timedelta);
+
+            int tz_hour   = tz_total_seconds/3600;
+            int tz_minute = (tz_total_seconds%3600)/60;
+
+            encoder_data_append_ch_nocheck(encodedData,'+');
+            datevalue_to_string(tz_hour, encodedData, 2);
+            encoder_data_append_ch_nocheck(encodedData,':');
+            datevalue_to_string(tz_minute, encodedData, 2);
+        }
+        else
+            PyErr_Clear();
+    }
+
+    encoder_data_append_ch_nocheck(encodedData,'"');
+}
+
 
 #ifdef Py_UNICODE_WIDE
 #define CHAR_MAX_EXPANSION (2 * 6)

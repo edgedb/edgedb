@@ -12,7 +12,7 @@ from decimal import Decimal
 from collections import OrderedDict, Set, Sequence, Mapping
 from uuid import UUID
 import random
-from datetime import datetime,tzinfo,timedelta
+from datetime import datetime, tzinfo, timedelta, date, time
 
 from semantix.utils.debug import assert_raises
 
@@ -171,7 +171,6 @@ class _BaseJsonEncoderTest:
                          False, False)
 
     def test_utils_json_encoder_datetime(self):
-
         dt1 = datetime(2012,2,1,12,20,22,100)
         dt2 = datetime(1990,12,11,1,1,1,0)
         dt3 = datetime(2222,1,6,22,59,0,99999)
@@ -188,9 +187,19 @@ class _BaseJsonEncoderTest:
                 return "GMT +5"
             def dst(self,dt):
                 return timedelta(0)
+
         gmt5 = GMT5()
         dt3 = datetime(2012,2,1,12,20,22,100,gmt5)
         self.encoder_test(dt3, '"2012-02-01T12:20:22.000100+05:30"', False, False)
+
+        dt = date(2012, 6, 1)
+        self.encoder_test(dt, '"2012-06-01"', False, False)
+
+        tm = time(12, 13, 14, 15)
+        self.encoder_test(tm, '"12:13:14.000015"', False, False)
+
+        tm5 = time(12, 13, 14, 15, gmt5)
+        self.encoder_test(tm5, '"12:13:14.000015+05:30"', False, False)
 
     def test_utils_json_encoder_sx_json(self):
         class Foo:

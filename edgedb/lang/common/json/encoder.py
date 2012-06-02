@@ -13,7 +13,7 @@ from decimal import Decimal
 from math import isnan, isinf
 from collections import OrderedDict, Set, Sequence, Mapping
 from uuid import UUID
-from datetime import datetime
+from datetime import date, time
 
 
 JAVASCRIPT_MAXINT = 9007199254740992  # see http://ecma262-5.com/ELS5_HTML.htm#Section_8.5
@@ -329,7 +329,7 @@ class Encoder:
         if isinstance(obj, Number):
             return self._encode_numbers(obj)
 
-        if isinstance(obj,datetime):
+        if isinstance(obj, (date, time)):
             return '"' + obj.isoformat() + '"'
 
         return self._encode(self.default(obj))
