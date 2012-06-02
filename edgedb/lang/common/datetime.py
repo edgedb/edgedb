@@ -316,6 +316,9 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
 
         return res
 
+    def __sx_serialize__(self):
+        return str(self)
+
 
 class Time(TimeDelta):
     def __new__(cls, value=None, *, format=None):
