@@ -512,9 +512,13 @@ def timeit(target):
 
         def __enter__(self):
             self.started = time.time()
+            return self
 
         def __exit__(self, exc_type, exc_value, tb):
             print("%s, in %.3f seconds" % (self.message, time.time() - self.started))
+
+        def log(self, msg=''):
+            print('>>>', self.message, msg, '%.3f' % (time.time() - self.started))
 
         def decorate(self, func):
             def new_func(*args, **kwargs):
