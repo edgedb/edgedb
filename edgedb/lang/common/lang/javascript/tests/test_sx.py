@@ -45,6 +45,31 @@ class TestJSsx(JSFunctionalTest):
         assert.equal(String(sx.Error), 'sx.Error');
         '''
 
+    def test_utils_lang_js_sx_contains(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import sx
+
+        assert.ok(sx.contains('foobar', 'ob'))
+        assert.not(sx.contains('foobar', 'bo'))
+        assert.not(sx.contains('', 'ob'))
+        assert.raises(function() {
+            sx.contains('', 10);
+        }, {error: sx.Error,
+            error_re: 'expected string'});
+
+        assert.ok(sx.contains({'a': 40}, 'a'))
+        assert.not(sx.contains({'a': 40}, 'b'))
+        assert.raises(function() {
+            sx.contains({}, 10);
+        }, {error: sx.Error,
+            error_re: 'only strings'});
+
+        assert.ok(sx.contains([10, 20], 10))
+        assert.not(sx.contains([10, 20], 50))
+        assert.not(sx.contains([10, 20], '10'))
+        assert.not(sx.contains([], '10'))
+        '''
+
     def test_utils_lang_js_sx_hasattr(self):
         '''JS
         // %from semantix.utils.lang.javascript import sx

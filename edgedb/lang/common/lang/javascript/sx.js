@@ -361,7 +361,11 @@ this.sx = (function() {
 
         contains: function(container, obj) {
             if (sx.is_object(container)) {
-                return container.hasOwnProperty(obj);
+                if (!sx.is_string(obj)) {
+                    throw new Error('sx.contains: only strings may be keys in javascript ' +
+                                    'objects, got ' + (typeof obj));
+                }
+                return has_own_property.call(container, obj);
             }
 
             if (sx.is_array(container)) {
@@ -369,13 +373,21 @@ this.sx = (function() {
                     return container.indexOf(obj) != -1;
                 } else {
                     for (var i = 0; i < container.length; i++) {
-                        if (container[i] == obj) {
+                        if (container[i] === obj) {
                             return true;
                         }
                     }
 
                     return false;
                 }
+            }
+
+            if (sx.is_string(container)) {
+                if (!sx.is_string(obj)) {
+                    throw new Error('sx.contains: expected string "obj" value, got ' +
+                                     (typeof obj));
+                }
+                return container.indexOf(obj) !== -1;
             }
 
             throw new Error('sx.contains function supports only objects and arrays, got ' +
