@@ -70,6 +70,9 @@ class TestJSsx(JSFunctionalTest):
         assert.not(sx.hasattr(foo, 'a'));
         assert.not(sx.hasattr(foo, 'hasOwnProperty'));
         assert.not(sx.hasattr(foo, 'c', true)); // weak
+
+        assert.not(sx.hasattr(null, 'a'));
+        assert.not(sx.hasattr(void(0), 'a'));
         '''
 
     def test_utils_lang_js_sx_first(self):

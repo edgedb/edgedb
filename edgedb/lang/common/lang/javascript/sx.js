@@ -297,6 +297,10 @@ this.sx = (function() {
         },
 
         hasattr: function(obj, attr, weak) {
+            if (obj === null || obj === undefined) {
+                return false;
+            }
+
             if (weak) {
                 return obj[attr] !== undefined;
             } else {
