@@ -143,6 +143,18 @@ class TestJSsx(JSFunctionalTest):
         assert.equal(
             (function() {
                 var cnt = 0;
+                sx.each([], function(value, idx) {
+                    cnt += idx * value;
+                });
+                return cnt;
+            })(),
+
+            0
+        );
+
+        assert.equal(
+            (function() {
+                var cnt = 0;
                 sx.each([10, 20, 30], function(value, idx) {
                     cnt += idx * value;
                 });
@@ -150,6 +162,45 @@ class TestJSsx(JSFunctionalTest):
             })(),
 
             80
+        );
+
+        assert.equal(
+            (function() {
+                var cnt = 0;
+                sx.each([10, 20, 30], function(value) {
+                    cnt += value;
+                });
+                return cnt;
+            })(),
+
+            60
+        );
+
+        assert.equal(
+            (function() {
+                var cnt = 0;
+                sx.each([10, 20, 30], function(value, idx, desc) {
+                    cnt += idx * value;
+
+                    if (value === 10 && idx === 0 && desc.first) {
+                        cnt += 100;
+                    }
+                    else if (value === 30 && idx === 2 && desc.last) {
+                        cnt += 1000;
+                    } else {
+                        if (desc.first) {
+                            cnt += 0.1;
+                        }
+
+                        if (desc.last) {
+                            cnt += 0.2;
+                        }
+                    }
+                });
+                return cnt;
+            })(),
+
+            1180
         );
 
         assert.equal(
@@ -163,6 +214,58 @@ class TestJSsx(JSFunctionalTest):
 
             140
         );
+
+        assert.equal(
+            (function() {
+                var cnt = 0;
+                sx.each({'1': 10, '2': 20, '3': 30}, function(value) {
+                    cnt += value;
+                });
+                return cnt;
+            })(),
+
+            60
+        );
+
+        assert.equal(
+            (function() {
+                var cnt = 0;
+                sx.each({}, function(value) {
+                    cnt += value;
+                });
+                return cnt;
+            })(),
+
+            0
+        );
+
+        assert.equal(
+            (function() {
+                var cnt = 0;
+                sx.each({'1': 10, '2': 20, '3': 30}, function(value, idx, desc) {
+                    cnt += parseInt(idx) * value;
+
+                    if (value === 10 && idx === '1' && desc.first) {
+                        cnt += 100;
+                    }
+                    else if (value === 30 && idx === '3' && desc.last) {
+                        cnt += 1000;
+                    } else {
+                        if (desc.first) {
+                            cnt += 0.1;
+                        }
+
+                        if (desc.last) {
+                            cnt += 0.2;
+                        }
+                    }
+                });
+                return cnt;
+            })(),
+
+            1240
+        );
+        '''
 
     def test_utils_lang_js_sx_str(self):
         '''JS
