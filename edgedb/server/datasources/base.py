@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -115,6 +115,9 @@ class CaosDatasource(Datasource):
         super().__init__()
         self.session = session
 
+        self._init_arg_types()
+
+    def _init_arg_types(self):
         arg_types = {}
 
         for arg_name, arg in self.params.items():
