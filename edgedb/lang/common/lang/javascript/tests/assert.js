@@ -22,13 +22,13 @@
 
     assert.ok = function(value, message) {
         if (!!!value) {
-            assert.fail(message);
+            assert.fail('assert.OK failed: ' + (message || ''));
         }
     };
 
     assert.not = function(value, message) {
         if (!!value) {
-            assert.fail(message);
+            assert.fail('assert.NOT failed: ' + (message || ''));
         }
     };
 
@@ -36,11 +36,11 @@
         weak = weak || false;
         if (weak) {
             if (arg1 != arg2) {
-                assert.fail(arg1 + ' != ' + arg2);
+                assert.fail('assert.EQUAL failed: ' + arg1 + ' != ' + arg2);
             }
         } else {
             if (arg1 !== arg2) {
-                assert.fail(arg1 + ' !== ' + arg2);
+                assert.fail('assert.EQUAL failed: ' + arg1 + ' !== ' + arg2);
             }
         }
     };
