@@ -163,4 +163,31 @@ class TestJSsx(JSFunctionalTest):
 
             140
         );
+
+    def test_utils_lang_js_sx_str(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import sx
+
+        assert.equal(sx.str.trim('aaa'), 'aaa');
+        assert.equal(sx.str.trim('a a  a'), 'a a  a');
+        assert.equal(sx.str.trim('  a a  a'), 'a a  a');
+        assert.equal(sx.str.trim('a a  a   '), 'a a  a');
+        assert.equal(sx.str.trim(   'a a  a   '), 'a a  a');
+
+        assert.ok(sx.str.endswith('aaa', 'a'));
+        assert.ok(sx.str.endswith('a', 'a'));
+        assert.ok(sx.str.endswith('abc', 'bc'));
+        assert.ok(sx.str.endswith('abc', ''));
+        assert.ok(sx.str.endswith('', ''));
+        assert.not(sx.str.endswith('1abcbc', 'abc'));
+        assert.not(sx.str.endswith('abc', 'b'));
+        assert.not(sx.str.endswith('', 'b'));
+
+        assert.ok(sx.str.startswith('aaa', 'a'));
+        assert.ok(sx.str.startswith('a', 'a'));
+        assert.ok(sx.str.startswith('abc', 'ab'));
+        assert.ok(sx.str.startswith('abc', ''));
+        assert.ok(sx.str.startswith('', ''));
+        assert.not(sx.str.startswith('abc', 'b'));
+        assert.not(sx.str.startswith('', 'b'));
         '''

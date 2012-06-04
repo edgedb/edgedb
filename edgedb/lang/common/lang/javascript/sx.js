@@ -429,6 +429,28 @@ this.sx = (function() {
                     str = str.substring(0, max) + '...';
                 }
                 return str;
+            },
+
+            trim: function(str) {
+                return str.replace(/^\s\s*/, '').replace(/\s\s*$/, '');
+            },
+
+            startswith: function(str, sub) {
+                return str.indexOf(sub) === 0;
+            },
+
+            endswith: function(str, sub) {
+                var sublen = sub.length, strlen = str.length;
+
+                if (!sublen) {
+                    return true;
+                }
+
+                if (sublen > strlen) {
+                    return false;
+                }
+
+                return str.lastIndexOf(sub) === str.length - sublen;
             }
         },
 
