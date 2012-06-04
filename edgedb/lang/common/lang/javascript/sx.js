@@ -53,6 +53,10 @@ this.sx = (function() {
             return !!obj && Object.prototype.toString.call(obj) === '[object Object]';
         },
 
+        is_string: function(obj) {
+            return Object.prototype.toString.call(obj) === '[object String]';
+        },
+
         _validate_sx_object: function(obj) {
             return Object.prototype.hasOwnProperty.call(obj, '_secret_')
                                                     && obj._secret_ === sx._secret_;

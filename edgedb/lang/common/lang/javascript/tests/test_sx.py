@@ -10,6 +10,33 @@ from .base import JSFunctionalTest
 
 
 class TestJSsx(JSFunctionalTest):
+    def test_utils_lang_js_sx_is(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import sx
+
+        assert.ok(sx.is_string('aaa'));
+        assert.ok(sx.is_string(''));
+        assert.not(sx.is_string(123));
+        assert.not(sx.is_string(null));
+        assert.not(sx.is_string(void(0)));
+        assert.not(sx.is_string({}));
+
+        assert.ok(sx.is_array([]));
+        assert.ok(sx.is_array([1,2]));
+        assert.not(sx.is_array(123));
+        assert.not(sx.is_array({}));
+        assert.not(sx.is_array(''));
+        assert.not(sx.is_array(void(0)));
+
+        assert.ok(sx.is_object({}));
+        assert.ok(sx.is_object(new (function(){})));
+        assert.not(sx.is_object(123));
+        assert.not(sx.is_object([]));
+        assert.not(sx.is_object(null));
+        assert.not(sx.is_object(''));
+        assert.not(sx.is_object(void(0)));
+        '''
+
     def test_utils_lang_js_sx_error(self):
         '''JS
         // %from semantix.utils.lang.javascript import sx
