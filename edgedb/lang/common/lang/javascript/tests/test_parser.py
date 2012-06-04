@@ -45,6 +45,9 @@ class TestJSParser(metaclass=MetaJSParserTest_Functional):
     def test_utils_lang_js_parser_array4(self):
         "print([0, 1, 2][0, 1, 2]);"
 
+    def test_utils_lang_js_parser_array5(self):
+        "print(['1', '[', '2', ']', '3'].join(''));"
+
     def test_utils_lang_js_parser_basic1(self):
         """print(1);"""
 
@@ -77,6 +80,9 @@ class TestJSParser(metaclass=MetaJSParserTest_Functional):
 
     def test_utils_lang_js_parser_basic10(self):
         """null; true; false; this;"""
+
+    def test_utils_lang_js_parser_basic11(self):
+        "print(')')"
 
     def test_utils_lang_js_parser_object1(self):
         """var a = {do : 1}; print(a.do);"""
@@ -168,6 +174,9 @@ class TestJSParser(metaclass=MetaJSParserTest_Functional):
         for (a in [1,2,3])
             print(a);
         """
+
+    def test_utils_lang_js_parser_object21(self):
+        "print({a: '1', '}':'}'});"
 
     def test_utils_lang_js_parser_unary1(self):
         """

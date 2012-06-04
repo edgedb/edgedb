@@ -461,6 +461,8 @@ class JSParser():
         Consumes the token if it is correct, raises an exception otherwise."""
 
         for val in tok:
+            if self.token.type == 'STRING':
+                raise UnexpectedToken(self.token, tok, parser=self)
 
             if self.token.string != val:
                 # automatic ';' insertion
@@ -492,6 +494,9 @@ class JSParser():
         If it does, the token is returned and next token is processed from the lexer.
         If there is no match, None is returned and the token stays."""
 
+        if self.token.type == 'STRING':
+            return
+
         if self.token.string in tok:
             t = self.token
             if consume:
@@ -499,7 +504,7 @@ class JSParser():
             return t
 
         else:
-            return None
+            return
 
 
     #
