@@ -81,9 +81,11 @@ class TestJSsx(JSFunctionalTest):
 
         assert.ok(sx.first([1, 2, 3]) === 1);
         assert.ok(sx.first({'a': 'b', 'c': 'd'}) === 'b');
+        assert.ok(sx.first('xyz') === 'x');
 
         assert.ok(sx.first([], 42) === 42);
         assert.ok(sx.first({}, 42) === 42);
+        assert.ok(sx.first('', 42) === 42);
 
         assert.raises(function() {
             sx.first(1);
@@ -99,6 +101,11 @@ class TestJSsx(JSFunctionalTest):
             sx.first([]);
         }, {error: sx.Error,
             error_re: 'empty array passed with no default'});
+
+        assert.raises(function() {
+            sx.first('');
+        }, {error: sx.Error,
+            error_re: 'empty string passed with no default'});
         '''
 
     def test_utils_lang_js_sx_len(self):

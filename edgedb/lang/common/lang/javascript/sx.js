@@ -333,6 +333,16 @@ this.sx = (function() {
                 }
 
                 throw new Error('sx.first: empty object passed with no default value set');
+            } else if (sx.is_string(obj)) {
+                if (obj.length > 0) {
+                    return obj[0];
+                } else {
+                    if (def !== undefined) {
+                        return def;
+                    } else {
+                        throw new Error('sx.first: empty string passed with no default value set');
+                    }
+                }
             }
 
             throw new Error('sx.first supports only arrays and objects');
