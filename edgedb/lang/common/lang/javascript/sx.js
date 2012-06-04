@@ -288,6 +288,10 @@ this.sx = (function() {
                 return len;
             }
 
+            if (sx.is_string(obj)) {
+                return obj.length;
+            }
+
             throw new Error('sx.len function supports only objects and arrays, got ' +
                             (typeof obj));
         },

@@ -121,6 +121,9 @@ class TestJSsx(JSFunctionalTest):
             error: sx.Error,
             error_re: 'supports only objects and arrays'
         });
+
+        assert.equal(sx.len(''), 0);
+        assert.equal(sx.len('123'), 3);
         '''
 
     def test_utils_lang_js_sx_each(self):
