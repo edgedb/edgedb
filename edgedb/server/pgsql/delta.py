@@ -1001,13 +1001,23 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 # The attribute is being moved from one table to another
                 opg = dbops.CommandGroup(priority=1)
                 at = source_op.get_alter_table(context, manual=True)
+                pat = self.get_alter_table(context, manual=True)
 
                 if old_ptr_stor_info.table_type[0] == 'source':
                     # Moved from concept table to link table
                     col = dbops.Column(name=old_ptr_stor_info.column_name,
                                        type=old_ptr_stor_info.column_type)
                     at.add_command(dbops.AlterTableDropColumn(col))
+
+                    newcol = dbops.Column(name=new_ptr_stor_info.column_name,
+                                          type=new_ptr_stor_info.column_type)
+
+                    pat.add_command(dbops.AlterTableAddColumn(newcol))
                 else:
+                    oldcol = dbops.Column(name=old_ptr_stor_info.column_name,
+                                          type=old_ptr_stor_info.column_type)
+                    pat.add_command(dbops.AlterTableDropColumn(oldcol))
+
                     # Moved from link to concept
                     cols = self.get_columns(pointer, meta)
                     ops = [dbops.AlterTableAddColumn(col) for col in cols]
@@ -1015,6 +1025,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                         at.add_operation(op)
 
                 opg.add_command(at)
+                opg.add_command(pat)
 
                 self.pgops.add(opg)
 
@@ -1066,6 +1077,26 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                     for op in ops:
                         alter_record.add_command(op)
                     opg.add_command(alter_record)
+
+            self.pgops.add(opg)
+
+        old_ptr_stor_info = types.get_pointer_storage_info(meta, orig_pointer,
+                                                           record_mode=True)
+        new_ptr_stor_info = types.get_pointer_storage_info(meta, pointer,
+                                                           record_mode=True)
+
+        if old_ptr_stor_info.column_type != new_ptr_stor_info.column_type:
+            # Composite type attribute type change, possibly due to mapping change
+            opg = dbops.CommandGroup(priority=1)
+
+            for src in itertools.chain((source_proto,), source_proto.children()):
+                alter_record = source_op.get_alter_record(context, manual=True,
+                                                                   source=src)
+                actaat = dbops.AlterCompositeTypeAlterAttributeType(
+                                        new_ptr_stor_info.column_name,
+                                        new_ptr_stor_info.column_type)
+                alter_record.add_command(actaat)
+                opg.add_command(alter_record)
 
             self.pgops.add(opg)
 
