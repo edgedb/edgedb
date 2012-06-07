@@ -1603,8 +1603,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         self.table = deltadbops.LinkTable()
 
     def create_table(self, link, meta, context, conditional=False):
-        self.table_name = new_table_name = common.get_table_name(link, catenate=False)
-        self.record_name = new_record_name = common.get_record_name(link, catenate=False)
+        new_table_name = common.get_table_name(link, catenate=False)
 
         constraints = []
         columns = []
@@ -1625,9 +1624,16 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         table.constraints = constraints
 
         if link.base:
-            bases = (common.link_name_to_table_name(p, catenate=False)
-                     for p in link.base if proto.Concept.is_prototype(meta, p))
-            table.bases = list(bases)
+            bases = []
+
+            for p in link.base:
+                if proto.Concept.is_prototype(meta, p):
+                    parent = meta.get(p)
+                    tabname = common.get_table_name(parent, catenate=False)
+                    self.create_table(parent, meta, context, conditional=True)
+                    bases.append(tabname)
+
+            table.bases = bases
 
         ct = dbops.CreateTable(table=table)
 
