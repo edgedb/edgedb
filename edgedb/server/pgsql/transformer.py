@@ -1455,6 +1455,9 @@ class CaosTreeTransformer(CaosExprTransformer):
                 colref = fieldref.origin_field
             elif isinstance(e, pgsql.ast.SelectQueryNode):
                 colref = e.targets[0].alias
+            elif isinstance(e, pgsql.ast.FunctionCallNode) and e.name == 'coalesce':
+                fieldref = e.args[0]
+                colref = fieldref.origin_field
             else:
                 fieldref = e
                 colref = fieldref.origin_field
