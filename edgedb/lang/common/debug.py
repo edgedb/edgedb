@@ -42,7 +42,11 @@ def _indent_code(source, absolute=None, relative=None):
                 break
         return count
 
-    tab_size = min(_calc_tab_size(line) for line in source.split('\n') if line.strip())
+    tab_sizes = tuple((_calc_tab_size(line) for line in source.split('\n') if line.strip()))
+    if tab_sizes:
+        tab_size = min(tab_sizes)
+    else:
+        tab_size = 0
 
     if relative is not None:
         absolute = tab_size + relative
