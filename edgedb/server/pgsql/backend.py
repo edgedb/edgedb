@@ -1102,7 +1102,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             else:
                 updates = {'id': id[0]}
             entity._instancedata.update(entity, updates, register_changes=False, allow_ro=True)
-            session.add_entity(entity)
+            session.add(entity)
 
         return id
 
