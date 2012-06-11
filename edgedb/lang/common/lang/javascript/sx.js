@@ -17,8 +17,9 @@ this.sx = (function() {
         has_own_property = Object.hasOwnProperty;
 
     function _extend(obj, ex) {
-        for (var i in ex) {
-            if (ex.hasOwnProperty(i)) {
+        var i;
+        for (i in ex) {
+            if (has_own_property.call(ex, i)) {
                 obj[i] = ex[i];
             }
         }
@@ -40,6 +41,12 @@ this.sx = (function() {
 
     _extend(sx, {
         Error: Error,
+
+        id: function(suffix) {
+            return 'sx-id-' + (++_id_counter) + (suffix || '');
+        },
+
+        apply: _extend,
 
         is_array: function(obj) {
             return Object.prototype.toString.call(obj) === '[object Array]';
@@ -468,7 +475,8 @@ this.sx = (function() {
 
         dom: {
             id: function(suffix) {
-                return 'sx-id-' + (++_id_counter) + (suffix || '');
+                // sx.dom.id() is deprecated. Use sx.id() instead.
+                return sx.id(suffix);
             },
 
             has_class: function(element, class_name) {

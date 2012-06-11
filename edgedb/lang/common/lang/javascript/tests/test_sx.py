@@ -292,6 +292,30 @@ class TestJSsx(JSFunctionalTest):
         );
         '''
 
+    def test_utils_lang_js_sx_id(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import sx
+
+        assert.ok(sx.id() !== sx.id());
+        '''
+
+    def test_utils_lang_js_sx_apply(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import sx
+
+        var a = {'c': 'd'}, b = {'a': 'b'};
+        var c = sx.apply(a, b);
+
+        assert.equal(a['a'], 'b');
+        assert.equal(a['c'], 'd');
+        assert.equal(sx.len(a), 2);
+
+        a = {'a': 1}; b = {'a': 2};
+        sx.apply(a, b);
+        assert.equal(a['a'], 2);
+        assert.equal(sx.len(a), 1);
+        '''
+
     def test_utils_lang_js_sx_str(self):
         '''JS
         // %from semantix.utils.lang.javascript import sx
