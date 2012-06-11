@@ -372,6 +372,9 @@ class OrderedIndex(BaseOrderedSet, collections.MutableMapping):
         key = self.key(item)
         del self.map[key]
 
+    def __sx_serialize__(self):
+        return list(self.map.values())
+
 
 class StrictOrderedIndex(OrderedIndex):
     def __setitem__(self, item):
