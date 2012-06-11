@@ -222,8 +222,8 @@ class Encoder:
         self._increment_nested_level()
 
         buffer = []
-        for key, value in obj.items():
-            buffer.append(self._encode_key(key) + ':' + self._encode(value))
+        for key in obj:
+            buffer.append(self._encode_key(key) + ':' + self._encode(obj[key]))
 
         self._decrement_nested_level()
 
