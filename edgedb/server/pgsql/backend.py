@@ -529,6 +529,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def _init_introspection_cache(self):
         if self.backend_info['initialized']:
             self._type_mech.init_cache(self.connection)
+            self._constr_mech.init_cache(self.connection)
             self.table_id_to_proto_name_cache, self.proto_name_to_table_id_cache = self._init_relid_cache()
             self.domain_to_atom_map = self._init_atom_map_cache()
             # Concept map needed early for type filtering operations in schema queries

@@ -41,6 +41,10 @@ class ConstraintMech:
         self._table_atom_constraints_cache = None
         self._table_ptr_constraints_cache = None
 
+    def init_cache(self, connection):
+        self.read_table_ptr_constraints(connection)
+        self.read_table_atom_constraints(connection)
+
     def invalidate_meta_cache(self):
         self._table_atom_constraints_cache = None
         self._table_ptr_constraints_cache = None
