@@ -1012,16 +1012,24 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                     newcol = dbops.Column(name=new_ptr_stor_info.column_name,
                                           type=new_ptr_stor_info.column_type)
 
-                    pat.add_command(dbops.AlterTableAddColumn(newcol))
+                    cond = dbops.ColumnExists(new_ptr_stor_info.table_name,
+                                              column_name=newcol.name)
+
+                    pat.add_command((dbops.AlterTableAddColumn(newcol), None, (cond,)))
                 else:
                     oldcol = dbops.Column(name=old_ptr_stor_info.column_name,
                                           type=old_ptr_stor_info.column_type)
-                    pat.add_command(dbops.AlterTableDropColumn(oldcol))
+
+                    if oldcol.name != 'semantix.caos.builtins.target':
+                        pat.add_command(dbops.AlterTableDropColumn(oldcol))
 
                     # Moved from link to concept
                     cols = self.get_columns(pointer, meta)
-                    ops = [dbops.AlterTableAddColumn(col) for col in cols]
-                    for op in ops:
+
+                    for col in cols:
+                        cond = dbops.ColumnExists(new_ptr_stor_info.table_name,
+                                                  column_name=col.name)
+                        op = (dbops.AlterTableAddColumn(col), None, (cond,))
                         at.add_operation(op)
 
                 opg.add_command(at)
@@ -1041,18 +1049,19 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                                                 types.pg_type_from_object(meta, new_target))
                         alter_table.add_operation(alter_type)
 
-                        opg = dbops.CommandGroup(priority=1)
-                        alter_type = dbops.AlterCompositeTypeAlterAttributeType(
-                                                old_ptr_stor_info.column_name,
-                                                types.pg_type_from_object(meta, new_target))
+                        if pointer.get_loading_behaviour() == caos.types.EagerLoading:
+                            opg = dbops.CommandGroup(priority=1)
+                            alter_type = dbops.AlterCompositeTypeAlterAttributeType(
+                                                    old_ptr_stor_info.column_name,
+                                                    types.pg_type_from_object(meta, new_target))
 
-                        for src in itertools.chain((source_proto,), source_proto.children()):
-                            alter_record = source_op.get_alter_record(context, manual=True,
-                                                                      source=src)
-                            alter_record.add_command(alter_type)
-                            opg.add_command(alter_record)
+                            for src in itertools.chain((source_proto,), source_proto.children()):
+                                alter_record = source_op.get_alter_record(context, manual=True,
+                                                                          source=src)
+                                alter_record.add_command(alter_type)
+                                opg.add_command(alter_record)
 
-                        self.pgops.add(opg)
+                            self.pgops.add(opg)
 
         if orig_pointer.get_loading_behaviour() != pointer.get_loading_behaviour():
             opg = dbops.CommandGroup(priority=1)
@@ -1085,7 +1094,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         new_ptr_stor_info = types.get_pointer_storage_info(meta, pointer,
                                                            record_mode=True)
 
-        if old_ptr_stor_info.column_type != new_ptr_stor_info.column_type:
+        if old_ptr_stor_info.column_type != new_ptr_stor_info.column_type \
+                    and pointer.get_loading_behaviour() == caos.types.EagerLoading:
             # Composite type attribute type change, possibly due to mapping change
             opg = dbops.CommandGroup(priority=1)
 
@@ -1717,6 +1727,7 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
         # Need to do this early, since potential table alters triggered by sub-commands
         # need this.
         link = delta_cmds.CreateLink.apply(self, meta, context)
+        self.table_name = common.get_table_name(link, catenate=False)
         LinkMetaCommand.apply(self, meta, context)
 
         # We do not want to create a separate table for atomic links, unless they have
