@@ -444,9 +444,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     error_res = {
         postgresql.exceptions.UniqueError: collections.OrderedDict((
             ('link_mapping',
-             re.compile(r'^duplicate key value violates unique constraint "(?P<constr_name>.*_link_mapping_idx)"$')),
+             re.compile(r'^.*"(?P<constr_name>.*_link_mapping_idx)".*$')),
             ('ptr_constraint',
-             re.compile(r'^duplicate key value violates unique constraint "(?P<constr_name>.*)"$'))
+             re.compile(r'^.*"(?P<constr_name>.*::ptr_constr)".*$'))
         ))
     }
 
