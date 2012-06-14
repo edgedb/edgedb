@@ -438,7 +438,7 @@ class TreeTransformer:
                         if isinstance(aref, caos_ast.MetaRef):
                             ref.metarefs.update(prefixes[aref.id])
                         else:
-                            ref.atomrefs.update(prefixes[aref.id])
+                            ref.atomrefs.update(a for a in prefixes[aref.id] if isinstance(a, caos_ast.AtomicRefSimple))
 
                 newrefs.update(newref)
 
@@ -1773,8 +1773,13 @@ class TreeTransformer:
                 if isinstance(arg, caos_ast.EntitySet):
                     refs.add(arg)
                 else:
-                    refs.update(ast.find_children(arg, lambda n: isinstance(n, caos_ast.EntitySet),
-                                                  force_traversal=True))
+                    def testfn(n):
+                        if isinstance(n, caos_ast.EntitySet):
+                            return True
+                        elif isinstance(n, caos_ast.SubgraphRef):
+                            raise ast.SkipNode()
+
+                    refs.update(ast.find_children(arg, testfn, force_traversal=True))
 
             assert len(refs) == 1
 

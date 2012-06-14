@@ -9,6 +9,10 @@
 
 from .base import *
 
+class SkipNode(Exception):
+    pass
+
+
 def find_children(node, test_func, *args, force_traversal=False, **kwargs):
     visited = set()
 
@@ -28,8 +32,11 @@ def find_children(node, test_func, *args, force_traversal=False, **kwargs):
                     if not isinstance(n, AST):
                         continue
 
-                    if not field_spec.hidden and test_func(n, *args, **kwargs):
-                        result.append(n)
+                    try:
+                        if not field_spec.hidden and test_func(n, *args, **kwargs):
+                            result.append(n)
+                    except SkipNode:
+                        continue
 
                     if field_spec.child_traverse or force_traversal:
                         _n = _find_children(n, test_func)
@@ -37,8 +44,11 @@ def find_children(node, test_func, *args, force_traversal=False, **kwargs):
                             result.extend(_n)
 
             elif isinstance(value, AST):
-                if not field_spec.hidden and test_func(value, *args, **kwargs):
-                    result.append(value)
+                try:
+                    if not field_spec.hidden and test_func(value, *args, **kwargs):
+                        result.append(value)
+                except SkipNode:
+                    continue
 
                 if field_spec.child_traverse or force_traversal:
                     _n = _find_children(value, test_func)
