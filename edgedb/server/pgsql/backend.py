@@ -855,19 +855,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         real_concept = concept_map[concept_id]
 
-        if real_concept == concept_name:
-            concept = session.proto_schema.get(concept_name)
-            attribute_link_map = self.get_attribute_link_map(concept, attribute_map)
+        concept_proto = session.proto_schema.get(real_concept)
+        attribute_link_map = self.get_attribute_link_map(concept_proto, attribute_map)
 
-            links = {k: row[i] for k, i in attribute_link_map.items()}
-            id = links['semantix.caos.builtins.id']
-        else:
-            id = row[attribute_map[common.caos_name_to_pg_name('semantix.caos.builtins.id')]]
-            links = self.load_entity(real_concept, id, session)
-            concept_name = real_concept
-
-        concept = session.schema.get(concept_name)
-        return session._merge(id, concept, links)
+        links = {k: row[i] for k, i in attribute_link_map.items()}
+        concept_cls = session.schema.get(real_concept)
+        return session._merge(links['semantix.caos.builtins.id'], concept_cls, links)
 
 
     def load_entity(self, concept, id, session):
@@ -1416,7 +1409,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 if not isinstance(link, caos.types.ProtoComputable) \
                     and (link.get_loading_behaviour() == caos.types.EagerLoading or include_lazy):
                     col_name = common.caos_name_to_pg_name(link_name)
-                    attribute_link_map[link_name] = attribute_map[col_name]
+
+                    try:
+                        attribute_link_map[link_name] = attribute_map[col_name]
+                    except KeyError:
+                        # The passed attribute map may be that of a parent concept,
+                        # which may not have all the links this concept has.
+                        pass
 
             self.attribute_link_map_cache[key] = attribute_link_map
 
