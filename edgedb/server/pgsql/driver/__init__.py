@@ -6,6 +6,7 @@
 ##
 
 
+import collections
 import datetime
 import uuid
 from functools import partial
@@ -46,9 +47,15 @@ def resolve(typid):
     return pg_types_io.resolve(typid)
 
 
-class Array(pg_types.Array):
+class Array(pg_types.Array, collections.Container):
     def __sx_serialize__(self):
         return tuple(self)
+
+    def __contains__(self, element):
+        return element in set(self.elements())
+
+    def __bool__(self):
+        return bool(list(self))
 
 
 class TypeIO(pq3.TypeIO):
