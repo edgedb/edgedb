@@ -1801,7 +1801,7 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
 
         ops = [dbops.AlterCompositeTypeAddAttribute(attr) for attr in cols]
 
-        for src in itertools.chain((concept.proto,), concept.proto.children()):
+        for src in itertools.chain((concept.proto,), concept.proto.children(recursive=True)):
             alter_record = concept.op.get_alter_record(context, manual=True,
                                                                 source=src)
 
