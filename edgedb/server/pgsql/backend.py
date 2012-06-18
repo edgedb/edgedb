@@ -527,6 +527,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def _init_introspection_cache(self):
+        self.backend_info = self.read_backend_info()
+
         if self.backend_info['initialized']:
             self._type_mech.init_cache(self.connection)
             self._constr_mech.init_cache(self.connection)
