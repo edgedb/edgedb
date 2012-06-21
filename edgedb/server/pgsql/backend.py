@@ -2316,8 +2316,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             src_pname_s = caos.Name(name=src_pname_s, module=link.name.module)
             src_p = caos.proto.LinkProperty(name=src_pname_s, base=(src_pname,),
-                                            source=link, target=concept)
+                                            source=link, target=concept,
+                                            loading=caos.types.EagerLoading)
             src_p.acquire_parent_data(meta)
+            src_p.title = None
 
             link.add_pointer(src_p)
 
@@ -2326,8 +2328,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                                                        tgt_pname)
             tgt_pname_s = caos.Name(name=tgt_pname_s, module=link.name.module)
             tgt_p = caos.proto.LinkProperty(name=tgt_pname_s, base=(tgt_pname,),
-                                            source=link, target=target)
+                                            source=link, target=target,
+                                            loading=caos.types.EagerLoading)
             tgt_p.acquire_parent_data(meta)
+            tgt_p.title = None
 
             link.add_pointer(tgt_p)
 
