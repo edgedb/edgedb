@@ -77,6 +77,10 @@ class PrototypeMetaCommand(MetaCommand, delta_cmds.PrototypeCommand):
 
 
 class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeCommand):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self._type_mech = schemamech.TypeMech()
+
     def fill_record(self, rec=None, obj=None):
         updates = {}
 
@@ -1567,8 +1571,9 @@ class PointerMetaCommand(MetaCommand):
                     have_new_default = False
 
             if have_new_default:
-                concept_op = context.get(delta_cmds.ConceptCommandContext).op
-                alter_table = concept_op.get_alter_table(context, contained=True, priority=3)
+                source_ctx, pointer_ctx = CompositePrototypeMetaCommand.\
+                                                get_source_and_pointer_ctx(meta, context)
+                alter_table = source_ctx.op.get_alter_table(context, contained=True, priority=3)
                 column_name = common.caos_name_to_pg_name(pointer.normal_name())
                 alter_table.add_operation(dbops.AlterTableAlterColumnDefault(column_name=column_name,
                                                                              default=new_default))
@@ -2161,8 +2166,16 @@ class AlterLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.AlterLinkProp
                     isinstance(self.old_prop.target, caos.types.ProtoAtom) and \
                     prop.required != self.old_prop.required:
 
-                alter_table = context.get(delta_cmds.LinkCommandContext).op.get_alter_table(context)
+                src_ctx = context.get(delta_cmds.LinkCommandContext)
+                src_op = src_ctx.op
+                alter_table = src_op.get_alter_table(context, priority=5)
                 column_name = common.caos_name_to_pg_name(prop.normal_name())
+                if prop.required:
+                    table = src_op._type_mech.get_table(src_ctx.proto, meta)
+                    rec = table.record(**{column_name:dbops.Default()})
+                    cond = [(column_name, None)]
+                    update = dbops.Update(table, rec, cond, priority=4)
+                    self.pgops.add(update)
                 alter_table.add_operation(dbops.AlterTableAlterColumnNull(column_name=column_name,
                                                                           null=not prop.required))
 

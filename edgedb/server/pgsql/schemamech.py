@@ -21,6 +21,7 @@ from . import astexpr
 from . import dbops
 from . import deltadbops
 from . import common
+from . import types
 from . import parser
 
 
@@ -365,8 +366,10 @@ class ConstraintMech:
 class TypeMech:
     def __init__(self):
         self._column_cache = None
+        self._table_cache = None
 
     def invalidate_meta_cache(self):
+        self._column_cache = None
         self._column_cache = None
 
     def init_cache(self, connection):
@@ -426,3 +429,51 @@ class TypeMech:
             self._load_type_attributes(type_name, connection)
 
         return self._column_cache.get(type_name)
+
+    def get_table(self, prototype, proto_schema):
+        if self._table_cache is None:
+            self._table_cache = {}
+
+        table = self._table_cache.get(prototype)
+
+        if table is None:
+            table_name = common.get_table_name(prototype, catenate=False)
+            table = dbops.Table(table_name)
+
+            cols = []
+
+            if isinstance(prototype, caos.types.ProtoLink):
+                cols.extend([
+                    dbops.Column(name='link_type_id', type='int'),
+                    dbops.Column(name='semantix.caos.builtins.source', type='uuid'),
+                    dbops.Column(name='semantix.caos.builtins.target', type='uuid')
+                ])
+
+            elif isinstance(prototype, caos.types.ProtoConcept):
+                cols.extend([
+                    dbops.Column(name='concept_id', type='int')
+                ])
+
+            else:
+                assert False
+
+            for pointer_name, pointer in prototype.pointers.items():
+                if isinstance(pointer, caos.types.ProtoComputable) or not pointer.singular():
+                    continue
+
+                if pointer_name == 'semantix.caos.builtins.source':
+                    continue
+
+                ptr_stor_info = types.get_pointer_storage_info(proto_schema, pointer)
+
+                if ptr_stor_info.column_name == 'semantix.caos.builtins.target':
+                    continue
+
+                if ptr_stor_info.table_type[0] == 'source':
+                    cols.append(dbops.Column(name=ptr_stor_info.column_name,
+                                             type=ptr_stor_info.column_type))
+            table.add_columns(cols)
+
+            self._table_cache[prototype] = table
+
+        return table

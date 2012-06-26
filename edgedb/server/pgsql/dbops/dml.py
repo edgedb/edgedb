@@ -107,6 +107,8 @@ class Update(DMLOperation):
                 expr = re.sub(r'\$(\d+)', lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1), val.text)
                 i += len(val.params)
                 vals.extend(val.params)
+            elif isinstance(val, base.Default):
+                expr = 'DEFAULT'
             else:
                 expr = '$%d::%s' % (i, self.cols[f])
                 i += 1

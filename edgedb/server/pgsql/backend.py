@@ -1018,7 +1018,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         concept = cls._metadata.name
         id = entity.id
         links = entity._instancedata.pointers
-        table = self.get_table(prototype, session)
+        table = self._type_mech.get_table(prototype, session.proto_schema)
 
         connection = session.get_connection() if session else self.connection
         concept_map = self.get_concept_map(session)
@@ -1181,7 +1181,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             result = result.get(prototype)
 
         if not result:
-            model_table = self.get_table(prototype, session)
+            model_table = self._type_mech.get_table(prototype, session.proto_schema)
             name = '%x_batch_%x' % (persistent_hash.persistent_hash(prototype.name.name), batch_id)
             table_name = (model_table.name[0], common.caos_name_to_pg_name(name))
             batch_table = dbops.Table(table_name)
@@ -1432,52 +1432,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return self.proto_name_to_table_id_cache.get(source_name)
 
 
-    def get_table(self, prototype, session):
-        table = self.table_cache.get(prototype)
-
-        if not table:
-            table_name = common.get_table_name(prototype, catenate=False)
-            table = dbops.Table(table_name)
-
-            cols = []
-
-            if isinstance(prototype, caos.types.ProtoLink):
-                cols.extend([
-                    dbops.Column(name='link_type_id', type='int'),
-                    dbops.Column(name='semantix.caos.builtins.source', type='uuid'),
-                    dbops.Column(name='semantix.caos.builtins.target', type='uuid')
-                ])
-
-            elif isinstance(prototype, caos.types.ProtoConcept):
-                cols.extend([
-                    dbops.Column(name='concept_id', type='int')
-                ])
-
-            else:
-                assert False
-
-            for pointer_name, pointer in prototype.pointers.items():
-                if isinstance(pointer, caos.types.ProtoComputable) or not pointer.singular():
-                    continue
-
-                if pointer_name == 'semantix.caos.builtins.source':
-                    continue
-
-                ptr_stor_info = types.get_pointer_storage_info(session.proto_schema, pointer)
-
-                if ptr_stor_info.column_name == 'semantix.caos.builtins.target':
-                    continue
-
-                if ptr_stor_info.table_type[0] == 'source':
-                    cols.append(dbops.Column(name=ptr_stor_info.column_name,
-                                             type=ptr_stor_info.column_type))
-            table.add_columns(cols)
-
-            self.table_cache[prototype] = table
-
-        return table
-
-
     @debug
     def store_links(self, source, targets, link_name, session, merge=False):
         link_map = self.get_link_map(session)
@@ -1493,7 +1447,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         target_ptr_stor_info = types.get_pointer_storage_info(session.proto_schema, link_proto)
         target_col = target_ptr_stor_info.column_name
 
-        table = self.get_table(link_cls.__sx_prototype__, session)
+        table = self._type_mech.get_table(link_cls.__sx_prototype__, session.proto_schema)
 
         link_names = [(target, caos.types.prototype(link_cls).name)]
 
