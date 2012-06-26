@@ -1289,7 +1289,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                                     left.type = right_type
 
                         result = pgsql.ast.BinOpNode(op=op, left=left, right=right,
-                                                     aggregates=op_aggregates)
+                                                     aggregates=op_aggregates,
+                                                     strong=expr.strong)
 
         elif isinstance(expr, tree.ast.UnaryOp):
             operand = self._process_expr(context, expr.expr, cte)
@@ -2105,8 +2106,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             context.current.link_node_map[link] = {'local_ref_map': link_ref_map}
             expr = self._process_expr(context, link.propfilter)
             if expr:
-                expr = pgsql.ast.PredicateNode(expr=expr)
-                if weak:
+                if weak and not getattr(expr, 'strong', False):
                     step_cte.where_weak = self.extend_predicate(step_cte.where_weak, expr,
                                                                 ast.ops.OR)
                 else:
@@ -2143,7 +2143,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         if predicate is not None:
             return pgsql.ast.BinOpNode(op=op, left=predicate, right=expr, strong=strong)
         else:
-            if isinstance(expr, pgsql.ast.BinOpNode):
+            if isinstance(expr, pgsql.ast.BinOpNode) and not expr.strong:
                 expr.strong = strong
             return expr
 

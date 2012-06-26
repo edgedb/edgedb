@@ -290,7 +290,7 @@ class Sequence(Base): __fields = [('elements', list)]
 class Record(Base): __fields = [('elements', list), 'concept']
 
 class BinOp(Base):
-    __fields = ['left', 'right', 'op', ('aggregates', bool)]
+    __fields = ['left', 'right', 'op', ('aggregates', bool), ('strong', bool)]
 
 class UnaryOp(Base):
     __fields = ['expr', 'op', ('aggregates', bool)]

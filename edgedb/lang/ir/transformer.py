@@ -338,7 +338,8 @@ class TreeTransformer:
 
                     eq_lang = caos_ast.BinOp(left=langprop, right=lang, op=ast.ops.EQ)
                     lang_none = caos_ast.NoneTest(expr=lang)
-                    lang_test = caos_ast.BinOp(left=lang_none, right=eq_lang, op=ast.ops.OR)
+                    lang_test = caos_ast.BinOp(left=lang_none, right=eq_lang, op=ast.ops.OR,
+                                               strong=True)
                     expr.propfilter = self.extend_binop(expr.propfilter, lang_test)
                     expr._lang_rewrite = True
 
@@ -667,7 +668,8 @@ class TreeTransformer:
             self.reorder_aggregates(expr.expr)
 
         elif isinstance(expr, (caos_ast.BaseRef, caos_ast.Constant, caos_ast.InlineFilter,
-                               caos_ast.EntitySet, caos_ast.InlinePropFilter)):
+                               caos_ast.EntitySet, caos_ast.InlinePropFilter,
+                               caos_ast.EntityLink)):
             pass
 
         elif isinstance(expr, caos_ast.PathCombination):
