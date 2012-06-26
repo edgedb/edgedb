@@ -323,7 +323,7 @@ class TreeTransformer:
 
                     lang = caos_ast.Constant(index='__context_lang',
                                              type=schema.get('semantix.caos.builtins.str'))
-                    cvars['lang'] = 'en_US'
+                    cvars['lang'] = 'en-US'
 
                     propn = caos_name.Name('semantix.caos.extras.l10n.lang')
 
