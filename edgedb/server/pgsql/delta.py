@@ -1166,31 +1166,61 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
                 ptr_stor_info = types.get_pointer_storage_info(meta, ptr, record_mode=True)
 
-                if ptr_stor_info.in_record:
+                if ptr_stor_info.in_record and isinstance(source, caos.types.ProtoConcept):
                     col = dbops.Column(name=ptr_stor_info.column_name,
                                        type=ptr_stor_info.column_type,
                                        required=ptr.required)
-                    alter_table.add_operation(dbops.AlterTableAddColumn(col))
-                    alter_record.add_command(dbops.AlterCompositeTypeAddAttribute(col))
+
+                    op = dbops.AlterCompositeTypeAddAttribute(col)
+                    for src in itertools.chain((source,), source.children(recursive=True)):
+                        rec_name = common.get_record_name(src, catenate=False)
+                        alter_record = source_ctx.op.get_alter_record(context, force_new=True,
+                                                                               source=src)
+                        cond = dbops.CompositeTypeAttributeExists(rec_name, op.attribute.name)
+                        alter_record.add_command((op, None, (cond,)))
 
             if dropped_bases:
+                for dropped_base in dropped_bases:
+                    parent_table_name = nameconv(caos.name.Name(dropped_base), catenate=False)
+                    op = dbops.AlterTableDropParent(parent_name=parent_table_name)
+                    alter_table.add_operation(op)
+
                 dropped_ptrs = set(orig_source.pointers) - set(source.pointers)
 
                 if dropped_ptrs:
                     for dropped_ptr in dropped_ptrs:
                         ptr = orig_source.pointers[dropped_ptr]
+
+                        constraints = itertools.chain(ptr.constraints.values(),
+                                                      ptr.abstract_constraints.values())
+                        for constraint in constraints:
+                            source_ctx.op.del_pointer_constraint(source, dropped_ptr,
+                                                                 constraint, meta, context,
+                                                                 conditional=True)
+
+                    alter_table_drop_ptr = source_ctx.op.get_alter_table(context, force_new=True)
+
+                    for dropped_ptr in dropped_ptrs:
+                        ptr = orig_source.pointers[dropped_ptr]
                         ptr_stor_info = types.get_pointer_storage_info(meta, ptr, record_mode=True)
 
-                        if ptr_stor_info.in_record:
-                            col = dbops.Column(name=ptr_stor_info.column_name,
-                                               type=ptr_stor_info.column_type,
-                                               required=ptr.required)
-                            alter_record.add_command(dbops.AlterCompositeTypeDropAttribute(col))
+                        col = dbops.Column(name=ptr_stor_info.column_name,
+                                           type=ptr_stor_info.column_type,
+                                           required=ptr.required)
 
-                for dropped_base in dropped_bases:
-                    parent_table_name = nameconv(caos.name.Name(dropped_base), catenate=False)
-                    op = dbops.AlterTableDropParent(parent_name=parent_table_name)
-                    alter_table.add_operation(op)
+                        if ptr_stor_info.in_record and isinstance(source, caos.types.ProtoConcept):
+                            for src in itertools.chain((source,), source.children(recursive=True)):
+                                rec_name = common.get_record_name(src, catenate=False)
+                                alter_record = source_ctx.op.get_alter_record(context, force_new=True,
+                                                                                       source=src)
+                                cond = dbops.CompositeTypeAttributeExists(rec_name, col.name)
+                                op = dbops.AlterCompositeTypeDropAttribute(col)
+                                alter_record.add_command((op, (cond,), None))
+
+                        cond = dbops.ColumnExists(table_name=ptr_stor_info.table_name,
+                                                  column_name=ptr_stor_info.column_name)
+                        op = dbops.AlterTableDropColumn(col)
+                        alter_table_drop_ptr.add_command((op, (cond,), ()))
 
             for added_base in added_bases:
                 parent_table_name = nameconv(caos.name.Name(added_base), catenate=False)
@@ -1946,11 +1976,17 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
                     alter_table.add_operation(col)
 
             if ptr_stor_info.in_record:
-                alter_record = concept.op.get_alter_record(context)
                 col = dbops.Column(name=ptr_stor_info.column_name,
                                    type=ptr_stor_info.column_type)
-                col = dbops.AlterCompositeTypeDropAttribute(col)
-                alter_record.add_command(col)
+                op = dbops.AlterCompositeTypeDropAttribute(col)
+
+                for src in itertools.chain((concept.proto,),
+                                           concept.proto.children(recursive=True)):
+                    rec_name = common.get_record_name(src, catenate=False)
+                    alter_record = concept.op.get_alter_record(context, force_new=True,
+                                                                        source=src)
+                    cond = dbops.CompositeTypeAttributeExists(rec_name, op.attribute.name)
+                    alter_record.add_command((op, (cond,), None))
 
         if self.has_table(result, meta):
             old_table_name = common.get_table_name(result, catenate=False)
