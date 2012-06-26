@@ -1658,8 +1658,10 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         tgt_col = common.caos_name_to_pg_name('semantix.caos.builtins.target')
 
         if link.name == 'semantix.caos.builtins.link':
-            columns.append(dbops.Column(name=src_col, type='uuid', required=True))
-            columns.append(dbops.Column(name=tgt_col, type='uuid', required=False))
+            columns.append(dbops.Column(name=src_col, type='uuid', required=True,
+                                        comment='semantix.caos.builtins.source'))
+            columns.append(dbops.Column(name=tgt_col, type='uuid', required=False,
+                                        comment='semantix.caos.builtins.target'))
             columns.append(dbops.Column(name='link_type_id', type='integer', required=True))
 
         constraints.append(dbops.UniqueConstraint(table_name=new_table_name,
@@ -2121,9 +2123,13 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
                 # The column may already exist as inherited from parent table
                 cond = dbops.ColumnExists(table_name=alter_table.name, column_name=col.name)
 
-                cmd = dbops.AlterTableAlterColumnNull(column_name=col.name,
-                                                      null=not property.required)
-                alter_table.add_operation((cmd, (cond,), None))
+                if property.required:
+                    # For some reaseon, Postgres allows dropping NOT NULL constraints
+                    # from inherited columns, but we really should only always increase
+                    # constraints down the inheritance chain.
+                    cmd = dbops.AlterTableAlterColumnNull(column_name=col.name,
+                                                          null=not property.required)
+                    alter_table.add_operation((cmd, (cond,), None))
 
                 cmd = dbops.AlterTableAddColumn(col)
                 alter_table.add_operation((cmd, None, (cond,)))

@@ -192,6 +192,9 @@ mapping:
                     "readonly":
                         type: bool
 
+                    "required":
+                        type: bool
+
                     "loading":
                         &POINTER_LOADING
                         type: str

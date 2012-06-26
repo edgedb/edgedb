@@ -452,7 +452,7 @@ class LinkPropertyDef(Prototype, proto.LinkProperty):
         proto.LinkProperty.__init__(self, name=default_name, title=data['title'],
                                     base=tuple(extends) if extends else tuple(),
                                     description=data['description'], readonly=data['readonly'],
-                                    loading=data['loading'],
+                                    loading=data['loading'], required=data['required'],
                                     _setdefaults_=False, _relaxrequired_=True)
 
     @classmethod
@@ -474,6 +474,9 @@ class LinkPropertyDef(Prototype, proto.LinkProperty):
 
         if data.loading:
             result['loading'] = data.loading
+
+        if data.required:
+            result['required'] = data.required
 
         return result
 
