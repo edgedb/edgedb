@@ -1937,7 +1937,10 @@ class TreeTransformer:
             if isinstance(ref, caos_ast.AtomicRef):
                 ref_id = ref.ref.id
             else:
-                ref_id = ref.id
+                if not ref.id:
+                    ref_id = ref.ref.target.id if ref.ref.target else ref.ref.source.id
+                else:
+                    ref_id = ref.id
 
             #assert not pathdict.get(ref_id)
             pathdict[ref_id] = ref
