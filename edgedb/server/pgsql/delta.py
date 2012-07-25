@@ -2164,17 +2164,18 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
                     alter_table.add_operation(col)
 
             if ptr_stor_info.in_record:
-                col = dbops.Column(name=ptr_stor_info.column_name,
-                                   type=ptr_stor_info.column_type)
-                op = dbops.AlterCompositeTypeDropAttribute(col)
+                if name not in concept.proto.pointers:
+                    col = dbops.Column(name=ptr_stor_info.column_name,
+                                       type=ptr_stor_info.column_type)
+                    op = dbops.AlterCompositeTypeDropAttribute(col)
 
-                for src in itertools.chain((concept.proto,),
-                                           concept.proto.children(recursive=True)):
-                    rec_name = common.get_record_name(src, catenate=False)
-                    alter_record = concept.op.get_alter_record(context, force_new=True,
-                                                                        source=src)
-                    cond = dbops.CompositeTypeAttributeExists(rec_name, op.attribute.name)
-                    alter_record.add_command((op, (cond,), None))
+                    for src in itertools.chain((concept.proto,),
+                                               concept.proto.children(recursive=True)):
+                        rec_name = common.get_record_name(src, catenate=False)
+                        alter_record = concept.op.get_alter_record(context, force_new=True,
+                                                                            source=src)
+                        cond = dbops.CompositeTypeAttributeExists(rec_name, op.attribute.name)
+                        alter_record.add_command((op, (cond,), None))
 
         if self.has_table(result, meta):
             old_table_name = common.get_table_name(result, catenate=False)
