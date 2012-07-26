@@ -24,6 +24,9 @@ class BinOpNode(Base):
 class VarNode(Base):
     __fields = ['name']
 
+class IdentNode(Base):
+    __fields = ['name']
+
 class PathVarNode(VarNode):
     pass
 
@@ -176,6 +179,10 @@ class CaseExprNode(Base):
 
 class CaseWhenNode(Base):
     __fields = ['expr', 'result']
+
+
+class CollateClauseNode(Base):
+    __fields = ['expr', 'collation_name']
 
 
 class PgSQLOperator(ast.ops.Operator):

@@ -1428,6 +1428,18 @@ class CaosTreeTransformer(CaosExprTransformer):
 
             result = fieldref
 
+            schema = context.current.proto_schema
+
+            if expr.name == 'semantix.caos.builtins.target':
+                localizable = schema.get('semantix.caos.extras.l10n.localizable',
+                                         default=None)
+
+                link_proto = expr.ptr_proto.source
+
+                if localizable is not None and link_proto.issubclass(schema, localizable):
+                    lang = pgsql.ast.IdentNode(name='C')
+                    result = pgsql.ast.CollateClauseNode(expr=result, collation_name=lang)
+
         elif isinstance(expr, tree.ast.ExistPred):
             with context(TransformerContext.NEW_TRANSPARENT):
                 context.current.direct_subquery_ref = True

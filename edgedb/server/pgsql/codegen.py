@@ -512,3 +512,11 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write(':')
         self.visit(node.upper)
         self.write(']')
+
+    def visit_CollateClauseNode(self, node):
+        self.visit(node.expr)
+        self.write(' COLLATE ')
+        self.visit(node.collation_name)
+
+    def visit_IdentNode(self, node):
+        self.write(common.quote_ident(node.name))
