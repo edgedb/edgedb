@@ -338,7 +338,10 @@ class TreeTransformer:
 
                     eq_lang = caos_ast.BinOp(left=langprop, right=lang, op=ast.ops.EQ)
                     lang_none = caos_ast.NoneTest(expr=lang)
-                    lang_test = caos_ast.BinOp(left=lang_none, right=eq_lang, op=ast.ops.OR,
+                    # Test for property emptiness is for LEFT JOIN cases
+                    prop_none = caos_ast.NoneTest(expr=langprop)
+                    lang_prop_none = caos_ast.BinOp(left=lang_none, right=prop_none, op=ast.ops.OR)
+                    lang_test = caos_ast.BinOp(left=lang_prop_none, right=eq_lang, op=ast.ops.OR,
                                                strong=True)
                     expr.propfilter = self.extend_binop(expr.propfilter, lang_test)
                     expr._lang_rewrite = True
