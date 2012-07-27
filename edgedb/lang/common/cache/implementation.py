@@ -9,23 +9,17 @@
 import pickle
 from datetime import timedelta
 
-from semantix.utils import abc, slots
+from semantix.utils import abc
 from semantix.utils.algos.persistent_hash import persistent_hash
 from . import provider, exceptions
 
-
-class AbstractImplementationMeta(abc.AbstractMeta, slots.SlotsMeta):
-    pass
+from semantix.utils.storage import abstract as abstract_storage
 
 
-class AbstractImplementation(metaclass=AbstractImplementationMeta):
-    compatible_provider_classes = None
+class AbstractImplementation(abstract_storage.Implementation):
     key_hash_function = persistent_hash
 
-    __slots__ = ('bucket_providers',)
-
-    def __init__(self, providers):
-        self.bucket_providers = providers
+    __slots__ = ()
 
     @abc.abstractmethod
     def getitem(self, key:bytes):
@@ -49,8 +43,8 @@ class BaseImplementation(AbstractImplementation):
 
     __slots__ = ('meths_cache',)
 
-    def __init__(self, bucket):
-        super().__init__(bucket)
+    def __init__(self, providers):
+        super().__init__(providers)
         self.meths_cache = {}
 
     def _provider_method(self, provider, methname):
@@ -71,7 +65,7 @@ class BaseImplementation(AbstractImplementation):
         return meth
 
     def getitem(self, key):
-        for idx, provider in enumerate(self.bucket_providers):
+        for idx, provider in enumerate(self._providers):
             meth = self._provider_method(provider, 'get')
 
             try:
@@ -81,7 +75,7 @@ class BaseImplementation(AbstractImplementation):
             else:
                 if idx:
                     for i in range(idx):
-                        self.bucket_providers[i].set(key, value)
+                        self._providers[i].set(key, value)
                 return pickle.loads(value)
 
         raise KeyError('missing cache key {!r}'.format(key))
@@ -89,17 +83,17 @@ class BaseImplementation(AbstractImplementation):
     def setitem(self, key, value, expiry=None):
         pickled_value = pickle.dumps(value)
 
-        for provider in self.bucket_providers:
+        for provider in self._providers:
             meth = self._provider_method(provider, 'set')
             meth(key, pickled_value, expiry=expiry)
 
     def delitem(self, key):
-        for provider in self.bucket_providers:
+        for provider in self._providers:
             meth = self._provider_method(provider, 'delete')
             meth(key)
 
     def contains(self, key):
-        for provider in self.bucket_providers:
+        for provider in self._providers:
             meth = self._provider_method(provider, 'contains')
 
             if meth(key):
