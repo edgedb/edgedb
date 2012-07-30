@@ -1891,6 +1891,20 @@ class CaosTreeTransformer(CaosExprTransformer):
                 cond_expr = pgsql.ast.BinOpNode(left=target_ref, op='=', right=target_id_field)
 
             if not existing_link:
+                if link and link.propfilter:
+                    ##
+                    # Switch context to link filter and make the concept table available for
+                    # atoms in filter expression to reference.
+                    #
+                    context.push()
+                    context.current.location = 'linkfilter'
+                    context.current.link_node_map[link] = {'local_ref_map': link_ref_map}
+                    propfilter_expr = self._process_expr(context, link.propfilter)
+                    if propfilter_expr:
+                        map_join_cond = pgsql.ast.BinOpNode(left=map_join_cond, op=ast.ops.AND,
+                                                            right=propfilter_expr)
+                    context.pop()
+
                 join = self._simple_join(context, join, map, link.source.concept,
                                          type=map_join_type,
                                          condition=map_join_cond)
@@ -2107,25 +2121,6 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                  origin=map, origin_field=colname)
                 selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
                 context.current.link_node_map.setdefault(link, {})[propref.name] = selectnode
-
-        if link and link.propfilter:
-            ##
-            # Switch context to link filter and make the concept table available for
-            # atoms in filter expression to reference.
-            #
-            context.push()
-            context.current.location = 'linkfilter'
-            context.current.link_node_map[link] = {'local_ref_map': link_ref_map}
-            expr = self._process_expr(context, link.propfilter)
-            if expr:
-                if weak and not getattr(expr, 'strong', False):
-                    step_cte.where_weak = self.extend_predicate(step_cte.where_weak, expr,
-                                                                ast.ops.OR)
-                else:
-                    step_cte.where_strong = self.extend_predicate(step_cte.where_strong, expr,
-                                                                  ast.ops.AND)
-
-            context.pop()
 
         if caos_path_tip and caos_path_tip.reference:
             # Do not attempt to resolve the outer reference here since it may have not
