@@ -1119,6 +1119,11 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
                             self.pgops.add(opg)
 
+        old_ptr_stor_info = types.get_pointer_storage_info(meta, orig_pointer,
+                                                           record_mode=True)
+        new_ptr_stor_info = types.get_pointer_storage_info(meta, pointer,
+                                                           record_mode=True)
+
         if orig_pointer.get_loading_behaviour() != pointer.get_loading_behaviour():
             opg = dbops.CommandGroup(priority=1)
 
@@ -1126,7 +1131,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 # Pointer is no longer eager -- drop it from the record
                 attr = dbops.Column(name=old_ptr_stor_info.column_name, type='text')
 
-                for src in itertools.chain((source_proto,), source_proto.children()):
+                for src in itertools.chain((source_proto,), source_proto.children(recursive=True)):
                     alter_record = source_op.get_alter_record(context, manual=True,
                                                                        source=src)
                     alter_record.add_command(dbops.AlterCompositeTypeDropAttribute(attr))
@@ -1136,7 +1141,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 attrs = self.get_columns(pointer, meta, record_mode=True)
                 ops = [dbops.AlterCompositeTypeAddAttribute(attr) for attr in attrs]
 
-                for src in itertools.chain((source_proto,), source_proto.children()):
+                for src in itertools.chain((source_proto,), source_proto.children(recursive=True)):
                     alter_record = source_op.get_alter_record(context, manual=True,
                                                                        source=src)
                     for op in ops:
@@ -1145,17 +1150,12 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
             self.pgops.add(opg)
 
-        old_ptr_stor_info = types.get_pointer_storage_info(meta, orig_pointer,
-                                                           record_mode=True)
-        new_ptr_stor_info = types.get_pointer_storage_info(meta, pointer,
-                                                           record_mode=True)
-
         if old_ptr_stor_info.column_type != new_ptr_stor_info.column_type \
                     and pointer.get_loading_behaviour() == caos.types.EagerLoading:
             # Composite type attribute type change, possibly due to mapping change
             opg = dbops.CommandGroup(priority=1)
 
-            for src in itertools.chain((source_proto,), source_proto.children()):
+            for src in itertools.chain((source_proto,), source_proto.children(recursive=True)):
                 alter_record = source_op.get_alter_record(context, manual=True,
                                                                    source=src)
                 actaat = dbops.AlterCompositeTypeAlterAttributeType(
