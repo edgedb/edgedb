@@ -16,6 +16,7 @@ from .. import elements
 
 from semantix import exceptions
 from semantix.utils.helper import xrepr
+from semantix.utils import debug
 
 
 #: Maximum level of nested structures that we can serialize.
@@ -123,7 +124,7 @@ def serialize_traceback_point(obj, *, ctx, include_source=True, source_window_si
     filename = obj.tb_frame.f_code.co_filename
 
     locals = None
-    if include_locals:
+    if include_locals or ('markup.tb.locals' in debug.channels):
         locals = serialize(dict(obj.tb_frame.f_locals), ctx=ctx)
 
     if filename.startswith('.'):
