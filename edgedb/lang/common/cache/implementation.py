@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2011 Sprymix Inc.
+# Copyright (c) 2011-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -11,15 +11,11 @@ from datetime import timedelta
 
 from semantix.utils import abc
 from semantix.utils.algos.persistent_hash import persistent_hash
-from . import provider, exceptions
-
-from semantix.utils.storage import abstract as abstract_storage
+from . import backend, exceptions, abstract
 
 
-class AbstractImplementation(abstract_storage.Implementation):
+class AbstractImplementation(abstract.Implementation):
     key_hash_function = persistent_hash
-
-    __slots__ = ()
 
     @abc.abstractmethod
     def getitem(self, key:bytes):
@@ -39,34 +35,32 @@ class AbstractImplementation(abstract_storage.Implementation):
 
 
 class BaseImplementation(AbstractImplementation):
-    compatible_provider_classes = (provider.BlockingProvider, provider.NonBlockingProvider)
+    compatible_backend_classes = (backend.BlockingBackend, backend.NonBlockingBackend)
 
-    __slots__ = ('meths_cache',)
-
-    def __init__(self, providers):
-        super().__init__(providers)
+    def __init__(self, backends):
+        super().__init__(backends)
         self.meths_cache = {}
 
-    def _provider_method(self, provider, methname):
+    def _backend_method(self, backend, methname):
         try:
-            return self.meths_cache[(provider, methname)]
+            return self.meths_cache[(backend, methname)]
         except KeyError:
             pass
 
         try:
-            meth = getattr(provider, '{}_nonblocking'.format(methname))
+            meth = getattr(backend, '{}_nonblocking'.format(methname))
         except AttributeError:
             try:
-                meth = getattr(provider, '{}_blocking'.format(methname))
+                meth = getattr(backend, '{}_blocking'.format(methname))
             except AttributeError:
-                raise exceptions.CacheError('unsupported provider {!r}'.format(provider))
+                raise exceptions.CacheError('unsupported backend {!r}'.format(backend))
 
-        self.meths_cache[(provider, methname)] = meth
+        self.meths_cache[(backend, methname)] = meth
         return meth
 
     def getitem(self, key):
-        for idx, provider in enumerate(self._providers):
-            meth = self._provider_method(provider, 'get')
+        for idx, backend in enumerate(self._backends):
+            meth = self._backend_method(backend, 'get')
 
             try:
                 value = meth(key)
@@ -75,7 +69,7 @@ class BaseImplementation(AbstractImplementation):
             else:
                 if idx:
                     for i in range(idx):
-                        self._providers[i].set(key, value)
+                        self._backends[i].set(key, value)
                 return pickle.loads(value)
 
         raise KeyError('missing cache key {!r}'.format(key))
@@ -83,18 +77,18 @@ class BaseImplementation(AbstractImplementation):
     def setitem(self, key, value, expiry=None):
         pickled_value = pickle.dumps(value)
 
-        for provider in self._providers:
-            meth = self._provider_method(provider, 'set')
+        for backend in self._backends:
+            meth = self._backend_method(backend, 'set')
             meth(key, pickled_value, expiry=expiry)
 
     def delitem(self, key):
-        for provider in self._providers:
-            meth = self._provider_method(provider, 'delete')
+        for backend in self._backends:
+            meth = self._backend_method(backend, 'delete')
             meth(key)
 
     def contains(self, key):
-        for provider in self._providers:
-            meth = self._provider_method(provider, 'contains')
+        for backend in self._backends:
+            meth = self._backend_method(backend, 'contains')
 
             if meth(key):
                 return True

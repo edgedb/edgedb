@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2011 Sprymix Inc.
+# Copyright (c) 2011-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -10,22 +10,18 @@ import collections
 import time
 
 from semantix.utils import config, abc, debug
-from . import exceptions
+from . import exceptions, abstract
 
 
-class CacheProviderError(exceptions.CacheError):
+class CacheBackendError(exceptions.CacheError):
     pass
 
 
-class ProviderMeta(abc.AbstractMeta, config.ConfigurableMeta):
+class Backend(abstract.Backend):
     pass
 
 
-class Provider(metaclass=ProviderMeta):
-    pass
-
-
-class BlockingProvider(Provider):
+class BlockingBackend(Backend):
     @abc.abstractmethod
     def get_blocking(self, key:bytes):
         """Must raise LookupError in case of not found key"""
@@ -43,7 +39,7 @@ class BlockingProvider(Provider):
         pass
 
 
-class NonBlockingProvider(Provider):
+class NonBlockingBackend(Backend):
     @abc.abstractmethod
     def get_nonblocking(self, key:bytes):
         """Must raise LookupError in case of not found key"""
@@ -61,7 +57,7 @@ class NonBlockingProvider(Provider):
         pass
 
 
-class MemoryProvider(NonBlockingProvider):
+class MemoryBackend(NonBlockingBackend):
     max_size = config.cvalue(32 * 1024 * 1024, type=int, doc='Maximum cache size in bytes')
     max_item_size = config.cvalue(500 * 1024, type=int, doc='Maximum cache item size in bytes')
 
@@ -78,7 +74,7 @@ class MemoryProvider(NonBlockingProvider):
         data_size = len(data)
 
         if data_size > self.max_item_size:
-            raise CacheProviderError('data size ({}) of key {!r} exceeds ' \
+            raise CacheBackendError('data size ({}) of key {!r} exceeds ' \
                                      'maximum cache item size {}'. \
                                      format(data_size, key, self.max_item_size))
 

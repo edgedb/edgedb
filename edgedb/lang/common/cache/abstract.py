@@ -8,7 +8,7 @@
 
 import weakref
 
-from semantix.utils import abc, slots
+from semantix.utils import abc, config
 
 
 class BucketMeta(abc.AbstractMeta):
@@ -17,38 +17,23 @@ class BucketMeta(abc.AbstractMeta):
         if len([base for base in bases if isinstance(base, mcls)]) > 1:
             raise TypeError('Bucket classes can have only one base Bucket class')
         cls._instances = weakref.WeakSet()
-        cls._providers = None
         return cls
 
     def _register_instance(cls, instance):
         cls._instances.add(instance)
 
-    def set_providers(cls, *providers):
-        cls._providers = providers
-
+    def set_backends(cls, *backends):
         impl = cls.get_implementation()
-
-        for p in providers:
-            if not isinstance(p, impl.compatible_provider_classes):
-                raise TypeError('provider {!r} is not compatible with installed implementation '
+        for p in backends:
+            if not isinstance(p, impl.compatible_backend_classes):
+                raise TypeError('backend {!r} is not compatible with installed implementation '
                                 '{!r}, must be an instance of {!r}'.
-                                format(p, impl, impl.compatible_provider_classes))
+                                format(p, impl, impl.compatible_backend_classes))
 
-    def get_providers(cls):
-        if cls._providers is None:
-            for parent in cls.__mro__[1:]:
-                if not isinstance(parent, BucketMeta):
-                    continue
+        cls._backends = backends
 
-                providers = parent._providers
-
-                if providers is not None:
-                    cls._providers = providers
-                    return providers
-
-            return
-        else:
-            return cls._providers
+    def get_backends(cls):
+        return getattr(cls, '_backends', None)
 
     def set_implementation(cls, implementation):
         if not issubclass(implementation, Implementation):
@@ -74,7 +59,6 @@ class Bucket(metaclass=BucketMeta):
     def __new__(cls, *args, **kwargs):
         instance = super().__new__(cls, *args, **kwargs)
         cls._register_instance(instance)
-        instance._providers = None
         instance._cached_implementation = None
         return instance
 
@@ -97,29 +81,35 @@ class Bucket(metaclass=BucketMeta):
 
     def _get_implementation(self):
         if self._cached_implementation is None:
-            self._providers = type(self).get_providers()
-            if not self._providers:
+            backends = type(self).get_backends()
+            if not backends:
                 return
 
-            self._cached_implementation = type(self).get_implementation()(self._providers)
+            self._cached_implementation = type(self).get_implementation()(backends)
 
         return self._cached_implementation
 
     def _ensure_implementation(self):
         impl = self._get_implementation()
         if not impl:
-            raise KeyError('non-initialized bucket: no providers/implementation set')
+            raise KeyError('non-initialized bucket: no backends/implementation set')
         return impl
 
 
-class ImplementationMeta(abc.AbstractMeta, slots.SlotsMeta):
+class ImplementationMeta(abc.AbstractMeta):
     pass
 
 
 class Implementation(metaclass=ImplementationMeta):
-    compatible_provider_classes = None
+    compatible_backend_classes = None
 
-    __slots__ = ('_providers',)
+    def __init__(self, backends):
+        self._backends = backends
 
-    def __init__(self, providers):
-        self._providers = providers
+
+class BackendMeta(abc.AbstractMeta, config.ConfigurableMeta):
+    pass
+
+
+class Backend(metaclass=BackendMeta):
+    pass

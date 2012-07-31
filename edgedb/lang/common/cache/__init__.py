@@ -8,4 +8,4 @@
 
 from .bucket import Bucket
 from .exceptions import CacheError
-from .provider import MemoryProvider
+from .backend import MemoryBackend

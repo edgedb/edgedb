@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2011 Sprymix Inc.
+# Copyright (c) 2011-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -14,21 +14,19 @@ from semantix.utils.algos import persistent_hash
 from semantix.utils.functional import hybridmethod
 from semantix.utils.debug import debug
 from . import implementation
-
-from semantix.utils.storage import abstract as abstract_storage
+from . import abstract
 
 
 def _key(prefix:str, hash:int) -> bytes:
     return ('{}:{}'.format(prefix, hash)).encode('latin-1')
 
 
-class BucketMeta(abstract_storage.BucketMeta):
+class BucketMeta(abstract.BucketMeta):
     hash_function = persistent_hash.persistent_hash
+    compatible_implementation_classes = None
 
     def __new__(mcls, name, bases, dct):
         cls = super().__new__(mcls, name, bases, dct)
-
-        cls._providers = None
 
         cls_key = []
         for base in cls.__mro__:
@@ -49,8 +47,8 @@ class BucketMeta(abstract_storage.BucketMeta):
 
     def _cls_init_version(cls, bump_version=False):
         if cls._cls_version is None or bump_version:
-            providers = cls.get_providers()
-            if not providers:
+            backends = cls.get_backends()
+            if not backends:
                 '''non-initialized cache - no work'''
                 return
 
@@ -62,7 +60,7 @@ class BucketMeta(abstract_storage.BucketMeta):
             cls_versioned_hash = cls.hash_function((tuple(base_versions), cls._cls_base_hash))
             cls_versioned_key = _key('bucket_cls_version', cls_versioned_hash)
 
-            impl = cls.get_implementation()(providers)
+            impl = cls.get_implementation()(backends)
 
             try:
                 current_version = impl.getitem(cls_versioned_key)
@@ -103,7 +101,7 @@ class BucketMeta(abstract_storage.BucketMeta):
         walker(cls)
 
 
-class Bucket(abstract_storage.Bucket, metaclass=BucketMeta):
+class Bucket(abstract.Bucket, metaclass=BucketMeta):
     def __init__(self, bucket_id='<default>', *, parent=None):
         super().__init__(parent=parent)
 
