@@ -155,13 +155,15 @@ class Update(DMLOperation):
 class Merge(Update):
     def code(self, context):
         code = super().code(context)
-        if self.condition:
-            cols = (common.quote_ident(c[0]) for c in self.condition)
-            returning = ','.join(cols)
-        else:
-            returning = '*'
 
-        code = (code[0] + ' RETURNING %s' % returning, code[1])
+        if not self.returning:
+            if self.condition:
+                cols = (common.quote_ident(c[0]) for c in self.condition)
+                returning = ','.join(cols)
+            else:
+                returning = '*'
+
+            code = (code[0] + ' RETURNING %s' % returning, code[1])
         return code
 
     def execute(self, context):

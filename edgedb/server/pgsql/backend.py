@@ -446,7 +446,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             ('link_mapping',
              re.compile(r'^.*"(?P<constr_name>.*_link_mapping_idx)".*$')),
             ('ptr_constraint',
-             re.compile(r'^.*"(?P<constr_name>.*::ptr_constr)".*$'))
+             re.compile(r'^.*"(?P<constr_name>.*::ptr_constr)".*$')),
+            ('id',
+             re.compile(r'^.*"(?P<constr_name>\w+)_data_pkey".*$')),
         ))
     }
 
@@ -1013,6 +1015,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                 errcls = caos.error.PointerConstraintUniqueViolationError
                 return errcls(msg=msg, source=source, pointer=pointer, constraint=constraint)
+
+            elif error_type == 'id':
+                msg = 'unique link constraint violation'
+                pointer = getattr(source.__class__, 'semantix.caos.builtins.id').as_link()
+                errcls = caos.error.PointerConstraintUniqueViolationError
+                constraint = proto.PointerConstraintUnique(['semantix.caos.builtins.id'])
+                return errcls(msg=msg, source=source, pointer=pointer, constraint=constraint)
         else:
             return caos.error.UninterpretedStorageError(err.message)
 
@@ -1058,7 +1067,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 returning.extend(('"semantix.caos.builtins.ctime"',
                                   '"semantix.caos.builtins.mtime"'))
 
-            if id is not None:
+            if id is not None and not entity._instancedata.new_predefined_id:
                 condition = [('semantix.caos.builtins.id', id)]
 
                 if is_object:
@@ -1069,7 +1078,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                    condition=condition,
                                    returning=returning)
             else:
-                setattr(rec, 'semantix.caos.builtins.id', idquery)
+                setattr(rec, 'semantix.caos.builtins.id', idquery if id is None else id)
 
                 if is_object:
                     setattr(rec, 'semantix.caos.builtins.ctime', now)
