@@ -161,7 +161,7 @@ class IndirectionNode(Base):
     __fields = ['expr', 'indirection']
 
 class RowExprNode(Base):
-    __fields = [('args', list)]
+    __fields = [('args', list), 'origin_field']
 
 class TypeNode(Base):
     __fields = ['name', 'typmods', 'array_bounds', ('setof', bool)]

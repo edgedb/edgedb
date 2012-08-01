@@ -300,8 +300,14 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
         elements = [self._process_expr(context, e, cte) for e in expr.elements]
         idref, elements = self._sort_record(context, elements, expr.concept)
         type = pgsql.ast.TypeNode(name=common.get_record_name(expr.concept))
-        result = pgsql.ast.TypeCastNode(expr=pgsql.ast.RowExprNode(args=elements),
-                                        type=type)
+        if expr.rlink is not None:
+            ptr_proto = expr.rlink.link_proto
+            colname = common.caos_name_to_pg_name(ptr_proto.normal_name())
+        else:
+            colname = None
+
+        rowexpr = pgsql.ast.RowExprNode(args=elements, origin_field=colname)
+        result = pgsql.ast.TypeCastNode(expr=rowexpr, type=type)
 
         when_cond = pgsql.ast.NullTestNode(expr=idref)
 
@@ -1462,19 +1468,24 @@ class CaosTreeTransformer(CaosExprTransformer):
         idref = None
         idcol = common.caos_name_to_pg_name('semantix.caos.builtins.id')
 
-        for e in elements:
+        def _resolve_colref(e):
             if isinstance(e, pgsql.ast.TypeCastNode):
-                fieldref = e.expr
-                colref = fieldref.origin_field
+                return _resolve_colref(e.expr)
             elif isinstance(e, pgsql.ast.SelectQueryNode):
-                colref = e.targets[0].alias
+                return e.targets[0].alias, None
             elif isinstance(e, pgsql.ast.FunctionCallNode) and e.name == 'coalesce':
-                fieldref = e.args[0]
-                colref = fieldref.origin_field
+                return _resolve_colref(e.args[0])
+            elif isinstance(e, pgsql.ast.CaseExprNode):
+                return _resolve_colref(e.default)
+            elif isinstance(e, pgsql.ast.FieldRefNode):
+                return e.origin_field, e
+            elif isinstance(e, pgsql.ast.RowExprNode):
+                return e.origin_field, None
             else:
-                fieldref = e
-                colref = fieldref.origin_field
+                raise TypeError('could not resolve column reference from {}'.format(e))
 
+        for e in elements:
+            colref, fieldref = _resolve_colref(e)
             elts[colref] = e
 
             if colref == idcol:

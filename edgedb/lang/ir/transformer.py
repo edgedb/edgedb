@@ -516,6 +516,13 @@ class TreeTransformer:
                                                     users={self.context.current.location},
                                                     concept=target_proto, id=id)
 
+                    link_node = caos_ast.EntityLink(source=lref, target=targetstep,
+                                                    link_proto=link_proto,
+                                                    direction=caos_types.OutboundDirection,
+                                                    users={'selector'})
+
+                    targetstep.rlink = link_node
+
                     if link.atomic():
                         if link.singular():
                             newstep = caos_ast.AtomicRefSimple(ref=lref, name=link_name, id=id,
@@ -533,12 +540,6 @@ class TreeTransformer:
                         newstep = targetstep
                         el = self.entityref_to_record(newstep, schema)
 
-                    link_node = caos_ast.EntityLink(source=lref, target=targetstep,
-                                                    link_proto=link_proto,
-                                                    direction=caos_types.OutboundDirection,
-                                                    users={'selector'})
-
-                    targetstep.rlink = link_node
                     if not link.atomic():
                         lref.conjunction.update(link_node)
 
@@ -571,8 +572,7 @@ class TreeTransformer:
                 p.metarefs.add(metaref)
 
             elements.append(metaref)
-
-            expr = caos_ast.Record(elements=elements, concept=concept)
+            expr = caos_ast.Record(elements=elements, concept=concept, rlink=p.rlink)
 
         return expr
 
