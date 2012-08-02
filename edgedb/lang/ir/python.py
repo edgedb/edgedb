@@ -190,8 +190,12 @@ class CaosToPythonTransformer(TreeTransformer):
                     node = None
 
             if isinstance(expr, caos_ast.LinkPropRefSimple):
-                # XXX
-                source = expr.ref
+                ltarget = expr.ref.target
+                if ltarget is not None and isinstance(ltarget.concept, caos_types.ProtoAtom):
+                    path = [expr.ref.link_proto.normal_name()]
+                else:
+                    # XXX
+                    source = expr.ref
 
             assert source.anchor and source.anchor in context.name_context
 
