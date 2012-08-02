@@ -1687,7 +1687,7 @@ class TreeTransformer:
         """Determine query scope, i.e the schema nodes it will potentially traverse"""
 
         entity_paths = ast.find_children(tree, lambda i: isinstance(i, caos_ast.EntitySet))
-        return list(set(entity_paths))
+        return list({p for p in entity_paths if isinstance(p.concept, caos_types.ProtoConcept)})
 
     @classmethod
     def get_query_node_scope(cls, tree):
