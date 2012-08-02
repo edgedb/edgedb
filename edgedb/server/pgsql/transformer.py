@@ -1663,6 +1663,17 @@ class CaosTreeTransformer(CaosExprTransformer):
                 if args[2] is not None:
                     args[2] = pgsql.ast.TypeCastNode(expr=args[2],
                                                      type=pgsql.ast.TypeNode(name='int'))
+            elif expr.name == ('str', 'urlify'):
+                re_1 = pgsql.ast.ConstantNode(value=r'[^\w\- ]')
+                re_2 = pgsql.ast.ConstantNode(value=r'\s+')
+                flags = pgsql.ast.ConstantNode(value='g')
+                replacement = pgsql.ast.ConstantNode(value='')
+                replace_1 = pgsql.ast.FunctionCallNode(name='regexp_replace',
+                                                       args=[args[0], re_1, replacement, flags])
+                replacement = pgsql.ast.ConstantNode(value='-')
+                replace_2 = pgsql.ast.FunctionCallNode(name='regexp_replace',
+                                                       args=[replace_1, re_2, replacement, flags])
+                result = pgsql.ast.FunctionCallNode(name='lower', args=[replace_2])
             elif expr.name == 'getitem':
                 index = self._process_expr(context, expr.args[1], cte)
                 upper = pgsql.ast.BinOpNode(left=index, op=ast.ops.ADD,
