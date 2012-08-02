@@ -2295,11 +2295,15 @@ class TreeTransformer:
 
         return result
 
-    def process_none_test(self, expr):
+    def process_none_test(self, expr, schema):
         if isinstance(expr.expr, caos_ast.AtomicRef):
             expr = caos_ast.AtomicRefExpr(expr=expr)
         elif isinstance(expr.expr, caos_ast.LinkPropRef):
             expr = caos_ast.LinkPropRefExpr(expr=expr)
+        elif isinstance(expr.expr, caos_ast.EntitySet):
+            c = caos_ast.Conjunction(paths=frozenset((expr.expr,)))
+            aref = self.entityref_to_idref(c, schema)
+            expr = caos_ast.AtomicRefExpr(expr=caos_ast.NoneTest(expr=aref))
 
         return expr
 
