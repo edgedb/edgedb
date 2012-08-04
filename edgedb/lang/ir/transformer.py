@@ -2486,7 +2486,12 @@ class PathResolver(TreeTransformer):
             result = self._serialize_path(path.expr)
 
         elif isinstance(path, caos_ast.Record):
-            result = self._serialize_path(path.elements[0].ref)
+            for elem in path.elements:
+                if isinstance(elem, caos_ast.BaseRef):
+                    result = self._serialize_path(elem.ref)
+                    break
+            else:
+                raise AssertionError('unexpected record structure: no atomrefs found')
 
         elif isinstance(path, caos_ast.Constant):
             result = []
@@ -2584,7 +2589,12 @@ class PathResolver(TreeTransformer):
             result = self._resolve_path(path.expr, class_factory)
 
         elif isinstance(path, caos_ast.Record):
-            result = self._resolve_path(path.elements[0].ref, class_factory)
+            for elem in path.elements:
+                if isinstance(elem, caos_ast.BaseRef):
+                    result = self._resolve_path(elem.ref, class_factory)
+                    break
+            else:
+                raise AssertionError('unexpected record structure: no atomrefs found')
 
         elif isinstance(path, caos_ast.Constant):
             result = ()
