@@ -2152,9 +2152,9 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
             ptr_stor_info = types.get_pointer_storage_info(meta, result)
             concept = context.get(delta_cmds.ConceptCommandContext)
 
-            if ptr_stor_info.table_type[0] == 'source':
-                name = result.normal_name()
+            name = result.normal_name()
 
+            if ptr_stor_info.table_type[0] == 'source':
                 if name not in concept.proto.pointers:
                     # Do not drop the column if the link was reinherited in the same delta
                     alter_table = concept.op.get_alter_table(context)
