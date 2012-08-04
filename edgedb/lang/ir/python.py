@@ -173,8 +173,12 @@ class CaosToPythonTransformer(TreeTransformer):
             result = self._process_expr(expr.expr, context)
 
         elif isinstance(expr, (caos_ast.AtomicRefSimple, caos_ast.LinkPropRefSimple)):
-            path = [expr.name]
             node = expr.ref
+
+            if expr.name == 'semantix.caos.builtins.target':
+                path = [node.link_proto.normal_name()]
+            else:
+                path = [expr.name]
 
             source = node
 
@@ -189,13 +193,10 @@ class CaosToPythonTransformer(TreeTransformer):
                     source = node
                     node = None
 
-            if isinstance(expr, caos_ast.LinkPropRefSimple):
-                ltarget = expr.ref.target
-                if ltarget is not None and isinstance(ltarget.concept, caos_types.ProtoAtom):
-                    path = [expr.ref.link_proto.normal_name()]
-                else:
-                    # XXX
-                    source = expr.ref
+            if (isinstance(expr, caos_ast.LinkPropRefSimple)
+                        and expr.name != 'semantix.caos.builtins.target'):
+                # XXX
+                source = expr.ref
 
             assert source.anchor and source.anchor in context.name_context
 
