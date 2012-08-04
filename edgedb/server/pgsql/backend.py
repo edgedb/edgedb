@@ -116,7 +116,8 @@ class Cursor:
 
 class Query(backend_query.Query):
     def __init__(self, chunks, arg_index, argmap, result_types, argument_types,
-                 context_vars, scrolling_cursor=False, offset=None, limit=None, query_type=None):
+                 context_vars, scrolling_cursor=False, offset=None, limit=None, query_type=None,
+                 record_info=None):
         self.chunks = chunks
         self.text = ''.join(chunks)
         self.argmap = argmap
@@ -130,6 +131,7 @@ class Query(backend_query.Query):
         self.offset = offset.index if offset is not None else None
         self.limit = limit.index if limit is not None else None
         self.query_type = query_type
+        self.record_info = record_info
 
     def prepare(self, session):
         return PreparedQuery(self, session)
@@ -153,6 +155,10 @@ class PreparedQuery:
 
         self.statement = session.get_prepared_statement(text)
         self.init_args = args
+
+        if query.record_info:
+            for record in query.record_info:
+                session.backend._register_record_info(record)
 
         # PreparedStatement.rows() is a streaming iterator that uses scrolling cursor
         # internally to stream data from the database.  Since PostgreSQL only allows DECLARE
@@ -270,7 +276,8 @@ class CaosQLAdapter:
             query.offset = None
             query.limit = None
 
-        qchunks, argmap, arg_index, query_type = self.transformer.transform(query, self.session)
+        qchunks, argmap, arg_index, query_type, record_info = \
+                                        self.transformer.transform(query, self.session)
 
         if scrolling_cursor:
             query.offset = offset
@@ -304,7 +311,8 @@ class CaosQLAdapter:
         return Query(chunks=qchunks, arg_index=arg_index, argmap=argmap, result_types=restypes,
                      argument_types=argtypes, context_vars=query.context_vars,
                      scrolling_cursor=scrolling_cursor,
-                     offset=offset, limit=limit, query_type=query_type)
+                     offset=offset, limit=limit, query_type=query_type,
+                     record_info=record_info)
 
 
 class BinaryCopyProducer(postgresql.copyman.IteratorProducer):
@@ -483,6 +491,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.table_id_to_proto_name_cache = {}
         self.proto_name_to_table_id_cache = {}
         self.attribute_link_map_cache = {}
+        self._record_mapping_cache = {}
 
         self.parser = parser.PgSQLParser()
         self.search_idx_expr = astexpr.TextSearchExpr()
@@ -564,13 +573,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 table_id_to_proto_name_cache[t['typoid']] = link_name
                 proto_name_to_table_id_cache[link_name] = t['typoid']
 
-            record_name = common.concept_name_to_record_name(link_name, catenate=False)
-            record = records.get(record_name)
-
-            if record:
-                table_id_to_proto_name_cache[record['oid']] = link_name
-                table_id_to_proto_name_cache[record['typrelid']] = link_name
-
         tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
                                                                        table_pattern='%_data')
         tables = {(t['schema'], t['name']): t for t in tables}
@@ -590,17 +592,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             table_id_to_proto_name_cache[table['oid']] = name
             table_id_to_proto_name_cache[table['typoid']] = name
             proto_name_to_table_id_cache[name] = table['typoid']
-
-            record_name = common.concept_name_to_record_name(name, catenate=False)
-            record = records.get(record_name)
-
-            if not record:
-                msg = 'internal metadata incosistency'
-                details = 'Record for concept "%s" exists but the composite type is missing' % name
-                raise caos.MetaError(msg, details=details)
-
-            table_id_to_proto_name_cache[record['oid']] = name
-            table_id_to_proto_name_cache[record['typrelid']] = name
 
         return table_id_to_proto_name_cache, proto_name_to_table_id_cache
 
@@ -854,21 +845,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return concept_name
 
 
-    def entity_from_row(self, session, concept_name, attribute_map, row):
+    def entity_from_row(self, session, concept_name, links):
         concept_map = self.get_concept_map(session)
-
-        concept_id = row[attribute_map['concept_id']]
+        concept_id = links.pop('id', None)
 
         if concept_id is None:
             # empty record
             return None
 
         real_concept = concept_map[concept_id]
-
-        concept_proto = session.proto_schema.get(real_concept)
-        attribute_link_map = self.get_attribute_link_map(concept_proto, attribute_map)
-
-        links = {k: row[i] for k, i in attribute_link_map.items()}
         concept_cls = session.schema.get(real_concept)
         return session._merge(links['semantix.caos.builtins.id'], concept_cls, links)
 
@@ -2491,23 +2476,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.proto_name_to_table_id_cache[updated_concept.name] = table['typoid']
 
         ds = introspection.types.TypesList(session.get_connection())
-        record_name = common.concept_name_to_record_name(updated_concept.name, catenate=False)
-        records = ds.fetch(schema_name=record_name[0], type_name=record_name[1])
-
-        if not records:
-            msg = 'internal metadata incosistency'
-            details = 'Record for concept "%s" exists but the composite type is missing' % updated_concept.name
-            raise caos.MetaError(msg, details=details)
-
-        record = next(iter(records))
-        self.table_id_to_proto_name_cache[record['oid']] = updated_concept.name
-        self.table_id_to_proto_name_cache[record['typrelid']] = updated_concept.name
 
         # Update virtual concept table column cache
         self._type_mech.get_table_columns(table_name, connection=session.get_connection(),
                                           cache=None)
-        self._type_mech.get_type_attributes(record_name, connection=session.get_connection(),
-                                            cache=None)
 
     def get_type_attributes(self, type_name, connection=None, cache='auto'):
         return self._type_mech.get_type_attributes(type_name, connection, cache)
@@ -2594,104 +2566,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     caosql_tree = reverse_caosql_transformer.transform(caos_tree)
                     expr = caosql_codegen.CaosQLSourceGenerator.to_source(caosql_tree)
                     concept.add_index(proto.SourceIndex(expr=expr))
-
-        self._validate_source_composites(meta)
-
-
-    def _validate_source_composites(self, meta):
-        records = introspection.types.TypesList(self.connection).fetch(schema_name='caos%',
-                                                                       type_name='%_record',
-                                                                       include_arrays=False)
-
-        attr_ds = introspection.types.CompositeTypeAttributes(self.connection)
-
-        records = {(t['schema'], t['name']): t for t in records}
-
-        visited_records = set()
-
-        for source in itertools.chain(meta(type='concept', include_automatic=True)):
-
-            record_name = common.get_record_name(source, catenate=False)
-
-            try:
-                record = records[record_name]
-            except KeyError as e:
-                msg = 'internal metadata inconsistency'
-                details = 'Missing composite type for "{}": {}'.format(source.name,
-                                                                       common.qname(*record_name))
-                raise caos.MetaError(msg, details=details) from e
-
-            attrs = attr_ds.fetch(type_name=record_name[1], schema_name=record_name[0])
-            attrs = {a['attribute_name']: a for a in attrs}
-
-            attr_types = {}
-            for an, a in attrs.items():
-                if an not in {'concept_id', 'link_type_id'}:
-                    ptr_name = caos.Name(a['attribute_comment'] or an)
-                    typ = self._get_pointer_attribute_target(meta, source, ptr_name, a)[0]
-                    attr_types[an] = types.pg_type_from_object(meta, typ)
-                    if a['attribute_type_is_array']:
-                        attr_types[an] += '[]'
-                else:
-                    attr_types[an] = 'integer'
-
-            expected_attrs = {}
-
-            if isinstance(source, caos.types.ProtoLink):
-                expected_attrs['link_type_id'] = 'integer'
-            else:
-                expected_attrs['concept_id'] = 'integer'
-
-            if source.is_virtual:
-                ptrs = source.get_children_common_pointers(meta)
-            else:
-                ptrs = source.pointers.values()
-
-            for ptr in ptrs:
-                if isinstance(ptr, caos.types.ProtoComputable):
-                    continue
-
-                ptr_stor_info = types.get_pointer_storage_info(meta, ptr, record_mode=True)
-
-                if ptr_stor_info.in_record:
-                    expected_attrs[ptr_stor_info.column_name] = ptr_stor_info.column_type
-
-            missing_attrs = set(expected_attrs) - set(attr_types)
-
-            if missing_attrs:
-                msg = 'internal metadata incosistency'
-                details = 'Missing composite type attributes for {}: {}'\
-                            .format(source.name, ', '.join(missing_attrs))
-                raise caos.MetaError(msg, details=details)
-
-            extra_attrs = set(attr_types) - set(expected_attrs)
-
-            if extra_attrs:
-                msg = 'internal metadata incosistency'
-                details = 'Extraneous composite type attributes for {}: {}'\
-                            .format(source.name, ', '.join(extra_attrs))
-                raise caos.MetaError(msg, details=details)
-
-            for attr_name, attr_type in attr_types.items():
-                expected_type = expected_attrs[attr_name]
-
-                if attr_type != expected_type:
-                    msg = 'internal metadata incosistency'
-                    details = 'Unexpected type of composite type attribute {}.{}: {}, expected {}'\
-                                .format(source.name, attr_name, attr_type, expected_type)
-                    raise caos.MetaError(msg, details=details)
-
-            visited_records.add(record_name)
-
-        recdiff = set(records.keys()) - visited_records
-
-        """ XXX: this triggers false positives on records for virtual concepts
-        if recdiff:
-            msg = 'internal metadata incosistency'
-            details = 'Extraneous composite types exist: %s' \
-                        % (', '.join('"%s.%s"' % t for t in recdiff))
-            raise caos.MetaError(msg, details=details)
-        """
 
 
     def normalize_domain_descr(self, d):
@@ -2859,3 +2733,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             return morphology.WordCombination.from_dict(hstore)
         else:
             return None
+
+
+    def _register_record_info(self, record_info):
+        self._record_mapping_cache[record_info.id] = record_info
+
+
+    def _get_record_info_by_id(self, record_id):
+        return self._record_mapping_cache.get(record_id)

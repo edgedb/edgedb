@@ -149,5 +149,10 @@ class AlterCompositeTypeRenameAttribute(composites.AlterCompositeRenameAttribute
 
 
 class DropCompositeType(ddl.SchemaObjectOperation):
+    def __init__(self, name, *, cascade=False, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(name, conditions=conditions, neg_conditions=neg_conditions,
+                               priority=priority)
+        self.cascade = cascade
+
     def code(self, context):
-        return 'DROP TYPE %s' % common.qname(*self.name)
+        return 'DROP TYPE {}{}'.format(common.qname(*self.name), ' CASCADE' if self.cascade else '')

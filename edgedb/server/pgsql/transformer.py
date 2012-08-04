@@ -16,7 +16,7 @@ from semantix.caos import types as caos_types
 from semantix.caos import name as caos_name
 from semantix.caos import utils as caos_utils
 from semantix.caos.backends import pgsql
-from semantix.caos.backends.pgsql import common
+from semantix.caos.backends.pgsql import common, session as pg_session
 from semantix.utils.debug import debug
 from semantix.utils.datastructures import OrderedSet
 from semantix import exceptions as base_err
@@ -51,6 +51,7 @@ class TransformerContextLevel(object):
             self.proto_schema = prevlevel.proto_schema
             self.unwind_rlinks = prevlevel.unwind_rlinks
             self.aliascnt = prevlevel.aliascnt
+            self.record_info = prevlevel.record_info
 
             if mode == TransformerContext.NEW_TRANSPARENT:
                 self.vars = prevlevel.vars
@@ -109,6 +110,7 @@ class TransformerContextLevel(object):
             self.direct_subquery_ref = False
             self.node_callbacks = {}
             self.unwind_rlinks = True
+            self.record_info = {}
 
     def genalias(self, alias=None, hint=None):
         if alias is None:
@@ -297,23 +299,59 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
         return table
 
     def _process_record(self, context, expr, cte):
-        elements = [self._process_expr(context, e, cte) for e in expr.elements]
-        idref, elements = self._sort_record(context, elements, expr.concept)
-        type = pgsql.ast.TypeNode(name=common.get_record_name(expr.concept))
-        if expr.rlink is not None:
-            ptr_proto = expr.rlink.link_proto
-            colname = common.caos_name_to_pg_name(ptr_proto.normal_name())
+        my_elements = []
+        attribute_map = []
+        testref = None
+
+        if expr.linkprop_xvalue:
+            for e in expr.elements:
+                element = self._process_expr(context, e, cte)
+                my_elements.append(element)
+            attribute_map = ['value', 'attrs']
+            testref = my_elements[0]
         else:
-            colname = None
+            for e in expr.elements:
+                element = self._process_expr(context, e, cte)
 
-        rowexpr = pgsql.ast.RowExprNode(args=elements, origin_field=colname)
-        result = pgsql.ast.TypeCastNode(expr=rowexpr, type=type)
+                if isinstance(e, tree.ast.MetaRef):
+                    ptr_name = e.name
+                    testref = element
+                elif isinstance(e, tree.ast.BaseRef):
+                    ptr_name = e.ptr_proto.normal_name()
+                elif isinstance(e, tree.ast.Record):
+                    ptr_name = e.rlink.link_proto.normal_name()
+                elif isinstance(e, tree.ast.SubgraphRef):
+                    ptr_name = e.name
+                elif isinstance(e, tree.ast.Constant):
+                    ptr_name = e.substitute_for
 
-        when_cond = pgsql.ast.NullTestNode(expr=idref)
+                attribute_map.append(ptr_name)
+                my_elements.append(element)
 
-        when_expr = pgsql.ast.CaseWhenNode(expr=when_cond,
-                                           result=pgsql.ast.ConstantNode(value=None))
-        result = pgsql.ast.CaseExprNode(args=[when_expr], default=result)
+        proto_class = expr.concept.get_canonical_class()
+        proto_class_name = '{}.{}'.format(proto_class.__module__, proto_class.__name__)
+        marker = pg_session.RecordInfo(attribute_map=attribute_map,
+                                       proto_class=proto_class_name,
+                                       proto_name=expr.concept.name,
+                                       is_xvalue=expr.linkprop_xvalue)
+
+        context.current.record_info[marker.id] = marker
+        context.current.session.backend._register_record_info(marker)
+
+        marker = pgsql.ast.ConstantNode(value=marker.id)
+        marker_type = pgsql.ast.TypeNode(name='caos.known_record_marker_t')
+        marker = pgsql.ast.TypeCastNode(expr=marker, type=marker_type)
+
+        my_elements.insert(0, marker)
+
+        result = pgsql.ast.RowExprNode(args=my_elements)
+
+        if testref is not None:
+            when_cond = pgsql.ast.NullTestNode(expr=testref)
+
+            when_expr = pgsql.ast.CaseWhenNode(expr=when_cond,
+                                               result=pgsql.ast.ConstantNode(value=None))
+            result = pgsql.ast.CaseExprNode(args=[when_expr], default=result)
 
         return result
 
@@ -434,7 +472,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             base_err._replace_context(err, err_ctx)
             raise err from e
 
-        return qchunks, argmap, arg_index, type(qtree)
+        return qchunks, argmap, arg_index, type(qtree), tuple(context.current.record_info.values())
 
     def _dump(self, tree):
         markup.dump(tree)
@@ -923,14 +961,14 @@ class CaosTreeTransformer(CaosExprTransformer):
             if isinstance(expr.type, caos_types.ProtoAtom):
                 const_type = types.pg_type_from_atom(context.current.proto_schema, expr.type, topbase=True)
             elif isinstance(expr.type, caos_types.ProtoConcept):
-                const_type = common.get_table_name(expr.type, catenate=True)
+                const_type = 'record'
             elif isinstance(expr.type, tuple):
                 item_type = expr.type[1]
                 if isinstance(item_type, caos_types.ProtoAtom):
                     item_type = types.pg_type_from_atom(context.current.proto_schema, item_type, topbase=True)
                     const_type = '%s[]' % item_type
                 elif isinstance(item_type, caos_types.ProtoConcept):
-                    item_type = common.get_table_name(item_type, catenate=True)
+                    item_type = 'record'
                     const_type = '%s[]' % item_type
                 else:
                     const_type = common.py_type_to_pg_type(expr.type)
@@ -1294,6 +1332,10 @@ class CaosTreeTransformer(CaosExprTransformer):
                                 elif isinstance(left, pgsql.ast.ConstantNode) and left_type == 'text':
                                     left.type = right_type
 
+                            if (isinstance(right, pgsql.ast.ConstantNode) \
+                                    and op in {ast.ops.IS, ast.ops.IS_NOT}):
+                                right.type = None
+
                         result = pgsql.ast.BinOpNode(op=op, left=left, right=right,
                                                      aggregates=op_aggregates,
                                                      strong=expr.strong)
@@ -1457,41 +1499,6 @@ class CaosTreeTransformer(CaosExprTransformer):
             assert False, "Unexpected expression: %s" % expr
 
         return result
-
-    def _sort_record(self, context, elements, concept):
-        type_name = common.get_record_name(concept, catenate=False)
-        data_backend = context.current.session.backend
-        cols = data_backend.get_type_attributes(type_name, cache='always')
-
-        elts = {}
-
-        idref = None
-        idcol = common.caos_name_to_pg_name('semantix.caos.builtins.id')
-
-        def _resolve_colref(e):
-            if isinstance(e, pgsql.ast.TypeCastNode):
-                return _resolve_colref(e.expr)
-            elif isinstance(e, pgsql.ast.SelectQueryNode):
-                return e.targets[0].alias, None
-            elif isinstance(e, pgsql.ast.FunctionCallNode) and e.name == 'coalesce':
-                return _resolve_colref(e.args[0])
-            elif isinstance(e, pgsql.ast.CaseExprNode):
-                return _resolve_colref(e.default)
-            elif isinstance(e, pgsql.ast.FieldRefNode):
-                return e.origin_field, e
-            elif isinstance(e, pgsql.ast.RowExprNode):
-                return e.origin_field, None
-            else:
-                raise TypeError('could not resolve column reference from {}'.format(e))
-
-        for e in elements:
-            colref, fieldref = _resolve_colref(e)
-            elts[colref] = e
-
-            if colref == idcol:
-                idref = fieldref
-
-        return idref, [elts[col] for col in cols]
 
     def _process_function(self, context, expr, cte):
         if expr.name == ('search', 'rank'):

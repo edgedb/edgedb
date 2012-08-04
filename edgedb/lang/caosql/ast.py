@@ -63,6 +63,8 @@ class TypeCastNode(ast.AST): __fields = ['expr', 'type']
 
 class TypeRefNode(ast.AST): __fields = ['expr']
 
+class NoneTestNode(ast.AST): __fields = ['expr']
+
 class CaosQLOperator(ast.ops.Operator):
     pass
 

@@ -374,7 +374,6 @@ class TypeMech:
 
     def init_cache(self, connection):
         self._load_table_columns(('caos_%', None), connection)
-        self._load_type_attributes(('caos_%', '%_record'), connection)
 
     def _load_table_columns(self, table_name, connection):
         cols = introspection.tables.TableColumns(connection)

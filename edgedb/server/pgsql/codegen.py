@@ -364,6 +364,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         else:
             if node.value is None:
                 self.write('NULL')
+                if node.type is not None:
+                    self.write('::{}'.format(node.type))
             elif isinstance(node.value, (bool, numbers.Number)):
                 self.write(str(node.value))
             else:
@@ -380,7 +382,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
     def visit_RowExprNode(self, node):
-        self.write('(')
+        self.write('ROW(')
         count = len(node.args)
         for i, e in enumerate(node.args):
             self.visit(e)

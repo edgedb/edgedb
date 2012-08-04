@@ -28,8 +28,9 @@ class DomainExists(base.Condition):
 
 
 class CreateDomain(ddl.SchemaObjectOperation):
-    def __init__(self, name, base):
-        super().__init__(name)
+    def __init__(self, name, base, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(name, conditions=conditions, neg_conditions=neg_conditions,
+                                                      priority=priority)
         self.base = base
 
     def code(self, context):

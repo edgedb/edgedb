@@ -10,6 +10,7 @@ import postgresql.exceptions
 import postgresql.protocol.xact3
 
 from semantix.caos import session
+from semantix.utils.algos import persistent_hash
 from semantix.utils.debug import debug
 
 
@@ -56,6 +57,19 @@ class Transaction(session.Transaction):
         """
         self.xact.commit()
         self.xact = None
+
+
+class RecordInfo:
+    def __init__(self, attribute_map, proto_class, proto_name, is_xvalue):
+        self.attribute_map = attribute_map
+        self.proto_class = proto_class
+        self.proto_name = proto_name
+        self.is_xvalue = is_xvalue
+        self.id = str(persistent_hash.persistent_hash(self))
+
+    def persistent_hash(self):
+        return persistent_hash.persistent_hash((tuple(self.attribute_map), self.proto_class,
+                                                self.proto_name, self.is_xvalue))
 
 
 class Session(session.Session):

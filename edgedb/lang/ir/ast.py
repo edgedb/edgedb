@@ -287,7 +287,9 @@ class Constant(Base):
 
 class Sequence(Base): __fields = [('elements', list)]
 
-class Record(Base): __fields = [('elements', list), 'concept', ('rlink', EntityLink, None, False)]
+class Record(Base):
+    __fields = [('elements', list), 'concept', ('rlink', EntityLink, None, False),
+                ('linkprop_xvalue', bool)]
 
 class BinOp(Base):
     __fields = ['left', 'right', 'op', ('aggregates', bool), ('strong', bool)]

@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -13,15 +13,18 @@ from functools import partial
 
 import postgresql
 from postgresql.python import socket as pg_socket
+from postgresql.python.functools import process_tuple
 from postgresql.driver import pq3
 from postgresql import types as pg_types
 from postgresql.types.io import lib as pg_types_io_lib
 from postgresql.string import quote_ident
+from postgresql.protocol import element3 as element
 
 from semantix.caos.objects import numeric, string
 from semantix.caos.backends import pool as caos_pool
 from semantix.caos import CaosError
 from semantix.utils import datetime as sx_datetime
+from semantix.utils.datastructures import Void, xvalue
 
 from semantix.caos.backends.pgsql.driver import io as pg_types_io
 
@@ -59,6 +62,8 @@ class Array(pg_types.Array, collections.Container):
 
 
 class TypeIO(pq3.TypeIO):
+    RECORD_OID = 2249
+
     def __init__(self, database):
         super().__init__(database)
         self._pool = database._pool
@@ -92,23 +97,72 @@ class TypeIO(pq3.TypeIO):
                                                                    typoid,
                                                                    hasbin_input, hasbin_output)
 
-        session = self.get_session()
-        if session is not None:
-            backend = session.backend
-            source = backend.source_name_from_relid(int(typoid))
-            if source is not None and hasbin_output:
+        if typoid == self.RECORD_OID:
+            def unpack_array(data, array_from_parts = self.array_from_parts):
                 # Override unpacking of arrays containing source node records to filter
                 # out None values.  This is necessary due to the absense of support for FILTER
                 # in aggregates in Postgres.  In absolute majority of calls to array_agg(<concept>),
                 # None values in the resulting array are an unndesired side effect of an outer join.
                 #
-                def unpack_array(data, array_from_parts = self.array_from_parts):
-                    flags, typoid, dims, lbs, elements = array_unpack(data)
-                    elements = tuple(unpack_element(x) for x in elements if x is not None)
-                    dims[0] = len(elements)
-                    return array_from_parts((elements, dims, lbs))
+                flags, typoid, dims, lbs, elements = array_unpack(data)
+                elements = tuple(unpack_element(x) for x in elements if x is not None)
+                dims[0] = len(elements)
+                return array_from_parts((elements, dims, lbs))
 
         return (pack_array, unpack_array, atype)
+
+    def anon_record_io_factory(self):
+        def raise_unpack_tuple_error(cause, procs, tup, itemnum):
+            data = repr(tup[itemnum])
+            if len(data) > 80:
+                # Be sure not to fill screen with noise.
+                data = data[:75] + ' ...'
+            self.raise_client_error(element.ClientError((
+                (b'C', '--cIO',),
+                (b'S', 'ERROR',),
+                (b'M', 'Could not unpack element {} from anonymous record'.format(itemnum)),
+                (b'W', data,),
+                (b'P', str(itemnum),)
+            )), cause = cause)
+
+        def _unpack_record(data, unpack = pg_types_io_lib.record_unpack,
+                                 process_tuple = process_tuple,
+                                 _Row=pg_types.Row.from_sequence):
+            record = list(unpack(data))
+            coloids = tuple(x[0] for x in record)
+
+            record_info = None
+
+            try:
+                marker_oid = self.database._sx_known_record_marker_oid_
+            except AttributeError:
+                pass
+            else:
+                if record and record[0][0] == marker_oid:
+                    session = self.get_session()
+                    if session is not None:
+                        recid = record[0][1].decode('ascii')
+                        record_info = session.backend._get_record_info_by_id(recid)
+
+            colio = map(self.resolve, coloids)
+            column_unpack = tuple(c[1] or self.decode for c in colio)
+
+            data = tuple(x[1] for x in record)
+            data = process_tuple(column_unpack, data, raise_unpack_tuple_error)
+
+            if record_info is not None:
+                data = dict(zip(record_info.attribute_map, data[1:]))
+
+                if record_info.is_xvalue:
+                    assert data['value'] is not None
+                    data = xvalue(data['value'], **data['attrs'])
+
+                elif record_info.proto_class == 'semantix.caos.proto.Concept':
+                    data = session.backend.entity_from_row(session, record_info.proto_name, data)
+
+            return data
+
+        return (None, _unpack_record)
 
     def RowTypeFactory(self, attribute_map={}, _Row=pg_types.Row.from_sequence,
                        composite_relid = None):

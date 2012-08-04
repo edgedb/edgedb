@@ -471,12 +471,15 @@ class TreeTransformer:
                 path = None
         return path
 
-    def entityref_to_record(self, expr, schema):
+    def entityref_to_record(self, expr, schema, _visited_records=None, _recurse=True):
         """Convert an EntitySet node into an Record referencing eager-pointers of EntitySet concept
         """
 
         if not isinstance(expr, caos_ast.PathCombination):
             expr = caos_ast.Conjunction(paths=frozenset((expr,)))
+
+        if _visited_records is None:
+            _visited_records = {}
 
         p = next(iter(expr.paths))
         if isinstance(p, caos_ast.EntitySet):
@@ -488,6 +491,12 @@ class TreeTransformer:
             concept = p.concept
             ref = p if len(expr.paths) == 1 else expr
 
+            elements = []
+            rec = caos_ast.Record(elements=elements, concept=concept, rlink=p.rlink)
+
+            _new_visited_records = _visited_records.copy()
+            _new_visited_records[concept] = rec
+
             if concept.is_virtual:
                 ptrs = concept.get_children_common_pointers(schema)
                 ptrs = {ptr.normal_name(): ptr for ptr in ptrs}
@@ -496,9 +505,12 @@ class TreeTransformer:
                 ptrs = concept.pointers
 
             for link_name, link in ptrs.items():
-                if not isinstance(link, caos_types.ProtoComputable) \
-                                        and link.get_loading_behaviour() != caos_types.LazyLoading:
+                if isinstance(link, caos_types.ProtoComputable):
+                    continue
 
+                if link.get_loading_behaviour() == caos_types.LazyLoading:
+                    continue
+                else:
                     root_link_proto = schema.get(link_name)
                     link_proto = link
                     target_proto = link.target
@@ -538,9 +550,42 @@ class TreeTransformer:
                         el = newstep
                     else:
                         newstep = targetstep
-                        el = self.entityref_to_record(newstep, schema)
 
-                    if not link.atomic():
+                        if _recurse:
+                            new_recurse = newstep.concept not in _new_visited_records
+                            el = self.entityref_to_record(newstep, schema, _new_visited_records,
+                                                          _recurse=new_recurse)
+                        else:
+                            el = caos_ast.Constant(value=None, substitute_for=link.normal_name(),
+                                                   type=link.target)
+
+                    prop_elements = []
+                    if link.has_user_defined_properties():
+                        proprec = caos_ast.Record(elements=prop_elements, concept=root_link_proto)
+
+                        for prop_name, prop_proto in link.pointers.items():
+                            if (isinstance(prop_proto, caos_types.ProtoComputable)
+                                            or prop_name in {'semantix.caos.builtins.target',
+                                                             'semantix.caos.builtins.source'}
+                                            or prop_proto.get_loading_behaviour() ==
+                                                caos_types.LazyLoading):
+                                continue
+
+                            prop_id = LinearPath(ref.id)
+                            prop_id.add(root_link_proto, caos_types.OutboundDirection, None)
+                            prop_ref = caos_ast.LinkPropRefSimple(name=prop_name, id=id,
+                                                                  ptr_proto=prop_proto,
+                                                                  ref=link_node)
+                            prop_elements.append(prop_ref)
+                            link_node.proprefs.add(prop_ref)
+
+                        if prop_elements:
+                            xvalue_elements = [el, proprec]
+                            el = caos_ast.Record(elements=xvalue_elements,
+                                                 concept=link_node.target.concept,
+                                                 rlink=link_node, linkprop_xvalue=True)
+
+                    if not link.atomic() or prop_elements:
                         lref.conjunction.update(link_node)
 
                     if isinstance(newstep, caos_ast.LinkPropRefSimple):
@@ -572,7 +617,7 @@ class TreeTransformer:
                 p.metarefs.add(metaref)
 
             elements.append(metaref)
-            expr = caos_ast.Record(elements=elements, concept=concept, rlink=p.rlink)
+            expr = rec
 
         return expr
 

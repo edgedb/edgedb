@@ -33,7 +33,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 10
+BACKEND_FORMAT_VERSION = 12
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -588,7 +588,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.table_name = None
-        self.record_name = None
         self._multicommands = {}
         self.update_search_indexes = None
         self.pointer_constraints = {}
@@ -649,56 +648,26 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
     def attach_alter_table(self, context):
         self._attach_multicommand(context, dbops.AlterTable)
 
-    def get_alter_record(self, context, priority=0, force_new=False, manual=False, source=None):
-        if source is None:
-            if not self.record_name:
-                assert self.__class__.context_class
-                ctx = context.get(self.__class__.context_class)
-                assert ctx
-                self.record_name = common.get_record_name(ctx.proto, catenate=False)
-            record_name = self.record_name
-        else:
-            record_name = common.get_record_name(source, catenate=False)
-
-        return self._get_multicommand(context, dbops.AlterCompositeType, record_name,
-                                      priority=priority,
-                                      force_new=force_new, manual=manual)
-
-    def attach_alter_record(self, context):
-        self._attach_multicommand(context, dbops.AlterCompositeType)
-
     def rename(self, meta, context, old_name, new_name, obj=None):
         super().rename(meta, context, old_name, new_name)
 
         if obj is not None and isinstance(obj, caos.types.ProtoLink):
             old_table_name = common.link_name_to_table_name(old_name, catenate=False)
-            old_rec_name = common.link_name_to_record_name(old_name, catenate=False)
             new_table_name = common.link_name_to_table_name(new_name, catenate=False)
-            new_rec_name = common.link_name_to_record_name(new_name, catenate=False)
         else:
             old_table_name = common.concept_name_to_table_name(old_name, catenate=False)
-            old_rec_name = common.concept_name_to_record_name(old_name, catenate=False)
             new_table_name = common.concept_name_to_table_name(new_name, catenate=False)
-            new_rec_name = common.concept_name_to_record_name(new_name, catenate=False)
 
         cond = dbops.TableExists(name=old_table_name)
-        rec_cond = dbops.CompositeTypeExists(name=old_rec_name)
 
         if old_name.module != new_name.module:
             self.pgops.add(dbops.AlterTableSetSchema(old_table_name, new_table_name[0],
                                                      conditions=(cond,)))
             old_table_name = (new_table_name[0], old_table_name[1])
 
-            self.pgops.add(dbops.AlterCompositeTypeSetSchema(old_rec_name, new_rec_name[0],
-                                                             conditions=(rec_cond,)))
-            old_rec_name = (new_rec_name[0], old_rec_name[1])
-
         if old_name.name != new_name.name:
             self.pgops.add(dbops.AlterTableRenameTo(old_table_name, new_table_name[1],
                                                     conditions=(cond,)))
-
-            self.pgops.add(dbops.AlterCompositeTypeRenameTo(old_rec_name, new_rec_name[1],
-                                                            conditions=(rec_cond,)))
 
         old_func_name = (old_table_name[0],
                          common.caos_name_to_pg_name(old_name.name + '_batch_merger'))
@@ -809,21 +778,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                         for constr in abstract_constr.values():
                             self.add_pointer_constraint(source, pointer_name,
                                                         constr, meta, context)
-
-                if not isinstance(pointer, caos.types.ProtoComputable) \
-                        and not isinstance(source, caos.types.ProtoPointer) \
-                        and pointer.target is not None:
-                    ptr_stor_info = types.get_pointer_storage_info(meta, pointer, record_mode=True)
-
-                    if ptr_stor_info.in_record:
-                        alter_record = self.get_alter_record(context, force_new=True)
-                        col = dbops.Column(name=ptr_stor_info.column_name,
-                                           type=ptr_stor_info.column_type,
-                                           comment=pointer.normal_name())
-                        cond = dbops.CompositeTypeAttributeExists(self.record_name,
-                                                                  ptr_stor_info.column_name)
-                        alter_record.add_command((dbops.AlterCompositeTypeAddAttribute(col), None,
-                                                  (cond,)))
 
     def affirm_pointer_defaults(self, source, meta, context):
         for pointer_name, pointer in source.pointers.items():
@@ -1105,66 +1059,10 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                                                 types.pg_type_from_object(meta, new_target))
                         alter_table.add_operation(alter_type)
 
-                        if pointer.get_loading_behaviour() == caos.types.EagerLoading:
-                            opg = dbops.CommandGroup(priority=1)
-                            alter_type = dbops.AlterCompositeTypeAlterAttributeType(
-                                                    old_ptr_stor_info.column_name,
-                                                    types.pg_type_from_object(meta, new_target))
-
-                            for src in itertools.chain((source_proto,), source_proto.children()):
-                                alter_record = source_op.get_alter_record(context, manual=True,
-                                                                          source=src)
-                                alter_record.add_command(alter_type)
-                                opg.add_command(alter_record)
-
-                            self.pgops.add(opg)
-
         old_ptr_stor_info = types.get_pointer_storage_info(meta, orig_pointer,
                                                            record_mode=True)
         new_ptr_stor_info = types.get_pointer_storage_info(meta, pointer,
                                                            record_mode=True)
-
-        if orig_pointer.get_loading_behaviour() != pointer.get_loading_behaviour():
-            opg = dbops.CommandGroup(priority=1)
-
-            if orig_pointer.get_loading_behaviour() == 'eager':
-                # Pointer is no longer eager -- drop it from the record
-                attr = dbops.Column(name=old_ptr_stor_info.column_name, type='text')
-
-                for src in itertools.chain((source_proto,), source_proto.children(recursive=True)):
-                    alter_record = source_op.get_alter_record(context, manual=True,
-                                                                       source=src)
-                    alter_record.add_command(dbops.AlterCompositeTypeDropAttribute(attr))
-                    opg.add_command(alter_record)
-            else:
-                # Pointer became eager -- add it to the record
-                attrs = self.get_columns(pointer, meta, record_mode=True)
-                ops = [dbops.AlterCompositeTypeAddAttribute(attr) for attr in attrs]
-
-                for src in itertools.chain((source_proto,), source_proto.children(recursive=True)):
-                    alter_record = source_op.get_alter_record(context, manual=True,
-                                                                       source=src)
-                    for op in ops:
-                        alter_record.add_command(op)
-                    opg.add_command(alter_record)
-
-            self.pgops.add(opg)
-
-        if old_ptr_stor_info.column_type != new_ptr_stor_info.column_type \
-                    and pointer.get_loading_behaviour() == caos.types.EagerLoading:
-            # Composite type attribute type change, possibly due to mapping change
-            opg = dbops.CommandGroup(priority=1)
-
-            for src in itertools.chain((source_proto,), source_proto.children(recursive=True)):
-                alter_record = source_op.get_alter_record(context, manual=True,
-                                                                   source=src)
-                actaat = dbops.AlterCompositeTypeAlterAttributeType(
-                                        new_ptr_stor_info.column_name,
-                                        new_ptr_stor_info.column_type)
-                alter_record.add_command(actaat)
-                opg.add_command(alter_record)
-
-            self.pgops.add(opg)
 
     def apply_base_delta(self, orig_source, source, meta, context):
         realm = context.get(delta_cmds.RealmCommandContext)
@@ -1183,7 +1081,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             ptr_cmd = delta_cmds.CreateLinkProperty
 
         alter_table = source_ctx.op.get_alter_table(context)
-        alter_record = source_ctx.op.get_alter_record(context)
 
         if isinstance(source, caos.types.ProtoConcept) \
                         or source_ctx.op.has_table(source, meta):
@@ -1216,21 +1113,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                                        required=ptr.required)
                     alter_table.add_operation(dbops.AlterTableAddColumn(col))
 
-                ptr_stor_info = types.get_pointer_storage_info(meta, ptr, record_mode=True)
-
-                if ptr_stor_info.in_record and isinstance(source, caos.types.ProtoConcept):
-                    col = dbops.Column(name=ptr_stor_info.column_name,
-                                       type=ptr_stor_info.column_type,
-                                       required=ptr.required)
-
-                    op = dbops.AlterCompositeTypeAddAttribute(col)
-                    for src in itertools.chain((source,), source.children(recursive=True)):
-                        rec_name = common.get_record_name(src, catenate=False)
-                        alter_record = source_ctx.op.get_alter_record(context, force_new=True,
-                                                                               source=src)
-                        cond = dbops.CompositeTypeAttributeExists(rec_name, op.attribute.name)
-                        alter_record.add_command((op, None, (cond,)))
-
             if dropped_bases:
                 for dropped_base in dropped_bases:
                     parent_table_name = nameconv(caos.name.Name(dropped_base), catenate=False)
@@ -1254,20 +1136,11 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
                     for dropped_ptr in dropped_ptrs:
                         ptr = orig_source.pointers[dropped_ptr]
-                        ptr_stor_info = types.get_pointer_storage_info(meta, ptr, record_mode=True)
+                        ptr_stor_info = types.get_pointer_storage_info(meta, ptr)
 
                         col = dbops.Column(name=ptr_stor_info.column_name,
                                            type=ptr_stor_info.column_type,
                                            required=ptr.required)
-
-                        if ptr_stor_info.in_record and isinstance(source, caos.types.ProtoConcept):
-                            for src in itertools.chain((source,), source.children(recursive=True)):
-                                rec_name = common.get_record_name(src, catenate=False)
-                                alter_record = source_ctx.op.get_alter_record(context, force_new=True,
-                                                                                       source=src)
-                                cond = dbops.CompositeTypeAttributeExists(rec_name, col.name)
-                                op = dbops.AlterCompositeTypeDropAttribute(col)
-                                alter_record.add_command((op, (cond,), None))
 
                         cond = dbops.ColumnExists(table_name=ptr_stor_info.table_name,
                                                   column_name=ptr_stor_info.column_name)
@@ -1359,16 +1232,11 @@ class ConceptMetaCommand(CompositePrototypeMetaCommand):
 class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
     def apply(self, meta, context=None):
         new_table_name = common.concept_name_to_table_name(self.prototype_name, catenate=False)
-        new_record_name = common.concept_name_to_record_name(self.prototype_name)
         self.table_name = new_table_name
-        self.record_name = new_record_name
         concept_table = dbops.Table(name=new_table_name)
-        concept_record = dbops.CompositeType(name=new_record_name)
         self.pgops.add(dbops.CreateTable(table=concept_table))
-        self.pgops.add(dbops.CreateCompositeType(type=concept_record))
 
         alter_table = self.get_alter_table(context)
-        alter_record = self.get_alter_record(context)
 
         concept = delta_cmds.CreateConcept.apply(self, meta, context)
         ConceptMetaCommand.apply(self, meta, context)
@@ -1379,8 +1247,6 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
 
         if concept.name == 'semantix.caos.builtins.BaseObject' or concept.is_virtual:
             alter_table.add_operation(dbops.AlterTableAddColumn(cid_col))
-
-        alter_record.add_command(dbops.AlterCompositeTypeAddAttribute(cid_col))
 
         if not concept.is_virtual:
             constraint = dbops.PrimaryKey(table_name=alter_table.name,
@@ -1397,7 +1263,6 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
         self.affirm_pointer_defaults(concept, meta, context)
 
         self.attach_alter_table(context)
-        self.attach_alter_record(context)
 
         if self.update_search_indexes:
             self.update_search_indexes.apply(meta, context)
@@ -1422,7 +1287,6 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
         realm.op._renames[concept.original_proto.name] = proto.name
 
         concept.op.attach_alter_table(context)
-        concept.op.attach_alter_record(context)
 
         self.rename(meta, context, self.prototype_name, self.new_name)
 
@@ -1437,7 +1301,6 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
         self.adjust_indexes(meta, context, proto)
 
         self.table_name = common.concept_name_to_table_name(self.new_name, catenate=False)
-        self.record_name = common.concept_name_to_record_name(self.new_name, catenate=False)
 
         concept.original_proto.name = proto.name
 
@@ -1470,7 +1333,6 @@ class AlterConcept(ConceptMetaCommand, adapts=delta_cmds.AlterConcept):
             self.pgops.add(dbops.Update(table=self.table, record=updaterec, condition=condition))
 
         self.attach_alter_table(context)
-        self.attach_alter_record(context)
 
         if self.update_search_indexes:
             self.update_search_indexes.apply(meta, context)
@@ -1489,9 +1351,6 @@ class DeleteConcept(ConceptMetaCommand, adapts=delta_cmds.DeleteConcept):
         self.delete(meta, context, concept)
 
         self.pgops.add(dbops.DropTable(name=old_table_name))
-
-        old_record_name = common.concept_name_to_record_name(self.prototype_name, catenate=False)
-        self.pgops.add(dbops.DropCompositeType(name=old_record_name))
 
         return concept
 
@@ -1821,11 +1680,6 @@ class PointerMetaCommand(MetaCommand):
                     rename = dbops.AlterTableRenameColumn(table_name, old_col_name, new_col_name)
                     self.pgops.add(rename)
 
-                if ptr_stor_info.in_record:
-                    record_name = common.get_record_name(host.proto, catenate=False)
-                    rename = dbops.AlterCompositeTypeRenameAttribute(record_name, old_col_name,
-                                                                     new_col_name)
-
         rec = self.table.record()
         rec.name = str(self.new_name)
         self.pgops.add(dbops.Update(table=self.table, record=rec,
@@ -1987,10 +1841,6 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
                     cmd = dbops.AlterTableAddColumn(col)
                     concept_alter_table.add_operation((cmd, None, (cond,)))
 
-            if ptr_stor_info.in_record:
-                if link.target is not None:
-                    self._add_to_source_record(meta, context, link, link.target)
-
         if link.generic():
             self.affirm_pointer_defaults(link, meta, context)
 
@@ -1999,45 +1849,17 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
             self.create_pointer_constraints(link, meta, context)
 
         self.attach_alter_table(context)
-        self.attach_alter_record(context)
 
         concept = context.get(delta_cmds.ConceptCommandContext)
         if not concept or not concept.proto.is_virtual:
             rec, updates = self.record_metadata(link, None, meta, context)
             self.pgops.add(dbops.Insert(table=self.table, records=[rec], priority=1))
 
-        if not link.generic() and link.mapping != caos.types.ManyToMany:
+        if (not link.generic() and link.mapping != caos.types.ManyToMany
+                               and not concept.proto.is_virtual):
             self.schedule_mapping_update(link, meta, context)
 
         return link
-
-    def ref_appears(self, schema, context, ref_proto, proto_attr, prototype):
-        super().ref_appears(schema, context, ref_proto, proto_attr, prototype)
-        if proto_attr == 'target':
-            ptr_stor_info = types.get_pointer_storage_info(schema, ref_proto, resolve_type=False)
-            if ptr_stor_info.in_record:
-                self._add_to_source_record(schema, context, ref_proto, prototype)
-
-    def _add_to_source_record(self, schema, context, pointer, target):
-        concept = context.get(delta_cmds.ConceptCommandContext)
-        cols = self.get_columns(pointer, schema, record_mode=True)
-
-        opg = dbops.CommandGroup(priority=1)
-
-        ops = [dbops.AlterCompositeTypeAddAttribute(attr) for attr in cols]
-
-        for src in itertools.chain((concept.proto,), concept.proto.children(recursive=True)):
-            alter_record = concept.op.get_alter_record(context, manual=True,
-                                                                source=src)
-
-            rec_name = common.get_record_name(src, catenate=False)
-
-            for op in ops:
-                cond = dbops.CompositeTypeAttributeExists(rec_name, op.attribute.name)
-                alter_record.add_command((op, None, (cond,)))
-            opg.add_command(alter_record)
-
-        self.pgops.add(opg)
 
 
 class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
@@ -2048,7 +1870,6 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
         self.rename_pointer(result, meta, context, self.prototype_name, self.new_name)
 
         self.attach_alter_table(context)
-        self.attach_alter_record(context)
 
         if result.generic():
             link_cmd = context.get(delta_cmds.LinkCommandContext)
@@ -2120,7 +1941,6 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
                 self.pgops.add(op)
 
             self.attach_alter_table(context)
-            self.attach_alter_record(context)
 
             if not link.generic():
                 self.adjust_pointer_storage(old_link, link, meta, context)
@@ -2162,20 +1982,6 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
                                        type=ptr_stor_info.column_type)
                     col = dbops.AlterTableDropColumn(col)
                     alter_table.add_operation(col)
-
-            if ptr_stor_info.in_record:
-                if name not in concept.proto.pointers:
-                    col = dbops.Column(name=ptr_stor_info.column_name,
-                                       type=ptr_stor_info.column_type)
-                    op = dbops.AlterCompositeTypeDropAttribute(col)
-
-                    for src in itertools.chain((concept.proto,),
-                                               concept.proto.children(recursive=True)):
-                        rec_name = common.get_record_name(src, catenate=False)
-                        alter_record = concept.op.get_alter_record(context, force_new=True,
-                                                                            source=src)
-                        cond = dbops.CompositeTypeAttributeExists(rec_name, op.attribute.name)
-                        alter_record.add_command((op, (cond,), None))
 
         if self.has_table(result, meta):
             old_table_name = common.get_table_name(result, catenate=False)
@@ -2270,7 +2076,6 @@ class CreatePointerConstraint(PointerConstraintMetaCommand,
                         # been created in the same sync session.
                         cmd.add_pointer_constraint(child, pointer_name, constraint, meta, context)
                         cmd.attach_alter_table(context)
-                        cmd.attach_alter_record(context)
                         self.pgops.add(cmd)
 
         return constraint
@@ -2309,7 +2114,6 @@ class DeletePointerConstraint(PointerConstraintMetaCommand, adapts=delta_cmds.De
                         cmd.del_pointer_constraint(child, pointer_name, constraint, meta, context,
                                                    conditional=True)
                         cmd.attach_alter_table(context)
-                        cmd.attach_alter_record(context)
                         self.pgops.add(cmd)
 
         return constraint
@@ -2911,6 +2715,10 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
                                                 neg_conditions=[dbops.FunctionExists(('caos', 'agg_product'))],
                                                 priority=-2))
 
+        self.pgops.add(deltadbops.EnableFeature(feature=features.KnownRecordMarkerFeature(),
+                                                neg_conditions=[dbops.DomainExists(('caos', 'known_record_marker_t'))],
+                                                priority=-2))
+
         deltalogtable = deltadbops.DeltaLogTable()
         self.pgops.add(dbops.CreateTable(table=deltalogtable,
                                          neg_conditions=[dbops.TableExists(name=deltalogtable.name)],
@@ -3486,6 +3294,40 @@ class UpgradeBackend(MetaCommand):
                                          neg_conditions=[dbops.TableExists(name=ptrcascadepolicytable.name)]))
 
         cg.execute(context)
+
+    def update_to_version_11(self, context):
+        """
+        Backend format 11 adds known_record_marker_t type to annotate record pseudo-types
+        """
+
+        cond = [dbops.DomainExists(('caos', 'known_record_marker_t'))]
+        op = deltadbops.EnableFeature(feature=features.KnownRecordMarkerFeature(),
+                                      neg_conditions=cond)
+        op.execute(context)
+
+    def update_to_version_12(self, context):
+        """
+        Backend format 12 drops composite types for concepts.
+        """
+
+        concept_list = datasources.meta.concepts.ConceptList(context.db).fetch()
+        commands = {}
+
+        for concept in concept_list:
+            cname = caos.Name(concept['name'])
+            record_name = common.concept_name_to_record_name(cname, catenate=False)
+
+            try:
+                cmd = commands[concept['id']]
+            except KeyError:
+                cmd = commands[concept['id']] = dbops.CommandGroup()
+
+            cond = dbops.CompositeTypeExists(record_name)
+            drop = dbops.DropCompositeType(record_name, conditions=(cond,), cascade=True)
+            cmd.add_command(drop)
+
+        for group in commands.values():
+            group.execute(context)
 
     @classmethod
     def update_backend_info(cls):
