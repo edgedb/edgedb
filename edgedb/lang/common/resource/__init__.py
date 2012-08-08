@@ -222,21 +222,22 @@ class StaticPublisher(Publisher):
 
                 if os.path.exists(dest_path):
                     if os.path.islink(dest_path):
-                        ex_dest = os.readlink(dest_path)
-                        if not os.path.isabs(ex_dest):
-                            ex_dest = os.path.abspath(os.path.join(os.path.dirname(dest_path),
-                                                                   ex_dest))
-
-                        if ex_dest != dest_path:
-                            os.unlink(dest_path)
-                        else:
+                        if os.stat(dest_path).st_ino == os.stat(src_path).st_ino:
+                            # same file
                             continue
+                        else:
+                            os.unlink(dest_path)
 
                     else:
+                        # not a symlink, let's just remove it
                         if os.path.isfile(dest_path):
                             os.remove(dest_path)
                         else:
                             os.rmdir(dest_path)
+
+                elif os.path.islink(dest_path):
+                    # broken symlink
+                    os.unlink(dest_path)
 
                 os.symlink(src_path, dest_path)
 
