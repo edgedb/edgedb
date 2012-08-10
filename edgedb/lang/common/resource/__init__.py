@@ -15,7 +15,7 @@ import os
 import shutil
 
 from semantix.exceptions import SemantixError
-from semantix.utils.algos import topological
+from semantix.utils import config
 from semantix.utils.datastructures import OrderedSet
 from semantix.utils.debug import timeit
 
@@ -144,8 +144,8 @@ class Directory(AbstractFileSystemResource):
             raise ResourceError('{!r} is not a directory'.format(path))
 
 
-class Publisher:
-    """Publishers are used to publish resources and make them accessible.
+class Publisher(config.Configurable):
+    """Publishers are used to make resources accessible.
 
     .. note:: This is a base class, don't use it directly"""
 
@@ -173,8 +173,8 @@ class Publisher:
 
 
 class StaticPublisher(Publisher):
-    """This published should be used to consolidate certain resource in one
-    file-system location.  Creates all necessary directories and symlinks all
+    """This publisher should be used to consolidate certain resources in one
+    file-system location.  Creates all necessary directories, and symlinks all
     ``VirtualFile``, ``File`` and ``Directory`` resources."""
 
     can_publish = (AbstractFileSystemResource, VirtualFile)
@@ -209,6 +209,42 @@ class StaticPublisher(Publisher):
 
     published = property(lambda self: self._published)
 
+    def _publish_fs_resource(self, resource):
+        src_path = resource.__sx_resource_path__
+        dest_path = os.path.abspath(os.path.join(self.pubdir,
+                                                 resource.__sx_resource_public_path__))
+
+        if os.path.exists(dest_path):
+            if os.path.islink(dest_path):
+                if os.stat(dest_path).st_ino == os.stat(src_path).st_ino:
+                    # same file
+                    return
+                else:
+                    os.unlink(dest_path)
+
+            else:
+                # not a symlink, let's just remove it
+                if os.path.isfile(dest_path):
+                    os.remove(dest_path)
+                else:
+                    os.rmdir(dest_path)
+
+        elif os.path.islink(dest_path):
+            # broken symlink
+            os.unlink(dest_path)
+
+        os.symlink(src_path, dest_path)
+
+    def _publish_virtual_resource(self, resource):
+        dest_path = os.path.abspath(os.path.join(self.pubdir,
+                                                 resource.__sx_resource_public_path__))
+
+        if os.path.exists(dest_path):
+            os.remove(dest_path)
+
+        with open(dest_path, 'wt+') as dest:
+            dest.write(resource.__sx_resource_get_source__())
+
     def publish_all(self):
         """Publish all resources in the ``pubdir``"""
 
@@ -216,37 +252,7 @@ class StaticPublisher(Publisher):
 
         for resource in deps:
             if isinstance(resource, AbstractFileSystemResource):
-                src_path = resource.__sx_resource_path__
-                dest_path = os.path.abspath(os.path.join(self.pubdir,
-                                                         resource.__sx_resource_public_path__))
-
-                if os.path.exists(dest_path):
-                    if os.path.islink(dest_path):
-                        if os.stat(dest_path).st_ino == os.stat(src_path).st_ino:
-                            # same file
-                            continue
-                        else:
-                            os.unlink(dest_path)
-
-                    else:
-                        # not a symlink, let's just remove it
-                        if os.path.isfile(dest_path):
-                            os.remove(dest_path)
-                        else:
-                            os.rmdir(dest_path)
-
-                elif os.path.islink(dest_path):
-                    # broken symlink
-                    os.unlink(dest_path)
-
-                os.symlink(src_path, dest_path)
+                self._publish_fs_resource(resource)
 
             elif isinstance(resource, VirtualFile):
-                dest_path = os.path.abspath(os.path.join(self.pubdir,
-                                                         resource.__sx_resource_public_path__))
-
-                if os.path.exists(dest_path):
-                    os.remove(dest_path)
-
-                with open(dest_path, 'wt+') as dest:
-                    dest.write(resource.__sx_resource_get_source__())
+                self._publish_virtual_resource(resource)
