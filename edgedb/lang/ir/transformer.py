@@ -471,7 +471,8 @@ class TreeTransformer:
                 path = None
         return path
 
-    def entityref_to_record(self, expr, schema, _visited_records=None, _recurse=True):
+    def entityref_to_record(self, expr, schema, *, pathspec=None, _visited_records=None,
+                                                                  _recurse=True):
         """Convert an EntitySet node into an Record referencing eager-pointers of EntitySet concept
         """
 
@@ -482,6 +483,9 @@ class TreeTransformer:
             _visited_records = {}
 
         p = next(iter(expr.paths))
+
+        recurse_links = None
+
         if isinstance(p, caos_ast.EntitySet):
             concepts = {c.concept for c in expr.paths}
             assert len(concepts) == 1
@@ -504,111 +508,154 @@ class TreeTransformer:
             else:
                 ptrs = concept.pointers
 
-            for link_name, link in ptrs.items():
+            if pathspec is not None:
+                must_have_links = (
+                    caos_name.Name('semantix.caos.builtins.id'),
+                    caos_name.Name('semantix.caos.builtins.mtime'),
+                    caos_name.Name('semantix.caos.builtins.ctime')
+                )
+
+                recurse_links = {l: caos_ast.PtrPathSpec(ptr_proto=ptrs[l])
+                                    for l in must_have_links}
+
+                for ps in pathspec:
+                    if isinstance(ps.ptr_proto, caos_types.ProtoLink):
+                        recurse_links[ps.ptr_proto.normal_name()] = ps
+
+            if recurse_links is None:
+                recurse_links = {pn: caos_ast.PtrPathSpec(ptr_proto=p)
+                                    for pn, p in ptrs.items()
+                                        if not isinstance(p, caos_types.ProtoComputable) and
+                                           p.get_loading_behaviour() == caos_types.EagerLoading and
+                                           p.target not in _visited_records}
+
+            for link_name, recurse_spec in recurse_links.items():
+                link = recurse_spec.ptr_proto
+                link_direction = recurse_spec.ptr_direction or caos_types.OutboundDirection
+
                 if isinstance(link, caos_types.ProtoComputable):
                     continue
 
-                if link.get_loading_behaviour() == caos_types.LazyLoading:
-                    continue
-                else:
-                    root_link_proto = schema.get(link_name)
-                    link_proto = link
+                root_link_proto = schema.get(link_name)
+                link_proto = link
+
+                if link_direction == caos_types.OutboundDirection:
                     target_proto = link.target
-                    id = LinearPath(ref.id)
+                    link_singular = link.mapping in {caos_types.OneToOne, caos_types.ManyToOne}
+                else:
+                    target_proto = link.source
+                    link_singular = link.mapping in {caos_types.OneToOne, caos_types.OneToMany}
 
-                    id.add(link_proto, caos_types.OutboundDirection, target_proto)
+                id = LinearPath(ref.id)
 
-                    if not link.singular():
-                        lref = self.copy_path(ref)
+                id.add(link_proto, link_direction, target_proto)
+
+                if not link_singular:
+                    lref = self.copy_path(ref)
+                else:
+                    lref = ref
+
+                targetstep = caos_ast.EntitySet(conjunction=caos_ast.Conjunction(),
+                                                disjunction=caos_ast.Disjunction(),
+                                                users={self.context.current.location},
+                                                concept=target_proto, id=id)
+
+                link_node = caos_ast.EntityLink(source=lref, target=targetstep,
+                                                link_proto=link_proto,
+                                                direction=link_direction,
+                                                users={'selector'})
+
+                targetstep.rlink = link_node
+
+                if link.atomic():
+                    if link_singular:
+                        newstep = caos_ast.AtomicRefSimple(ref=lref, name=link_name, id=id,
+                                                           ptr_proto=link_proto)
                     else:
-                        lref = ref
+                        ptr_name = caos_name.Name('semantix.caos.builtins.target')
+                        prop_id = LinearPath(ref.id)
+                        prop_id.add(root_link_proto, caos_types.OutboundDirection, None)
+                        prop_proto = link.pointers[ptr_name]
+                        newstep = caos_ast.LinkPropRefSimple(name=ptr_name, id=id,
+                                                             ptr_proto=prop_proto)
 
-                    targetstep = caos_ast.EntitySet(conjunction=caos_ast.Conjunction(),
-                                                    disjunction=caos_ast.Disjunction(),
-                                                    users={self.context.current.location},
-                                                    concept=target_proto, id=id)
+                    el = newstep
+                else:
+                    newstep = targetstep
 
-                    link_node = caos_ast.EntityLink(source=lref, target=targetstep,
-                                                    link_proto=link_proto,
-                                                    direction=caos_types.OutboundDirection,
-                                                    users={'selector'})
+                    if _recurse:
+                        new_recurse = (newstep.concept not in _new_visited_records or
+                                       recurse_spec is not None)
+                        recurse_pathspec = recurse_spec.pathspec if recurse_spec is not None \
+                                                                 else None
+                        el = self.entityref_to_record(newstep, schema,
+                                                      pathspec=recurse_pathspec,
+                                                      _visited_records=_new_visited_records,
+                                                      _recurse=new_recurse)
 
-                    targetstep.rlink = link_node
+                prop_elements = []
+                if link.has_user_defined_properties():
+                    if recurse_spec.pathspec is not None:
+                        recurse_props = {}
+                        for ps in recurse_spec.pathspec:
+                            if (isinstance(ps.ptr_proto, caos_types.ProtoLinkProperty)
+                                    and ps.ptr_proto.normal_name() not in
+                                            {'semantix.caos.builtins.source',
+                                             'semantix.caos.builtins.target'}):
+                                recurse_props[ps.ptr_proto.normal_name()] = ps
+                    else:
+                        recurse_props = {pn: caos_ast.PtrPathSpec(ptr_proto=p)
+                                            for pn, p in link.pointers.items()
+                                                if not isinstance(p, caos_types.ProtoComputable)
+                                                   and p.get_loading_behaviour() == caos_types.EagerLoading
+                                                   and pn not in {'semantix.caos.builtins.source',
+                                                                  'semantix.caos.builtins.target'}}
 
+                    proprec = caos_ast.Record(elements=prop_elements, concept=root_link_proto)
+
+                    for prop_name, prop_proto in link.pointers.items():
+                        if (isinstance(prop_proto, caos_types.ProtoComputable)
+                                        or prop_name not in recurse_props):
+                            continue
+
+                        prop_id = LinearPath(ref.id)
+                        prop_id.add(root_link_proto, caos_types.OutboundDirection, None)
+                        prop_ref = caos_ast.LinkPropRefSimple(name=prop_name, id=id,
+                                                              ptr_proto=prop_proto,
+                                                              ref=link_node)
+                        prop_elements.append(prop_ref)
+                        link_node.proprefs.add(prop_ref)
+
+                    if prop_elements:
+                        xvalue_elements = [el, proprec]
+                        el = caos_ast.Record(elements=xvalue_elements,
+                                             concept=link_node.target.concept,
+                                             rlink=link_node, linkprop_xvalue=True)
+
+                if not link.atomic() or prop_elements:
+                    lref.conjunction.update(link_node)
+
+                if isinstance(newstep, caos_ast.LinkPropRefSimple):
+                    newstep.ref = link_node
+                    lref.disjunction.update(link_node)
+
+                if not link_singular:
                     if link.atomic():
-                        if link.singular():
-                            newstep = caos_ast.AtomicRefSimple(ref=lref, name=link_name, id=id,
-                                                               ptr_proto=link_proto)
-                        else:
-                            ptr_name = caos_name.Name('semantix.caos.builtins.target')
-                            prop_id = LinearPath(ref.id)
-                            prop_id.add(root_link_proto, caos_types.OutboundDirection, None)
-                            prop_proto = link.pointers[ptr_name]
-                            newstep = caos_ast.LinkPropRefSimple(name=ptr_name, id=id,
-                                                                 ptr_proto=prop_proto)
+                        link_node.proprefs.add(newstep)
 
-                        el = newstep
-                    else:
-                        newstep = targetstep
+                    generator = caos_ast.Conjunction(paths=frozenset((targetstep,)))
+                    generator = self.merge_paths(generator)
 
-                        if _recurse:
-                            new_recurse = newstep.concept not in _new_visited_records
-                            el = self.entityref_to_record(newstep, schema, _new_visited_records,
-                                                          _recurse=new_recurse)
-                        else:
-                            el = caos_ast.Constant(value=None, substitute_for=link.normal_name(),
-                                                   type=link.target)
+                    subgraph = caos_ast.GraphExpr()
+                    subgraph.generator = generator
 
-                    prop_elements = []
-                    if link.has_user_defined_properties():
-                        proprec = caos_ast.Record(elements=prop_elements, concept=root_link_proto)
+                    subexpr = caos_ast.FunctionCall(name=('agg', 'list'), args=[el],
+                                                    aggregates=True)
+                    selexpr = caos_ast.SelectorExpr(expr=subexpr, name=link_name)
+                    subgraph.selector.append(selexpr)
+                    el = caos_ast.SubgraphRef(ref=subgraph, name=link_name, rlink=link_node)
 
-                        for prop_name, prop_proto in link.pointers.items():
-                            if (isinstance(prop_proto, caos_types.ProtoComputable)
-                                            or prop_name in {'semantix.caos.builtins.target',
-                                                             'semantix.caos.builtins.source'}
-                                            or prop_proto.get_loading_behaviour() ==
-                                                caos_types.LazyLoading):
-                                continue
-
-                            prop_id = LinearPath(ref.id)
-                            prop_id.add(root_link_proto, caos_types.OutboundDirection, None)
-                            prop_ref = caos_ast.LinkPropRefSimple(name=prop_name, id=id,
-                                                                  ptr_proto=prop_proto,
-                                                                  ref=link_node)
-                            prop_elements.append(prop_ref)
-                            link_node.proprefs.add(prop_ref)
-
-                        if prop_elements:
-                            xvalue_elements = [el, proprec]
-                            el = caos_ast.Record(elements=xvalue_elements,
-                                                 concept=link_node.target.concept,
-                                                 rlink=link_node, linkprop_xvalue=True)
-
-                    if not link.atomic() or prop_elements:
-                        lref.conjunction.update(link_node)
-
-                    if isinstance(newstep, caos_ast.LinkPropRefSimple):
-                        newstep.ref = link_node
-                        lref.disjunction.update(link_node)
-
-                    if not link.singular():
-                        if link.atomic():
-                            link_node.proprefs.add(newstep)
-
-                        generator = caos_ast.Conjunction(paths=frozenset((targetstep,)))
-                        generator = self.merge_paths(generator)
-
-                        subgraph = caos_ast.GraphExpr()
-                        subgraph.generator = generator
-
-                        subexpr = caos_ast.FunctionCall(name=('agg', 'list'), args=[el],
-                                                        aggregates=True)
-                        selexpr = caos_ast.SelectorExpr(expr=subexpr, name=link_name)
-                        subgraph.selector.append(selexpr)
-                        el = caos_ast.SubgraphRef(ref=subgraph, name=link_name)
-
-                    elements.append(el)
+                elements.append(el)
 
             metaref = caos_ast.MetaRef(name='id', ref=ref)
 

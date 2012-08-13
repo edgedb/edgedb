@@ -192,6 +192,7 @@ XQ:
         self.string += self.value
 
     "{quotecontinue}":
+        self.lineno += 1
         return
 
     "<<EOF>>":

@@ -7,6 +7,7 @@
 
 
 import itertools
+import operator
 
 from semantix.caos import types as caos_types
 from semantix.caos import tree
@@ -566,6 +567,85 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
         return node
 
+    def _process_pathspec(self, context, source, rlink_proto, pathspec):
+        result = []
+
+        for ptrspec in pathspec:
+            if isinstance(ptrspec, qlast.PointerGlobNode):
+                filter_exprs = []
+
+                if ptrspec.filters:
+                    for ptrspec_flt in ptrspec.filters:
+                        if ptrspec_flt.any:
+                            continue
+
+                        if ptrspec_flt.property == 'loading':
+                            value = caos_types.PointerLoading(ptrspec_flt.value)
+                            ptrspec_flt = (lambda p: p.get_loading_behaviour(), value)
+                        else:
+                            msg = 'invalid pointer property in pointer glob: {!r}'. \
+                                                                format(ptrspec_flt.property)
+                            raise errors.CaosQLError(msg)
+                        filter_exprs.append(ptrspec_flt)
+
+                if ptrspec.type == 'link':
+                    for ptr in source.pointers.values():
+                        if not filter_exprs or all(((f[0](ptr) == f[1]) for f in filter_exprs)):
+                            result.append(tree.ast.PtrPathSpec(ptr_proto=ptr))
+
+                elif ptrspec.type == 'property':
+                    if rlink_proto is None:
+                        msg = 'link properties are not available at this point in path'
+                        raise errors.CaosQLError(msg)
+
+                    for ptr_name, ptr in rlink_proto.pointers.items():
+                        if ptr_name in {'semantix.caos.builtins.source',
+                                        'semantix.caos.builtins.target'}:
+                            continue
+
+                        if not filter_exprs or all(((f[0](ptr) == f[1]) for f in filter_exprs)):
+                            result.append(tree.ast.PtrPathSpec(ptr_proto=ptr))
+
+                else:
+                    msg = 'unexpected pointer spec type'
+                    raise errors.CaosQLError(msg)
+            else:
+                ptrname = (ptrspec.expr.namespace, ptrspec.expr.name)
+
+                if ptrspec.expr.type == 'property':
+                    if rlink_proto is None:
+                        msg = 'link properties are not available at this point in path'
+                        raise errors.CaosQLError(msg)
+
+                    ptrsource = rlink_proto
+                    ptrtype = caos_types.ProtoLinkProperty
+                else:
+                    ptrsource = source
+                    ptrtype = caos_types.ProtoLink
+
+                if ptrspec.expr.target is not None:
+                    target_name = (ptrspec.expr.target.module, ptrspec.expr.target.name)
+                else:
+                    target_name = None
+                ptr_direction = ptrspec.expr.direction or caos_types.OutboundDirection
+                ptr = self._resolve_ptr(context, ptrsource, ptrname, ptr_direction,
+                                        ptr_type=ptrtype, target=target_name)
+
+                if ptr_direction == caos_types.OutboundDirection:
+                    ptr = next(iter(ptr[1]))
+                else:
+                    ptr = next(iter(ptr[2]))
+
+                node = tree.ast.PtrPathSpec(ptr_proto=ptr, ptr_direction=ptr_direction)
+
+                if ptrspec.pathspec is not None:
+                    node.pathspec = self._process_pathspec(context, ptr.target,
+                                                           ptr, ptrspec.pathspec)
+
+                result.append(node)
+
+        return result
+
     def _process_path(self, context, path):
         anchors = context.current.anchors
         tips = {}
@@ -877,7 +957,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         paths = itertools.chain.from_iterable(tips.values())
         return tree.ast.Disjunction(paths=frozenset(paths))
 
-    def _resolve_ptr(self, context, source, ptr_name, direction, ptr_type=caos_types.ProtoLink):
+    def _resolve_ptr(self, context, source, ptr_name, direction, ptr_type=caos_types.ProtoLink,
+                                                                 target=None):
         ptr_module, ptr_nqname = ptr_name
 
         if ptr_module:
@@ -887,6 +968,11 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             pointer_name = pointer.name
         else:
             pointer_name = ptr_fqname = ptr_nqname
+
+        if target is not None:
+            target_name = '.'.join(filter(None, target))
+            modaliases = context.current.namespaces
+            target = self.proto_schema.get(target_name, module_aliases=modaliases)
 
         if ptr_nqname == '%':
             pointer_name = self.proto_schema.get_root_class(ptr_type).name
@@ -899,6 +985,22 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         if not sources:
             raise errors.CaosQLReferenceError('could not resolve "%s"."%s" pointer' %
                                               (source.name, ptr_fqname))
+
+        if target is not None:
+            if direction == caos_types.OutboundDirection:
+                ptrs = outbound
+                link_end = 'target'
+            else:
+                ptrs = inbound
+                link_end = 'source'
+
+            flt = lambda p: getattr(p, link_end) == target
+            ptrs = tuple(filter(flt, ptrs))
+
+            if direction == caos_types.OutboundDirection:
+                outbound = ptrs
+            else:
+                inbound = ptrs
 
         return sources, outbound, inbound
 
@@ -929,7 +1031,17 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 if isinstance(expr, tree.ast.Disjunction):
                     path = next(iter(expr.paths))
                     if isinstance(path, tree.ast.EntitySet):
-                        expr = self.entityref_to_record(expr, self.proto_schema)
+                        if target.expr.pathspec is not None:
+                            if path.rlink is not None:
+                                rlink_proto = path.rlink.link_proto
+                            else:
+                                rlink_proto = None
+                            pathspec = self._process_pathspec(context, path.concept,
+                                                              rlink_proto,
+                                                              target.expr.pathspec)
+                        else:
+                            pathspec = None
+                        expr = self.entityref_to_record(expr, self.proto_schema, pathspec=pathspec)
 
                 t = tree.ast.SelectorExpr(expr=expr, **params)
                 selector.append(t)

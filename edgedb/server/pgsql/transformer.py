@@ -297,20 +297,30 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
         else:
             for e in expr.elements:
                 element = self._process_expr(context, e, cte)
+                ptr_direction = caos_types.OutboundDirection
+                ptr_target = None
 
                 if isinstance(e, tree.ast.MetaRef):
                     ptr_name = e.name
                     testref = element
                 elif isinstance(e, tree.ast.BaseRef):
                     ptr_name = e.ptr_proto.normal_name()
-                elif isinstance(e, tree.ast.Record):
+                    ptr_target = e.ptr_proto.target
+                elif isinstance(e, (tree.ast.Record, tree.ast.SubgraphRef)):
                     ptr_name = e.rlink.link_proto.normal_name()
-                elif isinstance(e, tree.ast.SubgraphRef):
-                    ptr_name = e.name
-                elif isinstance(e, tree.ast.Constant):
-                    ptr_name = e.substitute_for
+                    ptr_direction = e.rlink.direction or caos_types.OutboundDirection
+                    if ptr_direction == caos_types.OutboundDirection:
+                        ptr_target = e.rlink.link_proto.target
+                    else:
+                        ptr_target = e.rlink.link_proto.source
 
-                attribute_map.append(ptr_name)
+                if isinstance(ptr_name, caos_name.Name):
+                    attr_name = caos_types.PointerVector(name=ptr_name.name, module=ptr_name.module,
+                                                         direction=ptr_direction,
+                                                         target=ptr_target.name)
+                else:
+                    attr_name = ptr_name
+                attribute_map.append(attr_name)
                 my_elements.append(element)
 
         proto_class = expr.concept.get_canonical_class()
@@ -1003,8 +1013,8 @@ class CaosTreeTransformer(CaosExprTransformer):
             result = pgsql.ast.ConstantNode(value=value, expr=const_expr, index=index,
                                             type=const_type)
 
-            if expr.substitute_for:
-                result.origin_field = common.caos_name_to_pg_name(expr.substitute_for)
+        if expr.substitute_for:
+            result.origin_field = common.caos_name_to_pg_name(expr.substitute_for)
 
         return result
 
@@ -1376,7 +1386,9 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         elif isinstance(expr, tree.ast.Sequence):
             elements = [self._process_expr(context, e, cte) for e in expr.elements]
-            if getattr(context.current, 'sequence_is_array', False):
+            if expr.is_array:
+                result = pgsql.ast.ArrayNode(elements=elements)
+            elif getattr(context.current, 'sequence_is_array', False):
                 result = pgsql.ast.SequenceNode(elements=elements)
             else:
                 result = pgsql.ast.RowExprNode(args=elements)

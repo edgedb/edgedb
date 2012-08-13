@@ -357,7 +357,7 @@ class SourceCopyProducer(BinaryCopyProducer):
 
         self.attrmap = {}
 
-        for ptr_name, ptr_cls in source.iter_pointers():
+        for ptr_name, ptr_cls in source._iter_all_pointers():
             if isinstance(ptr_cls, caos.types.AtomClass):
                 self.attrmap[common.caos_name_to_pg_name(ptr_name)] = str(ptr_name)
 
@@ -1032,7 +1032,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         with connection.xact():
 
             attrs = {}
-            for link_name, link_cls in cls.iter_pointers():
+            for link_name, link_cls in cls._iter_all_pointers():
                 link_proto = link_cls._class_metadata.link.__sx_prototype__
                 if link_proto.atomic() and link_proto.singular() \
                                        and link_name != 'semantix.caos.builtins.id' \
@@ -1400,16 +1400,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return concept_id
 
 
-    def get_attribute_link_map(self, concept, attribute_map, include_lazy=False):
-        key = (concept.name, frozenset(attribute_map.items()), include_lazy)
+    def get_attribute_link_map(self, concept, attribute_map):
+        key = (concept.name, frozenset(attribute_map.items()))
 
         try:
             attribute_link_map = self.attribute_link_map_cache[key]
         except KeyError:
             attribute_link_map = {}
             for link_name, link in concept.pointers.items():
-                if not isinstance(link, caos.types.ProtoComputable) \
-                    and (link.get_loading_behaviour() == caos.types.EagerLoading or include_lazy):
+                if not isinstance(link, caos.types.ProtoComputable):
                     col_name = common.caos_name_to_pg_name(link_name)
 
                     try:
@@ -1478,10 +1477,18 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             link_obj = caos.concept.getlink(source, link_name, target)
 
             attrs = {}
-            for prop_name, prop_cls in link_cls.iter_pointers():
+            for prop_name, prop_cls in link_cls._iter_all_pointers():
                 if not isinstance(prop_cls._class_metadata.link, caos.types.ComputableClass):
                     if prop_name not in {'semantix.caos.builtins.source', 'semantix.caos.builtins.target'}:
-                        attrs[common.caos_name_to_pg_name(prop_name)] = getattr(link_obj, str(prop_name))
+                        try:
+                            # We must look into link object __dict__ directly so as not to
+                            # potentially trigger link object reload for lazy properties,
+                            # which would fail with non-persistent link objects.
+                            prop_value = link_obj.__dict__[prop_name]
+                        except KeyError:
+                            pass
+                        else:
+                            attrs[common.caos_name_to_pg_name(prop_name)] = prop_value
 
             rec = table.record(**attrs)
 

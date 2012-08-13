@@ -404,6 +404,85 @@ class SelectTargetEl(Nonterm):
         "%reduce Expr"
         self.val = qlast.SelectExprNode(expr=kids[0].val)
 
+    def reduce_Path_SelectPathSpec(self, *kids):
+        "%reduce Path SelectPathSpec"
+        kids[0].val.pathspec = kids[1].val
+        self.val = qlast.SelectExprNode(expr=kids[0].val)
+
+
+class SelectPathSpec(Nonterm):
+    def reduce_LDBRACKET_SelectPointerSpecList_RDBRACKET(self, *kids):
+        "%reduce LBRACKET SelectPointerSpecList RBRACKET"
+        self.val = kids[1].val
+
+
+class SelectPointerSpecList(Nonterm):
+    def reduce_SelectPointerSpec(self, *kids):
+        "%reduce SelectPointerSpec"
+        self.val = [kids[0].val]
+
+    def reduce_SelectPointerSpecList_COMMA_SelectPointerSpec(self, *kids):
+        "%reduce SelectPointerSpecList COMMA SelectPointerSpec"
+        self.val = kids[0].val + [kids[2].val]
+
+
+class SelectPointerSpec(Nonterm):
+    def reduce_PointerGlob(self, *kids):
+        "%reduce PointerGlob"
+        self.val = kids[0].val
+
+    def reduce_SimpleFqLinkExpr(self, *kids):
+        "%reduce SimpleFqLinkExpr"
+        self.val = qlast.SelectPathSpecNode(expr=kids[0].val)
+
+    def reduce_AT_AnyFqLinkPropName(self, *kids):
+        "%reduce AT AnyFqLinkPropName"
+        self.val = qlast.SelectPathSpecNode(expr=kids[1].val)
+
+    def reduce_SimpleFqLinkExpr_SelectPathSpec(self, *kids):
+        "%reduce SimpleFqLinkExpr SelectPathSpec"
+        self.val = qlast.SelectPathSpecNode(expr=kids[0].val, pathspec=kids[1].val)
+
+
+class PointerGlob(Nonterm):
+    def reduce_STAR(self, *kids):
+        "%reduce STAR"
+        flt = qlast.PointerGlobFilter(property='loading', value='eager')
+        self.val = qlast.PointerGlobNode(filters=[flt], type='link')
+
+    def reduce_STAR_PointerGlobFilterList(self, *kids):
+        "%reduce STAR LPAREN PointerGlobFilterList RPAREN"
+        self.val = qlast.PointerGlobNode(filters=kids[2].val, type='link')
+
+    def reduce_AT_STAR(self, *kids):
+        "%reduce AT STAR"
+        flt = qlast.PointerGlobFilter(property='loading', value='eager')
+        self.val = qlast.PointerGlobNode(filters=[flt], type='property')
+
+    def reduce_AT_STAR_PointerGlobFilterList(self, *kids):
+        "%reduce AT STAR LPAREN PointerGlobFilterList RPAREN"
+        self.val = qlast.PointerGlobNode(filters=kids[2].val, type='property')
+
+
+class PointerGlobFilterList(Nonterm):
+    def reduce_PointerGlobFilter(self, *kids):
+        "%reduce PointerGlobFilter"
+        self.val = [kids[0].val]
+
+    def reduce_PointerGlobFilterList_COMMA_PointerGlobFilter(self, *kids):
+        "%reduce PointerGlobFilterList COMMA PointerGlobFilter"
+        self.val = kids[0].val + [kids[2].val]
+
+
+class PointerGlobFilter(Nonterm):
+    def reduce_LabelExpr_EQUALS_LabelExpr(self, *kids):
+        "%reduce LabelExpr EQUALS LabelExpr"
+        self.val = qlast.PointerGlobFilter(property=kids[0].val, value=kids[2].val)
+
+    def reduce_ANY_LabelExpr(self, *kids):
+        "%reduce ANY LabelExpr"
+        self.val = qlast.PointerGlobFilter(property=kids[1].val, any=True)
+
 
 class OptWhereClause(Nonterm):
     def reduce_WHERE_Expr(self, *kids):
@@ -978,16 +1057,28 @@ class LinkExpr(Nonterm):
 
 
 class SimpleFqLinkExpr(Nonterm):
-    def reduce_LinkDirection_AnyFqNodeName(self, *kids):
-        "%reduce LinkDirection AnyFqNodeName"
+    def reduce_LinkDirection_AnyFqNodeName_OptLinkTargetExpr(self, *kids):
+        "%reduce LinkDirection AnyFqNodeName OptLinkTargetExpr"
         self.val = qlast.LinkNode(name=kids[1].val.name,
                                   namespace=kids[1].val.module,
-                                  direction=kids[0].val)
+                                  direction=kids[0].val,
+                                  target=kids[2].val)
 
-    def reduce_AnyFqNodeName(self, *kids):
-        "%reduce AnyFqNodeName"
+    def reduce_AnyFqNodeName_OptLinkTargetExpr(self, *kids):
+        "%reduce AnyFqNodeName OptLinkTargetExpr"
         self.val = qlast.LinkNode(name=kids[0].val.name,
-                                  namespace=kids[0].val.module)
+                                  namespace=kids[0].val.module,
+                                  target=kids[1].val)
+
+
+class OptLinkTargetExpr(Nonterm):
+    def reduce_AnyFqNodeName_LPAREN_NodeName_RPAREN(self, *kids):
+        "%reduce LPAREN AnyFqNodeName RPAREN"
+        self.val = kids[1].val
+
+    def reduce_empty(self, *kids):
+        "%reduce <e>"
+        self.val = None
 
 
 class LinkDirection(Nonterm):
@@ -1042,7 +1133,17 @@ class FuncArgList(Nonterm):
 class LinkPropName(Nonterm):
     def reduce_NodeName(self, *kids):
         "%reduce NodeName"
-        self.val = qlast.LinkNode(name=kids[0].val.name, namespace=kids[0].val.module)
+        self.val = qlast.LinkNode(name=kids[0].val.name, namespace=kids[0].val.module,
+                                  type='property')
+
+
+class AnyFqLinkPropName(Nonterm):
+    def reduce_AnyFqNodeName(self, *kids):
+        "%reduce AnyFqNodeName"
+        self.val = qlast.LinkNode(name=kids[0].val.name,
+                                  namespace=kids[0].val.module,
+                                  direction=caos_types.OutboundDirection,
+                                  type='property')
 
 
 class AnchorName(Nonterm):

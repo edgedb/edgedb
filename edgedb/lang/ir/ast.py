@@ -113,7 +113,8 @@ class Path(Base):
 
 
 class SubgraphRef(Path):
-    __fields = [('name', str, None), ('ref', Base, None, False)]
+    __fields = [('name', str, None), ('ref', Base, None, False),
+                ('rlink', Base, None, False, False, True)]
 
 
 class BaseRef(Path):
@@ -260,6 +261,10 @@ class EntitySet(Path):
             value.backrefs.add(self)
 
 
+class PtrPathSpec(Base):
+    __fields = ['ptr_proto', 'ptr_direction', 'pathspec']
+
+
 class Constant(Base):
     __fields = ['value', 'index', 'expr', 'type', 'substitute_for']
 
@@ -285,7 +290,7 @@ class Constant(Base):
                                 'expected ProtoObject, got "%r"') % (type,))
 
 
-class Sequence(Base): __fields = [('elements', list)]
+class Sequence(Base): __fields = [('elements', list), ('is_array', bool)]
 
 class Record(Base):
     __fields = [('elements', list), 'concept', ('rlink', EntityLink, None, False),

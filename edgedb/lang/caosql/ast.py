@@ -24,13 +24,13 @@ class UnaryOpNode(ast.AST): __fields = ['op', 'operand']
 
 class PostfixOpNode(ast.AST): __fields = ['op', 'operand']
 
-class PathNode(ast.AST): __fields = [('steps', list), 'quantifier', 'var', 'lvar']
+class PathNode(ast.AST): __fields = [('steps', list), 'quantifier', 'var', 'lvar', 'pathspec']
 
 class PathDisjunctionNode(ast.AST): __fields = ['left', 'right']
 
 class PathStepNode(ast.AST): __fields = ['namespace', 'expr', 'link_expr']
 
-class LinkNode(ast.AST): __fields = ['name', 'namespace', 'direction']
+class LinkNode(ast.AST): __fields = ['name', 'namespace', 'direction', 'target', 'type']
 
 class LinkExprNode(ast.AST): __fields = ['expr']
 
@@ -52,6 +52,12 @@ class PredicateNode(ast.AST): __fields = ['expr']
 class ExistsPredicateNode(PredicateNode): pass
 
 class SelectExprNode(ast.AST): __fields = ['expr', 'alias']
+
+class SelectPathSpecNode(ast.AST): __fields = ['expr', 'pathspec']
+
+class PointerGlobNode(ast.AST): __fields = ['filters', 'type']
+
+class PointerGlobFilter(ast.AST): __fields = ['property', 'value', 'any']
 
 class FromExprNode(ast.AST): __fields = ['expr', 'alias']
 
