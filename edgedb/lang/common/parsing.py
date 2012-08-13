@@ -13,7 +13,7 @@ import Parsing
 import pyggy
 import pyggy.lexer
 
-from semantix.exceptions import SemantixError
+from semantix.exceptions import SemantixError, _add_context
 from semantix.utils.lang import context as lang_context
 from semantix.utils.datastructures import xvalue
 from semantix.utils import markup
@@ -137,6 +137,7 @@ class SourcePoint(lang_context.SourcePoint):
 class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
     title = 'Parser Context'
 
+    @classmethod
     def as_markup(cls, self, *, ctx):
         me = markup.elements
 
@@ -175,7 +176,7 @@ class ParserError(SemantixError):
         self.token = token
         self.lineno = lineno
         self.expr = expr
-        self.context = context
+        _add_context(self, context)
 
 
 class Lexer(pyggy.lexer.lexer):
@@ -257,6 +258,7 @@ class Parser:
             self.lexer = Lexer(self.__class__.lexer_spec)
             self.parser = Parsing.Lr(self.__class__.parser_spec)
             self.parser.parser_data = self.parser_data
+            self.parser.verbose = self.get_debug()
 
         self.parser.reset()
         self.lexer.setinputstr(input)
