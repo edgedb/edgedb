@@ -19,7 +19,8 @@ from . import base
 
 
 class TestUtilsDaemonPidfile(base.BaseDaemonTestCase):
-    def test_utils_daemon_pidfile_basic(self, path):
+    def test_utils_daemon_pidfile_basic(self, pid):
+        path = pid
         pid = daemon.PidFile(path)
         assert not pid.locked
         with pid as p:
@@ -41,7 +42,9 @@ class TestUtilsDaemonPidfile(base.BaseDaemonTestCase):
         assert not pid.locked
         assert not os.path.exists(path)
 
-    def test_utils_daemon_pidfile_locked(self, path):
+    def test_utils_daemon_pidfile_locked(self, pid):
+        path = pid
+
         def writer(v, path=path):
             time.sleep(0.1)
             try:
@@ -61,7 +64,9 @@ class TestUtilsDaemonPidfile(base.BaseDaemonTestCase):
         assert v.value == 1 # Subprocess was unable to lock the pid file and got DaemonError
         assert not os.path.exists(path)
 
-    def test_utils_daemon_pidfile_exists_running_pid(self, path):
+    def test_utils_daemon_pidfile_exists_running_pid(self, pid):
+        path = pid
+
         with open(path, 'wt') as f:
             f.write(str(os.getpid()))
 
@@ -70,7 +75,9 @@ class TestUtilsDaemonPidfile(base.BaseDaemonTestCase):
             with pid:
                 assert 0
 
-    def test_utils_daemon_pidfile_exists_nonrunning_pid(self, path):
+    def test_utils_daemon_pidfile_exists_nonrunning_pid(self, pid):
+        path = pid
+
         pid = 65000
         while lib.is_process_running(pid):
             pid += 1
@@ -84,7 +91,8 @@ class TestUtilsDaemonPidfile(base.BaseDaemonTestCase):
         with pid:
             assert pid.locked
 
-    def test_utils_daemon_pidfile_with_data(self, path):
+    def test_utils_daemon_pidfile_with_data(self, pid):
+        path = pid
         with daemon.PidFile(path, data='spam'):
             with open(path, 'rt') as f:
                 assert f.read() == '{}\n\nspam'.format(os.getpid())

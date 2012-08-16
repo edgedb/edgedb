@@ -8,3 +8,4 @@
 
 from .pidfile import PidFile
 from .exceptions import DaemonError
+from .daemon import DaemonContext

@@ -16,24 +16,24 @@ from . import base
 
 
 class TestUtilsDaemonLib(base.BaseDaemonTestCase):
-    def test_utils_daemon_lib_make_readonly(self, path):
-        with open(path, 'a+t') as f:
+    def test_utils_daemon_lib_make_readonly(self, pid):
+        with open(pid, 'a+t') as f:
             f.write('foo')
             f.flush()
 
-        lib.make_readonly(path)
+        lib.make_readonly(pid)
 
         with assert_raises(IOError):
-            open(path, 'a+t')
+            open(pid, 'a+t')
 
-        os.unlink(path)
+        os.unlink(pid)
 
-    def test_utils_daemon_lib_lock_file(self, path):
-        def locker(v, path=path):
-            with open(path, 'rb') as f:
+    def test_utils_daemon_lib_lock_file(self, pid):
+        def locker(v, pid=pid):
+            with open(pid, 'rb') as f:
                 v.value = int(lib.lock_file(f.fileno()))
 
-        with open(path, 'wb') as f:
+        with open(pid, 'wb') as f:
             f.write(b'1')
             f.flush()
             lib.lock_file(f.fileno())
@@ -45,4 +45,10 @@ class TestUtilsDaemonLib(base.BaseDaemonTestCase):
 
             assert v.value == 0
 
-        os.unlink(path)
+        os.unlink(pid)
+
+    def test_utils_daemon_lib_dry_test(self, pid):
+        assert not lib.is_process_started_by_superserver()
+        assert not lib.is_process_started_by_init()
+        assert lib.get_max_fileno()
+        assert lib.is_process_running(os.getpid())

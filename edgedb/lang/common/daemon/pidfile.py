@@ -14,7 +14,7 @@ from . import lib
 
 
 class PidFile:
-    def __init__(self, path, pid=None, data=None):
+    def __init__(self, path, *, pid=None, data=None):
         self._path = path
         self._data = data
         self._pid = pid
@@ -63,6 +63,10 @@ class PidFile:
         lib.make_readonly(path)
 
         self._locked = True
+
+    def fileno(self):
+        if self._locked:
+            return self._file.fileno()
 
     def release(self):
         if not self.locked:
