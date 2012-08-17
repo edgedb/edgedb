@@ -201,7 +201,38 @@ class _BaseJsonEncoderTest:
         tm5 = time(12, 13, 14, 15, gmt5)
         self.encoder_test(tm5, '"12:13:14.000015+05:30"', False, False)
 
-    def test_utils_json_encoder_sx_json(self):
+    def test_utils_json_encoder_special_ch(self):
+        self.encoder_test('\x1b', '"\\u001b"')
+
+    def test_utils_json_encoder_custom_methods(self):
+        class FooJson:
+            def __sx_json__(self):
+                return '{"foo":{"baz":"©","spam":"\x1b"}}'
+
+        # none of these are suported by std encoder
+        ex_result = '{"foo":{"baz":"\\u00a9","spam":"\\u001b"}}'
+        self.encoder_test(FooJson(), ex_result, False, False)
+        self.encoder_test({'bar':FooJson()}, '{"bar":' + ex_result + '}', False, False)
+
+        class FooJsonb:
+            def __sx_json__(self):
+                return b'"foo"'
+
+        # none of these are suported by std encoder
+        self.encoder_test(FooJsonb(), '"foo"', False, False)
+        self.encoder_test({'bar':FooJsonb()}, '{"bar":"foo"}', False, False)
+
+        class FooJsonPlus:
+            def __sx_json__(self):
+                raise NotImplementedError
+
+            def __sx_serialize__(self):
+                return 'foo'
+
+        # none of these are suported by std encoder
+        self.encoder_test(FooJsonPlus(), '"foo"', False, False)
+        self.encoder_test({'bar':FooJsonPlus()}, '{"bar":"foo"}', False, False)
+
         class Foo:
             def __sx_serialize__(self):
                 return 'foo'
@@ -210,6 +241,15 @@ class _BaseJsonEncoderTest:
         self.encoder_test(Foo(), '"foo"', False, False)
         self.encoder_test({Foo():'bar'}, '{"foo":"bar"}', False, False)
         self.encoder_test({'bar':Foo()}, '{"bar":"foo"}', False, False)
+
+        class FooNotImpl(str):
+            def __sx_serialize__(self):
+                raise NotImplementedError
+
+        # none of these are suported by std encoder
+        self.encoder_test(FooNotImpl('foo'), '"foo"', False, False)
+        self.encoder_test({FooNotImpl('foo'):'bar'}, '{"foo":"bar"}', False, False)
+        self.encoder_test({'bar':FooNotImpl('foo')}, '{"bar":"foo"}', False, False)
 
         class Spam:
             def __sx_serialize__(self):

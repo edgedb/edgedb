@@ -104,14 +104,14 @@ static void encoder_data_set_error (EncodedData * data)
     data->buffer_size = -1;
 }
 
-//static void encoder_data_append (EncodedData * data, const BUFFERTYPE* str, Py_ssize_t str_length)
-//{
-//    if (!encoder_data_reserve_space(data, str_length)) return;
-//
-//    memcpy(data->buffer_free, str, str_length);
-//
-//    data->buffer_free += str_length;
-//}
+static void encoder_data_append (EncodedData * data, const BUFFERTYPE* str, Py_ssize_t str_length)
+{
+    if (!encoder_data_reserve_space(data, str_length)) return;
+
+    memcpy(data->buffer_free, str, str_length);
+
+    data->buffer_free += str_length;
+}
 
 static void encoder_data_append_char (EncodedData * data, const BUFFERTYPE ch)
 {

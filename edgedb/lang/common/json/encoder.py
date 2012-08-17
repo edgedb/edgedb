@@ -18,20 +18,24 @@ from datetime import date, time
 
 JAVASCRIPT_MAXINT = 9007199254740992  # see http://ecma262-5.com/ELS5_HTML.htm#Section_8.5
 
+BASE_ESCAPE_ASCII = re_compile(r'([\\/]|[^\ -~])')
 ESCAPE_ASCII = re_compile(r'([\\"/]|[^\ -~])')
 
-ESCAPE_DCT = {
+BASE_ESCAPE_DCT = {}
+for i in range(0x20):
+    BASE_ESCAPE_DCT[chr(i)]= '\\u{0:04x}'.format(i)
+BASE_ESCAPE_DCT.update({
     '\\': '\\\\',
     '/':  '\/',
-    '"': '\\"',
     '\b': '\\b',
     '\f': '\\f',
     '\n': '\\n',
     '\r': '\\r',
     '\t': '\\t',
-}
-for i in range(0x20):
-    ESCAPE_DCT.setdefault(chr(i), '\\u{0:04x}'.format(i))
+})
+
+ESCAPE_DCT = {'"': '\\"'}
+ESCAPE_DCT.update(BASE_ESCAPE_DCT)
 
 
 class Encoder:
@@ -47,10 +51,10 @@ class Encoder:
        Note: encode_hook() should always return an object; for objects which should not be
        specially encoded encode_hook() should return the original object.
 
-       Supports custom encoders by using objects' ``__sx_serialize__()``
-       method, if available. It is guaranteed that for all non-native types __sx_serialize__
-       will be tried before any other attempt to encode the object [#f2]_. The output
-       of __sx_serialize__ is in turn encoded as any other object (and may in turn have
+       Supports custom encoders by using objects' ``__sx_json__()`` or ``__sx_serialize__()``
+       method, if available. It is guaranteed that for all non-native types __sx_json__ and
+       then __sx_serialize__ will be tried before any other attempt to encode the object [#f2]_.
+       The output of __sx_serialize__ is in turn encoded as any other object (and may in turn have
        an __sx_serialize__ method or not be supported).
 
        Natively supports strings, integers, floats, True, False, None, lists, tuples,
@@ -150,12 +154,15 @@ class Encoder:
     def _decrement_nested_level(self):
         self._nested_level -= 1
 
-    def _encode_str(self, obj):
+    def _encode_str(self, obj, escape_quotes=True):
         """Return an ASCII-only JSON representation of a Python string"""
         def replace(match):
             s = match.group(0)
             try:
-                return ESCAPE_DCT[s]
+                if escape_quotes:
+                    return ESCAPE_DCT[s]
+                else:
+                    return BASE_ESCAPE_DCT[s]
             except KeyError:
                 n = ord(s)
                 if n < 0x10000:
@@ -166,7 +173,10 @@ class Encoder:
                     s1 = 0xd800 | ((n >> 10) & 0x3ff)
                     s2 = 0xdc00 | (n & 0x3ff)
                     return '\\u{0:04x}\\u{1:04x}'.format(s1, s2)
-        return '"' + ESCAPE_ASCII.sub(replace, obj) + '"'
+        if escape_quotes:
+            return '"' + ESCAPE_ASCII.sub(replace, obj) + '"'
+        else:
+            return BASE_ESCAPE_ASCII.sub(replace, obj)
 
     def _encode_numbers(self, obj):
         """Returns a JSON representation of a Python number (int, float or Decimal)"""
@@ -242,23 +252,29 @@ class Encoder:
         try:
             sx_encoder = obj.__sx_serialize__
         except AttributeError:
-
-            if isinstance(obj, UUID):
-                return str(obj)
-
-            if isinstance(obj, str):
-                return self._encode_str(obj)
-
-            # if everything else failed try the default() method and re-raise any TypeError
-            # exceptions as more specific "not a valid dict key" TypeErrors
-            try:
-                value = self.default(obj)
-            except TypeError:
-                raise TypeError('{!r} is not a valid dictionary key'.format(obj))
-            return self._encode_key(value)
-
+            pass
         else:
-            return self._encode_key(sx_encoder())
+            try:
+                data = sx_encoder()
+            except NotImplementedError:
+                pass
+            else:
+                return self._encode_key(data)
+
+        if isinstance(obj, UUID):
+            return str(obj)
+
+        if isinstance(obj, str):
+            return self._encode_str(obj)
+
+        # if everything else failed try the default() method and re-raise any TypeError
+        # exceptions as more specific "not a valid dict key" TypeErrors
+        try:
+            value = self.default(obj)
+        except TypeError:
+            raise TypeError('{!r} is not a valid dictionary key'.format(obj))
+
+        return self._encode_key(value)
 
     def _encode(self, obj):
         """Returns a JSON representation of a Python object - see dumps.
@@ -299,14 +315,34 @@ class Encoder:
         if _objtype is Decimal:
             return '"' + str(obj) + '"'
 
-        # for all non-std types try __sx_serialize__ before any isinstance checks
+        # For all non-std types try __sx_json__ and then __sx_serialize__ before any isinstance
+        # checks
 
+        try:
+            sx_json_data = obj.__sx_json__
+        except AttributeError:
+            pass
+        else:
+            try:
+                data = sx_json_data()
+            except NotImplementedError:
+                pass
+            else:
+                if isinstance(data, bytes):
+                    return data.decode('ascii')
+                else:
+                    return self._encode_str(data, escape_quotes=False)
         try:
             sx_encoder = obj.__sx_serialize__
         except AttributeError:
             pass
         else:
-            return self._encode(sx_encoder())
+            try:
+                data = sx_encoder()
+            except NotImplementedError:
+                pass
+            else:
+                return self._encode(data)
 
         # do more in-depth class analysis
 

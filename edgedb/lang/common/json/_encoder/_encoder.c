@@ -154,9 +154,11 @@ static void encode (PyObject *obj, EncodedData * encodedData);
  * The first argument is the object to be JSON-encoded; the second is optional
  * integer parameter specifying max allowed recursion depth (default: 100).
  *
- * Supports optional __sx_serialize__() method and calls self.default() as the
- * last resort for all objects that could not be encoded in any other way.
- * For details see encode() function.
+ * Supports optional __sx_json__() and __sx_serialize__() methods and calls
+ * self.default() as the last resort for all objects that could not be encoded
+ * in any other way.
+ *
+ * For details see the encode() function.
  */
 static PyObject *
 encoder_dumps (PyObject *self, PyObject *args, PyObject *kwargs)
@@ -194,9 +196,11 @@ encoder_dumps (PyObject *self, PyObject *args, PyObject *kwargs)
  * The first argument is the object to be JSON-encoded; the second is optional
  * integer parameter specifying max allowed recursion depth (default: 100).
  *
- * Supports optional __sx_serialize__() method and calls self.default() as the
- * last resort for all objects that could not be encoded in any other way.
- * For details see encode() function.
+ * Supports optional __sx_json__() and __sx_serialize__() methods and calls
+ * self.default() as the last resort for all objects that could not be encoded
+ * in any other way.
+ *
+ * For details see the encode() function.
  */
 static PyObject *
 encoder_dumpb (PyObject *self, PyObject *args, PyObject *kwargs)
@@ -276,6 +280,8 @@ static void encode_tuple   (PyObject * obj,  EncodedData * encodedData);
 static void encode_set     (PyObject * obj,  EncodedData * encodedData);
 static void encode_dict    (PyObject * obj,  EncodedData * encodedData);
 static void encode_mapping (PyObject * obj,  EncodedData * encodedData);
+static void encode_json    (PyObject * pystr, EncodedData * encodedData);
+static void encode_jsonb   (PyObject * pybytes, EncodedData * encodedData);
 static void encode_true    (EncodedData * encodedData);
 static void encode_false   (EncodedData * encodedData);
 static void encode_none    (EncodedData * encodedData);
@@ -293,13 +299,16 @@ static void encode_none    (EncodedData * encodedData);
  *     list/tuple/dict/set, OrderedDict, UUID and Decimal) is performed and if type matches
  *     the corresponding encoder is used and the result stored in EncodedData buffer.
  *
- *  3) next, the object's __sx_serialize__() method is tried and this function is applied
+ *  3) next, the object's __sx_json__() method is tried and if exists and does not raise
+ *     NotImplementedError, its return value is used.
+ *
+ *  4) next, the object's __sx_serialize__() method is tried and this function is applied
  *     to the output of __sx_serialize__.
  *
- *  4) If none of the baove worked, the more generic isinstance() check is performed
+ *  5) If none of the baove worked, the more generic isinstance() check is performed
  *     against the same known object types.
  *
- *  5) If there were no match self.default() method is applied to the object and in case
+ *  6) If there were no match self.default() method is applied to the object and in case
  *     there were no exceptions this function is applied to the result.
  */
 static void encode (PyObject *obj, EncodedData * encodedData)
@@ -357,6 +366,42 @@ static void _encode (PyObject * obj, EncodedData * encodedData)
     if (obj->ob_type == PyType_Decimal)         return encode_decimal (obj, encodedData);
     if (obj->ob_type == PyType_Col_OrderedDict) return encode_mapping (obj, encodedData);
 
+    // try __sx_json__ method ----------------------------------------------
+
+    PyObject* _sx_json_ = PyObject_GetAttrString(obj, "__sx_json__");
+
+    if (_sx_json_ != NULL)
+    {
+        PyObject* obj_encoded = PyObject_CallObject(_sx_json_, NULL);
+        int implemented = 1;
+
+        if (PyErr_Occurred())
+        {
+            if (PyErr_ExceptionMatches(PyExc_NotImplementedError))
+            {
+                PyErr_Clear();
+                implemented = 0;
+            }
+            else
+                encoder_data_set_error(encodedData);
+        }
+        else
+        {
+            if (PyBytes_CheckExact(obj_encoded))
+                encode_jsonb(obj_encoded, encodedData);
+            else
+                encode_json(obj_encoded, encodedData);
+            Py_DECREF(obj_encoded);
+        }
+
+        Py_DECREF(_sx_json_);
+
+        if (implemented)
+            return;
+    }
+    else
+        PyErr_Clear();
+
     // try __sx_serialize__ method -----------------------------------------
 
     PyObject* _sx_serialize_ = PyObject_GetAttrString(obj, "__sx_serialize__");
@@ -364,9 +409,16 @@ static void _encode (PyObject * obj, EncodedData * encodedData)
     if (_sx_serialize_ != NULL)
     {
         PyObject* obj_encoded = PyObject_CallObject(_sx_serialize_, NULL);
+        int implemented = 1;
 
         if (PyErr_Occurred())
-            encoder_data_set_error(encodedData);
+            if (PyErr_ExceptionMatches(PyExc_NotImplementedError))
+            {
+                PyErr_Clear();
+                implemented = 0;
+            }
+            else
+                encoder_data_set_error(encodedData);
         else
         {
             encode(obj_encoded, encodedData);
@@ -375,7 +427,8 @@ static void _encode (PyObject * obj, EncodedData * encodedData)
 
         Py_DECREF(_sx_serialize_);
 
-        return;
+        if (implemented)
+            return;
     }
     else
         PyErr_Clear();
@@ -445,9 +498,16 @@ static void encode_key (PyObject *obj, EncodedData * encodedData)
     if (_sx_serialize_ != NULL)
     {
         PyObject* obj_encoded = PyObject_CallObject(_sx_serialize_, NULL);
+        int implemented = 1;
 
         if (PyErr_Occurred())
-            encoder_data_set_error(encodedData);
+            if (PyErr_ExceptionMatches(PyExc_NotImplementedError))
+            {
+                PyErr_Clear();
+                implemented = 0;
+            }
+            else
+                encoder_data_set_error(encodedData);
         else
         {
             encode_key(obj_encoded, encodedData);
@@ -456,7 +516,8 @@ static void encode_key (PyObject *obj, EncodedData * encodedData)
 
         Py_DECREF(_sx_serialize_);
 
-        return;
+        if (implemented)
+            return;
     }
     else
         PyErr_Clear();
@@ -797,6 +858,35 @@ static void encode_string (PyObject * pystr, EncodedData * encodedData)
 {
     Py_ssize_t  input_size;
     Py_UNICODE* input_unicode;
+    Py_ssize_t  i;
+
+    input_size    = PyUnicode_GET_SIZE(pystr);
+    input_unicode = PyUnicode_AS_UNICODE(pystr);
+
+    // reserve as much space as we may possibly need assuming we have to
+    // unicode-expand all the symbols in this python string
+    encoder_data_reserve_space(encodedData, input_size * CHAR_MAX_EXPANSION + 2);
+
+    encoder_data_append_ch_nocheck(encodedData,'"');
+
+    for (i = 0; i < input_size; i++)
+    {
+        const Py_UNICODE c = input_unicode[i];
+
+        if (c >= ' ' && c <= '~' && c != '"' && c != '/' && c != '\\')
+            encoder_data_append_ch_nocheck(encodedData, c);
+        else
+            encode_special_char(encodedData, c);
+    }
+
+    encoder_data_append_ch_nocheck(encodedData,'"');
+}
+
+static void encode_json (PyObject * pystr, EncodedData * encodedData)
+{
+    Py_ssize_t  input_size;
+    Py_UNICODE* input_unicode;
+    Py_ssize_t  i;
 
     input_size    = PyUnicode_GET_SIZE(pystr);
     input_unicode = PyUnicode_AS_UNICODE(pystr);
@@ -805,21 +895,26 @@ static void encode_string (PyObject * pystr, EncodedData * encodedData)
     // unicode-expand all the symbols in this python string
     encoder_data_reserve_space(encodedData, input_size * CHAR_MAX_EXPANSION);
 
-    encoder_data_append_ch_nocheck(encodedData,'"');
-
-    Py_ssize_t i;
     for (i = 0; i < input_size; i++)
     {
         const Py_UNICODE c = input_unicode[i];
 
-        if (c >= ' ' && c <= '~' && c != '"' && c != '/' && c != '\\')
-        //if (c >= ' ' && c <= '~' && c != '\\' && c != '"')
+        if (c >= ' ' && c <= '~')
             encoder_data_append_ch_nocheck(encodedData, c);
         else
             encode_special_char(encodedData, c);
     }
+}
 
-    encoder_data_append_ch_nocheck(encodedData,'"');
+static void encode_jsonb (PyObject * pybytes, EncodedData * encodedData)
+{
+    Py_ssize_t  input_size;
+    char       *input_bytes;
+
+    input_size  = PyBytes_GET_SIZE(pybytes);
+    input_bytes = PyBytes_AS_STRING(pybytes);
+
+    encoder_data_append(encodedData, input_bytes, input_size);
 }
 
 static void encode_true (EncodedData * encodedData)
