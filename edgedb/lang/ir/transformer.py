@@ -657,13 +657,16 @@ class TreeTransformer:
 
                 elements.append(el)
 
-            metaref = caos_ast.MetaRef(name='id', ref=ref)
+            metaref_id = caos_ast.MetaRef(name='id', ref=ref)
+            metaref_name = caos_ast.MetaRef(name='name', ref=ref)
 
             for p in expr.paths:
                 p.atomrefs.update((e for e in elements if isinstance(e, caos_ast.AtomicRefSimple)))
-                p.metarefs.add(metaref)
+                p.metarefs.add(metaref_id)
+                p.metarefs.add(metaref_name)
 
-            elements.append(metaref)
+            elements.append(metaref_id)
+            elements.append(metaref_name)
             expr = rec
 
         return expr

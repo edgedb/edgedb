@@ -52,6 +52,8 @@ class TransformerContextLevel(object):
             self.unwind_rlinks = prevlevel.unwind_rlinks
             self.aliascnt = prevlevel.aliascnt
             self.record_info = prevlevel.record_info
+            self.output_format = prevlevel.output_format
+            self.in_subquery = prevlevel.in_subquery
 
             if mode == TransformerContext.NEW_TRANSPARENT:
                 self.vars = prevlevel.vars
@@ -78,6 +80,8 @@ class TransformerContextLevel(object):
                 self.subquery_map = {}
                 self.direct_subquery_ref = False
                 self.node_callbacks = {}
+
+                self.in_subquery = True
 
             else:
                 self.vars = prevlevel.vars.copy()
@@ -111,6 +115,8 @@ class TransformerContextLevel(object):
             self.node_callbacks = {}
             self.unwind_rlinks = True
             self.record_info = {}
+            self.output_format = None
+            self.in_subquery = False
 
     def genalias(self, alias=None, hint=None):
         if alias is None:
@@ -292,7 +298,11 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
             for e in expr.elements:
                 element = self._process_expr(context, e, cte)
                 my_elements.append(element)
-            attribute_map = ['value', 'attrs']
+
+            if context.current.output_format == caos_types.JsonOutputFormat:
+                attribute_map = ['t', 'p']
+            else:
+                attribute_map = ['value', 'attrs']
             testref = my_elements[0]
         else:
             for e in expr.elements:
@@ -320,6 +330,11 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                                                          target=ptr_target.name)
                 else:
                     attr_name = ptr_name
+
+                    if (isinstance(e, tree.ast.MetaRef)
+                            and context.current.output_format == caos_types.JsonOutputFormat):
+                        attr_name = '$sxcls{}$'.format(attr_name)
+
                 attribute_map.append(attr_name)
                 my_elements.append(element)
 
@@ -337,7 +352,19 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
         marker_type = pgsql.ast.TypeNode(name='caos.known_record_marker_t')
         marker = pgsql.ast.TypeCastNode(expr=marker, type=marker_type)
 
-        my_elements.insert(0, marker)
+        if context.current.output_format != caos_types.JsonOutputFormat:
+            my_elements.insert(0, marker)
+        else:
+            augmented_elements = []
+            for i, element in enumerate(my_elements):
+                attr_name = str(attribute_map[i])
+
+                if attr_name != '$sxclsid$':
+                    attr_name_c = pgsql.ast.ConstantNode(value=attr_name)
+                    element = pgsql.ast.RowExprNode(args=[attr_name_c, element])
+                    augmented_elements.append(element)
+
+            my_elements = augmented_elements
 
         result = pgsql.ast.RowExprNode(args=my_elements)
 
@@ -421,12 +448,13 @@ class SimpleExprTransformer(CaosExprTransformer):
 
 class CaosTreeTransformer(CaosExprTransformer):
     @debug
-    def transform(self, query, session):
+    def transform(self, query, session, output_format=None):
         try:
             # Transform to sql tree
             context = TransformerContext()
             context.current.session = session
             context.current.proto_schema = session.proto_schema
+            context.current.output_format = output_format
             qtree = self._transform_tree(context, query)
             argmap = context.current.argmap
 
@@ -818,11 +846,30 @@ class CaosTreeTransformer(CaosExprTransformer):
 
     def _process_selector(self, context, selector, query):
         context.current.location = 'selector'
+
+        selexprs = []
+
         for expr in selector:
             alias = common.caos_name_to_pg_name(expr.name or expr.autoname)
-            target = pgsql.ast.SelectExprNode(expr=self._process_expr(context, expr.expr, query),
-                                              alias=alias)
-            query.targets.append(target)
+            pgexpr = self._process_expr(context, expr.expr, query)
+            selexprs.append((pgexpr, alias))
+
+        if (context.current.output_format == caos_types.JsonOutputFormat
+                                        and not context.current.in_subquery):
+            elems = []
+            for pgexpr, alias in selexprs:
+                alias_c = pgsql.ast.ConstantNode(value=str(alias))
+                elems.append(pgsql.ast.RowExprNode(args=[alias_c, pgexpr]))
+
+            target = pgsql.ast.SelectExprNode(expr=pgsql.ast.RowExprNode(args=elems))
+            target = pgsql.ast.FunctionCallNode(name='row_to_json', args=[target])
+            query.targets.append(pgsql.ast.SelectExprNode(expr=target))
+
+        else:
+            for pgexpr, alias in selexprs:
+                target = pgsql.ast.SelectExprNode(expr=pgexpr, alias=alias)
+                query.targets.append(target)
+
 
     def _process_sorter(self, context, sorter):
         query = context.current.query

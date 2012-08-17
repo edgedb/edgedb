@@ -44,6 +44,7 @@ from semantix.caos.backends.pgsql import common
 from semantix.caos.backends.pgsql import dbops
 from semantix.caos.backends.pgsql import delta as delta_cmds
 from semantix.caos.backends.pgsql import deltadbops
+from semantix.caos.backends.pgsql import driver
 
 from . import datasources
 from .datasources import introspection
@@ -117,7 +118,7 @@ class Cursor:
 class Query(backend_query.Query):
     def __init__(self, chunks, arg_index, argmap, result_types, argument_types,
                  context_vars, scrolling_cursor=False, offset=None, limit=None, query_type=None,
-                 record_info=None):
+                 record_info=None, output_format=None):
         self.chunks = chunks
         self.text = ''.join(chunks)
         self.argmap = argmap
@@ -132,12 +133,19 @@ class Query(backend_query.Query):
         self.limit = limit.index if limit is not None else None
         self.query_type = query_type
         self.record_info = record_info
+        self.output_format = output_format
 
     def prepare(self, session):
         return PreparedQuery(self, session)
 
     def prepare_partial(self, session, **kwargs):
         return PreparedQuery(self, session, kwargs)
+
+    def get_output_format_info(self):
+        if self.output_format == caos.types.JsonOutputFormat:
+            return driver.JSON_OUTPUT_FORMAT
+        else:
+            return ('caosobj', 1)
 
 
 class PreparedQuery:
@@ -265,7 +273,8 @@ class CaosQLAdapter:
         self.transformer = CaosTreeTransformer()
         self.current_portal = None
 
-    def transform(self, query, scrolling_cursor=False, context=None, *, proto_schema):
+    def transform(self, query, scrolling_cursor=False, context=None, *, proto_schema,
+                                                                        output_format=None):
         if scrolling_cursor:
             offset = query.offset
             limit = query.limit
@@ -277,7 +286,8 @@ class CaosQLAdapter:
             query.limit = None
 
         qchunks, argmap, arg_index, query_type, record_info = \
-                                        self.transformer.transform(query, self.session)
+                                        self.transformer.transform(query, self.session,
+                                                                   output_format=output_format)
 
         if scrolling_cursor:
             query.offset = offset
@@ -312,7 +322,7 @@ class CaosQLAdapter:
                      argument_types=argtypes, context_vars=query.context_vars,
                      scrolling_cursor=scrolling_cursor,
                      offset=offset, limit=limit, query_type=query_type,
-                     record_info=record_info)
+                     record_info=record_info, output_format=output_format)
 
 
 class BinaryCopyProducer(postgresql.copyman.IteratorProducer):
@@ -483,6 +493,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         self.atom_cache = {}
         self.link_cache = {}
+        self.link_property_cache = {}
         self.concept_cache = {}
         self.table_cache = {}
         self.batch_instrument_cache = {}
@@ -820,6 +831,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self._type_mech.invalidate_meta_cache()
 
         self.link_cache.clear()
+        self.link_property_cache.clear()
         self.concept_cache.clear()
         self.atom_cache.clear()
         self.table_cache.clear()
@@ -848,6 +860,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def entity_from_row(self, session, concept_name, links):
         concept_map = self.get_concept_map(session)
         concept_id = links.pop('id', None)
+        concept_name = links.pop('name', None)
 
         if concept_id is None:
             # empty record
@@ -1366,6 +1379,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 self.link_cache[row['name']] = row['id']
 
         return self.link_cache
+
+
+    def get_link_property_map(self, session):
+        if not self.link_property_cache:
+            cl_ds = datasources.meta.links.LinkProperties(session.get_connection())
+
+            for row in cl_ds.fetch():
+                self.link_property_cache[row['name']] = row['id']
+
+        return self.link_property_cache
 
 
     def get_concept_map(self, session=None, force_reload=False):

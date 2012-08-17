@@ -14,6 +14,7 @@ from semantix.utils.config import ConfigurableMeta, cvalue, ConfigError
 from . import ast
 from . import codegen
 from . import common
+from . import json
 
 
 class Config(metaclass=ConfigurableMeta):

@@ -96,7 +96,8 @@ class Adapter:
     def __init__(self):
         self.transformer = CaosToPythonTransformer()
 
-    def transform(self, tree, scrolling_cursor=False, context=None, *, proto_schema):
+    def transform(self, tree, scrolling_cursor=False, context=None, *, proto_schema,
+                                                                       output_format=None):
         pytree = self.transformer.transform(tree, context=context, proto_schema=proto_schema)
 
         text = py_codegen.BasePythonSourceGenerator.to_source(pytree)

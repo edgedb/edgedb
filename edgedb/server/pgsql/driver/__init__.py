@@ -61,6 +61,20 @@ class Array(pg_types.Array, collections.Container):
         return bool(list(self))
 
 
+JSON_OUTPUT_FORMAT = ('pgjson.caos', 1)
+
+
+class Json(bytes):
+    def __new__(cls, value, *, format_info=JSON_OUTPUT_FORMAT):
+        result = super().__new__(cls, value)
+        result._fmt = format_info
+        return result
+
+    def __sx_json__(self):
+        fmt = '["{}",{}]'.format(*self._fmt).encode('ascii')
+        return b'{"$sxjson$":{"format":' + fmt  + b',"data":[' + self + b']}}'
+
+
 class TypeIO(pq3.TypeIO):
     RECORD_OID = 2249
 
@@ -80,7 +94,10 @@ class TypeIO(pq3.TypeIO):
         self._cache.update(update)
 
     def resolve(self, typid, from_resolution_of=(), builtins=resolve, quote_ident=quote_ident):
-        return super().resolve(typid, from_resolution_of, builtins, quote_ident)
+        if typid == pg_types.JSONOID:
+            return self.json_io_factory()
+        else:
+            return super().resolve(typid, from_resolution_of, builtins, quote_ident)
 
     def get_session(self):
         if self._pool:
@@ -90,6 +107,11 @@ class TypeIO(pq3.TypeIO):
 
     def array_from_parts(self, parts):
         return super().array_from_parts(parts, ArrayType=Array)
+
+    def json_io_factory(self):
+        def _unpack_json(data):
+            return Json(data)
+        return (None, _unpack_json, Json)
 
     def array_io_factory(self, pack_element, unpack_element, typoid, hasbin_input, hasbin_output,
                                array_unpack=pg_types_io_lib.array_unpack):
