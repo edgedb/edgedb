@@ -249,21 +249,6 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                                             caosnode=node)
         return concept_table
 
-    def _provide_tuple_type(self, context, elements):
-        types = []
-
-        for expr in elements:
-            expr_type = self.get_expr_type(expr, context.current.proto_schema)
-            if expr_type is None:
-                raise caosql.CaosQLError('could not determine tuple element type')
-
-            types.append(expr_type)
-
-        session = context.current.session
-        data_backend = session.backend
-        proto_schema = context.current.proto_schema
-        return data_backend.provide_auto_tuple_type(types, proto_schema, session)
-
     def _relation_from_concepts(self, context, node):
         if node.conceptfilter:
             union = pgsql.ast.UnionNode(caosnode=node, concepts=frozenset(node.conceptfilter))
@@ -1394,9 +1379,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             if getattr(context.current, 'sequence_is_array', False):
                 result = pgsql.ast.SequenceNode(elements=elements)
             else:
-                type = self._provide_tuple_type(context, expr.elements)
-                type = pgsql.ast.TypeNode(name=type)
-                result = pgsql.ast.TypeCastNode(expr=pgsql.ast.RowExprNode(args=elements), type=type)
+                result = pgsql.ast.RowExprNode(args=elements)
 
         elif isinstance(expr, tree.ast.Record):
             result = self._process_record(context, expr, cte)
