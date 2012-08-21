@@ -12,6 +12,7 @@ import tempfile
 import py.test
 import importlib
 
+from semantix.utils.datastructures import OrderedSet
 from semantix.utils import debug, functional, config, markup, resource
 import semantix.utils.lang.javascript.parser.jsparser as jsp
 from semantix.utils.lang.javascript.codegen import JavascriptSourceGenerator
@@ -112,11 +113,11 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
             with debug.debug_logger_off():
                 imports = loader.code_from_source(module, source.encode('utf-8'), log=False)
 
-            deps = []
+            deps = OrderedSet()
             for dep_name, dep_weak in imports:
                 with debug.debug_logger_off():
                     dep = importlib.import_module(dep_name)
-                deps.extend(resource.Resource._list_resources(dep))
+                deps.update(resource.Resource._list_resources(dep))
 
             imports = []
             bootstrap = []
