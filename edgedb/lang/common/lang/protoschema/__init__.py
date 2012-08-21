@@ -66,7 +66,7 @@ class SchemaModule(types.ModuleType):
 
     def __getattr__(self, name):
         if name.startswith('__') and name.endswith('__'):
-            return super().__getattr__(name)
+            return super().__getattribute__(name)
 
         protoname = name
         nsname = None
