@@ -148,3 +148,5 @@ class WordCombination(NaturalLanguageObject):
 
     def persistent_hash(self):
         return persistent_hash(frozenset(self.forms.values()))
+
+    __sx_serialize__ = as_dict
