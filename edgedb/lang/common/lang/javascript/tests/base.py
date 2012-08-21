@@ -13,7 +13,7 @@ import py.test
 import importlib
 
 from semantix.utils.datastructures import OrderedSet
-from semantix.utils import debug, functional, config, markup, resource
+from semantix.utils import debug, functional, config, markup, resource, json
 import semantix.utils.lang.javascript.parser.jsparser as jsp
 from semantix.utils.lang.javascript.codegen import JavascriptSourceGenerator
 from semantix.utils.lang.javascript import Loader as JSLoader, BaseJavaScriptModule, \
@@ -61,6 +61,10 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
     ;(function() {
         'use strict';
 
+        function dump(obj) {
+            print(JSON.stringify(obj, null, '  '));
+        }
+
         // %from semantix.utils.lang.javascript.tests import assert
     '''
 
@@ -69,13 +73,50 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
     })();
     ''';
 
+    @classmethod
+    def do_test(mcls, source, name=None, data=None):
+        source = source[3:]
+        source = mcls.TEST_TPL_START + source + mcls.TEST_TPL_END
+
+        # XXX heads up, ugly hacks ahead
+        module = BaseJavaScriptModule('tmp_mod_' + (name or 'test_js'))
+        module.__file__ = '<tmp>'
+
+        loader = JSLoader(module.__name__, '', JSLanguage)
+        with debug.debug_logger_off():
+            imports = loader.code_from_source(module, source.encode('utf-8'), log=False)
+            if imports:
+                deps = loader._process_imports(imports)
+            else:
+                deps = []
+
+        all_deps = OrderedSet()
+        for dep, weak in deps:
+            all_deps.update(resource.Resource._list_resources(dep))
+
+        imports = []
+        bootstrap = []
+        for dep in all_deps:
+            if isinstance(dep, JavaScriptModule):
+                imports.append(dep.__name__)
+                with open(dep.__file__, 'rt') as dep_f:
+                    bootstrap.append(dep_f.read())
+            elif (isinstance(dep, resource.VirtualFile) and
+                                        isinstance(dep, BaseJavaScriptModule)):
+                bootstrap.append(dep.__sx_resource_get_source__())
+
+        if data is not None:
+            bootstrap.append('var $ = ' + json.dumps(data) + ';');
+
+        mcls.run_v8(imports, '\n;\n'.join(bootstrap), source)
+
     def __new__(mcls, name, bases, dct):
         for meth_name, meth in dct.items():
             if not meth_name.startswith('test_'):
                 continue
 
             doc = getattr(meth, '__doc__', '')
-            if not doc.startswith('JS\n'):
+            if not doc or not doc.startswith('JS\n'):
                 continue
 
             dct[meth_name] = py.test.mark.skipif(str(mcls.skipif))(mcls.make_test(meth, doc))
@@ -101,40 +142,16 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
 
     @classmethod
     def make_test(mcls, meth, doc):
-        def do_test(self, meth=meth, source=doc, mcls=mcls):
-            source = source[3:]
-            source = mcls.TEST_TPL_START + source + mcls.TEST_TPL_END
-
-            # XXX heads up, ugly hacks ahead
-            module = BaseJavaScriptModule('tmp_mod_' + meth.__name__)
-            module.__file__ = '<tmp>'
-
-            loader = JSLoader(module.__name__, '', JSLanguage)
-            with debug.debug_logger_off():
-                imports = loader.code_from_source(module, source.encode('utf-8'), log=False)
-
-            deps = OrderedSet()
-            for dep_name, dep_weak in imports:
-                with debug.debug_logger_off():
-                    dep = importlib.import_module(dep_name)
-                deps.update(resource.Resource._list_resources(dep))
-
-            imports = []
-            bootstrap = []
-            for dep in deps:
-                if isinstance(dep, JavaScriptModule):
-                    imports.append(dep.__name__)
-                    with open(dep.__file__, 'rt') as dep_f:
-                        bootstrap.append(dep_f.read())
-
-            mcls.run_v8(imports, '\n;\n'.join(bootstrap), source)
-
+        def do_test(self, name=meth.__name__, source=doc, mcls=mcls):
+            mcls.do_test(source, name=meth.__name__)
         functional.decorate(do_test, meth)
         return do_test
 
 
 class JSFunctionalTest(metaclass=JSFunctionalTestMeta):
-    pass
+    def run_js_test(self, source, data=None):
+        mcls = type(type(self))
+        mcls.do_test(source, data=data)
 
 
 class MetaJSParserTest_Base(type, metaclass=config.ConfigurableMeta):

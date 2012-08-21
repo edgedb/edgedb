@@ -208,6 +208,31 @@ class Loader(loader.SourceFileLoader):
 
         return tuple(imports)
 
+    def _process_imports(self, imports):
+        deps = []
+        for imp_name, weak in imports:
+            try:
+                mod = sys.modules[imp_name]
+            except KeyError:
+                # Module was not imported before; import it
+                #
+                mod = importlib.import_module(imp_name)
+
+            if isinstance(mod, resource.Resource):
+                # We're interested in tracking only resources
+                #
+                deps.append((mod, weak))
+            elif self._module_hooks:
+                # Python module?  YAML module?  Let's try to get some
+                # Resources out of it, if any module hooks registered.
+                #
+                for hook in self._module_hooks.values():
+                    processed = hook(mod)
+                    if processed:
+                        for dep in processed:
+                            deps.append((dep, weak))
+        return deps
+
     def load_module(self, fullname):
         if fullname in sys.modules:
             # XXX mask bug in importlib; to be removed
@@ -233,29 +258,10 @@ class Loader(loader.SourceFileLoader):
 
         imports = self.get_code(module)
 
-        deps = []
         if imports:
-            for imp_name, weak in imports:
-                try:
-                    mod = sys.modules[imp_name]
-                except KeyError:
-                    # Module was not imported before; import it
-                    #
-                    mod = importlib.import_module(imp_name)
-
-                if isinstance(mod, resource.Resource):
-                    # We're interested in tracking only resources
-                    #
-                    deps.append((mod, weak))
-                elif self._module_hooks:
-                    # Python module?  YAML module?  Let's try to get some
-                    # Resources out of it, if any module hooks registered.
-                    #
-                    for hook in self._module_hooks.values():
-                        processed = hook(mod)
-                        if processed:
-                            for dep in processed:
-                                deps.append((dep, weak))
+            deps = self._process_imports(imports)
+        else:
+            deps = []
 
         if '.' in module.__name__:
             # Link parent package
