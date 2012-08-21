@@ -64,8 +64,13 @@ class TestJSFunctionalTestEngine(JSFunctionalTest):
             assert.equal('', 0);
         }, {error: assert.AssertionError});
 
+        assert.equal([], []);
+        assert.equal([1], [1]);
+
+        assert.equal([{'a': 'b'}], [{'a': 'b'}]);
+
         assert.raises(function() {
-            assert.equal([], []);
+            assert.equal([1], [2])
         }, {error: assert.AssertionError});
 
         var a = [],

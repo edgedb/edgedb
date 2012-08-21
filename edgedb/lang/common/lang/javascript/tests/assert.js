@@ -1,3 +1,14 @@
+/*
+* Copyright (c) 2011-2012 Sprymix Inc.
+* All rights reserved.
+*
+* See LICENSE for details.
+**/
+
+
+// %from .. import sx
+
+
 (function(global) {
     'use strict';
 
@@ -39,7 +50,7 @@
                 assert.fail('assert.EQUAL failed: ' + arg1 + ' != ' + arg2);
             }
         } else {
-            if (arg1 !== arg2) {
+            if (!sx.eq(arg1, arg2)) {
                 assert.fail('assert.EQUAL failed: ' + arg1 + ' !== ' + arg2);
             }
         }
