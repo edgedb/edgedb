@@ -6,12 +6,14 @@
 ##
 
 
+import re
+
 from urllib.parse import urlsplit, urlunsplit, SplitResult, parse_qs
 
 
 protocol_map = {'pymod': 'http'}
 
-def urlparse(url):
+def parse(url):
     result = urlsplit(url)
     if '+' in result.scheme:
         protocol, transport = result.scheme.split('+')
@@ -39,3 +41,13 @@ def urlparse(url):
     result = (protocol, result)
 
     return result
+
+
+_replace_re = re.compile(r'[^\w\- ]', re.U)
+_replace_re_2 = re.compile(r'\s+', re.U)
+
+def urlify(text:str):
+    text = _replace_re.sub('', text)
+    text = text.strip()
+    text = _replace_re_2.sub('-', text)
+    return text.lower()

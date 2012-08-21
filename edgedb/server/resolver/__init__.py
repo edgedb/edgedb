@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils import urlparse
+from semantix.utils import url as url_module
 from semantix.caos.backends.resolver.error import BackendResolverError
 from semantix.caos.backends.yaml.resolver import BackendResolver as YamlBackendResolver
 from semantix.caos.backends.pgsql.resolver import BackendResolver as PgsqlBackendResolver
@@ -28,7 +28,7 @@ class BackendResolver(object):
         return obj.instantiate()
 
     def do_resolve(self, url):
-        parsed_url = urlparse.urlparse(url)
+        parsed_url = url_module.parse(url)
 
         if parsed_url[0] == 'pq':
             resolver = PgsqlBackendResolver()
