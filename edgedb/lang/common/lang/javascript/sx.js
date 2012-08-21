@@ -69,11 +69,6 @@ this.sx = (function() {
                                                     && obj._secret_ === sx._secret_;
         },
 
-        is_class: function(obj) {
-            return sx._validate_sx_object(obj) && sx.is_function(obj)
-                                            && sx.getattr(obj, '_type_', null) === 'class';
-        },
-
         eq: function(obj1, obj2) {
             if (typeof obj1 != typeof obj2) {
                 return false;
