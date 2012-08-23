@@ -15,8 +15,12 @@
     var initializing = false,
         hop = Object.hasOwnProperty,
         error_mcls_conflict = 'metaclass conflict: the metaclass of a derived class must be ' +
-                              'a (non-strict) subclass of the metaclasses of all its bases';
+                              'a (non-strict) subclass of the metaclasses of all its bases',
 
+        is_function = sx.is_function,
+        is_array = sx.is_array,
+        getattr = sx.getattr,
+        Error = sx.Error;
 
     function mro_merge(seqs) {
         var result = [], i, j, k, s, slen, len, nothead, nonemptyseqs, seq, cand = null;
@@ -62,7 +66,7 @@
             }
 
             if (cand == null) {
-                throw new sx.Error('Cannot create a consistent method resolution');
+                throw new Error('Cannot create a consistent method resolution');
             }
 
             result.push(cand);
@@ -117,7 +121,7 @@
 
         args = args || [];
         if (!hop.call(arguments, 'length') || arguments.length > 4) {
-            throw new sx.Error('invalid `sx.parent` call, should receive arguments as array');
+            throw new Error('invalid `sx.parent` call, should receive arguments as array');
         }
 
         if (hop.call(ths, '$mro')) {
@@ -156,7 +160,7 @@
             }
         }
 
-        throw new sx.Error("can't find '" + method + "' parent method for '" + cls + "'");
+        throw new Error("can't find '" + method + "' parent method for '" + cls + "'");
     };
 
     function make_universal_constructor(initializer) {
@@ -193,7 +197,7 @@
                 }
 
                 if (ths == null) {
-                    throw new sx.Error(_class + ': could not create an instance');
+                    throw new Error(_class + ': could not create an instance');
                 }
 
                 if (initializer === null) {
@@ -229,22 +233,10 @@
     };
 
     function new_class(name, bases, dct) {
-        if (!name || !sx.is_string(name)) {
-            throw new sx.Error('Empty class name');
-        }
-
-        if (!bases || !sx.is_array(bases) || bases.length == 0) {
-            throw new sx.Error('Invalid `bases` for class "' + name + '"');
-        }
-
-        if (!dct || !sx.is_object(dct)) {
-            throw new sx.Error('Invalid `dct` for class "' + name + '"');
-        }
-
         var i, j, cls, parent, proto, attr,
             bases_len = bases.length, mro,
-            ctr = sx.getattr(dct, 'constructor', null),
-            name_parts;
+            ctr = getattr(dct, 'constructor', null),
+            name_parts, len, parent_proto;
 
         cls = make_universal_constructor(ctr);
 
@@ -277,7 +269,7 @@
         for (i in dct) {
             if (hop.call(dct, i) && i != 'metaclass' && i != 'statics') {
                 attr = dct[i];
-                if (sx.is_function(attr)) {
+                if (is_function(attr)) {
                     if (!hop.call(attr, '$cls')) {
                         attr.$cls = cls;
                         attr.$name = i;
@@ -289,27 +281,30 @@
 
         if (bases_len > 1) {
             mro = cls.$mro;
+            len = mro.length - 1;
 
-            for (i = 1; i < mro.length - 1; i++) {
-                var parent = mro[i];
-                for (j in parent.prototype) {
-                    if (!hop.call(proto, j) && hop.call(parent.prototype, j)) {
-                        proto[j] = parent.prototype[j];
+            for (i = 1; i < len; i++) {
+                parent = mro[i];
+                parent_proto = parent.prototype;
+                for (j in parent_proto) {
+                    if (!hop.call(proto, j) && hop.call(parent_proto, j)) {
+                        proto[j] = parent_proto[j];
                     }
                 }
             }
         }
 
-        var static_keys = {};
+        var static_keys = {}, static_keys_keys = [], statics, s, st;
 
         if (hop.call(dct, 'statics')) {
-            var statics = dct.statics;
+            statics = dct.statics;
             for (i in statics) {
                 if (hop.call(statics, i)) {
                     static_keys[i] = true;
-                    var s = statics[i];
+                    static_keys_keys.push(i);
+                    s = statics[i];
 
-                    if (sx.is_function(s)) {
+                    if (is_function(s)) {
                         if (!hop.call(s, '$name')) {
                             s.$name = i;
                             s.$cls = cls;
@@ -332,14 +327,15 @@
 
         for (i = 0; i < bases_len; i++) {
             statics = bases[i].$statics;
-            var st;
-            for (j = 0; j < statics.length; j++) {
+            len = statics.length;
+            for (j = 0; j < len; j++) {
                 st = statics[j];
                 if (!hop.call(static_keys, st)) {
                     static_keys[st] = true;
-                    var s = bases[i][st];
+                    static_keys_keys.push(i);
+                    s = bases[i][st];
 
-                    if (sx.is_function(s)) {
+                    if (is_function(s)) {
                         if (!hop.call(s, '$name')) {
                             s.$name = st;
                             s.$cls = cls;
@@ -360,12 +356,12 @@
             }
         }
 
-        cls.$statics = sx.keys(static_keys);
+        cls.$statics = static_keys_keys;
 
         return cls;
     };
 
-    sx.Type = make_universal_constructor(null);
+    var sx_Type = sx.Type = make_universal_constructor(null);
     sx.Type.constructor = new_class;
     new_class.$cls = sx.Type;
     new_class.$name = 'constructor';
@@ -374,7 +370,7 @@
     var object_constructor = function() {
         return this;
     };
-    sx.Object = make_universal_constructor(null);
+    var sx_Object = sx.Object = make_universal_constructor(null);
     object_constructor.$name = 'constructor';
     object_constructor.$cls = 'sx.Object';
     sx.Object.prototype = {
@@ -421,11 +417,23 @@
         body = body || {};
         bases = bases || [];
 
-        if (sx.len(bases) == 0) {
-            bases = [sx.Object];
+        if (!name || typeof name != 'string') {
+            throw new Error('Empty class name');
         }
 
-        var metaclass = sx.getattr(body, 'metaclass', null);
+        if (!is_array(bases)) {
+            throw new Error('Invalid `bases` for class "' + name + '"');
+        }
+
+        if (!body || typeof body != 'object') {
+            throw new Error('Invalid `body` for class "' + name + '"');
+        }
+
+        if (bases.length == 0) {
+            bases = [sx_Object];
+        }
+
+        var metaclass = getattr(body, 'metaclass', null);
         if (metaclass === null) {
             var ms = calc_metaclasses(bases),
                 i = 0,
@@ -436,7 +444,7 @@
                 mcls = ms[i];
                 found = true;
                 for (j = 0; j < ms_len; j++) {
-                    if (!sx.issubclass(mcls, ms[j])) {
+                    if (!issubclass(mcls, ms[j])) {
                         found = false;
                         break;
                     }
@@ -448,17 +456,17 @@
             }
 
             if (metaclass === null) {
-                throw new sx.Error(error_mcls_conflict);
+                throw new Error(error_mcls_conflict);
             }
 
-        } else if (sx.issubclass(metaclass, sx.Type)) {
+        } else if (issubclass(metaclass, sx.Type)) {
             var ms = calc_metaclasses(bases),
                 ms_len = ms.length,
                 i = 0;
 
             for (; i < ms_len; i++) {
-                if (!sx.issubclass(metaclass, ms[i])) {
-                    throw new sx.Error(error_mcls_conflict);
+                if (!issubclass(metaclass, ms[i])) {
+                    throw new Error(error_mcls_conflict);
                 }
             }
         }
@@ -472,14 +480,14 @@
         }
     };
 
-    sx.issubclass = function(cls, parents) {
+    var issubclass = sx.issubclass = function(cls, parents) {
         if (!cls || !hop.call(cls, '$mro')) {
             return false;
         }
 
         var mro = cls.$mro;
 
-        if (sx.is_array(parents)) {
+        if (is_array(parents)) {
             var i = 0, len = parents.length;
             for (; i < len; i++) {
                 if (mro.indexOf(parents[i]) >= 0) {
@@ -496,7 +504,7 @@
         return false;
     };
 
-    sx.isinstance = function(inst, clss) {
+    var isinstance = sx.isinstance = function(inst, clss) {
         return hop.call(inst, '$cls') && sx.issubclass(inst.$cls, clss);
     };
 })();
