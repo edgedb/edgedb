@@ -485,6 +485,10 @@
             return false;
         }
 
+        if (cls === parents) {
+            return true;
+        }
+
         var mro = cls.$mro;
 
         if (is_array(parents)) {
@@ -505,6 +509,6 @@
     };
 
     var isinstance = sx.isinstance = function(inst, clss) {
-        return hop.call(inst, '$cls') && sx.issubclass(inst.$cls, clss);
+        return sx.issubclass(inst.$cls, clss);
     };
 })();
