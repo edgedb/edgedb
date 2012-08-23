@@ -474,7 +474,8 @@ class TestJSClass(JSFunctionalTest):
 
         var MA = sx.define('MA', [MMA], {
             statics: {
-                constructor: function(name, bases, dct) {
+                constructor: function(name, bases, dct, foo) {
+                    assert.equal(foo, 123);
                     bases.splice(0, 0, Base);
                     var cls = sx.parent(this, this, 'constructor', arguments);
                     cls.bar = this.bar;
@@ -485,7 +486,7 @@ class TestJSClass(JSFunctionalTest):
 
         var A = sx.define('A', [], {
             metaclass: MA
-        });
+        }, 123);
 
         assert.equal(A().foo(), 42);
         assert.equal(A.bar(), 'bar');

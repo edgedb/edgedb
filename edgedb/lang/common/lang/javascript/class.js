@@ -463,7 +463,13 @@
             }
         }
 
-        return metaclass(name, bases, body);
+        if (arguments.length > 3) {
+            var args = [name, bases, body];
+            args.push.apply(args, Array.prototype.slice.call(arguments, 3));
+            return metaclass.apply(null, args);
+        } else {
+            return metaclass(name, bases, body);
+        }
     };
 
     sx.issubclass = function(cls, parents) {
