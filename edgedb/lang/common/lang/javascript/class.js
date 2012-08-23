@@ -21,7 +21,7 @@
     function mro_merge(seqs) {
         var result = [], i, j, k, s, slen, len, nothead, nonemptyseqs, seq, cand = null;
 
-        while (1) {
+        for(;;) {
             len = seqs.length;
             nonemptyseqs = [];
             for (i = 0; i < len; i++) {
