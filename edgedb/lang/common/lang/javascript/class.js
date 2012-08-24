@@ -112,19 +112,23 @@
     };
 
     function calc_metaclasses(bases) {
-        var result = [],
-            i = 0,
+        var result,
+            i,
             bases_len = bases.length,
             mcls;
 
-        for (; i < bases_len; ++i) {
+        if (bases_len == 1) {
+            return [bases[0].$cls];
+        }
+
+        result = [];
+        for (i = 0; i < bases_len; ++i) {
             mcls = bases[i].$cls;
 
             if (indexOf.call(result, mcls) < 0) {
                 result.push(mcls);
             }
         }
-
         return result;
     };
 
@@ -419,6 +423,8 @@
     sx.parent = parent;
 
     sx.define = function sx_define(name, bases, body) {
+        var bases_len, metaclass, ms, i, ms_len, j, mcls, found, args;
+
         body = body || {};
         bases = bases || [];
 
@@ -434,39 +440,48 @@
             throw new Error('Invalid `body` for class "' + name + '"');
         }
 
-        if (bases.length == 0) {
+        bases_len = bases.length;
+        if (bases_len == 0) {
             bases = [sx_Object];
         }
 
-        var metaclass = hop.call(body, 'metaclass') ? body.metaclass : null;
+        metaclass = hop.call(body, 'metaclass') ? body.metaclass : null;
         if (metaclass == null) {
-            var ms = calc_metaclasses(bases),
-                i = 0,
-                ms_len = ms.length,
-                j, mcls, found;
+            if (!bases_len) {
+                metaclass = sx.Type;
+            } else if (bases_len == 1) {
+                metaclass = bases[0].$cls;
+            } else {
+                ms = calc_metaclasses(bases);
+                ms_len = ms.length;
 
-            for (i = 0; i < ms_len; ++i) {
-                mcls = ms[i];
-                found = true;
-                for (j = 0; j < ms_len; ++j) {
-                    if (!issubclass(mcls, ms[j])) {
-                        found = false;
-                        break;
+                if (ms_len == 1) {
+                    metaclass = ms[0];
+                } else {
+                    for (i = 0; i < ms_len; ++i) {
+                        mcls = ms[i];
+                        found = true;
+                        for (j = 0; j < ms_len; ++j) {
+                            if (!issubclass(mcls, ms[j])) {
+                                found = false;
+                                break;
+                            }
+                        }
+                        if (found) {
+                            metaclass = mcls;
+                            break;
+                        }
+                    }
+
+                    if (metaclass == null) {
+                        throw new Error(error_mcls_conflict);
                     }
                 }
-                if (found) {
-                    metaclass = mcls;
-                    break;
-                }
-            }
-
-            if (metaclass == null) {
-                throw new Error(error_mcls_conflict);
             }
 
         } else if (issubclass(metaclass, sx.Type)) {
-            var ms = calc_metaclasses(bases),
-                i = ms.length;
+            ms = calc_metaclasses(bases);
+            i = ms.length;
 
             for (; i--;) {
                 if (!issubclass(metaclass, ms[i])) {
@@ -476,7 +491,7 @@
         }
 
         if (arguments.length > 3) {
-            var args = [name, bases, body];
+            args = [name, bases, body];
             args.push.apply(args, Array.prototype.slice.call(arguments, 3));
             return metaclass.apply(null, args);
         } else {
