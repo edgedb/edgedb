@@ -611,6 +611,50 @@ class TestJSClass(JSFunctionalTest):
         assert.equal(chk, ['ProtoSource','ProtoObject']);
         '''
 
+    def test_utils_lang_js_sx_class_metaclass_9(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import class
+
+        var chk = [];
+
+        var ProtoObject = sx.define('ProtoObject', [sx.Type], {
+            statics: {
+                construct: function(name, bases, dct) {
+                    chk.push('ProtoObject');
+                    return sx.parent(ProtoObject, this, 'construct', arguments);
+                }
+            }
+        });
+
+        var ClassPrototype = sx.define('ClassPrototype', [ProtoObject]);
+
+        var ProtoSource = sx.define('ProtoSource', [ClassPrototype], {
+            statics: {
+                construct: function(name, bases, dct) {
+                    chk.push('ProtoSource');
+                    return sx.parent(ProtoSource, this, 'construct', arguments);
+                }
+            }
+        });
+
+        var ProtoNode = sx.define('ProtoNode', [ClassPrototype]);
+
+        var ProtoConcept = sx.define('ProtoConcept', [ProtoNode, ProtoSource]);
+
+        var cls = sx.define('cls', [], {
+            metaclass: ProtoConcept,
+            foo: function() {
+                return 'foo';
+            }
+        });
+
+        assert.equal(cls.$cls, ProtoConcept);
+        assert.equal(cls.$name, 'cls');
+        assert.equal(cls().foo(), 'foo');
+        assert.equal(chk, ['ProtoSource','ProtoObject']);
+        '''
+
+
     def test_utils_lang_js_sx_class_statics_1(self):
         '''JS
         // %from semantix.utils.lang.javascript import class
@@ -658,4 +702,46 @@ class TestJSClass(JSFunctionalTest):
 
         assert.ok(A.num === Number);
         assert.ok(A().date === Date);
+        '''
+
+    def test_utils_lang_js_sx_class_obj_in_obj(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import class
+
+        var chk = [];
+
+        var A = sx.define('A', [], {
+            construct: function(a) {
+                if (a == 3) {
+                    throw 'spam';
+                }
+                chk.push(this);
+                this.a = a;
+            },
+            statics: {
+                construct: function(a) {
+                    if (a == 1) {
+                        new A(2);
+                    }
+
+                    if (a == 2) {
+                        try {
+                            new A(3);
+                        } catch (e) {}
+                    }
+
+                    return sx.parent(A, this, 'construct', [a]);
+                }
+            }
+        });
+
+        new A(1);
+        assert.equal(chk.length, 2);
+        assert.equal(chk[0].a, 2);
+        assert.equal(chk[1].a, 1);
+
+        chk = [];
+        new A(2);
+        assert.equal(chk.length, 1);
+        assert.equal(chk[0].a, 2);
         '''

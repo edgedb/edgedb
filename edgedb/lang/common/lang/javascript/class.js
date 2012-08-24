@@ -12,13 +12,16 @@
 (function() {
     'use strict';
 
-    var hop = {}.constructor.prototype.hasOwnProperty,
+    var instances = [],
+        hop = {}.constructor.prototype.hasOwnProperty,
         tos = {}.constructor.prototype.toString,
+        slice = instances.constructor.prototype.slice,
+        indexOf = instances.constructor.prototype.indexOf,
+
         error_mcls_conflict = 'metaclass conflict: the metaclass of a derived class must be ' +
                               'a (non-strict) subclass of the metaclasses of all its bases',
 
         Error = sx.Error,
-        indexOf = [].constructor.prototype.indexOf,
         natives = [Array, Number, Date, Boolean, String, Object, RegExp];
 
     if (!indexOf) {
@@ -193,9 +196,14 @@
                         if (hop.call(func, '$wrapped')) {
                             func = func.$wrapped;
                         }
-                        _class.$inst = this;
-                        ths = func.apply(_class, args);
-                        delete _class['$inst'];
+                        instances.push(this);
+                        try {
+                            ths = func.apply(_class, args);
+                        } finally {
+                            if (instances[instances.length-1] === this) {
+                                instances.pop();
+                            }
+                        }
                         break;
                     }
                 }
@@ -261,7 +269,7 @@
 
     function new_class(name, bases, dct) {
         var i, j, cls, parent, proto, attr,
-            mro, attr_cnt = 0, parent_proto, mro_len_1,
+            mro, attrs_flag = 0, parent_proto, mro_len_1,
             static_attrs_cache = {}, static_attrs = [],
             statics, static_name, own = [], parent_own, parent_mro;
 
@@ -292,27 +300,28 @@
                 }
                 proto[i] = attr;
                 own.push(i);
-                attr_cnt++;
             }
         }
 
-        cls.$own = own.length ? own : false;
+        cls.$own = (attrs_flag = own.length) ? own : false;
 
         for (i = 1; i < mro_len_1; ++i) {
             j = mro[i];
             parent_proto = j.prototype;
             parent_own = j.$own;
 
-            for (j = parent_own.length; j--;) {
-                attr = parent_own[j];
-                if (!hop.call(proto, attr)) {
-                    proto[attr] = parent_proto[attr];
-                    (attr != 'construct') && attr_cnt++;
+            if (parent_own) {
+                for (j = parent_own.length; j--;) {
+                    attr = parent_own[j];
+                    if (!hop.call(proto, attr)) {
+                        proto[attr] = parent_proto[attr];
+                        (attr != 'construct') && (attrs_flag = 1);
+                    }
                 }
             }
         }
 
-        attr_cnt && (cls.$_attr_cnt = attr_cnt);
+        attrs_flag && (cls.$_attrs = 1);
 
         if (hop.call(dct, 'statics')) {
             statics = dct.statics;
@@ -352,7 +361,7 @@
             }
         }
 
-        if (hop.call(this, '$_attr_cnt')) {
+        if (hop.call(this, '$_attrs')) {
             parent_proto = this.prototype;
             for (static_name in parent_proto) {
                 if (hop.call(parent_proto, static_name) && static_name != 'construct'
@@ -390,9 +399,9 @@
         }
     };
     sx.Object.construct = function() {
-        var obj = this.$inst;
-        obj.$cls = this;
-        return obj;
+        var instance = instances.pop();
+        instance.$cls = this;
+        return instance;
     };
     sx.Object.construct.$cls = sx.Object;
     sx.Object.construct.$name = 'construct';
@@ -448,7 +457,7 @@
         metaclass = hop.call(body, 'metaclass') ? body.metaclass : null;
         if (metaclass == null) {
             if (!bases_len) {
-                metaclass = sx.Type;
+                metaclass = sx_Type;
             } else if (bases_len == 1) {
                 metaclass = bases[0].$cls;
             } else {
@@ -478,8 +487,7 @@
                     }
                 }
             }
-
-        } else if (issubclass(metaclass, sx.Type)) {
+        } else if (issubclass(metaclass, sx_Type)) {
             ms = calc_metaclasses(bases);
             i = ms.length;
 
@@ -492,7 +500,7 @@
 
         if (arguments.length > 3) {
             args = [name, bases, body];
-            args.push.apply(args, Array.prototype.slice.call(arguments, 3));
+            args.push.apply(args, slice.call(arguments, 3));
             return metaclass.apply(null, args);
         } else {
             if (hop.call(metaclass, '$mro')) {
