@@ -28,11 +28,6 @@ class TestJSClass(JSFunctionalTest):
         var bar = new Bar();
         assert.equal(bar.bar(), 3);
 
-        assert.ok(bar instanceof Foo);
-        assert.ok(foo instanceof Foo);
-        assert.ok(bar instanceof Bar);
-        assert.not(foo instanceof Bar);
-
         assert.equal(Foo.$name, 'Foo');
         assert.equal(Foo.$module, 'test');
 
@@ -115,12 +110,12 @@ class TestJSClass(JSFunctionalTest):
         assert.equal(Z.$mro, [Z, K1, K2, K3, D, A, B, C, E, sx.Object]);
         '''
 
-    def test_utils_lang_js_sx_class_call_parent(self):
+    def test_utils_lang_js_sx_class_call_parent_1(self):
         '''JS
         // %from semantix.utils.lang.javascript import class
 
         var A = sx.define('A', [], {
-            constructor: function() {
+            construct: function() {
                 this.field = 'A';
             },
 
@@ -136,8 +131,8 @@ class TestJSClass(JSFunctionalTest):
         });
 
         var B = sx.define('B', [A], {
-            constructor: function() {
-                sx.parent(B, this, 'constructor');
+            construct: function() {
+                sx.parent(B, this, 'construct');
                 this.field += 'B';
             },
 
@@ -153,8 +148,8 @@ class TestJSClass(JSFunctionalTest):
         });
 
         var C = sx.define('C', [A], {
-            constructor: function() {
-                sx.parent(C, this, 'constructor');
+            construct: function() {
+                sx.parent(C, this, 'construct');
                 this.field += 'C';
             },
 
@@ -170,8 +165,8 @@ class TestJSClass(JSFunctionalTest):
         });
 
         var D = sx.define('D', [C, B], {
-            constructor: function() {
-                sx.parent(D, this, 'constructor');
+            construct: function() {
+                sx.parent(D, this, 'construct');
                 this.field += 'D';
             },
 
@@ -232,12 +227,41 @@ class TestJSClass(JSFunctionalTest):
         assert.equal(E.cm(), [E, [E, [E, [E, 'A'], 'B'], 'C'], 'D']);
         '''
 
+    def test_utils_lang_js_sx_class_call_parent_2(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import class
+
+        var chk = [];
+
+        var ProtoObject = sx.define('ProtoObject', [], {
+            construct: function() {
+                chk.push('ProtoObject');
+            }
+        });
+
+        var ClassPrototype = sx.define('ClassPrototype', [ProtoObject]);
+
+        var ProtoSource = sx.define('ProtoSource', [ClassPrototype], {
+            construct: function() {
+                chk.push('ProtoSource');
+                sx.parent(ProtoSource, this, 'construct');
+            }
+        });
+
+        var ProtoNode = sx.define('ProtoNode', [ClassPrototype]);
+
+        var ProtoConcept = sx.define('ProtoConcept', [ProtoNode, ProtoSource]);
+
+        ProtoConcept();
+        assert.equal(chk, ['ProtoSource','ProtoObject']);
+        '''
+
     def test_utils_lang_js_sx_class_no_new(self):
         '''JS
         // %from semantix.utils.lang.javascript import class
 
         var Test = sx.define('Test', [], {
-            constructor: function(v, w) {
+            construct: function(v, w) {
                 this.foo = v + ':' + w;
             }
         });
@@ -247,7 +271,7 @@ class TestJSClass(JSFunctionalTest):
         assert.equal(Test().$cls, Test);
 
         var Test2 = sx.define('Test2', [], {
-            constructor: function(v) {
+            construct: function(v) {
                 this.foo = v;
             }
         });
@@ -266,9 +290,9 @@ class TestJSClass(JSFunctionalTest):
 
         var MA = sx.define('MA', [sx.Type], {
             statics: {
-                constructor: function(name, bases, dct) {
+                construct: function(name, bases, dct) {
                     dct.foo = name + name;
-                    return sx.parent(MA, this, 'constructor', [name, bases, dct]);
+                    return sx.parent(MA, this, 'construct', [name, bases, dct]);
                 }
             }
         });
@@ -312,9 +336,9 @@ class TestJSClass(JSFunctionalTest):
 
         var MA = sx.define('MA', [sx.Type], {
             statics: {
-                constructor: function(name, bases, dct) {
+                construct: function(name, bases, dct) {
                     dct.foo = name + name;
-                    return sx.parent(MA, this, 'constructor', [name, bases, dct]);
+                    return sx.parent(MA, this, 'construct', [name, bases, dct]);
                 }
             }
         });
@@ -325,9 +349,9 @@ class TestJSClass(JSFunctionalTest):
 
         var MB = sx.define('MB', [MA], {
             statics: {
-                constructor: function(name, bases, dct) {
+                construct: function(name, bases, dct) {
                     dct.bar = name + name + 'bar';
-                    return sx.parent(MB, this, 'constructor', [name, bases, dct]);
+                    return sx.parent(MB, this, 'construct', [name, bases, dct]);
                 }
             }
         });
@@ -409,15 +433,15 @@ class TestJSClass(JSFunctionalTest):
         // %from semantix.utils.lang.javascript import class
 
         var MA = sx.define('MA', [sx.Type], {
-            constructor: function(name, bases, dct) {
+            construct: function(name, bases, dct) {
                 this.baz = 42;
             },
 
             statics: {
-                constructor: function(name, bases, dct) {
+                construct: function(name, bases, dct) {
                     assert.equal(this.$name, 'MA');
                     dct.foo = name + name;
-                    var cls = sx.parent(MA, this, 'constructor', [name, bases, dct]);
+                    var cls = sx.parent(MA, this, 'construct', [name, bases, dct]);
                     assert.ok(sx.issubclass(cls, sx.Object));
                     assert.not(sx.issubclass(cls, sx.Type));
                     assert.equal(cls.$cls, MA);
@@ -433,16 +457,16 @@ class TestJSClass(JSFunctionalTest):
                          {a: function() { return this.$cls.bar; }} );
 
         var Bar = sx.define('Bar', [Foo], {
-            constructor: function(p1, p2) {
+            construct: function(p1, p2) {
                 assert.equal(this.$cls.$name, 'Bar');
                 this.foo += p2;
             },
 
             statics: {
-                constructor: function(p1, p2) {
+                construct: function(p1, p2) {
                     assert.equal(this.$name, 'Bar');
                     assert.equal(this.$cls, MA);
-                    var obj = sx.parent(this, this, 'constructor', arguments);
+                    var obj = sx.parent(this, this, 'construct', arguments);
                     obj.foo += p1;
                     return obj;
                 }
@@ -467,17 +491,17 @@ class TestJSClass(JSFunctionalTest):
         });
 
         var MMA = sx.define('MMA', [sx.Type], {
-            constructor: function() {
+            construct: function() {
                 this.bar = function() { return 'bar'; };
             }
         });
 
         var MA = sx.define('MA', [MMA], {
             statics: {
-                constructor: function(name, bases, dct, foo) {
+                construct: function(name, bases, dct, foo) {
                     assert.equal(foo, 123);
                     bases.splice(0, 0, Base);
-                    var cls = sx.parent(this, this, 'constructor', arguments);
+                    var cls = sx.parent(this, this, 'construct', arguments);
                     cls.bar = this.bar;
                     return cls;
                 }
@@ -492,13 +516,14 @@ class TestJSClass(JSFunctionalTest):
         assert.equal(A.bar(), 'bar');
         '''
 
-    def _test_utils_lang_js_sx_class_metaclass_7(self):
+    def test_utils_lang_js_sx_class_metaclass_7(self):
         '''JS
         // %from semantix.utils.lang.javascript import class
 
         var MA = sx.define('MA', [sx.Type], {
+            bar: 42,
             foo: function() {
-                return 42;
+                return this.bar;
             }
         });
 
@@ -506,8 +531,84 @@ class TestJSClass(JSFunctionalTest):
             metaclass: MA
         });
 
-        print(A.foo());
+        var MB = sx.define('MB', [MA], {
+            bar: 100
+        });
 
+        var B = sx.define('B', [A], {
+            metaclass: MB
+        });
+
+        assert.equal(A.foo(), 42);
+        assert.equal(B.foo(), 100);
+
+        var C = sx.define('C', [], {
+            metaclass: MB
+        });
+
+        assert.equal(C.foo(), 100);
+
+        var D = sx.define('D', [B, C]);
+        assert.equal(D.foo(), 100);
+
+        var MC = sx.define('MC', [MA], {
+            foo: function() {
+                return sx.parent(MC, this, 'foo') + 1;
+            }
+        });
+
+        var E = sx.define('E', [], {
+            metaclass: MC
+        });
+
+        assert.equal(E.foo(), 43);
+
+        var MF = sx.define('MF', [MC, MB]);
+
+        var F = sx.define('F', [E], {
+            metaclass: MF
+        });
+
+        assert.equal(F.foo(), 101);
+        '''
+
+    def test_utils_lang_js_sx_class_metaclass_8(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import class
+
+        var chk = [];
+
+        var ProtoObject = sx.define('ProtoObject', [sx.Type], {
+            construct: function() {
+                chk.push('ProtoObject');
+                return sx.parent(ProtoObject, this, 'construct');
+            }
+        });
+
+        var ClassPrototype = sx.define('ClassPrototype', [ProtoObject]);
+
+        var ProtoSource = sx.define('ProtoSource', [ClassPrototype], {
+            construct: function() {
+                chk.push('ProtoSource');
+                return sx.parent(ProtoSource, this, 'construct');
+            }
+        });
+
+        var ProtoNode = sx.define('ProtoNode', [ClassPrototype]);
+
+        var ProtoConcept = sx.define('ProtoConcept', [ProtoNode, ProtoSource]);
+
+        var cls = sx.define('cls', [], {
+            metaclass: ProtoConcept,
+            foo: function() {
+                return 'foo';
+            }
+        });
+
+        assert.equal(cls.$cls, ProtoConcept);
+        assert.equal(cls.$name, 'cls');
+        assert.equal(cls().foo(), 'foo');
+        assert.equal(chk, ['ProtoSource','ProtoObject']);
         '''
 
     def test_utils_lang_js_sx_class_statics_1(self):
@@ -541,4 +642,20 @@ class TestJSClass(JSFunctionalTest):
 
         assert.equal(C1.bar(), 'bar');
         assert.equal(C2.bar(), 'spam');
+        '''
+
+    def test_utils_lang_js_sx_class_natives(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import class
+
+        var A = sx.define('A', [], {
+            date: Date,
+
+            statics: {
+                num : Number
+            }
+        });
+
+        assert.ok(A.num === Number);
+        assert.ok(A().date === Date);
         '''

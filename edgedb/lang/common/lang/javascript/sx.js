@@ -14,7 +14,7 @@ this.sx = (function() {
         _is_id = /^#([\w\-]*)$/,
         _id_counter = 0,
         global = (typeof window == 'undefined' ? this : window),
-        has_own_property = Object.hasOwnProperty;
+        has_own_property = Object.prototype.hasOwnProperty;
 
     function _extend(obj, ex) {
         var i;
