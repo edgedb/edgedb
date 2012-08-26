@@ -546,6 +546,9 @@ class TestJSClass(JSFunctionalTest):
             metaclass: MB
         });
 
+        assert.ok(sx.isinstance(C, MB));
+        assert.ok(sx.isinstance(C, MA));
+
         assert.equal(C.foo(), 100);
 
         var D = sx.define('D', [B, C]);
@@ -744,4 +747,25 @@ class TestJSClass(JSFunctionalTest):
         new A(2);
         assert.equal(chk.length, 1);
         assert.equal(chk[0].a, 2);
+        '''
+
+    def test_utils_lang_js_sx_class_instanceof_sim(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import class
+
+        assert.ok(sx.isinstance([], Array));
+        assert.ok(sx.isinstance(new String('spam'), String));
+        assert.ok(sx.isinstance(new Number(10), Number));
+        assert.ok(sx.isinstance('spam', String));
+        assert.ok(sx.isinstance(10, Number));
+        assert.ok(sx.isinstance(10, Object));
+        assert.ok(sx.isinstance(true, Boolean));
+        assert.ok(sx.isinstance(false, Boolean));
+
+        var a = function(){};
+        var b = function(){};
+        b.prototype = new a();
+        assert.ok(sx.isinstance(new b(), a));
+        assert.not(sx.isinstance(b(), a));
+        assert.not(sx.isinstance(8, a));
         '''

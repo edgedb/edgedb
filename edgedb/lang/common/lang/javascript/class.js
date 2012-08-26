@@ -539,7 +539,50 @@
         return false;
     };
 
+    function _instanceof(inst, cls) {
+        if (inst instanceof cls) {
+            return true;
+        }
+
+        if (cls === Object) {
+            return true;
+        }
+
+        if (cls === String && typeof inst == 'string') {
+            return true;
+        }
+
+        if (cls === Number && typeof inst == 'number') {
+            return true;
+        }
+
+        if (cls === Boolean && typeof inst == 'boolean') {
+            return true;
+        }
+
+        return false;
+    };
+
     sx.isinstance = function sx_isinstance(inst, clss) {
+        var i, len;
+
+        if (inst == null) {
+            return false;
+        }
+
+        if (!hop.call(inst, '$cls')) {
+            if (tos.call(clss) == '[object Array]') {
+                for (i = 0, len = clss.length; i < len; i++) {
+                    if (_instanceof(inst, clss)) {
+                        return true;
+                    }
+                }
+                return false;
+            } else {
+                return _instanceof(inst, clss);
+            }
+        }
+
         return issubclass(inst.$cls, clss);
     };
 })();
