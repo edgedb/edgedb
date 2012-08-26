@@ -48,19 +48,19 @@ this.sx = (function() {
 
         apply: _extend,
 
-        is_array: function(obj) {
+        is_array: function sx_is_array(obj) {
             return Object.prototype.toString.call(obj) === '[object Array]';
         },
 
-        is_function: function(obj) {
+        is_function: function sx_is_function(obj) {
             return Object.prototype.toString.call(obj) === '[object Function]';
         },
 
-        is_object: function(obj) {
+        is_object: function sx_is_object(obj) {
             return !!obj && Object.prototype.toString.call(obj) === '[object Object]';
         },
 
-        is_string: function(obj) {
+        is_string: function sx_is_string(obj) {
             return Object.prototype.toString.call(obj) === '[object String]';
         },
 
@@ -69,7 +69,7 @@ this.sx = (function() {
                                                     && obj._secret_ === sx._secret_;
         },
 
-        eq: function(obj1, obj2) {
+        eq: function sx_eq(obj1, obj2) {
             if (typeof obj1 != typeof obj2) {
                 return false;
             }
@@ -107,7 +107,7 @@ this.sx = (function() {
             return obj1 === obj2;
         },
 
-        each: function(obj, func, scope) {
+        each: function sx_each(obj, func, scope) {
             scope = scope || global;
 
             if (func.length < 1 || func.length > 3) {
@@ -260,11 +260,11 @@ this.sx = (function() {
             return result;
         },
 
-        keys: function(obj) {
+        keys: function sx_keys(obj) {
             if (sx.is_object(obj)) {
                 var result = []
                 for (var k in obj) {
-                    if (obj.hasOwnProperty(k)) {
+                    if (has_own_property.call(obj, k)) {
                         result.push(k);
                     }
                 }
@@ -275,7 +275,7 @@ this.sx = (function() {
             }
         },
 
-        len: function(obj) {
+        len: function sx_len(obj) {
             if (sx.is_array(obj) || obj instanceof sx) {
                 return obj.length;
             }
@@ -298,7 +298,7 @@ this.sx = (function() {
                             (typeof obj));
         },
 
-        hasattr: function(obj, attr, weak) {
+        hasattr: function sx_hasattr(obj, attr, weak) {
             if (obj === null || obj === undefined) {
                 return false;
             }
@@ -350,7 +350,7 @@ this.sx = (function() {
             throw new Error('sx.first supports only arrays and objects');
         },
 
-        getattr: function(obj, attr, def) {
+        getattr: function sx_getattr(obj, attr, def) {
             if (has_own_property.call(obj, attr)) {
                 return obj[attr];
             } else {
