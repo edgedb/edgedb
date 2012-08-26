@@ -1,0 +1,91 @@
+/*
+ * Copyright (c) 2012 Sprymix Inc.
+ * All rights reserved.
+ *
+ * See LICENSE for details.
+ */
+
+
+// %import semantix.caos.frontends.javascript.base
+
+
+sx.caos.register_format('pgjson.', function(format, data) {
+    var format_string = format[0], format_version = format[1];
+
+    if (format_string == 'pgjson.caos.selector') {
+        if (format_version != 1) {
+            throw new sx.Error('unsupported "' + format_string + '" version: ' + format_version);
+        }
+    }
+
+    var _throw = function(msg) {
+        throw new sx.Error('malformed "' + format_string + '" data: ' + msg);
+    }
+
+    if (!sx.is_array(data)) {
+        _throw('not an array');
+    }
+
+    var result = [];
+
+    var _decode_record = function(record) {
+        var result = {};
+
+        sx.each(record, function(v) {
+            var item_key = v.f1;
+
+            if (!item_key) {
+                _throw('missing record item name');
+            }
+
+            if (!sx.contains(v, 'f2')) {
+                _throw('missing record item value');
+            }
+
+            var item_val = v.f2;
+
+            if (sx.is_object(item_val) && sx.contains(item_val, 'f1')) {
+                item_val = _decode_record(item_val);
+            } else if (sx.is_array(item_val)) {
+                var res = [];
+
+                sx.each(item_val, function(iv) {
+                    if (sx.is_object(iv) && sx.contains(iv, 'f1')) {
+                        iv = _decode_record(iv);
+                    }
+
+                    if (iv != null) {
+                        res.push(iv);
+                    }
+                });
+
+                item_val = res;
+            }
+
+            result[item_key] = item_val;
+        });
+
+        if (result['$sxclsname$']) {
+            var clsname = result['$sxclsname$'];
+            delete result['$sxclsname$'];
+            var cls = sx.caos.schema.get(clsname);
+            result = new cls(result);
+        } else if (result.hasOwnProperty('t')) {
+            result = new sx.caos.xvalue(result['t'], result['p']);
+        }
+
+        return result;
+    };
+
+    for (var i = 0; i < data.length; i++) {
+        var item = _decode_record(data[i]);
+
+        if (sx.len(item) != 1) {
+            _throw('top-level element must contain exactly one attribute');
+        }
+
+        result.push(sx.first(item));
+    }
+
+    return result;
+});

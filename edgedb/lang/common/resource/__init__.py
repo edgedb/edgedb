@@ -95,6 +95,9 @@ class VirtualFile(Resource):
         self.__sx_resource_source__ = source
         self.__sx_resource_public_path__ = public_path
 
+    def __sx_resource_set_source__(self, source):
+        self.__sx_resource_source__ = source
+
     def __sx_resource_get_source__(self):
         src = self.__sx_resource_source__
         if src is None:
