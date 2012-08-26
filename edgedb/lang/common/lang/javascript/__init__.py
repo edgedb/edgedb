@@ -37,6 +37,12 @@ class JavaScriptModule(BaseJavaScriptModule, resource.File):
         resource.File.__init__(self, path, public_path=public_path)
 
 
+class VirtualJavaScriptResource(BaseJavaScriptModule, resource.VirtualFile):
+    def __init__(self, source, name):
+        BaseJavaScriptModule.__init__(self, name)
+        resource.VirtualFile.__init__(self, source, name + '.js')
+
+
 _add_required_resource = JavaScriptModule.add_required_resource
 
 
