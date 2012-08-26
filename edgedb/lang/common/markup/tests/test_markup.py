@@ -61,3 +61,33 @@ class TestUtilsMarkup:
         # the OverflowBarier markup element
         #
         assert len(result) < 220
+
+    def test_utils_markup_overflow_deep(self):
+        obj = a = []
+        for _ in range(200):
+            a.append([])
+            a = a[0]
+
+        result = markup.dumps(obj).replace(' ', '').replace('\n', '')
+
+        # current limit is 100, so 2 chars per list - 200 + some space reserved for
+        # the OverflowBarier markup element
+        #
+        assert len(result) < 220
+
+    def test_utils_markup_overflow_wide(self):
+        obj3 = []
+        for i in range(10):
+            obj2 = []
+            for j in range(10):
+                obj1 = []
+                for k in range(10):
+                    obj = []
+                    for l in range(20):
+                        obj.append(list(1 for _ in range(10)))
+                    obj1.append(obj)
+                obj2.append(obj1)
+            obj3.append(obj2)
+
+        result = markup.dumps(obj3).replace(' ', '').replace('\n', '')
+        assert len(result) < 13000

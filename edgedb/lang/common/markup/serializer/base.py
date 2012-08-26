@@ -23,7 +23,14 @@ from semantix.utils import debug
 #: If we reach it - we'll just stop traversing the objects
 #: tree at that point and yield 'elements.base.OverflowBarier'
 #:
-OVERFLOW_BARIER = 100
+OVERFLOW_BARIER = 100 # XXX Configurable?
+
+
+#: Maximum number of total 'serialize' calls.
+#: If we reach it - we'll just stop traversing the objects
+#: tree at that point and yield 'elements.base.OverflowBarier'
+#:
+RUN_OVERFLOW_BARIER = 5000 # XXX Configurable?
 
 
 __all__ = 'serialize',
@@ -54,6 +61,7 @@ class Context:
         self.memo = set()
         self.keep_alive = []
         self.level = 0
+        self.run_cnt = 0
 
 
 def serialize(obj, *, ctx=None):
@@ -75,8 +83,9 @@ def serialize(obj, *, ctx=None):
         own_ctx = True
 
     ctx.level += 1
+    ctx.run_cnt += 1
     try:
-        if ctx.level >= OVERFLOW_BARIER:
+        if ctx.level >= OVERFLOW_BARIER or ctx.run_cnt >= RUN_OVERFLOW_BARIER:
             return elements.base.OverflowBarier()
 
         ref_detect = True
