@@ -473,6 +473,21 @@ this.sx = (function() {
                 }
 
                 return str.lastIndexOf(sub) === str.length - sublen;
+            },
+
+            rpartition: function sx_rpartition(str, separator) {
+                if (!separator) {
+                    throw new sx.Error('empty separator');
+                }
+
+                var seplen = separator.length;
+                var lastpos = str.lastIndexOf(separator);
+
+                if (lastpos != -1) {
+                    return [str.substr(0, lastpos), separator, str.substr(lastpos + seplen)];
+                } else {
+                    return ['', '', str];
+                }
             }
         },
 

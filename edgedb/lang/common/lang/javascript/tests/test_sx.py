@@ -372,4 +372,17 @@ class TestJSsx(JSFunctionalTest):
         assert.ok(sx.str.startswith('', ''));
         assert.not(sx.str.startswith('abc', 'b'));
         assert.not(sx.str.startswith('', 'b'));
+
+        assert.equal(sx.str.rpartition('this is the rpartition method', 'ti'),
+                     ['this is the rparti', 'ti', 'on method']);
+        var s = 'http://www.sprymix.com';
+        assert.equal(sx.str.rpartition(s, '://'), ['http', '://', 'www.sprymix.com']);
+        assert.equal(sx.str.rpartition(s, '?'), ['', '', 'http://www.sprymix.com']);
+        assert.equal(sx.str.rpartition(s, 'http://'), ['', 'http://', 'www.sprymix.com']);
+        assert.equal(sx.str.rpartition(s, 'com'), ['http://www.sprymix.', 'com', '']);
+
+        assert.raises(function() {
+            sx.str.rpartition(s, '');
+        }, {error: sx.Error,
+            error_re: 'empty separator'});
         '''
