@@ -108,6 +108,8 @@ class Loader(loader.SourceFileLoader):
     _import_detect_hooks = {}
     _module_hooks = {}
 
+    _module_hooks_cache = {}
+
     @classmethod
     def _recalc_magic(cls):
         # Calculate new magic value, which is a crc32 hash of a special string,
@@ -143,6 +145,25 @@ class Loader(loader.SourceFileLoader):
 
         cls._import_detect_hooks[hook_name] = hook
         cls._recalc_magic()
+
+    @classmethod
+    def run_hooks(cls, mod):
+        deps = []
+        for hook in cls._module_hooks.values():
+            key = '{}.{}_{}'.format(hook.__class__.__module__, hook.__class__.__name__,
+                                    mod.__name__)
+
+            try:
+                processed = cls._module_hooks_cache[key]
+            except KeyError:
+                processed = hook(mod)
+                if processed:
+                    cls._module_hooks_cache[key] = processed
+
+            if processed:
+                deps.extend(processed)
+
+        return deps
 
     def __init__(self, fullname, filename, language):
         super().__init__(fullname, filename)
@@ -232,11 +253,10 @@ class Loader(loader.SourceFileLoader):
                 # Python module?  YAML module?  Let's try to get some
                 # Resources out of it, if any module hooks registered.
                 #
-                for hook in self._module_hooks.values():
-                    processed = hook(mod)
-                    if processed:
-                        for dep in processed:
-                            deps.append((dep, weak))
+                hook_processed = self.run_hooks(mod)
+                for dep in hook_processed:
+                    deps.append((dep, weak))
+
         return deps
 
     def load_module(self, fullname):
