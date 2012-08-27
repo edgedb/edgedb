@@ -21,7 +21,7 @@ class TestUtilsMarkup:
         except Exception as ex:
             exc = ex
 
-        return markup.serialize(exc)
+        return markup.serialize(exc, ctx=markup.Context())
 
     def test_utils_markup_renderers_dhtml(self):
         from semantix.utils.markup.renderers import dhtml

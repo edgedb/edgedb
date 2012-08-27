@@ -64,7 +64,7 @@ class Context:
         self.run_cnt = 0
 
 
-def serialize(obj, *, ctx=None):
+def serialize(obj, *, ctx):
     """Serialize arbitrary python object to Markup elements"""
 
     try:
@@ -73,14 +73,6 @@ def serialize(obj, *, ctx=None):
         sr = serializer.get_handler(type=type(obj))
     except LookupError:
         raise LookupError('unable to find serializer for object {!r}'.format(obj))
-
-    own_ctx = False
-    if ctx is None:
-        # No context?  Perhaps, this is a top-level call to ``serialize``.
-        # Initialize empty context.
-        #
-        ctx = Context()
-        own_ctx = True
 
     ctx.level += 1
     ctx.run_cnt += 1
@@ -116,9 +108,6 @@ def serialize(obj, *, ctx=None):
                                                                        ex.__class__.__name__))
     finally:
         ctx.level -= 1
-
-        if own_ctx:
-            ctx.memo = ctx.keep_alive = None
 
 
 @no_ref_detect

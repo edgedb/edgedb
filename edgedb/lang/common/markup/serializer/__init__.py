@@ -6,6 +6,6 @@
 ##
 
 
-from .base import serialize, serializer, serialize_traceback_point
+from .base import serialize, serializer, serialize_traceback_point, Context
 from .code import serialize_code
 from . import logging, ast
