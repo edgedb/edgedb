@@ -44,8 +44,9 @@
             len = seqs.length;
             nonemptyseqs = [];
             for (i = 0; i < len; ++i) {
-                if (seqs[i].length) {
-                    nonemptyseqs.push(seqs[i]);
+                s = seqs[i];
+                if (s.length) {
+                    nonemptyseqs.push(s);
                 }
             }
 
@@ -139,7 +140,7 @@
         var mro, mro_len, i, pos, base, func, cls;
 
         args = args || [];
-        if (!hop.call(arguments, 'length') || arguments.length > 4) {
+        if (arguments.length > 4) {
             throw new Error('invalid `sx.parent` call, should receive arguments as array');
         }
 
@@ -179,17 +180,16 @@
         throw new Error("can't find '" + method + "' parent method for '" + cls + "'");
     };
 
-    function make_universal_constructor(initializer) {
+    function make_universal_constructor() {
         // For compatibility with IE prior 9 version, we create a '_class' variable explicitly
         var _class = function _class() {
-            var args, base, pos, mro, mro_len, i,  ths = null, func;
+            var args, base, pos, mro, mro_len, i, ths = null, func;
 
             if (this instanceof _class) {
                 args = (arguments.length && hop.call(arguments[0], '$sx_args'))
                                                                 ? arguments[0] : arguments;
 
                 mro = _class.$mro;
-                mro_len = mro.length;
                 for (i = 0; base = mro[i]; ++i) {
                     if (hop.call(base, 'construct')) {
                         func = base.construct;
@@ -200,7 +200,7 @@
                         try {
                             ths = func.apply(_class, args);
                         } finally {
-                            if (instances[instances.length-1] === this) {
+                            if (instances[instances.length - 1] === this) {
                                 instances.pop();
                             }
                         }
@@ -212,22 +212,16 @@
                     throw new Error(_class + ': could not create an instance');
                 }
 
-                if (initializer == null) {
-                    mro_len--;
-                    for (i = 0; i < mro_len; ++i) { // skip self, hence 'i' from 1
-                        base = mro[i].prototype;
+                for (i = 0, mro_len = mro.length - 1; i < mro_len; ++i) {
+                    base = mro[i].prototype;
 
-                        if (hop.call(base, 'construct')) {
-                            base.construct.apply(ths, args);
-                            return ths;
-                        }
+                    if (hop.call(base, 'construct')) {
+                        base.construct.apply(ths, args);
+                        break;
                     }
-
-                    return ths;
-                } else {
-                    initializer.apply(ths, args);
-                    return ths;
                 }
+
+                return ths;
             } else {
                 arguments.$sx_args = 1;
                 return new _class(arguments);
@@ -236,13 +230,22 @@
         return _class;
     };
 
-    function boundmethod(func, scope) {
-        var bound = function() {
-            return func.apply(scope, arguments);
+    var boundmethod;
+    if (Function.prototype.bind) {
+        boundmethod = function(func, scope) {
+            var bound = func.bind(scope);
+            bound.$wrapped = func;
+            return bound;
         };
-        bound.$wrapped = func;
-        return bound;
-    };
+    } else {
+        boundmethod = function(func, scope) {
+            var bound = function() {
+                return func.apply(scope, arguments);
+            };
+            bound.$wrapped = func;
+            return bound;
+        };
+    }
 
     function is_method(obj) {
         return (typeof obj == 'function') && !hop.call(obj, '$mro')
@@ -273,7 +276,7 @@
             static_attrs_cache = {}, static_attrs = [],
             statics, static_name, own = [], parent_own, parent_mro;
 
-        cls = make_universal_constructor(hop.call(dct, 'construct') ? dct.construct : null);
+        cls = make_universal_constructor();
 
         cls.toString = function() { return '<' + name + '>'; };
 
@@ -381,7 +384,7 @@
         return cls;
     };
 
-    var sx_Type = sx.Type = make_universal_constructor(null);
+    var sx_Type = sx.Type = make_universal_constructor();
     sx.Type.construct = new_class;
     new_class.$cls = sx.Type;
     new_class.$name = 'construct';
@@ -389,7 +392,7 @@
     sx.Type.$own = false;
 
     var object_constructor = function() {};
-    var sx_Object = sx.Object = make_universal_constructor(null);
+    var sx_Object = sx.Object = make_universal_constructor();
     object_constructor.$name = 'construct';
     object_constructor.$cls = 'sx.Object';
     sx.Object.prototype = {
