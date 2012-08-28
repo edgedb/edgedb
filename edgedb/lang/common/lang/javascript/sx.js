@@ -396,33 +396,41 @@ this.sx = (function() {
                             (typeof obj));
         },
 
-        partial: function(func, scope/*, arg0, arg2, ...*/) {
-            var args = null;
-
-            if (arguments.length > 2) {
-                args = Array.prototype.slice.call(arguments, 2);
-            }
-
-            if (scope === undefined) {
-                scope = global;
-            }
-
-            if (args && args.length) {
-                return (function(func, scope, args) {
-                    return function() {
-                        var args_copy = Array.prototype.slice.call(args);
-                        args_copy.push.apply(args_copy, arguments);
-                        return func.apply(scope, args_copy);
-                    };
-                })(func, scope, args);
+        partial: (function() {
+            if (Function.prototype.bind) {
+                var func = Function.prototype.call.bind(Function.prototype.bind);
+                func.displayName = 'sx_partial';
+                return func;
             } else {
-                return (function(func, scope) {
-                    return function() {
-                        return func.apply(scope, arguments);
-                    };
-                })(func, scope);
+                return function sx_partial(func, scope/*, arg0, arg2, ...*/) {
+                    var args = null;
+
+                    if (arguments.length > 2) {
+                        args = Array.prototype.slice.call(arguments, 2);
+                    }
+
+                    if (scope === undefined) {
+                        scope = global;
+                    }
+
+                    if (args && args.length) {
+                        return (function(func, scope, args) {
+                            return function() {
+                                var args_copy = Array.prototype.slice.call(args);
+                                args_copy.push.apply(args_copy, arguments);
+                                return func.apply(scope, args_copy);
+                            };
+                        })(func, scope, args);
+                    } else {
+                        return (function(func, scope) {
+                            return function() {
+                                return func.apply(scope, arguments);
+                            };
+                        })(func, scope);
+                    }
+                };
             }
-        },
+        })(),
 
         escape: function(str) {
             return String(str).replace(/\&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');

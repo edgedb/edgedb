@@ -299,6 +299,36 @@ class TestJSsx(JSFunctionalTest):
         assert.ok(sx.id() !== sx.id());
         '''
 
+    def test_utils_lang_js_sx_partial(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import sx
+
+        function foo(a, b, c) {
+            a = a || 1;
+            b = b || 10;
+            c = c || 100;
+            return a + b + c;
+        }
+
+        var p1 = sx.partial(foo, this);
+        assert.equal(p1(), 111);
+        assert.equal(p1(), 111);
+        assert.equal(sx.partial(foo, this, 2)(), 112);
+        assert.equal(sx.partial(foo, this, 2, 20)(), 122);
+        assert.equal(sx.partial(foo, this, 2, 20, 200)(), 222);
+        assert.equal(sx.partial(foo, this, 2, 20, 200, 3000)(), 222);
+
+        var bar = {a: 'spam'};
+
+        function baz(hello) {
+            hello = hello || 'hello, ';
+            return hello + this.a;
+        }
+
+        assert.equal(sx.partial(baz, bar)(), 'hello, spam');
+        assert.equal(sx.partial(baz, bar, 'hi, ')(), 'hi, spam');
+        '''
+
     def test_utils_lang_js_sx_apply(self):
         '''JS
         // %from semantix.utils.lang.javascript import sx
