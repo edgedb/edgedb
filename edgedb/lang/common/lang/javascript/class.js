@@ -182,12 +182,11 @@
 
     function make_universal_constructor() {
         // For compatibility with IE prior 9 version, we create a '_class' variable explicitly
-        var _class = function _class() {
+        var _class = function _class_ctr(arg0 /*, ...*/) {
             var args, base, pos, mro, mro_len, i, ths = null, func;
 
             if (this instanceof _class) {
-                args = (arguments.length && hop.call(arguments[0], '$sx_args'))
-                                                                ? arguments[0] : arguments;
+                args = (arg0 != null && hop.call(arg0, '$sx_args')) ? arg0 : arguments;
 
                 mro = _class.$mro;
                 for (i = 0; base = mro[i]; ++i) {
@@ -256,7 +255,6 @@
         if (!hop.call(attr, '$name')) {
             attr.$name = static_name;
             attr.$cls = cls;
-            attr.displayName = cls.$qualname + '.' + static_name;
         }
 
         if (hop.call(attr, '$wrapped')) {
@@ -289,7 +287,6 @@
             cls.$module = '';
         }
         cls.$qualname = name;
-        name += '.';
 
         cls.$cls = this;
         proto = cls.prototype = {};
@@ -303,7 +300,6 @@
                 if (!hop.call(attr, '$cls') && is_method(attr)) {
                     attr.$cls = cls;
                     attr.$name = i;
-                    attr.displayName = name + i;
                 }
                 proto[i] = attr;
                 own.push(i);
@@ -394,6 +390,7 @@
     new_class.$name = 'construct';
     sx.Type.$statics = false;
     sx.Type.$own = false;
+    sx.Type.$qualname = 'sx.Type';
 
     var object_constructor = function() {};
     var sx_Object = sx.Object = make_universal_constructor();
@@ -419,6 +416,7 @@
     sx.Object.$bases = [sx.Object];
     sx.Object.$name = 'Object';
     sx.Object.$module = 'sx';
+    sx.Object.$qualname = 'sx.Object';
     sx.Object.$mro = [sx.Object];
     sx.Object.$own = false;
     sx.Object.toString = function() { return '<sx.Object>'; };
@@ -458,7 +456,7 @@
 
         bases_len = bases.length;
         if (bases_len == 0) {
-            bases = [sx_Object];
+            bases.push(sx_Object);
         }
 
         metaclass = hop.call(body, 'metaclass') ? body.metaclass : null;

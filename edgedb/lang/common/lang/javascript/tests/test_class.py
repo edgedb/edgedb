@@ -35,6 +35,9 @@ class TestJSClass(JSFunctionalTest):
         assert.equal(Bar.$name, 'Bar');
         assert.equal(Bar.$module, 'test.sub');
         assert.equal(Bar.$qualname, 'test.sub.Bar');
+
+        assert.equal(sx.Type.$qualname, 'sx.Type');
+        assert.equal(sx.Object.$qualname, 'sx.Object');
         '''
 
     def test_utils_lang_js_sx_class_2(self):
@@ -55,10 +58,6 @@ class TestJSClass(JSFunctionalTest):
 
         assert.equal(A.$name, 'A');
         assert.equal(A.$module, '');
-
-        assert.equal(A.prototype.a.displayName, 'A.a');
-        assert.equal(C.prototype.a.displayName, 'A.a');
-        assert.equal(C.prototype.c.displayName, 'C.c');
 
         assert.equal(A.$mro, [A, sx.Object]);
         assert.equal(B.$mro, [B, sx.Object]);
@@ -232,11 +231,6 @@ class TestJSClass(JSFunctionalTest):
         assert.equal(D.cm(), [D, [D, [D, [D, 'A'], 'B'], 'C'], 'D']);
         assert.equal(E.cm(), [E, [E, [E, [E, 'A'], 'B'], 'C'], 'D']);
 
-        assert.equal(A.cm.displayName, 'A.cm');
-        assert.equal(D.cm.displayName, 'D.cm');
-        assert.equal(E.cm.displayName, 'D.cm');
-        assert.equal(E2.cm.displayName, 'D.cm');
-        assert.equal(C.cm.displayName, 'C.cm');
         assert.equal(C.$qualname, 'C');
         '''
 
@@ -775,10 +769,37 @@ class TestJSClass(JSFunctionalTest):
         assert.ok(sx.isinstance(true, Boolean));
         assert.ok(sx.isinstance(false, Boolean));
 
+        assert.not(sx.isinstance(null, String));
+        assert.not(sx.isinstance(null, Object));
+        assert.not(sx.isinstance(void(0), Object));
+
         var a = function(){};
         var b = function(){};
         b.prototype = new a();
         assert.ok(sx.isinstance(new b(), a));
         assert.not(sx.isinstance(b(), a));
         assert.not(sx.isinstance(8, a));
+        '''
+
+    def test_utils_lang_js_sx_class_null_constructor_arg(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import class
+
+        var Foo = sx.define('Foo', [], {
+            construct: function(a) {
+                this.a = a;
+            }
+        });
+
+        var f = Foo(null);
+        assert.ok(f.a === null);
+
+        f = new Foo(null);
+        assert.ok(f.a === null);
+
+        f = new Foo(void(0));
+        assert.ok(typeof f.a === 'undefined');
+
+        f = Foo(void(0));
+        assert.ok(typeof f.a === 'undefined');
         '''
