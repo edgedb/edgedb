@@ -256,6 +256,7 @@
         if (!hop.call(attr, '$name')) {
             attr.$name = static_name;
             attr.$cls = cls;
+            attr.displayName = cls.$qualname + '.' + static_name;
         }
 
         if (hop.call(attr, '$wrapped')) {
@@ -287,6 +288,8 @@
             cls.$name = name;
             cls.$module = '';
         }
+        cls.$qualname = name;
+        name += '.';
 
         cls.$cls = this;
         proto = cls.prototype = {};
@@ -300,6 +303,7 @@
                 if (!hop.call(attr, '$cls') && is_method(attr)) {
                     attr.$cls = cls;
                     attr.$name = i;
+                    attr.displayName = name + i;
                 }
                 proto[i] = attr;
                 own.push(i);

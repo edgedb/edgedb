@@ -30,9 +30,11 @@ class TestJSClass(JSFunctionalTest):
 
         assert.equal(Foo.$name, 'Foo');
         assert.equal(Foo.$module, 'test');
+        assert.equal(Foo.$qualname, 'test.Foo');
 
         assert.equal(Bar.$name, 'Bar');
         assert.equal(Bar.$module, 'test.sub');
+        assert.equal(Bar.$qualname, 'test.sub.Bar');
         '''
 
     def test_utils_lang_js_sx_class_2(self):
@@ -53,6 +55,10 @@ class TestJSClass(JSFunctionalTest):
 
         assert.equal(A.$name, 'A');
         assert.equal(A.$module, '');
+
+        assert.equal(A.prototype.a.displayName, 'A.a');
+        assert.equal(C.prototype.a.displayName, 'A.a');
+        assert.equal(C.prototype.c.displayName, 'C.c');
 
         assert.equal(A.$mro, [A, sx.Object]);
         assert.equal(B.$mro, [B, sx.Object]);
@@ -225,6 +231,13 @@ class TestJSClass(JSFunctionalTest):
         assert.equal(B.cm(), [B, [B, 'A'], 'B']);
         assert.equal(D.cm(), [D, [D, [D, [D, 'A'], 'B'], 'C'], 'D']);
         assert.equal(E.cm(), [E, [E, [E, [E, 'A'], 'B'], 'C'], 'D']);
+
+        assert.equal(A.cm.displayName, 'A.cm');
+        assert.equal(D.cm.displayName, 'D.cm');
+        assert.equal(E.cm.displayName, 'D.cm');
+        assert.equal(E2.cm.displayName, 'D.cm');
+        assert.equal(C.cm.displayName, 'C.cm');
+        assert.equal(C.$qualname, 'C');
         '''
 
     def test_utils_lang_js_sx_class_call_parent_2(self):
