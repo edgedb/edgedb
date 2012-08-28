@@ -755,7 +755,7 @@ class TestJSClass(JSFunctionalTest):
 
         assert.ok(sx.isinstance([], Array));
         assert.ok(sx.isinstance(new String('spam'), String));
-        assert.ok(sx.isinstance(new Number(10), Number));
+        assert.ok(sx.isinstance(new Number(10), [Number, String]));
         assert.ok(sx.isinstance('spam', String));
         assert.ok(sx.isinstance(10, Number));
         assert.ok(sx.isinstance(10, Object));

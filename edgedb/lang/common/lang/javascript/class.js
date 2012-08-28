@@ -573,7 +573,7 @@
         if (!hop.call(inst, '$cls')) {
             if (tos.call(clss) == '[object Array]') {
                 for (i = 0, len = clss.length; i < len; i++) {
-                    if (_instanceof(inst, clss)) {
+                    if (_instanceof(inst, clss[i])) {
                         return true;
                     }
                 }
