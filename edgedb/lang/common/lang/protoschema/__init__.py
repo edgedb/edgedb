@@ -652,6 +652,20 @@ class ProtoSchema:
 
         errmsg = 'reference to a non-existent schema prototype: {}'.format(name)
 
+        if module is None:
+            if implicit_builtins:
+                proto_module = self.modules[self.get_builtins_module()]
+                result = proto_module.get(nqname, default=None, type=type,
+                                          index_only=index_only,
+                                          nsname=nsname)
+                if result is not None:
+                    return result
+
+            if default_raise:
+                raise default(errmsg)
+            else:
+                return default
+
         proto_module = None
 
         try:

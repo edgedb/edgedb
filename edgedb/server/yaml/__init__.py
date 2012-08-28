@@ -1902,7 +1902,6 @@ class Backend(backends.MetaBackend):
         modhash = persistent_hash(module_name)
 
         self._schema = lang_protoschema.get_loaded_proto_schema(self.metadata.__class__)
-        self._schema.set_module_alias(self._schema.get_builtins_module(), None)
 
         repo = deltarepo(module=module_name, id=modhash)
         super().__init__(repo)
