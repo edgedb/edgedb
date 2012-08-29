@@ -2670,14 +2670,14 @@ class PathResolver(TreeTransformer):
             sources = []
             for a in args[0]:
                 sources.extend(self._convert_to_entity_path(a))
-            result = [('getattr', sources, args[1])]
+            result = [('follow', sources, args[1], caos_types.OutboundDirection)]
 
         elif cmd == 'step':
             sources = []
             for a in args[0]:
                 sources.extend(self._convert_to_entity_path(a))
 
-            result = [('follow', sources, args[2], args[3])]
+            result = [('follow', sources, args[2], args[3], args[1][0][1])]
 
         elif cmd == 'getcls':
             result = [('this',)]

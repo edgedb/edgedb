@@ -99,7 +99,16 @@ sx.caos.register_format('pgjson.', function(format, data, metadata) {
                     item_val = res;
                 }
 
-                result[item_key] = item_val;
+                if (sx.is_object(item_key)) {
+                    // key is a PointerVector
+                    if (item_key.direction == '<') {
+                        result[item_key.name + item_key.direction + item_key.target] = item_val;
+                    } else {
+                        result[item_key.name] = item_val;
+                    }
+                } else {
+                    result[item_key] = item_val;
+                }
             }
         }
 
