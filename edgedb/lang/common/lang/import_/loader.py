@@ -96,7 +96,6 @@ class LoaderCommon:
         else:
             _module = module_class(module.__name__)
             _module.__dict__.update(module.__dict__)
-            del _module.__sx_moduleclass__
             module = _module
 
         try:
