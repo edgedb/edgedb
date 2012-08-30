@@ -2541,10 +2541,11 @@ class PathResolver(TreeTransformer):
         if isinstance(path, caos_ast.Disjunction):
             result = []
 
-            for path in path.paths:
-                result.extend(self._serialize_path(path))
+            for p in path.paths:
+                result.extend(self._serialize_path(p))
 
-            result = [('set',) + tuple(result)]
+            if len(path.paths) > 1:
+                result = [('set',) + tuple(result)]
 
         elif isinstance(path, caos_ast.AtomicRefSimple):
             source = self._serialize_path(path.ref)
@@ -2555,8 +2556,12 @@ class PathResolver(TreeTransformer):
             result = [('getattr', source, path.ptr_proto.normal_name())]
 
         elif isinstance(path, caos_ast.LinkPropRefSimple):
-            source = self._serialize_path(path.ref)
-            result = [('getattr', source, path.name)]
+            if path.name == 'semantix.caos.builtins.target':
+                source = self._serialize_path(path.ref.source)
+                result = [('getattr', source, path.ref.link_proto.normal_name())]
+            else:
+                source = self._serialize_path(path.ref)
+                result = [('getattr', source, path.name)]
 
         elif isinstance(path, caos_ast.EntitySet):
             target = [('getcls', path.concept.name)]
@@ -2638,6 +2643,50 @@ class PathResolver(TreeTransformer):
             for a in args[0]:
                 sources.extend(self._exec_cmd(a, class_factory))
             result = [expr.as_link() for expr in sources]
+
+        else:
+            raise TreeError('unexpected path resolver command: "{}"'.format(cmd))
+
+        return result
+
+    def convert_to_entity_path(self, script):
+        result = []
+
+        for cmd in script:
+            result.extend(self._convert_to_entity_path(cmd))
+
+        return result
+
+    def _convert_to_entity_path(self, cmd):
+        cmd, *args = cmd
+
+        if cmd == 'set':
+            result = []
+
+            for a in args:
+                result.extend(self._convert_to_entity_path(a))
+
+        elif cmd == 'getattr':
+            sources = []
+            for a in args[0]:
+                sources.extend(self._convert_to_entity_path(a))
+            result = [('getattr', sources, args[1])]
+
+        elif cmd == 'step':
+            sources = []
+            for a in args[0]:
+                sources.extend(self._convert_to_entity_path(a))
+
+            result = [('follow', sources, args[2], args[3])]
+
+        elif cmd == 'getcls':
+            result = [('this',)]
+
+        elif cmd == 'as_link':
+            sources = []
+            for a in args[0]:
+                sources.extend(self._convert_to_entity_path(a))
+            result = [('as_link', sources)]
 
         else:
             raise TreeError('unexpected path resolver command: "{}"'.format(cmd))
