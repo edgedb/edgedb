@@ -41,7 +41,7 @@ def clean_sys_modules(func):
     return wrapper
 
 
-_deps = operator.attrgetter('__sx_resource_deps__')
+_deps = lambda res: list(res.__sx_resource_deps__.items())
 
 
 class TestUtilsLangJSImport:

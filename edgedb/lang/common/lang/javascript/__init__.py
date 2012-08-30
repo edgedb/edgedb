@@ -17,7 +17,7 @@ import sys
 import zlib
 
 from semantix.utils.datastructures import OrderedSet
-from semantix.utils import resource
+from semantix.utils import resource, abc
 from semantix.utils.lang import meta as lang_meta
 from semantix.utils.lang.import_ import module, loader, utils as imp_utils
 
@@ -43,7 +43,20 @@ class VirtualJavaScriptResource(BaseJavaScriptModule, resource.VirtualFile):
         resource.VirtualFile.__init__(self, source, name + '.js')
 
 
-_add_required_resource = JavaScriptModule.add_required_resource
+class BaseModuleHook(metaclass=abc.AbstractMeta):
+    pass
+
+
+class ModuleHook(BaseModuleHook):
+    @abc.abstractmethod
+    def __call__(self, module, resource):
+        pass
+
+
+class ModuleAttributeHook(BaseModuleHook):
+    @abc.abstractmethod
+    def __call__(self, module, resource, name, obj):
+        pass
 
 
 ParsedImport = collections.namedtuple('ParsedImport', 'name, frm, weak')
@@ -108,7 +121,8 @@ class Loader(loader.SourceFileLoader):
     _import_detect_hooks = {}
     _module_hooks = {}
 
-    _module_hooks_cache = {}
+    _module_hooks_cache = set()
+    _module_cache = {}
 
     @classmethod
     def _recalc_magic(cls):
@@ -124,7 +138,11 @@ class Loader(loader.SourceFileLoader):
 
     @classmethod
     def add_module_hook(cls, hook):
-        hook_name = '{}.{}'.format(hook.__class__.__module__, hook.__class__.__name__)
+        if not isinstance(hook, (ModuleHook, ModuleAttributeHook)):
+            raise TypeError('invalid javascript loader hook, instance of ModuleHook '
+                            'or ModuleAttributeHook expected: {}'.format(hook))
+
+        hook_name = cls._get_hook_key(hook)
 
         if hook_name in cls._module_hooks:
             # Already registered
@@ -136,7 +154,7 @@ class Loader(loader.SourceFileLoader):
 
     @classmethod
     def add_import_detect_hook(cls, hook):
-        hook_name = '{}.{}'.format(hook.__class__.__module__, hook.__class__.__name__)
+        hook_name = cls._get_hook_key(hook)
 
         if hook_name in cls._import_detect_hooks:
             # Already registered
@@ -147,23 +165,46 @@ class Loader(loader.SourceFileLoader):
         cls._recalc_magic()
 
     @classmethod
-    def run_hooks(cls, mod):
-        deps = []
-        for hook in cls._module_hooks.values():
-            key = '{}.{}_{}'.format(hook.__class__.__module__, hook.__class__.__name__,
-                                    mod.__name__)
+    def _get_hook_key(cls, hook):
+        return '{}.{}'.format(hook.__class__.__module__, hook.__class__.__name__)
 
-            try:
-                processed = cls._module_hooks_cache[key]
-            except KeyError:
-                processed = hook(mod)
-                if processed:
-                    cls._module_hooks_cache[key] = processed
+    @classmethod
+    def run_hooks(cls, mod, parent_resource=None, parent_weak=False):
+        module_key = mod.__name__
 
-            if processed:
-                deps.extend(processed)
+        try:
+            res = cls._module_cache[module_key]
+        except KeyError:
+            res = cls._module_cache[module_key] = VirtualJavaScriptResource(None, mod.__name__)
 
-        return deps
+            if hasattr(mod, '__sx_moduleclass__'):
+                for hook in cls._module_hooks.values():
+                    if isinstance(hook, ModuleHook):
+                        key = cls._get_hook_key(hook) + module_key
+                        if key not in cls._module_hooks_cache:
+                            cls._module_hooks_cache.add(key)
+                            source = hook(mod, res)
+                            if source:
+                                res.__sx_resource_source__ += source
+            else:
+                for attr_name in dir(mod):
+                    attr = getattr(mod, attr_name)
+                    for hook in cls._module_hooks.values():
+                        if isinstance(hook, ModuleAttributeHook):
+                            key = cls._get_hook_key(hook) + module_key + attr_name
+                            if key not in cls._module_hooks_cache:
+                                cls._module_hooks_cache.add(key)
+                                source = hook(mod, res, attr_name, attr)
+                                if source:
+                                    res.__sx_resource_source__ += source
+
+        if not res.__sx_resource_source__:
+            return
+
+        if parent_resource is not None:
+            parent_resource.__sx_add_required_resource__(res, parent_weak)
+
+        return res
 
     def __init__(self, fullname, filename, language):
         super().__init__(fullname, filename)
@@ -235,8 +276,7 @@ class Loader(loader.SourceFileLoader):
 
         return tuple(imports)
 
-    def _process_imports(self, imports):
-        deps = []
+    def _process_imports(self, imports, parent=None):
         for imp_name, weak in imports:
             try:
                 mod = sys.modules[imp_name]
@@ -248,16 +288,12 @@ class Loader(loader.SourceFileLoader):
             if isinstance(mod, resource.Resource):
                 # We're interested in tracking only resources
                 #
-                deps.append((mod, weak))
+                parent.__sx_add_required_resource__(mod, weak)
             elif self._module_hooks:
                 # Python module?  YAML module?  Let's try to get some
                 # Resources out of it, if any module hooks registered.
                 #
-                hook_processed = self.run_hooks(mod)
-                for dep in hook_processed:
-                    deps.append((dep, weak))
-
-        return deps
+                self.run_hooks(mod, parent, weak)
 
     def load_module(self, fullname):
         if fullname in sys.modules:
@@ -283,11 +319,8 @@ class Loader(loader.SourceFileLoader):
         sys.modules[module.__name__] = module
 
         imports = self.get_code(module)
-
         if imports:
-            deps = self._process_imports(imports)
-        else:
-            deps = []
+            self._process_imports(imports, module)
 
         if '.' in module.__name__:
             # Link parent package
@@ -297,13 +330,6 @@ class Loader(loader.SourceFileLoader):
 
             if isinstance(parent, resource.Resource):
                 module.__sx_resource_parent__ = parent
-
-        # Here, in 'deps' list we have all immediate modules that our module
-        # depends on.  Store them in a special attribute to be able to build
-        # modules index later.
-        #
-        for dep, weak in deps:
-            _add_required_resource(module, dep, weak=weak)
 
         module.__loaded__ = True
 

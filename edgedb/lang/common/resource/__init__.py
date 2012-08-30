@@ -13,6 +13,7 @@ such as defining them, managing, publishing etc.
 
 import os
 import shutil
+import collections
 
 from semantix.exceptions import SemantixError
 from semantix.utils import config
@@ -33,11 +34,10 @@ class Resource:
     some code, some image of video file etc."""
 
     def __init__(self):
-        self.__sx_resource_deps__ = []
+        self.__sx_resource_deps__ = collections.OrderedDict()
         self.__sx_resource_parent__ = None
 
-    @classmethod
-    def add_required_resource(cls, resource, dependency, weak=False):
+    def __sx_add_required_resource__(self, dependency, weak=False):
         """Make ``resource`` dependent on ``dependency``.  ``weak`` means that the
         ``dependency`` must be loaded with ``resource`` but the loading order is
         not important.
@@ -50,7 +50,13 @@ class Resource:
         if not isinstance(dependency, Resource):
             raise ResourceError('an instance of Resource expected, got {!r}'.format(dependency))
 
-        resource.__sx_resource_deps__.append((dependency, weak))
+        try:
+            cur = self.__sx_resource_deps__[dependency]
+        except KeyError:
+            self.__sx_resource_deps__[dependency] = weak
+        else:
+            if cur and not weak:
+                self.__sx_resource_deps__[dependency] = False
 
     @classmethod
     def _list_resources(cls, resource):
@@ -64,7 +70,7 @@ class Resource:
             if parent is not None and parent not in visited:
                 _collect_deps(parent, collected, visited, to_import)
 
-            for mod, weak in resource.__sx_resource_deps__:
+            for mod, weak in resource.__sx_resource_deps__.items():
                 if weak:
                     to_import.add(mod)
                 else:
@@ -92,16 +98,18 @@ class VirtualFile(Resource):
     def __init__(self, source, public_path):
         super().__init__()
 
-        self.__sx_resource_source__ = source
+        self.__sx_resource_source__ = source or ''
         self.__sx_resource_public_path__ = public_path
 
     def __sx_resource_set_source__(self, source):
+        assert isinstance(source, str)
         self.__sx_resource_source__ = source
 
     def __sx_resource_get_source__(self):
         src = self.__sx_resource_source__
-        if src is None:
-            raise ResourceError('no source for VirtualFile resource')
+        if not src:
+            raise ResourceError('no source for VirtualFile resource {}'.
+                                format(self.__sx_resource_public_path__))
         return src
 
 

@@ -17,7 +17,8 @@ from semantix.utils import debug, functional, config, markup, resource, json
 import semantix.utils.lang.javascript.parser.jsparser as jsp
 from semantix.utils.lang.javascript.codegen import JavascriptSourceGenerator
 from semantix.utils.lang.javascript import Loader as JSLoader, BaseJavaScriptModule, \
-                                           Language as JSLanguage, JavaScriptModule
+                                           Language as JSLanguage, JavaScriptModule, \
+                                           VirtualJavaScriptResource
 
 
 def jxfail(*args, **kwargs):
@@ -44,7 +45,6 @@ class BaseJSFunctionalTestMeta(type, metaclass=config.ConfigurableMeta):
     # flag to be used for disabling tests
     #
     skipif = False
-
 
     def __new__(mcls, name, bases, dct):
         if mcls.v8_found is None:
@@ -79,19 +79,19 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
         source = mcls.TEST_TPL_START + source + mcls.TEST_TPL_END
 
         # XXX heads up, ugly hacks ahead
-        module = BaseJavaScriptModule('tmp_mod_' + (name or 'test_js'))
+        module = VirtualJavaScriptResource(None, 'tmp_mod_' + (name or 'test_js'))
         module.__file__ = '<tmp>'
 
         loader = JSLoader(module.__name__, '', JSLanguage)
         with debug.debug_logger_off():
             imports = loader.code_from_source(module, source.encode('utf-8'), log=False)
             if imports:
-                deps = loader._process_imports(imports)
+                deps = loader._process_imports(imports, module)
             else:
                 deps = []
 
         all_deps = OrderedSet()
-        for dep, weak in deps:
+        for dep, weak in module.__sx_resource_deps__.items():
             all_deps.update(resource.Resource._list_resources(dep))
 
         imports = []
