@@ -19,7 +19,7 @@ from .signature import signature as _signature
 
 __all__ = ('get_argsspec', 'apply_decorator', 'decorate', 'isdecorated',
            'Decorator', 'BaseDecorator', 'NonDecoratable', 'get_signature',
-           'unwrap', 'hybridmethod', 'cachedproperty', 'in_class')
+           'unwrap', 'hybridmethod', 'cachedproperty', 'in_class', 'get_safe_attrname')
 
 
 class NonDecoratable:
@@ -299,3 +299,10 @@ def apply_decorator(func, *, decorate_function=None, decorate_class=None):
         return top
 
     return func
+
+
+def get_safe_attrname(name, reserved):
+    name = str(name)
+    while name in reserved:
+        name += '_'
+    return name

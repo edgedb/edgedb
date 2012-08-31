@@ -19,10 +19,9 @@ from semantix import SemantixError
 from semantix.utils import lang
 from semantix.utils.datastructures import OrderedSet, ExtendedSet
 from semantix.utils import abc
-from semantix.utils.functional import hybridmethod
+from semantix.utils.functional import hybridmethod, get_safe_attrname
 from semantix.utils.datastructures.struct import MixedStruct, MixedStructMeta, Field
 from semantix.utils.datastructures import Void
-from semantix.utils import helper
 
 from .error import SchemaError, NoPrototypeError
 from .name import SchemaName
@@ -248,7 +247,7 @@ class Namespace:
 
     def prefix_name(self, name, reserved_names=None):
         if reserved_names is not None:
-            name = helper.get_safe_attrname(name, reserved_names)
+            name = get_safe_attrname(name, reserved_names)
 
         if self.name:
             return '_ns_{}_{}_{}'.format(len(self.name), self.name, name)

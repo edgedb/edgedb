@@ -7,6 +7,7 @@
 
 
 import imp
+import importlib
 import sys
 
 from . import module as module_types
@@ -28,3 +29,15 @@ def reload(module):
 
     else:
         return imp.reload(module)
+
+
+class ObjectImportError(Exception):
+    pass
+
+
+def get_object(cls):
+    try:
+        mod, _, name = cls.rpartition('.')
+        return getattr(importlib.import_module(mod), name)
+    except (ImportError, AttributeError) as e:
+        raise ObjectImportError('could not load object %s' % cls) from e

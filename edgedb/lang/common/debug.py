@@ -70,6 +70,10 @@ def _set_location(node, lineno):
     return node
 
 
+def _dump_header(title):
+    return '\n' + '=' * 80 + '\n' + title + '\n' + '=' * 80 + '\n'
+
+
 class debug:
     enabled = bootstrap.debug_enabled
     active = False
@@ -113,13 +117,13 @@ class debug:
                             # We want to use the first.
                             lineno = node.lineno - len(comment) + 1
 
-                            text = 'import semantix.utils.debug, semantix.utils.helper, os as _os_\n' \
+                            text = 'import semantix.utils.debug, os as _os_\n' \
                                    'if semantix.utils.debug.channels & %r:\n' \
                                    '    pass\n' % tags
 
                             if title:
                                 if type == 'LOG':
-                                    text += '    print(semantix.utils.helper.dump_header(%r))\n' % title
+                                    text += '    print(semantix.utils.debug._dump_header(%r))\n' % title
                                 else:
                                     text += '    print(_os_.getpid(), %r, %s)' % (title, ', '.join(comment[1:]))
 

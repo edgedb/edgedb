@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils import helper
+from semantix.utils.lang.import_ import get_object
 
 from . import types, error
 
@@ -88,7 +88,7 @@ class Schema(object):
         if imported:
             head = imported.__name__
 
-        schema = helper.get_object(head + '.' + tail)
+        schema = get_object(head + '.' + tail)
 
         return schema
 

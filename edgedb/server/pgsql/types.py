@@ -8,8 +8,7 @@
 
 from semantix import caos
 from semantix.caos import proto
-
-from semantix.utils import helper
+from semantix.utils.lang.import_ import get_object
 
 from . import common
 
@@ -76,7 +75,7 @@ def get_atom_base_and_constraints(meta, atom, own_only=True):
         # Base is a Python type, must correspond to PostgreSQL type
         base = base_type_name_map.get(atom.name)
         if not base:
-            base_class = helper.get_object(str(atom.base))
+            base_class = get_object(str(atom.base))
             base_type = getattr(base_class, 'adapts', None)
             assert base_type, '"%s" is not in builtins and does not define "adapts" attribute' \
                               % atom.base

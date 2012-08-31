@@ -13,11 +13,43 @@ from semantix.utils.debug import highlight
 from semantix.utils import markup
 
 
+def format_code_context(lines, lineno, window_size=4, colorize=False):
+    lines = list(lines)
+
+    result = []
+
+    start = max(1, lineno - window_size)
+    end = min(len(lines), lineno + window_size + 1)
+
+    for j in range(start, end):
+        line = lines[j - 1]
+
+        if j == lineno:
+            line = ' > ' + line
+        else:
+            line = ' | ' + line
+
+        line = '{0:6}'.format(j) + line
+
+        if colorize and j == lineno:
+            line = xvalue(line, fg='red')
+
+        result.append(line)
+
+    return result
+
+
+def dump_code_context(filename, lineno, dump_range=4):
+    with open(filename, 'r') as file:
+        lines = format_code_context(file, lineno, dump_range)
+        source_snippet = ''.join(lines)
+    return source_snippet
+
+
 class ShellInvoker:
     def pytest_runtest_makereport(self, item, call):
         if call.excinfo:
             import code, traceback
-            from semantix.utils import helper
 
             tb = call.excinfo._excinfo[2]
             while tb.tb_next:
@@ -35,8 +67,8 @@ class ShellInvoker:
             message += ''.join(traceback.format_stack(frame))
 
             try:
-                code_ctx = helper.dump_code_context(frame.f_code.co_filename,
-                                                    tb.tb_lineno, dump_range=6)
+                code_ctx = dump_code_context(frame.f_code.co_filename,
+                                             tb.tb_lineno, dump_range=6)
 
                 message += '\n\nCode Context (%s:%d):\n' % (frame.f_code.co_filename, tb.tb_lineno)
                 message += code_ctx

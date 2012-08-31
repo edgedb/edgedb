@@ -19,7 +19,8 @@ import postgresql.copyman
 from postgresql.types.io import lib as pg_io_lib
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
-from semantix.utils import ast, helper
+from semantix.utils import ast
+from semantix.utils.lang.import_ import get_object
 from semantix.utils.algos import topological, persistent_hash
 from semantix.utils.debug import debug
 from semantix.utils.lang import yaml
@@ -637,7 +638,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def init_features(self, connection):
         for feature_class_name in self.features.values():
-            feature_class = helper.get_object(feature_class_name)
+            feature_class = get_object(feature_class_name)
             feature_class.init_feature(connection)
 
 
@@ -1746,7 +1747,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if row['constraints']:
                 constraints = []
                 for cls, val in row['constraints'].items():
-                    constraints.append(helper.get_object(cls)(next(iter(yaml.Language.load(val)))))
+                    constraints.append(get_object(cls)(next(iter(yaml.Language.load(val)))))
 
                 constraints = atom.normalize_constraints(meta, constraints)
                 for constraint in constraints:
@@ -2579,7 +2580,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     raise caos.MetaError('could not parse domain constraint "%s": %s' %
                                          (constr_name, constr_expr))
 
-                constr_type = helper.get_object(constr_type)
+                constr_type = get_object(constr_type)
                 constr_data = self._constr_mech.interpret_atom_constraint(constr_type, constr_expr,
                                                                           constr_name)
                 constraints.append(constr_type(constr_data))

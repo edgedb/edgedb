@@ -12,7 +12,8 @@ import os
 import imp
 
 from semantix.utils.functional import contextlib as sx_contextlib, get_signature
-from semantix.utils import shell, helper
+from semantix.utils import shell
+from semantix.utils.lang.import_ import get_object
 
 
 class RunCommand(shell.Command, name='run', expose=True):
@@ -50,7 +51,7 @@ class RunCommand(shell.Command, name='run', expose=True):
         if args.configs:
             contexts = []
             for config_name in args.configs:
-                contexts.append(helper.get_object(config_name))
+                contexts.append(get_object(config_name))
         else:
             @contextlib.contextmanager
             def dummy_context():

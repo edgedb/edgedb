@@ -15,7 +15,7 @@ from semantix.utils.functional.dispatch import TypeDispatcher
 from .. import elements
 
 from semantix import exceptions
-from semantix.utils.helper import xrepr
+from semantix.utils.markup.format import xrepr
 from semantix.utils import debug
 
 

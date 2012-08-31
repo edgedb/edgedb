@@ -12,9 +12,9 @@ import re
 from semantix import caos
 from semantix.caos import proto
 from semantix.utils import datastructures
-from semantix.utils import helper
 from semantix.utils import markup
 from semantix.utils.lang import yaml
+from semantix.utils.lang.import_ import get_object
 
 from .datasources import introspection
 from . import astexpr
@@ -112,7 +112,7 @@ class ConstraintMech:
             raise caos.MetaError('could not interpret table constraint %s' % name)
 
         link_name = m.group('link_name')
-        constraint_class = helper.get_object(m.group('constraint_class'))
+        constraint_class = get_object(m.group('constraint_class'))
         constraint_data = self.interpret_atom_constraint(constraint_class, expr, name)
 
         return link_name, constraint_class(constraint_data)
@@ -150,7 +150,7 @@ class ConstraintMech:
         except ValueError:
             raise caos.MetaError('could not interpret table constraint %s' % name)
 
-        constraint_class = helper.get_object(constraint_class_name)
+        constraint_class = get_object(constraint_class_name)
 
         if issubclass(constraint_class, proto.PointerConstraintUnique):
             col_name = common.caos_name_to_pg_name(link_name)
@@ -196,7 +196,7 @@ class ConstraintMech:
         result = []
         if constraints:
             for cls, val in constraints.items():
-                constraint = helper.get_object(cls)(next(iter(yaml.Language.load(val))))
+                constraint = get_object(cls)(next(iter(yaml.Language.load(val))))
                 result.append(constraint)
         return result
 

@@ -7,6 +7,7 @@
 
 
 from semantix.utils import markup
+from semantix.utils.markup.format import xrepr
 
 
 class TestUtilsMarkup:
@@ -91,3 +92,20 @@ class TestUtilsMarkup:
 
         result = markup.dumps(obj3).replace(' ', '').replace('\n', '')
         assert len(result) < 13000
+
+    def test_utils_markup_format_xrepr(self):
+        a = '1234567890'
+
+        assert xrepr(a) == repr(a)
+
+        assert xrepr(a, max_len=5) == "''..."
+        assert xrepr(a, max_len=7) == "'12'..."
+        assert xrepr(a, max_len=12) == repr(a)
+
+        assert repr(repr) == '<built-in function repr>'
+
+        assert xrepr(repr) == repr(repr)
+        assert xrepr(repr, max_len=10) == '<built>...'
+        assert xrepr(repr, max_len=100) == repr(repr)
+
+        assert len(xrepr(repr, max_len=10)) == 10

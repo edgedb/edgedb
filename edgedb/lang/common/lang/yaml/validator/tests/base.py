@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils import helper
+from semantix.utils.lang.import_ import get_object
 from semantix.utils.lang import context as lang_context
 from semantix.utils.lang.yaml import constructor as yaml_constructor
 from semantix.utils.lang.yaml import loader as yaml_loader
@@ -65,4 +65,4 @@ class SchemaTest(object):
 
     @staticmethod
     def get_schema(clsname):
-        return helper.get_object('semantix.utils.lang.yaml.validator.tests.ymls.' + clsname)()
+        return get_object('semantix.utils.lang.yaml.validator.tests.ymls.' + clsname)()

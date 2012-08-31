@@ -20,7 +20,6 @@ from semantix.utils.algos import boolean
 from semantix.utils import datastructures, ast, debug, markup
 from semantix.utils.datastructures import Void
 from semantix.utils.functional import checktypes
-from semantix.utils import helper
 
 from semantix import exceptions
 

@@ -10,7 +10,7 @@ import sys
 import contextlib
 
 from semantix.utils import term
-from semantix.utils.helper import xrepr
+from semantix.utils.markup.format import xrepr
 
 from .. import elements
 from . import styles as styles_module

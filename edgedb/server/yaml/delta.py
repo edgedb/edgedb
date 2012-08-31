@@ -8,9 +8,10 @@
 
 from semantix import caos
 from semantix.caos import delta, proto
-from semantix.utils import datastructures, helper
+from semantix.utils import datastructures
 from semantix.utils.datastructures import typed
 from semantix.utils.lang import yaml
+from semantix.utils.lang.import_ import get_object
 from semantix.utils.lang.yaml.struct import MixedStructMeta
 
 
@@ -159,7 +160,7 @@ class PrototypeCommand(Command, adapts=delta.PrototypeCommand):
     def __sx_setstate__(self, data):
         prototype_class = data.get('prototype_class')
         if prototype_class:
-            data['prototype_class'] = helper.get_object(prototype_class)
+            data['prototype_class'] = get_object(prototype_class)
 
         properties = data.get('properties')
         if properties:
