@@ -21,6 +21,7 @@ from . import base
 class TestUtilsDaemonPidfile(base.BaseDaemonTestCase):
     def test_utils_daemon_pidfile_basic(self, pid):
         path = pid
+        assert not daemon.PidFile.is_locked(path)
         pid = daemon.PidFile(path)
         assert not pid.locked
         with pid as p:
@@ -32,6 +33,7 @@ class TestUtilsDaemonPidfile(base.BaseDaemonTestCase):
             assert data[0] == os.getpid()
             assert data[1] is None
 
+            assert pid.is_locked(path)
             with assert_raises(daemon.DaemonError, error_re='already acquired'):
                 pid.acquire()
 

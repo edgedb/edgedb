@@ -39,17 +39,11 @@ class PidFile:
             raise DaemonError('pid file is already acquired')
 
         path = self._path
-
         if os.path.exists(path):
-            # If pid file already exists - check if it belongs to a
-            # running process.  If not - it should be safe to remove it.
-            with open(path, 'rt') as f:
-                pid = int(f.readline())
-                if lib.is_process_running(pid):
-                    raise DaemonError('pid file {!r} exists and belongs to a running process'. \
-                                      format(path))
-                else:
-                    os.unlink(path)
+            if self.is_locked(path):
+                raise DaemonError('pid file {!r} exists and belongs to a running process'. \
+                                          format(path))
+            os.unlink(path)
 
         self._file = open(path, 'wt')
 
@@ -87,6 +81,17 @@ class PidFile:
 
     def __exit__(self, exc_type, exc, exc_tb):
         self.release()
+
+    @classmethod
+    def is_locked(cls, path):
+        if os.path.exists(path):
+            # If pid file already exists - check if it belongs to a
+            # running process.  If not - it should be safe to remove it.
+            with open(path, 'rt') as f:
+                pid = int(f.readline())
+                if lib.is_process_running(pid):
+                    return True
+        return False
 
     @classmethod
     def read(cls, path):
