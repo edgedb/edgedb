@@ -162,8 +162,6 @@ def pytest_configure(config):
         config.pluginmanager.register(ShellInvoker(), 'shell')
 
     PyTestPatcher.patch()
-    from semantix.utils.debug import _LoggingDebugHandler
-    _LoggingDebugHandler.install()
 
     patterns = []
     tp = config.getvalue('test_patterns')

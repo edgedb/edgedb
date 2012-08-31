@@ -28,9 +28,6 @@ class RunCommand(shell.Command, name='run', expose=True):
         parser.add_argument('--callable', dest='callable', default='main',
                             help='name of function/callable to execute, default to "main(*args)"')
         parser.add_argument('file', help=('path to a python script to be executed'))
-        parser.add_argument('--with-debug-logger', dest='debug_logger',
-                            action='store_true', default=False,
-                            help='installs a debug logger that dumps semantix errors to stdout')
         parser.add_argument('args', nargs='*', help='script arguments')
 
         return parser
@@ -40,10 +37,6 @@ class RunCommand(shell.Command, name='run', expose=True):
 
         if not os.path.exists(path):
             raise ValueError('path not found: %r' % path)
-
-        if args.debug_logger:
-            from semantix.utils.debug import _LoggingDebugHandler
-            _LoggingDebugHandler.install()
 
         mod_name = os.path.splitext(os.path.split(path)[-1])[0]
         mod = imp.load_source(mod_name, path)

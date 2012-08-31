@@ -20,7 +20,7 @@ import time
 from semantix import bootstrap
 from semantix.utils.functional import decorate
 from semantix.exceptions import MultiError
-from semantix.utils import config, term
+from semantix.utils import config, term, logging
 from semantix.utils.datastructures import Void
 
 
@@ -225,55 +225,8 @@ def profiler(filename=None, sort='time'):
             prof.dump_stats(filename)
 
 
-class _LoggingDebugHandler(logging.Handler, metaclass=config.ConfigurableMeta):
-    _enabled = config.cvalue(True, type=bool)
-
-    _style_error = term.Style16(color='white', bgcolor='red')
-    _style_other = term.Style16(color='white', bgcolor='blue')
-
-    _logger = logging.getLogger()
-    _installed = False
-
-    def emit(self, record):
-        dt = datetime.datetime.fromtimestamp(record.created)
-        str_dt = '@{}@'.format(dt)
-
-        if self._enabled:
-            if term.use_colors():
-                style = self._style_other
-                level = record.levelname
-                if level == 'ERROR':
-                    style = self._style_error
-
-                print(style.apply(level), os.getpid(), str_dt, record.getMessage())
-            else:
-                print(record.levelname, os.getpid(), str_dt, record.getMessage())
-
-            if record.exc_info:
-                sys.excepthook(*record.exc_info)
-
-    @classmethod
-    def install(cls):
-        if not cls._installed:
-            cls._installed = cls()
-
-            cls._logger.setLevel(logging.INFO)
-            logging.getLogger('semantix').setLevel(logging.DEBUG)
-
-            cls._logger.addHandler(cls._installed)
-
-    @classmethod
-    def uninstall(cls):
-        if cls._installed:
-            cls._logger.removeHandler(cls._installed)
-            cls._installed = False
-
-            cls._logger.setLevel(logging.NOTSET)
-            logging.getLogger('semantix').setLevel(logging.NOTSET)
-
-
 @contextlib.contextmanager
-def debug_logger_on(logger_cls=_LoggingDebugHandler):
+def debug_logger_on(logger_cls=logging.SemantixLogHandler):
     '''Context manager, that enables printing log messages to stdout
     for the wrapped code'''
 
@@ -286,7 +239,7 @@ def debug_logger_on(logger_cls=_LoggingDebugHandler):
 
 
 @contextlib.contextmanager
-def debug_logger_off(logger_cls=_LoggingDebugHandler):
+def debug_logger_off(logger_cls=logging.SemantixLogHandler):
     '''Context manager, that disables printing log messages to stdout
     for the wrapped code'''
 
