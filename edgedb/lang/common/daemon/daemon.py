@@ -57,6 +57,7 @@ class DaemonContext:
 
         self._is_open = False
         self._close_stdin = self._close_stdout = self._close_stderr = None
+        self._stdin_name = self._stdout_name = self._stderr_name = None
 
     is_open = property(lambda self: self._is_open)
 
@@ -79,26 +80,11 @@ class DaemonContext:
             lib.change_process_gid(self.gid)
 
         if self.detach_process:
-            lib.detach_process_context()
+           lib.detach_process_context()
 
         self._setup_signals()
-
         self._close_all_open_files()
-
-        stdin = self.stdin
-        if isinstance(stdin, str):
-            self._close_stdin = stdin = open(self.stdin, 'rt')
-        lib.redirect_stream('stdin', stdin)
-
-        stderr = self.stderr
-        if isinstance(stderr, str):
-            self._close_stderr = stderr = open(self.stderr, 'at')
-        lib.redirect_stream('stderr', stderr)
-
-        stdout = self.stdout
-        if isinstance(stdout, str):
-            self._close_stdout = stdout = open(self.stdout, 'at')
-        lib.redirect_stream('stdout', stdout)
+        self._open_sys_streams()
 
         self._pidfile.acquire()
 
@@ -114,21 +100,56 @@ class DaemonContext:
         self._pidfile.release()
         self._pidfile = None
 
+        self._close_sys_streams()
+
+        self._is_open = False
+
+    def _close_sys_streams(self):
         if self._close_stdin:
             self._close_stdin.close()
             self._close_stdin = None
+        self.stdin = None
 
         if self._close_stdout:
             self._close_stdout.close()
             self._close_stdout = None
+        self.stdout = None
 
         if self._close_stderr:
             self._close_stderr.close()
             self._close_stderr = None
+        self.stderr = None
 
-        self._is_open = False
+    def _open_sys_streams(self):
+        stdin = self.stdin or self._stdin_name
+        if isinstance(stdin, str):
+            self._stdin_name = stdin
+            self._close_stdin = stdin = open(stdin, 'rt')
+        else:
+            self._stdin_name = getattr(stdin, 'name', None)
+        lib.redirect_stream('stdin', stdin)
 
-    def terminate(self, signal_number, stack_frame):
+        stderr = self.stderr or self._stderr_name
+        if isinstance(stderr, str):
+            self._stderr_name = stderr
+            self._close_stderr = stderr = open(stderr, 'at')
+        else:
+            self._stderr_name = getattr(stderr, 'name', None)
+        lib.redirect_stream('stderr', stderr)
+
+        stdout = self.stdout or self._stdout_name
+        if isinstance(stdout, str):
+            self._stdout_name = stdout
+            self._close_stdout = stdout = open(stdout, 'at')
+        else:
+            self._stdout_name = getattr(stdout, 'name', None)
+        lib.redirect_stream('stdout', stdout)
+
+    def signal_reopen_sys_streams(self, signal_number, stack_frame):
+        self._close_sys_streams()
+        self._open_sys_streams()
+
+    def signal_terminate(self, signal_number, stack_frame):
         raise SystemExit('Termination on signal {}'.format(signal_number))
 
     def __enter__(self):
@@ -160,7 +181,8 @@ class DaemonContext:
             'SIGTSTP': None,
             'SIGTTIN': None,
             'SIGTTOU': None,
-            'SIGTERM': 'terminate'
+            'SIGTERM': 'signal_terminate',
+            'SIGHUP': 'signal_reopen_sys_streams'
         }
 
         if self.signal_map:
