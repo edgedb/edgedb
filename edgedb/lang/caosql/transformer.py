@@ -598,8 +598,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                         raise errors.CaosQLError(msg)
 
                     for ptr_name, ptr in rlink_proto.pointers.items():
-                        if ptr_name in {'semantix.caos.builtins.source',
-                                        'semantix.caos.builtins.target'}:
+                        if ptr.is_special_pointer():
                             continue
 
                         if not filter_exprs or all(((f[0](ptr) == f[1]) for f in filter_exprs)):

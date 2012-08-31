@@ -79,7 +79,8 @@ class Insert(DMLOperation):
 
 
 class Update(DMLOperation):
-    def __init__(self, table, record, condition, returning=None, *, priority=0):
+    def __init__(self, table, record, condition, returning=None, *, include_children=True,
+                                                                    priority=0):
         super().__init__(priority=priority)
 
         self.table = table
@@ -88,6 +89,7 @@ class Update(DMLOperation):
         self.condition = condition
         self.returning = returning
         self.cols = {c.name: c.type for c in self.table.columns(writable_only=True)}
+        self.include_children = include_children
 
 
     def code(self, context):
@@ -138,8 +140,11 @@ class Update(DMLOperation):
         else:
             where = ''
 
-        code = 'UPDATE %s SET %s %s' % \
-                (common.qname(*self.table.name), ', '.join(placeholders), where)
+        tabname = common.qname(*self.table.name)
+        if not self.include_children:
+            tabname = 'ONLY {}'.format(tabname)
+
+        code = 'UPDATE {} SET {} {}'.format(tabname, ', '.join(placeholders), where)
 
         if self.returning:
             code += ' RETURNING ' + ', '.join(self.returning)

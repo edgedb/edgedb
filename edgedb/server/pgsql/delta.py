@@ -33,7 +33,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 12
+BACKEND_FORMAT_VERSION = 13
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -1686,11 +1686,6 @@ class PointerMetaCommand(MetaCommand):
                                     condition=[('name', str(self.prototype_name))], priority=1))
 
     @classmethod
-    def has_nontrivial_properties(cls, link, meta):
-        return bool([l for l in link.pointers if l not in {'semantix.caos.builtins.source',
-                                                           'semantix.caos.builtins.target'}])
-
-    @classmethod
     def has_table(cls, link, meta):
         if isinstance(link, caos.types.ProtoComputable):
             return False
@@ -1785,7 +1780,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
             self.create_table(link, meta, context, conditional=True)
 
     def schedule_mapping_update(self, link, meta, context):
-        if not link.atomic() or self.has_nontrivial_properties(link, meta):
+        if not link.atomic() or link.has_user_defined_properties():
             mapping_indexes = context.get(delta_cmds.RealmCommandContext).op.update_mapping_indexes
             link_name = link.normal_name()
             ops = mapping_indexes.links.get(link_name)
@@ -3328,6 +3323,53 @@ class UpgradeBackend(MetaCommand):
 
         for group in commands.values():
             group.execute(context)
+
+    def update_to_version_13(self, context):
+        """
+        Backend format 13 adds linkid property to all links.
+        """
+
+        ltab = common.link_name_to_table_name(caos.Name('semantix.caos.builtins.link'),
+                                              catenate=False)
+        colname = common.caos_name_to_pg_name(caos.Name('semantix.caos.builtins.linkid'))
+        cond = dbops.ColumnExists(table_name=ltab, column_name=colname)
+
+        cmdgroup = dbops.CommandGroup(neg_conditions=(cond,))
+
+        alter_table = dbops.AlterTable(ltab)
+        column = dbops.Column(name=colname, type='uuid', required=False)
+        add_column = dbops.AlterTableAddColumn(column)
+        alter_table.add_operation(add_column)
+
+        cmdgroup.add_command(alter_table)
+
+        links_list = datasources.meta.links.ConceptLinks(context.db).fetch()
+        links_by_name = {r['name']: r for r in links_list}
+        idquery = dbops.Query(text='caos.uuid_generate_v1mc()', params=(), type='uuid')
+
+        for link_name in links_by_name:
+            ltabname = common.link_name_to_table_name(caos.Name(link_name), catenate=False)
+            cond = dbops.TableExists(name=ltabname)
+
+            tab = dbops.Table(name=ltabname)
+            tab.add_columns((dbops.Column(name=colname, type='uuid'),))
+
+            rec = tab.record()
+            setattr(rec, colname, idquery)
+
+            tgroup = dbops.CommandGroup(conditions=(cond,))
+
+            tgroup.add_command(dbops.Echo('Creating link ids for "{}"...'.format(link_name)))
+            tgroup.add_command(dbops.Update(tab, rec, condition=[], include_children=False))
+
+            cmdgroup.add_command(tgroup)
+
+        alter_table = dbops.AlterTable(ltab)
+        alter_column = dbops.AlterTableAlterColumnNull(column_name=colname, null=False)
+        alter_table.add_operation(alter_column)
+        cmdgroup.add_command(alter_table)
+
+        cmdgroup.execute(context)
 
     @classmethod
     def update_backend_info(cls):

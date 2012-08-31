@@ -554,23 +554,19 @@ class CaosTreeTransformer(CaosExprTransformer):
                 ref_map = {prop.ref.link_proto: query.fromexpr}
                 context.current.link_node_map[prop.ref] = {'local_ref_map': ref_map}
 
-                proto_schema = context.current.proto_schema
-                prop_stor_info = types.get_pointer_storage_info(proto_schema, prop.ptr_proto,
-                                                                resolve_type=False)
-                prop_col_name = prop_stor_info.column_name
-
-                tref = pgsql.ast.FieldRefNode(table=query.fromexpr,
-                                                field=prop_col_name,
-                                                origin=query.fromexpr,
-                                                origin_field=prop_col_name)
-
                 sprop_name = common.caos_name_to_pg_name('semantix.caos.builtins.source')
                 sref = pgsql.ast.FieldRefNode(table=query.fromexpr,
                                               field=sprop_name,
                                               origin=query.fromexpr,
                                               origin_field=sprop_name)
 
-                filter = pgsql.ast.SequenceNode(elements=[sref, tref])
+                idprop_name = common.caos_name_to_pg_name('semantix.caos.builtins.linkid')
+                idref = pgsql.ast.FieldRefNode(table=query.fromexpr,
+                                              field=idprop_name,
+                                              origin=query.fromexpr,
+                                              origin_field=idprop_name)
+
+                filter = idref
 
             elif isinstance(graph.optarget, tree.ast.AtomicRefSimple):
                 # Singular atom delete op translates into source table update
@@ -590,7 +586,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                 origin=query.fromexpr,
                                                 origin_field='semantix.caos.builtins.id')
 
-                sref = filter
+                sref = idref = filter
 
             else:
                 query.fromexpr = self._relation_from_concepts(context, graph.optarget)
@@ -613,6 +609,9 @@ class CaosTreeTransformer(CaosExprTransformer):
                 context.current.unwind_rlinks = False
 
                 if isinstance(graph.optarget, (tree.ast.LinkPropRefSimple, tree.ast.AtomicRefSimple)):
+                    idexpr = pgsql.ast.SelectExprNode(expr=idref, alias='linkid')
+                    query.targets.append(idexpr)
+
                     sexpr = pgsql.ast.SelectExprNode(expr=sref, alias='source')
                     query.targets.append(sexpr)
 

@@ -456,6 +456,15 @@ class xvalue:
         attrs = ', '.join('%s=%r' % (k, v) for k, v in self.attrs.items())
         return '<xvalue "%r"; %s>' % (self.value, attrs)
 
+    def __eq__(self, other):
+        if not isinstance(other, xvalue):
+            return NotImplemented
+
+        return self.value == other.value and self.attrs == other.attrs
+
+    def __hash__(self):
+        return hash((self.value, frozenset(self.attrs.items())))
+
     __str__ = __repr__
 
 

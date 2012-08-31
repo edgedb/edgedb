@@ -596,20 +596,23 @@ class TreeTransformer:
                 prop_elements = []
                 if link.has_user_defined_properties():
                     if recurse_spec.pathspec is not None:
-                        recurse_props = {}
+                        must_have_props = (
+                            caos_name.Name('semantix.caos.builtins.linkid'),
+                        )
+
+                        recurse_props = {propn: caos_ast.PtrPathSpec(ptr_proto=link.pointers[propn])
+                                         for propn in must_have_props}
+
                         for ps in recurse_spec.pathspec:
                             if (isinstance(ps.ptr_proto, caos_types.ProtoLinkProperty)
-                                    and ps.ptr_proto.normal_name() not in
-                                            {'semantix.caos.builtins.source',
-                                             'semantix.caos.builtins.target'}):
+                                    and not ps.ptr_proto.is_endpoint_pointer()):
                                 recurse_props[ps.ptr_proto.normal_name()] = ps
                     else:
                         recurse_props = {pn: caos_ast.PtrPathSpec(ptr_proto=p)
                                             for pn, p in link.pointers.items()
                                                 if not isinstance(p, caos_types.ProtoComputable)
                                                    and p.get_loading_behaviour() == caos_types.EagerLoading
-                                                   and pn not in {'semantix.caos.builtins.source',
-                                                                  'semantix.caos.builtins.target'}}
+                                                   and not p.is_endpoint_pointer()}
 
                     proprec = caos_ast.Record(elements=prop_elements, concept=root_link_proto)
 

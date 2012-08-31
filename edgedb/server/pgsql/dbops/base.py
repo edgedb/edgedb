@@ -225,6 +225,18 @@ class Condition(BaseCommand):
     pass
 
 
+class Echo(Command):
+    def __init__(self, msg, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+        self._msg = msg
+
+    def code(self, context):
+        return None, ()
+
+    def execute_code(self, context, code, vars):
+        print(self._msg)
+
+
 class Query:
     def __init__(self, text, params=(), type=None):
         self.text = text

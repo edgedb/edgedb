@@ -909,14 +909,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         if pointers:
             protopointers = [caos.types.prototype(p) for p in pointers]
-            pointers = {p.normal_name(): p for p in protopointers \
-                        if p.normal_name() not in {'semantix.caos.builtins.source',
-                                                   'semantix.caos.builtins.target'}}
+            pointers = {p.normal_name(): p for p in protopointers if not p.is_special_pointer()}
         else:
             pointers = {n: p for n, p in proto_link.pointers.items()
-                             if p.loading != caos.types.LazyLoading
-                                and n not in {'semantix.caos.builtins.source',
-                                              'semantix.caos.builtins.target'}}
+                             if p.loading != caos.types.LazyLoading and not p.is_special_pointer()}
 
         targets = []
 
@@ -1465,7 +1461,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         link_cls = target.as_link()
         link_proto = link_cls.__sx_prototype__
 
-        if link_proto.atomic() and link_proto.singular() and len(link_proto.pointers) <= 2:
+        if (link_proto.atomic() and link_proto.singular()
+                                and not link_proto.has_user_defined_properties()):
             return
 
         source_col = common.caos_name_to_pg_name('semantix.caos.builtins.source')
@@ -1484,15 +1481,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         target_is_concept = not link_proto.atomic()
         target_in_table = target_ptr_stor_info.table_type[0] == 'pointer'
 
-        for target in targets:
-            """LOG [caos.sync]
-            print('Merging link %s[%s][%s]---{%s}-->%s[%s][%s]' % \
-                  (source.__class__._metadata.name, source.id,
-                   (source.name if hasattr(source, 'name') else ''), link_name,
-                   target.__class__._metadata.name,
-                   getattr(target, 'id', target), (target.name if hasattr(target, 'name') else ''))
-                  )
-            """
+        idcol = 'semantix.caos.builtins.linkid'
+        returning = ['"' + idcol + '"']
+
+        for link_obj in targets:
+            target = link_obj.target
 
             for t, full_link_name in link_names:
                 if isinstance(target, t):
@@ -1500,12 +1493,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             else:
                 assert False, "No link found"
 
-            link_obj = caos.concept.getlink(source, link_name, target)
-
             attrs = {}
             for prop_name, prop_cls in link_cls._iter_all_pointers():
                 if not isinstance(prop_cls._class_metadata.link, caos.types.ComputableClass):
-                    if prop_name not in {'semantix.caos.builtins.source', 'semantix.caos.builtins.target'}:
+                    if prop_name not in {'semantix.caos.builtins.source',
+                                         'semantix.caos.builtins.target'}:
                         try:
                             # We must look into link object __dict__ directly so as not to
                             # potentially trigger link object reload for lazy properties,
@@ -1527,19 +1519,22 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 else:
                     setattr(rec, target_col, target)
 
-            if merge:
-                condition = [(source_col, getattr(rec, source_col)),
-                             ('link_type_id', rec.link_type_id)]
+            linkid = getattr(link_obj, idcol)
+            if linkid is None:
+                linkid = uuid.uuid1()
+                link_obj._instancedata.setattr(link_obj, idcol, linkid, register_changes=False,
+                                               allow_ro=True)
 
-                if target_in_table:
-                    condition.append((target_col, getattr(rec, target_col)))
+            setattr(rec, idcol, linkid)
 
-                cmds.append(dbops.Merge(table, rec, condition=condition))
+            if linkid and merge:
+                condition = [(idcol, getattr(rec, idcol))]
+                cmds.append(dbops.Merge(table, rec, condition=condition, returning=returning))
             else:
                 records.append(rec)
 
         if records:
-            cmds.append(dbops.Insert(table, records))
+            cmds.append(dbops.Insert(table, records, returning=returning))
 
         if cmds:
             try:

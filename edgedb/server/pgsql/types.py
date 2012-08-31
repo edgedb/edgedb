@@ -135,8 +135,7 @@ class PointerStorageInfo:
     def __init__(self, proto_schema, pointer, resolve_type=True, record_mode=False):
         is_prop = isinstance(pointer, caos.types.ProtoLinkProperty)
 
-        if is_prop and pointer.normal_name() in {'semantix.caos.builtins.source',
-                                                 'semantix.caos.builtins.target'}:
+        if is_prop and pointer.is_special_pointer():
             record_mode = False
 
         if not is_prop and (not pointer.atomic() or not pointer.singular()):
