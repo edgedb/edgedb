@@ -147,6 +147,9 @@ class Query(backend_query.Query):
         else:
             return ('caosobj', 1)
 
+    def get_output_metadata(self):
+        return {'record_info': self.record_info}
+
 
 class PreparedQuery:
     def __init__(self, query, session, args=None):

@@ -352,19 +352,7 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
         marker_type = pgsql.ast.TypeNode(name='caos.known_record_marker_t')
         marker = pgsql.ast.TypeCastNode(expr=marker, type=marker_type)
 
-        if context.current.output_format != caos_types.JsonOutputFormat:
-            my_elements.insert(0, marker)
-        else:
-            augmented_elements = []
-            for i, element in enumerate(my_elements):
-                attr_name = str(attribute_map[i])
-
-                if attr_name != '$sxclsid$':
-                    attr_name_c = pgsql.ast.ConstantNode(value=attr_name)
-                    element = pgsql.ast.RowExprNode(args=[attr_name_c, element])
-                    augmented_elements.append(element)
-
-            my_elements = augmented_elements
+        my_elements.insert(0, marker)
 
         result = pgsql.ast.RowExprNode(args=my_elements)
 

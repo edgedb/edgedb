@@ -567,7 +567,7 @@ class TreeTransformer:
 
                 targetstep.rlink = link_node
 
-                if link.atomic():
+                if isinstance(target_proto, caos_types.ProtoAtom):
                     if link_singular:
                         newstep = caos_ast.AtomicRefSimple(ref=lref, name=link_name, id=id,
                                                            ptr_proto=link_proto)

@@ -9,7 +9,7 @@
 // %import semantix.caos.frontends.javascript.base
 
 
-sx.caos.register_format('pgjson.', function(format, data) {
+sx.caos.register_format('pgjson.', function(format, data, metadata) {
     var format_string = format[0], format_version = format[1];
 
     if (format_string == 'pgjson.caos.selector') {
@@ -27,43 +27,85 @@ sx.caos.register_format('pgjson.', function(format, data) {
     }
 
     var result = [];
+    var record_info = {};
+
+    for (var i = 0; i < metadata.record_info.length; i++) {
+        var ri = metadata.record_info[i];
+        record_info[ri.id] = ri;
+    }
 
     var _decode_record = function(record) {
         var result = {};
+        var rec_id = record.f1;
+        var rec_info = record_info[rec_id];
 
-        sx.each(record, function(v) {
-            var item_key = v.f1;
+        if (!rec_info) {
+            sx.each(record, function(v) {
+                var item_key = v.f1;
 
-            if (!item_key) {
-                _throw('missing record item name');
+                if (!item_key) {
+                    _throw('missing record item name');
+                }
+
+                var item_val = v.f2;
+
+                if (sx.is_object(item_val) && sx.contains(item_val, 'f1')) {
+                    item_val = _decode_record(item_val);
+                } else if (sx.is_array(item_val)) {
+                    var res = [];
+
+                    sx.each(item_val, function(iv) {
+                        if (sx.is_object(iv) && sx.contains(iv, 'f1')) {
+                            iv = _decode_record(iv);
+                        }
+
+                        if (iv != null) {
+                            res.push(iv);
+                        }
+                    });
+
+                    item_val = res;
+                }
+
+                result[item_key] = item_val;
+            });
+        } else {
+            var reclen = sx.len(record);
+            for (var i = 1; i < reclen; i++) {
+                var k = 'f' + (i + 1).toString();
+                var item_key = rec_info.attribute_map[i - 1];
+
+                if (!item_key) {
+                    _throw('missing record item name');
+                }
+
+                var item_val = record[k];
+
+                if (sx.is_object(item_val) && sx.contains(item_val, 'f1')) {
+                    item_val = _decode_record(item_val);
+                } else if (sx.is_array(item_val)) {
+                    var res = [];
+
+                    sx.each(item_val, function(iv) {
+                        if (sx.is_object(iv) && sx.contains(iv, 'f1')) {
+                            iv = _decode_record(iv);
+                        }
+
+                        if (iv != null) {
+                            res.push(iv);
+                        }
+                    });
+
+                    item_val = res;
+                }
+
+                result[item_key] = item_val;
             }
+        }
 
-            if (!sx.contains(v, 'f2')) {
-                _throw('missing record item value');
-            }
-
-            var item_val = v.f2;
-
-            if (sx.is_object(item_val) && sx.contains(item_val, 'f1')) {
-                item_val = _decode_record(item_val);
-            } else if (sx.is_array(item_val)) {
-                var res = [];
-
-                sx.each(item_val, function(iv) {
-                    if (sx.is_object(iv) && sx.contains(iv, 'f1')) {
-                        iv = _decode_record(iv);
-                    }
-
-                    if (iv != null) {
-                        res.push(iv);
-                    }
-                });
-
-                item_val = res;
-            }
-
-            result[item_key] = item_val;
-        });
+        if (result['$sxclsid$']) {
+            delete result['$sxclsid$'];
+        }
 
         if (result['$sxclsname$']) {
             var clsname = result['$sxclsname$'];

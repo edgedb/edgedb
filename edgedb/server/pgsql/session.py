@@ -71,6 +71,15 @@ class RecordInfo:
         return persistent_hash.persistent_hash((tuple(self.attribute_map), self.proto_class,
                                                 self.proto_name, self.is_xvalue))
 
+    def __sx_serialize__(self):
+        return dict(
+            attribute_map=self.attribute_map,
+            proto_class=self.proto_class,
+            proto_name=self.proto_name,
+            is_xvalue=self.is_xvalue,
+            id=self.id
+        )
+
 
 class Session(session.Session):
     def __init__(self, realm, backend, pool, proto_schema=None, connection=None):
