@@ -977,7 +977,9 @@ class CaosTreeTransformer(CaosExprTransformer):
             # PostgreSQL does not create array types for custom domains and will
             # fail to process a query with custom domains appearing as array elements.
             #
-            link = caos_node.concept.getptr(context.current.proto_schema, link_name)
+            res = caos_node.concept.resolve_pointer(context.current.proto_schema, link_name,
+                                                    look_in_children=True)
+            link = next(iter(res[1]))
             pgtype = types.pg_type_from_atom(context.current.proto_schema, link.target,
                                              topbase=True)
             pgtype = pgsql.ast.TypeNode(name=pgtype)

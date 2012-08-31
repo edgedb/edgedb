@@ -736,9 +736,13 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             elif isinstance(tip, qlast.LinkExprNode) and not tip_is_link and not typeref:
                 # LinkExprNode
                 link_expr = tip.expr
+                link_target = None
 
                 if isinstance(link_expr, qlast.LinkNode):
                     direction = link_expr.direction or caos_types.OutboundDirection
+                    if link_expr.target:
+                        link_target = self._normalize_concept(context, link_expr.target.name,
+                                                              link_expr.target.module)
                 else:
                     raise errors.CaosQLError("complex link expressions are not supported yet")
 
@@ -749,7 +753,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                 for concept, tip in tips.items():
                     try:
-                        ptr_resolution = self._resolve_ptr(context, concept, linkname, direction)
+                        ptr_resolution = self._resolve_ptr(context, concept, linkname, direction,
+                                                                    target=link_target)
                     except errors.CaosQLReferenceError:
                         continue
 
@@ -795,10 +800,13 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     for dir, linksets in links.items():
                         for linkset_proto in linksets:
                             for link_item in linkset_proto:
-                                if dir is caos_types.OutboundDirection:
-                                    target = link_item.target
+                                if link_target is not None:
+                                    target = link_target
                                 else:
-                                    target = link_item.source
+                                    if dir is caos_types.OutboundDirection:
+                                        target = link_item.target
+                                    else:
+                                        target = link_item.source
                                 assert target
 
                                 if isinstance(link_item, caos_types.ProtoComputable) and \
@@ -969,7 +977,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         else:
             pointer_name = ptr_fqname = ptr_nqname
 
-        if target is not None:
+        if target is not None and not isinstance(target, caos_types.ProtoNode):
             target_name = '.'.join(filter(None, target))
             modaliases = context.current.namespaces
             target = self.proto_schema.get(target_name, module_aliases=modaliases)
@@ -983,10 +991,13 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                                             include_inherited=True)
 
         if not sources:
-            raise errors.CaosQLReferenceError('could not resolve "%s"."%s" pointer' %
-                                              (source.name, ptr_fqname))
+            msg = 'could not resolve "{}".{}"{}" pointer'.format(source.name, direction,
+                                                                 ptr_fqname)
+            raise errors.CaosQLReferenceError(msg)
 
         if target is not None:
+            proto_schema = context.current.proto_schema
+
             if direction == caos_types.OutboundDirection:
                 ptrs = outbound
                 link_end = 'target'
@@ -994,7 +1005,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 ptrs = inbound
                 link_end = 'source'
 
-            flt = lambda p: getattr(p, link_end) == target
+            flt = lambda p: target.issubclass(proto_schema, getattr(p, link_end))
             ptrs = tuple(filter(flt, ptrs))
 
             if direction == caos_types.OutboundDirection:
