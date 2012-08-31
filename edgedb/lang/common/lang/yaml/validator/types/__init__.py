@@ -14,6 +14,7 @@ from .seq import SequenceType
 from .cls import ClassType
 
 from .scalars.base import ScalarType
+from .scalars.base import NoneType
 from .scalars.bool import BoolType
 
 from .scalars.text import TextType

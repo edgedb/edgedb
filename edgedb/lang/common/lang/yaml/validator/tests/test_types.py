@@ -17,6 +17,18 @@ class TestTypes(SchemaTest):
     def setup_class(cls):
         cls.schema = cls.get_schema('types.Schema')
 
+    @raises(validator.SchemaValidationError, 'expected none')
+    def test_validator_types_none_fail1(self):
+        """
+        none: '12'
+        """
+
+    @result(key='none', value=None)
+    def test_validator_types_none_result(self):
+        """
+        none:
+        """
+
     @raises(validator.SchemaValidationError, 'expected integer')
     def test_validator_types_int_fail1(self):
         """

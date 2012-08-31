@@ -70,6 +70,8 @@ class Schema(object):
             tp = types.ScalarType(self)
         elif dct_type == 'class':
             tp = types.ClassType(self)
+        elif dct_type == 'none':
+            tp = types.NoneType(self)
         else:
             raise error.SchemaError('unknown type: ' + dct_type)
 

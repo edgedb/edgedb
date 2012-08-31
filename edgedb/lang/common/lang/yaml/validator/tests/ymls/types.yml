@@ -12,6 +12,7 @@
 
 type: map
 mapping:
+    none: { type: none }
     int: { type: int }
     float: { type: float }
     number: { type: number }

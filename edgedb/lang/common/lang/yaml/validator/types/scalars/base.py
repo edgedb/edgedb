@@ -112,3 +112,11 @@ class ScalarType(SchemaScalarType):
             raise SchemaValidationError('expected scalar, got %s' % node.tag, node)
 
         return node
+
+
+class NoneType(SchemaScalarType):
+    def check(self, node):
+        if not self.check_tag(node, 'tag:yaml.org,2002:null'):
+            raise SchemaValidationError('expected none', node)
+
+        return super().check(node)
