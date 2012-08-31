@@ -218,7 +218,7 @@ def close_all_open_files(exclude:set=None):
             try_close_fileno(fd)
 
 
-def redirect_stream(system_stream:io.FileIO, target_stream:io.FileIO):
+def redirect_stream(stream_name:str, target_stream:io.FileIO):
     '''Redirect a system stream to the specified file.
 
     If ``target_stream`` is None - redirect to devnull. '''
@@ -228,7 +228,9 @@ def redirect_stream(system_stream:io.FileIO, target_stream:io.FileIO):
     else:
         target_fd = target_stream.fileno()
 
+    system_stream = getattr(sys, stream_name)
     os.dup2(target_fd, system_stream.fileno())
+    setattr(sys, '__{}__'.format(stream_name), system_stream)
 
 
 def validate_stream(stream, *, stream_name):

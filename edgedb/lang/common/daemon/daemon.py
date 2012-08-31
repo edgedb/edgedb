@@ -85,20 +85,20 @@ class DaemonContext:
 
         self._close_all_open_files()
 
-        stderr = self.stderr
-        if isinstance(stderr, str):
-            self._close_stderr = stderr = open(self.stderr, 'wt')
-        lib.redirect_stream(sys.stderr, stderr)
-
         stdin = self.stdin
         if isinstance(stdin, str):
             self._close_stdin = stdin = open(self.stdin, 'rt')
-        lib.redirect_stream(sys.stdin, stdin)
+        lib.redirect_stream('stdin', stdin)
+
+        stderr = self.stderr
+        if isinstance(stderr, str):
+            self._close_stderr = stderr = open(self.stderr, 'at')
+        lib.redirect_stream('stderr', stderr)
 
         stdout = self.stdout
         if isinstance(stdout, str):
-            self._close_stdout = stdout = open(self.stdout, 'wt')
-        lib.redirect_stream(sys.stdout, stdout)
+            self._close_stdout = stdout = open(self.stdout, 'at')
+        lib.redirect_stream('stdout', stdout)
 
         self._pidfile.acquire()
 
