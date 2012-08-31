@@ -1126,6 +1126,10 @@ class TreeTransformer:
 
         self.unify_paths(expr.paths, mode=expr.__class__, merge_filters=merge_filters)
 
+        """LOG [caos.graph.merge] UNIFICATION RESULT
+        self._dump(expr)
+        """
+
         expr.paths = frozenset(p for p in expr.paths)
         return expr
 
@@ -1143,7 +1147,7 @@ class TreeTransformer:
         while mypaths:
             path = self.extract_paths(mypaths.pop(), reverse)
 
-            if not path:
+            if not path or result is path:
                 continue
 
             if issubclass(mode, caos_ast.Disjunction):
@@ -1157,8 +1161,7 @@ class TreeTransformer:
 
                 """LOG [caos.graph.merge] ADDITION RESULT
                 self.nest -= 2
-                if not self.nest:
-                    self._dump(result)
+                self._dump(result)
                 """
             else:
                 """LOG [caos.graph.merge] INTERSECTING
@@ -1458,6 +1461,10 @@ class TreeTransformer:
                 left_set.disjunction = caos_ast.Disjunction()
 
                 if isinstance(disjunction, caos_ast.Disjunction):
+                    self.unify_paths(left_set.conjunction.paths | disjunction.paths,
+                                     caos_ast.Conjunction, reverse=False,
+                                     merge_filters=merge_filters)
+
                     left_set.disjunction = disjunction
 
                     if len(left_set.disjunction.paths) == 1:
