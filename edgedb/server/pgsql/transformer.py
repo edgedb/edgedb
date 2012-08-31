@@ -1529,10 +1529,12 @@ class CaosTreeTransformer(CaosExprTransformer):
             if expr.name == 'semantix.caos.builtins.target':
                 localizable = schema.get('semantix.caos.extras.l10n.localizable',
                                          default=None)
+                str_t = schema.get('semantix.caos.builtins.str')
 
                 link_proto = expr.ptr_proto.source
 
-                if localizable is not None and link_proto.issubclass(schema, localizable):
+                if localizable is not None and link_proto.issubclass(schema, localizable) \
+                                           and link_proto.target.issubclass(schema, str_t):
                     lang = pgsql.ast.IdentNode(name='C')
                     result = pgsql.ast.CollateClauseNode(expr=result, collation_name=lang)
 
