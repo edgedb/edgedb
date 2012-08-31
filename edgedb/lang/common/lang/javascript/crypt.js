@@ -35,12 +35,12 @@ sx.crypt = (function() {
 
         var fcc = String.fromCharCode,
             pad0 = fcc(0),
-            pads = [fcc(0x80), fcc(0x80) + pad0],
+            pads = [fcc(0x80)],
             i,
             maxlen = 0xFFFFFFFF / 8;
 
-        for (i = 2; i < 65; i++) {
-            pads[i] = pads[i - 1] + fcc(0);
+        for (i = 1; i < 70; i++) {
+            pads[i] = pads[i - 1] + pad0;
         }
 
         return function sha1(msg) {
@@ -59,9 +59,13 @@ sx.crypt = (function() {
                 a, b, c, d, e, i, j, k, n, tmp,
                 w = Array(80);
 
-            msg += pads[((59 - len) % 64 + 64) % 64]; // fix JS 'mod' bugs
+            // pad with zeroes to be congruent to 56 (448 bits, mod 512)
+            // + 4 bytes for zeroes, as part of 64bit length (we append
+            // only 32 bits later)
+            msg += pads[((55 - len) % 64 + 64) % 64 + 4];
 
             len = len << 3; // length in bits -- len * 8
+            // append 32 bit length
             msg += fcc((len >> 24) & 0xFF) + fcc((len >> 16) & 0xFF) +
                    fcc((len >> 8) & 0xFF) + fcc(len & 0xFF);
 
