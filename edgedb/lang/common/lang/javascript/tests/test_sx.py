@@ -37,6 +37,13 @@ class TestJSsx(JSFunctionalTest):
         assert.not(sx.is_object(void(0)));
         '''
 
+    def test_utils_lang_js_sx_json_parse(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import sx
+
+        assert.equal(sx.json.parse('{"a":42}'), {'a': 42});
+        '''
+
     def test_utils_lang_js_sx_error(self):
         '''JS
         // %from semantix.utils.lang.javascript import sx

@@ -6,14 +6,16 @@
 **/
 
 
-this.sx = (function() {
+// %from . import json
+
+
+this.sx = (function(global) {
     'use strict';
 
     var undefined = void(0),
         sx = function(selector) { return new sx._fn.init(selector); },
         _is_id = /^#([\w\-]*)$/,
         _id_counter = 0,
-        global = (typeof window == 'undefined' ? this : window),
         has_own_property = Object.prototype.hasOwnProperty;
 
     function _extend(obj, ex) {
@@ -180,7 +182,7 @@ this.sx = (function() {
         },
 
         map: function(obj, func, scope) {
-            scope = scope || window;
+            scope = scope || global;
 
             var result;
             var no_desc = (func.length <= 2);
@@ -211,7 +213,7 @@ this.sx = (function() {
         },
 
         filter: function(obj, func, scope) {
-            scope = scope || window;
+            scope = scope || global;
 
             var is_array = (sx.is_array(obj) || obj instanceof sx);
             var result;
@@ -443,6 +445,16 @@ this.sx = (function() {
 
             return s(0x10000000) + '-' + s(0x1000) + '-4' + s(0x100) + '-a' +
                                                 s(0x100) + '-' + s(0x1000) + s(0x1000) + s(0x1000);
+        },
+
+        json: {
+            parse: (function() {
+                if (typeof JSON != 'undefined') {
+                    return JSON.parse;
+                } else {
+                    return global.sx_json_parse;
+                }
+            })()
         },
 
         str: {
@@ -774,4 +786,4 @@ this.sx = (function() {
     sx._fn.init.prototype = sx._fn;
 
     return sx;
-})();
+})(this);
