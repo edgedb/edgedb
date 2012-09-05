@@ -1,3 +1,14 @@
+/*
+* Copyright (c) 2011-2012 Sprymix Inc.
+* All rights reserved.
+*
+* See LICENSE for details.
+**/
+
+
+// %import semantix.utils.lang.javascript.sx
+
+
 sx.Markup = sx.Markup || {};
 
 sx.Markup.Renderer = function(markup) {
