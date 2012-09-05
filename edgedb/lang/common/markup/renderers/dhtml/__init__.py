@@ -16,11 +16,24 @@ from ... import serialize
 __all__ = 'render',
 
 
-_FAVICON = ('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAAGXRFWHRTb'
-            '2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAABhQTFRF6+np2VZWmVVVqxUV1qioxhMTuzw8////'
-            'fKlS/gAAAAh0Uk5T/////////wDeg71ZAAAAbElEQVR42lyOCwrAMAhD47f3v/ES3aAsBY0PteL8hAl'
-            'p3Zb4QLZJRAveWigFMB6TmqUa+IDuGcIhp4CQjIBVReSCFjC5C7gaPvksrargDiUtRcsCDDXfbkuRxh'
-            '5G4jHI93QA6aOkXXDpPAIMAD0IA95480JWAAAAAElFTkSuQmCC')
+#: Error page favicon
+#: From Fugue Icons Set
+#: (C) 2012 Yusuke Kamiyamane. All rights reserved.
+#: The icon is licensed under a Creative Commons Attribution 3.0 License.
+_FAVICON = ('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hAA'
+            'AAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAAkJJREFUeNqkUztv2l'
+            'AUPjbG2FAesUoHpDIUoioZInVCShaydImSIWvV/ojMHTJ0ZuovaNUVVWJItkx9RM2Wwa'
+            'oCIkoRBQQGbPD70XPMQ27UTrnSZ597zv2+c859MEEQwEMGQwIfGQZiOCEwAAXEMZq7iO'
+            'Jy3R3iK6aqI7oeTgivkXtf4JAXxZNnOzvlwuamJGYyAsUNVTW7NzdK+/q6aRtGDcmNfw'
+            'kcPsrlTisHB1sBx4mu64KiKGF6SZKA4zjwLMu4OjuT59PpKYmsBT4wTCEhCJ92j44qhu'
+            'OIvu/DdDqFysVFKHC5vw/ZbBYYTMQFgfHj/PzStqxXb4Kgy8Kin+Pi9nZ5rGkiETVNA1'
+            '3X1xtFNvlUVQXNNMUnpVLZW+wTcPRxAfbS+bw0XJZMYzabQb/fD0m37Tb4nhf6qZXHGx'
+            'sScXD6fiXw1GdZgfr2HAe08Rj0+Rw6nQ7E43Fg0R9bKWPc1HWBONEKwMWATaVjFQFmi6'
+            'OPyKlUCvjVwuWI4Vp3aYd+B+CXNhi8CIbDpBi5WHK1Gv4z9y6PY9smcchmlxV8GfR6oz'
+            'T2l8R5cnGhoCrL8LLVCu1kBKphKMSJCtRvR6MWsKyRxKOiRQkEz/NhxkSEjEds9CyrSZ'
+            'y1gI/Xc+55tW/DoYwBQ0SRPPq/l0ohyBYRNpKvZjNZ9/0acSC6N+ho/Mbd/jyZnGzxfP'
+            'k5z0vFWEyg2MTzzJ+2rci23XSQjHvS+OsxvcOMNi1EaPiYvP88JjzKehoz56g9xNvVVX'
+            '7I+CPAAPloMDN65yLPAAAAAElFTkSuQmCC')
 
 
 _HTML_TPL_START = '''<!DOCTYPE html>
