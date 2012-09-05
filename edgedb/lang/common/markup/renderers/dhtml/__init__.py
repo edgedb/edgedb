@@ -16,6 +16,13 @@ from ... import serialize
 __all__ = 'render',
 
 
+_FAVICON = ('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAMAAAAoLQ9TAAAAGXRFWHRTb'
+            '2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAABhQTFRF6+np2VZWmVVVqxUV1qioxhMTuzw8////'
+            'fKlS/gAAAAh0Uk5T/////////wDeg71ZAAAAbElEQVR42lyOCwrAMAhD47f3v/ES3aAsBY0PteL8hAl'
+            'p3Zb4QLZJRAveWigFMB6TmqUa+IDuGcIhp4CQjIBVReSCFjC5C7gaPvksrargDiUtRcsCDDXfbkuRxh'
+            '5G4jHI93QA6aOkXXDpPAIMAD0IA95480JWAAAAAElFTkSuQmCC')
+
+
 _HTML_TPL_START = '''<!DOCTYPE html>
 <!--
 Copyright (c) 2011 Sprymix Inc.
@@ -24,6 +31,8 @@ All rights reserved.
 
 <html>
     <head>
+        <link rel="shortcut icon" href="''' + _FAVICON + '''" >
+
         <style type="text/css">
             {styles}
         </style>
