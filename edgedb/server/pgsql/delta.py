@@ -1080,7 +1080,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             source_ctx = context.get(delta_cmds.LinkCommandContext)
             ptr_cmd = delta_cmds.CreateLinkProperty
 
-        alter_table = source_ctx.op.get_alter_table(context)
+        alter_table = source_ctx.op.get_alter_table(context, force_new=True)
 
         if isinstance(source, caos.types.ProtoConcept) \
                         or source_ctx.op.has_table(source, meta):
@@ -1111,13 +1111,17 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                     col = dbops.Column(name=ptr_stor_info.column_name,
                                        type=ptr_stor_info.column_type,
                                        required=ptr.required)
-                    alter_table.add_operation(dbops.AlterTableAddColumn(col))
+                    cond = dbops.ColumnExists(table_name=source_ctx.op.table_name,
+                                              column_name=ptr_stor_info.column_name)
+                    alter_table.add_operation((dbops.AlterTableAddColumn(col), None, (cond,)))
 
             if dropped_bases:
+                alter_table_drop_parent = source_ctx.op.get_alter_table(context, force_new=True)
+
                 for dropped_base in dropped_bases:
                     parent_table_name = nameconv(caos.name.Name(dropped_base), catenate=False)
                     op = dbops.AlterTableDropParent(parent_name=parent_table_name)
-                    alter_table.add_operation(op)
+                    alter_table_drop_parent.add_operation(op)
 
                 dropped_ptrs = set(orig_source.pointers) - set(source.pointers)
 
@@ -1138,21 +1142,23 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                         ptr = orig_source.pointers[dropped_ptr]
                         ptr_stor_info = types.get_pointer_storage_info(meta, ptr)
 
-                        col = dbops.Column(name=ptr_stor_info.column_name,
-                                           type=ptr_stor_info.column_type,
-                                           required=ptr.required)
+                        if ptr_stor_info.table_type[0] == 'source':
+                            col = dbops.Column(name=ptr_stor_info.column_name,
+                                               type=ptr_stor_info.column_type,
+                                               required=ptr.required)
 
-                        cond = dbops.ColumnExists(table_name=ptr_stor_info.table_name,
-                                                  column_name=ptr_stor_info.column_name)
-                        op = dbops.AlterTableDropColumn(col)
-                        alter_table_drop_ptr.add_command((op, (cond,), ()))
+                            cond = dbops.ColumnExists(table_name=ptr_stor_info.table_name,
+                                                      column_name=ptr_stor_info.column_name)
+                            op = dbops.AlterTableDropColumn(col)
+                            alter_table_drop_ptr.add_command((op, (cond,), ()))
 
+            alter_table_add_parent = source_ctx.op.get_alter_table(context, force_new=True)
             for added_base in added_bases:
                 parent_table_name = nameconv(caos.name.Name(added_base), catenate=False)
                 table_name = nameconv(source.name, catenate=False)
                 cond = dbops.TableInherits(table_name, parent_table_name)
                 op = dbops.AlterTableAddParent(parent_name=parent_table_name)
-                alter_table.add_operation((op, None, [cond]))
+                alter_table_add_parent.add_operation((op, None, [cond]))
 
 
 class SourceIndexCommand(PrototypeMetaCommand):
