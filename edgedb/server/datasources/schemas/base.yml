@@ -12,7 +12,7 @@
 type: map
 required: yes
 mapping:
-    "params":
+    "params": &PARAMS
         type: map
         default: {}
         mapping:
@@ -32,6 +32,8 @@ mapping:
 
                     "default":
                         type: any
+
+    "output": *PARAMS
 
     "filters":
         type: seq
