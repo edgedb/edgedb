@@ -6,10 +6,11 @@
  */
 
 
+// %import semantix.utils.lang.javascript.types
 // %import semantix.caos.frontends.javascript.base
 
 
-sx.caos.register_format('pgjson.', function(format, data, metadata) {
+sx.types.register('pgjson.', function(format, data, metadata) {
     var format_string = format[0], format_version = format[1];
     var FREEFORM_RECORD_ID = '6e51108d-7440-47f7-8c65-dc4d43fd90d2';
 
