@@ -62,6 +62,7 @@ class Array(pg_types.Array, collections.Container):
 
 
 JSON_OUTPUT_FORMAT = ('pgjson.caos', 1)
+FREEFORM_RECORD_ID = '6e51108d-7440-47f7-8c65-dc4d43fd90d2'
 
 
 class Json(bytes):

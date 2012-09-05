@@ -11,15 +11,18 @@
 
 sx.caos.register_format('pgjson.', function(format, data, metadata) {
     var format_string = format[0], format_version = format[1];
-
-    if (format_string == 'pgjson.caos.selector') {
-        if (format_version != 1) {
-            throw new sx.Error('unsupported "' + format_string + '" version: ' + format_version);
-        }
-    }
+    var FREEFORM_RECORD_ID = '6e51108d-7440-47f7-8c65-dc4d43fd90d2';
 
     var _throw = function(msg) {
         throw new sx.Error('malformed "' + format_string + '" data: ' + msg);
+    }
+
+    if (format_string == 'pgjson.caos.selector' || format_string == 'pgjson.caos.queryselector') {
+        if (format_version != 1) {
+            throw new sx.Error('unsupported "' + format_string + '" version: ' + format_version);
+        }
+    } else {
+        _throw('unsupported format: "' + format_string + '"');
     }
 
     if (!sx.is_array(data)) {
@@ -39,7 +42,21 @@ sx.caos.register_format('pgjson.', function(format, data, metadata) {
         var rec_id = record.f1;
         var rec_info = record_info[rec_id];
 
-        if (!rec_info) {
+        if (rec_id == FREEFORM_RECORD_ID) {
+            result = [];
+
+            var reclen = sx.len(record);
+            for (var i = 1; i < reclen; i++) {
+                var k = 'f' + (i + 1).toString();
+                var item_val = record[k];
+
+                if (sx.is_object(item_val) && sx.contains(item_val, 'f1')) {
+                    item_val = _decode_record(item_val);
+                }
+
+                result.push(item_val);
+            }
+        } else if (!rec_info) {
             sx.each(record, function(v) {
                 var item_key = v.f1;
 
@@ -128,14 +145,21 @@ sx.caos.register_format('pgjson.', function(format, data, metadata) {
         return result;
     };
 
-    for (var i = 0; i < data.length; i++) {
-        var item = _decode_record(data[i]);
+    if (format_string == 'pgjson.caos.selector') {
+        for (var i = 0; i < data.length; i++) {
+            var item = _decode_record(data[i]);
 
-        if (sx.len(item) != 1) {
-            _throw('top-level element must contain exactly one attribute');
+            if (sx.len(item) != 1) {
+                _throw('top-level element must contain exactly one attribute');
+            }
+
+            result.push(sx.first(item));
         }
-
-        result.push(sx.first(item));
+    } else {
+        for (var i = 0; i < data.length; i++) {
+            var item = _decode_record(data[i]);
+            result.push(item);
+        }
     }
 
     return result;

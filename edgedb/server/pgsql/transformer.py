@@ -16,7 +16,7 @@ from semantix.caos import types as caos_types
 from semantix.caos import name as caos_name
 from semantix.caos import utils as caos_utils
 from semantix.caos.backends import pgsql
-from semantix.caos.backends.pgsql import common, session as pg_session
+from semantix.caos.backends.pgsql import common, session as pg_session, driver as pg_driver
 from semantix.utils.debug import debug
 from semantix.utils.datastructures import OrderedSet
 from semantix import exceptions as base_err
@@ -1444,6 +1444,8 @@ class CaosTreeTransformer(CaosExprTransformer):
             elif getattr(context.current, 'sequence_is_array', False):
                 result = pgsql.ast.SequenceNode(elements=elements)
             else:
+                if context.current.output_format == caos_types.JsonOutputFormat:
+                    elements.insert(0, pgsql.ast.ConstantNode(value=pg_driver.FREEFORM_RECORD_ID))
                 result = pgsql.ast.RowExprNode(args=elements)
 
         elif isinstance(expr, tree.ast.Record):
