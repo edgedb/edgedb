@@ -21,6 +21,12 @@ class PyModule(PyAST, ASTBlockNode): __fields = [('body', list)]
 class PyInteractive(PyAST): __fields = [('body', list)]
 class PyExpression(PyAST): __fields = [('body', list)]
 
+#          | Import(alias* names)
+#          | ImportFrom(identifier? module, alias* names, int? level)
+
+class PyImport(PyAST): __fields = [('names', list)]
+class PyImportFrom(PyAST): __fields = [('level', int, 0), ('names', list), ('module', str, None)]
+
 #    stmt = FunctionDef(identifier name, arguments args,
 #                           stmt* body, expr* decorator_list, expr? returns)
 #          | ClassDef(identifier name,
