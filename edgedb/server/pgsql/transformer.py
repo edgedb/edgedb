@@ -54,6 +54,7 @@ class TransformerContextLevel(object):
             self.record_info = prevlevel.record_info
             self.output_format = prevlevel.output_format
             self.in_subquery = prevlevel.in_subquery
+            self.global_ctes = prevlevel.global_ctes
 
             if mode == TransformerContext.NEW_TRANSPARENT:
                 self.vars = prevlevel.vars
@@ -97,6 +98,7 @@ class TransformerContextLevel(object):
         else:
             self.vars = {}
             self.ctes = {}
+            self.global_ctes = {}
             self.aliascnt = {}
             self.ctemap = {}
             self.explicit_cte_map = {}
@@ -257,8 +259,8 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
 
     def _relation_from_concepts(self, context, node):
         if node.conceptfilter:
-            union = pgsql.ast.UnionNode(caosnode=node, concepts=frozenset(node.conceptfilter))
             tabname = common.concept_name_to_table_name(node.concept.name, catenate=False)
+            union_list = []
             for concept, only in node.conceptfilter.items():
                 table = self._table_from_concept(context, concept, node)
                 qry = pgsql.ast.SelectQueryNode()
@@ -266,14 +268,17 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                 qry.from_only = only
                 qry.targets.append(pgsql.ast.StarIndirectionNode())
 
-                union.queries.append(qry)
+                union_list.append(qry)
 
-            if len(union.queries) == 1:
-                relation = union.queries[0]
+            if len(union_list) == 1:
+                relation = union_list[0]
                 relation.alias = context.current.genalias(hint=tabname[1])
             else:
-                union.alias = context.current.genalias(hint=tabname[1])
-                relation = union
+                relation = pgsql.ast.SelectQueryNode(caosnode=node,
+                                                  concepts=frozenset(node.conceptfilter),
+                                                  op=pgsql.ast.UNION)
+                relation.alias = context.current.genalias(hint=tabname[1])
+                self._setop_from_list(relation, union_list, pgsql.ast.UNION)
         else:
             concept = node.concept
             concept_table = self._table_from_concept(context, concept, node)
@@ -626,6 +631,9 @@ class CaosTreeTransformer(CaosExprTransformer):
             query = context.current.query
 
         self._postprocess_query(context, query)
+
+        if not context.current.in_subquery:
+            query.ctes = OrderedSet(context.current.global_ctes.values()) | query.ctes
 
         return query
 
@@ -1075,39 +1083,149 @@ class CaosTreeTransformer(CaosExprTransformer):
         for link_name, link in vector.concept.get_searchable_links():
             yield tree.ast.AtomicRefSimple(ref=vector, name=link_name, ptr_proto=link)
 
+    def _build_text_search_conf_map_cte(self, context):
+        code_map = [
+            ('en', 'english'),
+            ('ru', 'russian')
+        ]
+
+        map_array = []
+        for code, confname in code_map:
+            item = pgsql.ast.RowExprNode(args=[
+                pgsql.ast.TypeCastNode(expr=pgsql.ast.ConstantNode(value=code),
+                                       type=pgsql.ast.TypeNode(name='text')),
+                pgsql.ast.TypeCastNode(expr=pgsql.ast.ConstantNode(value=confname),
+                                       type=pgsql.ast.TypeNode(name='regconfig'))
+            ])
+            map_array.append(item)
+
+        code_map_cte = pgsql.ast.CTENode(alias='text_search_conf_name_code_map')
+        code_map_cte.fromlist.append(
+            pgsql.ast.FromExprNode(
+                alias = pgsql.ast.FuncAliasNode(
+                    alias = 'map',
+                    elements = [
+                        pgsql.ast.TableFuncElement(name='code',
+                                                   type=pgsql.ast.TypeNode(name='text')),
+                        pgsql.ast.TableFuncElement(name='confname',
+                                                   type=pgsql.ast.TypeNode(name='regconfig'))
+
+                    ]
+                ),
+
+                expr = pgsql.ast.FunctionCallNode(
+                    name = 'unnest',
+                    args = [pgsql.ast.ArrayNode(elements=map_array)]
+                )
+            )
+        )
+        code_map_cte.targets.extend([
+            pgsql.ast.SelectExprNode(expr=pgsql.ast.FieldRefNode(field='code')),
+            pgsql.ast.SelectExprNode(expr=pgsql.ast.FieldRefNode(field='confname'))
+        ])
+
+        lang_arg = self._process_constant(context, tree.ast.Constant(index='__context_lang'))
+
+        code_conv_union = pgsql.ast.CTENode(alias='text_search_conf_map', op=pgsql.ast.UNION)
+
+        one = pgsql.ast.ConstantNode(value=1)
+        two = pgsql.ast.ConstantNode(value=2)
+        iso2 = pgsql.ast.FunctionCallNode(name='substr', args=[lang_arg, one, two])
+        variants = [lang_arg, iso2]
+
+        code_conv_union_list = []
+        for variant in variants:
+            qry = pgsql.ast.SelectQueryNode()
+            qry.targets.append(
+                pgsql.ast.SelectExprNode(expr=pgsql.ast.FieldRefNode(field='confname'))
+            )
+            qry.fromlist.append(
+                pgsql.ast.FromExprNode(expr=code_map_cte)
+            )
+            coderef = pgsql.ast.FieldRefNode(table=code_map_cte, field='code')
+            qry.where = pgsql.ast.BinOpNode(left=coderef, op=ast.ops.EQ, right=variant)
+            code_conv_union_list.append(qry)
+
+        code_conv_union_list.append(pgsql.ast.SelectQueryNode(
+            targets=[
+                pgsql.ast.SelectExprNode(expr=pgsql.ast.ConstantNode(value='english'))
+            ]
+        ))
+
+        self._setop_from_list(code_conv_union, code_conv_union_list, pgsql.ast.UNION)
+
+        code_conv_union.limit = one
+        code_conv_union.ctes.add(code_map_cte)
+        context.current.global_ctes['text_search_conf_map'] = code_conv_union
+
+        return code_conv_union
+
+    def _get_text_search_conf_ref(self, context):
+        if 'text_search_conf_map' not in context.current.global_ctes:
+            self._build_text_search_conf_map_cte(context)
+
+        return pgsql.ast.SelectQueryNode(
+            targets = [
+                pgsql.ast.SelectExprNode(expr=pgsql.ast.FieldRefNode(field='confname'))
+            ],
+            fromlist = [
+                context.current.global_ctes['text_search_conf_map']
+            ]
+        )
+
     def _text_search_args(self, context, vector, query, tsvector=True, extended=False):
         empty_str = pgsql.ast.ConstantNode(value='')
         sep_str = pgsql.ast.ConstantNode(value='; ')
-        lang_const = pgsql.ast.ConstantNode(value='english')
+
+        text_search_conf_ref = self._get_text_search_conf_ref(context)
+
         cols = None
 
         if isinstance(vector, tree.ast.EntitySet):
-            refs = self._text_search_refs(context, vector)
+            refs = [(r, r.ptr_proto.search.weight) for r in self._text_search_refs(context, vector)]
+
         elif isinstance(vector, tree.ast.Sequence):
-            refs = vector.elements
+            refs = [(r, r.ptr_proto.search.weight) for r in vector.elements]
+
         elif isinstance(vector, tree.ast.AtomicRef):
             link = vector.ref.concept.getptr(context.current.proto_schema, vector.name)
             ref = tree.ast.AtomicRefSimple(ref=vector.ref, name=vector.name, ptr_proto=link)
-            refs = (ref,)
+            refs = [(ref, ref.ptr_proto.search.weight)]
+
+        elif isinstance(vector, tree.ast.LinkPropRef):
+            ref = tree.ast.LinkPropRefSimple(ref=vector.ref, name=vector.name,
+                                             ptr_proto=vector.ptr_proto)
+            refs = [(ref, caos_types.SearchWeight_A)]
+
+        elif isinstance(vector, tree.ast.SearchVector):
+            refs = []
+
+            for elem in vector.items:
+                refs.append((elem.ref, elem.weight))
+        else:
+            assert False, "unexpected node type: %r" % vector
 
         if tsvector:
-            for atomref in refs:
+            for atomref, weight in refs:
                 ref = self._process_expr(context, atomref)
                 ref = pgsql.ast.FunctionCallNode(name='coalesce', args=[ref, empty_str])
-                ref = pgsql.ast.FunctionCallNode(name='to_tsvector', args=[lang_const, ref])
-                weight_const = pgsql.ast.ConstantNode(value=atomref.ptr_proto.search.weight)
+                ref = pgsql.ast.FunctionCallNode(name='to_tsvector',
+                                                 args=[text_search_conf_ref, ref])
+                weight_const = pgsql.ast.ConstantNode(value=weight)
                 ref = pgsql.ast.FunctionCallNode(name='setweight', args=[ref, weight_const])
                 cols = self.extend_predicate(cols, ref, op='||')
         else:
-            cols = pgsql.ast.ArrayNode(elements=[self._process_expr(context, r) for r in refs])
+            cols = pgsql.ast.ArrayNode(elements=[self._process_expr(context, r[0]) for r in refs])
             cols = pgsql.ast.FunctionCallNode(name='array_to_string', args=[cols, sep_str])
 
         query = self._process_expr(context, query)
 
         if extended:
-            query = pgsql.ast.FunctionCallNode(name='to_tsquery', args=[query])
+            query = pgsql.ast.FunctionCallNode(name='to_tsquery', args=[text_search_conf_ref,
+                                                                        query])
         else:
-            query = pgsql.ast.FunctionCallNode(name='plainto_tsquery', args=[query])
+            query = pgsql.ast.FunctionCallNode(name='plainto_tsquery', args=[text_search_conf_ref,
+                                                                             query])
 
         return cols, query
 
@@ -1241,6 +1359,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 self._process_expr(context, expr.target, cte)
             else:
                 self._process_expr(context, expr.source, cte)
+
+            result = pgsql.ast.IgnoreNode()
 
         elif isinstance(expr, tree.ast.BinOp):
             left_is_universal_set = self.is_universal_set(expr.left)
@@ -1547,6 +1667,12 @@ class CaosTreeTransformer(CaosExprTransformer):
 
             result = pgsql.ast.ExistsNode(expr=expr)
 
+        elif isinstance(expr, tree.ast.SearchVector):
+            for elem in expr.items:
+                self._process_expr(context, elem.ref, cte)
+
+            result = pgsql.ast.IgnoreNode()
+
         else:
             assert False, "Unexpected expression: %s" % expr
 
@@ -1566,7 +1692,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             extended = kwargs.pop('extended', False)
             vector, query = self._text_search_args(context, *expr.args, tsvector=False,
                                                    extended=extended)
-            lang = pgsql.ast.ConstantNode(value='english')
+            lang = self._get_text_search_conf_ref(context)
 
             args=[lang, vector, query]
 
@@ -1768,8 +1894,9 @@ class CaosTreeTransformer(CaosExprTransformer):
         if isinstance(sqlpath, pgsql.ast.CTENode):
             cte.ctes.add(sqlpath)
             sqlpath.referrers.add(cte)
-        elif isinstance(sqlpath, pgsql.ast.UnionNode):
-            for q in sqlpath.queries:
+
+        elif getattr(cte, 'op', None):
+            for q in self._query_list_from_set_op(sqlpath):
                 if isinstance(q, pgsql.ast.CTENode):
                     cte.ctes.add(q)
                     q.referrers.add(cte)
@@ -2403,12 +2530,13 @@ class CaosTreeTransformer(CaosExprTransformer):
 
     def unify_paths(self, context, sql_paths, intersect=False):
         if intersect:
-            result = pgsql.ast.IntersectNode(alias=context.current.genalias(hint='intersect'))
+            op = pgsql.ast.INTERSECT
         else:
-            result = pgsql.ast.UnionNode(alias=context.current.genalias(hint='union'))
+            op = pgsql.ast.UNION
         union = []
         commonctes = collections.OrderedDict()
         fieldmap = collections.OrderedDict()
+        result = pgsql.ast.SelectQueryNode(op=op, alias=context.current.genalias(hint=op.lower()))
 
         ##
         # First, analyze the given sqlpaths
@@ -2509,7 +2637,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 concept_filter = path_concepts - concepts
                 concepts |= path_concepts
 
-            if concept_filter is not None and not isinstance(sqlpath, pgsql.ast.UnionNode):
+            if concept_filter is not None and not getattr(sqlpath, 'op', None):
                 if len(concept_filter) == 0:
                     pass
                 else:
@@ -2550,5 +2678,30 @@ class CaosTreeTransformer(CaosExprTransformer):
                 else:
                     cte.referrers.add(result)
         """
-        result.queries = union
+        self._setop_from_list(result, union, op)
+        return result
+
+    def _setop_from_list(self, parent_qry, oplist, op):
+        nq = len(oplist)
+
+        assert nq >= 2, 'set operation requires at least two arguments'
+
+        for i in range(nq):
+            parent_qry.larg = oplist[i]
+            if i == nq - 2:
+                parent_qry.rarg = oplist[i + 1]
+                break
+            else:
+                parent_qry.rarg = pgsql.ast.SelectQueryNode(op=op)
+                parent_qry = parent_qry.rarg
+
+    def _query_list_from_set_op(self, set_qry):
+        result = []
+
+        while set_qry.op:
+            result.append(set_qry.larg)
+            set_qry = set_qry.rarg
+            if not set_qry.op:
+                result.append(set_qry.rarg)
+
         return result

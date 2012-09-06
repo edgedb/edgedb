@@ -179,6 +179,10 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.SubgraphRef):
             self.extract_prefixes(expr.ref, prefixes)
 
+        elif isinstance(expr, caos_ast.SearchVector):
+            for ref in expr.items:
+                self.extract_prefixes(ref.ref, prefixes)
+
         else:
             assert False, 'unexpected node: "%r"' % expr
 
@@ -287,6 +291,10 @@ class TreeTransformer:
 
         elif isinstance(expr, caos_ast.SubgraphRef):
             self.apply_fixups(expr.ref)
+
+        elif isinstance(expr, caos_ast.SearchVector):
+            for ref in expr.items:
+                self.apply_fixups(ref.ref)
 
         else:
             assert False, 'unexpected node: "%r"' % expr
@@ -405,6 +413,10 @@ class TreeTransformer:
 
         elif isinstance(expr, caos_ast.SubgraphRef):
             self.apply_rewrites(expr.ref)
+
+        elif isinstance(expr, caos_ast.SearchVector):
+            for ref in expr.items:
+                self.apply_rewrites(ref.ref)
 
         else:
             assert False, 'unexpected node: "%r"' % expr
@@ -794,6 +806,10 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.SubgraphRef):
             pass
 
+        elif isinstance(expr, caos_ast.SearchVector):
+            for ref in expr.items:
+                self.reorder_aggregates(ref.ref)
+
         else:
             # All other nodes fall through
             assert False, 'unexpected node "%r"' % expr
@@ -895,6 +911,10 @@ class TreeTransformer:
 
         elif isinstance(expr, caos_ast.SelectorExpr):
             self.link_subqueries(expr.expr)
+
+        elif isinstance(expr, caos_ast.SearchVector):
+            for ref in expr.items:
+                self.link_subqueries(ref.ref)
 
         else:
             # All other nodes fall through
@@ -1087,6 +1107,24 @@ class TreeTransformer:
 
         elif isinstance(expr, caos_ast.SubgraphRef):
             pass
+
+        elif isinstance(expr, caos_ast.SearchVector):
+            refs = []
+            for elem in expr.items:
+                elem.ref = self.merge_paths(elem.ref)
+                refs.append(elem.ref)
+
+            if len(refs) > 1:
+                # Make sure that all refs in search vector are merged with each other
+                # properly.
+                #
+                paths = []
+                for ref in refs:
+                    path = self.extract_paths(ref, reverse=True)
+                    if path:
+                        paths.append(path)
+                e = caos_ast.Conjunction(paths=frozenset(paths))
+                self.flatten_and_unify_path_combination(e)
 
         else:
             assert False, 'unexpected node "%r"' % expr
@@ -1860,6 +1898,21 @@ class TreeTransformer:
         elif isinstance(path, caos_ast.Constant):
             return None
 
+        elif isinstance(path, caos_ast.SearchVector):
+            paths = set()
+            for p in path.items:
+                p = cls.extract_paths(p.ref, reverse, resolve_arefs, recurse_subqueries,
+                                      all_fragments, extract_subgraph_refs)
+                if p:
+                    paths.add(p)
+
+            if len(paths) == 1:
+                return next(iter(paths))
+            elif len(paths) == 0:
+                return None
+            else:
+                return caos_ast.Disjunction(paths=frozenset(paths))
+
         else:
             assert False, 'unexpected node "%r"' % path
 
@@ -1955,40 +2008,44 @@ class TreeTransformer:
 
     def process_function_call(self, node):
         if node.name in (('search', 'rank'), ('search', 'headline')):
-            refs = set()
-            for arg in node.args:
-                if isinstance(arg, caos_ast.EntitySet):
-                    refs.add(arg)
-                else:
-                    def testfn(n):
-                        if isinstance(n, caos_ast.EntitySet):
-                            return True
-                        elif isinstance(n, caos_ast.SubgraphRef):
-                            raise ast.SkipNode()
+            if not isinstance(node.args[0], caos_ast.SearchVector):
+                refs = set()
+                for arg in node.args:
+                    if isinstance(arg, caos_ast.EntitySet):
+                        refs.add(arg)
+                    else:
+                        def testfn(n):
+                            if isinstance(n, caos_ast.EntitySet):
+                                return True
+                            elif isinstance(n, caos_ast.SubgraphRef):
+                                raise ast.SkipNode()
 
-                    refs.update(ast.find_children(arg, testfn, force_traversal=True))
+                        refs.update(ast.find_children(arg, testfn, force_traversal=True))
 
-            assert len(refs) == 1
+                assert len(refs) == 1
 
-            ref = next(iter(refs))
+                ref = next(iter(refs))
 
-            cols = []
-            for link_name, link in ref.concept.get_searchable_links():
-                id = LinearPath(ref.id)
-                id.add(link, caos_types.OutboundDirection, link.target)
-                cols.append(caos_ast.AtomicRefSimple(ref=ref, name=link_name,
-                                                     ptr_proto=link,
-                                                     id=id))
+                cols = []
+                for link_name, link in ref.concept.get_searchable_links():
+                    id = LinearPath(ref.id)
+                    id.add(link, caos_types.OutboundDirection, link.target)
+                    cols.append(caos_ast.AtomicRefSimple(ref=ref, name=link_name,
+                                                         ptr_proto=link,
+                                                         id=id))
 
-            if not cols:
-                raise caos_error.CaosError('%s call on concept %s without any search configuration'\
-                                           % (node.name, ref.concept.name),
-                                           hint='Configure search for "%s"' % ref.concept.name)
+                if not cols:
+                    raise caos_error.CaosError('%s call on concept %s without any search configuration'\
+                                               % (node.name, ref.concept.name),
+                                               hint='Configure search for "%s"' % ref.concept.name)
 
-            ref.atomrefs.update(cols)
+                ref.atomrefs.update(cols)
+                vector = caos_ast.Sequence(elements=cols)
+            else:
+                vector = node.args[0]
 
             node = caos_ast.FunctionCall(name=node.name,
-                                         args=[caos_ast.Sequence(elements=cols), node.args[1]],
+                                         args=[vector, node.args[1]],
                                          kwargs=node.kwargs)
 
         elif node.name[0] == 'agg':
@@ -2327,7 +2384,9 @@ class TreeTransformer:
 
                     elif len(refdict) == 1:
                         # Left operand references a single entity
-                        result = exprnode_type(expr=newbinop(left, right))
+                        _binop = newbinop(left, right)
+                        _binop = self.merge_paths(_binop)
+                        result = exprnode_type(expr=_binop)
                     else:
                         result = newbinop(left, right, uninline=True)
 
@@ -2384,7 +2443,10 @@ class TreeTransformer:
                             refs = [p.ref for p in right_exprs.paths]
                             right.replace_refs(refs, newref.ref, deep=True)
                             # Left and right operand reference the same single path
-                            result = exprtype(expr=newbinop(left, right))
+
+                            _binop = newbinop(left, right)
+                            _binop = self.merge_paths(_binop)
+                            result = exprtype(expr=_binop)
 
                         else:
                             result = newbinop(left, right, uninline=True)
@@ -2449,6 +2511,9 @@ class TreeTransformer:
             result = newbinop(left, right, uninline=True)
 
         elif isinstance(left, caos_ast.SubgraphRef):
+            result = newbinop(left, right, uninline=True)
+
+        elif isinstance(left, caos_ast.SearchVector):
             result = newbinop(left, right, uninline=True)
 
         if not result:

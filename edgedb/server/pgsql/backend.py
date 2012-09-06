@@ -228,7 +228,7 @@ class PreparedQuery:
     def _convert_args(self, kwargs):
         result = []
         for k in self.argmap:
-            arg = kwargs[k]
+            arg = kwargs.get(k)
             if isinstance(arg, caos.types.ConceptObject):
                 arg = arg.id
             elif isinstance(arg, caos.types.ConceptClass):

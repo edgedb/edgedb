@@ -310,6 +310,29 @@ class InlinePropFilter(Base): __fields  = ['expr', 'ref']
 class ExistPred(Base): __fields = ['expr', 'outer']
 class AtomicExistPred(ExistPred): pass
 
+class SearchVector(Base):
+    __fields = ['items']
+
+class SearchVectorElement(Base):
+    __fields = [('ref', Base, None, True), 'weight']
+
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+
+        if name == 'ref':
+            self.update_refs()
+
+    def update_refs(self):
+        if isinstance(self.ref, (EntitySet, EntityLink)):
+            ref = self.ref
+        elif isinstance(self.ref, (BaseRef,)):
+            ref = self.ref.ref
+        else:
+            return
+
+        ref.backrefs.add(self)
+        self.refs.add(ref)
+
 class SortOrder(StrSingleton):
     _map = {
         'ASC': 'SortAsc',

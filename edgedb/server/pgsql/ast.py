@@ -51,6 +51,12 @@ class SelectExprNode(Base):
 class FromExprNode(Base):
     __fields = ['expr', 'alias']
 
+class FuncAliasNode(Base):
+    __fields = ['alias', 'elements']
+
+class TableFuncElement(Base):
+    __fields = ['name', 'type']
+
 class RelationNode(Base):
     __fields = [('concepts', frozenset), 'alias', ('_bonds', dict), 'caosnode',
                 ('outerbonds', list), ('aggregates', bool)]
@@ -92,28 +98,23 @@ class SelectQueryNode(RelationNode):
                 ('orderby', list), 'offset', 'limit', ('groupby', list), 'having',
                 ('ctes', datastructures.OrderedSet),
                 ('concept_node_map', dict), ('link_node_map', dict), ('linkmap', dict),
-                ('subquery_referrers', list)]
+                ('subquery_referrers', list),
+                'op', 'larg', 'rarg']
 
 class UpdateQueryNode(Base):
     __fields = ['fromexpr', ('values', list), 'where', ('targets', list),
-                ('subquery_referrers', list)]
+                ('subquery_referrers', list), ('ctes', datastructures.OrderedSet)]
 
 class UpdateExprNode(Base):
     __fields = ['expr', 'value']
 
 class DeleteQueryNode(Base):
     __fields = ['fromexpr', 'where', ('targets', list),
-                ('subquery_referrers', list)]
+                ('subquery_referrers', list), ('ctes', datastructures.OrderedSet)]
 
 class CompositeNode(RelationNode):
     __fields = [('queries', list), ('ctes', datastructures.OrderedSet),
                 ('concept_node_map', dict)]
-
-class UnionNode(CompositeNode):
-    __fields = ['distinct']
-
-class IntersectNode(CompositeNode):
-    pass
 
 class CTENode(SelectQueryNode):
     __fields = [('referrers', weakref.WeakSet)]
@@ -204,6 +205,11 @@ IS_NOT_DISTINCT = PgSQLComparisonOperator('IS NOT DISTINCT')
 IS_OF = PgSQLComparisonOperator('IS OF')
 IS_NOT_OF = PgSQLComparisonOperator('IS NOT OF')
 
+class PgSQLSetOperator(PgSQLOperator):
+    pass
+
+UNION = PgSQLSetOperator('UNION')
+INTERSECT = PgSQLSetOperator('INTERSECT')
 
 class SortOrder(tree_ast.SortOrder):
     _map = {

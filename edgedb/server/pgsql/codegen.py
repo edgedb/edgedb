@@ -89,21 +89,31 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.ctes:
             self.gen_ctes(node.ctes)
 
-        self.write('SELECT')
-        if node.distinct is not None:
-            self.write(' DISTINCT')
+        if node.op:
+            # Upper level set operation node (UNION/INTERSECT)
+            self.visit(node.larg)
+            self.write(' ' + node.op + ' ')
+            if not node.distinct:
+                self.write('ALL ')
+            self.visit(node.rarg)
+        else:
+            self.write('SELECT')
+            if node.distinct is not None:
+                self.write(' DISTINCT')
 
-        self.new_lines = 1
-        self.indentation += 2
-
-        count = len(node.targets)
-        for i, target in enumerate(node.targets):
             self.new_lines = 1
-            self.visit(target)
-            if i != count -1:
-                self.write(',')
+            self.indentation += 2
 
-        self.indentation -= 2
+        if node.targets:
+            count = len(node.targets)
+            for i, target in enumerate(node.targets):
+                self.new_lines = 1
+                self.visit(target)
+                if i != count -1:
+                    self.write(',')
+
+        if not node.op:
+            self.indentation -= 2
 
         if node.fromlist:
             self.indentation += 1
@@ -186,40 +196,6 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
         if node.alias and use_alias:
-            self.write(' AS ' + common.quote_ident(node.alias))
-
-    def visit_UnionNode(self, node):
-        self.write('(')
-        if node.ctes:
-            self.gen_ctes(node.ctes)
-
-        count = len(node.queries)
-        for i, query in enumerate(node.queries):
-            self.new_lines = 1
-            self.visit(query)
-            if i != count - 1:
-                self.write(' UNION ')
-                if not node.distinct:
-                    self.write(' ALL ')
-
-        self.write(')')
-        if node.alias:
-            self.write(' AS ' + common.quote_ident(node.alias))
-
-    def visit_IntersectNode(self, node):
-        self.write('(')
-        if node.ctes:
-            self.gen_ctes(node.ctes)
-
-        count = len(node.queries)
-        for i, query in enumerate(node.queries):
-            self.new_lines = 1
-            self.visit(query)
-            if i != count - 1:
-                self.write(' INTERSECT ')
-
-        self.write(')')
-        if node.alias:
             self.write(' AS ' + common.quote_ident(node.alias))
 
     def visit_ExistsNode(self, node):
@@ -318,7 +294,27 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def visit_FromExprNode(self, node):
         self.visit(node.expr)
         if node.alias:
-            self.write(' AS ' + common.quote_ident(node.alias))
+            self.write(' AS ')
+            if isinstance(node.alias, str):
+                self.write(common.quote_ident(node.alias))
+            else:
+                self.visit(node.alias)
+
+    def visit_FuncAliasNode(self, node):
+        self.write(common.quote_ident(node.alias))
+        if node.elements:
+            self.write(' (')
+            count = len(node.elements)
+            for i, expr in enumerate(node.elements):
+                self.visit(expr)
+                if i != count - 1:
+                    self.write(', ')
+            self.write(')')
+
+    def visit_TableFuncElement(self, node):
+        self.write(common.quote_ident(node.name))
+        self.write(' ')
+        self.visit(node.type)
 
     def visit_JoinNode(self, node):
         self.visit(node.left)
