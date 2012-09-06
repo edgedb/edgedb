@@ -21,10 +21,12 @@ class SourceGenerator(NodeVisitor):
         self.add_line_information = add_line_information
         self.indentation = 0
         self.new_lines = 0
+        self.current_line = 1
 
     def write(self, x):
         if self.new_lines:
             if self.result:
+                self.current_line += self.new_lines
                 self.result.append('\n' * self.new_lines)
             self.result.append(self.indent_with * self.indentation)
             self.new_lines = 0
