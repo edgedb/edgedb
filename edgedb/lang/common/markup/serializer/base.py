@@ -187,6 +187,8 @@ def serialize_exception(obj, *, ctx):
     if details_context is not None:
         contexts.append(serialize(details_context, ctx=ctx))
 
+    contexts = [ctx for ctx in contexts if not isinstance(ctx, elements.lang.Ref)] # XXX
+
     markup = elements.lang.Exception(class_module=obj.__class__.__module__,
                                      class_name=obj.__class__.__name__,
                                      msg=str(obj),

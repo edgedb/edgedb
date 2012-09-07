@@ -83,21 +83,21 @@ ALL_SYMBOLS.update(UNARYOP_SYMBOLS)
 
 
 class BasePythonSourceGenerator(SourceGenerator):
-    def __body(self, statements):
+    def _body(self, statements):
         self.new_lines = 1
         self.indentation += 1
         for stmt in statements:
             self.visit(stmt)
         self.indentation -= 1
 
-    def __body_or_else(self, node):
-        self.__body(node.body)
+    def _body_or_else(self, node):
+        self._body(node.body)
         if node.orelse:
             self.newline()
             self.write('else:')
-            self.__body(node.orelse)
+            self._body(node.orelse)
 
-    def __signature(self, node):
+    def _signature(self, node):
         want_comma = []
         def write_comma():
             if want_comma:
@@ -133,7 +133,7 @@ class BasePythonSourceGenerator(SourceGenerator):
             write_comma()
             self.write('**' + node.kwarg)
 
-    def __decorators(self, node):
+    def _decorators(self, node):
         for decorator in node.decorator_list:
             self.newline(decorator)
             self.write('@')
@@ -176,12 +176,12 @@ class BasePythonSourceGenerator(SourceGenerator):
 
     def visit_PyFunctionDef(self, node):
         self.newline(extra=1)
-        self.__decorators(node)
+        self._decorators(node)
         self.newline(node)
         self.write('def %s(' % node.name)
-        self.__signature(node.args)
+        self._signature(node.args)
         self.write('):')
-        self.__body(node.body)
+        self._body(node.body)
 
     def visit_PyClassDef(self, node):
         have_args = []
@@ -193,7 +193,7 @@ class BasePythonSourceGenerator(SourceGenerator):
                 self.write('(')
 
         self.newline(extra=2)
-        self.__decorators(node)
+        self._decorators(node)
         self.newline(node)
         self.write('class %s' % node.name)
         for base in node.bases:
@@ -215,14 +215,14 @@ class BasePythonSourceGenerator(SourceGenerator):
                 self.write('**')
                 self.visit(node.kwargs)
         self.write(have_args and '):' or ':')
-        self.__body(node.body)
+        self._body(node.body)
 
     def visit_PyIf(self, node):
         self.newline(node)
         self.write('if ')
         self.visit(node.test)
         self.write(':')
-        self.__body(node.body)
+        self._body(node.body)
         while True:
             else_ = node.orelse
 
@@ -235,11 +235,11 @@ class BasePythonSourceGenerator(SourceGenerator):
                 self.write('elif ')
                 self.visit(node.test)
                 self.write(':')
-                self.__body(node.body)
+                self._body(node.body)
             else:
                 self.newline()
                 self.write('else:')
-                self.__body(else_)
+                self._body(else_)
                 break
 
     def visit_PyFor(self, node):
@@ -249,14 +249,14 @@ class BasePythonSourceGenerator(SourceGenerator):
         self.write(' in ')
         self.visit(node.iter)
         self.write(':')
-        self.__body_or_else(node)
+        self._body_or_else(node)
 
     def visit_PyWhile(self, node):
         self.newline(node)
         self.write('while ')
         self.visit(node.test)
         self.write(':')
-        self.__body_or_else(node)
+        self._body_or_else(node)
 
     def visit_PyWith(self, node):
         self.newline(node)
@@ -266,7 +266,7 @@ class BasePythonSourceGenerator(SourceGenerator):
             self.write(' as ')
             self.visit(node.optional_vars)
         self.write(':')
-        self.__body(node.body)
+        self._body(node.body)
 
     def visit_PyPass(self, node):
         self.newline(node)
@@ -283,17 +283,17 @@ class BasePythonSourceGenerator(SourceGenerator):
     def visit_PyTryExcept(self, node):
         self.newline(node)
         self.write('try:')
-        self.__body(node.body)
+        self._body(node.body)
         for handler in node.handlers:
             self.visit(handler)
 
     def visit_PyTryFinally(self, node):
         self.newline(node)
         self.write('try:')
-        self.__body(node.body)
+        self._body(node.body)
         self.newline(node)
         self.write('finally:')
-        self.__body(node.finalbody)
+        self._body(node.finalbody)
 
     def visit_PyGlobal(self, node):
         self.newline(node)
@@ -482,7 +482,7 @@ class BasePythonSourceGenerator(SourceGenerator):
 
     def visit_PyLambda(self, node):
         self.write('lambda ')
-        self.__signature(node.args)
+        self._signature(node.args)
         self.write(': ')
         self.visit(node.body)
 
@@ -565,4 +565,4 @@ class BasePythonSourceGenerator(SourceGenerator):
                 self.write(' as ')
                 self.visit(node.name)
         self.write(':')
-        self.__body(node.body)
+        self._body(node.body)
