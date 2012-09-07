@@ -9,7 +9,7 @@
 // %from . import sx
 
 
-(function() {
+sx.$bootstrap_class_system = function(opts) {
     'use strict';
 
     var instances = [],
@@ -22,7 +22,44 @@
                               'a (non-strict) subclass of the metaclasses of all its bases',
 
         Error = sx.Error,
-        natives = [Array, Number, Date, Boolean, String, Object, RegExp];
+        natives = [Array, Number, Date, Boolean, String, Object, RegExp],
+        i,
+
+        default_opts = {
+            constructor_name: 'construct',
+
+            cls_attr: '$cls',
+            mro_attr: '$mro',
+            bases_attr: '$bases',
+            name_attr: '$name',
+            wrapped_attr: '$wrapped',
+            own_attr: '$$own',
+            statics_attr: '$$statics',
+            module_attr: '$module',
+            qualname_attr: '$qualname',
+
+            type_cls_name: 'Type',
+            object_cls_name: 'Object',
+            builtins_name: 'sx'
+        };
+
+    opts = opts || {};
+    for (i in default_opts) {
+        if (!hop.call(opts, i)) {
+            opts[i] = default_opts[i];
+        }
+    }
+
+    var CONSTRUCTOR = opts.constructor_name,
+        CLS_ATTR = opts.cls_attr,
+        MRO_ATTR = opts.mro_attr,
+        BASES_ATTR = opts.bases_attr,
+        NAME_ATTR = opts.name_attr,
+        WRAPPED_ATTR = opts.wrapped_attr,
+        OWN_ATTR = opts.own_attr,
+        STATICS_ATTR = opts.statics_attr,
+        MODULE_ATTR = opts.module_attr,
+        QUALNAME_ATTR = opts.qualname_attr;
 
     if (!indexOf) {
         // IE
@@ -97,13 +134,13 @@
     };
 
     function calc_mro(cls) {
-        if (hop.call(cls, '$mro')) {
-            return cls.$mro.slice();
+        if (hop.call(cls, MRO_ATTR)) {
+            return cls[MRO_ATTR].slice();
         }
 
         var lst = [[cls]],
             i = 0,
-            bases = cls.$bases,
+            bases = cls[BASES_ATTR],
             len = bases.length;
 
         for (; i < len; ++i) {
@@ -122,12 +159,12 @@
             mcls;
 
         if (bases_len == 1) {
-            return [bases[0].$cls];
+            return [bases[0][CLS_ATTR]];
         }
 
         result = [];
         for (i = 0; i < bases_len; ++i) {
-            mcls = bases[i].$cls;
+            mcls = bases[i][CLS_ATTR];
 
             if (indexOf.call(result, mcls) < 0) {
                 result.push(mcls);
@@ -136,33 +173,33 @@
         return result;
     };
 
-    function parent(cls, ths, method, args) {
+    function sx_parent(cls, ths, method, args) {
         var mro, mro_len, i, pos, base, func, cls;
 
         args = args || [];
         if (arguments.length > 4) {
-            throw new Error('invalid `sx.parent` call, should receive arguments as array');
+            throw new Error('invalid `parent` call, should receive arguments as array');
         }
 
-        if (hop.call(ths, '$mro') && !issubclass(ths.$cls, cls)) {
+        if (hop.call(ths, MRO_ATTR) && !sx_issubclass(ths[CLS_ATTR], cls)) {
             // class
 
-            mro = ths.$mro;
+            mro = ths[MRO_ATTR];
             pos = indexOf.call(mro, cls);
 
             if (pos >= 0) {
                 for (i = pos + 1; base = mro[i]; ++i) {
                     if (hop.call(base, method)) {
                         func = base[method];
-                        if (hop.call(func, '$wrapped')) {
-                            func = func.$wrapped;
+                        if (hop.call(func, WRAPPED_ATTR)) {
+                            func = func[WRAPPED_ATTR];
                         }
                         return func.apply(ths, args);
                     }
                 }
             }
         } else {
-            mro = ths.$cls.$mro;
+            mro = ths[CLS_ATTR][MRO_ATTR];
             pos = indexOf.call(mro, cls);
 
             if (pos >= 0) {
@@ -186,14 +223,14 @@
             var args, base, pos, mro, mro_len, i, ths = null, func;
 
             if (this instanceof _class) {
-                args = (arg0 != null && hop.call(arg0, '$sx_args')) ? arg0 : arguments;
+                args = (arg0 != null && hop.call(arg0, '$SX_CLS_ARG$')) ? arg0 : arguments;
 
-                mro = _class.$mro;
+                mro = _class[MRO_ATTR];
                 for (i = 0; base = mro[i]; ++i) {
-                    if (hop.call(base, 'construct')) {
-                        func = base.construct;
-                        if (hop.call(func, '$wrapped')) {
-                            func = func.$wrapped;
+                    if (hop.call(base, CONSTRUCTOR)) {
+                        func = base[CONSTRUCTOR];
+                        if (hop.call(func, WRAPPED_ATTR)) {
+                            func = func[WRAPPED_ATTR];
                         }
                         instances.push(this);
                         try {
@@ -214,15 +251,15 @@
                 for (i = 0, mro_len = mro.length - 1; i < mro_len; ++i) {
                     base = mro[i].prototype;
 
-                    if (hop.call(base, 'construct')) {
-                        base.construct.apply(ths, args);
+                    if (hop.call(base, CONSTRUCTOR)) {
+                        base[CONSTRUCTOR].apply(ths, args);
                         break;
                     }
                 }
 
                 return ths;
             } else {
-                arguments.$sx_args = 1;
+                arguments.$SX_CLS_ARG$ = 1;
                 return new _class(arguments);
             }
         };
@@ -233,7 +270,7 @@
     if (Function.prototype.bind) {
         boundmethod = function(func, scope) {
             var bound = func.bind(scope);
-            bound.$wrapped = func;
+            bound[WRAPPED_ATTR] = func;
             return bound;
         };
     } else {
@@ -241,30 +278,30 @@
             var bound = function() {
                 return func.apply(scope, arguments);
             };
-            bound.$wrapped = func;
+            bound[WRAPPED_ATTR] = func;
             return bound;
         };
     }
 
     function is_method(obj) {
-        return (typeof obj == 'function') && !hop.call(obj, '$mro')
+        return (typeof obj == 'function') && !hop.call(obj, MRO_ATTR)
                                             && indexOf.call(natives, obj) == -1;
     };
 
     function fix_static_method(attr, static_name, cls) {
-        if (!hop.call(attr, '$name')) {
-            attr.$name = static_name;
-            attr.$cls = cls;
+        if (!hop.call(attr, NAME_ATTR)) {
+            attr[NAME_ATTR] = static_name;
+            attr[CLS_ATTR] = cls;
         }
 
-        if (hop.call(attr, '$wrapped')) {
-            attr = boundmethod(attr.$wrapped, cls);
+        if (hop.call(attr, WRAPPED_ATTR)) {
+            attr = boundmethod(attr[WRAPPED_ATTR], cls);
         } else {
             attr = boundmethod(attr, cls);
         }
 
-        attr.$cls = cls;
-        attr.$name = static_name;
+        attr[CLS_ATTR] = cls;
+        attr[NAME_ATTR] = static_name;
 
         return attr;
     };
@@ -280,51 +317,51 @@
         cls.toString = function() { return '<' + name + '>'; };
 
         if ((i = name.lastIndexOf('.')) !== -1) {
-            cls.$name = name.substr(i + 1);
-            cls.$module = name.substr(0, i);
+            cls[NAME_ATTR] = name.substr(i + 1);
+            cls[MODULE_ATTR] = name.substr(0, i);
         } else {
-            cls.$name = name;
-            cls.$module = '';
+            cls[NAME_ATTR] = name;
+            cls[MODULE_ATTR] = '';
         }
-        cls.$qualname = name;
+        cls[QUALNAME_ATTR] = name;
 
-        cls.$cls = this;
+        cls[CLS_ATTR] = this;
         proto = cls.prototype = {};
-        cls.$bases = bases;
-        mro = cls.$mro = calc_mro(cls);
+        cls[BASES_ATTR] = bases;
+        mro = cls[MRO_ATTR] = calc_mro(cls);
         mro_len_1 = mro.length - 1;
 
         for (i in dct) {
             if (hop.call(dct, i) && i != 'metaclass' && i != 'statics') {
                 attr = dct[i];
-                if (!hop.call(attr, '$cls') && is_method(attr)) {
-                    attr.$cls = cls;
-                    attr.$name = i;
+                if (!hop.call(attr, CLS_ATTR) && is_method(attr)) {
+                    attr[CLS_ATTR] = cls;
+                    attr[NAME_ATTR] = i;
                 }
                 proto[i] = attr;
                 own.push(i);
             }
         }
 
-        cls.$own = (attrs_flag = own.length) ? own : false;
+        cls[OWN_ATTR] = (attrs_flag = own.length) ? own : false;
 
         for (i = 1; i < mro_len_1; ++i) {
             j = mro[i];
             parent_proto = j.prototype;
-            parent_own = j.$own;
+            parent_own = j[OWN_ATTR];
 
             if (parent_own) {
                 for (j = parent_own.length; j--;) {
                     attr = parent_own[j];
                     if (!hop.call(proto, attr)) {
                         proto[attr] = parent_proto[attr];
-                        (attr != 'construct') && (attrs_flag = 1);
+                        (attr != CONSTRUCTOR) && (attrs_flag = 1);
                     }
                 }
             }
         }
 
-        attrs_flag && (cls.$_attrs = 1);
+        attrs_flag && (cls.$SX_CLS_ATTR$ = 1);
 
         if (hop.call(dct, 'statics')) {
             statics = dct.statics;
@@ -345,11 +382,11 @@
 
         for (i = 1; i < mro_len_1; ++i) {
             parent_mro = mro[i];
-            statics = parent_mro.$statics;
+            statics = parent_mro[STATICS_ATTR];
             if (statics) {
                 for (j = statics.length; j--;) {
                     static_name = statics[j];
-                    if (!hop.call(static_attrs_cache, static_name) && static_name != 'construct') {
+                    if (!hop.call(static_attrs_cache, static_name) && static_name != CONSTRUCTOR) {
                         static_attrs_cache[static_name] = true;
                         static_attrs.push(static_name);
                         attr = parent_mro[static_name];
@@ -364,10 +401,10 @@
             }
         }
 
-        if (hop.call(this, '$_attrs')) {
+        if (hop.call(this, '$SX_CLS_ATTR$')) {
             parent_proto = this.prototype;
             for (static_name in parent_proto) {
-                if (hop.call(parent_proto, static_name) && static_name != 'construct'
+                if (hop.call(parent_proto, static_name) && static_name != CONSTRUCTOR
                                                             && !hop.call(cls, static_name)) {
                     attr = parent_proto[static_name];
 
@@ -380,63 +417,60 @@
             }
         }
 
-        cls.$statics = static_attrs.length ? static_attrs : false;
+        cls[STATICS_ATTR] = static_attrs.length ? static_attrs : false;
         return cls;
     };
 
-    var sx_Type = sx.Type = make_universal_constructor();
-    sx.Type.construct = new_class;
-    new_class.$cls = sx.Type;
-    new_class.$name = 'construct';
-    sx.Type.$statics = false;
-    sx.Type.$own = false;
-    sx.Type.$qualname = 'sx.Type';
+    var TypeClass = make_universal_constructor();
+    TypeClass[CONSTRUCTOR] = new_class;
+    new_class[CLS_ATTR] = TypeClass;
+    new_class[NAME_ATTR] = CONSTRUCTOR;
+    TypeClass[STATICS_ATTR] = false;
+    TypeClass[OWN_ATTR] = false;
+    var type_qualname = TypeClass[QUALNAME_ATTR] = opts.builtins_name + '.' + opts.type_cls_name;
 
     var object_constructor = function() {};
-    var sx_Object = sx.Object = make_universal_constructor();
-    object_constructor.$name = 'construct';
-    object_constructor.$cls = 'sx.Object';
-    sx.Object.prototype = {
-        construct: object_constructor,
+    var ObjectClass = make_universal_constructor();
+    object_constructor[NAME_ATTR] = CONSTRUCTOR;
+    object_constructor[CLS_ATTR] = ObjectClass;
+    ObjectClass.prototype = {
         toString: function() {
-            return '<instance of ' + this.$cls.$name + '>';
+            return '<instance of ' + this[CLS_ATTR][NAME_ATTR] + '>';
         }
     };
-    sx.Object.construct = function() {
+    ObjectClass.prototype[CONSTRUCTOR] = object_constructor;
+    ObjectClass[CONSTRUCTOR] = function() {
         var instance = instances.pop();
-        instance.$cls = this;
+        instance[CLS_ATTR] = this;
         return instance;
     };
-    sx.Object.construct.$cls = sx.Object;
-    sx.Object.construct.$name = 'construct';
+    ObjectClass[CONSTRUCTOR][CLS_ATTR] = ObjectClass;
+    ObjectClass[CONSTRUCTOR][NAME_ATTR] = CONSTRUCTOR;
 
 
-    sx.Object.$cls = sx.Type;
-    sx.Object.$statics = false;
-    sx.Object.$bases = [sx.Object];
-    sx.Object.$name = 'Object';
-    sx.Object.$module = 'sx';
-    sx.Object.$qualname = 'sx.Object';
-    sx.Object.$mro = [sx.Object];
-    sx.Object.$own = false;
-    sx.Object.toString = function() { return '<sx.Object>'; };
+    ObjectClass[CLS_ATTR] = TypeClass;
+    ObjectClass[STATICS_ATTR] = false;
+    ObjectClass[BASES_ATTR] = [ObjectClass];
+    ObjectClass[NAME_ATTR] = opts.object_cls_name;
+    ObjectClass[MODULE_ATTR] = opts.builtins_name;
+    var obj_qualname = ObjectClass[QUALNAME_ATTR] = opts.builtins_name + '.' + opts.object_cls_name;
+    ObjectClass[MRO_ATTR] = [ObjectClass];
+    ObjectClass[OWN_ATTR] = false;
+    ObjectClass.toString = function() { return '<' + obj_qualname + '>'; };
 
-    sx.Type.$bases = [sx.Object];
-    sx.Type.$cls = sx.Type;
-    sx.Type.$name = 'Type';
-    sx.Object.$module = 'sx';
-    sx.Type.$mro = [sx.Type, sx.Object];
-    sx.Type.prototype = {
-        construct: function() {}
-    }
-    sx.Type.prototype.construct.$cls = sx.Type;
-    sx.Type.prototype.construct.$name = 'construct';
+    TypeClass[BASES_ATTR] = [ObjectClass];
+    TypeClass[CLS_ATTR] = TypeClass;
+    TypeClass[NAME_ATTR] = opts.type_cls_name;
+    ObjectClass[MODULE_ATTR] = opts.builtins_name;
+    TypeClass[MRO_ATTR] = [TypeClass, ObjectClass];
+    TypeClass.prototype = {}
+    TypeClass.prototype[CONSTRUCTOR] = function() {};
+    TypeClass.prototype[CONSTRUCTOR][CLS_ATTR] = TypeClass;
+    TypeClass.prototype[CONSTRUCTOR][NAME_ATTR] = CONSTRUCTOR;
 
-    sx.Type.toString = function() { return '<sx.Type>'; };
+    TypeClass.toString = function() { return '<' + type_qualname + '>'; };
 
-    sx.parent = parent;
-
-    sx.define = function sx_define(name, bases, body) {
+    function sx_define(name, bases, body) {
         var bases_len, metaclass, ms, i, ms_len, j, mcls, found, args;
 
         body = body || {};
@@ -456,15 +490,15 @@
 
         bases_len = bases.length;
         if (bases_len == 0) {
-            bases.push(sx_Object);
+            bases.push(ObjectClass);
         }
 
         metaclass = hop.call(body, 'metaclass') ? body.metaclass : null;
         if (metaclass == null) {
             if (!bases_len) {
-                metaclass = sx_Type;
+                metaclass = TypeClass;
             } else if (bases_len == 1) {
-                metaclass = bases[0].$cls;
+                metaclass = bases[0][CLS_ATTR];
             } else {
                 ms = calc_metaclasses(bases);
                 ms_len = ms.length;
@@ -476,7 +510,7 @@
                         mcls = ms[i];
                         found = true;
                         for (j = 0; j < ms_len; ++j) {
-                            if (!issubclass(mcls, ms[j])) {
+                            if (!sx_issubclass(mcls, ms[j])) {
                                 found = false;
                                 break;
                             }
@@ -492,12 +526,12 @@
                     }
                 }
             }
-        } else if (issubclass(metaclass, sx_Type)) {
+        } else if (sx_issubclass(metaclass, TypeClass)) {
             ms = calc_metaclasses(bases);
             i = ms.length;
 
             for (; i--;) {
-                if (!issubclass(metaclass, ms[i])) {
+                if (!sx_issubclass(metaclass, ms[i])) {
                     throw new Error(error_mcls_conflict);
                 }
             }
@@ -508,7 +542,7 @@
             args.push.apply(args, slice.call(arguments, 3));
             return metaclass.apply(null, args);
         } else {
-            if (hop.call(metaclass, '$mro')) {
+            if (hop.call(metaclass, MRO_ATTR)) {
                 return new metaclass(name, bases, body);
             } else {
                 return metaclass(name, bases, body);
@@ -516,8 +550,8 @@
         }
     };
 
-    var issubclass = sx.issubclass = function sx_issubclass(cls, parents) {
-        if (!cls || !hop.call(cls, '$mro')) {
+    function sx_issubclass(cls, parents) {
+        if (!cls || !hop.call(cls, MRO_ATTR)) {
             return false;
         }
 
@@ -525,7 +559,7 @@
             return true;
         }
 
-        var mro = cls.$mro;
+        var mro = cls[MRO_ATTR];
 
         if (tos.call(parents) == '[object Array]') {
             var i = 0, len = parents.length;
@@ -537,7 +571,7 @@
 
             return false;
 
-        } else if (hop.call(parents, '$mro')) {
+        } else if (hop.call(parents, MRO_ATTR)) {
             return indexOf.call(mro, parents) >= 0;
         }
 
@@ -568,14 +602,14 @@
         return false;
     };
 
-    sx.isinstance = function sx_isinstance(inst, clss) {
+    function sx_isinstance(inst, clss) {
         var i, len;
 
         if (inst == null) {
             return false;
         }
 
-        if (!hop.call(inst, '$cls')) {
+        if (!hop.call(inst, CLS_ATTR)) {
             if (tos.call(clss) == '[object Array]') {
                 for (i = 0, len = clss.length; i < len; i++) {
                     if (_instanceof(inst, clss[i])) {
@@ -588,6 +622,18 @@
             }
         }
 
-        return issubclass(inst.$cls, clss);
+        return sx_issubclass(inst[CLS_ATTR], clss);
     };
-})();
+
+    return {
+        Object: ObjectClass,
+        Type: TypeClass,
+        define: sx_define,
+        issubclass: sx_issubclass,
+        isinstance: sx_isinstance,
+        parent: sx_parent
+    }
+};
+
+
+sx.apply(sx, sx.$bootstrap_class_system());
