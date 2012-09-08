@@ -175,7 +175,7 @@ class Constructor(yaml.constructor.Constructor):
                     "expected a mapping node, but found %s" % node.id,
                     node.start_mark)
 
-        mapping = collections.OrderedDict()
+        mapping = []
         for key_node, value_node in node.value:
             key = self.construct_object(key_node, deep=deep)
             if not isinstance(key, collections.Hashable):
@@ -183,7 +183,7 @@ class Constructor(yaml.constructor.Constructor):
                                                         node.start_mark,
                                                         "found unhashable key", key_node.start_mark)
             value = self.construct_object(value_node, deep=deep)
-            mapping[key] = value
+            mapping.append((key, value))
 
         return mapping
 
@@ -192,6 +192,12 @@ class Constructor(yaml.constructor.Constructor):
         yield data
         value = self.construct_ordered_mapping(node)
         data.update(value)
+
+    def construct_mapseq(self, node):
+        data = []
+        yield data
+        value = self.construct_ordered_mapping(node)
+        data.extend(value)
 
 
 Constructor.add_multi_constructor(
@@ -207,6 +213,11 @@ Constructor.add_multi_constructor(
 Constructor.add_constructor(
     'tag:semantix.sprymix.com,2009/semantix/orderedmap',
     Constructor.construct_ordered_map
+)
+
+Constructor.add_constructor(
+    'tag:semantix.sprymix.com,2009/semantix/mapseq',
+    Constructor.construct_mapseq
 )
 
 Constructor.add_constructor(

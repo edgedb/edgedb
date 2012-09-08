@@ -72,6 +72,8 @@ class Schema(object):
             tp = types.ClassType(self)
         elif dct_type == 'none':
             tp = types.NoneType(self)
+        elif dct_type == 'mapseq':
+            tp = types.MappingSequenceType(self)
         else:
             raise error.SchemaError('unknown type: ' + dct_type)
 

@@ -76,15 +76,7 @@ class MappingType(CompositeType):
         elif not isinstance(node, yaml.nodes.MappingNode):
             raise SchemaValidationError('mapping expected', node)
 
-        if 'min-length' in self.constraints:
-            if len(node.value) < self.constraints['min-length']:
-                raise SchemaValidationError('the number of elements in mapping must not be less than %d'
-                                            % self.constraints['min-length'], node)
-
-        if 'max-length' in self.constraints:
-            if len(node.value) > self.constraints['max-length']:
-                raise SchemaValidationError('the number of elements in mapping must not exceed %d'
-                                            % self.constraints['max-length'], node)
+        self.check_constraints(node)
 
         any = '=' in self.keys
 
