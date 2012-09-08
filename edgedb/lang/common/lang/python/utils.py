@@ -6,6 +6,8 @@
 ##
 
 
+import ast
+
 import linecache
 import inspect
 
@@ -56,3 +58,32 @@ class SourceErrorContext(markup.MarkupExceptionContext):
             tbp = me.doc.Text(text='Unknown source context')
 
         return me.lang.ExceptionContext(title=self.title, body=[tbp])
+
+
+def resolve(expr, globals):
+    tree = ast.parse(expr, '<{}>'.format(expr))
+    expr = tree.body[0].value
+
+    def _resolve(expr, globals):
+        node = expr
+
+        if isinstance(node, ast.Name):
+            return globals[node.id]
+
+        if isinstance(node, ast.Attribute):
+            value = _resolve(node.value, globals)
+            return getattr(value, node.attr)
+
+        if isinstance(node, ast.Subscript):
+            value = _resolve(node.value, globals)
+            node = node.slice
+            if isinstance(node, ast.Index):
+                node = node.value
+                if isinstance(node, ast.Num):
+                    return value[node.n]
+                if isinstance(node, ast.Str):
+                    return value[node.s]
+
+        raise TypeError('unsupported ast node {}'.format(node))
+
+    return _resolve(expr, globals)
