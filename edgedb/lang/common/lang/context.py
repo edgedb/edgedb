@@ -1,11 +1,12 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
 
+import sys
 from semantix.utils.datastructures import registry
 
 
@@ -35,8 +36,14 @@ class SourceContext(object):
         cls._object_registry[object] = context
 
     @classmethod
-    def from_object(cls, object):
-        return cls._object_registry.get(object)
+    def from_object(cls, object, use_mro=False):
+        if use_mro:
+            for pcls in object.__mro__:
+                context = cls.from_object(pcls)
+                if context is not None:
+                    return context
+        else:
+            return cls._object_registry.get(object)
 
 
 class DocumentContext(object):
@@ -44,3 +51,17 @@ class DocumentContext(object):
         self.module = module
         self.import_context = import_context
         self.imports = {}
+
+    def get_globals(self):
+        _globals = {}
+
+        for modname, modinfo in self.imports.items():
+            _globals[modname] = sys.modules[modinfo.__name__]
+
+        mymod = sys.modules[self.module.__name__]
+
+        for attrname in dir(mymod):
+            if not attrname.startswith('_'):
+                _globals[attrname] = getattr(mymod, attrname)
+
+        return _globals
