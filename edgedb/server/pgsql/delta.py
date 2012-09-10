@@ -1946,15 +1946,15 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
             if not link.generic():
                 self.adjust_pointer_storage(old_link, link, meta, context)
 
-            old_ptr_stor_info = types.get_pointer_storage_info(meta, old_link)
-            ptr_stor_info = types.get_pointer_storage_info(meta, link)
-            if (old_ptr_stor_info.table_type[0] == 'source'
-                    and ptr_stor_info.table_type[0] == 'source'
-                    and link.required != self.old_link.required):
-                alter_table = context.get(delta_cmds.ConceptCommandContext).op.get_alter_table(context)
-                column_name = common.caos_name_to_pg_name(link.normal_name())
-                alter_table.add_operation(dbops.AlterTableAlterColumnNull(column_name=column_name,
-                                                                          null=not link.required))
+                old_ptr_stor_info = types.get_pointer_storage_info(meta, old_link)
+                ptr_stor_info = types.get_pointer_storage_info(meta, link)
+                if (old_ptr_stor_info.table_type[0] == 'source'
+                        and ptr_stor_info.table_type[0] == 'source'
+                        and link.required != self.old_link.required):
+                    alter_table = context.get(delta_cmds.ConceptCommandContext).op.get_alter_table(context)
+                    column_name = common.caos_name_to_pg_name(link.normal_name())
+                    alter_table.add_operation(dbops.AlterTableAlterColumnNull(column_name=column_name,
+                                                                              null=not link.required))
 
             if isinstance(link.target, caos.types.ProtoAtom):
                 self.alter_pointer_default(link, meta, context)
