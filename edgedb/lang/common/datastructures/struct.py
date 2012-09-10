@@ -10,10 +10,14 @@ from semantix.utils.functional import hybridmethod
 from .all import Void
 
 
+class NoDefault(Void):
+    pass
+
+
 class Field:
     """``Field`` objects are meant to be specified as attributes of :class:`Struct`"""
 
-    def __init__(self, type, default=Void, *, coerce=False,
+    def __init__(self, type, default=NoDefault, *, coerce=False,
                  str_formatter=str, repr_formatter=repr):
         """
         :param type: A type, or a tuple of types allowed for the field value.
@@ -234,7 +238,8 @@ class Struct(metaclass=StructMeta):
             raise TypeError(msg)
 
     def _check_field_type(self, field, name, value):
-        if field.type and value is not None and not isinstance(value, field.type):
+        if (field.type and value is not None and value is not Void
+                                             and not isinstance(value, field.type)):
             if field.coerce:
                 try:
                     return field.type[0](value)
@@ -254,7 +259,7 @@ class Struct(metaclass=StructMeta):
     def _getdefault(self, field_name, field, relaxrequired=False):
         if field.default in field.type:
             value = field.default()
-        elif field.default is Void:
+        elif field.default is NoDefault:
             if relaxrequired:
                 value = None
             else:
