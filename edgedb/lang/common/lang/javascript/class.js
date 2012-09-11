@@ -64,6 +64,10 @@ sx.$bootstrap_class_system = function(opts) {
         QUALNAME_ATTR = opts.qualname_attr,
         AUTO_REGISTER_NS = opts.auto_register_ns;
 
+    if (AUTO_REGISTER_NS) {
+        var sx_ns_resolve = sx.ns.resolve;
+    }
+
     if (!indexOf) {
         // IE
         indexOf = function(el) {
@@ -178,6 +182,10 @@ sx.$bootstrap_class_system = function(opts) {
 
     function sx_parent(cls, ths, method, args) {
         var mro, mro_len, i, pos, base, func, cls;
+
+        if (AUTO_REGISTER_NS && typeof cls == 'string') {
+            cls = sx_ns_resolve(cls);
+        }
 
         args = args || [];
         if (arguments.length > 4) {
@@ -501,6 +509,18 @@ sx.$bootstrap_class_system = function(opts) {
         }
 
         metaclass = hop.call(body, 'metaclass') ? body.metaclass : null;
+
+        if (AUTO_REGISTER_NS) {
+            for (i = 0; i < bases_len; i++) {
+                if (typeof bases[i] == 'string') {
+                    bases[i] = sx_ns_resolve(bases[i]);
+                }
+            }
+            if (typeof metaclass == 'string') {
+                metaclass = sx_ns_resolve(metaclass);
+            }
+        }
+
         if (metaclass == null) {
             if (!bases_len) {
                 metaclass = TypeClass;

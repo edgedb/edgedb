@@ -808,8 +808,21 @@ class TestJSClass(JSFunctionalTest):
         '''JS
         // %from semantix.utils.lang.javascript import class
 
-        sx.define('com.acme.Foo');
+        sx.define('com.acme.Foo', [], {
+            foo: function() {return 10}
+        });
         assert.equal(com.acme.Foo.$qualname, 'com.acme.Foo');
         assert.equal(com.acme.Foo.$name, 'Foo');
         assert.ok(sx.isinstance(com.acme.Foo, sx.Type));
+
+        sx.define('com.acme.BarMeta', ['sx.Type']);
+        sx.define('com.acme.Bar', ['com.acme.Foo', sx.Object], {
+            metaclass: 'com.acme.BarMeta',
+            foo: function() {
+                return 32 + sx.parent('com.acme.Bar', this, 'foo');
+            }
+        });
+        assert.ok(sx.issubclass(com.acme.Bar, com.acme.Foo));
+        assert.ok(sx.isinstance(com.acme.Bar, com.acme.BarMeta));
+        assert.equal(com.acme.Bar().foo(), 42);
         '''
