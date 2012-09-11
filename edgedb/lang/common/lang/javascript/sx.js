@@ -100,17 +100,19 @@ this.sx = (function(global) {
 
                     cursor[chunk] = obj;
                 }
+
+                return obj;
             };
 
-            ns.resolve = function(ns, deflt) {
+            var r = ns.resolve_from = function(root, ns, deflt) {
                 var i, chunks = ns.split('.'),
                     len = chunks.length,
-                    cursor = global,
+                    cursor = root,
                     chunk;
 
                 for (i = 0; i < len; i++) {
                     chunk = chunks[i];
-                    cursor = cursor[chunks[i]];
+                    cursor = cursor[chunk];
                     if (cursor == undefined) {
                         if (deflt !== undefined) {
                             return deflt;
@@ -120,6 +122,10 @@ this.sx = (function(global) {
                 }
 
                 return cursor;
+            };
+
+            ns.resolve = function(ns, deflt) {
+                return r(global, ns, deflt);
             };
 
             return ns;

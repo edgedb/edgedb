@@ -31,12 +31,20 @@ class TestJSsx(JSFunctionalTest):
         assert.equal(sx.ns.resolve('com.acme.baz', 10), 10);
 
         assert.raises(function() {
-            assert.equal(sx.ns.resolve('com.acme.baz'));
+            sx.ns.resolve('com.acme.baz');
         }, {error: sx.Error,
             error_re: 'unable to resolve'});
 
         assert.raises(function() {
-            assert.equal(sx.ns.resolve('spam'));
+            sx.ns.resolve('spam');
+        }, {error: sx.Error,
+            error_re: 'unable to resolve'});
+
+        var foo = {'bar': 10};
+        assert.equal(sx.ns.resolve_from(foo, 'bar'), 10);
+        assert.equal(sx.ns.resolve_from(foo, 'baz.spam', 42), 42);
+        assert.raises(function() {
+            sx.ns.resolve_from(foo, 'spam');
         }, {error: sx.Error,
             error_re: 'unable to resolve'});
         '''
