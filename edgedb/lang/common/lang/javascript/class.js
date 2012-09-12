@@ -329,7 +329,7 @@ sx.$bootstrap_class_system = function(opts) {
             sx.ns(name, cls);
         }
 
-        cls.toString = function() { return '<' + name + '>'; };
+        cls.toString = function() { return '<class ' + name + '>'; };
 
         if ((i = name.lastIndexOf('.')) !== -1) {
             cls[NAME_ATTR] = name.substr(i + 1);
@@ -374,6 +374,10 @@ sx.$bootstrap_class_system = function(opts) {
                     }
                 }
             }
+        }
+
+        if (!hop.call(proto, 'toString')) {
+            proto.toString = ObjectClass.prototype.toString;
         }
 
         attrs_flag && (cls.$SX_CLS_ATTR$ = 1);
@@ -448,10 +452,13 @@ sx.$bootstrap_class_system = function(opts) {
     var ObjectClass = make_universal_constructor();
     object_constructor[NAME_ATTR] = CONSTRUCTOR;
     object_constructor[CLS_ATTR] = ObjectClass;
+    var ObjectClass_toString = function() {
+        return '<instance of ' + this[CLS_ATTR][QUALNAME_ATTR] + '>';
+    };
+    ObjectClass_toString.$cls = ObjectClass;
+    ObjectClass_toString.$name = 'toString';
     ObjectClass.prototype = {
-        toString: function() {
-            return '<instance of ' + this[CLS_ATTR][NAME_ATTR] + '>';
-        }
+        toString: ObjectClass_toString
     };
     ObjectClass.prototype[CONSTRUCTOR] = object_constructor;
     ObjectClass[CONSTRUCTOR] = function() {
@@ -471,7 +478,7 @@ sx.$bootstrap_class_system = function(opts) {
     var obj_qualname = ObjectClass[QUALNAME_ATTR] = opts.builtins_name + '.' + opts.object_cls_name;
     ObjectClass[MRO_ATTR] = [ObjectClass];
     ObjectClass[OWN_ATTR] = false;
-    ObjectClass.toString = function() { return '<' + obj_qualname + '>'; };
+    ObjectClass.toString = function() { return '<class ' + obj_qualname + '>'; };
 
     TypeClass[BASES_ATTR] = [ObjectClass];
     TypeClass[CLS_ATTR] = TypeClass;
@@ -483,7 +490,7 @@ sx.$bootstrap_class_system = function(opts) {
     TypeClass.prototype[CONSTRUCTOR][CLS_ATTR] = TypeClass;
     TypeClass.prototype[CONSTRUCTOR][NAME_ATTR] = CONSTRUCTOR;
 
-    TypeClass.toString = function() { return '<' + type_qualname + '>'; };
+    TypeClass.toString = function() { return '<class ' + type_qualname + '>'; };
 
     function sx_define(name, bases, body) {
         var bases_len, metaclass, ms, i, ms_len, j, mcls, found, args;

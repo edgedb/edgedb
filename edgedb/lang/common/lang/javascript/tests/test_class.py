@@ -826,3 +826,34 @@ class TestJSClass(JSFunctionalTest):
         assert.ok(sx.isinstance(com.acme.Bar, com.acme.BarMeta));
         assert.equal(com.acme.Bar().foo(), 42);
         '''
+
+    def test_utils_lang_js_sx_class_to_string(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import class
+
+        sx.define('com.acme.Bar');
+        assert.equal(com.acme.Bar() + '', '<instance of com.acme.Bar>');
+        assert.equal(com.acme.Bar + '', '<class com.acme.Bar>');
+        assert.equal(sx.Type + '', '<class sx.Type>');
+        assert.equal(sx.Object + '', '<class sx.Object>');
+        '''
+
+    def test_utils_lang_js_sx_class_statics_scope(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import class
+
+        sx.define('com.acme.Bar', [], {
+            statics: {
+                a: 100,
+
+                foo: function() {
+                    return this.a;
+                }
+            }
+        });
+
+        var scope = {a: 42};
+
+        assert.equal(com.acme.Bar.foo.call(scope), 42);
+        assert.equal(com.acme.Bar.foo(), 100);
+        '''
