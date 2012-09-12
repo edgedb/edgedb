@@ -215,31 +215,31 @@ class Loader(loader.SourceFileLoader):
         except KeyError:
             res = cls._module_cache[module_key] = VirtualJavaScriptResource(None, mod.__name__)
 
-            if hasattr(mod, '__sx_moduleclass__'):
+        if hasattr(mod, '__sx_moduleclass__'):
+            for hook in cls._module_hooks.values():
+                if isinstance(hook, ModuleHook):
+                    key = cls._get_hook_key(hook) + module_key
+                    if key not in cls._module_hooks_cache:
+                        cls._module_hooks_cache.add(key)
+                        source = hook(mod, res)
+                        if source:
+                            res.__sx_resource_source__ += source
+        else:
+            for attr_name in dir(mod):
+                attr = getattr(mod, attr_name)
                 for hook in cls._module_hooks.values():
-                    if isinstance(hook, ModuleHook):
-                        key = cls._get_hook_key(hook) + module_key
+                    if isinstance(hook, ModuleAttributeHook):
+                        if isinstance(attr, type):
+                            if attr.__module__ != module_key:
+                                continue
+                            key = cls._get_hook_key(hook) + module_key + attr.__name__
+                        else:
+                            key = cls._get_hook_key(hook) + module_key + attr_name
                         if key not in cls._module_hooks_cache:
                             cls._module_hooks_cache.add(key)
-                            source = hook(mod, res)
+                            source = hook(mod, res, attr_name, attr)
                             if source:
                                 res.__sx_resource_source__ += source
-            else:
-                for attr_name in dir(mod):
-                    attr = getattr(mod, attr_name)
-                    for hook in cls._module_hooks.values():
-                        if isinstance(hook, ModuleAttributeHook):
-                            if isinstance(attr, type):
-                                if attr.__module__ != module_key:
-                                    continue
-                                key = cls._get_hook_key(hook) + module_key + attr.__name__
-                            else:
-                                key = cls._get_hook_key(hook) + module_key + attr_name
-                            if key not in cls._module_hooks_cache:
-                                cls._module_hooks_cache.add(key)
-                                source = hook(mod, res, attr_name, attr)
-                                if source:
-                                    res.__sx_resource_source__ += source
 
         if not res.__sx_resource_source__:
             return
