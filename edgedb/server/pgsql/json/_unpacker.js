@@ -138,6 +138,18 @@ sx.types.register('pgjson.', function(format, data, metadata) {
             var clsname = result['$sxclsname$'];
             delete result['$sxclsname$'];
             var cls = sx.caos.schema.get(clsname);
+
+            // Filter out pointers that do not belong to this class.
+            // This happens when we receive a combined record for multiple classes.
+            var keys = sx.keys(result), kl = keys.length;
+
+            for (var i = 0; i < kl; i++) {
+                var key = keys[i];
+                if (!sx.contains(key, '<') && !cls['$ptr$' + key]) {
+                    delete result[key];
+                }
+            }
+
             result = new cls(result);
         } else if (result.hasOwnProperty('t')) {
             result = new sx.caos.xvalue(result['t'], result['p']);

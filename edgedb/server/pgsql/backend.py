@@ -872,6 +872,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         real_concept = concept_map[concept_id]
         concept_cls = session.schema.get(real_concept)
+        # Filter out foreign pointers that may have been included in the record
+        # in a combined multi-target query.
+        valid_link_names = {l[0] for l in concept_cls._iter_all_pointers()}
+
+        links = {l: v for l, v in links.items()
+                 if l in valid_link_names or getattr(l, 'direction', caos.types.OutboundDirection)
+                                             == caos.types.InboundDirection}
+
         return session._merge(links['semantix.caos.builtins.id'], concept_cls, links)
 
 
