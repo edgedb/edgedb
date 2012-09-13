@@ -87,7 +87,7 @@ class TestUtilsFunctionalChecktypes:
             t1.tmp0(4, 4.0)
 
         assert isinstance(t1.tmp0, std_types.MethodType)
-        assert id(t1.tmp0) == id(t2.tmp0)
+        assert t1.tmp0.__func__ is t2.tmp0.__func__
 
 
     def test_utils_functional_checktypes_class_decorator(self):
@@ -154,7 +154,7 @@ class TestUtilsFunctionalChecktypes:
         with assert_raises(TypeError):
             t1.tmp0(4, 4.0)
         assert isinstance(t1.tmp0, std_types.MethodType)
-        assert id(t1.tmp0) == id(t2.tmp0)
+        assert t1.tmp0.__func__ is t2.tmp0.__func__
 
         assert t1.tmp4(b'') == 3
         with assert_raises(TypeError):
