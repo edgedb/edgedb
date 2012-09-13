@@ -135,13 +135,8 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
         with open(stderr, 'wt') as er, open(stdout, 'wt') as out:
             self.daemonize(prog, pidfile=pid, stderr=er, stdout=out)
 
-        with open(stderr, 'r') as f:
-            text = f.read()
-            assert 'ZeroDivisionError: division by zero' in text
-
-        with open(stdout, 'r') as f:
-            text = f.read()
-            assert 'PRINTING' in text
+        self.assert_file_contains(stderr, 'ZeroDivisionError: division by zero')
+        self.assert_file_contains(stdout, 'PRINTING')
 
         self.wait_pid(pid)
 
@@ -154,13 +149,8 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
 
         self.daemonize(prog, pidfile=pid, stderr=stderr, stdout=stdout)
 
-        with open(stderr, 'r') as f:
-            text = f.read()
-            assert 'ZeroDivisionError: division by zero' in text
-
-        with open(stdout, 'r') as f:
-            text = f.read()
-            assert 'PRINTING' in text
+        self.assert_file_contains(stderr, 'ZeroDivisionError: division by zero')
+        self.assert_file_contains(stdout, 'PRINTING')
 
         self.wait_pid(pid)
 
