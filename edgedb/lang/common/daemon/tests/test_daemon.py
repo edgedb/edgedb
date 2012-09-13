@@ -30,6 +30,24 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
 
         time.sleep(0.1)
 
+    def wait_pid(self, pid, maxtime=2.0):
+        time_delta = 0.1
+        max_iters = round(maxtime / time_delta)
+        assert max_iters > 1
+
+        if daemon.PidFile.is_locked(pid):
+            i = 0
+            while True:
+                if i > max_iters:
+                    raise RuntimeError('Waited for PID being released too long {}s'.format(maxtime))
+
+                if daemon.PidFile.is_locked(pid):
+                    time.sleep(time_delta)
+                    i += 1
+                else:
+                    break
+        time.sleep(time_delta)
+
     def assert_empty_files(self, *fns):
         for fn in fns:
             if os.path.exists(fn):
@@ -41,7 +59,9 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
         assert sub and isinstance(sub, str)
         with open(fn, 'rt') as f:
             text = f.read()
-            assert sub in text, fn
+            if sub not in text:
+                raise AssertionError('expected to see {!r} in {!r}, file: {!r}'.
+                                     format(sub, text, fn))
 
     def test_utils_daemon_functional_basic(self, pid, stderr):
         def prog():
@@ -60,6 +80,7 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
         assert not os.path.exists(pid)
         with debug.assert_raises(OSError):
             os.kill(pidnum, 0)
+        self.wait_pid(pid)
 
     def test_utils_daemon_functional_conflict_pidfile(self, pid, stderr):
         def prog():
@@ -69,7 +90,7 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
         self.daemonize(prog, pidfile=pid, stderr=stderr)
 
         self.assert_file_contains(stderr, 'exists and belongs to a running process')
-        time.sleep(0.1)
+        self.wait_pid(pid, maxtime=0.2)
 
     def test_utils_daemon_functional_with_fork(self, pid, stderr, fn1, fn2):
         def prog():
@@ -91,6 +112,7 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
         assert pid1 != pid2
         assert not daemon_lib.is_process_running(pid1)
         assert not daemon_lib.is_process_running(pid2)
+        self.wait_pid(pid)
 
     def test_utils_daemon_functional_working_dir(self, pid, stderr):
         def prog():
@@ -98,6 +120,7 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
 
         self.daemonize(prog, pidfile=pid, stderr=stderr)
         self.assert_empty_files(stderr)
+        self.wait_pid(pid)
 
     def test_utils_daemon_functional_file_std_err_out(self, pid, stderr, stdout):
         '''Tests open files for stderr & stdout'''
@@ -117,6 +140,8 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
             text = f.read()
             assert 'PRINTING' in text
 
+        self.wait_pid(pid)
+
     def test_utils_daemon_functional_filename_std_err_out(self, pid, stderr, stdout):
         '''Tests filenames for stderr & stdout'''
 
@@ -133,6 +158,8 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
         with open(stdout, 'r') as f:
             text = f.read()
             assert 'PRINTING' in text
+
+        self.wait_pid(pid)
 
     def test_utils_daemon_functional_singals(self, pid, stderr, stdout, fn1, fn2):
         def SIGUSR1(*args, fn1=fn1):
@@ -154,13 +181,13 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
 
         os.kill(pidnum, signal.SIGUSR1)
         os.kill(pidnum, signal.SIGUSR2)
-        time.sleep(0.3)
+        self.wait_pid(pid, maxtime=0.5)
 
         self.assert_empty_files(stderr)
         self.assert_file_contains(fn1, 'SIGUSR1')
         self.assert_file_contains(stdout, 'SIGUSR2')
 
-        assert not os.path.exists(pid)
+        self.wait_pid(pid)
 
     def test_utils_daemon_functional_term_singal(self, pid, stderr, stdout, fn1, fn2):
         def prog():
@@ -173,12 +200,10 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
         pidnum, _ = daemon.PidFile.read(pid)
 
         os.kill(pidnum, signal.SIGTERM)
-        time.sleep(0.3)
+        self.wait_pid(pid, maxtime=0.5)
 
         self.assert_empty_files(stdout)
         self.assert_file_contains(stderr, 'Termination on signal')
-
-        assert not os.path.exists(pid)
 
     def test_utils_daemon_functional_custom_pid_object(self, pid, stderr, stdout, fn1, fn2):
         def prog():
@@ -191,6 +216,5 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
         pidnum, data = daemon.PidFile.read(pid)
         assert data == 'spam'
 
-        time.sleep(0.3)
-        assert not os.path.exists(pid)
+        self.wait_pid(pid, maxtime=1.0)
 
