@@ -148,6 +148,7 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
             1/0
 
         self.daemonize(prog, pidfile=pid, stderr=stderr, stdout=stdout)
+        self.wait_pid(pid, maxtime=0.5)
 
         self.assert_file_contains(stderr, 'ZeroDivisionError: division by zero')
         self.assert_file_contains(stdout, 'PRINTING')
@@ -158,12 +159,19 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
         def SIGUSR1(*args, fn1=fn1):
             with open(fn1, 'wt') as f:
                 f.write('SIGUSR1')
+            setattr(os, '__SX_CNT', getattr(os, '__SX_CNT', 0) + 1)
 
         def SIGUSR2(*args, fn2=fn2):
             print('SIGUSR2')
+            setattr(os, '__SX_CNT', getattr(os, '__SX_CNT', 0) + 1)
 
         def prog():
-            time.sleep(0.2)
+            max = 0
+            while getattr(os, '__SX_CNT', 0) != 2:
+                time.sleep(0.1)
+                max += 1
+                if max == 50:
+                    raise RuntimeError('no signals?')
 
         self.daemonize(prog, pidfile=pid, stderr=stderr, stdout=stdout,
                        signal_map={signal.SIGUSR1: SIGUSR1, 'SIGUSR2': SIGUSR2})
@@ -173,8 +181,9 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
         pidnum, _ = daemon.PidFile.read(pid)
 
         os.kill(pidnum, signal.SIGUSR1)
+        time.sleep(0.2)
         os.kill(pidnum, signal.SIGUSR2)
-        self.wait_pid(pid, maxtime=0.5)
+        self.wait_pid(pid, maxtime=2.0)
 
         self.assert_empty_files(stderr)
         self.assert_file_contains(fn1, 'SIGUSR1')
