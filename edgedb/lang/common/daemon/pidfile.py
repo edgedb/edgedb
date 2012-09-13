@@ -8,6 +8,7 @@
 
 import os
 import stat
+import errno
 
 from .exceptions import DaemonError
 from . import lib
@@ -87,10 +88,18 @@ class PidFile:
         if os.path.exists(path):
             # If pid file already exists - check if it belongs to a
             # running process.  If not - it should be safe to remove it.
-            with open(path, 'rt') as f:
-                pid = int(f.readline())
-                if lib.is_process_running(pid):
-                    return True
+            try:
+                with open(path, 'rt') as f:
+                    pid = int(f.readline())
+                    if lib.is_process_running(pid):
+                        return True
+            except OSError as er:
+                if er.errno == errno.ENOENT:
+                    # ENOENT - No such file or directory
+                    # Race - file did exist when we checked if it exists, but
+                    # got deleted before 'with open' was executed
+                    return False
+                raise
         return False
 
     @classmethod
