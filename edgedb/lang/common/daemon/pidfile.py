@@ -93,7 +93,7 @@ class PidFile:
                     pid = int(f.readline())
                     if lib.is_process_running(pid):
                         return True
-            except OSError as er:
+            except (OSError, IOError) as er:
                 if er.errno == errno.ENOENT:
                     # ENOENT - No such file or directory
                     # Race - file did exist when we checked if it exists, but
