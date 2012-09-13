@@ -53,7 +53,10 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
             if os.path.exists(fn):
                 with open(fn, 'rt') as f:
                     text = f.read()
-                    assert text == '', fn
+                    if text != '':
+                        raise AssertionError('expected {!r} to be an empty file, however it has '
+                                             'the following content in it: {!r}'.
+                                             format(fn, text))
 
     def assert_file_contains(self, fn, sub):
         assert sub and isinstance(sub, str)
