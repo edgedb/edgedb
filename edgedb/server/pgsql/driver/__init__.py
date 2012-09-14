@@ -203,21 +203,38 @@ class Connection(pq3.Connection, caos_pool.Connection):
         caos_pool.Connection.__init__(self, pool)
         pq3.Connection.__init__(self, connector)
 
+        self._prepared_statements = {}
+
+    def get_prepared_statement(self, query):
+        try:
+            statement = self._prepared_statements[query]
+        except KeyError:
+            statement = self._prepared_statements[query] = self.prepare(query)
+
+        return statement
+
     def connect(self):
         super().connect()
         if self._pool:
             self._pool.backend.init_connection(self)
 
-    def reset(self):
+    def reset(self, hard=False):
         if self.state in ('failed', 'negotiating', 'busy'):
             self.execute('ROLLBACK')
-        self.execute("SET SESSION AUTHORIZATION DEFAULT;")
-        self.execute("CLOSE ALL;")
-        self.execute("RESET ALL;")
-        self.execute("UNLISTEN *;")
-        self.execute("SELECT pg_advisory_unlock_all();")
-        self.execute("DISCARD PLANS;")
-        self.execute("DISCARD TEMP;")
+
+        if hard:
+            self.execute('DISCARD ALL')
+            self._prepared_statements.clear()
+        else:
+            self.execute("SET SESSION AUTHORIZATION DEFAULT;")
+            self.execute("RESET ALL;")
+            self.execute("CLOSE ALL;")
+            self.execute("UNLISTEN *;")
+            self.execute("SELECT pg_advisory_unlock_all();")
+
+    def close(self):
+        self._prepared_statements.clear()
+        super().close()
 
 
 class SocketConnector:

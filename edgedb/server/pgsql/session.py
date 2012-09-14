@@ -86,7 +86,6 @@ class Session(session.Session):
         super().__init__(realm, entity_cache=session.WeakEntityCache, pool=pool,
                                 proto_schema=proto_schema)
         self.backend = backend
-        self.prepared_statements = {}
         self._connection = connection
 
     def init_connection(self):
@@ -99,18 +98,7 @@ class Session(session.Session):
 
     def get_prepared_statement(self, query):
         connection = self.get_connection()
-
-        try:
-            connection_statements = self.prepared_statements[connection]
-        except KeyError:
-            connection_statements = self.prepared_statements[connection] = {}
-
-        try:
-            statement = connection_statements[query]
-        except KeyError:
-            statement = connection_statements[query] = connection.prepare(query)
-
-        return statement
+        return connection.get_prepared_statement(query)
 
     def _transaction(self, parent):
         return Transaction(session=self, parent=parent)
@@ -200,7 +188,6 @@ class Session(session.Session):
 
     def _release_cleanup(self):
         try:
-            self.prepared_statements.clear()
             super()._release_cleanup()
             if self._connection is not None:
                 self._connection.reset()
