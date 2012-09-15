@@ -3350,12 +3350,13 @@ class UpgradeBackend(MetaCommand):
 
         cmdgroup.add_command(alter_table)
 
-        links_list = datasources.meta.links.ConceptLinks(context.db).fetch()
-        links_by_name = {r['name']: r for r in links_list}
         idquery = dbops.Query(text='caos.uuid_generate_v1mc()', params=(), type='uuid')
 
-        for link_name in links_by_name:
-            ltabname = common.link_name_to_table_name(caos.Name(link_name), catenate=False)
+        ds = datasources.introspection.tables.TableList(context.db)
+        link_tables = ds.fetch(schema_name='caos%', table_pattern='%_link')
+
+        for ltable in link_tables:
+            ltabname = (ltable['schema'], ltable['name'])
             cond = dbops.TableExists(name=ltabname)
 
             tab = dbops.Table(name=ltabname)
@@ -3366,7 +3367,7 @@ class UpgradeBackend(MetaCommand):
 
             tgroup = dbops.CommandGroup(conditions=(cond,))
 
-            tgroup.add_command(dbops.Echo('Creating link ids for "{}"...'.format(link_name)))
+            tgroup.add_command(dbops.Echo('Creating link ids for "{}"...'.format(ltabname)))
             tgroup.add_command(dbops.Update(tab, rec, condition=[], include_children=False))
 
             cmdgroup.add_command(tgroup)
