@@ -502,11 +502,10 @@ class TreeTransformer:
             assert len(concepts) == 1
 
             elements = []
+            atomrefs = []
 
             concept = p.concept
             ref = p if len(expr.paths) == 1 else expr
-
-            elements = []
             rec = caos_ast.Record(elements=elements, concept=concept, rlink=p.rlink)
 
             _new_visited_records = _visited_records.copy()
@@ -582,6 +581,7 @@ class TreeTransformer:
                     if link_singular:
                         newstep = caos_ast.AtomicRefSimple(ref=lref, name=link_name, id=id,
                                                            ptr_proto=link_proto)
+                        atomrefs.append(newstep)
                     else:
                         ptr_name = caos_name.Name('semantix.caos.builtins.target')
                         prop_id = LinearPath(ref.id)
@@ -675,7 +675,7 @@ class TreeTransformer:
             metaref_name = caos_ast.MetaRef(name='name', ref=ref)
 
             for p in expr.paths:
-                p.atomrefs.update((e for e in elements if isinstance(e, caos_ast.AtomicRefSimple)))
+                p.atomrefs.update(atomrefs)
                 p.metarefs.add(metaref_id)
                 p.metarefs.add(metaref_name)
 
