@@ -991,7 +991,10 @@ class CaosTreeTransformer(CaosExprTransformer):
                 ref = pgsql.ast.FieldRefNode(table=ref_table, field=field_name,
                                              origin=ref_table, origin_field=field_name)
 
-        assert ref, 'Reference to an inaccessible table node {}'.format(ref_key)
+        if ref is None:
+            msg = 'could not resolve "{}"."{}" as table field'.format(caos_node.concept.name,
+                                                                      ref_key)
+            raise LookupError(msg)
 
         if isinstance(ref, pgsql.ast.SelectExprNode):
             ref = ref.expr
