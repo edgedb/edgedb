@@ -563,6 +563,55 @@ this.sx = (function(global) {
             }
         },
 
+        date: {
+            parse_iso: (function() {
+                var parse_re = /^(\d+)-(\d+)-(\d+)(?:T|\s+)(\d+):(\d+):(\d+)(?:\.(\d+))?(\+|-)(\d{2})(?::(\d{2}))?$/;
+
+                return function(value) {
+                    var match = parse_re.exec(value);
+
+                    if (match) {
+                        var year = parseInt(match[1]),
+                            month = parseInt(match[2]) - 1,
+                            day = parseInt(match[3]),
+                            hour = parseInt(match[4]),
+                            minute = parseInt(match[5]),
+                            second = parseInt(match[6]),
+                            microsecond = parseInt(match[7] || '0'),
+                            tzoffsetsign = match[8] || '+',
+                            tzoffsethour = parseInt(match[9] || '0'),
+                            tzoffsetminute = parseInt(match[10] || '0'),
+                            millisecond;
+
+                        if (microsecond) {
+                            millisecond = Math.floor(microsecond / 1000);
+                        } else {
+                            millisecond = 0;
+                        }
+
+                        var utc = new Date(),
+                            offset = (tzoffsethour * 3600 + tzoffsetminute * 60) * 1000;
+
+                        utc.setUTCFullYear(year);
+                        utc.setUTCMonth(month);
+                        utc.setUTCDate(day);
+                        utc.setUTCHours(hour);
+                        utc.setUTCMinutes(minute);
+                        utc.setUTCSeconds(second);
+
+                        if (millisecond) {
+                            utc.setUTCMilliseconds(millisecond);
+                        }
+
+                        utc = (+utc) + (offset * (tzoffsetsign == '-' ? 1 : -1));
+                        return new Date(utc);
+                    } else {
+                        throw new sx.Error('sx.date.parse_iso: invalid date: "' + value + '"');
+                    }
+                };
+            })()
+        },
+
         dom: {
             id: function(suffix) {
                 // sx.dom.id() is deprecated. Use sx.id() instead.

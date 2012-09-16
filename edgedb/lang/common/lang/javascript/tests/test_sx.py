@@ -10,6 +10,21 @@ from .base import JSFunctionalTest
 
 
 class TestJSsx(JSFunctionalTest):
+    def test_utils_lang_js_sx_date_parse_iso(self):
+        '''JS
+
+        // %from semantix.utils.lang.javascript import sx
+
+        var d = sx.date.parse_iso('2012-01-01T15:50:00+04:00');
+        assert.equal(d.toUTCString(), 'Sun, 01 Jan 2012 11:50:00 GMT');
+
+        d = sx.date.parse_iso('2012-01-01 15:50:00+04:00');
+        assert.equal(d.toUTCString(), 'Sun, 01 Jan 2012 11:50:00 GMT');
+
+        d = sx.date.parse_iso('2012-01-01 15:50:00+04');
+        assert.equal(d.toUTCString(), 'Sun, 01 Jan 2012 11:50:00 GMT');
+        '''
+
     def test_utils_lang_js_sx_ns(self):
         '''JS
         // %from semantix.utils.lang.javascript import sx
