@@ -329,7 +329,7 @@ class Encoder:
                 pass
             else:
                 if isinstance(data, bytes):
-                    return data.decode('ascii')
+                    return data.decode('utf-8')
                 else:
                     return self._encode_str(data, escape_quotes=False)
         try:
@@ -384,4 +384,4 @@ class Encoder:
     def dumpb(self, obj, *, max_nested_level=100):
         """Similar to ``dumps()``, but returns ``bytes`` instead of a ``string``"""
         self._max_nested_level = max_nested_level
-        return self._encode(obj).encode('ascii')
+        return self._encode(obj).encode('utf-8')
