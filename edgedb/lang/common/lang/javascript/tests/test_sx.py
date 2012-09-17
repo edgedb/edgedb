@@ -23,6 +23,9 @@ class TestJSsx(JSFunctionalTest):
 
         d = sx.date.parse_iso('2012-01-01 15:50:00+04');
         assert.equal(d.toUTCString(), 'Sun, 01 Jan 2012 11:50:00 GMT');
+
+        d = sx.date.parse_iso('2012-09-15 15:38:52.9147-04');
+        assert.equal(d.toUTCString(), 'Sat, 15 Sep 2012 19:38:52 GMT');
         '''
 
     def test_utils_lang_js_sx_ns(self):

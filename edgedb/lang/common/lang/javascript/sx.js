@@ -571,16 +571,16 @@ this.sx = (function(global) {
                     var match = parse_re.exec(value);
 
                     if (match) {
-                        var year = parseInt(match[1]),
-                            month = parseInt(match[2]) - 1,
-                            day = parseInt(match[3]),
-                            hour = parseInt(match[4]),
-                            minute = parseInt(match[5]),
-                            second = parseInt(match[6]),
-                            microsecond = parseInt(match[7] || '0'),
+                        var year = Number(match[1]),
+                            month = Number(match[2]) - 1,
+                            day = Number(match[3]),
+                            hour = Number(match[4]),
+                            minute = Number(match[5]),
+                            second = Number(match[6]),
+                            microsecond = Number(match[7] || '0'),
                             tzoffsetsign = match[8] || '+',
-                            tzoffsethour = parseInt(match[9] || '0'),
-                            tzoffsetminute = parseInt(match[10] || '0'),
+                            tzoffsethour = Number(match[9] || '0'),
+                            tzoffsetminute = Number(match[10] || '0'),
                             millisecond;
 
                         if (microsecond) {
