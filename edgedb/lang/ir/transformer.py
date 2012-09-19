@@ -550,20 +550,30 @@ class TreeTransformer:
                 link_proto = link
 
                 if link_direction == caos_types.OutboundDirection:
-                    target_proto = link.target
+                    link_target_proto = link.target
                     link_singular = link.mapping in {caos_types.OneToOne, caos_types.ManyToOne}
                 else:
-                    target_proto = link.source
+                    link_target_proto = link.source
                     link_singular = link.mapping in {caos_types.OneToOne, caos_types.OneToMany}
+
+                if recurse_spec.target_proto is not None:
+                    target_proto = recurse_spec.target_proto
+                else:
+                    target_proto = link_target_proto
 
                 id = LinearPath(ref.id)
 
                 id.add(link_proto, link_direction, target_proto)
 
-                if not link_singular:
+                recurse_link = recurse_spec.recurse if recurse_spec is not None else None
+
+                if not link_singular or recurse_link is not None:
                     lref = self.copy_path(ref)
                 else:
                     lref = ref
+
+                if recurse_link is not None:
+                    lref.rlink = None
 
                 targetstep = caos_ast.EntitySet(conjunction=caos_ast.Conjunction(),
                                                 disjunction=caos_ast.Disjunction(),
@@ -592,11 +602,15 @@ class TreeTransformer:
 
                     el = newstep
                 else:
-                    newstep = targetstep
+                    if recurse_link is not None:
+                        newstep = lref
+                        newstep.reference = ref
+                    else:
+                        newstep = targetstep
 
                     if _recurse:
                         new_recurse = (newstep.concept not in _new_visited_records or
-                                       recurse_spec is not None)
+                                       (recurse_spec is not None and recurse_spec.recurse is None))
                         recurse_pathspec = recurse_spec.pathspec if recurse_spec is not None \
                                                                  else None
                         el = self.entityref_to_record(newstep, schema,
@@ -653,7 +667,7 @@ class TreeTransformer:
                     newstep.ref = link_node
                     lref.disjunction.update(link_node)
 
-                if not link_singular:
+                if not link_singular or recurse_spec.recurse is not None:
                     if link.atomic():
                         link_node.proprefs.add(newstep)
 
@@ -662,10 +676,14 @@ class TreeTransformer:
 
                     subgraph = caos_ast.GraphExpr()
                     subgraph.generator = generator
+                    subgraph.aggregate_result = ('agg', 'list')
 
-                    subexpr = caos_ast.FunctionCall(name=('agg', 'list'), args=[el],
-                                                    aggregates=True)
-                    selexpr = caos_ast.SelectorExpr(expr=subexpr, name=link_name)
+                    if recurse_spec.recurse is not None:
+                        subgraph.recurse_link = link_node
+                        subgraph.recurse_depth = recurse_spec.recurse
+
+                    selexpr = caos_ast.SelectorExpr(expr=el, name=link_name)
+
                     subgraph.selector.append(selexpr)
                     el = caos_ast.SubgraphRef(ref=subgraph, name=link_name, rlink=link_node)
 
@@ -700,6 +718,28 @@ class TreeTransformer:
             expr = caos_ast.AtomicRefSimple(ref=ref, name=link_name, id=id, ptr_proto=link_proto)
 
         return expr
+
+    def _normalize_pathspec_recursion(self, pathspec, source, proto_schema):
+        for ptrspec in pathspec:
+            if ptrspec.recurse is not None:
+                # Push the looping spec one step down so that the loop starts on the first
+                # pointer target, not the source.
+                #
+                if ptrspec.pathspec is None:
+                    if (ptrspec.ptr_proto.target.issubclass(proto_schema, source) or
+                            source.issubclass(proto_schema, ptrspec.ptr_proto.target)):
+                        ptrspec.pathspec = pathspec[:]
+                    else:
+                        assert False
+
+                for i, subptrspec in enumerate(ptrspec.pathspec):
+                    if subptrspec.ptr_proto.normal_name() == ptrspec.ptr_proto.normal_name():
+                        ptrspec.pathspec[i] = caos_ast.PtrPathSpec(ptr_proto=ptrspec.ptr_proto,
+                                                                   ptr_direction=ptrspec.ptr_direction,
+                                                                   recurse=ptrspec.recurse,
+                                                                   target_proto=ptrspec.target_proto)
+
+                ptrspec.recurse = None
 
     def _dump(self, tree):
         if tree is not None:

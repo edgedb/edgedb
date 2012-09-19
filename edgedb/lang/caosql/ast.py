@@ -53,7 +53,7 @@ class ExistsPredicateNode(PredicateNode): pass
 
 class SelectExprNode(ast.AST): __fields = ['expr', 'alias']
 
-class SelectPathSpecNode(ast.AST): __fields = ['expr', 'pathspec']
+class SelectPathSpecNode(ast.AST): __fields = ['expr', 'pathspec', 'recurse']
 
 class PointerGlobNode(ast.AST): __fields = ['filters', 'type']
 

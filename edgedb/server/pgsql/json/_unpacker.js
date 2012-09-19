@@ -11,6 +11,8 @@
 
 
 sx.types.register('pgjson.', function(format, data, metadata) {
+    "use strict";
+
     var format_string = format[0], format_version = format[1];
     var FREEFORM_RECORD_ID = '6e51108d-7440-47f7-8c65-dc4d43fd90d2';
 
@@ -37,6 +39,66 @@ sx.types.register('pgjson.', function(format, data, metadata) {
         var ri = metadata.record_info[i];
         record_info[ri.id] = ri;
     }
+
+    var _decode_record_tree = function(tree, connecting_attribute) {
+        var tl = tree.length;
+        var toplevel = [];
+        var index = {};
+        var updates = {};
+        var ca = connecting_attribute;
+        var attrname = ca.name + ca.direction + ca.target;
+        var target;
+
+        for (var i = 0; i < tl; i++) {
+            var item = _decode_record(tree[i]);
+
+            var entity = item[ca.name];
+
+            if (entity == null) {
+                continue;
+            }
+
+            index[entity.id] = entity;
+
+            var target_id = item['__target__'];
+
+            if (target_id == null) {
+                continue;
+            }
+
+            if (!index.hasOwnProperty(target_id)) {
+                // The items below us have been cut off by recursion depth limit
+                continue;
+            }
+
+            target = index[target_id];
+
+            if (item['__depth__'] == 0) {
+                toplevel.push(target);
+            } else {
+                if (!updates.hasOwnProperty(entity.id)) {
+                    updates[entity.id] = [target];
+                } else {
+                    updates[entity.id].push(target);
+                }
+            }
+        }
+
+        for (var src_id in updates) {
+            if (updates.hasOwnProperty(src_id)) {
+                var src = index[src_id];
+                if (!src) {
+                    throw new sx.Error('unexpected error in recursion tree unpack: source is empty');
+                }
+
+                var u = {};
+                u[attrname] = updates[src_id];
+                src.update(u);
+            }
+        }
+
+        return toplevel;
+    };
 
     var _decode_record = function(record) {
         var result = {};
@@ -88,7 +150,26 @@ sx.types.register('pgjson.', function(format, data, metadata) {
                 result[item_key] = item_val;
             });
         } else {
+            if (rec_info.recursive_link) {
+                var reclen = sx.len(record);
+                var _rec = {};
+
+                for (var i = 1; i < reclen; i++) {
+                    var k = 'f' + (i + 1).toString();
+                    var item_key = rec_info.attribute_map[i - 1];
+
+                    var item_val = record[k];
+
+                    _rec[item_key] = item_val;
+                }
+
+                if (_rec['data']) {
+                    return _decode_record_tree(_rec['data'], rec_info.recursive_link);
+                }
+            }
+
             var reclen = sx.len(record);
+
             for (var i = 1; i < reclen; i++) {
                 var k = 'f' + (i + 1).toString();
                 var item_key = rec_info.attribute_map[i - 1];

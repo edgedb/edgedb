@@ -497,15 +497,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 node = self.entityref_to_record(node, self.proto_schema)
 
         elif isinstance(expr, qlast.ConstantNode):
-            if expr.index is not None:
-                type = self.arg_types.get(expr.index)
-                if type is not None:
-                    type = caos_types.normalize_type(type, self.proto_schema)
-                node = tree.ast.Constant(value=expr.value, index=expr.index, type=type)
-                context.current.arguments[expr.index] = type
-            else:
-                type = caos_types.normalize_type(expr.value.__class__, self.proto_schema)
-                node = tree.ast.Constant(value=expr.value, index=expr.index, type=type)
+            node = self._process_constant(context, expr)
 
         elif isinstance(expr, qlast.SequenceNode):
             elements=[self._process_expr(context, e) for e in expr.elements]
@@ -563,6 +555,19 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
         else:
             assert False, "Unexpected expr: %s" % expr
+
+        return node
+
+    def _process_constant(self, context, expr):
+        if expr.index is not None:
+            type = self.arg_types.get(expr.index)
+            if type is not None:
+                type = caos_types.normalize_type(type, self.proto_schema)
+            node = tree.ast.Constant(value=expr.value, index=expr.index, type=type)
+            context.current.arguments[expr.index] = type
+        else:
+            type = caos_types.normalize_type(expr.value.__class__, self.proto_schema)
+            node = tree.ast.Constant(value=expr.value, index=expr.index, type=type)
 
         return node
 
@@ -625,6 +630,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     target_name = (ptrspec.expr.target.module, ptrspec.expr.target.name)
                 else:
                     target_name = None
+
                 ptr_direction = ptrspec.expr.direction or caos_types.OutboundDirection
                 ptr = self._resolve_ptr(context, ptrsource, ptrname, ptr_direction,
                                         ptr_type=ptrtype, target=target_name)
@@ -634,13 +640,32 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 else:
                     ptr = next(iter(ptr[2]))
 
-                node = tree.ast.PtrPathSpec(ptr_proto=ptr, ptr_direction=ptr_direction)
+                if ptrspec.recurse is not None:
+                    recurse = self._process_constant(context, ptrspec.recurse)
+                else:
+                    recurse = None
+
+                if target_name is not None:
+                    if target_name[0]:
+                        target_fq_name = '{}.{}'.format(*target_name)
+                    else:
+                        target_fq_name = target_name[1]
+                    modaliases = context.current.namespaces
+                    target_proto = context.current.proto_schema.get(target_fq_name,
+                                                                    module_aliases=modaliases)
+                else:
+                    target_proto = ptr.target
+
+                node = tree.ast.PtrPathSpec(ptr_proto=ptr, ptr_direction=ptr_direction,
+                                            recurse=recurse, target_proto=target_proto)
 
                 if ptrspec.pathspec is not None:
-                    node.pathspec = self._process_pathspec(context, ptr.target,
+                    node.pathspec = self._process_pathspec(context, target_proto,
                                                            ptr, ptrspec.pathspec)
 
                 result.append(node)
+
+        self._normalize_pathspec_recursion(result, source, context.current.proto_schema)
 
         return result
 

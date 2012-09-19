@@ -60,16 +60,19 @@ class Transaction(session.Transaction):
 
 
 class RecordInfo:
-    def __init__(self, attribute_map, proto_class, proto_name, is_xvalue):
+    def __init__(self, *, attribute_map, proto_class=None, proto_name=None, is_xvalue=False,
+                          recursive_link=False):
         self.attribute_map = attribute_map
         self.proto_class = proto_class
         self.proto_name = proto_name
         self.is_xvalue = is_xvalue
+        self.recursive_link = recursive_link
         self.id = str(persistent_hash.persistent_hash(self))
 
     def persistent_hash(self):
         return persistent_hash.persistent_hash((tuple(self.attribute_map), self.proto_class,
-                                                self.proto_name, self.is_xvalue))
+                                                self.proto_name, self.is_xvalue,
+                                                self.recursive_link))
 
     def __sx_serialize__(self):
         return dict(
@@ -77,6 +80,7 @@ class RecordInfo:
             proto_class=self.proto_class,
             proto_name=self.proto_name,
             is_xvalue=self.is_xvalue,
+            recursive_link=self.recursive_link,
             id=self.id
         )
 

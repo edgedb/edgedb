@@ -635,7 +635,188 @@ class CaosTreeTransformer(CaosExprTransformer):
         if not context.current.in_subquery:
             query.ctes = OrderedSet(context.current.global_ctes.values()) | query.ctes
 
+        if graph.recurse_link is not None:
+            # Looping on a specified link, generate WITH RECURSIVE
+            query = self._generate_recursive_query(context, query, graph.recurse_link,
+                                                                   graph.recurse_depth)
+
+        if graph.aggregate_result:
+            if len(query.targets) > 1:
+                raise ValueError('cannot auto-aggregate: too many columns in subquery')
+
+            target = query.targets[0].expr
+
+            if isinstance(graph.selector[0].expr, (tree.ast.AtomicRefSimple,
+                                                   tree.ast.LinkPropRefSimple)):
+                # Cast atom refs to the base type in aggregate expressions, since
+                # PostgreSQL does not create array types for custom domains and will
+                # fail to process a query with custom domains appearing as array elements.
+                #
+                pgtype = types.pg_type_from_atom(context.current.proto_schema,
+                                                 graph.selector[0].expr.ptr_proto.target,
+                                                 topbase=True)
+                pgtype = pgsql.ast.TypeNode(name=pgtype)
+                target = pgsql.ast.TypeCastNode(expr=target, type=pgtype)
+
+            subexpr = pgsql.ast.FunctionCallNode(name='array_agg', args=[target],
+                                                 agg_sort=query.orderby)
+
+            if graph.recurse_link is not None:
+                # Wrap the array into another record, so that the driver can detect
+                # and properly transform the array into a tree of objects
+
+                attribute_map = ['data']
+
+                recurse_link = graph.recurse_link
+
+                child_end = recurse_link.source
+                parent_end = recurse_link.target
+
+                if recurse_link.direction == caos_types.InboundDirection:
+                    parent_end, child_end = child_end, parent_end
+
+                proto_class = child_end.concept.get_canonical_class()
+                proto_class_name = '{}.{}'.format(proto_class.__module__, proto_class.__name__)
+
+                recptr_name = recurse_link.link_proto.normal_name()
+                recptr_direction = recurse_link.direction
+
+                recursive_attr = caos_types.PointerVector(name=recptr_name.name,
+                                                          module=recptr_name.module,
+                                                          direction=recptr_direction,
+                                                          target=child_end.concept.name)
+
+                marker = pg_session.RecordInfo(attribute_map=attribute_map,
+                                               recursive_link=recursive_attr,
+                                               proto_class=proto_class_name,
+                                               proto_name=child_end.concept.name)
+
+                context.current.record_info[marker.id] = marker
+                context.current.session.backend._register_record_info(marker)
+
+                marker = pgsql.ast.ConstantNode(value=marker.id)
+                marker_type = pgsql.ast.TypeNode(name='caos.known_record_marker_t')
+                marker = pgsql.ast.TypeCastNode(expr=marker, type=marker_type)
+
+                subexpr = pgsql.ast.RowExprNode(args=[marker, subexpr])
+
+            query.orderby = []
+            query.targets = [pgsql.ast.SelectExprNode(expr=subexpr)]
+
         return query
+
+    def _generate_recursive_query(self, context, query, recurse_link, recurse_depth):
+        idptr = caos_name.Name('semantix.caos.builtins.id')
+
+        child_end = recurse_link.source
+        parent_end = recurse_link.target
+
+        if recurse_depth is not None:
+            recurse_depth = self._process_constant(context, recurse_depth)
+
+        if recurse_link.direction == caos_types.InboundDirection:
+            parent_end, child_end = child_end, parent_end
+
+        parent_propref = tree.ast.AtomicRefSimple(name=idptr, ref=parent_end)
+        parent_ref = self._process_expr(context, parent_propref, query)
+
+        child_propref = tree.ast.AtomicRefSimple(name=idptr, ref=child_end)
+        child_ref = self._process_expr(context, child_propref, query)
+
+        depth_start = pgsql.ast.ConstantNode(value=0)
+
+        query.targets.append(pgsql.ast.SelectExprNode(expr=parent_ref, alias='__source__'))
+        query.targets.append(pgsql.ast.SelectExprNode(expr=child_ref, alias='__target__'))
+        query.targets.append(pgsql.ast.SelectExprNode(expr=depth_start, alias='__depth__'))
+
+        recursive_part = pgsql.ast.SelectQueryNode()
+        recursive_part.targets = query.targets[:]
+
+        recursive_part.where = query.where
+        recursive_part.fromlist = query.fromlist[:]
+
+        if (len(recursive_part.fromlist) != 1
+                    or not isinstance(recursive_part.fromlist[0].expr, pgsql.ast.SelectQueryNode)):
+            raise ValueError('unexpected FROM configuration in recursive part of cyclic link')
+
+        rec_cte = pgsql.ast.CTENode(
+            op = pgsql.ast.UNION,
+            larg = query,
+            rarg = recursive_part,
+            recursive = True
+        )
+
+        parent_depth_ref = pgsql.ast.FieldRefNode(field='__depth__', table=rec_cte)
+        one = pgsql.ast.ConstantNode(value=1)
+        next_depth = pgsql.ast.BinOpNode(left=parent_depth_ref, op=ast.ops.ADD, right=one)
+
+        cond_parent_ref = pgsql.ast.FieldRefNode(field='__target__', table=rec_cte)
+        cond = pgsql.ast.BinOpNode(left=parent_ref, right=cond_parent_ref, op=ast.ops.EQ)
+
+        recursive_part.where = self.extend_binop(recursive_part.where, cond,
+                                                 cls=pgsql.ast.BinOpNode)
+
+        if recurse_depth is not None:
+            depth_cond = pgsql.ast.BinOpNode(left=next_depth, op=ast.ops.LT,
+                                             right=recurse_depth)
+            zero = pgsql.ast.ConstantNode(value=0)
+            depth_is_zero = pgsql.ast.BinOpNode(left=recurse_depth, op=ast.ops.LE,
+                                                right=zero)
+            depth_cond = pgsql.ast.BinOpNode(left=depth_is_zero, op=ast.ops.OR, right=depth_cond)
+            recursive_part.where = self.extend_binop(recursive_part.where, depth_cond,
+                                                     cls=pgsql.ast.BinOpNode)
+
+        recursive_part.targets[-1] = pgsql.ast.SelectExprNode(expr=next_depth, alias='__depth__')
+
+        elements = []
+
+        for target in query.targets:
+            elements.append(pgsql.ast.TableFuncElement(name=target.alias))
+
+        rec_cte.alias = pgsql.ast.FuncAliasNode(alias=context.current.genalias(hint='recq'),
+                                                elements=elements)
+
+        recursive_part.fromlist.append(pgsql.ast.FromExprNode(expr=rec_cte))
+
+        result = pgsql.ast.SelectQueryNode()
+
+        result.fromlist.append(pgsql.ast.FromExprNode(expr=rec_cte))
+
+        row_args = []
+
+        attribute_map = []
+
+        for target in query.targets:
+            fieldref = pgsql.ast.FieldRefNode(field=target.alias, table=rec_cte)
+            row_args.append(fieldref)
+            attribute_map.append(target.alias)
+
+        marker = pg_session.RecordInfo(attribute_map=attribute_map)
+
+        context.current.record_info[marker.id] = marker
+        context.current.session.backend._register_record_info(marker)
+
+        marker = pgsql.ast.ConstantNode(value=marker.id)
+        marker_type = pgsql.ast.TypeNode(name='caos.known_record_marker_t')
+        marker = pgsql.ast.TypeCastNode(expr=marker, type=marker_type)
+
+        row_args.insert(0, marker)
+
+        target = pgsql.ast.RowExprNode(args=row_args)
+        result.targets.append(pgsql.ast.SelectExprNode(expr=target))
+
+        result.ctes.add(rec_cte)
+
+        source_ref = pgsql.ast.FieldRefNode(field='__source__', table=rec_cte)
+        result.orderby.insert(0, pgsql.ast.SortExprNode(expr=source_ref))
+        depth_ref = pgsql.ast.FieldRefNode(field='__depth__', table=rec_cte)
+        result.orderby.insert(0, pgsql.ast.SortExprNode(expr=depth_ref,
+                                                        direction=pgsql.ast.SortDesc))
+
+        if query.outerbonds:
+            result.proxyouterbonds[query] = query.outerbonds
+
+        return result
 
     def _consolidate_subqueries(self, context, query, subgraphs):
         # Turn the given ``query`` into a subquery and translated ``subgraphs``
@@ -772,6 +953,12 @@ class CaosTreeTransformer(CaosExprTransformer):
         subquery.where = self.extend_binop(subquery.where, comparison, cls=pgsql.ast.BinOpNode)
 
     def _connect_subquery_outerbonds(self, context, outerbonds, subquery):
+        if subquery.proxyouterbonds:
+            # A subquery may be wrapped by another relation, e.g. a recursive CTE, which
+            # "proxies" the original outer bonds of its non-recursive part.
+            for proxied_subquery, proxied_outerbonds in subquery.proxyouterbonds.items():
+                self._connect_subquery_outerbonds(context, proxied_outerbonds, proxied_subquery)
+
         for outer_ref, inner_ref in outerbonds:
             if outer_ref in context.current.concept_node_map:
                 self._inject_outerbond_condition(context, subquery, inner_ref, outer_ref)

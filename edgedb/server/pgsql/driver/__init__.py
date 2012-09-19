@@ -181,7 +181,7 @@ class TypeIO(pq3.TypeIO):
                     data = xvalue(data['value'], **data['attrs'])
 
                 elif record_info.proto_class == 'semantix.caos.proto.Concept':
-                    data = session.backend.entity_from_row(session, record_info.proto_name, data)
+                    data = session.backend.entity_from_row(session, record_info, data)
 
             return data
 

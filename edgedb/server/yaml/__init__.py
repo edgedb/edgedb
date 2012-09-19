@@ -963,8 +963,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 self.normalize_computables(concept, localschema)
 
             except caosql_exc.CaosQLReferenceError as e:
-                index_context = lang_context.SourceContext.from_object(index)
-                raise MetaError(e.args[0], context=index_context) from e
+                concept_context = lang_context.SourceContext.from_object(concept)
+                raise MetaError(e.args[0], context=concept_context) from e
 
         for concept in concepts:
             concept.materialize(localschema)

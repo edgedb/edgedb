@@ -101,7 +101,7 @@ class GraphExpr(Base):
     __fields = ['generator', ('selector', list), ('grouper', list), ('sorter', list),
                 'offset', 'limit', ('opselector', list), 'optarget', 'opvalues', 'op',
                 ('subgraphs', set), ('referrers', list), ('attrrefs', set),
-                ('cges', list)]
+                ('cges', list), 'recurse_link', 'recurse_depth', 'aggregate_result']
 
 
 class CommonGraphExpr(Base):
@@ -257,12 +257,12 @@ class EntitySet(Path):
     def __setattr__(self, name, value):
         super().__setattr__(name, value)
 
-        if name == 'rlink':
+        if name == 'rlink' and value is not None:
             value.backrefs.add(self)
 
 
 class PtrPathSpec(Base):
-    __fields = ['ptr_proto', 'ptr_direction', 'pathspec']
+    __fields = ['ptr_proto', 'ptr_direction', 'pathspec', 'recurse', 'target_proto']
 
 
 class Constant(Base):

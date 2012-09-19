@@ -59,7 +59,7 @@ class TableFuncElement(Base):
 
 class RelationNode(Base):
     __fields = [('concepts', frozenset), 'alias', ('_bonds', dict), 'caosnode',
-                ('outerbonds', list), ('aggregates', bool)]
+                ('outerbonds', list), ('proxyouterbonds', dict), ('aggregates', bool)]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -99,7 +99,7 @@ class SelectQueryNode(RelationNode):
                 ('ctes', datastructures.OrderedSet),
                 ('concept_node_map', dict), ('link_node_map', dict), ('linkmap', dict),
                 ('subquery_referrers', list),
-                'op', 'larg', 'rarg']
+                'op', 'larg', 'rarg', 'recursive']
 
 class UpdateQueryNode(Base):
     __fields = ['fromexpr', ('values', list), 'where', ('targets', list),

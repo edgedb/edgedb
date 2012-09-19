@@ -431,9 +431,9 @@ class SelectPointerSpec(Nonterm):
         "%reduce PointerGlob"
         self.val = kids[0].val
 
-    def reduce_SimpleFqLinkExpr(self, *kids):
-        "%reduce SimpleFqLinkExpr"
-        self.val = qlast.SelectPathSpecNode(expr=kids[0].val)
+    def reduce_SimpleFqLinkExpr_OptPointerRecursionSpec(self, *kids):
+        "%reduce SimpleFqLinkExpr OptPointerRecursionSpec"
+        self.val = qlast.SelectPathSpecNode(expr=kids[0].val, recurse=kids[1].val)
 
     def reduce_AT_AnyFqLinkPropName(self, *kids):
         "%reduce AT AnyFqLinkPropName"
@@ -442,6 +442,20 @@ class SelectPointerSpec(Nonterm):
     def reduce_SimpleFqLinkExpr_SelectPathSpec(self, *kids):
         "%reduce SimpleFqLinkExpr SelectPathSpec"
         self.val = qlast.SelectPathSpecNode(expr=kids[0].val, pathspec=kids[1].val)
+
+
+class OptPointerRecursionSpec(Nonterm):
+    def reduce_STAR(self, *kids):
+        "%reduce STAR"
+        self.val = qlast.ConstantNode(value=0)
+
+    def reduce_STAR_NumberConstant(self, *kids):
+        "%reduce STAR NumberConstant"
+        self.val = kids[1].val
+
+    def reduce_empty(self, *kids):
+        "%reduce <e>"
+        self.val = None
 
 
 class PointerGlob(Nonterm):

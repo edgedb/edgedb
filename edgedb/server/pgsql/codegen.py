@@ -64,17 +64,24 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         raise SQLSourceGeneratorError('No method to generate code for %s' % node.__class__.__name__)
 
     def visit_CTENode(self, node):
-        self.write(common.quote_ident(node.alias))
+        if isinstance(node.alias, str):
+            self.write(common.quote_ident(node.alias))
+        else:
+            self.write(common.quote_ident(node.alias.alias))
 
     def gen_ctes(self, ctes):
         self.write('WITH')
         count = len(ctes)
         for i, cte in enumerate(ctes):
             self.new_lines = 1
-            self.write(common.quote_ident(cte.alias))
+            if cte.recursive:
+                self.write('RECURSIVE ')
+            if isinstance(cte.alias, str):
+                self.write(common.quote_ident(cte.alias))
+            else:
+                self.visit(cte.alias)
             self.write(' AS ')
             self.indentation += 2
-            alias = cte.alias
             self.visit_SelectQueryNode(cte, use_alias=False)
             if i != count - 1:
                 self.write(',')
@@ -287,7 +294,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.write(common.quote_ident(node.table.alias) + '.' + str(node.field))
         else:
             if node.table:
-                self.write(common.qname(node.table.alias, str(node.field)))
+                if isinstance(node.table.alias, str):
+                    alias = node.table.alias
+                else:
+                    alias = node.table.alias.alias
+
+                self.write(common.qname(alias, str(node.field)))
             else:
                 self.write(common.quote_ident(str(node.field)))
 
@@ -313,8 +325,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_TableFuncElement(self, node):
         self.write(common.quote_ident(node.name))
-        self.write(' ')
-        self.visit(node.type)
+        if node.type is not None:
+            self.write(' ')
+            self.visit(node.type)
 
     def visit_JoinNode(self, node):
         self.visit(node.left)
@@ -501,6 +514,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.write('(')
         self.visit(node.expr)
         self.write(')')
+        if isinstance(node.indirection, pgast.StarIndirectionNode):
+            self.write('.')
         self.visit(node.indirection)
 
     def visit_IndexIndirectionNode(self, node):

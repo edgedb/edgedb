@@ -861,10 +861,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return concept_name
 
 
-    def entity_from_row(self, session, concept_name, links):
+    def entity_from_row(self, session, record_info, links):
+        if record_info.recursive_link:
+            # Array representing a hierarchy connecting via cyclic link.
+            # All entities have been initialized by now, but the recursive link is None at
+            # this point and needs to be injected.
+            return self._rebuild_tree_from_list(session, links['data'], record_info.recursive_link)
+
         concept_map = self.get_concept_map(session)
         concept_id = links.pop('id', None)
-        concept_name = links.pop('name', None)
 
         if concept_id is None:
             # empty record
@@ -881,6 +886,43 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                              == caos.types.InboundDirection}
 
         return session._merge(links['semantix.caos.builtins.id'], concept_cls, links)
+
+
+    def _rebuild_tree_from_list(self, session, items, connecting_attribute):
+        updates = {}
+        uuid = session.schema.semantix.caos.builtins.BaseObject.id
+
+        toplevel = []
+
+        if items:
+            for item in items:
+                entity = item[connecting_attribute]
+
+                target_id = item['__target__']
+
+                if target_id is not None:
+                    target_id = uuid(target_id)
+
+                    if target_id not in session:
+                        # The items below us have been cut off by recursion depth limit
+                        continue
+
+                    target = session.get(target_id)
+
+                    if item['__depth__'] == 0:
+                        toplevel.append(target)
+                    else:
+                        try:
+                            parent_updates = updates[entity.id]
+                        except KeyError:
+                            parent_updates = updates[entity.id] = {connecting_attribute: []}
+
+                        parent_updates[connecting_attribute].append(target)
+
+        for parent_id, items in updates.items():
+            session._merge(parent_id, None, items)
+
+        return toplevel
 
 
     def load_entity(self, concept, id, session):
