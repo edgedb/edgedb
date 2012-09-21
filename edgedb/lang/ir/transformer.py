@@ -561,14 +561,14 @@ class TreeTransformer:
                 else:
                     target_proto = link_target_proto
 
-                id = LinearPath(ref.id)
-
-                id.add(link_proto, link_direction, target_proto)
-
                 recurse_link = recurse_spec.recurse if recurse_spec is not None else None
+
+                full_path_id = LinearPath(ref.id)
+                full_path_id.add(link_proto, link_direction, target_proto)
 
                 if not link_singular or recurse_link is not None:
                     lref = self.copy_path(ref)
+                    lref.reference = ref
                 else:
                     lref = ref
 
@@ -578,7 +578,7 @@ class TreeTransformer:
                 targetstep = caos_ast.EntitySet(conjunction=caos_ast.Conjunction(),
                                                 disjunction=caos_ast.Disjunction(),
                                                 users={self.context.current.location},
-                                                concept=target_proto, id=id)
+                                                concept=target_proto, id=full_path_id)
 
                 link_node = caos_ast.EntityLink(source=lref, target=targetstep,
                                                 link_proto=link_proto,
@@ -587,9 +587,43 @@ class TreeTransformer:
 
                 targetstep.rlink = link_node
 
+                if not link.atomic():
+                    lref.conjunction.update(link_node)
+
+                sorter = []
+
+                newstep = targetstep
+
+                if recurse_link is not None:
+                    newstep = lref
+
+                if recurse_spec.sorter:
+                    sort_source = newstep
+
+                    for sortexpr in recurse_spec.sorter:
+                        sortpath = sortexpr.expr
+                        sortpath_link = sortpath.rlink
+
+                        sort_target = self.copy_path(sortpath)
+
+                        sort_target.ref = sort_source
+
+                        sort_link = caos_ast.EntityLink(source=sort_source,
+                                                        target=sort_target,
+                                                        link_proto=sortpath_link.link_proto,
+                                                        direction=sortpath_link.direction,
+                                                        users=sortpath_link.users)
+                        sort_target.rlink = sort_link
+
+                        sort_source.atomrefs.add(sort_target)
+
+                        sorter.append(caos_ast.SortExpr(expr=sort_target,
+                                                        direction=sortexpr.direction,
+                                                        nones_order=sortexpr.nones_order))
+
                 if isinstance(target_proto, caos_types.ProtoAtom):
                     if link_singular:
-                        newstep = caos_ast.AtomicRefSimple(ref=lref, name=link_name, id=id,
+                        newstep = caos_ast.AtomicRefSimple(ref=lref, name=link_name, id=full_path_id,
                                                            ptr_proto=link_proto)
                         atomrefs.append(newstep)
                     else:
@@ -597,17 +631,11 @@ class TreeTransformer:
                         prop_id = LinearPath(ref.id)
                         prop_id.add(root_link_proto, caos_types.OutboundDirection, None)
                         prop_proto = link.pointers[ptr_name]
-                        newstep = caos_ast.LinkPropRefSimple(name=ptr_name, id=id,
+                        newstep = caos_ast.LinkPropRefSimple(name=ptr_name, id=full_path_id,
                                                              ptr_proto=prop_proto)
 
                     el = newstep
                 else:
-                    if recurse_link is not None:
-                        newstep = lref
-                        newstep.reference = ref
-                    else:
-                        newstep = targetstep
-
                     if _recurse:
                         new_recurse = (newstep.concept not in _new_visited_records or
                                        (recurse_spec is not None and recurse_spec.recurse is None))
@@ -648,7 +676,7 @@ class TreeTransformer:
 
                         prop_id = LinearPath(ref.id)
                         prop_id.add(root_link_proto, caos_types.OutboundDirection, None)
-                        prop_ref = caos_ast.LinkPropRefSimple(name=prop_name, id=id,
+                        prop_ref = caos_ast.LinkPropRefSimple(name=prop_name, id=full_path_id,
                                                               ptr_proto=prop_proto,
                                                               ref=link_node)
                         prop_elements.append(prop_ref)
@@ -677,6 +705,9 @@ class TreeTransformer:
                     subgraph = caos_ast.GraphExpr()
                     subgraph.generator = generator
                     subgraph.aggregate_result = ('agg', 'list')
+
+                    if sorter:
+                        subgraph.sorter = sorter
 
                     if recurse_spec.recurse is not None:
                         subgraph.recurse_link = link_node
@@ -737,9 +768,11 @@ class TreeTransformer:
                         ptrspec.pathspec[i] = caos_ast.PtrPathSpec(ptr_proto=ptrspec.ptr_proto,
                                                                    ptr_direction=ptrspec.ptr_direction,
                                                                    recurse=ptrspec.recurse,
-                                                                   target_proto=ptrspec.target_proto)
+                                                                   target_proto=ptrspec.target_proto,
+                                                                   sorter=ptrspec.sorter)
 
                 ptrspec.recurse = None
+                ptrspec.sorter = []
 
     def _dump(self, tree):
         if tree is not None:
@@ -1215,7 +1248,6 @@ class TreeTransformer:
 
     nest = 0
 
-    @debug.debug
     def unify_paths(self, paths, mode, reverse=True, merge_filters=False):
         mypaths = set(paths)
 
@@ -1223,6 +1255,12 @@ class TreeTransformer:
 
         while mypaths and not result:
             result = self.extract_paths(mypaths.pop(), reverse)
+
+        return self._unify_paths(result, mypaths, mode, reverse, merge_filters)
+
+    @debug.debug
+    def _unify_paths(self, result, paths, mode, reverse=True, merge_filters=False):
+        mypaths = set(paths)
 
         while mypaths:
             path = self.extract_paths(mypaths.pop(), reverse)
@@ -1234,6 +1272,9 @@ class TreeTransformer:
                 """LOG [caos.graph.merge] ADDING
                 print(' ' * self.nest, 'ADDING', result, path, getattr(result, 'id', '??'), getattr(path, 'id', '??'), merge_filters)
                 self.nest += 2
+
+                self._dump(result)
+                self._dump(path)
                 """
 
                 result = self.add_paths(result, path, merge_filters=merge_filters)
@@ -2005,11 +2046,17 @@ class TreeTransformer:
 
         return node_scope
 
-    def copy_path(self, path: (caos_ast.EntitySet, caos_ast.EntityLink)):
+    def copy_path(self, path: (caos_ast.EntitySet, caos_ast.EntityLink, caos_ast.BaseRef)):
         if isinstance(path, caos_ast.EntitySet):
             result = caos_ast.EntitySet(id=path.id, anchor=path.anchor, concept=path.concept,
                                         users=path.users, joins=path.joins)
             rlink = path.rlink
+        elif isinstance(path, caos_ast.BaseRef):
+            result = path.__class__(id=path.id, ref=path.ref, ptr_proto=path.ptr_proto)
+            rlink = path.rlink
+
+            if isinstance(path, (caos_ast.AtomicRefSimple, caos_ast.LinkPropRefSimple)):
+                result.name = path.name
         else:
             result = None
             rlink = path

@@ -6,6 +6,7 @@
 ##
 
 
+import bisect
 import os
 import re
 import collections
@@ -889,12 +890,17 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def _rebuild_tree_from_list(self, session, items, connecting_attribute):
+        # Build a tree from a list of (parent, child_id) tuples, while
+        # maintaining total order.
+        #
         updates = {}
         uuid = session.schema.semantix.caos.builtins.BaseObject.id
 
         toplevel = []
 
         if items:
+            total_order = {item[connecting_attribute]: i for i, item in enumerate(items)}
+
             for item in items:
                 entity = item[connecting_attribute]
 
@@ -910,19 +916,20 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     target = session.get(target_id)
 
                     if item['__depth__'] == 0:
-                        toplevel.append(target)
+                        bisect.insort(toplevel, (total_order[target], target))
                     else:
                         try:
                             parent_updates = updates[entity.id]
                         except KeyError:
-                            parent_updates = updates[entity.id] = {connecting_attribute: []}
+                            parent_updates = updates[entity.id] = []
 
-                        parent_updates[connecting_attribute].append(target)
+                        # Use insort to maintain total order on each level
+                        bisect.insort(parent_updates, (total_order[target], target))
 
         for parent_id, items in updates.items():
-            session._merge(parent_id, None, items)
+            session._merge(parent_id, None, {connecting_attribute: (i[1] for i in items)})
 
-        return toplevel
+        return [i[1] for i in toplevel]
 
 
     def load_entity(self, concept, id, session):

@@ -723,21 +723,26 @@ class CaosTreeTransformer(CaosExprTransformer):
         child_propref = tree.ast.AtomicRefSimple(name=idptr, ref=child_end)
         child_ref = self._process_expr(context, child_propref, query)
 
+        sort_exprs = {}
+
+        for sortexpr in query.orderby:
+            sel = pgsql.ast.SelectExprNode(expr=sortexpr.expr,
+                                           alias=context.current.genalias(hint=sortexpr.expr.field))
+            sort_exprs[sel] = sortexpr
+            query.targets.append(sel)
+
         depth_start = pgsql.ast.ConstantNode(value=0)
 
-        query.targets.append(pgsql.ast.SelectExprNode(expr=parent_ref, alias='__source__'))
         query.targets.append(pgsql.ast.SelectExprNode(expr=child_ref, alias='__target__'))
         query.targets.append(pgsql.ast.SelectExprNode(expr=depth_start, alias='__depth__'))
+
+        query.orderby = []
 
         recursive_part = pgsql.ast.SelectQueryNode()
         recursive_part.targets = query.targets[:]
 
         recursive_part.where = query.where
         recursive_part.fromlist = query.fromlist[:]
-
-        if (len(recursive_part.fromlist) != 1
-                    or not isinstance(recursive_part.fromlist[0].expr, pgsql.ast.SelectQueryNode)):
-            raise ValueError('unexpected FROM configuration in recursive part of cyclic link')
 
         rec_cte = pgsql.ast.CTENode(
             op = pgsql.ast.UNION,
@@ -778,18 +783,34 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         recursive_part.fromlist.append(pgsql.ast.FromExprNode(expr=rec_cte))
 
-        result = pgsql.ast.SelectQueryNode()
+        rec_cte_wrap = pgsql.ast.SelectQueryNode(alias=context.current.genalias(hint='recqwrap'))
+        rec_cte_wrap.ctes.add(rec_cte)
+        rec_cte_wrap.fromlist.append(pgsql.ast.FromExprNode(expr=rec_cte))
 
-        result.fromlist.append(pgsql.ast.FromExprNode(expr=rec_cte))
+        for target in query.targets:
+            if target not in sort_exprs:
+                fref = pgsql.ast.FieldRefNode(field=target.alias)
+                selexpr = pgsql.ast.SelectExprNode(expr=fref, alias=target.alias)
+                rec_cte_wrap.targets.append(selexpr)
+
+        for select_expr, sort_expr in sort_exprs.items():
+            fref = pgsql.ast.FieldRefNode(field=select_expr.alias)
+            sexpr = pgsql.ast.SortExprNode(expr=fref, direction=sort_expr.direction,
+                                           nulls_order=sort_expr.nulls_order)
+            rec_cte_wrap.orderby.append(sexpr)
+
+        result = pgsql.ast.SelectQueryNode()
+        result.fromlist.append(pgsql.ast.FromExprNode(expr=rec_cte_wrap))
 
         row_args = []
 
         attribute_map = []
 
         for target in query.targets:
-            fieldref = pgsql.ast.FieldRefNode(field=target.alias, table=rec_cte)
-            row_args.append(fieldref)
-            attribute_map.append(target.alias)
+            if target not in sort_exprs:
+                fieldref = pgsql.ast.FieldRefNode(field=target.alias, table=rec_cte_wrap)
+                row_args.append(fieldref)
+                attribute_map.append(target.alias)
 
         marker = pg_session.RecordInfo(attribute_map=attribute_map)
 
@@ -804,14 +825,6 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         target = pgsql.ast.RowExprNode(args=row_args)
         result.targets.append(pgsql.ast.SelectExprNode(expr=target))
-
-        result.ctes.add(rec_cte)
-
-        source_ref = pgsql.ast.FieldRefNode(field='__source__', table=rec_cte)
-        result.orderby.insert(0, pgsql.ast.SortExprNode(expr=source_ref))
-        depth_ref = pgsql.ast.FieldRefNode(field='__depth__', table=rec_cte)
-        result.orderby.insert(0, pgsql.ast.SortExprNode(expr=depth_ref,
-                                                        direction=pgsql.ast.SortDesc))
 
         if query.outerbonds:
             result.proxyouterbonds[query] = query.outerbonds
