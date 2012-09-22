@@ -228,7 +228,7 @@ class Pycomprehension(PyAST): __fields = ['target', 'iter', ('ifs', list)]
 #    excepthandler = ExceptHandler(expr? type, identifier? name, stmt* body)
 #                    attributes (int lineno, int col_offset)
 
-class Pyexcepthandler(PyAST): __fields = ['type', 'name', ('body', list)]
+class PyExceptHandler(PyAST): __fields = ['type', 'name', ('body', list)]
 
 #    arguments = (arg* args, identifier? vararg, expr? varargannotation,
 #                     arg* kwonlyargs, identifier? kwarg,

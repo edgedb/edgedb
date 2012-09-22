@@ -555,7 +555,7 @@ class BasePythonSourceGenerator(SourceGenerator):
                 self.write(' if ')
                 self.visit(if_)
 
-    def visit_Pyexcepthandler(self, node):
+    def visit_PyExceptHandler(self, node):
         self.newline(node)
         self.write('except')
         if node.type is not None:
@@ -563,6 +563,9 @@ class BasePythonSourceGenerator(SourceGenerator):
             self.visit(node.type)
             if node.name is not None:
                 self.write(' as ')
-                self.visit(node.name)
+                if isinstance(node.name, PyAST):
+                    self.visit(node.name)
+                else:
+                    self.write(node.name)
         self.write(':')
         self._body(node.body)
