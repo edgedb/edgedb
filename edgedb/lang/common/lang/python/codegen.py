@@ -306,7 +306,8 @@ class BasePythonSourceGenerator(SourceGenerator):
     def visit_PyReturn(self, node):
         self.newline(node)
         self.write('return ')
-        self.visit(node.value)
+        if node.value:
+            self.visit(node.value)
 
     def visit_PyBreak(self, node):
         self.newline(node)
