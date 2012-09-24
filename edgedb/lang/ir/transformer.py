@@ -299,6 +299,17 @@ class TreeTransformer:
         else:
             assert False, 'unexpected node: "%r"' % expr
 
+    def _check_access_control(self, expr):
+        proto_name = expr.concept.name
+
+        try:
+            hooks = caos_types._access_control_hooks[proto_name, 'read']
+        except KeyError:
+            pass
+        else:
+            for hook in hooks:
+                hook(expr)
+
     def apply_rewrites(self, expr):
         """Apply rewrites from policies
         """
@@ -314,11 +325,16 @@ class TreeTransformer:
             if expr.rlink:
                 self.apply_rewrites(expr.rlink)
 
+            if ('access_rewrite' not in expr.rewrite_flags and expr.reference is None
+                                                           and expr.origin is None):
+                self._check_access_control(expr)
+                expr.rewrite_flags.add('access_rewrite')
+
         elif isinstance(expr, caos_ast.EntityLink):
             if expr.source is not None:
                 self.apply_rewrites(expr.source)
 
-            if not getattr(expr, '_lang_rewrite', None):
+            if 'lang_rewrite' not in expr.rewrite_flags:
                 schema = self.context.current.proto_schema
                 localizable = schema.get('semantix.caos.extras.l10n.localizable',
                                          default=None)
@@ -351,7 +367,7 @@ class TreeTransformer:
                     lang_test = caos_ast.BinOp(left=lang_prop_none, right=eq_lang, op=ast.ops.OR,
                                                strong=True)
                     expr.propfilter = self.extend_binop(expr.propfilter, lang_test)
-                    expr._lang_rewrite = True
+                    expr.rewrite_flags.add('lang_rewrite')
 
         elif isinstance(expr, caos_ast.LinkPropRefSimple):
             self.apply_rewrites(expr.ref)
@@ -567,7 +583,7 @@ class TreeTransformer:
                 full_path_id.add(link_proto, link_direction, target_proto)
 
                 if not link_singular or recurse_link is not None:
-                    lref = self.copy_path(ref)
+                    lref = self.copy_path(ref, connect_to_origin=True)
                     lref.reference = ref
                 else:
                     lref = ref
@@ -1405,6 +1421,9 @@ class TreeTransformer:
                 left.joins.update(right.joins)
                 left.joins.discard(left)
 
+                if left.origin is None and right.origin is not None:
+                    left.origin = right.origin
+
                 if right.concept.issubclass(self.context.current.proto_schema, left.concept):
                     left.concept = right.concept
 
@@ -1572,6 +1591,9 @@ class TreeTransformer:
                 left_set.joins.update(right_set.joins)
                 left_set.joins.discard(left_set)
                 left_set.conceptfilter.update(right_set.conceptfilter)
+
+                if left_set.origin is None and right_set.origin is not None:
+                    left_set.origin = right_set.origin
 
                 if right_set.concept.issubclass(self.context.current.proto_schema, left_set.concept):
                     left_set.concept = right_set.concept
@@ -2046,13 +2068,22 @@ class TreeTransformer:
 
         return node_scope
 
-    def copy_path(self, path: (caos_ast.EntitySet, caos_ast.EntityLink, caos_ast.BaseRef)):
+    @classmethod
+    def copy_path(cls, path: (caos_ast.EntitySet, caos_ast.EntityLink, caos_ast.BaseRef),
+                       connect_to_origin=False):
+
         if isinstance(path, caos_ast.EntitySet):
             result = caos_ast.EntitySet(id=path.id, anchor=path.anchor, concept=path.concept,
-                                        users=path.users, joins=path.joins)
+                                        users=path.users, joins=path.joins,
+                                        rewrite_flags=path.rewrite_flags.copy())
             rlink = path.rlink
+
+            if connect_to_origin:
+                result.origin = path.origin if path.origin is not None else path
+
         elif isinstance(path, caos_ast.BaseRef):
-            result = path.__class__(id=path.id, ref=path.ref, ptr_proto=path.ptr_proto)
+            result = path.__class__(id=path.id, ref=path.ref, ptr_proto=path.ptr_proto,
+                                    rewrite_flags=path.rewrite_flags.copy())
             rlink = path.rlink
 
             if isinstance(path, (caos_ast.AtomicRefSimple, caos_ast.LinkPropRefSimple)):
@@ -2069,7 +2100,8 @@ class TreeTransformer:
                                        direction=rlink.direction,
                                        propfilter=rlink.propfilter,
                                        users=rlink.users.copy(),
-                                       anchor=rlink.anchor)
+                                       anchor=rlink.anchor,
+                                       rewrite_flags=rlink.rewrite_flags.copy())
 
             if not result:
                 result = link
@@ -2079,8 +2111,13 @@ class TreeTransformer:
             if parent_path:
                 parent = caos_ast.EntitySet(id=parent_path.id, anchor=parent_path.anchor,
                                             concept=parent_path.concept, users=parent_path.users,
-                                            joins=parent_path.joins)
+                                            joins=parent_path.joins,
+                                            rewrite_flags=parent_path.rewrite_flags.copy())
                 parent.disjunction = caos_ast.Disjunction(paths=frozenset((link,)))
+
+                if connect_to_origin:
+                    parent.origin = parent_path.origin if parent_path.origin is not None else parent_path
+
                 link.source = parent
 
                 if current:

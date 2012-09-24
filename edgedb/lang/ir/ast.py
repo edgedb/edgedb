@@ -22,7 +22,8 @@ class ASTError(SemantixError):
 
 class Base(ast.AST):
     __fields = [('refs', weakref.WeakSet, weakref.WeakSet, False),
-                ('backrefs', weakref.WeakSet, weakref.WeakSet, False)]
+                ('backrefs', weakref.WeakSet, weakref.WeakSet, False),
+                ('rewrite_flags', set)]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -250,6 +251,7 @@ class EntitySet(Path):
                 ('conjunction', Conjunction),
                 ('disjunction', Disjunction),
                 ('reference', Path, None, False),
+                ('origin', Path, None, False),
                 ('rlink', EntityLink, None, False),
                 ('atomrefs', set), ('metarefs', set), ('users', set),
                 ('joins', set, set, False)]
