@@ -454,3 +454,28 @@ class TestJSsx(JSFunctionalTest):
         }, {error: sx.Error,
             error_re: 'empty separator'});
         '''
+
+    def test_utils_lang_js_sx_array_insort(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import sx
+
+        var a1 = [],
+            a2 = [],
+            digits = [0, 1, 2, 3, 4, 5, 6, 7, 8, 9],
+            f;
+
+        for (var i = 0; i < 50; i++) {
+            var digit = sx.random.choice(digits);
+            if (sx.contains([0, 2, 4, 6, 8], digit)) {
+                f = sx.array.insort_left;
+            } else {
+                f = sx.array.insort_right;
+            }
+
+            f(a1, digit);
+            a2.push(digit);
+        }
+
+        a2.sort();
+        assert.equal(a1, a2);
+        '''

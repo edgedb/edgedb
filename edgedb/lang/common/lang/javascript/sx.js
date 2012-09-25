@@ -524,6 +524,76 @@ this.sx = (function(global) {
             })()
         },
 
+        random: {
+            choice: function(a) {
+                return a[Math.floor(Math.random() * a.length)];
+            }
+        },
+
+        array: {
+            bisect_right: function(a, x, lo, hi) {
+                if (typeof lo == 'undefined') {
+                    lo = 0;
+                }
+
+                if (lo < 0) {
+                    throw new sx.Error('bisect: lo must not be negative');
+                }
+
+                if (typeof hi == 'undefined') {
+                    hi = a.length;
+                }
+
+                var middle;
+
+                while (lo < hi) {
+                    middle = (lo + hi) >> 1;
+                    if (x < a[middle]) {
+                        hi = middle;
+                    } else {
+                        lo = middle + 1;
+                    }
+                }
+
+                return lo;
+            },
+
+            bisect_left: function(a, x, lo, hi) {
+                if (typeof lo == 'undefined') {
+                    lo = 0;
+                }
+
+                if (lo < 0) {
+                    throw new sx.Error('bisect: lo must not be negative');
+                }
+
+                if (typeof hi == 'undefined') {
+                    hi = a.length;
+                }
+
+                var middle;
+
+                while (lo < hi) {
+                    middle = (lo + hi) >> 1;
+                    if (a[middle] < x) {
+                        lo = middle + 1;
+                    } else {
+                        hi = middle;
+                    }
+                }
+
+                return lo;
+            },
+
+            insort_right: function(a, x, lo, hi) {
+                a.splice(sx.array.bisect_right(a, x, lo, hi), 0, x);
+            },
+
+            insort_left: function(a, x, lo, hi) {
+                a.splice(sx.array.bisect_left(a, x, lo, hi), 0, x);
+            }
+        },
+
         str: {
             shorten: function(str, max) {
                 if (str.length >= max) {
