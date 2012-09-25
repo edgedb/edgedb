@@ -57,6 +57,7 @@ class TransformerContextLevel(object):
             self.global_ctes = prevlevel.global_ctes
 
             if mode == TransformerContext.NEW_TRANSPARENT:
+                self.location = prevlevel.location
                 self.vars = prevlevel.vars
                 self.ctes = prevlevel.ctes
                 self.ctemap = prevlevel.ctemap
@@ -961,8 +962,24 @@ class CaosTreeTransformer(CaosExprTransformer):
                 raise ValueError('invalid inner reference in subquery bond')
 
         outer_ref = context.current.concept_node_map[outer_ref]
-        outer_ref = outer_ref['semantix.caos.builtins.id']
-        comparison = pgsql.ast.BinOpNode(left=outer_ref.expr, op=ast.ops.EQ, right=field_ref)
+
+        idcol = 'semantix.caos.builtins.id'
+
+        if context.current.direct_subquery_ref and context.current.location == 'nodefilter':
+            # The subquery is _inside_ the parent query's WHERE, it's not a joined CTE
+            outer_ref = outer_ref['local_ref_map'][idcol]
+
+            if isinstance(outer_ref, list):
+                ref_table = outer_ref[0]
+            else:
+                ref_table = outer_ref
+
+            outer_ref = pgsql.ast.FieldRefNode(table=ref_table, field=idcol,
+                                               origin=ref_table, origin_field=idcol)
+        else:
+            outer_ref = outer_ref[idcol].expr
+
+        comparison = pgsql.ast.BinOpNode(left=outer_ref, op=ast.ops.EQ, right=field_ref)
         subquery.where = self.extend_binop(subquery.where, comparison, cls=pgsql.ast.BinOpNode)
 
     def _connect_subquery_outerbonds(self, context, outerbonds, subquery):
