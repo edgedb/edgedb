@@ -2168,10 +2168,12 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
         with context(delta_cmds.LinkPropertyCommandContext(self, property)):
             rec, updates = self.record_metadata(property, None, meta, context)
 
-        # Priority is set to 2 to make sure that INSERT is run after the host link
-        # is INSERTed into caos.link.
-        #
-        self.pgops.add(dbops.Insert(table=self.table, records=[rec], priority=2))
+        concept = context.get(delta_cmds.ConceptCommandContext)
+        if not concept or not concept.proto.is_virtual:
+            # Priority is set to 2 to make sure that INSERT is run after the host link
+            # is INSERTed into caos.link.
+            #
+            self.pgops.add(dbops.Insert(table=self.table, records=[rec], priority=2))
 
         return property
 
