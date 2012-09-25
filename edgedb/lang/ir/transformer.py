@@ -308,7 +308,7 @@ class TreeTransformer:
             pass
         else:
             for hook in hooks:
-                hook(expr)
+                hook(self.context.current.graph, expr, self.context.current.context_vars)
 
     def apply_rewrites(self, expr):
         """Apply rewrites from policies
