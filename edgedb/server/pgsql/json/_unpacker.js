@@ -42,15 +42,30 @@ sx.types.register('pgjson.', function(format, data, metadata) {
 
     var _decode_record_tree = function(tree, connecting_attribute) {
         var tl = tree.length;
+
         var toplevel = [];
-        var index = {};
         var updates = {};
         var ca = connecting_attribute;
         var attrname = ca.name + ca.direction + ca.target;
         var target;
 
+        var total_order = {};
+
+        var items = {};
+
         for (var i = 0; i < tl; i++) {
             var item = _decode_record(tree[i]);
+            var item_id = item[ca.name].id;
+            items[item_id] = item;
+            total_order[item_id] = i;
+        }
+
+        for (var id in items) {
+            if (!items.hasOwnProperty(id)) {
+                continue;
+            }
+
+            var item = items[id];
 
             var entity = item[ca.name];
 
@@ -58,46 +73,60 @@ sx.types.register('pgjson.', function(format, data, metadata) {
                 continue;
             }
 
-            index[entity.id] = entity;
-
             var target_id = item['__target__'];
 
             if (target_id == null) {
                 continue;
             }
 
-            if (!index.hasOwnProperty(target_id)) {
+            var target = items[target_id];
+
+            if (!target) {
                 // The items below us have been cut off by recursion depth limit
                 continue;
             }
 
-            target = index[target_id];
+            var titem = [total_order[target_id], target[ca.name]];
 
             if (item['__depth__'] == 0) {
-                toplevel.push(target);
+                sx.array.insort_left(toplevel, titem);
             } else {
                 if (!updates.hasOwnProperty(entity.id)) {
-                    updates[entity.id] = [target];
+                    updates[entity.id] = [titem];
                 } else {
-                    updates[entity.id].push(target);
+                    sx.array.insort_left(updates[entity.id], titem);
                 }
             }
         }
 
         for (var src_id in updates) {
             if (updates.hasOwnProperty(src_id)) {
-                var src = index[src_id];
+                var src = items[src_id][ca.name];
                 if (!src) {
                     throw new sx.Error('unexpected error in recursion tree unpack: source is empty');
                 }
 
+                var src_updates = updates[src_id];
+                var entities = [];
+
+                for (var i = 0; i < src_updates.length; i++) {
+                    entities.push(src_updates[i][1]);
+                }
+
                 var u = {};
-                u[attrname] = updates[src_id];
+                u[attrname] = entities;
+
                 src.update(u);
             }
         }
 
-        return toplevel;
+        var toplevel_entities = [];
+
+        for (var i = 0; i < toplevel.length; i++) {
+            toplevel_entities.push(toplevel[i][1]);
+        }
+
+        return toplevel_entities;
     };
 
     var _decode_record = function(record) {
