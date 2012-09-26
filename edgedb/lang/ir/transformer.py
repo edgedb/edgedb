@@ -326,7 +326,8 @@ class TreeTransformer:
                 self.apply_rewrites(expr.rlink)
 
             if ('access_rewrite' not in expr.rewrite_flags and expr.reference is None
-                                                           and expr.origin is None):
+                    and expr.origin is None
+                    and getattr(self.context.current, 'apply_access_control_rewrite', False)):
                 self._check_access_control(expr)
                 expr.rewrite_flags.add('access_rewrite')
 
