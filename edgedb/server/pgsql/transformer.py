@@ -76,7 +76,9 @@ class TransformerContextLevel(object):
                 self.concept_node_map = prevlevel.concept_node_map.copy()
                 self.link_node_map = prevlevel.link_node_map.copy()
 
-                self.ignore_cardinality = False
+                if prevlevel.ignore_cardinality != 'recursive':
+                    self.ignore_cardinality = False
+
                 self.in_aggregate = False
                 self.query = pgsql.ast.SelectQueryNode()
                 self.subquery_map = {}
@@ -1883,6 +1885,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         elif isinstance(expr, tree.ast.ExistPred):
             with context(TransformerContext.NEW_TRANSPARENT):
                 context.current.direct_subquery_ref = True
+                context.current.ignore_cardinality = 'recursive'
                 expr = self._process_expr(context, expr.expr, cte)
 
             result = pgsql.ast.ExistsNode(expr=expr)
