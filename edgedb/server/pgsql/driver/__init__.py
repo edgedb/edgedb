@@ -194,7 +194,7 @@ class TypeIO(pq3.TypeIO):
             backend = session.backend
             source = backend.source_name_from_relid(composite_relid)
             if source is not None:
-                return partial(backend.entity_from_row, session, source, attribute_map)
+                return partial(backend.entity_from_row_compat, session, source, attribute_map)
         return partial(_Row, attribute_map)
 
 
