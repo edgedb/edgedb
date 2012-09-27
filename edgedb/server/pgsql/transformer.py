@@ -897,6 +897,12 @@ class CaosTreeTransformer(CaosExprTransformer):
         query.ctes = OrderedSet()
 
         for outer_ref in outer_refs:
+            if outer_ref not in context.current.concept_node_map:
+                # Outer ref is not visible on this query level as it has
+                # been pushed into a subquery of it's own due to link cardinality
+                # rule,
+                continue
+
             # Join references to CTEs
             #
             outerbonds = self._pull_outerbonds(context, outer_ref, query, subquery)
