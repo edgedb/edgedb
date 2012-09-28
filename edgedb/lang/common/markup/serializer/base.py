@@ -281,7 +281,7 @@ def serialize_uknown_object(obj, *, ctx):
     return elements.lang.Object(id=id(obj),
                                 class_module=type(obj).__module__,
                                 class_name=type(obj).__name__,
-                                repr=xrepr(obj, max_len=100))
+                                repr=xrepr(obj, max_len=200))
 
 
 def _serialize_known_object(obj, attrs, *, ctx):
