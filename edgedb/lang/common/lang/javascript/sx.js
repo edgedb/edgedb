@@ -71,35 +71,59 @@ this.sx = (function(global) {
                                                     && obj._secret_ === sx._secret_;
         },
 
-        ns: function(ns, obj) {
-            var i, chunks = ns.split('.'),
-                len = chunks.length,
-                chunk,
-                cursor = global;
+        ns: (function() {
+            var ns = function(ns, obj) {
+                var i, chunks = ns.split('.'),
+                    len = chunks.length,
+                    chunk,
+                    cursor = global;
 
-            if (obj !== undefined) {
-                len--;
-            }
-
-            for (i = 0; i < len; i++) {
-                chunk = chunks[i];
-                if (!has_own_property.call(cursor, chunk)) {
-                    cursor[chunk] = {};
+                if (obj !== undefined) {
+                    len--;
                 }
 
-                cursor = cursor[chunk];
-            }
+                for (i = 0; i < len; i++) {
+                    chunk = chunks[i];
+                    if (!has_own_property.call(cursor, chunk)) {
+                        cursor[chunk] = {};
+                    }
 
-            if (obj !== undefined) {
-                chunk = chunks[i];
-
-                if (has_own_property.call(cursor, chunk)) {
-                    throw new Error('sx.ns: conflicting namespace: "' + ns + '"');
+                    cursor = cursor[chunk];
                 }
 
-                cursor[chunk] = obj;
-            }
-        },
+                if (obj !== undefined) {
+                    chunk = chunks[i];
+
+                    if (has_own_property.call(cursor, chunk)) {
+                        throw new Error('sx.ns: conflicting namespace: "' + ns + '"');
+                    }
+
+                    cursor[chunk] = obj;
+                }
+            };
+
+            ns.resolve = function(ns, deflt) {
+                var i, chunks = ns.split('.'),
+                    len = chunks.length,
+                    cursor = global,
+                    chunk;
+
+                for (i = 0; i < len; i++) {
+                    chunk = chunks[i];
+                    cursor = cursor[chunks[i]];
+                    if (cursor == undefined) {
+                        if (deflt !== undefined) {
+                            return deflt;
+                        }
+                        throw new Error('unable to resolve ns "' + ns + '"');
+                    }
+                }
+
+                return cursor;
+            };
+
+            return ns;
+        })(),
 
         eq: function sx_eq(obj1, obj2) {
             if (typeof obj1 != typeof obj2) {

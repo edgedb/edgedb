@@ -22,10 +22,23 @@ class TestJSsx(JSFunctionalTest):
         assert.raises(function() {
             sx.ns('com.acme.foo', 10);
         }, {error: sx.Error,
-                    error_re: 'conflicting namespace'});
+            error_re: 'conflicting namespace'});
 
         sx.ns('com.acme.bar', 42);
         assert.equal(com.acme.bar, 42);
+
+        assert.equal(sx.ns.resolve('com.acme.bar'), 42);
+        assert.equal(sx.ns.resolve('com.acme.baz', 10), 10);
+
+        assert.raises(function() {
+            assert.equal(sx.ns.resolve('com.acme.baz'));
+        }, {error: sx.Error,
+            error_re: 'unable to resolve'});
+
+        assert.raises(function() {
+            assert.equal(sx.ns.resolve('spam'));
+        }, {error: sx.Error,
+            error_re: 'unable to resolve'});
         '''
 
     def test_utils_lang_js_sx_is(self):
