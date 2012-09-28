@@ -40,7 +40,9 @@ sx.$bootstrap_class_system = function(opts) {
 
             type_cls_name: 'Type',
             object_cls_name: 'Object',
-            builtins_name: 'sx'
+            builtins_name: 'sx',
+
+            auto_register_ns: true
         };
 
     opts = opts || {};
@@ -59,7 +61,8 @@ sx.$bootstrap_class_system = function(opts) {
         OWN_ATTR = opts.own_attr,
         STATICS_ATTR = opts.statics_attr,
         MODULE_ATTR = opts.module_attr,
-        QUALNAME_ATTR = opts.qualname_attr;
+        QUALNAME_ATTR = opts.qualname_attr,
+        AUTO_REGISTER_NS = opts.auto_register_ns;
 
     if (!indexOf) {
         // IE
@@ -313,6 +316,10 @@ sx.$bootstrap_class_system = function(opts) {
             statics, static_name, own = [], parent_own, parent_mro;
 
         cls = make_universal_constructor();
+
+        if (AUTO_REGISTER_NS && name.indexOf('.') != -1) {
+            sx.ns(name, cls);
+        }
 
         cls.toString = function() { return '<' + name + '>'; };
 

@@ -803,3 +803,13 @@ class TestJSClass(JSFunctionalTest):
         f = Foo(void(0));
         assert.ok(typeof f.a === 'undefined');
         '''
+
+    def test_utils_lang_js_sx_class_ns(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import class
+
+        sx.define('com.acme.Foo');
+        assert.equal(com.acme.Foo.$qualname, 'com.acme.Foo');
+        assert.equal(com.acme.Foo.$name, 'Foo');
+        assert.ok(sx.isinstance(com.acme.Foo, sx.Type));
+        '''
