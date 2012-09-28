@@ -246,7 +246,7 @@ class Encoder:
             return self._encode_str(obj)
 
         if obj.__class__ is UUID:
-            return str(obj)
+            return '"' + str(obj) + '"'
 
         # __sx_serialize__ is called before any isinstance checks (but after exact type checks)
         try:
@@ -262,7 +262,7 @@ class Encoder:
                 return self._encode_key(data)
 
         if isinstance(obj, UUID):
-            return str(obj)
+            return '"' + str(obj) + '"'
 
         if isinstance(obj, str):
             return self._encode_str(obj)

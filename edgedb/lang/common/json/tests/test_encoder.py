@@ -170,6 +170,17 @@ class _BaseJsonEncoderTest:
                          '"12345678-1234-5678-1234-567812345678"',
                          False, False)
 
+        class MyUUID(UUID):
+            pass
+
+        self.encoder_test({UUID('{12345678-1234-5678-1234-567812345678}') : 1},
+                         '{"12345678-1234-5678-1234-567812345678":1}',
+                         False, False)
+
+        self.encoder_test({MyUUID('{12345678-1234-5678-1234-567812345678}') : 1},
+                         '{"12345678-1234-5678-1234-567812345678":1}',
+                         False, False)
+
     def test_utils_json_encoder_datetime(self):
         dt1 = datetime(2012,2,1,12,20,22,100)
         dt2 = datetime(1990,12,11,1,1,1,0)
