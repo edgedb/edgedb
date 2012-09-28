@@ -18,13 +18,20 @@ this.sx = (function(global) {
         _id_counter = 0,
         has_own_property = Object.prototype.hasOwnProperty;
 
-    function _extend(obj, ex) {
-        var i;
-        for (i in ex) {
-            if (has_own_property.call(ex, i)) {
-                obj[i] = ex[i];
+    function _apply(obj /*, ... */) {
+        var i = 1,
+            len = arguments.length,
+            property, arg;
+
+        for (; i < len; i++) {
+            arg = arguments[i];
+            for (property in arg) {
+                if (has_own_property.call(arg, property)) {
+                    obj[property] = arg[property];
+                }
             }
         }
+
         return obj;
     };
 
@@ -41,14 +48,14 @@ this.sx = (function(global) {
         return 'sx.Error';
     };
 
-    _extend(sx, {
+    _apply(sx, {
         Error: Error,
 
         id: function(suffix) {
             return 'sx-id-' + (++_id_counter) + (suffix || '');
         },
 
-        apply: _extend,
+        apply: _apply,
 
         is_array: function sx_is_array(obj) {
             return Object.prototype.toString.call(obj) === '[object Array]';

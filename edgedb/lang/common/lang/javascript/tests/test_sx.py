@@ -408,6 +408,10 @@ class TestJSsx(JSFunctionalTest):
         sx.apply(a, b);
         assert.equal(a['a'], 2);
         assert.equal(sx.len(a), 1);
+
+        a = {};
+        sx.apply(a, {'a': 1}, {'a': 2}, {'a': 3});
+        assert.equal(a, {'a': 3});
         '''
 
     def test_utils_lang_js_sx_str(self):
