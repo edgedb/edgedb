@@ -45,8 +45,17 @@ def in_class():
 
 def get_signature(func):
     try:
+        return func.__signature__
+    except AttributeError:
+        pass
+
+    try:
         while func.__wrapped__:
             func = func.__wrapped__
+            try:
+                return func.__signature__
+            except AttributeError:
+                pass
     except AttributeError:
         pass
 
