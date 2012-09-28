@@ -10,6 +10,24 @@ from .base import JSFunctionalTest
 
 
 class TestJSsx(JSFunctionalTest):
+    def test_utils_lang_js_sx_ns(self):
+        '''JS
+        // %from semantix.utils.lang.javascript import sx
+
+        sx.ns('com.acme.foo');
+        assert.ok(com.acme.foo);
+        assert.not(com.acme.bar);
+        assert.not(sx.len(com.acme.foo));
+
+        assert.raises(function() {
+            sx.ns('com.acme.foo', 10);
+        }, {error: sx.Error,
+                    error_re: 'conflicting namespace'});
+
+        sx.ns('com.acme.bar', 42);
+        assert.equal(com.acme.bar, 42);
+        '''
+
     def test_utils_lang_js_sx_is(self):
         '''JS
         // %from semantix.utils.lang.javascript import sx

@@ -71,6 +71,36 @@ this.sx = (function(global) {
                                                     && obj._secret_ === sx._secret_;
         },
 
+        ns: function(ns, obj) {
+            var i, chunks = ns.split('.'),
+                len = chunks.length,
+                chunk,
+                cursor = global;
+
+            if (obj !== undefined) {
+                len--;
+            }
+
+            for (i = 0; i < len; i++) {
+                chunk = chunks[i];
+                if (!has_own_property.call(cursor, chunk)) {
+                    cursor[chunk] = {};
+                }
+
+                cursor = cursor[chunk];
+            }
+
+            if (obj !== undefined) {
+                chunk = chunks[i];
+
+                if (has_own_property.call(cursor, chunk)) {
+                    throw new Error('sx.ns: conflicting namespace: "' + ns + '"');
+                }
+
+                cursor[chunk] = obj;
+            }
+        },
+
         eq: function sx_eq(obj1, obj2) {
             if (typeof obj1 != typeof obj2) {
                 return false;
