@@ -11,6 +11,7 @@ Used by :py:class:`semantix.utils.lang.python.code.Code` to enable
 python code object augmentation."""
 
 
+import sys
 import opcode as _opcode
 
 from semantix.utils import slots
@@ -39,8 +40,10 @@ class OpCodeMeta(slots.SlotsMeta):
             raise TypeError('opcode {} defined without code value'.format(name))
         else:
             if code != -1:
-                assert code not in OPMAP
-                assert _opcode.opname[code] == name
+                assert code not in OPMAP, 'unrecognized opcode: {}'.format(code)
+                opname = _opcode.opname[code]
+                assert opname == name, 'opcode name does not match: {!r}, expected: {!r}'\
+                                                .format(opname, name)
                 OPMAP[code] = cls
 
                 cls.opname = name
@@ -217,10 +220,12 @@ class JAbsOpCode(ArgOpCode):
 # `stack_effect` values and algorithms to calculate it are taken from
 # 'Python/compile.c' opcode_stack_effect() function.
 
-class STOP_CODE(OpCode):
-    __slots__       = ()
-    code            = 0
-    stack_effect    = 0
+if sys.version_info[:2] < (3, 3):
+    # STOP_CODE has been removed in 3.3
+    class STOP_CODE(OpCode):
+        __slots__       = ()
+        code            = 0
+        stack_effect    = 0
 
 
 class POP_TOP(OpCode):
