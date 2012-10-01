@@ -58,6 +58,12 @@ class LangObject(yaml.Object, metaclass=LangObjectMeta):
         return cls
 
 
+class ImportContext(yaml.Object, adapts=proto.ImportContext):
+    @classmethod
+    def __sx_getstate__(cls, data):
+        return str(data)
+
+
 class Bool(yaml.Object, adapts=objects.boolean.Bool, ignore_aliases=True):
     @classmethod
     def __sx_getstate__(cls, data):
