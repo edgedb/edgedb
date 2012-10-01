@@ -57,7 +57,10 @@ class BucketMeta(abc.AbstractMeta):
 
 class Bucket(metaclass=BucketMeta):
     def __new__(cls, *args, **kwargs):
-        instance = super().__new__(cls, *args, **kwargs)
+        if super().__new__ is object.__new__:
+            instance = super().__new__(cls)
+        else:
+            instance = super().__new__(cls, *args, **kwargs)
         cls._register_instance(instance)
         instance._cached_implementation = None
         return instance
