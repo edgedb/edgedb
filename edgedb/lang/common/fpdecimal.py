@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2010 Sprymix Inc.
+# Copyright (c) 2010, 2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -18,8 +18,15 @@ if hasattr(local, '__sx_decimal_cascaded_contexts__'):
     del local.__sx_decimal_cascaded_contexts__
 
 
+_signals = (
+    decimal.Clamped, decimal.DivisionByZero, decimal.Inexact, decimal.Overflow,
+    decimal.Rounded, decimal.Underflow, decimal.InvalidOperation, decimal.Subnormal,
+    decimal.FloatOperation
+)
+
+
 class DecimalContext(decimal.Context):
-    zero_flags = dict.fromkeys(decimal._signals, 0)
+    zero_flags = dict.fromkeys(_signals, 0)
 
     def __init__(self, prec=None, rounding=None,
                  traps=None, flags=None,
@@ -33,12 +40,12 @@ class DecimalContext(decimal.Context):
         if flags is None:
             flags = self.zero_flags.copy()
         elif not isinstance(flags, dict):
-            flags = {s: int(s in flags) for s in decimal._signals}
+            flags = {s: int(s in flags) for s in _signals}
 
         if traps is None:
             traps = decimal.DefaultContext.traps.copy()
         elif not isinstance(traps, dict):
-            traps = {s: int(s in traps) for s in decimal._signals}
+            traps = {s: int(s in traps) for s in _signals}
 
         self.flags = flags
         self._ignored_flags = _ignored_flags
@@ -203,7 +210,13 @@ class FPDecimal(decimal.Decimal):
             except decimal.InvalidOperation as e:
                 raise decimal.Overflow from e
         else:
-            result = result._fix(context)
+            try:
+                _fix = result.fix
+            except AttributeError:
+                # C implementation does not have the _fix hack and apparently does not need it.
+                pass
+            else:
+                _fix(context)
 
         return super().__new__(cls, result)
 

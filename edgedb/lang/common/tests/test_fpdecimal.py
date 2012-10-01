@@ -72,8 +72,5 @@ class TestDecimal:
                 # Regular decimal is affected too
                 decimal.Decimal('10000') + 0
 
-        with assert_raises(decimal.Overflow):
-            print(dc('1000000000000000000000000000000000000000000000000000000000000000000000'))
-
         with fpdecimal.CascadedContext(prec=6, scale=2):
             assert str(dc('1000') / dc('3')) == '333.333'
