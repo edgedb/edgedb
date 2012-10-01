@@ -89,8 +89,8 @@ class TestDatastructMultidict:
 
         assert r['a'] == 'b'
 
-        assert list(r.keys()) == ['a', 'z']
-        assert r.getlist('a') == ['b', 1, 2]
+        assert set(r.keys()) == {'a', 'z'}
+        assert set(r.getlist('a')) == {'b', 1, 2}
 
-        assert list(r.items()) == [('a', 'b'), ('z', 'zzz')]
-        assert list(r.itemlists()) == [('a', ['b', 1, 2]), ('z', ['zzz'])]
+        assert set(r.items()) == {('a', 'b'), ('z', 'zzz')}
+        assert list(sorted(list(r.itemlists()))) == [('a', ['b', 1, 2]), ('z', ['zzz'])]
