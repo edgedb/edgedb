@@ -13,12 +13,15 @@ import sys
 from . import module as module_types
 from .context import ImportContext
 
+from .finder import install, update_finders
+
 
 def reload(module):
     if isinstance(module, module_types.BaseProxyModule):
         sys.modules[module.__name__] = module.__wrapped__
 
-        new_mod = imp.reload(module.__wrapped__)
+        # XXX: imp.reload has a hardcoded check that fails on instances of module subclasses
+        new_mod = module.__wrapped__.__loader__.load_module(module.__name__)
         if isinstance(new_mod, module_types.BaseProxyModule):
             module.__wrapped__ = new_mod.__wrapped__
         else:
@@ -36,8 +39,16 @@ class ObjectImportError(Exception):
 
 
 def get_object(cls):
+    modname, _, name = cls.rpartition('.')
+
     try:
-        mod, _, name = cls.rpartition('.')
-        return getattr(importlib.import_module(mod), name)
-    except (ImportError, AttributeError) as e:
+        mod = importlib.import_module(modname)
+    except ImportError as e:
         raise ObjectImportError('could not load object %s' % cls) from e
+    else:
+        try:
+            result = getattr(mod, name)
+        except AttributeError as e:
+            raise ObjectImportError('could not load object %s' % cls) from e
+
+        return result

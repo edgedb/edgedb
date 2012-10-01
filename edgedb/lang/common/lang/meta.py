@@ -6,10 +6,12 @@
 ##
 
 
+import functools
 import os
 
 from semantix import exceptions as sx_errors
 from .loader import LanguageSourceFileLoader
+from .import_ import finder
 
 
 class LanguageMeta(type):
@@ -19,6 +21,7 @@ class LanguageMeta(type):
         lang = super(LanguageMeta, cls).__new__(cls, name, bases, dct)
         if register:
             LanguageMeta.languages.append(lang)
+            finder.update_finders()
         return lang
 
     def __init__(cls, name, bases, dct, *, register=True):
@@ -40,6 +43,12 @@ class LanguageMeta(type):
 
     def get_loader(cls):
         return cls.loader
+
+    @classmethod
+    def get_loaders(cls):
+        for lang in LanguageMeta.languages:
+            yield (functools.partial(lang.loader, language=lang),
+                   ['.' + ext for ext in lang.file_extensions])
 
 
 class Language(object, metaclass=LanguageMeta, register=False):

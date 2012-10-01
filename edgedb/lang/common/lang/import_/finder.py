@@ -6,41 +6,57 @@
 ##
 
 
-import importlib.abc
-from importlib import _case_ok
+from importlib import machinery, _bootstrap
 import os
 import sys
 
-from semantix.utils.lang.meta import LanguageMeta
+
+class FileFinder(machinery.FileFinder):
+    def __init__(self, path, *details):
+        super().__init__(path, *details)
+
+    @classmethod
+    def update_loaders(cls, finder, loader_details, replace=False):
+        if replace:
+            loaders = []
+
+            for loader, suffixes in loader_details:
+                loaders.extend((s, loader) for s in suffixes)
+
+            finder._loaders[:] = loaders
+        else:
+            for loader, suffixes in loader_details:
+                for suffix in suffixes:
+                    if (suffix, loader) not in finder._loaders:
+                        finder._loaders.append((suffix, loader))
+
+        finder.invalidate_caches()
+
+    @classmethod
+    def path_hook(cls):
+        from semantix.utils.lang.meta import LanguageMeta
+
+        def path_hook_for_FileFinder(path):
+            loader_details = list(_bootstrap._get_supported_file_loaders())
+            loader_details.extend(LanguageMeta.get_loaders())
+            return cls(path, *loader_details)
+
+        return path_hook_for_FileFinder
 
 
-class Finder(importlib.abc.Finder):
-    def find_module(self, fullname, path=None):
-        basename = fullname.rpartition('.')[2]
+def install():
+    sys.path_hooks.insert(0, FileFinder.path_hook())
 
-        if path is None:
-            path = sys.path
 
-        for p in path:
-            test = os.path.join(p, basename)
-            is_package = os.path.isdir(test)
-            if is_package:
-                if not _case_ok(p, basename):
-                    # PEP 235
-                    return
-            result = LanguageMeta.recognize_file(test, True, is_package)
-            if result:
-                language, filename = result
-                if not is_package:
-                    # XXX Language should return the matched extension?
-                    # Or this will be buggy with extensions containing
-                    # multiple dots
-                    if not _case_ok(os.path.dirname(filename),
-                                    basename + '.' + filename.rpartition('.')[2]):
-                        # PEP 235
-                        return
-                loader = getattr(fullname, 'loader', None)
-                if loader is None:
-                    loader = language.get_loader()
+def update_finders():
+    import semantix
+    from semantix.utils.lang.meta import LanguageMeta
 
-                return loader(fullname, filename, language)
+    rpath = os.path.realpath
+
+    loader_details = list(_bootstrap._get_supported_file_loaders())
+    loader_details.extend(LanguageMeta.get_loaders())
+
+    for path, finder in list(sys.path_importer_cache.items()):
+        if isinstance(finder, FileFinder) or rpath(path) == rpath(semantix.__path__[0]):
+            FileFinder.update_loaders(finder, loader_details, isinstance(finder, FileFinder))

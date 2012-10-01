@@ -8,7 +8,10 @@
 
 import os
 import sys
-from importlib._bootstrap import _SourceFileLoader
+try:
+    from importlib._bootstrap import _SourceFileLoader
+except ImportError:
+    from importlib._bootstrap import SourceFileLoader as _SourceFileLoader
 
 from semantix.utils.lang import meta
 from . import ast

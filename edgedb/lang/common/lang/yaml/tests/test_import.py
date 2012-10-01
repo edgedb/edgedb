@@ -7,6 +7,8 @@
 
 
 import importlib
+import py.test
+
 from semantix.utils.debug import assert_raises
 from semantix.utils.lang.yaml import exceptions as yaml_errors
 
@@ -34,6 +36,7 @@ class TestLangImport(object):
         with assert_raises(ImportError, cause=yaml_errors.YAMLCompositionError, error_re=err):
             importlib.import_module(modname)
 
+    @py.test.mark.xfail
     def test_utils_lang_yaml_ambiguous_import(self):
         with assert_raises(ImportError):
             from semantix.utils.lang.yaml.tests.testdata.ambig import test
