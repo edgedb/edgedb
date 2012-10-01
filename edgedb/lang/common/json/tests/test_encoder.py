@@ -30,10 +30,18 @@ class _BaseJsonEncoderTest:
         """Tests that our dumps behaves exactly like the default json module
         Should not be used for cases where we don't like the default module behavior
         """
-        assert self.dumps(obj) == encoded
+        if encoded is None:
+            encoded = encoded_b = {None}
+        else:
+            if isinstance(encoded, str):
+                encoded = {encoded}
+            else:
+                encoded = set(encoded)
 
-        encoded_b = encoded.encode('ascii')
-        assert self.dumpb(obj) == encoded_b
+        assert self.dumps(obj) in encoded
+
+        encoded_b = {e.encode('ascii') for e in encoded}
+        assert self.dumpb(obj) in encoded_b
 
         if convertable_back:
             # test decode: not always possible, e.g. for Decimals or integers larger than Java-max
@@ -140,14 +148,17 @@ class _BaseJsonEncoderTest:
 
     def test_utils_json_encoder_dict(self):
         self.encoder_test({}, '{}')
-        self.encoder_test({'foo':1, 'bar':2}, '{"foo":1,"bar":2}')
-        self.encoder_test({'foo':[1,2], 'bar':[3,4]}, '{"foo":[1,2],"bar":[3,4]}')
+        self.encoder_test({'foo':1, 'bar':2}, ('{"foo":1,"bar":2}', '{"bar":2,"foo":1}'))
+        self.encoder_test({'foo':[1,2], 'bar':[3,4]}, ('{"foo":[1,2],"bar":[3,4]}',
+                                                       '{"bar":[3,4],"foo":[1,2]}'))
 
         # shold match std encoder, but conversion back converts to lists not tuples
-        self.encoder_test({'foo':(1,2), 'bar':(3,4)}, '{"foo":[1,2],"bar":[3,4]}', False, True)
+        self.encoder_test({'foo':(1,2), 'bar':(3,4)}, ('{"foo":[1,2],"bar":[3,4]}',
+                                                       '{"bar":[3,4],"foo":[1,2]}'), False, True)
 
         # std encoder does not support sets
-        self.encoder_test({'foo':{1,2}, 'bar':{3,4}}, '{"foo":[1,2],"bar":[3,4]}', False, False)
+        self.encoder_test({'foo':{1,2}, 'bar':{3,4}}, ('{"foo":[1,2],"bar":[3,4]}',
+                                                       '{"bar":[3,4],"foo":[1,2]}'), False, False)
 
         # std encoder does nto support OrderedDicts
         d = {'banana': 3, 'apple':4, 'pear': 1, 'orange': 2}
@@ -162,7 +173,8 @@ class _BaseJsonEncoderTest:
 
         class DerivedDict(dict):
             pass
-        self.encoder_test(DerivedDict({'foo':1, 'bar':2}), '{"foo":1,"bar":2}')
+        self.encoder_test(DerivedDict({'foo':1, 'bar':2}), ('{"foo":1,"bar":2}',
+                                                            '{"bar":2,"foo":1}'))
 
     def test_utils_json_encoder_uuid(self):
         # std encodencoderer does not support UUIDs
