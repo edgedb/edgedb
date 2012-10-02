@@ -438,51 +438,6 @@ class TreeTransformer:
         else:
             assert False, 'unexpected node: "%r"' % expr
 
-    def replace_atom_refs(self, expr, prefixes):
-
-        if isinstance(expr, caos_ast.AtomicRefSimple):
-            arefs = (expr,)
-        else:
-            arefs = ast.find_children(expr, lambda i: isinstance(i, caos_ast.AtomicRefSimple))
-
-        for aref in arefs:
-            if isinstance(aref.ref, caos_ast.PathCombination):
-                aref_prefixes = [getattr(r, 'anchor', None) or r.id for r in aref.ref.paths]
-            else:
-                aref_prefixes = [getattr(aref.ref, 'anchor', None) or aref.ref.id]
-
-            newrefs = set()
-
-            for prefix in aref_prefixes:
-                newref = prefixes.get(prefix)
-
-                if not newref:
-                    continue
-
-                if aref.id:
-                    # XXX: not all AtomRefs have a valid id, i.e the ones that have
-                    # Disjunction as their ref.
-                    for ref in newref:
-                        # Make sure to pull the atom from all the alternative paths.
-                        # atomrefs might have fallen out of date due to development of
-                        # alternative paths by the path merger.
-                        #
-                        if isinstance(aref, caos_ast.MetaRef):
-                            ref.metarefs.update(prefixes[aref.id])
-                        else:
-                            ref.atomrefs.update(a for a in prefixes[aref.id] if isinstance(a, caos_ast.AtomicRefSimple))
-
-                newrefs.update(newref)
-
-            if newrefs:
-                if len(newrefs) > 1:
-                    newrefs = caos_ast.Disjunction(paths=frozenset(newrefs))
-                else:
-                    newrefs = next(iter(newrefs))
-                aref.ref = newrefs
-
-        return expr
-
     def add_path_user(self, path, user):
         while path:
             path.users.add(user)
