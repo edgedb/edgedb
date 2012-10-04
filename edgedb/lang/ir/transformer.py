@@ -300,7 +300,12 @@ class TreeTransformer:
             assert False, 'unexpected node: "%r"' % expr
 
     def _check_access_control(self, expr):
-        proto_name = expr.concept.name
+        if isinstance(expr, caos_ast.EntitySet):
+            proto_name = expr.concept.name
+        elif isinstance(expr, caos_ast.EntityLink):
+            proto_name = (expr.source.concept.name, expr.link_proto.normal_name())
+        else:
+            raise TypeError('unexpected node to check_access_control: {!r}'.format(expr))
 
         try:
             hooks = caos_types._access_control_hooks[proto_name, 'read']
@@ -369,6 +374,13 @@ class TreeTransformer:
                                                strong=True)
                     expr.propfilter = self.extend_binop(expr.propfilter, lang_test)
                     expr.rewrite_flags.add('lang_rewrite')
+
+            if ('access_rewrite' not in expr.rewrite_flags and expr.source is not None
+                    and expr.source.reference is None
+                    and expr.source.origin is None
+                    and getattr(self.context.current, 'apply_access_control_rewrite', False)):
+                self._check_access_control(expr)
+                expr.rewrite_flags.add('access_rewrite')
 
         elif isinstance(expr, caos_ast.LinkPropRefSimple):
             self.apply_rewrites(expr.ref)
