@@ -2191,7 +2191,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                     bondref = pgsql.ast.FieldRefNode(table=target_rel, field=ref.alias,
                                                      origin=ref.expr.origin,
                                                      origin_field=ref.expr.origin_field)
-                    target_rel.addbond(caosnode.concept, bondref)
+                    target_rel.addbond(caosnode.id, bondref)
                 context.current.concept_node_map[caosnode][field].expr.table = target_rel
 
         for caoslink, refs in source_rel.link_node_map.items():
@@ -2254,7 +2254,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
             bond = pgsql.ast.FieldRefNode(table=concept_table, field=id_field,
                                           origin=concept_table, origin_field=id_field)
-            concept_table.addbond(caos_path_tip.concept, bond)
+            concept_table.addbond(caos_path_tip.id, bond)
 
             tip_concepts = frozenset((caos_path_tip.concept,))
         else:
@@ -2315,7 +2315,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                 origin=map, origin_field='semantix.caos.builtins.source')
             target_ref = pgsql.ast.FieldRefNode(table=map, field='semantix.caos.builtins.target',
                                                 origin=map, origin_field='semantix.caos.buitlins.target')
-            valent_bond = join.bonds(link.source.concept)[-1]
+            valent_bond = join.bonds(link.source.id)[-1]
             forward_bond = self._join_condition(context, valent_bond, source_ref, op='=')
             backward_bond = self._join_condition(context, valent_bond, target_ref, op='=')
 
@@ -2342,7 +2342,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                             right=propfilter_expr)
                     context.pop()
 
-                join = self._simple_join(context, join, map, link.source.concept,
+                join = self._simple_join(context, join, map, link.source.id,
                                          type=map_join_type,
                                          condition=map_join_cond)
 
@@ -2355,13 +2355,13 @@ class CaosTreeTransformer(CaosExprTransformer):
                 step_cte.linkmap[(link.link_proto, link.direction, link.source, tip_anchor)] = link_ref_map
 
             if concept_table:
-                prev_bonds = join.bonds(caos_path_tip.concept)
-                join.addbond(caos_path_tip.concept, target_bond_expr)
+                prev_bonds = join.bonds(caos_path_tip.id)
+                join.addbond(caos_path_tip.id, target_bond_expr)
                 join = self._simple_join(context, join, concept_table,
-                                         caos_path_tip.concept,
+                                         caos_path_tip.id,
                                          type='left' if weak else 'inner')
                 if prev_bonds:
-                    join.addbond(caos_path_tip.concept, prev_bonds[-1])
+                    join.addbond(caos_path_tip.id, prev_bonds[-1])
 
             fromnode.expr = join
 
@@ -2576,10 +2576,10 @@ class CaosTreeTransformer(CaosExprTransformer):
         if caos_path_tip and isinstance(caos_path_tip.concept, caos_types.ProtoConcept):
             step_cte._source_graph = caos_path_tip
 
-            has_bonds = step_cte.bonds(caos_path_tip.concept)
+            has_bonds = step_cte.bonds(caos_path_tip.id)
             if not has_bonds:
                 bond = pgsql.ast.FieldRefNode(table=step_cte, field=aliases['semantix.caos.builtins.id'])
-                step_cte.addbond(caos_path_tip.concept, bond)
+                step_cte.addbond(caos_path_tip.id, bond)
 
         return step_cte
 
@@ -2605,7 +2605,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                  map=sql_path_tip.concept_node_map)
 
         bond = (innerref, outerref)
-        concept_table.addbond(caos_path_tip.concept, bond)
+        concept_table.addbond(caos_path_tip.id, bond)
         fromnode.expr = concept_table
 
         target = pgsql.ast.SelectExprNode(expr=pgsql.ast.ConstantNode(value=True))
