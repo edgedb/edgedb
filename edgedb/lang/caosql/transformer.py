@@ -12,6 +12,7 @@ import operator
 from semantix.caos import types as caos_types
 from semantix.caos import tree
 from semantix.caos import name as caos_name
+from semantix.caos import utils as caos_utils
 from semantix.caos.caosql import ast as qlast
 from semantix.caos.caosql import errors
 from semantix.caos.caosql import parser as caosql_parser
@@ -820,106 +821,123 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     links = {caos_types.OutboundDirection: outbound,
                              caos_types.InboundDirection: inbound}
 
-                    for dir, linksets in links.items():
-                        for linkset_proto in linksets:
-                            for link_item in linkset_proto:
-                                if link_target is not None:
-                                    target = link_target
-                                else:
-                                    if dir is caos_types.OutboundDirection:
-                                        target = link_item.target
-                                    else:
-                                        target = link_item.source
-                                assert target
+                    if direction == caos_types.OutboundDirection:
+                        links = outbound
+                    else:
+                        links = inbound
 
-                                if isinstance(link_item, caos_types.ProtoComputable) and \
-                                        context.current.resolve_computables:
-                                    newtips[target] = {self.link_computable(link_item, tip)}
-                                    continue
+                    if len(links) > 1:
+                        modaliases = context.current.namespaces
 
-                                if not link_item.generic():
-                                    link_proto = link_item
-                                    link_item = self.proto_schema.get(link_item.normal_name())
-                                else:
-                                    assert False
+                        if not linkname[0]:
+                            lname = (concept.name.module, linkname[1])
+                        else:
+                            lname = linkname
 
-                                anchor_links = []
+                        if lname[1] == '%':
+                            lname = ('semantix.caos.builtins', 'link')
 
-                                if isinstance(target, caos_types.ProtoConcept):
-                                    if seen_atoms:
-                                        raise errors.CaosQLError('path expression results in an '
-                                                                 'invalid atom/concept mix')
-                                    seen_concepts = True
+                        link_item = self.proto_schema.get('.'.join(lname),
+                                                          module_aliases=modaliases)
 
-                                    for t in tip:
-                                        target_set = tree.ast.EntitySet()
-                                        target_set.concept = target
-                                        target_set.id = tree.transformer.LinearPath(t.id)
-                                        target_set.id.add(link_item, dir,
-                                                          target_set.concept)
-                                        target_set.users.add(context.current.location)
+                        targets = {l.get_far_endpoint(direction) for l in links}
+                        link_target = link_item.create_common_target(self.proto_schema, targets)
 
-                                        link = tree.ast.EntityLink(source=t, target=target_set,
-                                                                   direction=dir,
-                                                                   link_proto=link_proto,
-                                                                   anchor=link_anchor,
-                                                                   users={context.current.location})
+                    else:
+                        link_item = list(links)[0]
 
-                                        t.disjunction.update(link)
-                                        target_set.rlink = link
+                    if link_target is not None:
+                        target = link_target
+                    else:
+                        target = link_item.get_far_endpoint(direction)
 
-                                        anchor_links.append(link)
+                    assert target
 
-                                        if target in newtips:
-                                            newtips[target].add(target_set)
-                                        else:
-                                            newtips[target] = {target_set}
+                    if isinstance(link_item, caos_types.ProtoComputable) and \
+                            context.current.resolve_computables:
+                        newtips[target] = {self.link_computable(link_item, tip)}
+                        continue
 
-                                elif isinstance(target, caos_types.ProtoAtom):
-                                    if seen_concepts:
-                                        raise errors.CaosQLError('path expression results in an '
-                                                                 'invalid atom/concept mix')
-                                    seen_atoms = True
+                    link_proto = link_item
+                    link_item = self.proto_schema.get(link_item.normal_name())
 
-                                    newtips[target] = set()
-                                    for t in tip:
-                                        target_set = tree.ast.EntitySet()
-                                        target_set.concept = target
-                                        target_set.id = tree.transformer.LinearPath(t.id)
-                                        target_set.id.add(link_proto, dir,
-                                                          target_set.concept)
-                                        target_set.users.add(context.current.location)
+                    anchor_links = []
 
-                                        link = tree.ast.EntityLink(source=t, target=target_set,
-                                                                   link_proto=link_proto,
-                                                                   direction=dir,
-                                                                   anchor=link_anchor,
-                                                                   users={context.current.location})
+                    if isinstance(target, caos_types.ProtoConcept):
+                        if seen_atoms:
+                            raise errors.CaosQLError('path expression results in an '
+                                                     'invalid atom/concept mix')
+                        seen_concepts = True
 
-                                        target_set.rlink = link
+                        for t in tip:
+                            target_set = tree.ast.EntitySet()
+                            target_set.concept = target
+                            target_set.id = tree.transformer.LinearPath(t.id)
+                            target_set.id.add(link_item, direction,
+                                              target_set.concept)
+                            target_set.users.add(context.current.location)
 
-                                        anchor_links.append(link)
+                            link = tree.ast.EntityLink(source=t, target=target_set,
+                                                       direction=direction,
+                                                       link_proto=link_proto,
+                                                       anchor=link_anchor,
+                                                       users={context.current.location})
 
-                                        atomref_id = tree.transformer.LinearPath(t.id)
-                                        atomref_id.add(link_item, dir, target)
+                            t.disjunction.update(link)
+                            target_set.rlink = link
 
-                                        if not link_proto.singular():
-                                            ptr_name = caos_name.Name('semantix.caos.builtins.target')
-                                            ptr_proto = link_proto.pointers[ptr_name]
-                                            atomref = tree.ast.LinkPropRefSimple(name=ptr_name,
-                                                                                 ref=link,
-                                                                                 id=atomref_id,
-                                                                                 ptr_proto=ptr_proto)
-                                            t.disjunction.update(link)
-                                        else:
-                                            atomref = tree.ast.AtomicRefSimple(name=linkset_proto.normal_name(),
-                                                                               ref=t, id=atomref_id,
-                                                                               rlink=link,
-                                                                               ptr_proto=link_proto)
-                                        newtips[target].add(atomref)
+                            anchor_links.append(link)
 
-                                else:
-                                    assert False, 'unexpected link target type: %s' % target
+                            if target in newtips:
+                                newtips[target].add(target_set)
+                            else:
+                                newtips[target] = {target_set}
+
+                    elif isinstance(target, caos_types.ProtoAtom):
+                        if seen_concepts:
+                            raise errors.CaosQLError('path expression results in an '
+                                                     'invalid atom/concept mix')
+                        seen_atoms = True
+
+                        newtips[target] = set()
+                        for t in tip:
+                            target_set = tree.ast.EntitySet()
+                            target_set.concept = target
+                            target_set.id = tree.transformer.LinearPath(t.id)
+                            target_set.id.add(link_proto, direction,
+                                              target_set.concept)
+                            target_set.users.add(context.current.location)
+
+                            link = tree.ast.EntityLink(source=t, target=target_set,
+                                                       link_proto=link_proto,
+                                                       direction=direction,
+                                                       anchor=link_anchor,
+                                                       users={context.current.location})
+
+                            target_set.rlink = link
+
+                            anchor_links.append(link)
+
+                            atomref_id = tree.transformer.LinearPath(t.id)
+                            atomref_id.add(link_item, direction, target)
+
+                            if not link_proto.singular():
+                                ptr_name = caos_name.Name('semantix.caos.builtins.target')
+                                ptr_proto = link_proto.pointers[ptr_name]
+                                atomref = tree.ast.LinkPropRefSimple(name=ptr_name,
+                                                                     ref=link,
+                                                                     id=atomref_id,
+                                                                     ptr_proto=ptr_proto)
+                                t.disjunction.update(link)
+                            else:
+                                atomref = tree.ast.AtomicRefSimple(name=link_item.normal_name(),
+                                                                   ref=t, id=atomref_id,
+                                                                   rlink=link,
+                                                                   ptr_proto=link_proto)
+                            newtips[target].add(atomref)
+
+                    else:
+                        assert False, 'unexpected link target type: %s' % target
 
                 if not newtips:
                     source_name = ','.join(concept.name for concept in tips)
