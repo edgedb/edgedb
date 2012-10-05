@@ -324,6 +324,8 @@ class TreeTransformer:
                 self.apply_rewrites(path)
 
         elif isinstance(expr, caos_ast.AtomicRefSimple):
+            if expr.rlink is not None:
+                self.apply_rewrites(expr.rlink)
             self.apply_rewrites(expr.ref)
 
         elif isinstance(expr, caos_ast.EntitySet):
