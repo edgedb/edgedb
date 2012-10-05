@@ -690,7 +690,9 @@ class TreeTransformer:
 
                     subgraph = caos_ast.GraphExpr()
                     subgraph.generator = generator
-                    subgraph.aggregate_result = ('agg', 'list')
+                    subgraph.aggregate_result = caos_ast.FunctionCall(name=('agg', 'list'),
+                                                                      aggregates=True,
+                                                                      args=[targetstep])
 
                     if sorter:
                         subgraph.sorter = sorter

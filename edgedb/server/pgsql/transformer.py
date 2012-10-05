@@ -661,7 +661,27 @@ class CaosTreeTransformer(CaosExprTransformer):
                 pgtype = pgsql.ast.TypeNode(name=pgtype)
                 target = pgsql.ast.TypeCastNode(expr=target, type=pgtype)
 
-            subexpr = pgsql.ast.FunctionCallNode(name='array_agg', args=[target],
+            if graph.aggregate_result.name == ('agg', 'list'):
+                aggfunc = 'array_agg'
+            elif graph.aggregate_result.name == ('agg', 'join'):
+                aggfunc = 'string_agg'
+            elif graph.aggregate_result.name == ('agg', 'count'):
+                aggfunc = 'count'
+            else:
+                msg = 'unexpected auto-aggregate function: {}'.format(graph.aggregate_result.name)
+                raise ValueError(msg)
+
+            args = []
+
+            for arg in graph.aggregate_result.args:
+                if isinstance(arg, tree.ast.Constant):
+                    arg = self._process_expr(context, arg, query)
+                else:
+                    arg = target
+
+                args.append(arg)
+
+            subexpr = pgsql.ast.FunctionCallNode(name=aggfunc, args=args,
                                                  agg_sort=query.orderby)
 
             if graph.recurse_link is not None:
@@ -704,7 +724,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 subexpr = pgsql.ast.RowExprNode(args=[marker, subexpr])
 
             query.orderby = []
-            query.targets = [pgsql.ast.SelectExprNode(expr=subexpr)]
+            query.targets = [pgsql.ast.SelectExprNode(expr=subexpr,
+                                                      alias=query.targets[0].alias)]
 
         return query
 
