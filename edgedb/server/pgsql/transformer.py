@@ -972,7 +972,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             fromexpr = pgsql.ast.FromExprNode(expr=rel)
             query.fromlist.append(fromexpr)
 
-    def _inject_outerbond_condition(self, context, subquery, inner_ref, outer_ref):
+    def _inject_outerbond_condition(self, context, subquery, inner_ref, outer_ref, inline=False):
         field_ref = inner_ref.expr
 
         for fromexpr in subquery.fromlist:
@@ -994,7 +994,8 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         idcol = 'semantix.caos.builtins.id'
 
-        if context.current.direct_subquery_ref and context.current.location == 'nodefilter':
+        if ((context.current.direct_subquery_ref or inline)
+                                                and context.current.location == 'nodefilter'):
             # The subquery is _inside_ the parent query's WHERE, it's not a joined CTE
             outer_ref = outer_ref['local_ref_map'][idcol]
 
@@ -1011,16 +1012,18 @@ class CaosTreeTransformer(CaosExprTransformer):
         comparison = pgsql.ast.BinOpNode(left=outer_ref, op=ast.ops.EQ, right=field_ref)
         subquery.where = self.extend_binop(subquery.where, comparison, cls=pgsql.ast.BinOpNode)
 
-    def _connect_subquery_outerbonds(self, context, outerbonds, subquery):
+    def _connect_subquery_outerbonds(self, context, outerbonds, subquery, inline=False):
         if subquery.proxyouterbonds:
             # A subquery may be wrapped by another relation, e.g. a recursive CTE, which
             # "proxies" the original outer bonds of its non-recursive part.
             for proxied_subquery, proxied_outerbonds in subquery.proxyouterbonds.items():
-                self._connect_subquery_outerbonds(context, proxied_outerbonds, proxied_subquery)
+                self._connect_subquery_outerbonds(context, proxied_outerbonds, proxied_subquery,
+                                                  inline=inline)
 
         for outer_ref, inner_ref in outerbonds:
             if outer_ref in context.current.concept_node_map:
-                self._inject_outerbond_condition(context, subquery, inner_ref, outer_ref)
+                self._inject_outerbond_condition(context, subquery, inner_ref, outer_ref,
+                                                 inline=inline)
             else:
                 # The outer ref has not been processed yet, put it in a queue
                 # and glue the bond when it appears.
@@ -1512,10 +1515,12 @@ class CaosTreeTransformer(CaosExprTransformer):
                     explicit_cte = context.current.explicit_cte_map[subgraph]
 
                 except KeyError:
-                    if context.current.direct_subquery_ref or 'generator' not in subgraph.referrers:
+                    if (expr.force_inline or context.current.direct_subquery_ref
+                                          or 'generator' not in subgraph.referrers):
                         # Subqueries in selector should always go into SQL selector
                         subquery = self._process_expr(context, subgraph, cte)
-                        self._connect_subquery_outerbonds(context, subquery.outerbonds, subquery)
+                        self._connect_subquery_outerbonds(context, subquery.outerbonds, subquery,
+                                                          inline=expr.force_inline)
                         result = subquery
                     else:
                         subquery = context.current.subquery_map.get(subgraph)

@@ -125,7 +125,7 @@ class Path(Base):
 
 class SubgraphRef(Path):
     __fields = [('name', str, None), ('ref', Base, None, False),
-                ('rlink', Base, None, False, False, True)]
+                ('rlink', Base, None, False, False, True), ('force_inline', bool)]
 
 
 class BaseRef(Path):
