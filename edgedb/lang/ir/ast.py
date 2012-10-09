@@ -51,15 +51,25 @@ class Base(ast.AST):
             self.merge_refs_from(value)
         super().__setattr__(name, value)
 
-    def replace_refs(self, old, new, deep=False):
+    def replace_refs(self, old, new, deep=False, _memo=None):
+        if _memo is None:
+            _memo = set()
+
+        if self in _memo:
+            return
+
+        _memo.add(self)
+
         self.refs.difference_update(old)
         self.refs.add(new)
+
+        new.backrefs.add(self)
 
         for name, field in self._fields.items():
             value = getattr(self, name)
             if isinstance(value, Base):
                 if deep and field.child_traverse:
-                    value.replace_refs(old, new, deep)
+                    value.replace_refs(old, new, deep, _memo)
                 if value in old:
                     setattr(self, name, new)
 
@@ -67,7 +77,7 @@ class Base(ast.AST):
                 for i, item in enumerate(value):
                     if isinstance(item, Base):
                         if deep and field.child_traverse:
-                            item.replace_refs(old, new, deep)
+                            item.replace_refs(old, new, deep, _memo)
                         if item in old:
                             value[i] = new
 
@@ -75,7 +85,7 @@ class Base(ast.AST):
                 for item in value.copy():
                     if isinstance(item, Base):
                         if deep and field.child_traverse:
-                            item.replace_refs(old, new, deep)
+                            item.replace_refs(old, new, deep, _memo)
                         if item in old:
                             value.remove(item)
                             value.add(new)
@@ -85,7 +95,7 @@ class Base(ast.AST):
                 for item in value:
                     if isinstance(item, Base):
                         if deep and field.child_traverse:
-                            item.replace_refs(old, new, deep)
+                            item.replace_refs(old, new, deep, _memo)
                         if item in old:
                             newset.remove(item)
                             newset.add(new)
@@ -199,11 +209,14 @@ class EntityLink(Base):
     __fields = ['propfilter', 'source', 'target', 'link_proto', ('proprefs', set),
                 ('metarefs', set), ('users', set), 'anchor', 'direction']
 
-    def replace_refs(self, old, new, deep=False):
+    def replace_refs(self, old, new, deep=False, _memo=None):
         # Since EntityLink can be a member of PathCombination set
         # we need to refresh our backrefs to make sure that set hashes are straight.
+        if _memo is not None and self in _memo:
+            return
+
         replace = self.source in old or self.target in old
-        super().replace_refs(old, new, deep)
+        super().replace_refs(old, new, deep, _memo)
         if replace:
             self.fixup_refs([self], self)
 
