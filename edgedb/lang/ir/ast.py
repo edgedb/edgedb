@@ -384,6 +384,24 @@ class FunctionCall(Base):
                 ('window', bool),
                 ('agg_sort', list)]
 
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+        self.update_refs()
+
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+
+        if name == 'args':
+            self.update_refs()
+
+    def update_refs(self):
+        args = [arg for arg in self.args if isinstance(arg, (EntitySet, EntityLink, BaseRef))]
+
+        for arg in args:
+            arg.backrefs.add(self)
+        self.refs.update(args)
+
+
 class TypeCast(Base):
     __fields = ['expr', 'type']
 
