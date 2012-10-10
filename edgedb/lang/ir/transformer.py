@@ -576,12 +576,16 @@ class TreeTransformer:
                 if not link.atomic():
                     lref.conjunction.update(link_node)
 
+                filter_generator = None
                 sorter = []
 
                 newstep = targetstep
 
                 if recurse_link is not None:
                     newstep = lref
+
+                if recurse_spec.generator is not None:
+                    filter_generator = recurse_spec.generator
 
                 if recurse_spec.sorter:
                     sort_source = newstep
@@ -686,6 +690,9 @@ class TreeTransformer:
                         link_node.proprefs.add(newstep)
 
                     generator = caos_ast.Conjunction(paths=frozenset((targetstep,)))
+                    if filter_generator is not None:
+                        generator.paths = frozenset(generator.paths | {filter_generator})
+
                     generator = self.merge_paths(generator)
 
                     subgraph = caos_ast.GraphExpr()
