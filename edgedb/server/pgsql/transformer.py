@@ -661,16 +661,6 @@ class CaosTreeTransformer(CaosExprTransformer):
                 pgtype = pgsql.ast.TypeNode(name=pgtype)
                 target = pgsql.ast.TypeCastNode(expr=target, type=pgtype)
 
-            if graph.aggregate_result.name == ('agg', 'list'):
-                aggfunc = 'array_agg'
-            elif graph.aggregate_result.name == ('agg', 'join'):
-                aggfunc = 'string_agg'
-            elif graph.aggregate_result.name == ('agg', 'count'):
-                aggfunc = 'count'
-            else:
-                msg = 'unexpected auto-aggregate function: {}'.format(graph.aggregate_result.name)
-                raise ValueError(msg)
-
             args = []
 
             for arg in graph.aggregate_result.args:
@@ -681,8 +671,36 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                 args.append(arg)
 
-            subexpr = pgsql.ast.FunctionCallNode(name=aggfunc, args=args,
-                                                 agg_sort=query.orderby)
+            subexpr = None
+
+            if graph.aggregate_result.name == ('agg', 'list'):
+                aggfunc = 'array_agg'
+            elif graph.aggregate_result.name == ('agg', 'join'):
+                separator, ref = args[:2]
+                try:
+                    ignore_nulls = args[2] and args[2].value
+                except IndexError:
+                    ignore_nulls = False
+
+                if not ignore_nulls:
+                    array_agg = pgsql.ast.FunctionCallNode(name='array_agg', args=[ref],
+                                                           agg_sort=query.orderby)
+                    subexpr = pgsql.ast.FunctionCallNode(name='array_to_string',
+                                                         args=[array_agg, separator])
+                    subexpr.args.append(pgsql.ast.ConstantNode(value=''))
+                else:
+                    aggfunc = 'string_agg'
+                    args = [ref, separator]
+
+            elif graph.aggregate_result.name == ('agg', 'count'):
+                aggfunc = 'count'
+            else:
+                msg = 'unexpected auto-aggregate function: {}'.format(graph.aggregate_result.name)
+                raise ValueError(msg)
+
+            if subexpr is None:
+                subexpr = pgsql.ast.FunctionCallNode(name=aggfunc, args=args,
+                                                     agg_sort=query.orderby)
 
             if graph.recurse_link is not None:
                 # Wrap the array into another record, so that the driver can detect
@@ -1986,7 +2004,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                     for sortexpr in expr.agg_sort:
                         _sortexpr = self._process_expr(context, sortexpr.expr, cte)
                         agg_sort.append(pgsql.ast.SortExprNode(expr=_sortexpr,
-                                                               direction=sortexpr.direction))
+                                                               direction=sortexpr.direction,
+                                                               nulls_order=sortexpr.nones_order))
 
             else:
                 args = [self._process_expr(context, a, cte) for a in expr.args]
@@ -2012,7 +2031,20 @@ class CaosTreeTransformer(CaosExprTransformer):
                 name = 'array_agg'
             elif expr.name == ('agg', 'join'):
                 name = 'string_agg'
-                args = list(reversed(args))
+                separator, ref = args[:2]
+                try:
+                    ignore_nulls = args[2] and args[2].value
+                except IndexError:
+                    ignore_nulls = False
+
+                if not ignore_nulls:
+                    array_agg = pgsql.ast.FunctionCallNode(name='array_agg', args=[ref],
+                                                           agg_sort=agg_sort)
+                    result = pgsql.ast.FunctionCallNode(name='array_to_string',
+                                                        args=[array_agg, separator])
+                    result.args.append(pgsql.ast.ConstantNode(value=''))
+                else:
+                    args = [ref, separator]
             elif expr.name == ('agg', 'count'):
                 name = 'count'
             elif expr.name == ('agg', 'stddev_pop'):
