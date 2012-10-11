@@ -483,3 +483,8 @@ class StrSingleton(str):
     @classmethod
     def values(cls):
         return iter(cls._map.keys())
+
+
+class SimpleNamespace:
+    def __init__(self, **kwargs):
+        self.__dict__.update(kwargs)
