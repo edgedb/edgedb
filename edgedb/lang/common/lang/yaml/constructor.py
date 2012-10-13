@@ -6,6 +6,7 @@
 ##
 
 
+import ast
 import yaml
 import importlib
 import collections
@@ -199,6 +200,22 @@ class Constructor(yaml.constructor.Constructor):
         value = self.construct_ordered_mapping(node)
         data.extend(value)
 
+    def construct_python_expression(self, node):
+        if not isinstance(node.value, str):
+            raise yaml.constructor.ConstructorError("while constructing a python expression",
+                                                    node.start_mark,
+                                                    "found a non-string node", node.start_mark)
+
+        try:
+            result = compile(node.value, '<string>', 'exec', ast.PyCF_ONLY_AST)
+        except (SyntaxError, TypeError) as e:
+            raise yaml.constructor.ConstructorError("while constructing a python expression",
+                                                    node.start_mark,
+                                                    "syntax error", node.start_mark) from e
+        else:
+            result.source = node.value
+            return result
+
 
 Constructor.add_multi_constructor(
     'tag:semantix.sprymix.com,2009/semantix/class/derive:',
@@ -223,4 +240,9 @@ Constructor.add_constructor(
 Constructor.add_constructor(
     '!tpl',
     lambda loader, node: Template(node.value)
+)
+
+Constructor.add_constructor(
+    '!python',
+    Constructor.construct_python_expression
 )
