@@ -280,20 +280,15 @@ class BasePythonSourceGenerator(SourceGenerator):
                 self.write(', ')
             self.visit(target)
 
-    def visit_PyTryExcept(self, node):
+    def visit_PyTry(self, node):
         self.newline(node)
         self.write('try:')
         self._body(node.body)
         for handler in node.handlers:
             self.visit(handler)
-
-    def visit_PyTryFinally(self, node):
-        self.newline(node)
-        self.write('try:')
-        self._body(node.body)
-        self.newline(node)
-        self.write('finally:')
-        self._body(node.finalbody)
+        if node.finalbody:
+            self.write('finally:')
+            self._body(node.finalbody)
 
     def visit_PyGlobal(self, node):
         self.newline(node)

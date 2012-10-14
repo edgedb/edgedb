@@ -71,8 +71,7 @@ class PyWith(PyAST): __fields = ['context_expr', 'optional_vars', ('body', list)
 #          | Assert(expr test, expr? msg)
 
 class PyRaise(PyAST): __fields = ['exc', 'cause']
-class PyTryExcept(PyAST): __fields = [('body', list), ('handlers', list), ('orelse', list)]
-class PyTryFinally(PyAST): __fields = [('body', list), ('finalbody', list)]
+class PyTry(PyAST): __fields = [('body', list), ('handlers', list), ('orelse', list), ('finalbody', list)]
 class PyAssert(PyAST): __fields = ['test', 'msg']
 
 #          | Import(alias* names)
