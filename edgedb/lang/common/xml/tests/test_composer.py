@@ -6,6 +6,8 @@
 ##
 
 
+from collections import OrderedDict
+
 from semantix.utils.xml import composer
 from semantix.utils.debug import assert_raises
 from semantix.utils.xml.types import Doctype
@@ -36,10 +38,10 @@ class TestXMLComposer:
         tag = ('foo', {'z': 'a'}, {'open'})
         assert XML1.compose(tag) == '<foo z="a"></foo>'
 
-        tag = ('foo', {'z': 'a', 'b' : 'y&b'})
+        tag = ('foo', OrderedDict((('z', 'a'), ('b', 'y&b'))))
         assert XML1.compose(tag) == '<foo z="a" b="y&amp;b"/>'
 
-        tag = ('foo', {'z': 'a', 'b' : 123})
+        tag = ('foo', OrderedDict((('z', 'a'), ('b', 123))))
         assert XML1.compose(tag) == '<foo z="a" b="123"/>'
 
         tag = ('foo', ('bar',))
