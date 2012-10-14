@@ -151,6 +151,8 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
 class JSFunctionalTest(metaclass=JSFunctionalTestMeta):
     def run_js_test(self, source, data=None):
         mcls = type(type(self))
+        if getattr(mcls, 'skipif', False):
+            py.test.skip("no js backend")
         mcls.do_test(source, data=data)
 
 
