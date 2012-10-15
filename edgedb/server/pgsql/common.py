@@ -135,7 +135,10 @@ def py_type_to_pg_type(typ):
                         custom_type_io.io_modules}
 
         for mod in itertools.chain(postgres_io_mods, caos_io_mods):
-            mod = importlib.import_module(mod)
+            try:
+                mod = importlib.import_module(mod)
+            except ImportError:
+                continue
 
             oid_to_type = getattr(mod, 'oid_to_type', None)
             if oid_to_type:
