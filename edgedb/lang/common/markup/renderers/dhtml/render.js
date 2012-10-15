@@ -98,7 +98,7 @@ sx.Markup.Renderer.prototype = {
             tag: 'span',
             cls: 'lng-ref',
             attrs: {
-                id: id,
+                id: id
             },
             text: o.refname + ' <' + this._render_id(o.ref) + '>'
         }
@@ -628,7 +628,7 @@ sx.Markup.Renderer.prototype = {
                  cls: 'sx-collapsible-label' + (' ' + (o.label_cls || '')),
 
                  attrs: {
-                     id: id + '-label',
+                     id: id + '-label'
                  },
 
                  children: [
