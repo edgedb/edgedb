@@ -53,7 +53,7 @@ class DateTime(datetime.datetime):
                     raise ValueError("invalid value for DateTime object: %s" % value)
             else:
                 try:
-                    dt = dateutil.parser.parse(value)
+                    dt = dateutil.parser.parse(value, tzinfos=cls.get_tz)
                 except ValueError as e:
                     raise ValueError("invalid value for DateTime object: %s" % value) from e
 
@@ -69,10 +69,13 @@ class DateTime(datetime.datetime):
         return super().__new__(cls, *args)
 
     @classmethod
-    def get_tz(cls):
-        if cls.local_tz is None:
-            cls.local_tz = dateutil.tz.gettz(name=DateTimeConfig.local_timezone)
-        return cls.local_tz
+    def get_tz(cls, name=None, offset=None):
+        if name is None:
+            if cls.local_tz is None:
+                cls.local_tz = dateutil.tz.gettz(name=DateTimeConfig.local_timezone)
+            return cls.local_tz
+        else:
+            return dateutil.tz.gettz(name)
 
     @classmethod
     def now(cls, tz=None):
