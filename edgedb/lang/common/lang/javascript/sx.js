@@ -186,7 +186,7 @@ this.sx = (function(global) {
 
             var i, r, no_desc = (func.length <= 2), len;
 
-            if (sx.is_array(obj) || obj instanceof sx) {
+            if (sx.is_array(obj) || obj instanceof sx || obj instanceof NodeList) {
                 len = obj.length;
                 if (no_desc) {
                     for (i = 0; i < len; i++) {
