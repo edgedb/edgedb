@@ -16,7 +16,8 @@ this.sx = (function(global) {
         sx = function(selector) { return new sx._fn.init(selector); },
         _is_id = /^#([\w\-]*)$/,
         _id_counter = 0,
-        has_own_property = Object.prototype.hasOwnProperty;
+        has_own_property = Object.prototype.hasOwnProperty,
+        NodeList = (typeof window != 'undefined' && window.NodeList) ? window.NodeList : null;
 
     function _apply(obj /*, ... */) {
         var i = 1,
@@ -186,7 +187,7 @@ this.sx = (function(global) {
 
             var i, r, no_desc = (func.length <= 2), len;
 
-            if (sx.is_array(obj) || obj instanceof sx || obj instanceof NodeList) {
+            if (sx.is_array(obj) || (obj instanceof sx) || (NodeList && (obj instanceof NodeList))) {
                 len = obj.length;
                 if (no_desc) {
                     for (i = 0; i < len; i++) {
