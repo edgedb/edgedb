@@ -15,12 +15,14 @@ sx.types.register('pgjson.', function(format, data, metadata) {
 
     var format_string = format[0], format_version = format[1];
     var FREEFORM_RECORD_ID = '6e51108d-7440-47f7-8c65-dc4d43fd90d2';
+    var supported_formats = ['pgjson.caos.selector', 'pgjson.caos.queryselector',
+                             'pgjson.caos.entity'];
 
     var _throw = function(msg) {
         throw new sx.Error('malformed "' + format_string + '" data: ' + msg);
     }
 
-    if (format_string == 'pgjson.caos.selector' || format_string == 'pgjson.caos.queryselector') {
+    if (sx.contains(supported_formats, format_string)) {
         if (format_version != 1) {
             throw new sx.Error('unsupported "' + format_string + '" version: ' + format_version);
         }
@@ -268,7 +270,7 @@ sx.types.register('pgjson.', function(format, data, metadata) {
         return result;
     };
 
-    if (format_string == 'pgjson.caos.selector') {
+    if (format_string == 'pgjson.caos.selector' || format_string == 'pgjson.caos.entity') {
         for (var i = 0; i < data.length; i++) {
             var item = _decode_record(data[i]);
 
@@ -283,6 +285,14 @@ sx.types.register('pgjson.', function(format, data, metadata) {
             var item = _decode_record(data[i]);
             result.push(item);
         }
+    }
+
+    if (format_string == 'pgjson.caos.entity') {
+        if (sx.len(result) != 1) {
+            _throw('caos.entity selector did not yield exactly one element');
+        }
+
+        result = result[0];
     }
 
     return result;
