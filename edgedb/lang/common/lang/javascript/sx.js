@@ -386,7 +386,7 @@ this.sx = (function(global) {
                 if (obj.length > 0) {
                     return obj[0];
                 } else {
-                    if (def !== undefined) {
+                    if (arguments.length > 1) {
                         return def;
                     } else {
                         throw new Error('sx.first: empty array passed with no default value set');
@@ -400,7 +400,7 @@ this.sx = (function(global) {
                     }
                 }
 
-                if (def !== undefined) {
+                if (arguments.length > 1) {
                     return def;
                 }
 
@@ -409,7 +409,7 @@ this.sx = (function(global) {
                 if (obj.length > 0) {
                     return obj[0];
                 } else {
-                    if (def !== undefined) {
+                    if (arguments.length > 1) {
                         return def;
                     } else {
                         throw new Error('sx.first: empty string passed with no default value set');
