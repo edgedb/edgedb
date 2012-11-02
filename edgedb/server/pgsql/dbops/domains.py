@@ -10,6 +10,7 @@ import postgresql.string
 
 from .. import common
 from . import base
+from . import constraints
 from . import ddl
 
 
@@ -76,11 +77,9 @@ class AlterDomainRenameTo(ddl.DDLOperation):
 
 
 class AlterDomain(ddl.DDLOperation):
-    def __init__(self, name):
-        super().__init__()
-
+    def __init__(self, name, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
         self.name = name
-
 
     def code(self, context):
         return 'ALTER DOMAIN %s ' % common.qname(*self.name)
@@ -119,23 +118,49 @@ class AlterDomainAlterNull(AlterDomain):
 
 
 class AlterDomainAlterConstraint(AlterDomain):
-    def __init__(self, name, constraint_name, constraint_code):
-        super().__init__(name)
-        self._constraint_name = constraint_name
-        self._constraint_code = constraint_code
+    def __init__(self, name, constraint, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(name, conditions=conditions, neg_conditions=neg_conditions,
+                                                      priority=priority)
+        self._constraint = constraint
 
 
-class AlterDomainDropConstraint(AlterDomainAlterConstraint):
-    def code(self, context):
-        code = super().code(context)
-        code += ' DROP CONSTRAINT {} '.format(self._constraint_name)
-        return code
+class DomainConstraint(constraints.Constraint):
+    def get_subject_type(self):
+        return 'DOMAIN'
 
 
 class AlterDomainAddConstraint(AlterDomainAlterConstraint):
     def code(self, context):
         code = super().code(context)
-        code += ' ADD CONSTRAINT {} {}'.format(self._constraint_name, self._constraint_code)
+        constr_name = self._constraint.constraint_name()
+        constr_code = self._constraint.constraint_code(context)
+        code += ' ADD CONSTRAINT {} {}'.format(constr_name, constr_code)
+        return code
+
+    def extra(self, context):
+        return self._constraint.extra(context)
+
+
+class AlterDomainRenameConstraint(AlterDomainAlterConstraint):
+    def __init__(self, name, constraint, new_constraint, *,
+                       conditions=None, neg_conditions=None, priority=0):
+        super().__init__(name, constraint=constraint, conditions=conditions,
+                         neg_conditions=neg_conditions, priority=priority)
+        self._new_constraint = new_constraint
+
+    def code(self, context):
+        code = super().code(context)
+        name = self._constraint.constraint_name()
+        new_name = self._new_constraint.constraint_name()
+        code += ' RENAME CONSTRAINT {} TO {}'.format(name, new_name)
+
+        return code
+
+
+class AlterDomainDropConstraint(AlterDomainAlterConstraint):
+    def code(self, context):
+        code = super().code(context)
+        code += ' DROP CONSTRAINT {}'.format(self._constraint.constraint_name())
         return code
 
 

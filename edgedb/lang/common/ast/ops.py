@@ -10,7 +10,7 @@ class Operator(str):
     cache = {}
     funcmap = {}
 
-    def __new__(cls, val='', *, funcname=None, rfuncname=None):
+    def __new__(cls, val='', *, funcname=None, rfuncname=None, commutative=None):
         result = Operator.cache.get((cls, val))
 
         if not result:
@@ -25,8 +25,9 @@ class Operator(str):
 
         return result
 
-    def __init__(self, val, *, funcname=None, rfuncname=None):
+    def __init__(self, val, *, funcname=None, rfuncname=None, commutative=None):
         self.val = val
+        self.commutative = commutative
 
     def __repr__(self):
         return '<%s.%s "%s">' % (self.__class__.__module__, self.__class__.__name__, self.val)
@@ -42,12 +43,17 @@ class Operator(str):
 class ComparisonOperator(Operator):
     pass
 
-EQ = ComparisonOperator('=', funcname='__eq__')
-NE = ComparisonOperator('!=', funcname='__ne__')
+EQ = ComparisonOperator('=', funcname='__eq__', commutative=True)
+NE = ComparisonOperator('!=', funcname='__ne__', commutative=True)
 GT = ComparisonOperator('>', funcname='__gt__')
 GE = ComparisonOperator('>=', funcname='__ge__')
 LT = ComparisonOperator('<', funcname='__lt__')
 LE = ComparisonOperator('<=', funcname='__le__')
+
+GT.contiguous_set_complement = LE
+GE.contiguous_set_complement = LT
+LT.contiguous_set_complement = GE
+LE.contiguous_set_complement = GT
 
 
 class ArithmeticOperator(Operator):
@@ -58,9 +64,9 @@ class BinaryArithmeticOperator(ArithmeticOperator):
     pass
 
 
-ADD = BinaryArithmeticOperator('+', funcname='__add__', rfuncname='__radd__')
-SUB = BinaryArithmeticOperator('-', funcname='__sub__', rfuncname='__rsub__')
-MUL = BinaryArithmeticOperator('*', funcname='__mul__', rfuncname='__rmul__')
+ADD = BinaryArithmeticOperator('+', funcname='__add__', rfuncname='__radd__', commutative=True)
+SUB = BinaryArithmeticOperator('-', funcname='__sub__', rfuncname='__rsub__', commutative=True)
+MUL = BinaryArithmeticOperator('*', funcname='__mul__', rfuncname='__rmul__', commutative=True)
 DIV = BinaryArithmeticOperator('/', funcname='__truediv__', rfuncname='__rtruediv__')
 POW = BinaryArithmeticOperator('**', funcname='__pow__', rfuncname='__rpow__')
 MOD = BinaryArithmeticOperator('%', funcname='__mod__', rfuncname='__rmod__')

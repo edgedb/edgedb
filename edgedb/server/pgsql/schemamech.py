@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2012 Sprymix Inc.
+# Copyright (c) 2008-2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -7,392 +7,402 @@
 
 
 import collections
+import itertools
 import re
 
 from metamagic import caos
 from metamagic.caos import proto
+from metamagic.caos.tree import ast as caos_ast
+from metamagic.caos.tree import astexpr as caos_astexpr
+from metamagic.caos.caosql import expr as caosql_expr
+from metamagic.caos.caosql import transformer as caosql_transformer
+
+from metamagic.utils import ast
 from metamagic.utils import datastructures
 from metamagic.utils import markup
 from metamagic.utils.lang import yaml
 from metamagic.utils.lang.import_ import get_object
 
 from .datasources import introspection
+from . import ast as pg_ast
 from . import astexpr
 from . import dbops
 from . import deltadbops
 from . import common
 from . import types
 from . import parser
+from . import transformer
+from . import codegen
 
 
 class ConstraintMech:
-
-    atom_constraint_name_re = re.compile(r"""
-        ^(?P<concept_name>[.\w]+):(?P<link_name>[.\w]+)::(?P<constraint_class>[.\w]+)::atom_constr$
-    """, re.X)
-
-    ptr_constraint_name_re = re.compile(r"""
-        ^(?P<concept_name>[.\w]+):(?P<link_name>[.\w]+)::(?P<constraint_class>[.\w]+)::ptr_constr$
-    """, re.X)
-
-
     def __init__(self):
-        self.parser = parser.PgSQLParser()
-        self.atom_constr_exprs = {}
-        self._table_atom_constraints_cache = None
-        self._table_ptr_constraints_cache = None
+        self._constraints_cache = None
 
     def init_cache(self, connection):
-        self.read_table_ptr_constraints(connection)
-        self.read_table_atom_constraints(connection)
+        self._constraints_cache = self._populate_constraint_cache(connection)
 
     def invalidate_meta_cache(self):
-        self._table_atom_constraints_cache = None
-        self._table_ptr_constraints_cache = None
+        self._constraints_cache = None
 
-    def read_table_constraints(self, connection, suffix, interpreter):
+    def _populate_constraint_cache(self, connection):
+        constraints_ds = introspection.constraints.Constraints(connection)
+
         constraints = {}
-        index_by_pg_name = {}
-        constraints_ds = introspection.tables.TableConstraints(connection)
-
         for row in constraints_ds.fetch(schema_pattern='caos%',
-                                        constraint_pattern='%%::%s' % suffix):
-            concept_constr = constraints[tuple(row['table_name'])] = {}
+                                        constraint_pattern='%;schemaconstr%'):
+            constraints[row['constraint_name']] = row
 
-            for pg_name, (link_name, constraint) in interpreter(row):
-                idx = datastructures.OrderedIndex(key=lambda i: i.get_canonical_class())
-                ptr_constraints = concept_constr.setdefault(link_name, idx)
-                cls = constraint.get_canonical_class()
-                try:
-                    existing_constraint = ptr_constraints[cls]
-                    existing_constraint.merge(constraint)
-                except KeyError:
-                    ptr_constraints.add(constraint)
-                index_by_pg_name[pg_name] = constraint, link_name, tuple(row['table_name'])
+        return constraints
 
-        return constraints, index_by_pg_name
-
-    def interpret_atom_constraint(self, constraint_class, expr, name):
+    def constraint_name_from_pg_name(self, connection, pg_name):
+        if self._constraints_cache is None:
+            self._constraints_cache = self._populate_constraint_cache(connection)
 
         try:
-            expr_tree = self.parser.parse(expr)
-        except parser.PgSQLParserError as e:
-            msg = 'could not interpret constraint %s' % name
-            details = 'Syntax error when parsing expression: %s' % e.args[0]
-            raise caos.MetaError(msg, details=details) from e
-
-        pattern = self.atom_constr_exprs.get(constraint_class)
-        if not pattern:
-            adapter = astexpr.AtomConstraintAdapterMeta.get_adapter(constraint_class)
-
-            if not adapter:
-                msg = 'could not interpret constraint %s' % name
-                details = 'No matching pattern defined for constraint class "%s"' % constraint_class
-                hint = 'Implement matching pattern for "%s"' % constraint_class
-                hint += '\nExpression:\n{}'.format(markup.dumps(expr_tree))
-                raise caos.MetaError(msg, details=details, hint=hint)
-
-            pattern = adapter()
-            self.atom_constr_exprs[constraint_class] = pattern
-
-        constraint_data = pattern.match(expr_tree)
-
-        if constraint_data is None:
-            msg = 'could not interpret constraint {!r}'.format(str(name))
-            details = 'Pattern "{!r}" could not match expression:\n{}'. \
-                                        format(pattern.__class__, markup.dumps(expr_tree))
-            hint = 'Take a look at the matching pattern and adjust'
-            raise caos.MetaError(msg, details=details, hint=hint)
-
-        return constraint_data
-
-    def interpret_table_atom_constraint(self, name, expr):
-        m = self.atom_constraint_name_re.match(name)
-        if not m:
-            raise caos.MetaError('could not interpret table constraint %s' % name)
-
-        link_name = m.group('link_name')
-        constraint_class = get_object(m.group('constraint_class'))
-        constraint_data = self.interpret_atom_constraint(constraint_class, expr, name)
-
-        return link_name, constraint_class(constraint_data)
-
-    def interpret_table_atom_constraints(self, constr):
-        cs = zip(constr['constraint_names'], constr['constraint_expressions'],
-                 constr['constraint_descriptions'])
-
-        for name, expr, description in cs:
-            yield name, self.interpret_table_atom_constraint(description, expr)
-
-    def read_table_atom_constraints(self, connection):
-        if self._table_atom_constraints_cache is None:
-            constraints, index = self.read_table_constraints(connection, 'atom_constr',
-                                                             self.interpret_table_atom_constraints)
-            self._table_atom_constraints_cache = (constraints, index)
-
-        return self._table_atom_constraints_cache
-
-    def get_table_atom_constraints(self, connection):
-        return self.read_table_atom_constraints(connection)[0]
-
-    def interpret_table_ptr_constraint(self, name, expr, columns):
-        name_parts = name.split('::')
-
-        try:
-            if len(name_parts) < 3 or name_parts[2] != 'ptr_constr':
-                raise ValueError
-
-            constraint_class_name = name_parts[1]
-            subject_parts = name_parts[0].rsplit(':', 1)
-            if len(subject_parts) < 2:
-                raise ValueError
-            link_name = subject_parts[1]
-        except ValueError:
-            raise caos.MetaError('could not interpret table constraint %s' % name)
-
-        constraint_class = get_object(constraint_class_name)
-
-        if issubclass(constraint_class, proto.PointerConstraintUnique):
-            col_name = common.caos_name_to_pg_name(link_name)
-            if len(columns) != 1 or not col_name in columns:
-                msg = 'internal metadata inconsistency'
-                details = ('Link constraint "%s" expected to have exactly one column "%s" '
-                           'in the expression, got: %s') % (name, col_name,
-                                                            ','.join('"%s"' % c for c in columns))
-                raise caos.MetaError(msg, details=details)
-
-            constraint_data = {True}
+            cdata = self._constraints_cache[pg_name]
+        except KeyError:
+            return None
         else:
-            msg = 'internal metadata inconsistency'
-            details = 'Link constraint "%s" has an unexpected class "%s"' % \
-                      (name, constraint_class_name)
-            raise caos.MetaError(msg, details=details)
-
-        return link_name, constraint_class(constraint_data)
-
-    def interpret_table_ptr_constraints(self, constr):
-        cs = zip(constr['constraint_names'], constr['constraint_expressions'],
-                 constr['constraint_descriptions'], constr['constraint_columns'])
-
-        for name, expr, description, cols in cs:
-            cols = cols.split('~~~~')
-            yield name, self.interpret_table_ptr_constraint(description, expr, cols)
-
-    def read_table_ptr_constraints(self, connection):
-        if self._table_ptr_constraints_cache is None:
-            constraints, index = self.read_table_constraints(connection, 'ptr_constr',
-                                                             self.interpret_table_ptr_constraints)
-            self._table_ptr_constraints_cache = (constraints, index)
-
-        return self._table_ptr_constraints_cache
-
-    def get_table_ptr_constraints(self, connection):
-        return self.read_table_ptr_constraints(connection)[0]
-
-    def constraint_from_pg_name(self, connection, pg_name):
-        return self.read_table_ptr_constraints(connection)[1].get(pg_name)
-
-    def unpack_constraints(self, meta, constraints):
-        result = []
-        if constraints:
-            for cls, val in constraints.items():
-                constraint = get_object(cls)(next(iter(yaml.Language.load(val))))
-                result.append(constraint)
-        return result
-
-    def create_unique_constraint_trigger(self, source, pointer_name, constraint,
-                                               constraint_origins, meta, priority=3):
-
-        colname = common.quote_ident(common.caos_name_to_pg_name(pointer_name))
-        if len(constraint_origins) == 1:
-            origin = common.get_table_name(next(iter(constraint_origins)))
-        else:
-            origin = []
-            for o in constraint_origins:
-                origin.append('(SELECT * FROM %s)' % common.get_table_name(o))
-            origin = ' UNION ALL '.join(origin)
-
-        text = '''
-                  BEGIN
-                  PERFORM
-                        TRUE
-                      FROM %(origin)s
-                      WHERE %(colname)s = NEW.%(colname)s;
-                  IF FOUND THEN
-                      RAISE unique_violation
-                          USING
-                              MESSAGE = 'duplicate key value violates unique constraint %(constr)s',
-                              DETAIL = 'Key (%(colname)s)=(' || NEW.%(colname)s || ') already exists.';
-                  END IF;
-                  RETURN NEW;
-                  END;
-               ''' % {'colname': colname,
-                      'origin': origin,
-                      'constr': constraint.constraint_name()}
-
-        schema = common.caos_module_name_to_schema_name(source.name.module)
-        proc_name = constraint.raw_constraint_name() + '_trigproc'
-        proc_name = schema, common.caos_name_to_pg_name(proc_name)
-        table_name = common.get_table_name(source, catenate=False)
-        proc = dbops.CreateTriggerFunction(name=proc_name, text=text, volatility='stable')
-
-        trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_instrigger')
-        instrigger = dbops.CreateConstraintTrigger(trigger_name=trigger_name,
-                                                   table_name=table_name,
-                                                   events=('insert',), procedure=proc_name)
-
-        trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_updtrigger')
-        condition = 'OLD.%(colname)s IS DISTINCT FROM NEW.%(colname)s' % {'colname': colname}
-        updtrigger = dbops.CreateConstraintTrigger(trigger_name=trigger_name,
-                                                   table_name=table_name,
-                                                   events=('update',),
-                                                   condition=condition, procedure=proc_name)
-
-        result = dbops.CommandGroup(priority=priority,
-                                    neg_conditions=[dbops.FunctionExists(name=proc_name)])
-        result.add_command(proc)
-        result.add_command(instrigger)
-        result.add_command(updtrigger)
-
-        return result
-
-    def unique_constraint_trigger_exists(self, source, pointer_name, constraint):
-        tabname = common.get_table_name(source, catenate=False)
-        return self._unique_constraint_trigger_exists(source.name, tabname, pointer_name, constraint)
-
-    def _unique_constraint_trigger_exists(self, source_name, source_table_name, pointer_name,
-                                                                                constraint):
-        schema = common.caos_module_name_to_schema_name(source_name.module)
-        proc_name = constraint.raw_constraint_name() + '_trigproc'
-        proc_name = schema, common.caos_name_to_pg_name(proc_name)
-        func_exists = dbops.FunctionExists(proc_name)
-
-        trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_instrigger')
-        ins_trig_exists = dbops.TriggerExists(trigger_name=trigger_name,
-                                              table_name=source_table_name)
-
-        trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_updtrigger')
-        upd_trig_exists = dbops.TriggerExists(trigger_name=trigger_name,
-                                              table_name=source_table_name)
-
-        return [func_exists, ins_trig_exists, upd_trig_exists]
-
-    def drop_unique_constraint_trigger(self, source, pointer_name, constraint, meta, context):
-        schema = common.caos_module_name_to_schema_name(source.name.module)
-        table_name = common.get_table_name(source, catenate=False)
-
-        result = dbops.CommandGroup()
-
-        trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_instrigger')
-        result.add_command(dbops.DropTrigger(trigger_name=trigger_name, table_name=table_name))
-        trigger_name = common.caos_name_to_pg_name(constraint.raw_constraint_name() + '_updtrigger')
-        result.add_command(dbops.DropTrigger(trigger_name=trigger_name, table_name=table_name))
-
-        proc_name = constraint.raw_constraint_name() + '_trigproc'
-        proc_name = schema, common.caos_name_to_pg_name(proc_name)
-        result.add_command(dbops.DropFunction(name=proc_name, args=()))
-
-        return result
-
-    def rename_unique_constraint_trigger(self, orig_source_name, source_name,
-                                               orig_pointer_name, pointer_name,
-                                               old_constraint, new_constraint):
-
-        result = dbops.CommandGroup()
-
-        table_name = common.concept_name_to_table_name(source_name, catenate=False)
-        orig_table_name = common.concept_name_to_table_name(orig_source_name, catenate=False)
-
-        old_trigger_name = common.caos_name_to_pg_name('%s_instrigger' % \
-                                                       old_constraint.raw_constraint_name())
-        new_trigger_name = common.caos_name_to_pg_name('%s_instrigger' % \
-                                                       new_constraint.raw_constraint_name())
-
-        if old_trigger_name != new_trigger_name:
-            trigger_exists = dbops.TriggerExists(trigger_name=old_trigger_name,
-                                                 table_name=table_name)
-            result.add_command(dbops.AlterTriggerRenameTo(trigger_name=old_trigger_name,
-                                                          new_trigger_name=new_trigger_name,
-                                                          table_name=table_name,
-                                                          conditions=[trigger_exists]))
-
-        old_trigger_name = common.caos_name_to_pg_name('%s_updtrigger' % \
-                                                       old_constraint.raw_constraint_name())
-        new_trigger_name = common.caos_name_to_pg_name('%s_updtrigger' % \
-                                                       new_constraint.raw_constraint_name())
-
-        if old_trigger_name != new_trigger_name:
-            trigger_exists = dbops.TriggerExists(trigger_name=old_trigger_name,
-                                                 table_name=table_name)
-            result.add_command(dbops.AlterTriggerRenameTo(trigger_name=old_trigger_name,
-                                                          new_trigger_name=new_trigger_name,
-                                                          table_name=table_name,
-                                                          conditions=[trigger_exists]))
-
-        old_proc_name = common.caos_name_to_pg_name('%s_trigproc' % \
-                                                    old_constraint.raw_constraint_name())
-        old_proc_name = orig_table_name[0], old_proc_name
-
-
-        new_proc_name = common.caos_name_to_pg_name('%s_trigproc' % \
-                                                    new_constraint.raw_constraint_name())
-        new_proc_name = table_name[0], new_proc_name
-
-        if old_proc_name != new_proc_name:
-            function_exists = dbops.FunctionExists(name=old_proc_name)
-            result.add_command(dbops.RenameFunction(name=old_proc_name, args=(),
-                                                    new_name=new_proc_name,
-                                                    conditions=[]))
-
-        if orig_source_name != source_name:
-            old = common.concept_name_to_table_name(orig_source_name)
-            new = common.concept_name_to_table_name(source_name)
-            result.add_command(dbops.AlterFunctionReplaceText(name=new_proc_name, args=(),
-                                                              old_text=old,
-                                                              new_text=new))
-
-        old_constr_name = old_constraint.constraint_name()
-        new_constr_name = new_constraint.constraint_name()
-
-        if old_constr_name != new_constr_name:
-            result.add_command(dbops.AlterFunctionReplaceText(name=new_proc_name, args=(),
-                                                              old_text=old_constr_name,
-                                                              new_text=new_constr_name))
-
-        if orig_pointer_name != pointer_name:
-            orig_col = common.caos_name_to_pg_name(orig_pointer_name)
-            new_col = common.caos_name_to_pg_name(pointer_name)
-
-            result.add_command(dbops.AlterFunctionReplaceText(name=new_proc_name, args=(),
-                                                              old_text=orig_col,
-                                                              new_text=new_col))
-
-        return result
+            name = cdata['constraint_description']
+            name, _, _ = name.rpartition(';')
+            return caos.name.Name(name)
 
     @classmethod
-    def schema_constraint_to_backend_constraint(cls, constraint, source, pointer_name):
-        source_table_name = common.get_table_name(source, catenate=False)
-        return cls._schema_constraint_to_backend_constraint(constraint, source.name,
-                                                            source_table_name, pointer_name)
+    def _get_unique_refs(cls, tree):
+        # Check if the expression is not exists(<arg>) [and not exists (<arg>)...]
+        expr = tree.selector[0].expr
+
+        astexpr = caos_astexpr.ExistsConjunctionExpr()
+        refs = astexpr.match(expr)
+
+        if refs is None:
+            return refs
+        else:
+            all_refs = []
+            for ref in refs:
+                # Unnest sequences in refs
+                if (isinstance(ref, caos_ast.BaseRefExpr)
+                            and isinstance(ref.expr, caos_ast.Sequence)):
+                    all_refs.append(ref.expr)
+                else:
+                    all_refs.append(ref)
+
+            return all_refs
 
     @classmethod
-    def _schema_constraint_to_backend_constraint(cls, constraint, source_name, source_table_name,
-                                                                               pointer_name):
-        column_name = common.caos_name_to_pg_name(pointer_name)
-        prefix = (source_name, pointer_name)
+    def _get_ref_storage_info(cls, schema, refs):
+        link_biased = {}
+        concept_biased = {}
 
-        if isinstance(constraint, proto.AtomConstraint):
-            constraint = deltadbops.AtomConstraintTableConstraint(table_name=source_table_name,
-                                                                  column_name=column_name,
-                                                                  prefix=prefix,
-                                                                  constraint=constraint)
+        ref_ptrs = {}
+        for ref in refs:
+            if isinstance(ref, caos_ast.LinkPropRef):
+                ptr = ref.ptr_proto
+                src = ref.ref.link_proto
+            elif isinstance(ref, caos_ast.AtomicRef):
+                ptr = ref.ptr_proto if ref.ptr_proto else ref.rlink.link_proto
+                src = ref.ref
+            elif isinstance(ref, caos_ast.EntityLink):
+                ptr = ref.link_proto
+                src = ptr.source.concept if ptr.source else None
+            elif isinstance(ref, caos_ast.EntitySet):
+                ptr = ref.rlink.link_proto
+                src = ref.rlink.source.concept
+            else:
+                raise ValueError('unexpected ref type: {!r}'.format(ref))
+
+            ref_ptrs[ref] = (ptr, src)
+
+        for ref, (ptr, src) in ref_ptrs.items():
+            ptr_info = types.get_pointer_storage_info(schema, ptr, source=src, resolve_type=False)
+
+            # See if any of the refs are hosted in pointer tables and others are not...
+            if ptr_info.table_type == 'link':
+                link_biased[ref] = ptr_info
+            else:
+                concept_biased[ref] = ptr_info
+
+            if link_biased and concept_biased:
+                break
+
+        if link_biased and concept_biased:
+            for ref in concept_biased.copy():
+                ptr, src = ref_ptrs[ref]
+                ptr_info = types.get_pointer_storage_info(schema, ptr, source=src,
+                                                          resolve_type=False, link_bias=True)
+
+                if ptr_info.table_type == 'link':
+                    link_biased[ref] = ptr_info
+                    concept_biased.pop(ref)
+
+        ref_tables = {}
+
+        for ref, ptr_info in itertools.chain(concept_biased.items(), link_biased.items()):
+            ptr, src = ref_ptrs[ref]
+
+            try:
+                ref_tables[ptr_info.table_name].append((ref, ptr, src, ptr_info))
+            except KeyError:
+                ref_tables[ptr_info.table_name] = [(ref, ptr, src, ptr_info)]
+
+        return ref_tables
+
+    @classmethod
+    def _caosql_ref_to_pg_constr(cls, subject, tree, schema, link_bias):
+        tf = transformer.SimpleExprTransformer()
+        sql_tree = tf.transform(tree, protoschema=schema, local=True, link_bias=link_bias)
+
+        is_multicol = isinstance(tree, caos_ast.Sequence)
+
+        # Determine if the sequence of references are all simple refs, not
+        # expressions.  This influences the type of Postgres constraint used.
+        #
+        is_trivial = (isinstance(sql_tree, pg_ast.FieldRefNode)
+                        or (isinstance(sql_tree, pg_ast.SequenceNode)
+                            and all(isinstance(el, pg_ast.FieldRefNode)
+                                    for el in sql_tree.elements)))
+
+        # Find all field references
+        #
+        flt = lambda n: isinstance(n, pg_ast.FieldRefNode)
+        refs = set(ast.find_children(sql_tree, flt))
+
+        if isinstance(subject, proto.Atom):
+            # Domain constraint, replace <atom_name> with VALUE
+
+            subject_pg_name = common.caos_name_to_pg_name(subject.name)
+
+            for ref in refs:
+                if ref.field != subject_pg_name:
+                    msg = 'unexpected node reference in Atom constraint: {}'.format(ref.field)
+                    raise ValueError(msg)
+
+                ref.field = 'VALUE'
+
+        plain_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
+
+        if is_multicol:
+            chunks = []
+
+            for elem in sql_tree.elements:
+                chunks.append(codegen.SQLSourceGenerator.to_source(elem))
         else:
-            constraint = deltadbops.PointerConstraintTableConstraint(table_name=source_table_name,
-                                                                     column_name=column_name,
-                                                                     prefix=prefix,
-                                                                     constraint=constraint)
+            chunks = [plain_expr]
 
+        if isinstance(sql_tree, pg_ast.FieldRefNode):
+            refs.add(sql_tree)
+
+        for ref in refs:
+            ref.table = pg_ast.PseudoRelationNode(name="NEW", alias="NEW")
+        new_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
+
+        for ref in refs:
+            ref.table = pg_ast.PseudoRelationNode(name="OLD", alias="OLD")
+        old_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
+
+        exprdata = dict(plain=plain_expr, plain_chunks=chunks, new=new_expr, old=old_expr)
+
+        return dict(exprdata=exprdata, is_multicol=is_multicol, is_trivial=is_trivial)
+
+    @classmethod
+    def schema_constraint_to_backend_constraint(cls, subject, constraint, schema):
+        assert constraint.subject is not None
+
+        cexpr = caosql_expr.CaosQLExpression(schema)
+
+        caosql = constraint.finalexpr
+        tree = cexpr.transform_expr(caosql, anchors={'subject': subject})
+
+        terminal_refs = cexpr.get_terminal_references(tree)
+
+        ref_tables = cls._get_ref_storage_info(schema, terminal_refs)
+
+        if len(ref_tables) > 1:
+            raise ValueError('backend: multi-table constraints are not currently supported')
+        elif ref_tables:
+            subject_db_name = next(iter(ref_tables))
+        else:
+            subject_db_name = common.atom_name_to_domain_name(subject.name,
+                                                              catenate=False)
+
+        link_bias = ref_tables and next(iter(ref_tables.values()))[0][3].table_type == 'link'
+
+        unique_expr_refs = cls._get_unique_refs(tree)
+
+        pg_constr_data = {
+            'subject_db_name': subject_db_name,
+            'expressions': []
+        }
+
+        exprs = pg_constr_data['expressions']
+
+        if unique_expr_refs:
+            for ref in unique_expr_refs:
+                exprdata = cls._caosql_ref_to_pg_constr(subject, ref, schema,
+                                                        link_bias)
+                exprs.append(exprdata)
+
+            pg_constr_data['scope'] = 'relation'
+            pg_constr_data['type'] = 'unique'
+            pg_constr_data['subject_db_name'] = subject_db_name
+        else:
+            exprdata = cls._caosql_ref_to_pg_constr(subject, tree, schema,
+                                                    link_bias)
+            exprs.append(exprdata)
+
+            pg_constr_data['subject_db_name'] = subject_db_name
+            pg_constr_data['scope'] = 'row'
+            pg_constr_data['type'] = 'check'
+
+        if isinstance(constraint.subject, caos.types.ProtoAtom):
+            constraint = SchemaDomainConstraint(subject=subject,
+                                                constraint=constraint,
+                                                pg_constr_data=pg_constr_data)
+        else:
+            constraint = SchemaTableConstraint(subject=subject,
+                                               constraint=constraint,
+                                               pg_constr_data=pg_constr_data)
         return constraint
+
+
+class SchemaDomainConstraint:
+    def __init__(self, subject, constraint, pg_constr_data):
+        self._subject = subject
+        self._constraint = constraint
+        self._pg_constr_data = pg_constr_data
+
+    @classmethod
+    def _domain_constraint(cls, constr):
+        domain_name = constr._pg_constr_data['subject_db_name']
+        expressions = constr._pg_constr_data['expressions']
+
+        constr = deltadbops.SchemaConstraintDomainConstraint(
+                    domain_name, constr._constraint, expressions)
+
+        return constr
+
+    def create_ops(self):
+        ops = dbops.CommandGroup()
+
+        domconstr = self._domain_constraint(self)
+        add_constr = dbops.AlterDomainAddConstraint(
+                            name=domconstr.get_subject_name(quote=False),
+                            constraint=domconstr)
+
+        ops.add_command(add_constr)
+
+        return ops
+
+    def rename_ops(self, orig_constr):
+        ops = dbops.CommandGroup()
+
+        domconstr = self._domain_constraint(self)
+        orig_domconstr = self._domain_constraint(orig_constr)
+
+        add_constr = dbops.AlterDomainRenameConstraint(
+                            name=domconstr.get_subject_name(quote=False),
+                            constraint=orig_domconstr,
+                            new_constraint=domconstr)
+
+        ops.add_command(add_constr)
+
+        return ops
+
+    def alter_ops(self, orig_constr):
+        ops = dbops.CommandGroup()
+        return ops
+
+    def delete_ops(self):
+        ops = dbops.CommandGroup()
+
+        domconstr = self._domain_constraint(self)
+        add_constr = dbops.AlterDomainDropConstraint(
+                            name=domconstr.get_subject_name(quote=False),
+                            constraint=domconstr)
+
+        ops.add_command(add_constr)
+
+        return ops
+
+
+class SchemaTableConstraint:
+    def __init__(self, subject, constraint, pg_constr_data):
+        self._subject = subject
+        self._constraint = constraint
+        self._pg_constr_data = pg_constr_data
+
+    @classmethod
+    def _table_constraint(cls, constr):
+        pg_c = constr._pg_constr_data
+
+        table_name = pg_c['subject_db_name']
+        expressions = pg_c['expressions']
+
+        constr = deltadbops.SchemaConstraintTableConstraint(
+                                    table_name,
+                                    constraint=constr._constraint,
+                                    exprdata=expressions,
+                                    scope=pg_c['scope'],
+                                    type=pg_c['type'])
+
+        return constr
+
+    def create_ops(self):
+        ops = dbops.CommandGroup()
+
+        tabconstr = self._table_constraint(self)
+        add_constr = deltadbops.AlterTableAddInheritableConstraint(
+                                name=tabconstr.get_subject_name(quote=False),
+                                constraint=tabconstr)
+
+        ops.add_command(add_constr)
+
+        return ops
+
+    def rename_ops(self, orig_constr):
+        ops = dbops.CommandGroup()
+
+        tabconstr = self._table_constraint(self)
+        orig_tabconstr = self._table_constraint(orig_constr)
+
+        rename_constr = deltadbops.AlterTableRenameInheritableConstraint(
+                                name=tabconstr.get_subject_name(quote=False),
+                                constraint=orig_tabconstr,
+                                new_constraint=tabconstr)
+
+        ops.add_command(rename_constr)
+
+        return ops
+
+    def alter_ops(self, orig_constr):
+        ops = dbops.CommandGroup()
+
+        if self._constraint.is_abstract != orig_constr._constraint.is_abstract:
+            tabconstr = self._table_constraint(self)
+            orig_tabconstr = self._table_constraint(orig_constr)
+
+            alter_constr = deltadbops.AlterTableAlterInheritableConstraint(
+                                name=tabconstr.get_subject_name(quote=False),
+                                constraint=orig_tabconstr,
+                                new_constraint=tabconstr
+                           )
+
+            ops.add_command(alter_constr)
+
+        return ops
+
+    def delete_ops(self):
+        ops = dbops.CommandGroup()
+
+        tabconstr = self._table_constraint(self)
+        add_constr = deltadbops.AlterTableDropInheritableConstraint(
+                                name=tabconstr.get_subject_name(quote=False),
+                                constraint=tabconstr)
+
+        ops.add_command(add_constr)
+
+        return ops
 
 
 class TypeMech:
@@ -476,6 +486,7 @@ class TypeMech:
             if isinstance(prototype, caos.types.ProtoLink):
                 cols.extend([
                     dbops.Column(name='link_type_id', type='int'),
+                    dbops.Column(name='metamagic.caos.builtins.linkid', type='uuid'),
                     dbops.Column(name='metamagic.caos.builtins.source', type='uuid'),
                     dbops.Column(name='metamagic.caos.builtins.target', type='uuid')
                 ])
@@ -488,6 +499,11 @@ class TypeMech:
             else:
                 assert False
 
+            if isinstance(prototype, proto.Concept):
+                expected_table_type = 'concept'
+            else:
+                expected_table_type = 'link'
+
             for pointer_name, pointer in prototype.pointers.items():
                 if not pointer.singular():
                     continue
@@ -495,12 +511,15 @@ class TypeMech:
                 if pointer_name == 'metamagic.caos.builtins.source':
                     continue
 
+                if pointer_name == 'metamagic.caos.builtins.linkid':
+                    continue
+
                 ptr_stor_info = types.get_pointer_storage_info(proto_schema, pointer)
 
                 if ptr_stor_info.column_name == 'metamagic.caos.builtins.target':
                     continue
 
-                if ptr_stor_info.table_type[0] == 'source':
+                if ptr_stor_info.table_type == expected_table_type:
                     cols.append(dbops.Column(name=ptr_stor_info.column_name,
                                              type=ptr_stor_info.column_type))
             table.add_columns(cols)

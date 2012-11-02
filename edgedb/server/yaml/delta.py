@@ -82,8 +82,23 @@ class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
                                 and isinstance(field.type[0], caos.types.PrototypeClass):
             pass
 
-        elif issubclass(field.type[0], typed.AbstractTypedCollection) \
-                and issubclass(field.type[0].type, caos.proto.PrototypeOrNativeClass):
+        elif issubclass(field.type[0], typed.AbstractTypedMapping) \
+                and issubclass(field.type[0].valuetype, (caos.proto.PrototypeOrNativeClass,
+                                                         caos.types.ProtoObject)):
+            vals = {}
+
+            for k, v in value.items():
+                if isinstance(v, str):
+                    v = caos.name.Name(v)
+                    ref_type = field.type[0].valuetype.ref_type
+                    v = ref_type(prototype_name=v)
+                vals[k] = v
+            value = field.type[0](vals)
+
+        elif issubclass(field.type[0], (typed.AbstractTypedSequence, typed.AbstractTypedSet)) \
+                and issubclass(field.type[0].type, (caos.proto.PrototypeOrNativeClass,
+                                                    caos.types.ProtoObject)):
+
             vals = []
             for v in value:
                 if isinstance(v, str):
@@ -278,15 +293,19 @@ class AlterDefault(Command, adapts=delta.AlterDefault):
         super().__sx_setstate__(data)
 
 
-class AtomConstraintCommand(PrototypeCommand, adapts=delta.AtomConstraintCommand):
-    pass
-
-
 class AttributeCommand(PrototypeCommand, adapts=delta.AttributeCommand):
     pass
 
 
 class AttributeValueCommand(PrototypeCommand, adapts=delta.AttributeValueCommand):
+    pass
+
+
+class ConstraintCommand(PrototypeCommand, adapts=delta.ConstraintCommand):
+    pass
+
+
+class AtomConstraintCommand(PrototypeCommand, adapts=delta.AtomConstraintCommand):
     pass
 
 
@@ -343,6 +362,22 @@ class AlterAttributeValue(AttributeValueCommand, adapts=delta.AlterAttributeValu
 
 
 class DeleteAttributeValue(AttributeValueCommand, adapts=delta.DeleteAttributeValue):
+    pass
+
+
+class CreateConstraint(ConstraintCommand, adapts=delta.CreateConstraint):
+    pass
+
+
+class RenameConstraint(ConstraintCommand, adapts=delta.RenameConstraint):
+    pass
+
+
+class AlterConstraint(ConstraintCommand, adapts=delta.AlterConstraint):
+    pass
+
+
+class DeleteConstraint(ConstraintCommand, adapts=delta.DeleteConstraint):
     pass
 
 

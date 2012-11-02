@@ -53,6 +53,7 @@ source: |
                 a.attnum
 ...
 
+
 %SCHEMA metamagic.caos.datasources.schemas.Sql
 %NAME TableInheritance
 ---
@@ -108,6 +109,63 @@ source: |
                 depth, pos
 ...
 
+
+%SCHEMA metamagic.caos.datasources.schemas.Sql
+%NAME TableDescendants
+---
+params:
+    table_name:
+        type: str
+    schema_name:
+        type: str
+        default: "public"
+    max_depth:
+        type: int
+        default: null
+
+source: |
+        SELECT
+                *
+            FROM
+                (WITH RECURSIVE inheritance(oid, name, ns, depth, path) AS (
+                        SELECT
+                                c.oid,
+                                c.relname,
+                                ns.nspname,
+                                0,
+                                ARRAY[c.relname]
+                            FROM
+                                pg_class c
+                                INNER JOIN pg_namespace ns ON c.relnamespace = ns.oid
+                            WHERE
+                                c.relname = %(table_name)s
+                                AND ns.nspname = %(schema_name)s
+                      UNION ALL
+                        SELECT
+                                c.oid,
+                                c.relname,
+                                ns.nspname,
+                                i.depth + 1,
+                                i.path || c.relname
+                            FROM
+                                pg_class c,
+                                inheritance i,
+                                pg_inherits pgi,
+                                pg_namespace ns
+                            WHERE
+                                i.oid = pgi.inhparent
+                                AND c.oid = pgi.inhrelid
+                                AND ns.oid = c.relnamespace
+                                AND (%(max_depth)s::int IS NULL OR i.depth < %(max_depth)s::int)
+                )
+                SELECT DISTINCT ON (ns, name) ns, name, depth FROM inheritance) q
+            WHERE
+                depth > 0
+            ORDER BY
+                depth
+...
+
+
 %SCHEMA metamagic.caos.datasources.schemas.Sql
 %NAME TableList
 ---
@@ -147,6 +205,7 @@ source: |
                 --
                 AND c.relkind = 'r'
 ...
+
 
 %SCHEMA metamagic.caos.datasources.schemas.Sql
 %NAME TableIndexes
@@ -196,6 +255,7 @@ source: |
                 i.table_name
 ...
 
+
 %SCHEMA metamagic.caos.datasources.schemas.Sql
 %NAME TableConstraints
 ---
@@ -205,6 +265,9 @@ params:
         default: null
     table_pattern:
         type: str
+        default: null
+    table_list:
+        type: list
         default: null
     constraint_pattern:
         type: str
@@ -219,43 +282,211 @@ filters:
 source: |
     SELECT
         c.table_name                        AS table_name,
-        array_agg(c.constraint_id)          AS constraint_ids,
-        array_agg(c.constraint_name)        AS constraint_names,
-        array_agg(c.constraint_expression)  AS constraint_expressions,
-        array_agg(c.constraint_description) AS constraint_descriptions,
-        array_agg(c.constraint_columns)     AS constraint_columns
+        array_agg((
+            c.constraint_id,
+            c.constraint_type,
+            c.constraint_name,
+            c.constraint_expression,
+            c.constraint_proc,
+            c.constraint_description,
+            c.constraint_columns
+        ))                                  AS constraints
     FROM
         (SELECT
             ARRAY[ns.nspname, cc.relname]           AS table_name,
             c.oid::int                              AS constraint_id,
+            c.contype::text                         AS constraint_type,
             c.conname::text                         AS constraint_name,
-            pg_get_expr(c.conbin, c.conrelid)::text AS constraint_expression,
-            (SELECT
-                cmt.description
-             FROM
-                pg_description AS cmt
-                INNER JOIN pg_constraint AS cmtc ON cmtc.oid = cmt.objoid
-             WHERE
-                cmtc.conname = c.conname
-                AND cmtc.coninhcount = 0
-                AND cmt.description IS NOT NULL AND cmt.description != ''
-             LIMIT 1)                               AS constraint_description,
 
-            string_agg(ia.attname::text, '~~~~' ORDER BY ia.attnum) AS constraint_columns
+            -- Unique constraints have their expression stored in index catalog
+            -- Check constraints have their expression stored in constraint catalog
+            coalesce(
+                pg_get_expr(c.conbin, c.conrelid)::text,
+                pg_get_expr(ind.indexprs, ind.indrelid)::text
+            )                                       AS constraint_expression,
+
+            (CASE
+                WHEN c.contype::text = 't' THEN
+                    (SELECT
+                        (nsp.nspname, p.proname)
+                     FROM
+                        pg_proc AS p
+                        INNER JOIN pg_namespace AS nsp
+                                ON nsp.oid = p.pronamespace
+                        INNER JOIN pg_trigger AS trg
+                                ON trg.tgfoid = p.oid
+                     WHERE
+                        trg.tgconstraint = c.oid
+                     LIMIT 1)
+                ELSE
+                    NULL
+            END)                                    AS constraint_proc,
+
+            (CASE
+                WHEN c.contype::text = 't' THEN
+                    (SELECT
+                        cmt.description
+                     FROM
+                        pg_description AS cmt
+                        INNER JOIN pg_trigger AS trg
+                                ON trg.oid = cmt.objoid
+                     WHERE
+                        trg.tgconstraint = c.oid
+                        AND cmt.description IS NOT NULL
+                        AND cmt.description != ''
+                     LIMIT 1)
+                ELSE
+                    (SELECT
+                        cmt.description
+                     FROM
+                        pg_description AS cmt
+                        INNER JOIN pg_constraint AS cmtc
+                                ON cmtc.oid = cmt.objoid
+                     WHERE
+                        cmtc.conname = c.conname
+                        AND cmtc.coninhcount = 0
+                        AND cmt.description IS NOT NULL
+                        AND cmt.description != ''
+                     LIMIT 1)
+            END)                                     AS constraint_description,
+
+            (SELECT
+                array_agg(ia.attname ORDER BY ia.attnum)
+             FROM
+                pg_attribute AS ia
+             WHERE
+                ia.attrelid = c.conindid
+            )                                        AS constraint_columns
 
          FROM
             pg_constraint AS c
             INNER JOIN pg_class AS cc ON c.conrelid = cc.oid
             INNER JOIN pg_namespace AS ns ON ns.oid = cc.relnamespace
-            LEFT JOIN pg_attribute AS ia ON ia.attrelid = c.conindid
+            LEFT JOIN pg_index AS ind ON ind.indexrelid = c.conindid
          WHERE
             (%(schema_pattern)s::text IS NULL OR ns.nspname LIKE %(schema_pattern)s::text)
             AND (%(table_pattern)s::text IS NULL OR cc.relname LIKE %(table_pattern)s::text)
+            AND (%(table_list)s::text[] IS NULL
+                    OR ns.nspname || '.' || cc.relname = any(%(table_list)s::text[]))
             AND (%(constraint_pattern)s::text IS NULL OR c.conname LIKE %(constraint_pattern)s::text)
             AND (%(include_inherited)s OR c.coninhcount = 0)
-         GROUP BY
-            table_name, constraint_id, c.conname, constraint_expression
         ) AS c
+
+    GROUP BY
+        table_name
+...
+
+
+%SCHEMA metamagic.caos.datasources.schemas.Sql
+%NAME TableTriggers
+---
+params:
+    schema_pattern:
+        type: str
+        default: null
+    table_pattern:
+        type: str
+        default: null
+    table_list:
+        type: list
+        default: null
+    trigger_pattern:
+        type: str
+        default: null
+    inheritable_only:
+        type: bool
+        default: false
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+        table_name                          AS table_name,
+        array_agg((
+            trg_id,
+            trg_name,
+            trg_proc,
+            trg_constraint,
+            trg_granularity,
+            trg_timing,
+            trg_events,
+            trg_definition,
+            trg_metadata
+        ))                                  AS triggers
+    FROM
+        (SELECT
+            *
+         FROM
+            (SELECT
+                (ns.nspname, tc.relname)                AS table_name,
+
+                t.oid::int                              AS trg_id,
+                t.tgname::text                          AS trg_name,
+
+                (SELECT
+                    (nsp.nspname, p.proname)
+                 FROM
+                    pg_proc AS p
+                    INNER JOIN pg_namespace AS nsp
+                            ON nsp.oid = p.pronamespace
+                 WHERE
+                    t.tgfoid = p.oid
+                )                                       AS trg_proc,
+
+                t.tgconstraint                          AS trg_constraint,
+
+                (CASE
+                    WHEN (t.tgtype & (1 << 0)) != 0 THEN 'row'
+                    ELSE 'statement'
+                END)                                    AS trg_granularity,
+
+                (CASE
+                    WHEN (t.tgtype & (1 << 1)) != 0 THEN 'before'
+                    WHEN (t.tgtype & (1 << 6)) != 0 THEN 'instead'
+                    ELSE 'after'
+                END)                                    AS trg_timing,
+
+                array_remove(ARRAY[
+                    (CASE WHEN (t.tgtype & (1 << 2)) != 0 THEN 'insert'
+                     ELSE NULL END),
+                    (CASE WHEN (t.tgtype & (1 << 3)) != 0 THEN 'delete'
+                     ELSE NULL END),
+                    (CASE WHEN (t.tgtype & (1 << 4)) != 0 THEN 'update'
+                     ELSE NULL END),
+                    (CASE WHEN (t.tgtype & (1 << 5)) != 0 THEN 'truncate'
+                     ELSE NULL END)
+                ]::text[], NULL)                        AS trg_events,
+
+                pg_get_triggerdef(t.oid)::text          AS trg_definition,
+
+                (SELECT
+                    substr(cmt.description, 5)::json
+                 FROM
+                    pg_description AS cmt
+                 WHERE
+                    cmt.objoid = t.oid
+                    AND cmt.classoid = 'pg_trigger'::regclass
+                    AND substr(cmt.description, 1, 4) = '$CMR')
+                                                        AS trg_metadata
+
+             FROM
+                pg_trigger AS t
+                INNER JOIN pg_class AS tc ON t.tgrelid = tc.oid
+                INNER JOIN pg_namespace AS ns ON ns.oid = tc.relnamespace
+
+             WHERE
+                (%(schema_pattern)s::text IS NULL OR ns.nspname LIKE %(schema_pattern)s::text)
+                AND (%(table_pattern)s::text IS NULL OR tc.relname LIKE %(table_pattern)s::text)
+                AND (%(table_list)s::text[] IS NULL
+                        OR ns.nspname || '.' || tc.relname = any(%(table_list)s::text[]))
+                AND (%(trigger_pattern)s::text IS NULL OR t.tgname LIKE %(trigger_pattern)s::text)
+            ) AS q
+
+         WHERE
+            NOT %(inheritable_only)s::bool
+            OR (trg_metadata IS NOT NULL AND (trg_metadata->>'ddl:inherit')::bool)
+        ) AS t
 
     GROUP BY
         table_name

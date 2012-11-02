@@ -43,7 +43,7 @@ mapping:
                     "description":
                         type: str
 
-                    "type":
+                    "type": &SCHEMATYPE
                         type: choice
                         object: metamagic.caos.backends.yaml.SchemaType
                         choice:
@@ -59,6 +59,45 @@ mapping:
                                               mapping:
                                                     =:
                                                           type: any
+
+    "constraints":
+        type: map
+        default: {}
+        mapping:
+            =: # name of a constraint
+                type: map
+                object: metamagic.caos.backends.yaml.Constraint
+                required: yes
+                mapping:
+                    "title":
+                        *TEXT_WITH_GRAM_CATEGORIES
+
+                    "description":
+                        type: str
+
+                    "extends": &BASES
+                        type: choice
+                        required: no
+                        choice:
+                            - type: str
+                            - type: seq
+                              sequence:
+                                - type: str
+
+                    "expr":
+                        type: str
+
+                    "subject":
+                        type: str
+
+                    "errmessage":
+                        type: str
+
+                    "paramtypes":
+                        type: map
+                        mapping:
+                            =:
+                                type: str
 
     "atoms":
         type: map
@@ -76,13 +115,7 @@ mapping:
                         type: str
 
                     "extends":
-                        type: choice
-                        required: yes
-                        choice:
-                            - type: str
-                            - type: seq
-                              sequence:
-                                - type: str
+                        *BASES
 
                     "abstract":
                         type: bool
@@ -122,76 +155,33 @@ mapping:
                                 type: any
                                 object: metamagic.caos.backends.yaml.AttributeValue
 
-                    "constraints": &ATOM_CONSTRAINTS
-                        type: seq
-                        sequence:
-                          - type: choice
+                    "constraints": &CONSTRAINTS
+                        type: multimap
+                        mapping:
+                          =:
+                            type: choice
+                            object: metamagic.caos.backends.yaml.Constraint
                             choice:
                                 - type: map
-                                  object: metamagic.caos.backends.yaml.AtomConstraintMaxLength
-                                  max-length: 1
-                                  min-length: 1
                                   mapping:
-                                    "max-length":
-                                        type: int
-                                - type: map
-                                  object: metamagic.caos.backends.yaml.AtomConstraintMaxValue
-                                  max-length: 1
-                                  min-length: 1
-                                  mapping:
-                                    "max-value":
-                                        type: any
-                                - type: map
-                                  object: metamagic.caos.backends.yaml.AtomConstraintMaxExValue
-                                  max-length: 1
-                                  min-length: 1
-                                  mapping:
-                                    "max-value-ex":
-                                        type: any
-                                - type: map
-                                  object: metamagic.caos.backends.yaml.AtomConstraintMinLength
-                                  max-length: 1
-                                  min-length: 1
-                                  mapping:
-                                    "min-length":
-                                        type: int
-                                - type: map
-                                  object: metamagic.caos.backends.yaml.AtomConstraintMinValue
-                                  max-length: 1
-                                  min-length: 1
-                                  mapping:
-                                    "min-value":
-                                        type: any
-                                - type: map
-                                  object: metamagic.caos.backends.yaml.AtomConstraintMinExValue
-                                  max-length: 1
-                                  min-length: 1
-                                  mapping:
-                                    "min-value-ex":
-                                        type: any
-                                - type: map
-                                  object: metamagic.caos.backends.yaml.AtomConstraintRegExp
-                                  max-length: 1
-                                  min-length: 1
-                                  mapping:
-                                    "regexp":
+                                    "title":
+                                        *TEXT_WITH_GRAM_CATEGORIES
+                                    "description":
                                         type: str
-                                - type: map
-                                  object: metamagic.caos.backends.yaml.AtomConstraintExpr
-                                  max-length: 1
-                                  min-length: 1
-                                  mapping:
+                                    "errmessage":
+                                        type: int
+                                    "subject":
+                                        type: str
                                     "expr":
                                         type: str
-                                - type: map
-                                  object: metamagic.caos.backends.yaml.AtomConstraintEnum
-                                  max-length: 1
-                                  min-length: 1
-                                  mapping:
-                                    "enum":
-                                        type: seq
-                                        sequence:
-                                            - type: scalar
+                                    "params":
+                                        type: any
+
+                                - type: scalar
+                                - type: seq
+                                  sequence:
+                                    - type: any
+
 
     "link-properties":
         type: map
@@ -221,13 +211,7 @@ mapping:
                         enum: [lazy, eager]
 
                     "extends":
-                        type: choice
-                        default:
-                        choice:
-                            - type: str
-                            - type: seq
-                              sequence:
-                                - type: str
+                        *BASES
 
     "cascade-actions":
         type: map
@@ -287,13 +271,7 @@ mapping:
                         type: str
 
                     "extends":
-                        type: choice
-                        default:
-                        choice:
-                            - type: str
-                            - type: seq
-                              sequence:
-                                - type: str
+                        *BASES
 
                     "abstract":
                         type: bool
@@ -365,32 +343,19 @@ mapping:
                                                 "loading":
                                                     *POINTER_LOADING
                                                 "constraints":
-                                                    type: choice
-                                                    choice:
-                                                       - *ATOM_CONSTRAINTS
-                                                       - &POINTER_CONSTRAINTS
-                                                         type: seq
-                                                         sequence:
-                                                           - type: choice
-                                                             choice:
-                                                               - type: map
-                                                                 max-length: 1
-                                                                 min-length: 1
-                                                                 object: metamagic.caos.backends.yaml.PointerConstraintUnique
-                                                                 mapping:
-                                                                   "unique":
-                                                                       type: choice
-                                                                       required: True
-                                                                       choice:
-                                                                           - type: bool
-                                                                           - type: str
+                                                    *CONSTRAINTS
 
                                                 "abstract-constraints":
-                                                    *POINTER_CONSTRAINTS
+                                                    *CONSTRAINTS
 
                                                 "default":
                                                     *DEFAULT
 
+                    "constraints":
+                        *CONSTRAINTS
+
+                    "abstract-constraints":
+                        *CONSTRAINTS
 
                     "indexes":
                         &INDEXES
@@ -423,13 +388,7 @@ mapping:
                         type: str
 
                     "extends":
-                        type: choice
-                        default:
-                        choice:
-                            - type: str
-                            - type: seq
-                              sequence:
-                                - type: str
+                        *BASES
 
                     "links":
                         type: map
@@ -469,12 +428,9 @@ mapping:
                                               "exposed_behaviour":
                                                   *LINK_EXPOSED_BEHAVIOUR
                                               "constraints":
-                                                  type: choice
-                                                  choice:
-                                                    - *ATOM_CONSTRAINTS
-                                                    - *POINTER_CONSTRAINTS
+                                                  *CONSTRAINTS
                                               "abstract-constraints":
-                                                  *POINTER_CONSTRAINTS
+                                                  *CONSTRAINTS
                                               "cascades":
                                                   *CASCADES
                                               "comparison":
@@ -503,6 +459,12 @@ mapping:
                                                             enum: ['A', 'B', 'C', 'D']
                                                             required: True
                                                     - type: bool
+
+                    "constraints":
+                        *CONSTRAINTS
+
+                    "abstract-constraints":
+                        *CONSTRAINTS
 
                     "indexes":
                         *INDEXES

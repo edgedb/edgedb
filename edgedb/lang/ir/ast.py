@@ -133,7 +133,12 @@ class CommonGraphExpr(Base):
 
 
 class Path(Base):
-    __fields = ['anchor', 'show_as_anchor', ('reference', Base, None, False)]
+    __fields = ['anchor', 'show_as_anchor', 'pathvar',
+                ('reference', Base, None, False)]
+
+    def __setattr__(self, name, value):
+        assert not (name == 'pathvar' and value == 'self')
+        super().__setattr__(name, value)
 
     def __getattr__(self, name):
         if name == 'paths':
@@ -148,7 +153,9 @@ class SubgraphRef(Path):
 
 
 class BaseRef(Path):
-    __fields = ['id', ('ref', Base, None, False), ('rlink', Base, None, (False, True), False, True),
+    __fields = ['id',
+                ('ref', Base, None, False),
+                ('rlink', Base, None, (False, True), False, True),
                 'ptr_proto', ('users', set)]
 
     def __init__(self, **kwargs):
@@ -164,6 +171,9 @@ class BaseRef(Path):
             self.refs.clear()
             self.refs.add(self.ref)
             self.ref.backrefs.add(self)
+
+    def is_terminal(self):
+        return True
 
 
 class AtomicRef(BaseRef):
@@ -227,7 +237,7 @@ class LinkPropRefExpr(LinkPropRef, BaseRefExpr):
 class EntityLink(Base):
     __fields = ['propfilter', 'source', 'target', 'link_proto', ('proprefs', set),
                 ('metarefs', set), ('users', set), 'anchor', 'show_as_anchor',
-                'direction', 'pathspec_trigger']
+                'pathvar', 'direction', 'pathspec_trigger']
 
     def replace_refs(self, old, new, deep=False, _memo=None):
         # Since EntityLink can be a member of PathCombination set
@@ -282,8 +292,7 @@ class AtomicRefSet(typed.TypedSet, type=AtomicRef):
 
 
 class EntitySet(Path):
-    __fields = ['id', 'anchor', 'show_as_anchor',
-                ('concept', caos_types.ProtoNode), 'atom',
+    __fields = ['id', ('concept', caos_types.ProtoNode), 'atom',
                 'filter',
                 ('conjunction', Conjunction),
                 ('disjunction', Disjunction),
@@ -297,6 +306,11 @@ class EntitySet(Path):
 
         if name == 'rlink' and value is not None:
             value.backrefs.add(self)
+
+    def is_terminal(self):
+        return ((self.conjunction is None or not self.conjunction.paths)
+                and (self.disjunction is None or not self.disjunction.paths)
+                and not self.atomrefs)
 
 
 class PtrPathSpec(Base):
@@ -337,25 +351,27 @@ class Constant(Base):
                 raise ASTError(('unexpected constant type representation, '
                                 'expected ProtoObject, got "%r"') % (type,))
 
+class Expr(Base):
+    pass
 
-class Sequence(Base): __fields = [('elements', list), ('is_array', bool)]
+class Sequence(Expr): __fields = [('elements', list), ('is_array', bool)]
 
-class Record(Base):
+class Record(Expr):
     __fields = [('elements', list), 'concept', ('rlink', EntityLink, None, False),
                 ('linkprop_xvalue', bool)]
 
-class BinOp(Base):
+class BinOp(Expr):
     __fields = ['left', 'right', 'op', ('aggregates', bool), ('strong', bool)]
 
-class UnaryOp(Base):
+class UnaryOp(Expr):
     __fields = ['expr', 'op', ('aggregates', bool)]
 
-class NoneTest(Base):
+class NoneTest(Expr):
     __fields = ['expr']
 
 class InlineFilter(Base): __fields  = ['expr', 'ref']
 class InlinePropFilter(Base): __fields  = ['expr', 'ref']
-class ExistPred(Base): __fields = ['expr', 'outer']
+class ExistPred(Expr): __fields = ['expr', 'outer']
 class AtomicExistPred(ExistPred): pass
 
 class SearchVector(Base):
@@ -408,7 +424,7 @@ class SortExpr(Base):
 
 class SelectorExpr(Base): __fields = ['expr', 'name', 'autoname']
 class UpdateExpr(Base): __fields = ['expr', 'value']
-class FunctionCall(Base):
+class FunctionCall(Expr):
     __fields = ['name',
                 'result_type',
                 ('args', list),
@@ -435,7 +451,7 @@ class FunctionCall(Base):
         self.refs.update(args)
 
 
-class TypeCast(Base):
+class TypeCast(Expr):
     __fields = ['expr', 'type']
 
 class CaosOperator(ast.ops.Operator):
@@ -450,5 +466,8 @@ SEARCHEX = TextSearchOperator('@@!')
 class CaosComparisonOperator(CaosOperator, ast.ops.ComparisonOperator):
     pass
 
-LIKE = CaosComparisonOperator('like')
-ILIKE = CaosComparisonOperator('ilike')
+class CaosMatchOperator(CaosComparisonOperator):
+    pass
+
+LIKE = CaosMatchOperator('like')
+ILIKE = CaosMatchOperator('ilike')

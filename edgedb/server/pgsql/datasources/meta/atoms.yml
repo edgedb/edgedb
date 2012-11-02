@@ -20,7 +20,6 @@ source: |
             c.name AS name,
             c.title AS title,
             c.description AS description,
-            c.automatic AS automatic,
             c.is_abstract AS is_abstract,
             c.is_final AS is_final,
             c.base AS base,

@@ -71,6 +71,7 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_UnaryOpNode(self, node):
         self.write(node.op)
+        self.write(' ')
         self.visit(node.operand)
 
     def visit_BinOpNode(self, node):
@@ -152,12 +153,18 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_ConstantNode(self, node):
         if node.value is not None:
-            if isinstance(node.value, str):
-                self.write(caosql_quote.quote_literal(node.value))
-            elif isinstance(node.value, AST):
-                self.visit(node.value)
+            try:
+                caosql_repr = node.value.__mm_caosql__
+            except AttributeError:
+                if isinstance(node.value, str):
+                    self.write(caosql_quote.quote_literal(node.value))
+                elif isinstance(node.value, AST):
+                    self.visit(node.value)
+                else:
+                    self.write(str(node.value))
             else:
-                self.write("%s" % node.value)
+                self.write(caosql_repr())
+
         elif node.index is not None:
             self.write('$')
             if '.' in node.index:

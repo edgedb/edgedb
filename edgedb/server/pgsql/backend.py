@@ -301,7 +301,8 @@ class CaosQLAdapter:
             query.limit = None
 
         qchunks, argmap, arg_index, query_type, record_info = \
-                                        self.transformer.transform(query, self.session,
+                                        self.transformer.transform(query, self.session.backend,
+                                                                   self.session.proto_schema,
                                                                    output_format=output_format)
 
         if scrolling_cursor:
@@ -345,8 +346,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     typlen_re = re.compile(r"(?P<type>.*) \( (?P<length>\d+ (?:\s*,\s*(\d+))*) \)$",
                            re.X)
 
-    constraint_type_re = re.compile(r"^(?P<type>[.\w-]+)(?:_\d+)?$", re.X)
-
     search_idx_name_re = re.compile(r"""
         .*_(?P<language>\w+)_(?P<index_class>\w+)_search_idx$
     """, re.X)
@@ -355,8 +354,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         postgresql.exceptions.ICVError: collections.OrderedDict((
             ('link_mapping',
              re.compile(r'^.*"(?P<constr_name>.*_link_mapping_idx)".*$')),
-            ('ptr_constraint',
-             re.compile(r'^.*"(?P<constr_name>.*::ptr_constr)".*$')),
+            ('constraint',
+             re.compile(r'^.*"(?P<constr_name>.*;schemaconstr(?:#\d+)?).*"$')),
             ('id',
              re.compile(r'^.*"(?P<constr_name>\w+)_data_pkey".*$')),
         ))
@@ -522,11 +521,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             domain_name = common.atom_name_to_domain_name(name, catenate=False)
 
             domain = domains.get(domain_name)
-            if not domain:
-                # That's fine, automatic atoms are not represented by domains, skip them,
-                # they'll be handled by read_links()
-                continue
-
             domain_to_atom_map[domain_name] = name
 
         return domain_to_atom_map
@@ -575,6 +569,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 self.read_computables(self.meta)
                 self.read_pointer_cascade_policies(self.meta)
                 self.read_attribute_values(self.meta)
+                self.read_constraints(self.meta)
 
                 self.order_attributes(self.meta)
                 self.order_pointer_cascade_actions(self.meta)
@@ -612,7 +607,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     @debug
-    def apply_delta(self, delta, session):
+    def apply_delta(self, delta, session, source_deltarepo):
         if isinstance(delta, base_delta.DeltaSet):
             deltas = list(delta)
         else:
@@ -665,29 +660,33 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 # Run postprocess pass
                 delta.call_hook(session, stage='postprocess', hook='main')
 
+                self.invalidate_meta_cache()
+
+                try:
+                    introspected_schema = self.getmeta()
+                except caos.MetaError as e:
+                    msg = 'failed to verify metadata after applying delta {:032x} to data backend'
+                    msg = msg.format(d.id)
+                    self._raise_delta_error(msg, d, plan, e)
+
+                introspected_checksum = introspected_schema.get_checksum()
+
+                if introspected_checksum != d.checksum:
+                    details = ('Schema checksum verification failed (expected "%x", got "%x") when '
+                               'applying delta "%x".' % (d.checksum, introspected_checksum, d.id))
+                    hint = 'This usually indicates a bug in backend delta adapter.'
+
+                    expected_schema = source_deltarepo.get_meta(d)
+
+                    raise base_delta.DeltaChecksumError('failed to apply schema delta'
+                                                        'checksums do not match',
+                                                        details=details, hint=hint,
+                                                        schema1=expected_schema,
+                                                        schema2=introspected_schema,
+                                                        schema1_title='Expected Schema',
+                                                        schema2_title='Schema in Backend')
+
             self._update_repo(session, deltas)
-
-            self.invalidate_meta_cache()
-
-            try:
-                introspected_schema = self.getmeta()
-            except caos.MetaError as e:
-                msg = 'failed to verify metadata after applying delta {:032x} to data backend'
-                msg = msg.format(d.id)
-                self._raise_delta_error(msg, d, plan, e)
-
-            if introspected_schema.get_checksum() != d.checksum:
-                details = ('Schema checksum verification failed (expected "%x", got "%x") when '
-                           'applying delta "%x".' % (d.checksum, introspected_schema.get_checksum(),
-                                                     deltas[-1].id))
-                hint = 'This usually indicates a bug in backend delta adapter.'
-                raise base_delta.DeltaChecksumError('failed to apply schema delta'
-                                                    'checksums do not match',
-                                                    details=details, hint=hint,
-                                                    schema1=proto_schema,
-                                                    schema2=introspected_schema,
-                                                    schema1_title='Expected Schema',
-                                                    schema2_title='Schema in Backend')
 
             self.connection = old_conn
 
@@ -894,7 +893,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 '''.format(targets=', '.join(targets), table=table,
                            source_col=common.quote_ident(source_col))
 
-        if ptr_stor_info.table_type[0] == 'pointer':
+        if ptr_stor_info.table_type == 'link':
             query += ' AND l.{target_col} IS NOT DISTINCT FROM $3'.format(
                         target_col=common.quote_ident(ptr_stor_info.column_name)
                      )
@@ -906,7 +905,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         args = [source.id, link_id]
 
-        if ptr_stor_info.table_type[0] == 'pointer':
+        if ptr_stor_info.table_type == 'link':
             if isinstance(target.__class__, caos.types.AtomClass):
                 target_value = target
             else:
@@ -930,9 +929,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             return {}
 
 
-    def _interpret_db_error(self, connection, err, source, pointer=None):
+    def _interpret_db_error(self, proto_schema, connection, err, source,
+                                                                 pointer=None):
         if isinstance(err, postgresql.exceptions.ICVError):
-            eres = self.error_res[postgresql.exceptions.ICVError]
+
+            for ecls, eres in self.error_res.items():
+                if isinstance(err, ecls):
+                    break
+            else:
+                eres = {}
 
             error_info = None
 
@@ -951,29 +956,23 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 errcls = caos.error.LinkMappingCardinalityViolationError
                 return errcls(err, source=source, pointer=pointer)
 
-            elif error_type == 'ptr_constraint':
-                constraint = self._constr_mech.constraint_from_pg_name(connection, error_data)
-                if constraint is None:
+            elif error_type == 'constraint':
+                constraint_name = self._constr_mech.constraint_name_from_pg_name(
+                                            connection, error_data)
+                if constraint_name is None:
                     return caos.error.UninterpretedStorageError(err.message)
 
-                constraint, pointer_name, source_table = constraint
+                constraint = proto_schema.get_class(constraint_name)
+                # Unfortunately, Postgres does not include the offending value in
+                # exceptions consistently.
+                offending_value = None
 
-                msg = 'unique link constraint violation'
+                if pointer is not None:
+                    error_source = pointer
+                else:
+                    error_source = source
 
-                src_table = common.get_table_name(caos.types.prototype(source.__class__),
-                                                  catenate=False)
-                if source_table == src_table:
-                    pointer = getattr(source.__class__, str(pointer_name)).as_link()
-                elif pointer:
-                    src_table = common.get_table_name(caos.types.prototype(pointer), catenate=False)
-                    if source_table == src_table:
-                        source = caos.concept.getlink(source,
-                                                      caos.types.prototype(pointer).normal_name(),
-                                                      None)
-                        pointer = getattr(pointer, str(pointer_name))
-
-                errcls = caos.error.PointerConstraintUniqueViolationError
-                return errcls(msg=msg, source=source, pointer=pointer, constraint=constraint)
+                constraint.raise_error(offending_value, source=error_source)
 
             elif error_type == 'id':
                 msg = 'unique link constraint violation'
@@ -1050,7 +1049,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             try:
                 rows = cmd.execute(context)
             except postgresql.exceptions.Error as e:
-                raise self._interpret_db_error(connection, e, entity) from e
+                raise self._interpret_db_error(session.proto_schema, connection, e, entity) from e
 
             id = list(rows)
             if not id:
@@ -1147,14 +1146,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return self.concept_cache
 
 
-    def get_concept_id(self, concept, session, cache='auto'):
+    def get_concept_id(self, concept):
         concept_id = None
 
-        if cache != 'always':
-            concept_cache = self.get_concept_map(session)
-        else:
-            concept_cache = self.concept_cache
-
+        concept_cache = self.concept_cache
         if concept_cache:
             concept_id = concept_cache.get(concept.name)
 
@@ -1198,7 +1193,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         context = delta_cmds.CommandContext(session.get_connection(), session)
 
         target_is_concept = not link_proto.atomic()
-        target_in_table = target_ptr_stor_info.table_type[0] == 'pointer'
+        target_in_table = target_ptr_stor_info.table_type == 'link'
 
         idcol = 'metamagic.caos.builtins.linkid'
         returning = ['"' + idcol + '"']
@@ -1243,14 +1238,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             linkid = getattr(link_obj, idcol)
             if linkid is None:
                 linkid = uuid.uuid1()
-                link_obj._instancedata.setattr(link_obj, idcol, linkid, register_changes=False,
+                link_obj._instancedata.setattr(link_obj, idcol, linkid,
+                                               register_changes=False,
                                                allow_ro=True)
 
             setattr(rec, idcol, linkid)
 
             if linkid and merge:
                 condition = [(idcol, getattr(rec, idcol))]
-                cmds.append(dbops.Merge(table, rec, condition=condition, returning=returning))
+                cmds.append(dbops.Merge(table, rec, condition=condition,
+                                                    returning=returning))
             else:
                 records.append(rec)
 
@@ -1262,7 +1259,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 for cmd in cmds:
                     cmd.execute(context)
             except postgresql.exceptions.ICVError as e:
-                raise self._interpret_db_error(session.get_connection(), e, source, link_cls) from e
+                raise self._interpret_db_error(session.proto_schema,
+                                               session.get_connection(),
+                                               e, source, link_cls) from e
 
 
     @debug
@@ -1417,7 +1416,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         atom_list = datasources.meta.atoms.AtomList(self.connection).fetch()
 
         basemap = {}
-        constrmap = {}
 
         for row in atom_list:
             name = caos.Name(row['name'])
@@ -1425,11 +1423,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             atom_data = {'name': name,
                          'title': self.hstore_to_word_combination(row['title']),
                          'description': row['description'],
-                         'automatic': row['automatic'],
                          'is_abstract': row['is_abstract'],
                          'is_final': row['is_final'],
                          'base': row['base'],
-                         'constraints': self._constr_mech.unpack_constraints(meta, row['constraints']),
                          'default': row['default'],
                          'attributes': row['attributes'] or {}
                          }
@@ -1439,27 +1435,22 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             domain_name = common.atom_name_to_domain_name(name, catenate=False)
             domain = domains.get(domain_name)
 
-            if not domain:
-                # That's fine, automatic atoms are not represented by domains, skip them,
-                # they'll be handled by read_links()
-                continue
-
             if atom_data['default']:
                 atom_data['default'] = self.unpack_default(row['default'])
 
             basemap[name] = atom_data['base']
-            constrmap[name] = (domain['constraints'], row['constraints'])
 
-            atom = proto.Atom(name=name, default=atom_data['default'],
-                              title=atom_data['title'], description=atom_data['description'],
-                              automatic=atom_data['automatic'],
+            atom = proto.Atom(name=name,
+                              default=atom_data['default'],
+                              title=atom_data['title'],
+                              description=atom_data['description'],
                               is_abstract=atom_data['is_abstract'],
                               is_final=atom_data['is_final'],
                               attributes=atom_data['attributes'])
 
             meta.add(atom)
 
-        for atom in meta('atom', include_automatic=True):
+        for atom in meta('atom'):
             try:
                 basename = basemap[atom.name]
             except KeyError:
@@ -1472,29 +1463,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                 atom.bases = [base]
 
-        for atom in meta('atom', include_automatic=True):
-            # Copy constraints from parent (row['constraints'] does not contain any inherited constraints)
-            atom.acquire_parent_data(meta)
-
-            try:
-                domain_constraints, local_constraints = constrmap[atom.name]
-            except KeyError:
-                pass
-            else:
-                if domain_constraints:
-                    constraints = atom.normalize_constraints(meta, domain_constraints)
-                    for constraint in constraints:
-                        atom.add_constraint(constraint)
-
-                if local_constraints:
-                    constraints = []
-                    for cls, val in local_constraints.items():
-                        constraints.append(get_object(cls)(next(iter(yaml.Language.load(val)))))
-
-                    constraints = atom.normalize_constraints(meta, constraints)
-                    for constraint in constraints:
-                        atom.add_constraint(constraint)
-
+        for atom in meta('atom'):
             if atom.issubclass(caos_objects.sequence.Sequence):
                 seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
                 if seq_name not in seqs:
@@ -1512,8 +1481,97 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def order_atoms(self, meta):
-        for atom in meta(type='atom', include_automatic=True):
+        for atom in meta(type='atom'):
             atom.acquire_parent_data(meta)
+
+
+    def read_constraints(self, meta):
+        constraints_list = datasources.meta.constraints.Constraints(self.connection).fetch()
+        constraints_list = collections.OrderedDict((caos.Name(r['name']), r)
+                                                    for r in constraints_list)
+
+        basemap = {}
+
+        for name, r in constraints_list.items():
+            bases = tuple()
+
+            if r['subject']:
+                bases = (proto.Constraint.normalize_name(name),)
+            elif r['base']:
+                bases = tuple(caos.Name(b) for b in r['base'])
+            elif name != 'metamagic.caos.builtins.constraint':
+                bases = (caos.Name('metamagic.caos.builtins.constraint'),)
+
+            title = self.hstore_to_word_combination(r['title'])
+            description = r['description']
+            subject = meta.get(r['subject']) if r['subject'] else None
+
+            basemap[name] = bases
+
+            if r['paramtypes']:
+                paramtypes = {n: self.unpack_typeref(v, meta) for n, v in r['paramtypes'].items()}
+            else:
+                paramtypes = None
+
+            if r['inferredparamtypes']:
+                inferredparamtypes = {n: self.unpack_typeref(v, meta)
+                                      for n, v in r['inferredparamtypes'].items()}
+            else:
+                inferredparamtypes = None
+
+            if r['args']:
+                args = pickle.loads(r['args'])
+            else:
+                args = None
+
+            constraint = proto.Constraint(name=name, subject=subject,
+                                          title=title, description=description,
+                                          is_abstract=r['is_abstract'],
+                                          is_final=r['is_final'],
+                                          expr=r['expr'],
+                                          subjectexpr=r['subjectexpr'],
+                                          localfinalexpr=r['localfinalexpr'],
+                                          finalexpr=r['finalexpr'],
+                                          errmessage=r['errmessage'],
+                                          paramtypes=paramtypes,
+                                          inferredparamtypes=inferredparamtypes,
+                                          args=args)
+
+            if subject:
+                subject.add_constraint(constraint, meta)
+
+            meta.add(constraint)
+
+        for constraint in meta(type='constraint'):
+            try:
+                bases = basemap[constraint.name]
+            except KeyError:
+                pass
+            else:
+                constraint.bases = [meta.get(b) for b in bases]
+
+        for constraint in meta(type='constraint'):
+            constraint.acquire_ancestor_inheritance(meta)
+
+
+    def order_constraints(self, meta):
+        pass
+
+
+    def unpack_typeref(self, typeref, protoschema):
+        try:
+            collection_type, type = proto.TypeRef.parse(typeref)
+        except ValueError as e:
+            raise caos.MetaError(e.args[0]) from None
+
+        if type is not None:
+            type = protoschema.get(type)
+
+        if collection_type is not None:
+            type = collection_type(element_type=type)
+
+        return type
+
 
     def unpack_default(self, value):
         value = next(iter(yaml.Language.load(value)))
@@ -1619,7 +1677,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         ptr_stor_info = types.get_pointer_storage_info(meta, pointer, resolve_type=False)
         cols = self._type_mech.get_table_columns(ptr_stor_info.table_name,
                                                  connection=self.connection)
-        constraints = constraints_cache.get(ptr_stor_info.table_name)
 
         col = cols.get(ptr_stor_info.column_name)
 
@@ -1629,11 +1686,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                        'is missing' % (pointer.normal_name(), pointer.source.name))
             raise caos.MetaError(msg, details=details)
 
-        return self._get_pointer_column_target(meta, pointer.source, pointer.normal_name(),
-                                               col, constraints)
+        return self._get_pointer_column_target(meta, pointer.source, pointer.normal_name(), col)
 
 
-    def _get_pointer_column_target(self, meta, source, pointer_name, col, constraints):
+    def _get_pointer_column_target(self, meta, source, pointer_name, col):
         derived_atom_name = proto.Atom.gen_atom_name(source, pointer_name)
         if col['column_type_schema'] == 'pg_catalog':
             col_type_schema = common.caos_module_name_to_schema_name('metamagic.caos.builtins')
@@ -1642,15 +1698,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             col_type_schema = col['column_type_schema']
             col_type = col['column_type_formatted'] or col['column_type']
 
-        constraints = constraints.get(pointer_name) if constraints else None
-
         if col['column_default'] is not None:
             atom_default = self.interpret_constant(col['column_default'])
         else:
             atom_default = None
 
         target = self.atom_from_pg_type(col_type, col_type_schema,
-                                        constraints, atom_default, meta,
+                                        atom_default, meta,
                                         caos.Name(name=derived_atom_name,
                                                   module=source.name.module))
 
@@ -1677,7 +1731,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             target = meta.get(source_name)
         else:
             target = self.atom_from_pg_type(col_type, col_type_schema,
-                                            (), atom_default, meta,
+                                            atom_default, meta,
                                             caos.Name(name=derived_atom_name,
                                                       module=source.name.module))
 
@@ -1733,9 +1787,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         links_list = datasources.meta.links.ConceptLinks(self.connection).fetch()
         links_list = collections.OrderedDict((caos.Name(r['name']), r) for r in links_list)
 
-        atom_constraints = self._constr_mech.get_table_atom_constraints(self.connection)
-        ptr_constraints = self._constr_mech.get_table_ptr_constraints(self.connection)
-
         concept_indexes = self.read_search_indexes()
         basemap = {}
 
@@ -1753,8 +1804,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             description = r['description']
             source = meta.get(r['source']) if r['source'] else None
             link_search = None
-            constraints = self._constr_mech.unpack_constraints(meta, r['constraints'])
-            abstract_constraints = self._constr_mech.unpack_constraints(meta, r['abstract_constraints'])
 
             if r['default']:
                 r['default'] = self.unpack_default(r['default'])
@@ -1781,7 +1830,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                               default=r['default'])
 
             if r['source_id'] and r['is_atom']:
-                target, required = self.read_pointer_target_column(meta, link, atom_constraints)
+                target, required = self.read_pointer_target_column(meta, link, None)
 
                 concept_schema, concept_table = common.concept_name_to_table_name(source.name,
                                                                                   catenate=False)
@@ -1793,12 +1842,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     if col_search_index:
                         weight = col_search_index[('default', 'english')]
                         link_search = proto.LinkSearchConfiguration(weight=weight)
-
-                constr = ptr_constraints.get((concept_schema, concept_table))
-                if constr:
-                    link_constr = constr.get(bases[0])
-                    if link_constr:
-                        constraints.extend(link_constr)
             else:
                 target = meta.get(r['target']) if r['target'] else None
 
@@ -1810,18 +1853,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if link_search:
                 link.search = link_search
 
-            for constraint in constraints:
-                link.add_constraint(constraint)
-
-            for constraint in abstract_constraints:
-                link.add_abstract_constraint(constraint)
-
             if source:
                 source.add_pointer(link)
 
             meta.add(link)
 
-        for link in meta(type='link', include_automatic=True):
+        for link in meta(type='link'):
             try:
                 bases = basemap[link.name]
             except KeyError:
@@ -1829,7 +1866,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             else:
                 link.bases = [meta.get(b) for b in bases]
 
-        for link in meta(type='link', include_automatic=True):
+        for link in meta(type='link'):
             link.acquire_parent_data(meta)
 
 
@@ -1841,16 +1878,17 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         g = {}
 
-        for link in meta(type='link', include_automatic=True):
+        for link in meta(type='link'):
             g[link.name] = {"item": link, "merge": [], "deps": []}
             if link.bases:
                 g[link.name]['merge'].extend(b.name for b in link.bases)
 
         topological.normalize(g, merger=proto.Link.merge, context=meta)
 
-        for link in meta(type='link', include_automatic=True):
+        for link in meta(type='link'):
             link.materialize(meta)
 
+        for link in meta(type='link'):
             if link.generic():
                 table_name = common.get_table_name(link, catenate=False)
                 tabidx = indexes.get(table_name)
@@ -1872,8 +1910,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def read_link_properties(self, meta):
         link_props = datasources.meta.links.LinkProperties(self.connection).fetch()
         link_props = collections.OrderedDict((caos.Name(r['name']), r) for r in link_props)
-        atom_constraints = self._constr_mech.get_table_atom_constraints(self.connection)
-        ptr_constraints = self._constr_mech.get_table_ptr_constraints(self.connection)
         basemap = {}
 
         for name, r in link_props.items():
@@ -1891,9 +1927,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             source = meta.get(r['source']) if r['source'] else None
 
             default = self.unpack_default(r['default']) if r['default'] else None
-
-            constraints = []
-            abstract_constraints = []
 
             required = r['required']
             target = None
@@ -1914,17 +1947,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                            'metamagic.caos.builtins.source'}:
                 # The property is attached to a link, check out link table columns for
                 # target information.
-                target, required = self.read_pointer_target_column(meta, prop, atom_constraints)
-
-                constraints = self._constr_mech.unpack_constraints(meta, r['constraints'])
-                abstract_constraints = self._constr_mech.unpack_constraints(meta, r['abstract_constraints'])
-
-                link_table = common.get_table_name(source, catenate=False)
-                constr = ptr_constraints.get(link_table)
-                if constr:
-                    ptr_constr = constr.get(bases[0])
-                    if ptr_constr:
-                        constraints.extend(ptr_constr)
+                target, required = self.read_pointer_target_column(meta, prop, None)
             else:
                 if bases:
                     if bases[0] == 'metamagic.caos.builtins.target' and source is not None:
@@ -1935,19 +1958,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             prop.target = target
 
             if source:
-                if source.generic():
-                    for constraint in constraints:
-                        prop.add_constraint(constraint)
-
-                    for constraint in abstract_constraints:
-                        prop.add_abstract_constraint(constraint)
-
                 prop.acquire_parent_data(meta)
                 source.add_pointer(prop)
 
             meta.add(prop)
 
-        for prop in meta('link_property', include_automatic=True):
+        for prop in meta('link_property'):
             try:
                 bases = basemap[prop.name]
             except KeyError:
@@ -1959,14 +1975,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def order_link_properties(self, meta):
         g = {}
 
-        for prop in meta(type='link_property', include_automatic=True):
+        for prop in meta(type='link_property'):
             g[prop.name] = {"item": prop, "merge": [], "deps": []}
             if prop.bases:
                 g[prop.name]['merge'].extend(b.name for b in prop.bases)
 
         topological.normalize(g, merger=proto.LinkProperty.merge, context=meta)
 
-        for prop in meta(type='link_property', include_automatic=True):
+        for prop in meta(type='link_property'):
             if not prop.generic() and prop.source.generic():
                 source_table_name = common.get_table_name(prop.source, catenate=False)
                 cols = self._type_mech.get_table_columns(source_table_name,
@@ -2123,8 +2139,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                        'is_abstract': row['is_abstract'],
                        'is_final': row['is_final'],
                        'is_virtual': row['is_virtual'],
-                       'custombases': row['custombases'],
-                       'automatic': row['automatic']}
+                       'custombases': row['custombases']}
 
             table_name = common.concept_name_to_table_name(name, catenate=False)
             table = tables.get(table_name)
@@ -2135,9 +2150,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 raise caos.MetaError(msg, details=details)
 
             visited_tables.add(table_name)
-
-            if concept['automatic']:
-                continue
 
             if not concept['is_virtual']:
                 bases = self.pg_table_inheritance_to_bases(table['name'], table['schema'],
@@ -2179,14 +2191,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         reverse_caosql_transformer = caosql_transformer.CaosqlReverseTransformer()
 
         g = {}
-        for concept in meta(type='concept', include_automatic=True):
+        for concept in meta(type='concept'):
             g[concept.name] = {"item": concept, "merge": [], "deps": []}
             if concept.bases:
                 g[concept.name]["merge"].extend(b.name for b in concept.bases)
 
         topological.normalize(g, merger=proto.Concept.merge, context=meta)
 
-        for concept in meta(type='concept', include_automatic=True):
+        for concept in meta(type='concept'):
             concept.materialize(meta)
 
             table_name = common.get_table_name(concept, catenate=False)
@@ -2201,30 +2213,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def normalize_domain_descr(self, d):
-        constraints = []
-
-        if d['constraint_names'] is not None:
-            for constr_name, constr_expr in zip(d['constraint_names'], d['constraints']):
-                m = self.constraint_type_re.match(constr_name)
-                if m:
-                    constr_type = m.group('type')
-                else:
-                    raise caos.MetaError('could not parse domain constraint "%s": %s' %
-                                         (constr_name, constr_expr))
-
-                constr_type = get_object(constr_type)
-                constr_data = self._constr_mech.interpret_atom_constraint(constr_type, constr_expr,
-                                                                          constr_name)
-                constraints.append(constr_type(constr_data))
-
-            d['constraints'] = constraints
-
         if d['basetype'] is not None:
             typname, typmods = self.parse_pg_type(d['basetype_full'])
             result = self.pg_type_to_atom_name_and_constraints(typname, typmods)
             if result:
                 base, constr = result
-                constraints.extend(constr)
 
         if d['default'] is not None:
             d['default'] = self.interpret_constant(d['default'])
@@ -2282,8 +2275,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         for table in self.pg_table_inheritance(table_name, schema_name):
             base = table_to_concept_map[table[:2]]
-            if not base['automatic']:
-                bases.append(base['name'])
+            bases.append(base['name'])
 
         return tuple(bases)
 
@@ -2306,7 +2298,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return None
 
 
-    def atom_from_pg_type(self, type_expr, atom_schema, atom_constraints, atom_default, meta, derived_name):
+    def atom_from_pg_type(self, type_expr, atom_schema, atom_default, meta, derived_name):
 
         typname, typmods = self.parse_pg_type(type_expr)
         if isinstance(typname, tuple):
@@ -2325,38 +2317,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         if not atom:
             atom = meta.get(derived_name, None)
 
-        if not atom or atom_constraints:
+        if not atom:
 
             typeconv = self.pg_type_to_atom_name_and_constraints(typname, typmods)
             if typeconv:
-                name, constraints = typeconv
+                name, _ = typeconv
                 atom = meta.get(name)
-
-                constraints = set(constraints)
-                if atom_constraints:
-                    constraints.update(atom_constraints)
-
                 atom.acquire_parent_data(meta)
-            else:
-                constraints = set(atom_constraints) if atom_constraints else {}
-
-            if atom_constraints:
-                if atom_default is not None:
-                    base = meta.get(atom.name)
-                    typ = base.get_topmost_base(meta)
-                    atom_default = [proto.LiteralDefaultSpec(value=typ(atom_default))]
-
-                atom = proto.Atom(name=derived_name, bases=[atom], default=atom_default,
-                                  automatic=True)
-
-                constraints = atom.normalize_constraints(meta, constraints)
-
-                for constraint in constraints:
-                    atom.add_constraint(constraint)
-
-                atom.acquire_parent_data(meta)
-
-                meta.add(atom)
 
         assert atom
         return atom

@@ -7,11 +7,11 @@
 
 
 import collections
+import itertools
 import numbers
 
 from metamagic.caos import types as caos_types
 from metamagic.caos.tree.transformer import TreeTransformer
-from metamagic.caos.expr.record import QuerySelectorRow
 from metamagic.caos.backends import query as backend_query
 
 from metamagic.utils import ast
@@ -20,8 +20,10 @@ from metamagic.utils.lang.python import ast as py_ast
 from metamagic.utils.lang.python import codegen as py_codegen
 
 from metamagic.utils import datastructures
+from metamagic.utils.algos.persistent_hash import persistent_hash
 
 from . import ast as caos_ast
+from metamagic.caos.caosql import ast as caosql_ast
 
 
 _operator_map = {
@@ -58,9 +60,27 @@ class PythonQuery(backend_query.Query):
         self.result_types = result_types
         self.argument_types = argument_types
         self.context_vars = context_vars
+        self.keymap = collections.OrderedDict(zip(self.result_types, itertools.count()))
 
     def prepare(self, session):
         return PreparedPythonQuery(self, session)
+
+
+class Row(tuple):
+    @classmethod
+    def from_sequence(cls, keymap, seq):
+        result = cls(seq)
+        result.keymap = keymap
+        return result
+
+    def keys(self):
+        return self.keymap.keys()
+
+    def values(self):
+        return iter(self)
+
+    def items(self):
+        return zip(self.keymap, self)
 
 
 class PreparedPythonQuery:
@@ -74,10 +94,11 @@ class PreparedPythonQuery:
         self.statement = compile(query.text, '<string>', 'eval')
 
     def first(self, **kwargs):
-        return eval(self.statement, self.globals, kwargs)[0][1]
+        return self.rows(**kwargs)[0][0]
 
     def rows(self, **kwargs):
-        return [QuerySelectorRow(eval(self.statement, self.globals, kwargs))]
+        row = eval(self.statement, self.globals, kwargs)
+        return (Row.from_sequence(seq=row, keymap=self.query.keymap),)
 
     def describe_output(self, session):
         return self.query.describe_output(session)
@@ -132,16 +153,14 @@ class CaosToPythonTransformerContext:
 
 class CaosToPythonTransformer(TreeTransformer):
     def transform(self, tree, proto_schema, context=None):
+        if tree.grouper or tree.sorter or tree.set_op:
+            raise NotImplementedError('unsupported query tree')
+
         context = CaosToPythonTransformerContext(proto_schema=proto_schema, context=context)
         result = py_ast.PyTuple()
         for i, selexpr in enumerate(tree.selector):
-            if selexpr.name:
-                name = py_ast.PyStr(s=selexpr.name)
-            else:
-                name = py_ast.PyStr(s=str(i))
-
             pyexpr = self._process_expr(selexpr.expr, context)
-            result.elts.append(py_ast.PyTuple(elts=[name, pyexpr]))
+            result.elts.append(pyexpr)
 
         return result
 
@@ -153,13 +172,24 @@ class CaosToPythonTransformer(TreeTransformer):
             if expr.op == caos_ast.LIKE:
                 f = caos_ast.FunctionCall(name=('str', 'like'), args=[expr.left, expr.right])
                 result = self._process_expr(f, context)
+
             elif expr.op == caos_ast.ILIKE:
                 f = caos_ast.FunctionCall(name=('str', 'ilike'), args=[expr.left, expr.right])
                 result = self._process_expr(f, context)
+
+            elif expr.op == caosql_ast.REMATCH:
+                f = caos_ast.FunctionCall(name=('re', 'match'), args=[expr.right, expr.left])
+                result = self._process_expr(f, context)
+
+            elif expr.op == caosql_ast.REIMATCH:
+                flags = caos_ast.Sequence(elements=[caos_ast.Constant(value='i')])
+                f = caos_ast.FunctionCall(name=('re', 'match'), args=[expr.right, expr.left, flags])
+                result = self._process_expr(f, context)
+
             else:
                 op = _operator_map[expr.op]()
 
-                if isinstance(expr.op, ast.ops.ComparisonOperator):
+                if isinstance(expr.op, (ast.ops.ComparisonOperator, ast.ops.MembershipOperator)):
                     result = py_ast.PyCompare(left=left, ops=[op], comparators=[right])
                 else:
                     result = py_ast.PyBinOp(left=left, right=right, op=op)
@@ -174,45 +204,57 @@ class CaosToPythonTransformer(TreeTransformer):
             result = self._process_expr(expr.expr, context)
 
         elif isinstance(expr, (caos_ast.AtomicRefSimple, caos_ast.LinkPropRefSimple)):
-            node = expr.ref
+            if expr.anchor:
+                result = py_ast.PyName(id=expr.anchor)
 
-            if expr.name == 'metamagic.caos.builtins.target':
-                path = [node.link_proto.normal_name()]
             else:
-                path = [expr.name]
+                node = expr.ref
 
-            source = node
-
-            if isinstance(expr, caos_ast.LinkPropRefSimple):
-                node = node.source
-
-            while node:
-                if node.rlink:
-                    path.append(node.rlink.link_proto.normal_name())
-                    node = node.rlink.source
+                if expr.name == 'metamagic.caos.builtins.target':
+                    path = [node.link_proto.normal_name()]
                 else:
-                    source = node
-                    node = None
+                    path = [expr.name]
 
-            if (isinstance(expr, caos_ast.LinkPropRefSimple)
-                        and expr.name != 'metamagic.caos.builtins.target'):
-                # XXX
-                source = expr.ref
+                source = node
 
-            assert source.anchor and source.anchor in context.name_context
+                if isinstance(expr, caos_ast.LinkPropRefSimple):
+                    node = node.source
 
-            result = py_ast.PyName(id='__context_%s' % source.anchor)
+                while node:
+                    if node.rlink:
+                        path.append(node.rlink.link_proto.normal_name())
+                        node = node.rlink.source
+                    else:
+                        source = node
+                        node = None
 
-            for attr in reversed(path):
-                result = py_ast.PyCall(func=py_ast.PyName(id='getattr'),
-                                       args=[result, py_ast.PyStr(s=str(attr))])
+                if (isinstance(expr, caos_ast.LinkPropRefSimple)
+                            and expr.name != 'metamagic.caos.builtins.target'):
+                    # XXX
+                    source = expr.ref
 
+                if not source.anchor:
+                    msg = 'reference to unachored node: {!r}'.format(source)
+                    raise NotImplementedError(msg)
+
+                result = py_ast.PyName(id='__context_%s' % source.anchor)
+
+                for attr in reversed(path):
+                    result = py_ast.PyCall(func=py_ast.PyName(id='getattr'),
+                                           args=[result, py_ast.PyStr(s=str(attr))])
+
+        elif isinstance(expr, caos_ast.EntitySet):
+            if expr.anchor:
+                name = expr.anchor
+            else:
+                name = 'n{:x}'.format(persistent_hash(str(expr.concept.name)))
+            result = py_ast.PyName(id=name)
 
         elif isinstance(expr, caos_ast.Disjunction):
             if len(expr.paths) == 1:
                 result = self._process_expr(next(iter(expr.paths)), context)
             else:
-                assert False, 'unsupported path combination: "%r"' % expr
+                raise NotImplementedError('multipaths are not supported by this backend')
 
         elif isinstance(expr, caos_ast.Constant):
             if expr.expr:
@@ -224,6 +266,10 @@ class CaosToPythonTransformer(TreeTransformer):
                     result = py_ast.PyNum(n=expr.value)
                 else:
                     result = py_ast.PyStr(s=expr.value)
+
+        elif isinstance(expr, caos_ast.Sequence):
+            elements = [self._process_expr(el, context) for el in expr.elements]
+            result = py_ast.PyTuple(elts=elements)
 
         elif isinstance(expr, caos_ast.FunctionCall):
             args = [self._process_expr(a, context) for a in expr.args]
@@ -237,7 +283,8 @@ class CaosToPythonTransformer(TreeTransformer):
             elif not isinstance(expr.name, tuple):
                 funcpath = [expr.name]
             else:
-                assert False, 'unsupported function: "%r"' % (expr.name,)
+                raise NotImplementedError('function {!r} is not implemented by this backend'
+                                            .format(expr.name))
 
             func = py_ast.PyName(id=funcpath[0])
             for step in funcpath[1:]:
@@ -246,24 +293,37 @@ class CaosToPythonTransformer(TreeTransformer):
 
         elif isinstance(expr, caos_ast.TypeCast):
             expr_type = self.get_expr_type(expr.expr, context.proto_schema)
-            result = self._cast(self._process_expr(expr.expr, context), expr_type, expr.type)
+            result = self._cast(context, self._process_expr(expr.expr, context),
+                                expr_type, expr.type)
 
         else:
-            assert False, "unexpected expression: %r" % expr
+            raise NotImplementedError('unsupported query tree node: {!r}'.format(expr))
 
         return result
 
-    def _cast(self, expr, from_type, to_type):
+    def _cast(self, context, expr, from_type, to_type):
         result = None
 
         if (isinstance(from_type, caos_types.ProtoNode)
-                    and from_type.name == "metamagic.caos.builtins.str"):
-            if to_type.name == "metamagic.caos.builtins.bytes":
-                result = py_ast.PyCall(func=py_ast.PyAttribute(value=expr, attr="encode"),
-                                       args=[py_ast.PyStr(s="utf8")])
-        elif (isinstance(to_type, caos_types.ProtoNode)
-                    and to_type.name == "metamagic.caos.builtins.str"):
-            result = py_ast.PyCall(func=py_ast.PyName(id="str"), args=[expr])
+                    and from_type.name == "metamagic.caos.builtins.str"
+                    and to_type.name == "metamagic.caos.builtins.bytes"):
+            result = py_ast.PyCall(func=py_ast.PyAttribute(value=expr, attr="encode"),
+                                   args=[py_ast.PyStr(s="utf8")])
+        elif isinstance(to_type, caos_types.ProtoNode):
+            top_type = to_type.get_topmost_base(context.proto_schema)
+            top_type_n = '{}.{}'.format(top_type.__module__, top_type.__name__)
+
+            type_path = top_type_n.split('.')
+
+            if (top_type_n.startswith('metamagic.caos.objects')
+                            or top_type_n.startswith('builtins.')):
+                type_path = type_path[1:]
+
+            type_ref = py_ast.PyName(id=type_path[0])
+            for step in type_path[1:]:
+                type_ref = py_ast.PyAttribute(value=type_ref, attr=step)
+
+            result = py_ast.PyCall(func=type_ref, args=[expr])
 
         if result is None:
             # XXX: this should really be an error

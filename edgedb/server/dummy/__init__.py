@@ -65,7 +65,7 @@ class Backend(MetaBackend, DataBackend):
         super().__init__(deltarepo())
         self.meta = ProtoSchema()
 
-    def apply_delta(self, delta, session):
+    def apply_delta(self, delta, session, source_deltarepo):
         if isinstance(delta, DeltaSet):
             deltas = list(delta)
         else:

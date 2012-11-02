@@ -303,9 +303,12 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 else:
                     alias = node.table.alias.alias
 
-                self.write(common.qname(alias, str(node.field)))
+                if isinstance(node.table, pgast.PseudoRelationNode):
+                    self.write(alias + "." + postgresql.string.quote_ident(str(node.field)))
+                else:
+                    self.write(common.qname(alias, str(node.field)))
             else:
-                self.write(common.quote_ident(str(node.field)))
+                self.write(postgresql.string.quote_ident_if_needed(str(node.field)))
 
     def visit_FromExprNode(self, node):
         self.visit(node.expr)

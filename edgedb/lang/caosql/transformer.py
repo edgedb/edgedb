@@ -25,6 +25,7 @@ class ParseContextLevel(object):
         if prevlevel is not None:
             if mode == ParseContext.SUBQUERY:
                 self.graph = None
+                self.pathvars = {}
                 self.anchors = {}
                 self.namespaces = prevlevel.namespaces.copy()
                 self.location = None
@@ -40,6 +41,7 @@ class ParseContextLevel(object):
                 self.cge_map = prevlevel.cge_map.copy()
             else:
                 self.graph = prevlevel.graph
+                self.pathvars = prevlevel.pathvars
                 self.anchors = prevlevel.anchors
                 self.namespaces = prevlevel.namespaces
                 self.location = prevlevel.location
@@ -55,6 +57,7 @@ class ParseContextLevel(object):
                 self.cge_map = prevlevel.cge_map
         else:
             self.graph = None
+            self.pathvars = {}
             self.anchors = {}
             self.namespaces = {}
             self.location = None
@@ -1035,24 +1038,25 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         return result
 
     def _process_path(self, context, path):
+        pathvars = context.current.pathvars
         anchors = context.current.anchors
         tips = {}
         typeref = None
 
         for i, node in enumerate(path.steps):
-            anchor = None
-            link_anchor = None
+            pathvar = None
+            link_pathvar = None
 
             if isinstance(node, (qlast.PathNode, qlast.PathStepNode)):
                 if isinstance(node, qlast.PathNode):
                     if len(node.steps) > 1:
                         raise errors.CaosQLError('unsupported subpath expression')
 
-                    anchor = node.var.name if node.var else None
-                    link_anchor = node.lvar.name if node.lvar else None
+                    pathvar = node.var.name if node.var else None
+                    link_pathvar = node.lvar.name if node.lvar else None
 
-                    if anchor in anchors:
-                        raise errors.CaosQLError('duplicate anchor: %s' % anchor)
+                    if pathvar in pathvars:
+                        raise errors.CaosQLError('duplicate path variable: %s' % pathvar)
 
                     tip = self._get_path_tip(node)
 
@@ -1064,9 +1068,13 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                             refnode = anchors[node.expr]
                         except KeyError:
                             try:
-                                refnode = anchors['{}.{}'.format(node.namespace, node.expr)]
+                                refnode = pathvars[node.expr]
                             except KeyError:
-                                pass
+                                try:
+                                    fq_name = '{}.{}'.format(node.namespace, node.expr)
+                                    refnode = pathvars[fq_name]
+                                except KeyError:
+                                    pass
 
                         if refnode:
                             if isinstance(refnode, tree.ast.Disjunction):
@@ -1114,15 +1122,15 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     step.concept = proto
                     tips = {step.concept: {step}}
                     step.id = tree.transformer.LinearPath([step.concept])
-                    step.anchor = anchor
+                    step.pathvar = pathvar
 
                     step.users.add(context.current.location)
                 else:
                     step = tree.ast.EntityLink(link_proto=proto)
                     tips = {None: {step}}
 
-                if anchor:
-                    anchors[anchor] = step
+                if pathvar:
+                    pathvars[pathvar] = step
 
             elif isinstance(tip, qlast.TypeRefNode):
                 typeref = self._process_path(context, tip.expr)
@@ -1231,7 +1239,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     link_proto = link_item
                     link_item = self.proto_schema.get(link_item.normal_name())
 
-                    anchor_links = []
+                    pathvar_links = []
 
                     if isinstance(target, caos_types.ProtoConcept):
                         if seen_atoms:
@@ -1250,13 +1258,13 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                             link = tree.ast.EntityLink(source=t, target=target_set,
                                                        direction=direction,
                                                        link_proto=link_proto,
-                                                       anchor=link_anchor,
+                                                       pathvar=link_pathvar,
                                                        users={context.current.location})
 
                             t.disjunction.update(link)
                             target_set.rlink = link
 
-                            anchor_links.append(link)
+                            pathvar_links.append(link)
 
                             if target in newtips:
                                 newtips[target].add(target_set)
@@ -1281,12 +1289,12 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                             link = tree.ast.EntityLink(source=t, target=target_set,
                                                        link_proto=link_proto,
                                                        direction=direction,
-                                                       anchor=link_anchor,
+                                                       pathvar=link_pathvar,
                                                        users={context.current.location})
 
                             target_set.rlink = link
 
-                            anchor_links.append(link)
+                            pathvar_links.append(link)
 
                             atomref_id = tree.transformer.LinearPath(t.id)
                             atomref_id.add(link_item, direction, target)
@@ -1317,15 +1325,15 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     raise errors.CaosQLReferenceError('could not resolve "{}"."{}" pointer'\
                                                       .format(source_name, ptr_fqname))
 
-                if anchor:
+                if pathvar:
                     paths = itertools.chain.from_iterable(newtips.values())
-                    anchors[anchor] = tree.ast.Disjunction(paths=frozenset(paths))
+                    pathvars[pathvar] = tree.ast.Disjunction(paths=frozenset(paths))
 
-                if link_anchor:
-                    if len(anchor_links) > 1:
-                        anchors[link_anchor] = tree.ast.Disjunction(paths=frozenset(anchor_links))
+                if link_pathvar:
+                    if len(pathvar_links) > 1:
+                        pathvars[link_pathvar] = tree.ast.Disjunction(paths=frozenset(pathvar_links))
                     else:
-                        anchors[link_anchor] = anchor_links[0]
+                        pathvars[link_pathvar] = pathvar_links[0]
 
                 tips = newtips
 
@@ -1383,6 +1391,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 # Dangling link reference, possibly from an anchor ref,
                 # complement it to target ref
                 link_proto = path.link_proto
+
                 pref_id = tree.transformer.LinearPath(path.source.id)
                 pref_id.add(link_proto, caos_types.OutboundDirection, link_proto.target)
                 ptr_proto = link_proto.pointers['metamagic.caos.builtins.target']
@@ -1391,7 +1400,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                                      ptr_proto=ptr_proto)
                 propref.anchor = path.anchor
                 propref.show_as_anchor = path.show_as_anchor
-                path.anchor = path.show_as_anchor = None
+                propref.pathvar = path.pathvar
 
                 path = propref
 

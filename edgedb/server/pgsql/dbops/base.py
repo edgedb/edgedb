@@ -27,6 +27,19 @@ class BaseCommand:
         code, vars = self.get_code_and_vars(context)
 
         if code:
+            extra = self.extra(context)
+            extra_before = extra_after = None
+
+            if isinstance(extra, dict):
+                extra_before = extra.get('before')
+                extra_after = extra.get('after')
+            else:
+                extra_after = extra
+
+            if extra_before:
+                for cmd in extra_before:
+                    cmd.execute(context)
+
             """LOG [caos.delta.execute] Sync command code:
             print(code, vars)
             """
@@ -35,9 +48,9 @@ class BaseCommand:
             repr(self)
             """
             result = context.db.prepare(code)(*vars)
-            extra = self.extra(context)
-            if extra:
-                for cmd in extra:
+
+            if extra_after:
+                for cmd in extra_after:
                     cmd.execute(context)
             return result
 
@@ -72,8 +85,26 @@ class Command(BaseCommand):
             result = self.execute_code(context, code, vars)
         return result
 
+    def get_extra_commands(self, context):
+        extra = self.extra(context)
+        extra_before = extra_after = None
+
+        if isinstance(extra, dict):
+            extra_before = extra.get('before')
+            extra_after = extra.get('after')
+        else:
+            extra_after = extra
+
+        return extra_before, extra_after
+
     @debug
     def execute_code(self, context, code, vars):
+        extra_before, extra_after = self.get_extra_commands(context)
+
+        if extra_before:
+            for cmd in extra_before:
+                cmd.execute(context)
+
         """LOG [caos.delta.execute] Sync command code:
         print(code, vars)
         """
@@ -82,19 +113,23 @@ class Command(BaseCommand):
         repr(self)
         """
 
-        if vars is not None:
-            result = context.db.prepare(code)(*vars)
-        else:
-            result = context.db.execute(code)
+        result = self._execute(context, code, vars)
 
         """LINE [caos.delta.execute] EXECUTION RESULT
         repr(result)
         """
 
-        extra = self.extra(context)
-        if extra:
-            for cmd in extra:
+        if extra_after:
+            for cmd in extra_after:
                 cmd.execute(context)
+
+        return result
+
+    def _execute(self, context, code, vars):
+        if vars is not None:
+            result = context.db.prepare(code)(*vars)
+        else:
+            result = context.db.execute(code)
 
         return result
 
@@ -103,13 +138,7 @@ class Command(BaseCommand):
         result = True
         if conditions:
             for condition in conditions:
-                code, vars = condition.get_code_and_vars(context)
-
-                """LOG [caos.delta.execute] Sync command condition:
-                print(code, vars)
-                """
-
-                result = context.db.prepare(code)(*vars)
+                result = condition.execute(context)
 
                 """LOG [caos.delta.execute] Sync command condition result:
                 print('actual:', bool(result), 'expected:', positive)
@@ -135,17 +164,11 @@ class CommandGroup(Command):
     def add_commands(self, cmds):
         self.commands.extend(cmds)
 
-    def execute(self, context):
-        result = None
-        ok = self.check_conditions(context, self.conditions, True) and \
-             self.check_conditions(context, self.neg_conditions, False)
-
-        if ok:
-            code, vars = self.get_code_and_vars(context)
-            if code:
-                result = self.execute_code(context, code, vars)
-            else:
-                result = self.execute_commands(context)
+    def _execute(self, context, code, vars):
+        if code:
+            result = super()._execute(context, code, vars)
+        else:
+            result = self.execute_commands(context)
 
         return result
 
@@ -210,19 +233,43 @@ class CompositeCommandGroup(CommandGroup):
         return None
 
     def extra(self, context):
-        extra = []
+        extra = {}
         for cmd in self.commands:
             if isinstance(cmd, tuple):
                 cmd = cmd[0]
             cmd_extra = cmd.extra(context, self)
             if cmd_extra:
-                extra.extend(cmd_extra)
+                if isinstance(cmd_extra, dict):
+                    extra_before = cmd_extra.get('before')
+                    extra_after = cmd_extra.get('after')
+                else:
+                    extra_before = []
+                    extra_after = cmd_extra
+
+                if extra_before:
+                    try:
+                        extra["before"].extend(extra_before)
+                    except KeyError:
+                        extra["before"] = extra_before
+
+                if extra_after:
+                    try:
+                        extra["after"].extend(extra_after)
+                    except KeyError:
+                        extra["after"] = extra_after
 
         return extra
 
 
 class Condition(BaseCommand):
-    pass
+    def execute(self, context):
+        code, vars = self.get_code_and_vars(context)
+
+        """LOG [caos.delta.execute] Sync command condition:
+        print(code, vars)
+        """
+
+        return context.db.prepare(code)(*vars)
 
 
 class Echo(Command):
@@ -237,11 +284,15 @@ class Echo(Command):
         print(self._msg)
 
 
-class Query:
+class Query(Command):
     def __init__(self, text, params=(), type=None):
+        super().__init__()
         self.text = text
         self.params = params
         self.type = type
+
+    def code(self, context):
+        return self.text, self.params
 
 
 class DefaultMeta(type):

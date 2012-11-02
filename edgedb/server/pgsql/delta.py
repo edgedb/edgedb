@@ -37,7 +37,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 21
+BACKEND_FORMAT_VERSION = 22
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -322,25 +322,133 @@ class DeleteAttributeValue(AttributeValueCommand,
     pass
 
 
-class CreateAtomConstraint(PrototypeMetaCommand, adapts=delta_cmds.CreateAtomConstraint):
-    def apply(self, meta, context=None):
-        result = delta_cmds.CreateAtomConstraint.apply(self, meta, context)
-        PrototypeMetaCommand.apply(self, meta, context)
-        return result
+class ConstraintCommand(metaclass=CommandMeta):
+    table = deltadbops.ConstraintTable()
+    op_priority = 3
+
+    def fill_record(self, schema, rec=None, obj=None):
+        rec, updates = super().fill_record(schema, rec=rec, obj=obj)
+
+        if rec:
+            subj = updates.get('subject')
+            if subj:
+                rec.subject = dbops.Query(
+                    '(SELECT id FROM caos.metaobject WHERE name = $1)',
+                    [subj[1]], type='integer')
+
+            for ptn in 'paramtypes', 'inferredparamtypes':
+                paramtypes = updates.get(ptn)
+                if paramtypes:
+                    pt = {}
+                    for k, v in paramtypes[1].items():
+                        if isinstance(v, proto.Set):
+                            if v.element_type:
+                                v = 'set<{}>'.format(v.element_type.prototype_name)
+                        elif isinstance(v, proto.PrototypeRef):
+                            v = v.prototype_name
+                        else:
+                            msg = 'unexpected type in constraint paramtypes: {}'.format(v)
+                            raise ValueError(msg)
+
+                        pt[k] = v
+
+                    setattr(rec, ptn, pt)
+
+            args = updates.get('args')
+            rec.args = pickle.dumps(args) if args and args[1] else None
+
+            # Write the original locally-defined expression
+            # so that when the schema is introspected the
+            # correct finalexpr is restored with prototype
+            # inheritance mechanisms.
+            rec.finalexpr = rec.localfinalexpr
+
+        return rec, updates
 
 
-class AlterAtomConstraint(PrototypeMetaCommand, adapts=delta_cmds.AlterAtomConstraint):
-    def apply(self, meta, context=None):
-        result = delta_cmds.AlterAtomConstraint.apply(self, meta, context)
-        PrototypeMetaCommand.apply(self, meta, context)
-        return result
+class CreateConstraint(ConstraintCommand, CreateNamedPrototype,
+                       adapts=delta_cmds.CreateConstraint):
+    def apply(self, protoschema, context):
+        constraint = super().apply(protoschema, context)
+
+        subject = constraint.subject
+
+        if subject is not None:
+            schemac_to_backendc = schemamech.ConstraintMech.schema_constraint_to_backend_constraint
+            bconstr = schemac_to_backendc(subject, constraint, protoschema)
+
+            op = dbops.CommandGroup(priority=1)
+            op.add_command(bconstr.create_ops())
+            self.pgops.add(op)
+
+        return constraint
 
 
-class DeleteAtomConstraint(PrototypeMetaCommand, adapts=delta_cmds.DeleteAtomConstraint):
-    def apply(self, meta, context=None):
-        result = delta_cmds.DeleteAtomConstraint.apply(self, meta, context)
-        PrototypeMetaCommand.apply(self, meta, context)
-        return result
+class RenameConstraint(ConstraintCommand, RenameNamedPrototype,
+                       adapts=delta_cmds.RenameConstraint):
+    def apply(self, protoschema, context):
+        constr_ctx = context.get(delta_cmds.ConstraintCommandContext)
+        assert constr_ctx
+        orig_constraint = constr_ctx.original_proto
+        schemac_to_backendc = schemamech.ConstraintMech.schema_constraint_to_backend_constraint
+        orig_bconstr = schemac_to_backendc(orig_constraint.subject,
+                                           orig_constraint, protoschema)
+
+        constraint = super().apply(protoschema, context)
+
+        subject = constraint.subject
+
+        if subject is not None:
+            bconstr = schemac_to_backendc(subject, constraint, protoschema)
+
+            op = dbops.CommandGroup(priority=1)
+            op.add_command(bconstr.rename_ops(orig_bconstr))
+            self.pgops.add(op)
+
+        return constraint
+
+
+class AlterConstraint(ConstraintCommand, AlterNamedPrototype,
+                      adapts=delta_cmds.AlterConstraint):
+    def apply(self, protoschema, context):
+        constraint = super().apply(protoschema, context)
+
+        subject = constraint.subject
+
+        if subject is not None:
+            schemac_to_backendc = \
+              schemamech.ConstraintMech.schema_constraint_to_backend_constraint
+
+            bconstr = schemac_to_backendc(subject, constraint, protoschema)
+
+            orig_constraint = self.original_proto
+            orig_bconstr = schemac_to_backendc(
+                            orig_constraint.subject, orig_constraint,
+                            protoschema)
+
+            op = dbops.CommandGroup(priority=1)
+            op.add_command(bconstr.alter_ops(orig_bconstr))
+            self.pgops.add(op)
+
+        return constraint
+
+
+class DeleteConstraint(ConstraintCommand, DeleteNamedPrototype,
+                       adapts=delta_cmds.DeleteConstraint):
+    def apply(self, protoschema, context):
+        constraint = super().apply(protoschema, context)
+
+        subject = constraint.subject
+
+        if subject is not None:
+            schemac_to_backendc = schemamech.ConstraintMech.schema_constraint_to_backend_constraint
+            bconstr = schemac_to_backendc(subject, constraint, protoschema)
+
+            op = dbops.CommandGroup(priority=1)
+            op.add_command(bconstr.delete_ops())
+            self.pgops.add(op)
+
+        return constraint
 
 
 class AtomMetaCommand(NamedPrototypeMetaCommand):
@@ -362,43 +470,39 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
 
         return rec, updates
 
-    def alter_atom_type(self, atom, meta, host, pointer, new_type, intent):
+    def alter_atom_type(self, atom, meta, new_type, intent):
 
         users = []
 
-        if host:
-            # Automatic atom type change.  There is only one user: host concept table
-            users.append((host, pointer))
-        else:
-            for link in meta(type='link'):
-                if link.target and link.target.name == atom.name:
-                    users.append((link.source, link))
+        for link in meta(type='link'):
+            if link.target and link.target.name == atom.name:
+                users.append((link.source, link))
 
         domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
 
-        base, constraints_encoded, new_constraints, _ = types.get_atom_base_and_constraints(meta, atom)
+        new_constraints = atom.local_constraints
+        base = types.get_atom_base(meta, atom)
 
         target_type = new_type
 
+        schemac_to_backendc = schemamech.ConstraintMech.schema_constraint_to_backend_constraint
+
         if intent == 'alter':
-            simple_alter = atom.automatic and not new_constraints
-            if not simple_alter:
-                new_name = domain_name[0], domain_name[1] + '_tmp'
-                self.pgops.add(dbops.RenameDomain(domain_name, new_name))
-                target_type = common.qname(*domain_name)
+            new_name = domain_name[0], domain_name[1] + '_tmp'
+            self.pgops.add(dbops.RenameDomain(domain_name, new_name))
+            target_type = common.qname(*domain_name)
 
-                self.pgops.add(dbops.CreateDomain(name=domain_name, base=new_type))
+            self.pgops.add(dbops.CreateDomain(name=domain_name, base=new_type))
 
-                adapt = deltadbops.SchemaDBObjectMeta.adapt
-                for constraint in new_constraints:
-                    adapted = adapt(constraint)
-                    constraint_name = adapted.get_backend_constraint_name()
-                    constraint_code = adapted.get_backend_constraint_check_code()
-                    self.pgops.add(dbops.AlterDomainAddConstraint(name=domain_name,
-                                                                  constraint_name=constraint_name,
-                                                                  constraint_code=constraint_code))
+            adapt = deltadbops.SchemaDBObjectMeta.adapt
+            for constraint in new_constraints.values():
+                bconstr = schemac_to_backendc(atom, constraint, meta)
+                op = dbops.CommandGroup(priority=1)
+                op.add_command(bconstr.create_ops())
+                self.pgops.add(op)
 
-                domain_name = new_name
+            domain_name = new_name
+
         elif intent == 'create':
             self.pgops.add(dbops.CreateDomain(name=domain_name, base=base))
 
@@ -416,10 +520,9 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
             alter_table.add_operation(alter_type)
             self.pgops.add(alter_table)
 
-        if not host:
-            for child_atom in meta(type='atom', include_automatic=True):
-                if [b.name for b in child_atom.bases] == [atom.name]:
-                    self.alter_atom_type(child_atom, meta, None, None, target_type, 'alter')
+        for child_atom in meta(type='atom'):
+            if [b.name for b in child_atom.bases] == [atom.name]:
+                self.alter_atom_type(child_atom, meta, target_type, 'alter')
 
         if intent == 'drop' or (intent == 'alter' and not simple_alter):
             self.pgops.add(dbops.DropDomain(domain_name))
@@ -440,64 +543,29 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
             self.pgops.add(cmd)
 
         new_domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
-        base, _, constraints, extraconstraints = types.get_atom_base_and_constraints(meta, atom)
+        base = types.get_atom_base(meta, atom)
 
         updates = self.create_object(meta, atom)
 
-        if not atom.automatic:
-            self.pgops.add(dbops.CreateDomain(name=new_domain_name, base=base))
+        self.pgops.add(dbops.CreateDomain(name=new_domain_name, base=base))
 
-            if atom.issubclass(caos_objects.sequence.Sequence):
-                seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
-                self.pgops.add(dbops.CreateSequence(name=seq_name))
+        if atom.issubclass(caos_objects.sequence.Sequence):
+            seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
+            self.pgops.add(dbops.CreateSequence(name=seq_name))
 
-            adapt = deltadbops.SchemaDBObjectMeta.adapt
-            for constraint in constraints:
-                adapted = adapt(constraint)
-                constraint_name = adapted.get_backend_constraint_name()
-                constraint_code = adapted.get_backend_constraint_check_code()
-                self.pgops.add(dbops.AlterDomainAddConstraint(name=new_domain_name,
-                                                              constraint_name=constraint_name,
-                                                              constraint_code=constraint_code))
+        default = list(self(delta_cmds.AlterDefault))
 
-            default = list(self(delta_cmds.AlterDefault))
-
-            if default:
-                default = default[0]
-                if len(default.new_value) > 0 and \
-                                        isinstance(default.new_value[0], proto.LiteralDefaultSpec):
-                    # We only care to support literal defaults here.  Supporting
-                    # defaults based on queries has no sense on the database level
-                    # since the database forbids queries for DEFAULT and pre-calculating
-                    # the value does not make sense either since the whole point of
-                    # query defaults is for them to be dynamic.
-                    self.pgops.add(dbops.AlterDomainAlterDefault(name=new_domain_name,
-                                                                 default=default.new_value[0].value))
-        else:
-            source, pointer = CompositePrototypeMetaCommand.get_source_and_pointer_ctx(meta, context)
-
-            # Skip inherited links
-            if pointer.proto.source.name == source.proto.name:
-                alter_table = source.op.get_alter_table(context)
-
-                for constraint in constraints:
-                    constraint = source.op.get_pointer_constraint(meta, context, constraint)
-                    op = dbops.AlterTableAddConstraint(constraint=constraint)
-                    alter_table.add_operation(op)
-
-
-        if extraconstraints:
-            values = {}
-
-            for constraint in extraconstraints:
-                cls = constraint.__class__.get_canonical_class()
-                key = '%s.%s' % (cls.__module__, cls.__name__)
-                values[key] = yaml.Language.dump(constraint.get_value())
-
-            rec = self.table.record()
-            rec.constraints = values
-            condition = [('name', str(atom.name))]
-            self.pgops.add(dbops.Update(table=self.table, record=rec, condition=condition))
+        if default:
+            default = default[0]
+            if len(default.new_value) > 0 and \
+                                    isinstance(default.new_value[0], proto.LiteralDefaultSpec):
+                # We only care to support literal defaults here.  Supporting
+                # defaults based on queries has no sense on the database level
+                # since the database forbids queries for DEFAULT and pre-calculating
+                # the value does not make sense either since the whole point of
+                # query defaults is for them to be dynamic.
+                self.pgops.add(dbops.AlterDomainAlterDefault(name=new_domain_name,
+                                                             default=default.new_value[0].value))
 
         return atom
 
@@ -513,7 +581,7 @@ class RenameAtom(AtomMetaCommand, adapts=delta_cmds.RenameAtom):
         self.pgops.add(dbops.RenameDomain(name=domain_name, new_name=new_domain_name))
         self.rename(meta, context, self.prototype_name, self.new_name)
 
-        if not proto.automatic and proto.issubclass(caos_objects.sequence.Sequence):
+        if proto.issubclass(caos_objects.sequence.Sequence):
             seq_name = common.atom_name_to_sequence_name(self.prototype_name, catenate=False)
             new_seq_name = common.atom_name_to_sequence_name(self.new_name, catenate=False)
 
@@ -532,36 +600,26 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
 
         if updaterec:
             condition = [('name', str(new_atom.name))]
-            self.pgops.add(dbops.Update(table=self.table, record=updaterec, condition=condition))
+            self.pgops.add(dbops.Update(table=self.table, record=updaterec,
+                                        condition=condition))
 
-        self.alter_atom(self, meta, context, old_atom, new_atom, updates=updates)
+        self.alter_atom(self, meta, context, old_atom, new_atom,
+                                                       updates=updates)
 
         return new_atom
 
     @classmethod
-    def alter_atom(cls, op, meta, context, old_atom, new_atom, in_place=True, updates=None):
+    def alter_atom(cls, op, meta, context, old_atom, new_atom, in_place=True,
+                                                               updates=None):
 
-        old_base, old_constraints_encoded, old_constraints, old_extraconstraints = \
-                                                types.get_atom_base_and_constraints(meta, old_atom)
-        base, constraints_encoded, new_constraints, new_extraconstraints = \
-                                                types.get_atom_base_and_constraints(meta, new_atom)
+        old_base = types.get_atom_base(meta, old_atom)
+        base = types.get_atom_base(meta, new_atom)
 
-        domain_name = common.atom_name_to_domain_name(new_atom.name, catenate=False)
+        domain_name = common.atom_name_to_domain_name(new_atom.name,
+                                                      catenate=False)
 
         new_type = None
         type_intent = 'alter'
-
-        source, pointer = CompositePrototypeMetaCommand.get_source_and_pointer_ctx(meta, context)
-
-        if new_atom.automatic:
-            if old_constraints_encoded and not old_constraints and new_constraints:
-                new_type = common.qname(*domain_name)
-                type_intent = 'create'
-            elif old_constraints_encoded and old_constraints and not new_constraints:
-                new_type = base
-                type_intent = 'drop'
-        elif old_atom.automatic:
-            type_intent = 'drop'
 
         if not new_type and old_base != base:
             new_type = base
@@ -573,86 +631,23 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
             # to use the new one, and then the old domain dropped.  Obviously this
             # recurses down to every child domain.
             #
-            source_proto = source.proto if source else None
-            pointer_proto = pointer.proto if pointer else None
-
             if in_place:
-                op.alter_atom_type(new_atom, meta, source_proto, pointer_proto, new_type,
-                                   intent=type_intent)
+                op.alter_atom_type(new_atom, meta, new_type, intent=type_intent)
 
         if type_intent != 'drop':
             if updates:
                 default_delta = list(op(delta_cmds.AlterDefault))
                 if default_delta:
                     default_delta = default_delta[0]
-                    if not new_atom.automatic:
-                        if not default_delta.new_value or \
-                           not isinstance(default_delta.new_value[0], proto.LiteralDefaultSpec):
-                            new_default = None
-                        else:
-                            new_default = default_delta.new_value[0].value
-                        # Only non-automatic atoms can get their own defaults.
-                        # Automatic atoms are not represented by domains and inherit
-                        # their defaults from parent.
-                        adad = dbops.AlterDomainAlterDefault(name=domain_name, default=new_default)
-                        op.pgops.add(adad)
 
-            if new_atom.automatic:
-                alter_table = source.op.get_alter_table(context)
+                    if not default_delta.new_value or \
+                       not isinstance(default_delta.new_value[0], proto.LiteralDefaultSpec):
+                        new_default = None
+                    else:
+                        new_default = default_delta.new_value[0].value
 
-                for constraint in old_constraints - new_constraints:
-                    constraint = source.op.get_pointer_constraint(meta, context, constraint)
-                    op = dbops.AlterTableDropConstraint(constraint=constraint)
-                    alter_table.add_operation(op)
-
-                for constraint in new_constraints - old_constraints:
-                    constraint = source.op.get_pointer_constraint(meta, context, constraint)
-                    op = dbops.AlterTableAddConstraint(constraint=constraint)
-                    alter_table.add_operation(op)
-
-            else:
-                adapt = deltadbops.SchemaDBObjectMeta.adapt
-
-                for constraint in old_constraints - new_constraints:
-                    adapted = adapt(constraint)
-                    constraint_name = adapted.get_backend_constraint_name()
-                    constraint_code = adapted.get_backend_constraint_check_code()
-                    addc = dbops.AlterDomainDropConstraint(name=domain_name,
-                                                           constraint_name=constraint_name,
-                                                           constraint_code=constraint_code)
-                    op.pgops.add(addc)
-
-                for constraint in new_constraints - old_constraints:
-                    adapted = adapt(constraint)
-                    constraint_name = adapted.get_backend_constraint_name()
-                    constraint_code = adapted.get_backend_constraint_check_code()
-                    adac = dbops.AlterDomainAddConstraint(name=domain_name,
-                                                          constraint_name=constraint_name,
-                                                          constraint_code=constraint_code)
-                    op.pgops.add(adac)
-
-                if new_extraconstraints != old_extraconstraints:
-                    values = {}
-
-                    for constraint in new_extraconstraints:
-                        cls = constraint.__class__.get_canonical_class()
-                        key = '%s.%s' % (cls.__module__, cls.__name__)
-                        values[key] = yaml.Language.dump(constraint.get_value())
-
-                    rec = op.table.record()
-                    rec.constraints = values
-                    condition = [('name', str(new_atom.name))]
-                    op.pgops.add(dbops.Update(table=op.table, record=rec, condition=condition))
-        else:
-            # We need to drop orphan constraints
-            if old_atom.automatic:
-                alter_table = source.op.get_alter_table(context)
-
-                for constraint in old_constraints:
-                    constraint = source.op.get_pointer_constraint(meta, context, constraint)
-                    op = dbops.AlterTableDropConstraint(constraint=constraint)
-                    alter_table.add_operation(op)
-
+                    adad = dbops.AlterDomainAlterDefault(name=domain_name, default=new_default)
+                    op.pgops.add(adad)
 
 
 class DeleteAtom(AtomMetaCommand, adapts=delta_cmds.DeleteAtom):
@@ -674,7 +669,7 @@ class DeleteAtom(AtomMetaCommand, adapts=delta_cmds.DeleteAtom):
         ops.add(dbops.Delete(table=deltadbops.AtomTable(),
                              condition=[('name', str(self.prototype_name))]))
 
-        if not atom.automatic and atom.issubclass(caos_objects.sequence.Sequence):
+        if atom.issubclass(caos_objects.sequence.Sequence):
             seq_name = common.atom_name_to_sequence_name(self.prototype_name, catenate=False)
             self.pgops.add(dbops.DropSequence(name=seq_name))
 
@@ -723,14 +718,10 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         self.table_name = None
         self._multicommands = {}
         self.update_search_indexes = None
-        self.pointer_constraints = {}
-        self.abstract_pointer_constraints = {}
-        self.dropped_pointer_constraints = {}
-        self._constr_mech = schemamech.ConstraintMech()
 
     def _get_multicommand(self, context, cmdtype, object_name, *, priority=0, force_new=False,
                                                                   manual=False, cmdkwargs={}):
-        key = (priority, frozenset(cmdkwargs.items()))
+        key = (object_name, priority, frozenset(cmdkwargs.items()))
 
         try:
             typecommands = self._multicommands[cmdtype]
@@ -852,54 +843,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
         return source, pointer
 
-    @classmethod
-    def get_pointer_constraint(cls, meta, context, constraint, original=False,
-                                                               source=None, pointer_name=None):
-        if source is None:
-            host, pointer = cls.get_source_and_pointer_ctx(meta, context)
-
-            if original:
-                source, pointer_name = host.original_proto, pointer.original_proto.normal_name()
-            else:
-                source, pointer_name = host.proto, pointer.proto.normal_name()
-
-        schemac_to_backendc = schemamech.ConstraintMech.schema_constraint_to_backend_constraint
-        return schemac_to_backendc(constraint, source, pointer_name)
-
-    def apply_inherited_deltas(self, source, meta, context):
-        top_ctx = context.get(delta_cmds.RealmCommandContext)
-
-        if isinstance(source, caos.types.ProtoConcept):
-            cmd_class = delta_cmds.ConceptCommand
-        else:
-            cmd_class = delta_cmds.LinkCommand
-
-        proto_idx = {cmd.prototype: cmd for cmd in top_ctx.op(cmd_class)
-                                        if getattr(cmd, 'prototype', None)}
-
-        for pointer_name, pointer in source.pointers.items():
-            if pointer_name not in source.own_pointers:
-                # Get the nearest source defining the pointer, i. e., the source
-                # that has pointer_name in its own_pointers index.
-                #
-                origin = source.get_pointer_origin(pointer_name)
-                origin_op = proto_idx.get(origin)
-                if origin_op:
-                    # Replicate each pointer origin constraint operation.
-                    # Usually, the origin operation will iterate through children and
-                    # replicate the constraint creation itself, but it is obviously
-                    # unable to do so for children that appear after the parent operation
-                    # is applied, so we must fill the gap here.
-                    #
-                    for constr in origin_op.pointer_constraints.get(pointer_name, {}).values():
-                        self.add_pointer_constraint(source, pointer_name,
-                                                    constr, meta, context)
-                    abstract_constr = origin_op.abstract_pointer_constraints.get(pointer_name, {})
-                    if abstract_constr:
-                        for constr in abstract_constr.values():
-                            self.add_pointer_constraint(source, pointer_name,
-                                                        constr, meta, context)
-
     def affirm_pointer_defaults(self, source, meta, context):
         for pointer_name, pointer in source.pointers.items():
             # XXX pointer_storage_info?
@@ -918,270 +861,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 column_name = common.caos_name_to_pg_name(pointer_name)
                 alter_table.add_operation(dbops.AlterTableAlterColumnDefault(column_name=column_name,
                                                                              default=default))
-
-    def create_pointer_constraints(self, source, meta, context):
-        for pointer_name, pointer in source.pointers.items():
-            if pointer_name not in source.own_pointers:
-                if pointer.generic() or not pointer.atomic():
-                    continue
-
-                constraints = itertools.chain(pointer.constraints.values(),
-                                              pointer.abstract_constraints.values())
-                for constraint in constraints:
-                    if isinstance(constraint, proto.PointerConstraintUnique):
-                        key = persistent_hash(constraint)
-                        try:
-                            existing = self.pointer_constraints[pointer_name][key]
-                        except KeyError:
-                            self.add_pointer_constraint(source, pointer_name, constraint,
-                                                                meta, context)
-
-    def adjust_pointer_constraints(self, meta, context, source, pointer_names=None):
-        for pointer in (p for p in source.pointers.values() if p.atomic()):
-            target = pointer.target
-
-            pointer_name = pointer.normal_name()
-
-            if pointer_names is not None and pointer_name not in pointer_names:
-                continue
-
-            if isinstance(source, caos.types.ProtoConcept):
-                ctx_class = delta_cmds.ConceptCommandContext
-                ptr_ctx_class = delta_cmds.LinkCommandContext
-                ptr_op_class = delta_cmds.AlterLink
-            elif isinstance(source, caos.types.ProtoLink):
-                ctx_class = delta_cmds.LinkCommandContext
-                ptr_ctx_class = delta_cmds.LinkPropertyCommandContext
-                ptr_op_class = delta_cmds.AlterLinkProperty
-            else:
-                assert False
-
-            source_context = context.get(ctx_class)
-            ptr_context = context.get(ptr_ctx_class)
-
-            alter_table = source_context.op.get_alter_table(context)
-            table = common.get_table_name(source, catenate=False)
-
-            drop_constraints = {}
-
-            for op in alter_table(dbops.TableConstraintCommand):
-                if isinstance(op, dbops.AlterTableDropConstraint):
-                    name = op.constraint.raw_constraint_name()
-                    drop_constraints[name] = op
-
-            if pointer_name in source.own_pointers:
-                ptr_op = ptr_op_class(prototype_name=pointer.name,
-                                      prototype_class=pointer.__class__.get_canonical_class())
-
-
-                if target.automatic:
-                    # We need to establish fake AlterLink context here since
-                    # atom constraint constraint ops need it.
-                    orig_ctx = context.get(ptr_ctx_class)
-
-                    with context(ptr_ctx_class(ptr_op, pointer)) as ptr_ctx:
-                        if orig_ctx is not None:
-                            ptr_ctx.original_proto = orig_ctx.original_proto
-
-                        for constraint in target.effective_local_constraints.values():
-                            old_constraint = self.get_pointer_constraint(meta, context, constraint,
-                                                                         original=True)
-
-                            if old_constraint.raw_constraint_name() in drop_constraints:
-                                # No need to rename constraints that are to be dropped
-                                continue
-
-                            new_constraint = self.get_pointer_constraint(meta, context, constraint)
-
-                            op = dbops.AlterTableRenameConstraint(table_name=table,
-                                                                  constraint=old_constraint,
-                                                                  new_constraint=new_constraint)
-                            self.pgops.add(op)
-
-            if not pointer.generic():
-                orig_source = source_context.original_proto
-
-                ptr_op = ptr_op_class(prototype_name=pointer.name,
-                                      prototype_class=pointer.__class__.get_canonical_class())
-
-                with context(ptr_ctx_class(ptr_op, pointer)):
-                    for constraint in pointer.constraints.values():
-                        if isinstance(constraint, proto.PointerConstraintUnique):
-                            old_constraint = self.get_pointer_constraint(meta, context,
-                                                                         constraint,
-                                                                         original=True)
-
-                            if old_constraint.raw_constraint_name() in drop_constraints:
-                                # No need to rename constraints that are to be dropped
-                                continue
-
-                            new_constraint = self.get_pointer_constraint(meta, context,
-                                                                         constraint)
-
-                            if ptr_context:
-                                orig_ptr_name = ptr_context.original_proto.normal_name()
-                            else:
-                                orig_ptr_name = pointer_name
-
-                            op = self.rename_pointer_constraint(orig_source, source,
-                                                                orig_ptr_name,
-                                                                pointer_name,
-                                                                old_constraint, new_constraint,
-                                                                meta, context)
-                            self.pgops.add(op)
-
-                    if pointer.source != source:
-                        for constrcls, constraint in pointer.abstract_constraints.items():
-                            old_constraint = self.get_pointer_constraint(meta, context,
-                                                                         constraint,
-                                                                         original=True)
-
-                            if old_constraint.raw_constraint_name() in drop_constraints:
-                                # No need to rename constraints that are to be dropped
-                                continue
-
-                            new_constraint = self.get_pointer_constraint(meta, context,
-                                                                         constraint)
-
-                            if ptr_context:
-                                orig_ptr_name = ptr_context.original_proto.normal_name()
-                            else:
-                                orig_ptr_name = pointer_name
-
-                            op = self.rename_pointer_constraint(orig_source, source,
-                                                                orig_ptr_name,
-                                                                pointer_name,
-                                                                old_constraint, new_constraint,
-                                                                meta, context)
-
-                            self.pgops.add(op)
-
-                    for constrcls, constraint in pointer.abstract_constraints.items():
-                        if isinstance(constraint, proto.PointerConstraintUnique):
-                            old_constraint = self.get_pointer_constraint(meta, context,
-                                                                         constraint,
-                                                                         original=True)
-
-                            if old_constraint.raw_constraint_name() in drop_constraints:
-                                # No need to rename constraints that are to be dropped
-                                continue
-
-                            new_constraint = self.get_pointer_constraint(meta, context,
-                                                                         constraint)
-
-                            if ptr_context:
-                                orig_ptr_name = ptr_context.original_proto.normal_name()
-                            else:
-                                orig_ptr_name = pointer_name
-
-                            for child in source.descendants(meta):
-                                try:
-                                    child_ptr = child.pointers[pointer_name]
-                                except KeyError:
-                                    child_ptr = child.pointers[orig_ptr_name]
-
-                                if child_ptr.source == child and child_ptr.abstract_constraints.get(constrcls):
-                                    continue
-
-                                old_child_constr = old_constraint.copy()
-                                old_child_constr.table_name = common.get_table_name(child, catenate=False)
-                                old_child_constr.prefix = (child.name, orig_ptr_name)
-
-                                new_child_constr = new_constraint.copy()
-                                new_child_constr.table_name = common.get_table_name(child, catenate=False)
-                                new_child_constr.prefix = (child.name, pointer_name)
-
-                                op = self.rename_pointer_constraint(child, child,
-                                                                    orig_ptr_name,
-                                                                    pointer_name,
-                                                                    old_child_constr,
-                                                                    new_child_constr,
-                                                                    meta, context)
-
-                                self.pgops.add(op)
-
-
-    def add_pointer_constraint(self, source, pointer_name, constraint, meta, context):
-        constr_key = persistent_hash(constraint)
-        self_constrs = self.pointer_constraints.get(pointer_name)
-
-        if not self_constrs or constr_key not in self_constrs:
-            alter_table = self.get_alter_table(context, priority=2)
-            constr = self.get_pointer_constraint(meta, context, constraint,
-                                                 source=source, pointer_name=pointer_name)
-            op = dbops.AlterTableAddConstraint(constraint=constr)
-            table_name = common.get_table_name(source, catenate=False)
-            constr_name = constr.constraint_name(quote=False)
-            cond = dbops.TableConstraintExists(table_name=table_name, constraint_name=constr_name)
-            alter_table.add_operation((op, None, [cond]))
-
-            constraint_origins = source.get_constraint_origins(pointer_name, constraint)
-            assert constraint_origins
-
-            cuct = self._constr_mech.create_unique_constraint_trigger(source, pointer_name, constr,
-                                                                      constraint_origins, meta)
-            self.pgops.add(cuct)
-
-            self.pointer_constraints.setdefault(pointer_name, {})[constr_key] = constraint
-
-    def del_pointer_constraint(self, source, pointer_name, constraint, meta, context,
-                               conditional=False):
-        constr_key = persistent_hash(constraint)
-        self_constrs = self.dropped_pointer_constraints.get(pointer_name)
-
-        if not self_constrs or constr_key not in self_constrs:
-            alter_table = self.get_alter_table(context, priority=2, force_new=conditional,
-                                               manual=conditional)
-            constr = self.get_pointer_constraint(meta, context, constraint,
-                                                 source=source, pointer_name=pointer_name)
-            op = dbops.AlterTableDropConstraint(constraint=constr)
-            alter_table.add_operation(op)
-
-            if not conditional:
-                constraint_origins = source.get_constraint_origins(pointer_name, constraint)
-                assert constraint_origins
-
-            drop_trig = self._constr_mech.drop_unique_constraint_trigger(source, pointer_name,
-                                                                         constr, meta, context)
-
-            if conditional:
-                conds = self._constr_mech.unique_constraint_trigger_exists(source, pointer_name,
-                                                                           constr)
-                op = dbops.CommandGroup(conditions=conds)
-                op.add_commands([alter_table, drop_trig])
-                self.pgops.add(op)
-            else:
-                self.pgops.add(drop_trig)
-
-            try:
-                ptr_dropped_constr = self.dropped_pointer_constraints[pointer_name]
-            except KeyError:
-                ptr_dropped_constr = self.dropped_pointer_constraints[pointer_name] = {}
-
-            ptr_dropped_constr[constr_key] = constraint
-
-    def rename_pointer_constraint(self, orig_source, source, orig_pointer_name, pointer_name,
-                                        old_constraint, new_constraint, meta, context):
-
-        table = common.get_table_name(source, catenate=False)
-
-        result = dbops.CommandGroup()
-
-        if old_constraint.raw_constraint_name() != new_constraint.raw_constraint_name():
-            constraint_exists = dbops.TableConstraintExists(table_name=table,
-                                                            constraint_name=old_constraint.constraint_name(quote=False))
-            result.add_command(dbops.AlterTableRenameConstraint(table_name=table,
-                                                                constraint=old_constraint,
-                                                                new_constraint=new_constraint,
-                                                                conditions=[constraint_exists]))
-
-            ops = self._constr_mech.rename_unique_constraint_trigger(orig_source.name, source.name,
-                                                                     orig_pointer_name, pointer_name,
-                                                                     old_constraint, new_constraint)
-
-            result.add_commands(ops)
-
-        return result
 
     def adjust_pointer_storage(self, orig_pointer, pointer, meta, context):
         old_ptr_stor_info = types.get_pointer_storage_info(meta, orig_pointer)
@@ -1216,7 +895,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 opg = dbops.CommandGroup(priority=1)
                 at = source_op.get_alter_table(context, manual=True)
 
-                if old_ptr_stor_info.table_type[0] == 'source':
+                if old_ptr_stor_info.table_type == 'concept':
                     pat = self.get_alter_table(context, manual=True)
 
                     # Moved from concept table to link table
@@ -1307,7 +986,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 ptr = source.pointers[added_ptr]
                 ptr_stor_info = types.get_pointer_storage_info(meta, ptr)
 
-                if ptr_stor_info.table_type[0] == 'source':
+                if ptr_stor_info.table_type == 'concept':
                     col = dbops.Column(name=ptr_stor_info.column_name,
                                        type=ptr_stor_info.column_type,
                                        required=ptr.required)
@@ -1326,23 +1005,13 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 dropped_ptrs = set(orig_source.pointers) - set(source.pointers)
 
                 if dropped_ptrs:
-                    for dropped_ptr in dropped_ptrs:
-                        ptr = orig_source.pointers[dropped_ptr]
-
-                        constraints = itertools.chain(ptr.constraints.values(),
-                                                      ptr.abstract_constraints.values())
-                        for constraint in constraints:
-                            source_ctx.op.del_pointer_constraint(source, dropped_ptr,
-                                                                 constraint, meta, context,
-                                                                 conditional=True)
-
                     alter_table_drop_ptr = source_ctx.op.get_alter_table(context, force_new=True)
 
                     for dropped_ptr in dropped_ptrs:
                         ptr = orig_source.pointers[dropped_ptr]
                         ptr_stor_info = types.get_pointer_storage_info(meta, ptr)
 
-                        if ptr_stor_info.table_type[0] == 'source':
+                        if ptr_stor_info.table_type == 'concept':
                             col = dbops.Column(name=ptr_stor_info.column_name,
                                                type=ptr_stor_info.column_type,
                                                required=ptr.required)
@@ -1399,7 +1068,7 @@ class CreateSourceIndex(SourceIndexCommand, adapts=delta_cmds.CreateSourceIndex)
             source = context.get(delta_cmds.ConceptCommandContext)
         table_name = common.get_table_name(source.proto, catenate=False)
         expr = caosql_expr.CaosQLExpression(meta).process_concept_expr(index.expr, source.proto)
-        sql_tree = transformer.SimpleExprTransformer().transform(expr, True)
+        sql_tree = transformer.SimpleExprTransformer().transform(expr, meta, local=True)
         sql_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
         if isinstance(sql_tree, pg_ast.SequenceNode):
             # Trim the parentheses to avoid PostgreSQL choking on double parentheses.
@@ -1497,9 +1166,6 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
                      for p in fields['base'][1] if proto.Concept.is_prototype(meta, p))
             concept_table.bases = list(bases)
 
-            self.apply_inherited_deltas(concept, meta, context)
-            self.create_pointer_constraints(concept, meta, context)
-
             self.affirm_pointer_defaults(concept, meta, context)
 
             self.attach_alter_table(context)
@@ -1541,12 +1207,11 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
         old_constr_name = common.caos_name_to_pg_name(self.prototype_name + '.concept_id_check')
         new_constr_name = common.caos_name_to_pg_name(self.new_name + '.concept_id_check')
 
-        alter_table = self.get_alter_table(context)
-        alter_table.add_operation(dbops.AlterTableRenameConstraintSimple(old_constr_name,
-                                                                         new_constr_name))
-
-        # Constraints
-        self.adjust_pointer_constraints(meta, context, proto)
+        alter_table = self.get_alter_table(context, manual=True)
+        rc = dbops.AlterTableRenameConstraintSimple(
+                    alter_table.name, old_name=old_constr_name,
+                                      new_name=new_constr_name)
+        self.pgops.add(rc)
 
         # Indexes
         self.adjust_indexes(meta, context, proto)
@@ -1601,7 +1266,7 @@ class DeleteConcept(ConceptMetaCommand, adapts=delta_cmds.DeleteConcept):
 
         self.delete(meta, context, concept)
 
-        self.pgops.add(dbops.DropTable(name=old_table_name))
+        self.pgops.add(dbops.DropTable(name=old_table_name, priority=3))
 
         return concept
 
@@ -1762,23 +1427,6 @@ class PointerMetaCommand(MetaCommand):
             if concept:
                 return concept
 
-    def pack_constraints(self, pointer, constraints, abstract=False):
-        result = {}
-        for constraint in constraints:
-            if not pointer.generic() and pointer.atomic() \
-                    and isinstance(constraint, proto.PointerConstraintUnique) and not abstract:
-                # Unique constraints on atomic links are represented as table constraints
-                continue
-
-            cls = constraint.__class__.get_canonical_class()
-            key = '%s.%s' % (cls.__module__, cls.__name__)
-            result[key] = yaml.Language.dump(constraint.values)
-
-        if not result:
-            return None
-        else:
-            return result
-
     def record_metadata(self, pointer, old_pointer, meta, context):
         rec, updates = self.fill_record(meta)
 
@@ -1815,20 +1463,6 @@ class PointerMetaCommand(MetaCommand):
             if not rec:
                 rec = self.table.record()
             rec.default = self.pack_default(default[0])
-
-        if not old_pointer or old_pointer.constraints != pointer.constraints:
-            if not rec:
-                rec = self.table.record()
-
-            rec.constraints = self.pack_constraints(pointer, pointer.constraints.values())
-
-        if not old_pointer or old_pointer.abstract_constraints != pointer.abstract_constraints:
-            if not rec:
-                rec = self.table.record()
-
-            rec.abstract_constraints = self.pack_constraints(pointer,
-                                                             pointer.abstract_constraints.values(),
-                                                             True)
 
         return rec, updates
 
@@ -1940,7 +1574,7 @@ class PointerMetaCommand(MetaCommand):
 
                     ptr_stor_info = types.get_pointer_storage_info(meta, pointer)
 
-                    if (ptr_stor_info.table_type[0] == 'source'
+                    if (ptr_stor_info.table_type == 'concept'
                             and (isinstance(host.proto, proto.Concept)
                                  or self.has_table(host.proto, meta))):
                         table_name = common.get_table_name(host.proto, catenate=False)
@@ -1971,7 +1605,7 @@ class PointerMetaCommand(MetaCommand):
                 for l in link.children(meta):
                     if not l.generic():
                         ptr_stor_info = types.get_pointer_storage_info(meta, l, resolve_type=False)
-                        if ptr_stor_info.table_type[0] == 'pointer':
+                        if ptr_stor_info.table_type == 'link':
                             return True
 
                 return False
@@ -2122,7 +1756,7 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
             concept = context.get(delta_cmds.ConceptCommandContext)
             assert concept, "Link command must be run in Concept command context"
 
-            if ptr_stor_info.table_type[0] == 'source':
+            if ptr_stor_info.table_type == 'concept':
                 default_value = self.get_pointer_default(link, meta, context)
 
                 cols = self.get_columns(link, meta, default_value)
@@ -2140,10 +1774,6 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
 
         if link.generic():
             self.affirm_pointer_defaults(link, meta, context)
-
-        if self.has_table(link, meta):
-            self.apply_inherited_deltas(link, meta, context)
-            self.create_pointer_constraints(link, meta, context)
 
         self.attach_alter_table(context)
 
@@ -2182,12 +1812,6 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
 
             if self.has_table(result, meta):
                 self.rename(meta, context, self.prototype_name, self.new_name, obj=result)
-
-            # Constraints
-            if link_cmd.proto.normal_name() != link_cmd.original_proto.normal_name():
-                concept_cmd = context.get(delta_cmds.ConceptCommandContext)
-                self.adjust_pointer_constraints(meta, context, concept_cmd.proto,
-                                                pointer_names=(result.normal_name(),))
 
         return result
 
@@ -2247,8 +1871,8 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
 
                 old_ptr_stor_info = types.get_pointer_storage_info(meta, old_link)
                 ptr_stor_info = types.get_pointer_storage_info(meta, link)
-                if (old_ptr_stor_info.table_type[0] == 'source'
-                        and ptr_stor_info.table_type[0] == 'source'
+                if (old_ptr_stor_info.table_type == 'concept'
+                        and ptr_stor_info.table_type == 'concept'
                         and link.required != self.old_link.required):
                     alter_table = context.get(delta_cmds.ConceptCommandContext).op.get_alter_table(context)
                     column_name = common.caos_name_to_pg_name(link.normal_name())
@@ -2275,26 +1899,34 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
 
             name = result.normal_name()
 
-            if ptr_stor_info.table_type[0] == 'source':
+            if ptr_stor_info.table_type == 'concept':
+                # Only drop the column if the link was not reinherited in the same delta
                 if name not in concept.proto.pointers:
-                    # Do not drop the column if the link was reinherited in the same delta
-                    alter_table = concept.op.get_alter_table(context)
+                    # This must be a separate so that objects depending
+                    # on this column can be dropped correctly.
+                    #
+                    alter_table = concept.op.get_alter_table(context,
+                                                             manual=True,
+                                                             priority=2)
                     col = dbops.Column(name=ptr_stor_info.column_name,
                                        type=ptr_stor_info.column_type)
                     cond = dbops.ColumnExists(table_name=concept.op.table_name,
                                               column_name=col.name)
                     col = dbops.AlterTableDropColumn(col)
                     alter_table.add_operation((col, [cond], []))
+                    self.pgops.add(alter_table)
 
         old_table_name = common.get_table_name(result, catenate=False)
         condition = dbops.TableExists(name=old_table_name)
-        self.pgops.add(dbops.DropTable(name=old_table_name, conditions=[condition]))
+        self.pgops.add(dbops.DropTable(name=old_table_name,
+                                       conditions=[condition]))
         self.cancel_mapping_update(result, meta, context)
 
         if not result.generic() and result.mapping != caos.types.ManyToMany:
             self.schedule_mapping_update(result, meta, context)
 
-        self.pgops.add(dbops.Delete(table=self.table, condition=[('name', str(result.name))]))
+        self.pgops.add(dbops.Delete(table=self.table,
+                                    condition=[('name', str(result.name))]))
 
         return result
 
@@ -2325,105 +1957,6 @@ class DeleteLinkSet(PrototypeMetaCommand, adapts=delta_cmds.DeleteLinkSet):
         result = delta_cmds.DeleteLinkSet.apply(self, meta, context)
         PrototypeMetaCommand.apply(self, meta, context)
         return result
-
-
-class PointerConstraintMetaCommand(PrototypeMetaCommand):
-    pass
-
-
-class CreatePointerConstraint(PointerConstraintMetaCommand,
-                              adapts=delta_cmds.CreatePointerConstraint):
-    def apply(self, meta, context=None):
-        constraint = delta_cmds.CreatePointerConstraint.apply(self, meta, context)
-        PointerConstraintMetaCommand.apply(self, meta, context)
-
-        source, pointer = CompositePrototypeMetaCommand.get_source_and_pointer_ctx(meta, context)
-
-        if pointer and not pointer.proto.generic() and pointer.proto.atomic():
-            pointer_name = pointer.proto.normal_name()
-            constr_key = persistent_hash(constraint)
-            ptr_constr = source.op.pointer_constraints.get(pointer_name)
-
-            if (not ptr_constr or constr_key not in ptr_constr) and \
-                                            isinstance(constraint, proto.PointerConstraintUnique):
-
-                if self.abstract:
-                    # Record abstract constraint in parent op so that potential future children
-                    # see it in apply_inherited_deltas()
-                    #
-                    ac = source.op.abstract_pointer_constraints.setdefault(pointer_name, {})
-                    ac[constr_key] = constraint
-
-                    # Need to clean up any non-abstract constraints of this type in case
-                    # the constraint was altered from non-abstract to abstract.
-                    #
-                    # XXX: This will go away once AlterConstraint is implemented properly
-                    #
-                    source.op.del_pointer_constraint(source.proto, pointer_name, constraint,
-                                                     meta, context, conditional=True)
-                else:
-                    source.op.add_pointer_constraint(source.proto, pointer_name, constraint,
-                                                     meta, context)
-
-
-                for child in source.proto.descendants(meta):
-                    if isinstance(child, caos.types.ProtoLink) \
-                            and not PointerMetaCommand.has_table(child, meta):
-                        continue
-
-                    protoclass = source.proto.__class__.get_canonical_class()
-                    cmd = source.op.__class__(prototype_name=child.name, prototype_class=protoclass)
-
-                    with context(source.op.__class__.context_class(cmd, child)):
-                        # XXX: This can lead to duplicate constraint errors if the child has
-                        # been created in the same sync session.
-                        cmd.add_pointer_constraint(child, pointer_name, constraint, meta, context)
-                        cmd.attach_alter_table(context)
-                        self.pgops.add(cmd)
-
-        return constraint
-
-
-class DeletePointerConstraint(PointerConstraintMetaCommand, adapts=delta_cmds.DeletePointerConstraint):
-    def apply(self, meta, context=None):
-        source, pointer = CompositePrototypeMetaCommand.get_source_and_pointer_ctx(meta, context)
-
-        if self.abstract:
-            constraint = pointer.proto.abstract_constraints.get(self.prototype_class)
-        else:
-            constraint = pointer.proto.constraints.get(self.prototype_class)
-
-        delta_cmds.DeletePointerConstraint.apply(self, meta, context)
-        PointerConstraintMetaCommand.apply(self, meta, context)
-
-        if pointer and not pointer.proto.generic() and pointer.proto.atomic():
-            pointer_name = pointer.proto.normal_name()
-            constr_key = persistent_hash(constraint)
-            ptr_constr = source.op.dropped_pointer_constraints.get(pointer_name)
-
-            if (not ptr_constr or constr_key not in ptr_constr) and \
-                                            isinstance(constraint, proto.PointerConstraintUnique):
-
-                if not self.abstract:
-                    # Abstract constraints apply only to children
-                    source.op.del_pointer_constraint(source.proto, pointer_name, constraint, meta,
-                                                     context)
-
-                for child in source.proto.descendants(meta):
-                    if isinstance(child, caos.types.ProtoLink) \
-                            and not PointerMetaCommand.has_table(child, meta):
-                        continue
-
-                    protoclass = source.proto.__class__.get_canonical_class()
-                    cmd = source.op.__class__(prototype_name=child.name, prototype_class=protoclass)
-
-                    with context(source.op.__class__.context_class(cmd, child)):
-                        cmd.del_pointer_constraint(child, pointer_name, constraint, meta, context,
-                                                   conditional=True)
-                        cmd.attach_alter_table(context)
-                        self.pgops.add(cmd)
-
-        return constraint
 
 
 class LinkPropertyMetaCommand(NamedPrototypeMetaCommand, PointerMetaCommand):
@@ -3056,6 +2589,11 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
         attrvaltable = deltadbops.AttributeValueTable()
         self.pgops.add(dbops.CreateTable(table=attrvaltable,
                                          neg_conditions=[dbops.TableExists(name=attrvaltable.name)],
+                                         priority=-1))
+
+        constrtable = deltadbops.ConstraintTable()
+        self.pgops.add(dbops.CreateTable(table=constrtable,
+                                         neg_conditions=[dbops.TableExists(name=constrtable.name)],
                                          priority=-1))
 
         policytable = deltadbops.PolicyTable()
@@ -4116,15 +3654,56 @@ class UpgradeBackend(MetaCommand):
 
             table_exists = dbops.TableExists(ctabname)
             constraint_exists = dbops.TableConstraintExists(ctabname, old_constr_name)
-            alter_table = dbops.AlterTable(ctabname, conditions=[table_exists,
-                                                                 constraint_exists])
 
-            alter_table.add_operation(dbops.AlterTableRenameConstraintSimple(old_constr_name,
-                                                                             new_constr_name))
+            rc = dbops.AlterTableRenameConstraintSimple(
+                    ctabname, old_name=old_constr_name,
+                    new_name=new_constr_name,
+                    conditions=[table_exists, constraint_exists])
 
-            cmdgroup.add_command(alter_table)
+            cmdgroup.add_command(rc)
 
         cmdgroup.execute(context)
+
+    def update_to_version_22(self, context):
+        """
+        Backend format 22: New constraint system, drop old constraints
+        """
+
+        cmdgroup = dbops.CommandGroup()
+
+        db = context.db
+        cd = datasources.introspection.constraints.Constraints(db)
+
+        # Drop constraints on tables
+        constraints = cd.fetch(constraint_pattern='%::%_constr')
+        for constraint in constraints:
+            qry = '''
+                ALTER TABLE {table} DROP CONSTRAINT {constraint}
+            '''.format(
+                table=common.qname(*constraint['table_name']),
+                constraint=common.quote_ident(constraint['constraint_name'])
+            )
+
+            db.execute(qry)
+
+        # Drop constraints on domains
+        constraints = cd.fetch(constraint_pattern='metamagic.caos.proto.%')
+        for constraint in constraints:
+            qry = '''
+                ALTER DOMAIN {domain} DROP CONSTRAINT {constraint}
+            '''.format(
+                domain=common.qname(*constraint['domain_name']),
+                constraint=common.quote_ident(constraint['constraint_name'])
+            )
+
+            db.execute(qry)
+
+        cg = dbops.CommandGroup()
+
+        table = deltadbops.ConstraintTable()
+        cg.add_command(dbops.CreateTable(table=table,
+                    neg_conditions=[dbops.TableExists(name=table.name)]))
+        cg.execute(context)
 
     @classmethod
     def update_backend_info(cls):

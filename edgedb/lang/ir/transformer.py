@@ -101,7 +101,7 @@ class TreeTransformer:
                 self.extract_prefixes(path, prefixes)
 
         elif isinstance(expr, (caos_ast.EntitySet, caos_ast.AtomicRefSimple)):
-            key = getattr(expr, 'anchor', None) or expr.id
+            key = getattr(expr, 'pathvar', None) or expr.id
 
             if key:
                 # XXX AtomicRefs with PathCombinations in ref don't have an id
@@ -2019,7 +2019,7 @@ class TreeTransformer:
         ok = ((our_node is None and other_node is None) or
               (our_node is not None and other_node is not None and
                 (our_id == other_id
-                 and our_node.anchor == other_node.anchor
+                 and our_node.pathvar == other_node.pathvar
                  and (ignore_filters or (not our_node.filter and not other_node.filter
                                          and not our_node.conjunction.paths
                                          and not other_node.conjunction.paths))))
@@ -2255,62 +2255,19 @@ class TreeTransformer:
         """Determine query scope, i.e the schema nodes it will potentially traverse"""
 
         entity_paths = ast.find_children(tree, lambda i: isinstance(i, caos_ast.EntitySet))
+
         return list({p for p in entity_paths if isinstance(p.concept, caos_types.ProtoConcept)})
-
-    @classmethod
-    def get_query_node_scope(cls, tree):
-        """Determine the cardinality of node set the query will potentially traverse"""
-
-        schema_scope = cls.get_query_schema_scope(tree)
-        schema_scope_len = len(schema_scope)
-
-        if schema_scope_len == 0:
-            node_scope = 0
-
-        elif schema_scope_len == 1:
-            node_scope = -1
-
-            entity_path = schema_scope[0]
-
-            filter = entity_path.filter
-
-            filters = []
-            if isinstance(filter, caos_ast.BinOp):
-                filters.append(filter)
-
-                if isinstance(filter.left, caos_ast.AtomicRefExpr):
-                    filters.append(filter.left.expr)
-                elif isinstance(filter.left, caos_ast.BinOp):
-                    filters.append(filter.left)
-
-                if isinstance(filter.right, caos_ast.AtomicRefExpr):
-                    filters.append(filter.right.expr)
-                elif isinstance(filter.left, caos_ast.BinOp):
-                    filters.append(filter.right)
-
-            for filter in filters:
-                is_idfilter = isinstance(filter, caos_ast.BinOp) and \
-                              filter.op == ast.ops.EQ and \
-                              isinstance(filter.left, caos_ast.AtomicRefSimple) and \
-                              filter.left.name == 'metamagic.caos.builtins.id' and \
-                              isinstance(filter.right, caos_ast.Constant)
-                if is_idfilter:
-                    node_scope = 1
-                    break
-
-        else:
-            node_scope = -1
-
-        return node_scope
 
     @classmethod
     def copy_path(cls, path: (caos_ast.EntitySet, caos_ast.EntityLink, caos_ast.BaseRef),
                        connect_to_origin=False):
 
         if isinstance(path, caos_ast.EntitySet):
-            result = caos_ast.EntitySet(id=path.id, anchor=path.anchor, concept=path.concept,
+            result = caos_ast.EntitySet(id=path.id, pathvar=path.pathvar,
+                                        concept=path.concept,
                                         users=path.users, joins=path.joins,
                                         rewrite_flags=path.rewrite_flags.copy(),
+                                        anchor=path.anchor,
                                         show_as_anchor=path.show_as_anchor)
             rlink = path.rlink
 
@@ -2320,7 +2277,8 @@ class TreeTransformer:
         elif isinstance(path, caos_ast.BaseRef):
             args = dict(id=path.id, ref=path.ref, ptr_proto=path.ptr_proto,
                         rewrite_flags=path.rewrite_flags.copy(),
-                        anchor=path.anchor, show_as_anchor=path.show_as_anchor)
+                        pathvar=path.pathvar, anchor=path.anchor,
+                        show_as_anchor=path.show_as_anchor)
 
             if isinstance(path, caos_ast.BaseRefExpr):
                 args['expr'] = path.expr
@@ -2343,7 +2301,9 @@ class TreeTransformer:
                                        direction=rlink.direction,
                                        propfilter=rlink.propfilter,
                                        users=rlink.users.copy(),
+                                       pathvar=rlink.pathvar,
                                        anchor=rlink.anchor,
+                                       show_as_anchor=rlink.show_as_anchor,
                                        rewrite_flags=rlink.rewrite_flags.copy(),
                                        pathspec_trigger=rlink.pathspec_trigger)
 
@@ -2353,8 +2313,12 @@ class TreeTransformer:
             parent_path = rlink.source
 
             if parent_path:
-                parent = caos_ast.EntitySet(id=parent_path.id, anchor=parent_path.anchor,
-                                            concept=parent_path.concept, users=parent_path.users,
+                parent = caos_ast.EntitySet(id=parent_path.id,
+                                            pathvar=parent_path.pathvar,
+                                            anchor=parent_path.anchor,
+                                            show_as_anchor=parent_path.show_as_anchor,
+                                            concept=parent_path.concept,
+                                            users=parent_path.users,
                                             joins=parent_path.joins,
                                             rewrite_flags=parent_path.rewrite_flags.copy())
                 parent.disjunction = caos_ast.Disjunction(paths=frozenset((link,)))
@@ -2548,7 +2512,10 @@ class TreeTransformer:
                 ref_id = ref.ref.id
             else:
                 if not ref.id:
-                    ref_id = ref.ref.target.id if ref.ref.target else ref.ref.source.id
+                    if ref.ref.target or ref.ref.source:
+                        ref_id = ref.ref.target.id if ref.ref.target else ref.ref.source.id
+                    else:
+                        ref_id = LinearPath([ref.ref.link_proto])
                 else:
                     ref_id = ref.id
 
@@ -2576,11 +2543,18 @@ class TreeTransformer:
                  or isinstance(right.type, tuple) and
                     isinstance(right.type[1], caos_types.PrototypeClass))
 
+    def is_concept_path(self, expr):
+        if isinstance(expr, caos_ast.PathCombination):
+            return all(self.is_concept_path(p) for p in expr.paths)
+        elif isinstance(expr, caos_ast.EntitySet):
+            return isinstance(expr.concept, caos_types.ProtoConcept)
+        else:
+            return False
+
     def is_const_idfilter(self, left, right, op, reversed):
-        return (isinstance(left, caos_ast.Path) and not isinstance(left, caos_ast.SubgraphRef)
-                and isinstance(right, caos_ast.Constant)
-                and (op in (ast.ops.IN, ast.ops.NOT_IN) or
-                     (not reversed and op in (ast.ops.EQ, ast.ops.NE))))
+        return self.is_concept_path(left) and isinstance(right, caos_ast.Constant) and \
+                (op in (ast.ops.IN, ast.ops.NOT_IN) or \
+                 (not reversed and op in (ast.ops.EQ, ast.ops.NE)))
 
     def get_multipath(self, expr:caos_ast.Path):
         if not isinstance(expr, caos_ast.PathCombination):
@@ -2760,6 +2734,7 @@ class TreeTransformer:
                             aexpr.inline = False
 
                         _binop = self.merge_paths(_binop)
+
                         result = exprnode_type(expr=_binop)
                     else:
                         result = newbinop(left, right, uninline=True)
@@ -3001,7 +2976,9 @@ class TreeTransformer:
                 result = expr.type
 
         elif isinstance(expr, caos_ast.BinOp):
-            if isinstance(expr.op, (ast.ops.ComparisonOperator, ast.ops.EquivalenceOperator)):
+            if isinstance(expr.op, (ast.ops.ComparisonOperator,
+                                    ast.ops.EquivalenceOperator,
+                                    ast.ops.MembershipOperator)):
                 result = schema.get('metamagic.caos.builtins.bool')
             else:
                 left_type = self.get_expr_type(expr.left, schema)
@@ -3033,6 +3010,9 @@ class TreeTransformer:
                 result = self.get_expr_type(subgraph.selector[0].expr, schema)
             else:
                 result = None
+
+        elif isinstance(expr, caos_ast.ExistPred):
+            result = schema.get('metamagic.caos.builtins.bool')
 
         else:
             result = None

@@ -47,8 +47,7 @@ class ProtoSchemaAdapter(yaml.Object):
 
         self.load_imports(context, localschema)
 
-        self.read_elements(data, localschema)
-        self.order_elements(localschema)
+        self.process_data(data, localschema)
 
     def load_imports(self, context, localschema):
         pass
@@ -62,10 +61,7 @@ class ProtoSchemaAdapter(yaml.Object):
     def get_schema_name_class(self):
         return protoschema.SchemaName
 
-    def read_elements(self, data, localschema):
-        pass
-
-    def order_elements(self, localschema):
+    def process_data(self, data, localschema):
         pass
 
     def items(self):

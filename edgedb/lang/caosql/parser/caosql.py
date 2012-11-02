@@ -771,12 +771,18 @@ class Expr(Nonterm):
         op = kids[1].val
         if op == '!=':
             op = ast.ops.NE
+        elif op == '==':
+            op = ast.ops.EQ
         elif op == '>=':
             op = ast.ops.GE
         elif op == '<=':
             op = ast.ops.LE
         elif op == '@@':
             op = caos_ast.SEARCH
+        elif op == '~':
+            op = qlast.REMATCH
+        elif op == '~*':
+            op = qlast.REIMATCH
 
         self.val = qlast.BinOpNode(left=kids[0].val, op=op, right=kids[2].val)
 

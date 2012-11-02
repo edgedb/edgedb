@@ -1,10 +1,12 @@
 ##
-# Copyright (c) 2010-2012 Sprymix Inc.
+# Copyright (c) 2010-2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
+
+import collections
 
 from metamagic import caos
 from metamagic.caos import proto
@@ -56,19 +58,20 @@ class CaosQLExpression:
         return self.transformer.transform_fragment(tree, (), anchors=anchors, location=location)
 
     @debug.debug
-    def transform_expr(self, expr, anchors=None, context=None, arg_types=None, result_filters=None,
-                                                                               result_sort=None):
+    def transform_expr(self, expr, anchors=None, arg_types=None,
+                             result_filters=None, result_sort=None):
         """LOG [caos.query] CaosQL query:
         print(expr)
         """
 
         caosql_tree = self.parser.parse(expr)
 
-        if context is not None or result_filters is not None or result_sort is not None:
-            caosql_tree, aux_arg_types = self.parser.normalize_select_query(caosql_tree,
-                                                                            context=context,
-                                                                            filters=result_filters,
-                                                                            sort=result_sort)
+        if result_filters is not None or result_sort is not None:
+            caosql_tree, aux_arg_types = self.parser.normalize_select_query(
+                                            caosql_tree, anchors=anchors,
+                                            filters=result_filters,
+                                            sort=result_sort
+                                         )
         else:
             aux_arg_types = {}
 
@@ -127,7 +130,7 @@ class CaosQLExpression:
 
         return processed
 
-    def get_node_references(self, tree):
+    def get_source_references(self, tree):
         result = []
 
         refs = self.transformer.extract_paths(tree, reverse=True, resolve_arefs=True,
@@ -144,6 +147,88 @@ class CaosQLExpression:
                         result.append(node.link_proto)
 
         return set(result)
+
+    def get_terminal_references(self, tree):
+        result = set()
+
+        refs = self.transformer.extract_paths(tree, reverse=True, resolve_arefs=True,
+                                                    recurse_subqueries=1)
+
+        if refs is not None:
+            flt = lambda n: callable(getattr(n, 'is_terminal', None)) and n.is_terminal()
+            result.update(ast.find_children(refs, flt))
+
+        return result
+
+    def infer_arg_types(self, tree, protoschema):
+        def flt(n):
+            if isinstance(n, caos_ast.BinOp):
+                return (isinstance(n.left, caos_ast.Constant) or
+                        isinstance(n.right, caos_ast.Constant))
+
+        ops = ast.find_children(tree, flt)
+
+        arg_types = {}
+
+        for binop in ops:
+            typ = None
+
+            if isinstance(binop.right, caos_ast.Constant):
+                expr = binop.left
+                arg = binop.right
+                reversed = False
+            else:
+                expr = binop.right
+                arg = binop.left
+                reversed = True
+
+            if arg.index is None:
+                continue
+
+            if isinstance(binop.op, caos_ast.CaosMatchOperator):
+                typ = protoschema.get('metamagic.caos.builtins.str')
+
+            elif isinstance(binop.op, (ast.ops.ComparisonOperator, ast.ops.ArithmeticOperator)):
+                typ = self.transformer.get_expr_type(expr, protoschema)
+
+            elif isinstance(binop.op, ast.ops.MembershipOperator) and not reversed:
+                elem_type = self.transformer.get_expr_type(expr, protoschema)
+                typ = proto.Set(element_type=elem_type)
+
+            elif isinstance(binop.op, ast.ops.BooleanOperator):
+                typ = protoschema.get('metamagic.caos.builtins.bool')
+
+            else:
+                msg = 'cannot infer expr type: unsupported operator: {!r}'.format(binop.op)
+                raise ValueError(msg)
+
+            if typ is None:
+                msg = 'cannot infer expr type'
+                raise ValueError(msg)
+
+            try:
+                existing = arg_types[arg.index]
+            except KeyError:
+                arg_types[arg.index] = typ
+            else:
+                if existing != typ:
+                    msg = 'cannot infer expr type: ambiguous resolution: {!r} and {!r}'
+                    raise ValueError(msg.format(existing, typ))
+
+        return arg_types
+
+    def inline_constants(self, caosql_tree, values, types):
+        flt = lambda n: isinstance(n, caosql_ast.ConstantNode) and n.index in values
+        constants = ast.find_children(caosql_tree, flt)
+
+        for constant in constants:
+            value = values[constant.index]
+
+            if isinstance(value, collections.Container) and not isinstance(value, (str, bytes)):
+                elements = [caosql_ast.ConstantNode(value=i) for i in value]
+                value = caosql_ast.SequenceNode(elements=elements)
+
+            constant.value = value
 
 
 class _PrependSource(ast.visitor.NodeVisitor):

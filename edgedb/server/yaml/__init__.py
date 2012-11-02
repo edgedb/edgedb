@@ -32,6 +32,7 @@ from metamagic.caos import proto
 from metamagic.caos import backends
 from metamagic.caos import delta as base_delta
 from metamagic.caos import objects
+from metamagic.caos import schema as caos_schema
 from metamagic.caos.caosql import expr as caosql_expr
 from metamagic.caos.caosql import errors as caosql_exc
 
@@ -122,7 +123,16 @@ class AbstractTypedCollection(yaml.Object, metaclass=TypedCollectionMeta,
 
     @classmethod
     def __sx_getstate__(cls, data):
-        return [item.name for item in data]
+        if isinstance(data, typed.AbstractTypedMapping):
+            return dict(data)
+        else:
+            return [item.name for item in data]
+
+
+class ArgDict(AbstractTypedCollection, adapts=proto.ArgDict,
+                                       type=object):
+    def __sx_setstate__(self, data):
+        proto.ArgDict.__init__(self, data)
 
 
 class WordCombination(LangObject, adapts=morphology.WordCombination, ignore_aliases=True):
@@ -371,6 +381,74 @@ class AtomConstraint(LangObject, ignore_aliases=True):
     pass
 
 
+class Constraint(LangObject, adapts=proto.Constraint):
+    def __sx_setstate__(self, data):
+        if isinstance(data, dict):
+            extends = data.get('extends')
+            if extends:
+                if not isinstance(extends, list):
+                    extends = [extends]
+
+            proto.Constraint.__init__(self, title=data['title'], description=data['description'],
+                                            is_abstract=data.get('abstract'),
+                                            is_final=data.get('final'),
+                                            errmessage=data.get('errmessage'),
+                                            _setdefaults_=False, _relaxrequired_=True)
+
+            self._bases = extends
+            self._expr = data.get('expr')
+            self._subjectexpr = data.get('subject')
+            self._paramtypes = data.get('paramtypes')
+            _params = data.get('params') or {}
+        else:
+            proto.Constraint.__init__(self, _setdefaults_=False, _relaxrequired_=True)
+            self._expr = None
+            _params = dict(param=data)
+
+        self._params = {}
+
+        for p, v in _params.items():
+            if isinstance(v, str):
+                v = v.strip(' \n')
+            self._params[p] = v
+
+        self._yml_workattrs = {'_bases', '_expr', '_subjectexpr', '_paramtypes', '_param'}
+
+    @classmethod
+    def __sx_getstate__(cls, data):
+        result = {}
+
+        if data.generic():
+            if data.bases:
+                result['extends'] = [b.name for b in data.bases]
+
+        if data.title:
+            result['title'] = data.title
+
+        if data.description:
+            result['description'] = data.description
+
+        if data.is_abstract:
+            result['abstract'] = data.is_abstract
+
+        if data.is_final:
+            result['final'] = data.is_final
+
+        if data.expr:
+            result['expr'] = data.expr
+
+        if data.errmessage:
+            result['errmessage'] = data.errmessage
+
+        if data.subjectexpr:
+            result['subject'] = data.subjectexpr
+
+        if data.paramtypes:
+            result['paramtypes'] = data.paramtypes
+
+        return result
+
+
 class AtomConstraintMinLength(AtomConstraint, adapts=proto.AtomConstraintMinLength):
     def __sx_setstate__(self, data):
         proto.AtomConstraintMinLength.__init__(self, data['min-length'])
@@ -497,9 +575,8 @@ class Atom(Prototype, adapts=proto.Atom):
         if data.is_final:
             result['final'] = data.is_final
 
-        if data.constraints:
-            result['constraints'] = sorted(list(itertools.chain.from_iterable(data.constraints.values())),
-                                           key=lambda i: i.__class__.constraint_name)
+        if data.local_constraints:
+            result['constraints'] = dict(data.local_constraints)
 
         if data.local_attributes:
             result['attributes'] = dict(data.local_attributes)
@@ -521,7 +598,10 @@ class Concept(Prototype, adapts=proto.Concept):
         self._bases = extends
         self._links = data.get('links', {})
         self._indexes = data.get('indexes') or ()
-        self._yml_workattrs = {'_links', '_indexes', '_bases'}
+        self._constraints = data.get('constraints')
+        self._abstract_constraints = data.get('abstract-constraints')
+        self._yml_workattrs = {'_links', '_indexes', '_bases', '_constraints',
+                               '_abstract_constraints'}
 
     @classmethod
     def __sx_getstate__(cls, data):
@@ -545,18 +625,19 @@ class Concept(Prototype, adapts=proto.Concept):
         if data.own_pointers:
             result['links'] = {}
             for ptr_name, ptr in data.own_pointers.items():
-                if isinstance(ptr.target, proto.Atom) and ptr.target.automatic:
-                    key = ptr.target.bases[0].name
+                if isinstance(ptr.target, proto.Concept) and ptr.target.is_virtual:
+                    # key = tuple(t.name for t in ptr.target._virtual_children)
+                    key = 'virtual___'
                 else:
-                    if isinstance(ptr.target, proto.Concept) and ptr.target.is_virtual:
-                        key = tuple(t.name for t in ptr.target._virtual_children)
-                    else:
-                        key = ptr.target.name
+                    key = ptr.target.name
 
                 result['links'][ptr_name] = {key: ptr}
 
         if data.indexes:
             result['indexes'] = list(sorted(data.indexes, key=lambda i: i.expr))
+
+        if data.local_constraints:
+            result['constraints'] = dict(data.local_constraints)
 
         return result
 
@@ -741,18 +822,8 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
     def __sx_getstate__(cls, data):
         result = {}
 
-        if data.target and isinstance(data.target, caos.types.ProtoAtom) \
-                       and data.target.constraints and data.target.automatic:
-            items = itertools.chain.from_iterable(data.target.constraints.values())
-            result['constraints'] = list(items)
-
         if data.local_constraints:
-            constraints = result.setdefault('constraints', [])
-            constraints.extend(itertools.chain.from_iterable(data.local_constraints.values()))
-
-        if data.abstract_constraints:
-            items = itertools.chain.from_iterable(data.local_constraints.values())
-            result['abstract-constraints'] = list(items)
+            result['constraints'] = dict(data.local_constraints)
 
         if data.title:
             result['title'] = data.title
@@ -844,9 +915,6 @@ class LinkDef(Prototype, adapts=proto.Link):
         if data.exposed_behaviour:
             result['exposed_behaviour'] = data.exposed_behaviour
 
-        if isinstance(data.target, proto.Atom) and data.target.automatic:
-            result['constraints'] = list(itertools.chain.from_iterable(data.target.constraints.values()))
-
         if data.required:
             result['required'] = data.required
 
@@ -859,12 +927,7 @@ class LinkDef(Prototype, adapts=proto.Link):
                 result['properties'][ptr_name] = ptr
 
         if data.local_constraints:
-            constraints = result.setdefault('constraints', [])
-            constraints.extend(itertools.chain.from_iterable(data.local_constraints.values()))
-
-        if data.abstract_constraints:
-            items = itertools.chain.from_iterable(data.abstract_constraints.values())
-            result['abstract-constraints'] = list(items)
+            result['constraints'] = dict(data.local_constraints)
 
         if data.search:
             result['search'] = data.search
@@ -983,6 +1046,12 @@ class SpecializedLink(LangObject):
             lang_context.SourceContext.register_object(link, context)
 
             link._constraints = info.get('constraints')
+            if link._constraints:
+                for constraint in link._constraints:
+                    if isinstance(constraint, proto.PointerConstraintUnique):
+                        if list(constraint.values)[0] == True:
+                            constraint.values = {"self.target"}
+
             link._abstract_constraints = info.get('abstract-constraints')
             link._properties = props
             link._targets = targets
@@ -1041,29 +1110,43 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 proto_module.__sx_prototypes__.add(proto)
 
 
-    def read_elements(self, data, localschema):
+    def process_data(self, data, localschema):
         self.caosql_expr = caosql_expr.CaosQLExpression(localschema, localschema.modules)
-        self.read_attributes(data, localschema)
+
+        self.collect_atoms(data, localschema)
+        self.collect_attributes(data, localschema)
+
+        self.collect_constraints(data, localschema)
+
+        # Constraints have no external dependencies, but need to
+        # be fully initialized when we get to constraint users below.
+        constraints = self.merge_and_sort_constraints(localschema)
+
+        # Ditto for attributes
+        attributes = self.merge_and_sort_attributes(localschema)
+
+        # Atoms depend only on constraints and attributes, can process them now
+        atoms = self.merge_and_sort_atoms(localschema)
+
         self.read_cascade_actions(data, localschema)
         self.read_cascade_events(data, localschema)
-        self.read_atoms(data, localschema)
         self.read_link_properties(data, localschema)
         self.read_links(data, localschema)
         self.read_concepts(data, localschema)
         self.read_cascade_policy(data, localschema)
 
-    def order_elements(self, localschema):
         # The final pass on may produce additional objects,
-        # thus, it has to be performed in reverse order.
+        # thus, it has to be performed in reverse order (mostly).
         concepts = OrderedSet(self.order_concepts(localschema))
         links = OrderedSet(self.order_links(localschema))
         linkprops = OrderedSet(self.order_link_properties(localschema))
-        atoms = OrderedSet(self.order_atoms(localschema))
         cascade_policy = OrderedSet(self.order_cascade_policy(localschema))
         cascade_events = OrderedSet(self.order_cascade_events(localschema))
         cascade_actions = OrderedSet(self.order_cascade_actions(localschema))
         attribute_values = OrderedSet(self.order_attribute_values(localschema))
-        attributes = OrderedSet(self.order_attributes(localschema))
+
+        constraints.update(self.collect_derived_constraints(localschema))
+        self.finalize_constraints(constraints, localschema)
 
         for attribute in attributes:
             attribute.setdefaults()
@@ -1086,6 +1169,9 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 for workattr in atom._yml_workattrs:
                     delattr(atom, workattr)
                 delattr(atom, '_yml_workattrs')
+
+        for atom in atoms:
+            atom.materialize(localschema)
 
         for prop in linkprops:
             prop.setdefaults()
@@ -1114,6 +1200,16 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     delattr(concept, workattr)
                 delattr(concept, '_yml_workattrs')
 
+        for concept in concepts:
+            self.normalize_pointer_defaults(concept, localschema)
+            concept.materialize(localschema)
+
+        for concept in concepts:
+            for index in concept.own_indexes:
+                expr, tree = self.normalize_index_expr(index.expr, concept, localschema)
+                index.expr = expr
+                index.tree = tree
+
             try:
                 for index in concept.own_indexes:
                     csql_expr.check_source_atomic_expr(index.tree, concept)
@@ -1124,29 +1220,30 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 concept_context = lang_context.SourceContext.from_object(concept)
                 raise MetaError(e.args[0], context=concept_context) from e
 
-        for concept in concepts:
-            concept.materialize(localschema)
-
-        # Link meterialization might have produced new specialized properties
-        for atom in localschema(type=caos.proto.Atom, include_automatic=True):
+        # Link meterialization might have produced new atoms
+        for atom in localschema(type=caos.proto.Atom):
             if atom.name.module == self.module.name:
                 atoms.add(atom)
 
+        for constraint in localschema(type=caos.proto.Constraint):
+            if constraint.name.module == self.module.name:
+                constraints.add(constraint)
+
         # Link meterialization might have produced new specialized properties
-        for prop in localschema(type=caos.proto.LinkProperty, include_automatic=True):
+        for prop in localschema(type=caos.proto.LinkProperty):
             if prop.name.module != self.module.name:
                 self._add_foreign_proto(prop)
             else:
                 linkprops.add(prop)
 
-        # Concept meterialization might have produced new specialized link
-        for link in localschema(type=caos.proto.Link, include_automatic=True):
+        # Concept meterialization might have produced new specialized links
+        for link in localschema(type=caos.proto.Link):
             if link.name.module != self.module.name:
                 self._add_foreign_proto(link)
             else:
                 links.add(link)
 
-        for link in localschema(type=caos.proto.Computable, include_automatic=True):
+        for link in localschema(type=caos.proto.Computable):
             if link.name.module != self.module.name:
                 self._add_foreign_proto(link)
             else:
@@ -1154,7 +1251,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
         # Arrange prototypes in the resulting schema according to determined topological order.
         localschema.reorder(itertools.chain(attributes, attribute_values, cascade_actions,
-                                            cascade_events, atoms, linkprops,
+                                            cascade_events, constraints, atoms, linkprops,
                                             links, concepts, cascade_policy))
 
 
@@ -1186,18 +1283,52 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         return base
 
 
-    def read_attributes(self, data, localschema):
+    def _merge_and_sort_objects(self, localschema, objtype, objmerger):
+        g = {}
+
+        for obj in self.module(objtype):
+            g[obj.name] = {"item": obj, "merge": [], "deps": []}
+
+            if obj.bases:
+                g[obj.name]['merge'].extend(b.name for b in obj.bases)
+
+                for base in obj.bases:
+                    if base.name.module != self.module.name:
+                        g[base.name] = {"item": base, "merge": [], "deps": []}
+
+        objs = topological.normalize(g, merger=objmerger, context=localschema)
+        return OrderedSet(filter(lambda obj: obj.name.module == self.module.name, objs))
+
+
+    def _parse_typeref(self, typeref, localschema, context):
+        try:
+            collection_type, type = proto.TypeRef.parse(typeref)
+        except ValueError as e:
+            raise MetaError(e.args[0], context=context) from None
+
+        if type is not None:
+            try:
+                type = localschema.get(type)
+            except caos.MetaError as e:
+                raise MetaError(e, context=context)
+
+        if collection_type is not None:
+            type = collection_type(element_type=type)
+
+        return type
+
+    def collect_attributes(self, data, localschema):
         for attribute_name, attribute in data['attributes'].items():
             attribute.name = caos.Name(name=attribute_name, module=self.module.name)
             self._add_proto(localschema, attribute)
 
 
-    def order_attributes(self, localschema):
-        return self.module('attribute', include_automatic=True)
+    def merge_and_sort_attributes(self, localschema):
+        return OrderedSet(self.module('attribute'))
 
 
     def order_attribute_values(self, localschema):
-        return self.module('attribute-value', include_automatic=True)
+        return self.module('attribute-value')
 
 
     def read_cascade_actions(self, data, localschema):
@@ -1207,7 +1338,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
 
     def order_cascade_actions(self, localschema):
-        return self.module('cascade-action', include_automatic=True)
+        return self.module('cascade-action')
 
 
     def read_cascade_events(self, data, localschema):
@@ -1228,7 +1359,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
     def order_cascade_events(self, localschema):
         g = {}
 
-        for event in self.module('cascade-event', include_automatic=True):
+        for event in self.module('cascade-event'):
             g[event.name] = {"item": event, "merge": [], "deps": []}
 
             if event._bases:
@@ -1256,6 +1387,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
             name = caos.types.ProtoAttributeValue.generate_specialized_name(subject.name,
                                                                             attribute.name)
+
             name = caos.name.Name(name=name, module=self.module.name)
 
             attrvalue.name = name
@@ -1338,10 +1470,16 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
 
     def order_cascade_policy(self, localschema):
-        return self.module('cascade-policy', include_automatic=True)
+        return self.module('cascade-policy')
 
 
-    def read_atoms(self, data, localschema):
+    def collect_atoms(self, data, localschema):
+        # First pass on atoms.
+        #
+        # Keeps this very simple and do not attempt to resolve anything
+        # besides bases to avoid circular dependency, as atoms are used
+        # in attribute and constraint definitions.
+        #
         for atom_name, atom in data['atoms'].items():
             atom.name = caos.Name(name=atom_name, module=self.module.name)
             self._add_proto(localschema, atom)
@@ -1355,14 +1493,18 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     raise MetaError(e, context=context) from e
 
 
-    def order_atoms(self, localschema):
+    def merge_and_sort_atoms(self, localschema):
+        # Second pass on atoms.
+        #
+        # Resolve all properties and perform inheritance merge.
+        #
         context = lang_context.SourceContext.from_object(self)
         this_module = context.document.import_context
 
         g = {}
 
-        for atom in self.module('atom', include_automatic=True):
-            g[atom.name] = {"item": atom, "merge": [], "deps": []}
+        for atom in self.module('atom'):
+            this_item = g[atom.name] = {"item": atom, "merge": [], "deps": set()}
 
             if atom.name.module == this_module:
                 attributes = getattr(atom, '_attributes', None)
@@ -1373,41 +1515,180 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
                 constraints = getattr(atom, '_constraints', None)
                 if constraints:
-                    atom.normalize_constraints(localschema, constraints)
-                    for constraint in constraints:
-                        atom.add_constraint(constraint)
+                    self._collect_constraints_for_subject(atom, constraints, localschema)
+
+                    ptypes = set()
+                    for constraint in atom.constraints.values():
+                        if constraint.paramtypes:
+                            ptypes.update(constraint.paramtypes.values())
+                        inferred = constraint.inferredparamtypes
+                        if inferred:
+                            ptypes.update(inferred.values())
+
+                    ptypes = {p.element_type if isinstance(p, proto.Collection) else p
+                                                                    for p in ptypes}
+
+                    # Add dependency on all builtin atoms unconditionally
+                    builtins = localschema.get_module('metamagic.caos.builtins')
+                    ptypes.update(builtins('atom'))
+
+                    for p in ptypes:
+                        if p is not atom:
+                            this_item['deps'].add(p.name)
+                            g[p.name] = {"item": p, "merge": [], "deps": []}
 
                 if atom.bases:
                     atom_base = atom.bases[0]
 
                     if isinstance(atom_base, proto.Atom) and atom.name:
-                        g[atom.name]['merge'].append(atom_base.name)
+                        this_item['merge'].append(atom_base.name)
                         if atom_base.name.module != self.module.name:
                             g[atom_base.name] = {"item": atom_base, "merge": [], "deps": []}
 
         atoms = topological.normalize(g, merger=proto.Atom.merge, context=localschema)
-        return list(filter(lambda a: a.name.module == self.module.name, atoms))
+        return OrderedSet(filter(lambda a: a.name.module == self.module.name, atoms))
 
-    def add_pointer_constraints(self, parent, constraints, type, constraint_type='regular'):
-        if constraints:
-            for constraint in constraints:
-                if isinstance(constraint, proto.PointerConstraint):
-                    if isinstance(constraint, proto.PointerConstraintUnique):
-                        if type == 'atom':
-                            if len(constraint.values) > 1 \
-                                    or isinstance(list(constraint.values)[0], str):
-                                raise caos.MetaError(('invalid value for atomic pointer "%s" '
-                                                      'unique constraint') % parent.normal_name())
-                        elif type == 'concept':
-                            if not isinstance(list(constraint.values)[0], str):
-                                raise caos.MetaError(('invalid value for non-atomic pointer "%s" '
-                                                      'unique constraint, expecting an expression')\
-                                                      % parent.normal_name())
+    def collect_constraints(self, data, localschema):
+        # First pass on constraint definitions.
+        #
+        # Constraints potentially depend on atoms, so this must be called after
+        # collect_atoms().
+        #
 
-                    if constraint_type == 'abstract':
-                        parent.add_abstract_constraint(constraint)
-                    else:
-                        parent.add_constraint(constraint)
+        cschema = caos_schema.constraints.ConstraintsSchema
+
+        for constraint_name, constraint in data['constraints'].items():
+            constraint.name = caos.Name(name=constraint_name, module=self.module.name)
+            self._add_proto(localschema, constraint)
+
+        for constraint in self.module('constraint'):
+            context = lang_context.SourceContext.from_object(constraint)
+            module_aliases = self._get_obj_module_aliases(constraint)
+
+            if constraint._bases:
+                try:
+                    constraint.bases = [self._check_base(constraint, b, localschema)
+                                        for b in constraint._bases]
+                except caos.MetaError as e:
+                    context = lang_context.SourceContext.from_object(constraint)
+                    raise MetaError(e, context=context) from e
+
+            elif constraint.name != 'metamagic.caos.builtins.constraint':
+                # All constraints inherit from builtins.constraint
+                constraint.bases = [localschema.get('metamagic.caos.builtins.constraint')]
+            else:
+                constraint.bases = []
+
+            if constraint._paramtypes:
+                # Explicit parameter type is given to validate and coerce param
+                # values into.
+
+                paramtypes = {}
+                for pn, typeref in constraint._paramtypes.items():
+                    type = self._parse_typeref(typeref, localschema, context)
+                    paramtypes[pn] = type
+
+                constraint.paramtypes = paramtypes
+
+            if constraint._expr:
+                # No point in interpreting the expression in generic constraint def,
+                # but we still need to do validation.
+                #
+                try:
+                    expr = cschema.normalize_constraint_expr(localschema, module_aliases,
+                                                             constraint._expr)
+                except (ValueError, caosql_exc.CaosQLQueryError) as e:
+                    raise MetaError(e.args[0], context=context) from None
+
+                constraint.expr = expr
+
+            if constraint._subjectexpr:
+                # Again, no interpretation, simple validation
+                try:
+                    expr = cschema.normalize_constraint_subject_expr(localschema, module_aliases,
+                                                                     constraint._subjectexpr)
+                except (ValueError, caosql_exc.CaosQLQueryError) as e:
+                    raise MetaError(e.args[0], context=context) from None
+
+                constraint.subjectexpr = expr
+
+
+    def merge_and_sort_constraints(self, localschema):
+        return self._merge_and_sort_objects(localschema, 'constraint', proto.Constraint.merge)
+
+
+    def collect_derived_constraints(self, localschema):
+        constraints = self.module('constraint')
+        return OrderedSet(c for c in constraints if c.subject is not None)
+
+
+    def finalize_constraints(self, constraints, localschema):
+        cschema = caos_schema.constraints.ConstraintsSchema
+
+        for constraint in constraints:
+            constraint.acquire_ancestor_inheritance(localschema)
+            constraint.setdefaults()
+
+        return constraints
+
+
+    def _collect_constraints_for_subject(self, subject, constraints,
+                                               localschema, abstract=False):
+        # Perform initial collection of constraints defined in subject context.
+        # At this point all referenced constraints should be fully initialized.
+
+        cschema = caos_schema.constraints.ConstraintsSchema
+        namegen = proto.Constraint.generate_specialized_name
+
+        constr = {}
+
+        for constraint_name, constraint in constraints:
+            if constraint._expr:
+                constraint.expr = constraint._expr
+
+            constraint_base = localschema.get(constraint_name,
+                                              type=proto.Constraint)
+            constraint_qname = constraint_base.name
+
+            # A new specialized subclass of the constraint is created
+            # for each subject referencing the constraint.
+            #
+            constraint.bases = [localschema.get(constraint_qname,
+                                                type=caos.proto.Constraint)]
+            constraint.subject = subject
+            constraint.acquire_ancestor_inheritance(localschema)
+
+            constr_genname = namegen(subject.name, constraint.bases[0].name)
+            constraint.name = caos.Name(name=constr_genname,
+                                        module=self.module.name)
+            constraint.is_abstract = abstract
+
+            # We now have a full set of data to perform final validation
+            # and analysis of the constraint.
+            #
+            cschema.process_specialized_constraint(localschema, constraint)
+
+            # There can be only one specialized constraint per constraint
+            # class per subject. At this point all placeholders have been
+            # folded, so it is possible to merge the constraints consistently
+            # by merging their final exprs.
+            #
+            try:
+                prev = constr[constraint.bases[0].name]
+            except KeyError:
+                constr[constraint.bases[0].name] = constraint
+            else:
+                constraint.merge(prev, context=localschema, local=True)
+                constr[constraint.bases[0].name] = constraint
+
+        for c in constr.values():
+            # Note that we don't do finalization for the constraint
+            # here, since it's possible that it will be further used
+            # in a merge of it's subject.
+            #
+            self._add_proto(localschema, c)
+            subject.add_constraint(c, localschema)
+
 
     def read_link_properties(self, data, localschema):
         for property_name, property in data['link-properties'].items():
@@ -1431,7 +1712,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
     def order_link_properties(self, localschema):
         g = {}
 
-        for prop in self.module('link_property', include_automatic=True):
+        for prop in self.module('link_property'):
             g[prop.name] = {"item": prop, "merge": [], "deps": []}
 
             if prop.bases:
@@ -1482,7 +1763,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 targetname = getattr(property, '_target', None)
                 if targetname:
                     property.target = localschema.get(targetname)
-                proptarget = property.target
             else:
                 link_base = link.bases[0]
                 propdef = link_base.pointers.get(property_qname)
@@ -1490,18 +1770,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     raise caos.MetaError('link "%s" does not define property "%s"' \
                                          % (link.name, property_qname))
                 property_qname = propdef.normal_name()
-                proptarget = propdef.target
-
-            atom_constraints = self._get_link_atom_constraints(property)
-
-            target_name = None
-
-            if atom_constraints:
-                target_name = Atom.gen_atom_name(link, property_qname)
-                target_name = caos.Name(name=target_name, module=link.name.module)
-            else:
-                if proptarget:
-                    target_name = proptarget.name
 
             # A new specialized subclass of the link property is created for each
             # (source, property_name, target_atom) combination
@@ -1511,9 +1779,14 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             property.name = caos.Name(name=prop_genname, module=self.module.name)
             property.source = link
 
-            self.add_pointer_constraints(property, getattr(property, '_constraints', ()), 'atom')
-            self.add_pointer_constraints(property, getattr(property, '_abstract_constraints', ()),
-                                                                     'atom', 'abstract')
+            constraints = getattr(property, '_constraints', None)
+            if constraints:
+                self._collect_constraints_for_subject(property, constraints, localschema)
+
+            abstract_constraints = getattr(property, '_abstract_constraints', None)
+            if abstract_constraints:
+                self._collect_constraints_for_subject(property, abstract_constraints, localschema,
+                                                      abstract=True)
 
             self._add_proto(localschema, property)
 
@@ -1535,9 +1808,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         for link_name, link in data['links'].items():
             module = self.module.name
             link.name = caos.Name(name=link_name, module=module)
-
-            self.read_properties_for_link(link, localschema)
-
             self._add_proto(localschema, link)
 
         for link in self.module('link'):
@@ -1550,6 +1820,9 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             elif link.name != 'metamagic.caos.builtins.link':
                 link.bases = [localschema.get('metamagic.caos.builtins.link')]
 
+        for link in self.module('link'):
+            self.read_properties_for_link(link, localschema)
+
             for index in link._indexes:
                 expr, tree = self.normalize_index_expr(index.expr, link, localschema)
                 idx = proto.SourceIndex(expr, tree=tree)
@@ -1560,7 +1833,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
     def order_links(self, localschema):
         g = {}
 
-        for link in self.module('link', include_automatic=True):
+        for link in self.module('link'):
             g[link.name] = {"item": link, "merge": [], "deps": []}
 
             if link.name.module != self.module.name and \
@@ -1572,19 +1845,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     if isinstance(property.target, str):
                         property.target = localschema.get(property.target, index_only=False)
 
-                    constraints = getattr(property, 'constraints', None)
-                    if constraints:
-                        atom_constraints = [c for c in constraints.values()
-                                            if isinstance(c, proto.AtomConstraint)]
-                    else:
-                        atom_constraints = None
-                    if atom_constraints:
-                        # Got an inline atom definition.
-                        atom = self.genatom(localschema, link, property.target, property_name,
-                                            constraints=atom_constraints, default=property.default)
-                        self._add_proto(localschema, atom)
-                        property.target = atom
-
             if link.source and not isinstance(link.source, proto.Prototype):
                 link.source = localschema.get(link.source)
 
@@ -1593,18 +1853,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
             if link.target:
                 link.is_atom = isinstance(link.target, proto.Atom)
-
-            if not link.generic():
-                type = 'atom' if link.atomic() else 'concept'
-
-                constraints = getattr(link, '_constraints', ())
-                if constraints:
-                    link_constraints = [c for c in constraints if isinstance(c, proto.PointerConstraint)]
-                    self.add_pointer_constraints(link, link_constraints, type)
-
-                aconstraints = getattr(link, '_abstract_constraints', ())
-                if aconstraints:
-                    self.add_pointer_constraints(link, aconstraints, type, 'abstract')
 
             cascade_policies = getattr(link, '_cascades', {})
 
@@ -1625,7 +1873,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 raise MetaError(e.msg, hint=e.hint, details=e.details, context=e.context.context) from e
             raise
 
-        links = list(filter(lambda l: l.name.module == self.module.name, links))
+        links = OrderedSet(filter(lambda l: l.name.module == self.module.name, links))
 
         csql_expr = caosql_expr.CaosQLExpression(localschema)
 
@@ -1636,11 +1884,27 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
                 self.normalize_pointer_defaults(link, localschema)
 
+                constraints = getattr(link, '_constraints', ())
+                if constraints:
+                    self._collect_constraints_for_subject(link, constraints, localschema)
+
+                aconstraints = getattr(link, '_abstract_constraints', ())
+                if aconstraints:
+                    self._collect_constraints_for_subject(link, aconstraints, localschema,
+                                                          abstract=True)
+
         except caosql_exc.CaosQLReferenceError as e:
             context = lang_context.SourceContext.from_object(index)
             raise MetaError(e.args[0], context=context) from e
 
-        return links
+        try:
+            links = topological.normalize(g, merger=proto.Link.merge_policy, context=localschema)
+        except caos.MetaError as e:
+            if e.context:
+                raise MetaError(e.msg, hint=e.hint, details=e.details, context=e.context.context) from e
+            raise
+
+        return OrderedSet(filter(lambda l: l.name.module == self.module.name, links))
 
     def read_concepts(self, data, localschema):
         for concept_name, concept in data['concepts'].items():
@@ -1702,13 +1966,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 else:
                     link._target = None
 
-                atom_constraints = self._get_link_atom_constraints(link)
-
-                if atom_constraints:
-                    target_name = Atom.gen_atom_name(concept, link_qname)
-                    target_name = caos.Name(name=target_name, module=concept.name.module)
-                else:
-                    target_name = link._target
+                target_name = link._target
 
                 # A new specialized subclass of the link is created for each
                 # (source, link_name, target) combination
@@ -1757,10 +2015,16 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
         for concept in self.module('concept'):
             for index in getattr(concept, '_indexes', ()):
-                expr, tree = self.normalize_index_expr(index.expr, concept, localschema)
-                index.expr = expr
-                index.tree = tree
                 concept.add_index(index)
+
+            constraints = getattr(concept, '_constraints', ())
+            if constraints:
+                self._collect_constraints_for_subject(concept, constraints, localschema)
+
+            aconstraints = getattr(concept, '_abstract_constraints', ())
+            if aconstraints:
+                self._collect_constraints_for_subject(concept, aconstraints, localschema,
+                                                      abstract=True)
 
 
     def _create_link_target(self, source, pointer, localschema):
@@ -1782,11 +2046,33 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         return target
 
 
+    def _normalize_source_constraints(self, source, constraints):
+        for constraint in constraints:
+            module_aliases = self._get_obj_module_aliases(constraint)
+
+            vals = set()
+
+            for value in constraint.values:
+                expr, _ = self.caosql_expr.normalize_expr(value, module_aliases,
+                                                          anchors={'self': source})
+                vals.add(expr)
+
+            constraint.values = vals
+
+
     def _normalize_link_target_name(self, link_fqname, targets, localschema):
         if len(targets) == 1:
             return targets[0]
         else:
             return proto.Source.gen_virt_parent_name(targets, module=link_fqname.module)
+
+
+    def _get_obj_module_aliases(self, obj):
+        obj_context = lang_context.SourceContext.from_object(obj)
+        module_aliases = {None: str(obj_context.document.import_context)}
+        for alias, module in obj_context.document.imports.items():
+            module_aliases[alias] = module.__name__
+        return module_aliases
 
 
     def normalize_index_expr(self, expr, concept, localschema):
@@ -1801,6 +2087,13 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     if isinstance(default, proto.QueryDefaultSpec):
                         def_context = lang_context.SourceContext.from_object(default)
 
+                        if (def_context is None or
+                            def_context.document.module.__name__
+                                != self.module.name):
+                            # This default is from another module, and
+                            # so is already normalized.
+                            continue
+
                         module_aliases = {None: str(def_context.document.import_context)}
                         for alias, module in def_context.document.imports.items():
                             module_aliases[alias] = module.__name__
@@ -1810,6 +2103,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                                                                       anchors={'self': source})
 
                         first = list(tree.result_types.values())[0][0]
+
                         if (len(tree.result_types) > 1
                                 or not isinstance(first, caos.types.ProtoNode)
                                 or (link.target is not None and not first.issubclass(link.target))):
@@ -1818,7 +2112,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                                              'single-column result of type "%s"') %
                                              link.target.name, context=def_context)
 
-                        if link.target is None or link.target.name == 'metamagic.caos.builtins.none':
+                        if link.is_pure_computable():
                             # Pure computable without explicit target.
                             # Fixup link target and target property.
                             link.target = first
@@ -1853,22 +2147,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     if isinstance(link.target, proto.Atom):
                         link.is_atom = True
 
-                        atom_constraints = self._get_link_atom_constraints(link)
-
-                        if atom_constraints and not link.target.name.name.startswith('__'):
-                            # Got an inline atom definition.
-                            atom = self.genatom(localschema, concept, link.target, link_name,
-                                                constraints=atom_constraints,
-                                                default=link.default)
-                            try:
-                                localschema.get(atom.name, type=proto.Atom)
-                            except caos.MetaError:
-                                self._add_proto(localschema, atom)
-
-                            link.target = atom
-                            tgt_prop = link.pointers['metamagic.caos.builtins.target']
-                            tgt_prop.target = atom
-
             if concept.bases:
                 for base in concept.bases:
                     if base.name.module != self.module.name:
@@ -1880,26 +2158,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                                                      context=localschema)))
 
         return concepts
-
-
-    def _get_link_atom_constraints(self, link):
-        constraints = getattr(link, '_constraints', None)
-        if constraints:
-            atom_constraints = [c for c in constraints if isinstance(c, proto.AtomConstraint)]
-        else:
-            atom_constraints = None
-
-        return atom_constraints
-
-
-    def genatom(self, meta, host, base, link_name, constraints, default):
-        atom_name = Atom.gen_atom_name(host, link_name)
-        atom = proto.Atom(name=caos.Name(name=atom_name, module=host.name.module),
-                          bases=[base], automatic=True, default=default)
-        atom.normalize_constraints(meta, constraints)
-        for constraint in constraints:
-            atom.add_constraint(constraint)
-        return atom
 
 
 class EntityShellMeta(type(LangObject), type(caos.concept.EntityShell)):
@@ -1983,19 +2241,24 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell, metaclass=EntityS
 class ProtoSchema(LangObject, adapts=proto.ProtoSchema):
     @classmethod
     def __sx_getstate__(cls, data):
-        result = {'atoms': {}, 'links': {}, 'concepts': {}, 'link-properties': {}}
+        result = {}
 
-        for type in ('atom', 'link', 'concept', 'link_property'):
-            for obj in data(type=type, include_automatic=False):
+        for type in cls.global_dep_order:
+            for obj in data(type=type):
                 # XXX
-                if type in ('link', 'link_property') and not obj.generic():
+                if type in ('link', 'link_property', 'constraint') and not obj.generic():
                     continue
                 if type == 'link_property':
                     key = 'link-properties'
                 else:
                     key = type + 's'
 
-                result[key][str(obj.name)] = obj
+                try:
+                    typdict = result[key]
+                except KeyError:
+                    typdict = result[key] = {}
+
+                typdict[str(obj.name)] = obj
 
         return result
 

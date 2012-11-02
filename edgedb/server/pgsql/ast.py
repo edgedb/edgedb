@@ -87,6 +87,11 @@ class RelationNode(Base):
             else:
                 self._bonds[key].extend(values)
 
+
+class PseudoRelationNode(RelationNode):
+    __fields = ['name']
+
+
 class TableNode(RelationNode):
     __fields = ['name', 'schema']
 

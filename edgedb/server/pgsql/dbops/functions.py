@@ -85,17 +85,17 @@ class RenameFunction(base.CommandGroup):
 
 
 class AlterFunctionReplaceText(ddl.DDLOperation):
-    def __init__(self, name, args, old_text, new_text, *, conditions=None, neg_conditions=None,
-                                                                           priority=0):
-        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+    def __init__(self, name, args, new_text, *, conditions=None,
+                       neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions,
+                         neg_conditions=neg_conditions, priority=priority)
         self.name = name
         self.args = args
-        self.old_text = old_text
         self.new_text = new_text
 
     def code(self, context):
         code = '''SELECT
-                        replace(p.prosrc, $4, $5) AS text,
+                        $4::text AS text,
                         l.lanname AS lang,
                         p.provolatile AS volatility,
                         retns.nspname AS retnamens,
@@ -115,7 +115,7 @@ class AlterFunctionReplaceText(ddl.DDLOperation):
                                                       unnest(p.proargtypes) t))
                 '''
 
-        vars = self.name + (self.args, self.old_text, self.new_text)
+        vars = self.name + (self.args, self.new_text)
         new_text, lang, volatility, *returns = context.db.prepare(code)(*vars)[0]
 
         code = '''CREATE OR REPLACE FUNCTION {name} ({args})
@@ -130,7 +130,8 @@ class AlterFunctionReplaceText(ddl.DDLOperation):
                           text=new_text,
                           lang=lang,
                           returns=common.qname(*returns),
-                          volatility={b'i': 'IMMUTABLE', b's': 'STABLE', b'v': 'VOLATILE'}[volatility])
+                          volatility={b'i': 'IMMUTABLE', b's': 'STABLE',
+                                      b'v': 'VOLATILE'}[volatility])
 
         return code, ()
 

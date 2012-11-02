@@ -83,10 +83,20 @@ class NoneTestNode(ast.AST): __fields = ['expr']
 class CaosQLOperator(ast.ops.Operator):
     pass
 
-LIKE = CaosQLOperator('~~')
-NOT_LIKE = CaosQLOperator('!~~')
-ILIKE = CaosQLOperator('~~*')
-NOT_ILIKE = CaosQLOperator('!~~*')
+class CaosQLMatchOperator(CaosQLOperator, tree_ast.CaosMatchOperator):
+    pass
+
+LIKE = CaosQLMatchOperator('~~')
+NOT_LIKE = CaosQLMatchOperator('!~~')
+ILIKE = CaosQLMatchOperator('~~*')
+NOT_ILIKE = CaosQLMatchOperator('!~~*')
+
+REMATCH = CaosQLMatchOperator('~')
+REIMATCH = CaosQLMatchOperator('~*')
+
+RENOMATCH = CaosQLMatchOperator('!~')
+RENOIMATCH = CaosQLMatchOperator('!~*')
+
 IS_OF = CaosQLOperator('IS OF')
 IS_NOT_OF = CaosQLOperator('IS NOT OF')
 

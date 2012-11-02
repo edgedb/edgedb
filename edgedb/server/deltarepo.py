@@ -100,8 +100,11 @@ class MetaDeltaRepository:
         return meta
 
     def get_meta_at(self, ref):
-        delta = self.load_delta(ref)
-        return self.get_meta(delta)
+        if ref is None:
+            return proto.ProtoSchema()
+        else:
+            delta = self.load_delta(ref)
+            return self.get_meta(delta)
 
     def get_snapshot_at(self, ref):
         org_delta = self.get_delta(ref)

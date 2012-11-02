@@ -49,7 +49,7 @@ class TransformerContextLevel(object):
             self.ignore_cardinality = prevlevel.ignore_cardinality
             self.in_aggregate = prevlevel.in_aggregate
             self.query = prevlevel.query
-            self.session = prevlevel.session
+            self.backend = prevlevel.backend
             self.proto_schema = prevlevel.proto_schema
             self.unwind_rlinks = prevlevel.unwind_rlinks
             self.aliascnt = prevlevel.aliascnt
@@ -121,7 +121,7 @@ class TransformerContextLevel(object):
             self.ignore_cardinality = False
             self.in_aggregate = False
             self.query = pgsql.ast.SelectQueryNode()
-            self.session = None
+            self.backend = None
             self.proto_schema = None
             self.subquery_map = {}
             self.direct_subquery_ref = False
@@ -211,6 +211,7 @@ class PgSQLExprTransformer(ast.visitor.NodeVisitor):
     def transform(self, tree, schema, local_to_source=None):
         context = TransformerContext()
         context.current.source = local_to_source
+        context.current.proto_schema = schema
 
         if local_to_source:
             context.current.attmap = {}
@@ -237,22 +238,45 @@ class PgSQLExprTransformer(ast.visitor.NodeVisitor):
                     entset = tree.ast.EntitySet(id=id, concept=source)
                     result = tree.ast.AtomicRefSimple(ref=entset, name=pointer)
                 else:
+                    if context.current.source.generic():
+                        name = context.current.attmap[expr.field][0]
+                    else:
+                        ptr_info = pg_types.get_pointer_storage_info(context.current.proto_schema,
+                                                                     context.current.source,
+                                                                     resolve_type=False)
+
+                        if ptr_info.table_type == 'concept':
+                            # Singular pointer promoted into source table
+                            name = caos_name.Name('metamagic.caos.builtins.target')
+                        else:
+                            name = context.current.attmap[expr.field][0]
+
                     id = caos_utils.LinearPath([None])
                     id.add(context.current.source, caos_types.OutboundDirection, None)
                     entlink = tree.ast.EntityLink(link_proto=context.current.source)
-                    result = tree.ast.LinkPropRefSimple(ref=entlink,
-                                                        name=context.current.attmap[expr.field][0],
-                                                        id=id)
+                    result = tree.ast.LinkPropRefSimple(ref=entlink, name=name, id=id)
             else:
                 assert False
 
         elif isinstance(expr, pgsql.ast.RowExprNode):
             result = tree.ast.Sequence(elements=[self._process_expr(context, e) for e in expr.args])
 
+        elif isinstance(expr, pgsql.ast.FunctionCallNode):
+            result = self._process_function(context, expr)
+
         else:
             assert False, "unexpected node type: %r" % expr
 
         return result
+
+    def _process_function(self, context, expr):
+        if expr.name in ('lower', 'upper'):
+            fname = ('str', expr.name)
+            args = [self._process_expr(context, a) for a in expr.args]
+        else:
+            raise ValueError('unexpected function: {}'.format(expr.name))
+
+        return tree.ast.FunctionCall(name=fname, args=args)
 
 
 class CaosExprTransformer(tree.transformer.TreeTransformer):
@@ -348,9 +372,8 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                     # Make sure that all sets produced by each UNION member are disjoint so
                     # that there are no duplicates, and, most importantly, the shape of each row
                     # corresponds to the class.
-                    get_concept_id = context.current.session.backend.get_concept_id
-                    session = context.current.session
-                    cc_ids = {get_concept_id(cls, session, cache='always') for cls in cc}
+                    get_concept_id = context.current.backend.get_concept_id
+                    cc_ids = {get_concept_id(cls) for cls in cc}
                     cc_ids = [pgsql.ast.ConstantNode(value=cc_id) for cc_id in cc_ids]
                     cc_ids = pgsql.ast.SequenceNode(elements=cc_ids)
 
@@ -557,7 +580,7 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                                        is_xvalue=expr.linkprop_xvalue)
 
         context.current.record_info[marker.id] = marker
-        context.current.session.backend._register_record_info(marker)
+        context.current.backend._register_record_info(marker)
 
         marker = pgsql.ast.ConstantNode(value=marker.id)
         marker_type = pgsql.ast.TypeNode(name='caos.known_record_marker_t')
@@ -576,17 +599,549 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
 
         return result
 
+    def _process_function(self, context, expr, cte):
+        if expr.name == ('search', 'rank'):
+            vector, query = self._text_search_args(context, *expr.args,
+                                                   extended=expr.kwargs.get('extended'))
+            # Normalize rank to a scale from 0 to 1
+            normalization = pgsql.ast.ConstantNode(value=32)
+            args = [vector, query, normalization]
+            result = pgsql.ast.FunctionCallNode(name='ts_rank_cd', args=args)
+
+        elif expr.name == ('search', 'headline'):
+            kwargs = expr.kwargs.copy()
+            extended = kwargs.pop('extended', False)
+            vector, query = self._text_search_args(context, *expr.args, tsvector=False,
+                                                   extended=extended)
+            lang = self._get_text_search_conf_ref(context)
+
+            args=[lang, vector, query]
+
+            if kwargs:
+                for i, (name, value) in enumerate(kwargs.items()):
+                    value = self._process_expr(context, value, cte)
+                    left = pgsql.ast.ConstantNode(value=str(name))
+                    right = pgsql.ast.ConstantNode(value='=')
+                    left = pgsql.ast.BinOpNode(left=left, op='||', right=right)
+                    right = pgsql.ast.FunctionCallNode(name='quote_ident', args=[value])
+                    value = pgsql.ast.BinOpNode(left=left, op='||', right=right)
+
+                    if i == 0:
+                        options = value
+                    else:
+                        left = options
+                        right = pgsql.ast.ConstantNode(value=',')
+                        left = pgsql.ast.BinOpNode(left=left, op='||', right=right)
+                        right = value
+                        options = pgsql.ast.BinOpNode(left=left, op='||', right=right)
+
+                args.append(options)
+
+            result = pgsql.ast.FunctionCallNode(name='ts_headline', args=args)
+
+        else:
+            result = None
+            agg_sort = []
+            if expr.aggregates:
+                with context(context.NEW_TRANSPARENT):
+                    context.current.in_aggregate = True
+                    context.current.query.aggregates = True
+                    args = [self._process_expr(context, a, cte) for a in expr.args]
+
+                if expr.agg_sort:
+                    for sortexpr in expr.agg_sort:
+                        _sortexpr = self._process_expr(context, sortexpr.expr, cte)
+                        agg_sort.append(pgsql.ast.SortExprNode(expr=_sortexpr,
+                                                               direction=sortexpr.direction,
+                                                               nulls_order=sortexpr.nones_order))
+
+            else:
+                args = [self._process_expr(context, a, cte) for a in expr.args]
+
+            if expr.name == 'if':
+                cond = self._process_expr(context, expr.args[0], cte)
+                pos = self._process_expr(context, expr.args[1], cte)
+                neg = self._process_expr(context, expr.args[2], cte)
+                when_expr = pgsql.ast.CaseWhenNode(expr=cond,
+                                                   result=pos)
+                result = pgsql.ast.CaseExprNode(args=[when_expr], default=neg)
+            elif expr.name == 'noneif':
+                name = 'NULLIF'
+            elif expr.name == ('agg', 'sum'):
+                name = 'sum'
+            elif expr.name == ('agg', 'product'):
+                name = common.qname('caos', 'agg_product')
+            elif expr.name == ('agg', 'avg'):
+                name = 'avg'
+            elif expr.name == ('agg', 'min'):
+                name = 'min'
+            elif expr.name == ('agg', 'max'):
+                name = 'max'
+            elif expr.name == ('agg', 'list'):
+                name = 'array_agg'
+            elif expr.name == ('agg', 'join'):
+                name = 'string_agg'
+                separator, ref = args[:2]
+                try:
+                    ignore_nulls = args[2] and args[2].value
+                except IndexError:
+                    ignore_nulls = False
+
+                if not ignore_nulls:
+                    array_agg = pgsql.ast.FunctionCallNode(name='array_agg', args=[ref],
+                                                           agg_sort=agg_sort)
+                    result = pgsql.ast.FunctionCallNode(name='array_to_string',
+                                                        args=[array_agg, separator])
+                    result.args.append(pgsql.ast.ConstantNode(value=''))
+                else:
+                    args = [ref, separator]
+            elif expr.name == ('agg', 'count'):
+                name = 'count'
+            elif expr.name == ('agg', 'stddev_pop'):
+                name = 'stddev_pop'
+            elif expr.name == ('agg', 'stddev_samp'):
+                name = 'stddev_samp'
+            elif expr.name == ('window', 'lag') or expr.name == ('window', 'lead'):
+                schema = context.current.proto_schema
+                name = expr.name[1]
+                if len(args) > 1:
+                    args[1] = pgsql.ast.TypeCastNode(expr=args[1],
+                                                     type=pgsql.ast.TypeNode(name='int'))
+                if len(args) > 2:
+                    arg0_type = self.get_expr_type(expr.args[0], schema)
+                    arg0_type = pg_types.pg_type_from_atom(schema, arg0_type)
+                    args[2] = pgsql.ast.TypeCastNode(expr=args[2],
+                                                     type=pgsql.ast.TypeNode(name=arg0_type))
+            elif expr.name == ('math', 'abs'):
+                name = 'abs'
+            elif expr.name == ('math', 'round'):
+                name = 'round'
+            elif expr.name == ('math', 'min'):
+                name = 'least'
+            elif expr.name == ('math', 'max'):
+                name = 'greatest'
+            elif expr.name == ('math', 'list_sum'):
+                subq = pgsql.ast.SelectQueryNode()
+                op = pgsql.ast.FunctionCallNode(name='sum', args=[pgsql.ast.FieldRefNode(field='i')])
+                subq.targets.append(op)
+                arr = self._process_expr(context, expr.args[0], cte)
+                if isinstance(arr, pgsql.ast.ConstantNode):
+                    if isinstance(arr.expr, pgsql.ast.SequenceNode):
+                        arr = pgsql.ast.ArrayNode(elements=arr.expr.elements)
+
+                lower = pgsql.ast.BinOpNode(left=self._process_expr(context, expr.args[1], cte),
+                                            op=ast.ops.ADD,
+                                            right=pgsql.ast.ConstantNode(value=1, type='int'))
+                upper = self._process_expr(context, expr.args[2], cte)
+                indirection = pgsql.ast.IndexIndirectionNode(lower=lower, upper=upper)
+                arr = pgsql.ast.IndirectionNode(expr=arr, indirection=indirection)
+                unnest = pgsql.ast.FunctionCallNode(name='unnest', args=[arr])
+                subq.fromlist.append(pgsql.ast.FromExprNode(expr=unnest, alias='i'))
+                zero = pgsql.ast.ConstantNode(value=0, type='int')
+                result = pgsql.ast.FunctionCallNode(name='coalesce', args=[subq, zero])
+            elif expr.name == ('datetime', 'to_months'):
+                years = pgsql.ast.FunctionCallNode(name='date_part',
+                                                   args=[pgsql.ast.ConstantNode(value='year'),
+                                                         args[0]])
+                years = pgsql.ast.BinOpNode(left=years, op=ast.ops.MUL,
+                                            right=pgsql.ast.ConstantNode(value=12))
+                months = pgsql.ast.FunctionCallNode(name='date_part',
+                                                    args=[pgsql.ast.ConstantNode(value='month'),
+                                                          args[0]])
+                result = pgsql.ast.BinOpNode(left=years, op=ast.ops.ADD, right=months)
+            elif expr.name == ('datetime', 'extract'):
+                name = 'date_part'
+            elif expr.name == ('datetime', 'truncate'):
+                name = 'date_trunc'
+            elif expr.name == ('datetime', 'current_time'):
+                result = pgsql.ast.FunctionCallNode(name='current_time', noparens=True)
+            elif expr.name == ('datetime', 'current_datetime'):
+                result = pgsql.ast.FunctionCallNode(name='current_timestamp', noparens=True)
+            elif expr.name == ('str', 'replace'):
+                name = 'replace'
+            elif expr.name == ('str', 'len'):
+                name = 'char_length'
+            elif expr.name == ('str', 'lower'):
+                name = 'lower'
+            elif expr.name == ('str', 'upper'):
+                name = 'upper'
+            elif expr.name == ('str', 'lpad'):
+                name = 'lpad'
+                # lpad expects the second argument to be int, so force cast it
+                args[1] = pgsql.ast.TypeCastNode(expr=args[1], type=pgsql.ast.TypeNode(name='int'))
+            elif expr.name == ('str', 'rpad'):
+                name = 'rpad'
+                # rpad expects the second argument to be int, so force cast it
+                args[1] = pgsql.ast.TypeCastNode(expr=args[1], type=pgsql.ast.TypeNode(name='int'))
+            elif expr.name in (('str', 'trim'), ('str', 'ltrim'), ('str', 'rtrim')):
+                name = expr.name[1]
+            elif expr.name == ('str', 'levenshtein'):
+                name = common.qname('caos', 'levenshtein')
+
+            elif expr.name == ('re', 'match'):
+                subq = pgsql.ast.SelectQueryNode()
+
+                flags = pgsql.ast.FunctionCallNode(
+                            name='coalesce',
+                            args=[args[2], pgsql.ast.ConstantNode(value='')])
+
+                fargs = [args[1], args[0], flags]
+                op = pgsql.ast.FunctionCallNode(name='regexp_matches', args=fargs)
+                subq.targets.append(op)
+
+                result = subq
+
+            elif expr.name == ('str', 'strpos'):
+                r = pgsql.ast.FunctionCallNode(name='strpos', args=args)
+                result = pgsql.ast.BinOpNode(left=r, right=pgsql.ast.ConstantNode(value=1),
+                                             op=ast.ops.SUB)
+            elif expr.name == ('str', 'substr'):
+                name = 'substr'
+                args[1] = pgsql.ast.TypeCastNode(expr=args[1], type=pgsql.ast.TypeNode(name='int'))
+                args[1] = pgsql.ast.BinOpNode(left=args[1], right=pgsql.ast.ConstantNode(value=1),
+                                              op=ast.ops.ADD)
+                if args[2] is not None:
+                    args[2] = pgsql.ast.TypeCastNode(expr=args[2],
+                                                     type=pgsql.ast.TypeNode(name='int'))
+            elif expr.name == ('str', 'urlify'):
+                re_1 = pgsql.ast.ConstantNode(value=r'[^\w\- ]')
+                re_2 = pgsql.ast.ConstantNode(value=r'\s+')
+                flags = pgsql.ast.ConstantNode(value='g')
+                replacement = pgsql.ast.ConstantNode(value='')
+                replace_1 = pgsql.ast.FunctionCallNode(name='regexp_replace',
+                                                       args=[args[0], re_1, replacement, flags])
+                replacement = pgsql.ast.ConstantNode(value='-')
+                replace_2 = pgsql.ast.FunctionCallNode(name='regexp_replace',
+                                                       args=[replace_1, re_2, replacement, flags])
+                result = pgsql.ast.FunctionCallNode(name='lower', args=[replace_2])
+
+            elif expr.name == ('str', 'b64encode'):
+                enc_format = pgsql.ast.ConstantNode(value='base64')
+                b64_encode = pgsql.ast.FunctionCallNode(name='encode', args=[args[0], enc_format])
+                result = b64_encode
+
+            elif expr.name == ('str', 'urlsafe_b64encode'):
+                enc_format = pgsql.ast.ConstantNode(value='base64')
+                b64_encode = pgsql.ast.FunctionCallNode(name='encode', args=[args[0], enc_format])
+                unsafe_chars = pgsql.ast.ConstantNode(value='+/')
+                safe_chars = pgsql.ast.ConstantNode(value='-_')
+                pad_char = pgsql.ast.ConstantNode(value='=')
+                safe_encode = pgsql.ast.FunctionCallNode(name='translate',
+                                            args=[b64_encode, unsafe_chars, safe_chars])
+                result = safe_encode
+
+            elif expr.name == ('rand', 'bytes'):
+                args[0] = pgsql.ast.TypeCastNode(expr=args[0], type=pgsql.ast.TypeNode(name='int'))
+                name = common.qname('caos', 'gen_random_bytes')
+
+            elif expr.name == ('rand', 'random'):
+                name = 'random'
+
+            elif expr.name == 'getitem':
+                is_string = False
+                arg_type = self.get_expr_type(expr.args[0], context.current.proto_schema)
+
+                if isinstance(arg_type, caos_types.ProtoAtom):
+                    b = arg_type.get_topmost_base(context.current.proto_schema, top_prototype=True)
+                    is_string = b.name == 'metamagic.caos.builtins.str'
+
+                one = pgsql.ast.ConstantNode(value=1)
+                index = pgsql.ast.BinOpNode(left=args[1], op=ast.ops.ADD, right=one)
+
+                if is_string:
+                    name = 'substr'
+                    args = [args[0], index, one]
+                else:
+                    indirection = pgsql.ast.IndexIndirectionNode(upper=index)
+                    result = pgsql.ast.IndirectionNode(expr=args[0], indirection=indirection)
+
+            elif expr.name == 'getslice':
+                start = args[1]
+                stop = args[2]
+                one = pgsql.ast.ConstantNode(value=1)
+                zero = pgsql.ast.ConstantNode(value=0)
+
+                is_string = False
+                arg_type = self.get_expr_type(expr.args[0], context.current.proto_schema)
+
+                if isinstance(arg_type, caos_types.ProtoAtom):
+                    b = arg_type.get_topmost_base(context.current.proto_schema, top_prototype=True)
+                    is_string = b.name == 'metamagic.caos.builtins.str'
+
+                if is_string:
+                    upper_bound = pgsql.ast.FunctionCallNode(name='char_length',
+                                                             args=[args[0]])
+                else:
+                    upper_bound = pgsql.ast.FunctionCallNode(name='array_upper',
+                                                             args=[args[0], one])
+
+                if (isinstance(start, pgsql.ast.ConstantNode) and start.value is None
+                                                              and start.index is None
+                                                              and start.expr is None):
+                    lower = one
+                else:
+                    lower = start
+
+                    when_cond = pgsql.ast.BinOpNode(left=lower, right=zero, op=ast.ops.LT)
+                    lower_plus_one = pgsql.ast.BinOpNode(left=lower, right=one, op=ast.ops.ADD)
+
+                    neg_off = pgsql.ast.BinOpNode(left=upper_bound,
+                                                  right=lower_plus_one, op=ast.ops.SUB)
+
+                    when_expr = pgsql.ast.CaseWhenNode(expr=when_cond, result=neg_off)
+                    lower = pgsql.ast.CaseExprNode(args=[when_expr], default=lower_plus_one)
+
+
+                if (isinstance(stop, pgsql.ast.ConstantNode) and stop.value is None
+                                                             and stop.index is None
+                                                             and stop.expr is None):
+                    upper = upper_bound
+                else:
+                    upper = stop
+
+                    when_cond = pgsql.ast.BinOpNode(left=upper, right=zero, op=ast.ops.LT)
+                    upper_plus_one = pgsql.ast.BinOpNode(left=upper, right=one, op=ast.ops.ADD)
+
+                    neg_off = pgsql.ast.BinOpNode(left=upper_bound,
+                                                  right=upper_plus_one, op=ast.ops.SUB)
+
+                    when_expr = pgsql.ast.CaseWhenNode(expr=when_cond, result=neg_off)
+                    upper = pgsql.ast.CaseExprNode(args=[when_expr], default=upper)
+
+                if is_string:
+                    args = [args[0], lower]
+
+                    if upper is not upper_bound:
+                        for_length = pgsql.ast.BinOpNode(left=upper, op=ast.ops.SUB, right=lower)
+                        for_length = pgsql.ast.BinOpNode(left=for_length, op=ast.ops.ADD, right=one)
+                        args.append(for_length)
+
+                    name = 'substr'
+
+                else:
+                    indirection = pgsql.ast.IndexIndirectionNode(lower=lower, upper=upper)
+                    result = pgsql.ast.IndirectionNode(expr=args[0], indirection=indirection)
+
+            elif expr.name == ('geo', 'covers'):
+                # _st_covers instead of st_covers, because Postgres chokes on && operator
+                # inside st_covers for some reason.
+                name = common.qname('caos_aux_feat_gis', '_st_covers')
+                context.current.search_path.append('caos_aux_feat_gis')
+
+            elif expr.name == ('geo', 'distance'):
+                args = self._geo_convert_to_geometry(context, args)
+                name = common.qname('caos_aux_feat_gis', 'st_distance_sphere')
+                context.current.search_path.append('caos_aux_feat_gis')
+
+            elif isinstance(expr.name, tuple):
+                assert False, 'unsupported function %s' % (expr.name,)
+            else:
+                name = expr.name
+            if not result:
+                result = pgsql.ast.FunctionCallNode(name=name, args=args,
+                                                    aggregates=bool(expr.aggregates),
+                                                    agg_sort=agg_sort)
+
+                if expr.window:
+                    result.over = pgsql.ast.WindowDefNode()
+
+        return result
+
+    def _get_text_search_conf_ref(self, context):
+        if 'text_search_conf_map' not in context.current.global_ctes:
+            self._build_text_search_conf_map_cte(context)
+
+        return pgsql.ast.SelectQueryNode(
+            targets = [
+                pgsql.ast.SelectExprNode(expr=pgsql.ast.FieldRefNode(field='confname'))
+            ],
+            fromlist = [
+                context.current.global_ctes['text_search_conf_map']
+            ]
+        )
+
+    def _text_search_args(self, context, vector, query, tsvector=True, extended=False):
+        empty_str = pgsql.ast.ConstantNode(value='')
+        sep_str = pgsql.ast.ConstantNode(value='; ')
+
+        text_search_conf_ref = self._get_text_search_conf_ref(context)
+
+        cols = None
+
+        if isinstance(vector, tree.ast.EntitySet):
+            refs = [(r, r.ptr_proto.search.weight) for r in self._text_search_refs(context, vector)]
+
+        elif isinstance(vector, tree.ast.Sequence):
+            refs = [(r, r.ptr_proto.search.weight) for r in vector.elements]
+
+        elif isinstance(vector, tree.ast.AtomicRef):
+            link = vector.ref.concept.getptr(context.current.proto_schema, vector.name)
+            ref = tree.ast.AtomicRefSimple(ref=vector.ref, name=vector.name, ptr_proto=link)
+            refs = [(ref, ref.ptr_proto.search.weight)]
+
+        elif isinstance(vector, tree.ast.LinkPropRef):
+            ref = tree.ast.LinkPropRefSimple(ref=vector.ref, name=vector.name,
+                                             ptr_proto=vector.ptr_proto)
+            refs = [(ref, caos_types.SearchWeight_A)]
+
+        elif isinstance(vector, tree.ast.SearchVector):
+            refs = []
+
+            for elem in vector.items:
+                refs.append((elem.ref, elem.weight))
+        else:
+            assert False, "unexpected node type: %r" % vector
+
+        if tsvector:
+            for atomref, weight in refs:
+                ref = self._process_expr(context, atomref)
+                ref = pgsql.ast.FunctionCallNode(name='coalesce', args=[ref, empty_str])
+                ref = pgsql.ast.FunctionCallNode(name='to_tsvector',
+                                                 args=[text_search_conf_ref, ref])
+                weight_const = pgsql.ast.ConstantNode(value=weight)
+                ref = pgsql.ast.FunctionCallNode(name='setweight', args=[ref, weight_const])
+                cols = self.extend_predicate(cols, ref, op='||')
+        else:
+            cols = pgsql.ast.ArrayNode(elements=[self._process_expr(context, r[0]) for r in refs])
+            cols = pgsql.ast.FunctionCallNode(name='array_to_string', args=[cols, sep_str])
+
+        query = self._process_expr(context, query)
+
+        if extended:
+            query = pgsql.ast.FunctionCallNode(name='to_tsquery', args=[text_search_conf_ref,
+                                                                        query])
+        else:
+            query = pgsql.ast.FunctionCallNode(name='plainto_tsquery', args=[text_search_conf_ref,
+                                                                             query])
+
+        return cols, query
+
+    def _process_constant(self, context, expr):
+        if expr.type:
+            if isinstance(expr.type, caos_types.ProtoAtom):
+                const_type = types.pg_type_from_atom(context.current.proto_schema, expr.type, topbase=True)
+            elif isinstance(expr.type, caos_types.ProtoConcept):
+                const_type = 'record'
+            elif isinstance(expr.type, tuple):
+                item_type = expr.type[1]
+                if isinstance(item_type, caos_types.ProtoAtom):
+                    item_type = types.pg_type_from_atom(context.current.proto_schema, item_type, topbase=True)
+                    const_type = '%s[]' % item_type
+                elif isinstance(item_type, caos_types.ProtoConcept):
+                    item_type = 'record'
+                    const_type = '%s[]' % item_type
+                else:
+                    const_type = common.py_type_to_pg_type(expr.type)
+            else:
+                const_type = common.py_type_to_pg_type(expr.type)
+        else:
+            const_type = None
+
+        if expr.expr:
+            result = pgsql.ast.ConstantNode(expr=self._process_expr(context, expr.expr))
+        else:
+            value = expr.value
+            const_expr = None
+
+            if expr.index is not None and not isinstance(expr.index, int):
+                if expr.index in context.current.argmap:
+                    index = context.current.argmap.index(expr.index)
+                else:
+                    context.current.argmap.add(expr.index)
+                    index = len(context.current.argmap) - 1
+            else:
+                index = expr.index
+                data_backend = context.current.backend
+
+                if isinstance(value, caos_types.ProtoConcept):
+                    classes = (value,)
+                elif isinstance(value, tuple) and value and \
+                                                    isinstance(value[0], caos_types.ProtoConcept):
+                    classes = value
+                else:
+                    classes = None
+
+                if classes:
+                    concept_ids = {data_backend.get_concept_id(cls) for cls in classes}
+                    for cls in classes:
+                        for c in cls.descendants(context.current.proto_schema):
+                            concept_id = data_backend.get_concept_id(c)
+                            concept_ids.add(concept_id)
+
+                    const_type = common.py_type_to_pg_type(classes[0].__class__)
+                    elements = [pgsql.ast.ConstantNode(value=cid) for cid in concept_ids]
+                    const_expr = pgsql.ast.SequenceNode(elements=elements)
+                    value = None
+
+            result = pgsql.ast.ConstantNode(value=value, expr=const_expr, index=index,
+                                            type=const_type)
+
+        if expr.substitute_for:
+            result.origin_field = common.caos_name_to_pg_name(expr.substitute_for)
+
+        return result
+
+    def _process_typecast(self, context, expr, cte=None):
+        if isinstance(expr.expr, tree.ast.BinOp) and \
+                                    isinstance(expr.expr.op, (ast.ops.ComparisonOperator,
+                                                              ast.ops.EquivalenceOperator)):
+            expr_type = bool
+        elif isinstance(expr.expr, tree.ast.BaseRefExpr) and \
+                    isinstance(expr.expr.expr, tree.ast.BinOp) and \
+                    isinstance(expr.expr.expr.op, (ast.ops.ComparisonOperator,
+                                                   ast.ops.EquivalenceOperator)):
+            expr_type = bool
+        elif isinstance(expr.expr, tree.ast.Constant):
+            expr_type = expr.expr.type
+        else:
+            expr_type = None
+
+        schema = context.current.proto_schema
+        int_proto = schema.get('metamagic.caos.builtins.int')
+
+        pg_expr = self._process_expr(context, expr.expr, cte)
+
+        if expr_type and expr_type is bool and expr.type.issubclass(int_proto):
+            when_expr = pgsql.ast.CaseWhenNode(expr=pg_expr,
+                                               result=pgsql.ast.ConstantNode(value=1))
+            default = pgsql.ast.ConstantNode(value=0)
+            result = pgsql.ast.CaseExprNode(args=[when_expr], default=default)
+        else:
+            if isinstance(expr.type, tuple):
+                typ = expr.type[1]
+            else:
+                typ = expr.type
+            type = types.pg_type_from_atom(schema, typ, topbase=True)
+
+            if isinstance(expr.type, tuple):
+                type = pgsql.ast.TypeNode(name=type, array_bounds=[-1])
+            else:
+                type = pgsql.ast.TypeNode(name=type)
+            result = pgsql.ast.TypeCastNode(expr=pg_expr, type=type)
+
+        return result
+
 
 class SimpleExprTransformer(CaosExprTransformer):
-    def transform(self, tree, local=False):
+    def transform(self, expr, protoschema, local=False, link_bias=False):
         context = TransformerContext()
         context.current.local = local
+        context.current.proto_schema = protoschema
+        context.current.link_bias = link_bias
 
-        qtree = self._process_expr(context, tree)
+        if isinstance(expr, tree.ast.GraphExpr):
+            is_simple = not (expr.generator or expr.grouper or expr.sorter \
+                                       or (expr.op and expr.op != 'select') \
+                                       or len(expr.selector) > 1)
+            if not is_simple:
+                raise ValueError("SimpleExprTransformer can only transform single SELECT expressions")
 
+            expr = expr.selector[0].expr
+
+        qtree = self._process_expr(context, expr)
         return qtree
 
-    def _process_expr(self, context, expr):
+    def _process_expr(self, context, expr, cte=None):
         if isinstance(expr, tree.ast.BinOp):
             left = self._process_expr(context, expr.left)
             right = self._process_expr(context, expr.right)
@@ -595,6 +1150,14 @@ class SimpleExprTransformer(CaosExprTransformer):
         elif isinstance(expr, tree.ast.UnaryOp):
             operand = self._process_expr(context, expr.expr)
             result = pgsql.ast.UnaryOpNode(op=expr.op, operand=operand)
+
+        elif isinstance(expr, tree.ast.EntitySet):
+            if isinstance(expr.concept, caos_types.ProtoAtom):
+                field_name = common.caos_name_to_pg_name(expr.concept.name)
+                result = pgsql.ast.FieldRefNode(table=None, field=field_name, origin=None,
+                                                origin_field=field_name)
+            else:
+                raise ValueError('unexpected EntitySet subject: {!r}'.format(expr.concept))
 
         elif isinstance(expr, tree.ast.AtomicRefExpr):
             result = self._process_expr(context, expr.expr)
@@ -615,17 +1178,32 @@ class SimpleExprTransformer(CaosExprTransformer):
 
         elif isinstance(expr, tree.ast.LinkPropRefSimple):
             proto_schema = context.current.proto_schema
-            stor_info = types.get_pointer_storage_info(proto_schema, expr.ptr_proto,
-                                                       resolve_type=False)
-            field_name = stor_info.column_name
 
-            if not context.current.local:
-                table = self._relation_from_link(context, expr.ref)
-                result = pgsql.ast.FieldRefNode(table=table, field=field_name, origin=table,
-                                                origin_field=field_name)
+            link_stor_info = types.get_pointer_storage_info(proto_schema, expr.ptr_proto,
+                                                            resolve_type=False,
+                                                            link_bias=context.current.link_bias)
+
+            if link_stor_info.table_type == "concept":
+                field_name = link_stor_info.column_name
+
+                if not context.current.local:
+                    table = self._table_from_concept(context, expr.ref.source.concept,
+                                                     expr.ref.source, None)
+                    result = pgsql.ast.FieldRefNode(table=table, field=field_name, origin=table,
+                                                    origin_field=field_name)
+                else:
+                    result = pgsql.ast.FieldRefNode(table=None, field=field_name, origin=None,
+                                                    origin_field=field_name)
             else:
-                result = pgsql.ast.FieldRefNode(table=None, field=field_name, origin=None,
-                                                origin_field=field_name)
+                field_name = link_stor_info.column_name
+
+                if not context.current.local:
+                    table = self._relation_from_link(context, expr.ref)
+                    result = pgsql.ast.FieldRefNode(table=table, field=field_name, origin=table,
+                                                    origin_field=field_name)
+                else:
+                    result = pgsql.ast.FieldRefNode(table=None, field=field_name, origin=None,
+                                                    origin_field=field_name)
 
         elif isinstance(expr, tree.ast.Disjunction):
             variants = [self._process_expr(context, path) for path in expr.paths]
@@ -639,6 +1217,15 @@ class SimpleExprTransformer(CaosExprTransformer):
             elements = [self._process_expr(context, e) for e in expr.elements]
             result = pgsql.ast.SequenceNode(elements=elements)
 
+        elif isinstance(expr, tree.ast.Constant):
+            result = self._process_constant(context, expr)
+
+        elif isinstance(expr, tree.ast.FunctionCall):
+            result = self._process_function(context, expr, None)
+
+        elif isinstance(expr, tree.ast.TypeCast):
+            result = self._process_typecast(context, expr, cte)
+
         else:
             assert False, "unexpected node type: %r" % expr
 
@@ -647,12 +1234,12 @@ class SimpleExprTransformer(CaosExprTransformer):
 
 class CaosTreeTransformer(CaosExprTransformer):
     @debug
-    def transform(self, query, session, output_format=None):
+    def transform(self, query, backend, proto_schema, output_format=None):
         try:
             # Transform to sql tree
             context = TransformerContext()
-            context.current.session = session
-            context.current.proto_schema = session.proto_schema
+            context.current.backend = backend
+            context.current.proto_schema = proto_schema
             context.current.output_format = output_format
             qtree = self._transform_tree(context, query)
             argmap = context.current.argmap
@@ -1012,7 +1599,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                proto_name=child_end.concept.name)
 
                 context.current.record_info[marker.id] = marker
-                context.current.session.backend._register_record_info(marker)
+                context.current.backend._register_record_info(marker)
 
                 marker = pgsql.ast.ConstantNode(value=marker.id)
                 marker_type = pgsql.ast.TypeNode(name='caos.known_record_marker_t')
@@ -1167,7 +1754,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         marker = pg_session.RecordInfo(attribute_map=attribute_map)
 
         context.current.record_info[marker.id] = marker
-        context.current.session.backend._register_record_info(marker)
+        context.current.backend._register_record_info(marker)
 
         marker = pgsql.ast.ConstantNode(value=marker.id)
         marker_type = pgsql.ast.TypeNode(name='caos.known_record_marker_t')
@@ -1619,73 +2206,6 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         return ref
 
-    def _process_constant(self, context, expr):
-        if expr.type:
-            if isinstance(expr.type, caos_types.ProtoAtom):
-                const_type = types.pg_type_from_atom(context.current.proto_schema, expr.type, topbase=True)
-            elif isinstance(expr.type, caos_types.ProtoConcept):
-                const_type = 'record'
-            elif isinstance(expr.type, tuple):
-                item_type = expr.type[1]
-                if isinstance(item_type, caos_types.ProtoAtom):
-                    item_type = types.pg_type_from_atom(context.current.proto_schema, item_type, topbase=True)
-                    const_type = '%s[]' % item_type
-                elif isinstance(item_type, caos_types.ProtoConcept):
-                    item_type = 'record'
-                    const_type = '%s[]' % item_type
-                else:
-                    const_type = common.py_type_to_pg_type(expr.type)
-            else:
-                const_type = common.py_type_to_pg_type(expr.type)
-        else:
-            const_type = None
-
-        if expr.expr:
-            result = pgsql.ast.ConstantNode(expr=self._process_expr(context, expr.expr))
-        else:
-            value = expr.value
-            const_expr = None
-
-            if expr.index is not None and not isinstance(expr.index, int):
-                if expr.index in context.current.argmap:
-                    index = context.current.argmap.index(expr.index)
-                else:
-                    context.current.argmap.add(expr.index)
-                    index = len(context.current.argmap) - 1
-            else:
-                index = expr.index
-                data_backend = context.current.session.backend
-
-                if isinstance(value, caos_types.ProtoConcept):
-                    classes = (value,)
-                elif isinstance(value, tuple) and value and \
-                                                    isinstance(value[0], caos_types.ProtoConcept):
-                    classes = value
-                else:
-                    classes = None
-
-                if classes:
-                    concept_ids = {data_backend.get_concept_id(cls, context.current.session,
-                                                               cache='always') for cls in classes}
-                    for cls in classes:
-                        for c in cls.descendants(context.current.proto_schema):
-                            concept_id = data_backend.get_concept_id(c, context.current.session,
-                                                                     cache='always')
-                            concept_ids.add(concept_id)
-
-                    const_type = common.py_type_to_pg_type(classes[0].__class__)
-                    elements = [pgsql.ast.ConstantNode(value=cid) for cid in concept_ids]
-                    const_expr = pgsql.ast.SequenceNode(elements=elements)
-                    value = None
-
-            result = pgsql.ast.ConstantNode(value=value, expr=const_expr, index=index,
-                                            type=const_type)
-
-        if expr.substitute_for:
-            result.origin_field = common.caos_name_to_pg_name(expr.substitute_for)
-
-        return result
-
     def _text_search_refs(self, context, vector):
         for link_name, link in vector.concept.get_searchable_links():
             yield tree.ast.AtomicRefSimple(ref=vector, name=link_name, ptr_proto=link)
@@ -1766,75 +2286,6 @@ class CaosTreeTransformer(CaosExprTransformer):
         context.current.global_ctes['text_search_conf_map'] = code_conv_union
 
         return code_conv_union
-
-    def _get_text_search_conf_ref(self, context):
-        if 'text_search_conf_map' not in context.current.global_ctes:
-            self._build_text_search_conf_map_cte(context)
-
-        return pgsql.ast.SelectQueryNode(
-            targets = [
-                pgsql.ast.SelectExprNode(expr=pgsql.ast.FieldRefNode(field='confname'))
-            ],
-            fromlist = [
-                context.current.global_ctes['text_search_conf_map']
-            ]
-        )
-
-    def _text_search_args(self, context, vector, query, tsvector=True, extended=False):
-        empty_str = pgsql.ast.ConstantNode(value='')
-        sep_str = pgsql.ast.ConstantNode(value='; ')
-
-        text_search_conf_ref = self._get_text_search_conf_ref(context)
-
-        cols = None
-
-        if isinstance(vector, tree.ast.EntitySet):
-            refs = [(r, r.ptr_proto.search.weight) for r in self._text_search_refs(context, vector)]
-
-        elif isinstance(vector, tree.ast.Sequence):
-            refs = [(r, r.ptr_proto.search.weight) for r in vector.elements]
-
-        elif isinstance(vector, tree.ast.AtomicRef):
-            link = vector.ref.concept.getptr(context.current.proto_schema, vector.name)
-            ref = tree.ast.AtomicRefSimple(ref=vector.ref, name=vector.name, ptr_proto=link)
-            refs = [(ref, ref.ptr_proto.search.weight)]
-
-        elif isinstance(vector, tree.ast.LinkPropRef):
-            ref = tree.ast.LinkPropRefSimple(ref=vector.ref, name=vector.name,
-                                             ptr_proto=vector.ptr_proto)
-            refs = [(ref, caos_types.SearchWeight_A)]
-
-        elif isinstance(vector, tree.ast.SearchVector):
-            refs = []
-
-            for elem in vector.items:
-                refs.append((elem.ref, elem.weight))
-        else:
-            assert False, "unexpected node type: %r" % vector
-
-        if tsvector:
-            for atomref, weight in refs:
-                ref = self._process_expr(context, atomref)
-                ref = pgsql.ast.FunctionCallNode(name='coalesce', args=[ref, empty_str])
-                ref = pgsql.ast.FunctionCallNode(name='to_tsvector',
-                                                 args=[text_search_conf_ref, ref])
-                weight_const = pgsql.ast.ConstantNode(value=weight)
-                ref = pgsql.ast.FunctionCallNode(name='setweight', args=[ref, weight_const])
-                cols = self.extend_predicate(cols, ref, op='||')
-        else:
-            cols = pgsql.ast.ArrayNode(elements=[self._process_expr(context, r[0]) for r in refs])
-            cols = pgsql.ast.FunctionCallNode(name='array_to_string', args=[cols, sep_str])
-
-        query = self._process_expr(context, query)
-
-        if extended:
-            query = pgsql.ast.FunctionCallNode(name='to_tsquery', args=[text_search_conf_ref,
-                                                                        query])
-        else:
-            query = pgsql.ast.FunctionCallNode(name='plainto_tsquery', args=[text_search_conf_ref,
-                                                                             query])
-
-        return cols, query
 
     def _is_subquery(self, path):
         return isinstance(path, (tree.ast.ExistPred, tree.ast.GraphExpr)) \
@@ -2136,42 +2587,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             result = self._process_constant(context, expr)
 
         elif isinstance(expr, tree.ast.TypeCast):
-            if isinstance(expr.expr, tree.ast.BinOp) and \
-                                        isinstance(expr.expr.op, (ast.ops.ComparisonOperator,
-                                                                  ast.ops.EquivalenceOperator)):
-                expr_type = bool
-            elif isinstance(expr.expr, tree.ast.BaseRefExpr) and \
-                        isinstance(expr.expr.expr, tree.ast.BinOp) and \
-                        isinstance(expr.expr.expr.op, (ast.ops.ComparisonOperator,
-                                                       ast.ops.EquivalenceOperator)):
-                expr_type = bool
-            elif isinstance(expr.expr, tree.ast.Constant):
-                expr_type = expr.expr.type
-            else:
-                expr_type = None
-
-            schema = context.current.proto_schema
-            int_proto = schema.get('metamagic.caos.builtins.int')
-
-            pg_expr = self._process_expr(context, expr.expr, cte)
-
-            if expr_type and expr_type is bool and expr.type.issubclass(int_proto):
-                when_expr = pgsql.ast.CaseWhenNode(expr=pg_expr,
-                                                   result=pgsql.ast.ConstantNode(value=1))
-                default = pgsql.ast.ConstantNode(value=0)
-                result = pgsql.ast.CaseExprNode(args=[when_expr], default=default)
-            else:
-                if isinstance(expr.type, tuple):
-                    typ = expr.type[1]
-                else:
-                    typ = expr.type
-                type = types.pg_type_from_atom(schema, typ, topbase=True)
-
-                if isinstance(expr.type, tuple):
-                    type = pgsql.ast.TypeNode(name=type, array_bounds=[-1])
-                else:
-                    type = pgsql.ast.TypeNode(name=type)
-                result = pgsql.ast.TypeCastNode(expr=pg_expr, type=type)
+            result = self._process_typecast(context, expr)
 
         elif isinstance(expr, tree.ast.Sequence):
             elements = [self._process_expr(context, e, cte) for e in expr.elements]
@@ -2303,317 +2719,6 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         return result
 
-    def _process_function(self, context, expr, cte):
-        if expr.name == ('search', 'rank'):
-            vector, query = self._text_search_args(context, *expr.args,
-                                                   extended=expr.kwargs.get('extended'))
-            # Normalize rank to a scale from 0 to 1
-            normalization = pgsql.ast.ConstantNode(value=32)
-            args = [vector, query, normalization]
-            result = pgsql.ast.FunctionCallNode(name='ts_rank_cd', args=args)
-
-        elif expr.name == ('search', 'headline'):
-            kwargs = expr.kwargs.copy()
-            extended = kwargs.pop('extended', False)
-            vector, query = self._text_search_args(context, *expr.args, tsvector=False,
-                                                   extended=extended)
-            lang = self._get_text_search_conf_ref(context)
-
-            args=[lang, vector, query]
-
-            if kwargs:
-                for i, (name, value) in enumerate(kwargs.items()):
-                    value = self._process_expr(context, value, cte)
-                    left = pgsql.ast.ConstantNode(value=str(name))
-                    right = pgsql.ast.ConstantNode(value='=')
-                    left = pgsql.ast.BinOpNode(left=left, op='||', right=right)
-                    right = pgsql.ast.FunctionCallNode(name='quote_ident', args=[value])
-                    value = pgsql.ast.BinOpNode(left=left, op='||', right=right)
-
-                    if i == 0:
-                        options = value
-                    else:
-                        left = options
-                        right = pgsql.ast.ConstantNode(value=',')
-                        left = pgsql.ast.BinOpNode(left=left, op='||', right=right)
-                        right = value
-                        options = pgsql.ast.BinOpNode(left=left, op='||', right=right)
-
-                args.append(options)
-
-            result = pgsql.ast.FunctionCallNode(name='ts_headline', args=args)
-
-        else:
-            result = None
-            agg_sort = []
-            if expr.aggregates:
-                with context(context.NEW_TRANSPARENT):
-                    context.current.in_aggregate = True
-                    context.current.query.aggregates = True
-                    args = [self._process_expr(context, a, cte) for a in expr.args]
-
-                if expr.agg_sort:
-                    for sortexpr in expr.agg_sort:
-                        _sortexpr = self._process_expr(context, sortexpr.expr, cte)
-                        agg_sort.append(pgsql.ast.SortExprNode(expr=_sortexpr,
-                                                               direction=sortexpr.direction,
-                                                               nulls_order=sortexpr.nones_order))
-
-            else:
-                args = [self._process_expr(context, a, cte) for a in expr.args]
-
-            if expr.name == 'if':
-                cond = self._process_expr(context, expr.args[0], cte)
-                pos = self._process_expr(context, expr.args[1], cte)
-                neg = self._process_expr(context, expr.args[2], cte)
-                when_expr = pgsql.ast.CaseWhenNode(expr=cond,
-                                                   result=pos)
-                result = pgsql.ast.CaseExprNode(args=[when_expr], default=neg)
-            elif expr.name == 'noneif':
-                name = 'NULLIF'
-            elif expr.name == ('agg', 'sum'):
-                name = 'sum'
-            elif expr.name == ('agg', 'product'):
-                name = common.qname('caos', 'agg_product')
-            elif expr.name == ('agg', 'avg'):
-                name = 'avg'
-            elif expr.name == ('agg', 'min'):
-                name = 'min'
-            elif expr.name == ('agg', 'max'):
-                name = 'max'
-            elif expr.name == ('agg', 'list'):
-                name = 'array_agg'
-            elif expr.name == ('agg', 'join'):
-                name = 'string_agg'
-                separator, ref = args[:2]
-                try:
-                    ignore_nulls = args[2] and args[2].value
-                except IndexError:
-                    ignore_nulls = False
-
-                if not ignore_nulls:
-                    array_agg = pgsql.ast.FunctionCallNode(name='array_agg', args=[ref],
-                                                           agg_sort=agg_sort)
-                    result = pgsql.ast.FunctionCallNode(name='array_to_string',
-                                                        args=[array_agg, separator])
-                    result.args.append(pgsql.ast.ConstantNode(value=''))
-                else:
-                    args = [ref, separator]
-            elif expr.name == ('agg', 'count'):
-                name = 'count'
-            elif expr.name == ('agg', 'stddev_pop'):
-                name = 'stddev_pop'
-            elif expr.name == ('agg', 'stddev_samp'):
-                name = 'stddev_samp'
-            elif expr.name == ('window', 'lag') or expr.name == ('window', 'lead'):
-                schema = context.current.proto_schema
-                name = expr.name[1]
-                if len(args) > 1:
-                    args[1] = pgsql.ast.TypeCastNode(expr=args[1],
-                                                     type=pgsql.ast.TypeNode(name='int'))
-                if len(args) > 2:
-                    arg0_type = self.get_expr_type(expr.args[0], schema)
-                    arg0_type = pg_types.pg_type_from_atom(schema, arg0_type)
-                    args[2] = pgsql.ast.TypeCastNode(expr=args[2],
-                                                     type=pgsql.ast.TypeNode(name=arg0_type))
-            elif expr.name == ('math', 'abs'):
-                name = 'abs'
-            elif expr.name == ('math', 'round'):
-                name = 'round'
-            elif expr.name == ('math', 'min'):
-                name = 'least'
-            elif expr.name == ('math', 'max'):
-                name = 'greatest'
-            elif expr.name == ('math', 'list_sum'):
-                subq = pgsql.ast.SelectQueryNode()
-                op = pgsql.ast.FunctionCallNode(name='sum', args=[pgsql.ast.FieldRefNode(field='i')])
-                subq.targets.append(op)
-                arr = self._process_expr(context, expr.args[0], cte)
-                if isinstance(arr, pgsql.ast.ConstantNode):
-                    if isinstance(arr.expr, pgsql.ast.SequenceNode):
-                        arr = pgsql.ast.ArrayNode(elements=arr.expr.elements)
-
-                lower = pgsql.ast.BinOpNode(left=self._process_expr(context, expr.args[1], cte),
-                                            op=ast.ops.ADD,
-                                            right=pgsql.ast.ConstantNode(value=1, type='int'))
-                upper = self._process_expr(context, expr.args[2], cte)
-                indirection = pgsql.ast.IndexIndirectionNode(lower=lower, upper=upper)
-                arr = pgsql.ast.IndirectionNode(expr=arr, indirection=indirection)
-                unnest = pgsql.ast.FunctionCallNode(name='unnest', args=[arr])
-                subq.fromlist.append(pgsql.ast.FromExprNode(expr=unnest, alias='i'))
-                zero = pgsql.ast.ConstantNode(value=0, type='int')
-                result = pgsql.ast.FunctionCallNode(name='coalesce', args=[subq, zero])
-            elif expr.name == ('datetime', 'to_months'):
-                years = pgsql.ast.FunctionCallNode(name='date_part',
-                                                   args=[pgsql.ast.ConstantNode(value='year'),
-                                                         args[0]])
-                years = pgsql.ast.BinOpNode(left=years, op=ast.ops.MUL,
-                                            right=pgsql.ast.ConstantNode(value=12))
-                months = pgsql.ast.FunctionCallNode(name='date_part',
-                                                    args=[pgsql.ast.ConstantNode(value='month'),
-                                                          args[0]])
-                result = pgsql.ast.BinOpNode(left=years, op=ast.ops.ADD, right=months)
-            elif expr.name == ('datetime', 'extract'):
-                name = 'date_part'
-            elif expr.name == ('datetime', 'truncate'):
-                name = 'date_trunc'
-            elif expr.name == ('datetime', 'current_time'):
-                result = pgsql.ast.FunctionCallNode(name='current_time', noparens=True)
-            elif expr.name == ('datetime', 'current_datetime'):
-                result = pgsql.ast.FunctionCallNode(name='current_timestamp', noparens=True)
-            elif expr.name == ('str', 'replace'):
-                name = 'replace'
-            elif expr.name == ('str', 'len'):
-                name = 'char_length'
-            elif expr.name == ('str', 'lower'):
-                name = 'lower'
-            elif expr.name == ('str', 'upper'):
-                name = 'upper'
-            elif expr.name == ('str', 'lpad'):
-                name = 'lpad'
-                # lpad expects the second argument to be int, so force cast it
-                args[1] = pgsql.ast.TypeCastNode(expr=args[1], type=pgsql.ast.TypeNode(name='int'))
-            elif expr.name == ('str', 'rpad'):
-                name = 'rpad'
-                # rpad expects the second argument to be int, so force cast it
-                args[1] = pgsql.ast.TypeCastNode(expr=args[1], type=pgsql.ast.TypeNode(name='int'))
-            elif expr.name in (('str', 'trim'), ('str', 'ltrim'), ('str', 'rtrim')):
-                name = expr.name[1]
-            elif expr.name == ('str', 'levenshtein'):
-                name = common.qname('caos', 'levenshtein')
-
-            elif expr.name == ('re', 'match'):
-                subq = pgsql.ast.SelectQueryNode()
-
-                flags = pgsql.ast.FunctionCallNode(
-                            name='coalesce',
-                            args=[args[2], pgsql.ast.ConstantNode(value='')])
-
-                fargs = [args[1], args[0], flags]
-                op = pgsql.ast.FunctionCallNode(name='regexp_matches', args=fargs)
-                subq.targets.append(op)
-
-                result = subq
-
-            elif expr.name == ('str', 'strpos'):
-                r = pgsql.ast.FunctionCallNode(name='strpos', args=args)
-                result = pgsql.ast.BinOpNode(left=r, right=pgsql.ast.ConstantNode(value=1),
-                                             op=ast.ops.SUB)
-            elif expr.name == ('str', 'substr'):
-                name = 'substr'
-                args[1] = pgsql.ast.TypeCastNode(expr=args[1], type=pgsql.ast.TypeNode(name='int'))
-                args[1] = pgsql.ast.BinOpNode(left=args[1], right=pgsql.ast.ConstantNode(value=1),
-                                              op=ast.ops.ADD)
-                if args[2] is not None:
-                    args[2] = pgsql.ast.TypeCastNode(expr=args[2],
-                                                     type=pgsql.ast.TypeNode(name='int'))
-            elif expr.name == ('str', 'urlify'):
-                re_1 = pgsql.ast.ConstantNode(value=r'[^\w\- ]')
-                re_2 = pgsql.ast.ConstantNode(value=r'\s+')
-                flags = pgsql.ast.ConstantNode(value='g')
-                replacement = pgsql.ast.ConstantNode(value='')
-                replace_1 = pgsql.ast.FunctionCallNode(name='regexp_replace',
-                                                       args=[args[0], re_1, replacement, flags])
-                replacement = pgsql.ast.ConstantNode(value='-')
-                replace_2 = pgsql.ast.FunctionCallNode(name='regexp_replace',
-                                                       args=[replace_1, re_2, replacement, flags])
-                result = pgsql.ast.FunctionCallNode(name='lower', args=[replace_2])
-
-            elif expr.name == ('str', 'b64encode'):
-                enc_format = pgsql.ast.ConstantNode(value='base64')
-                b64_encode = pgsql.ast.FunctionCallNode(name='encode', args=[args[0], enc_format])
-                result = b64_encode
-
-            elif expr.name == ('str', 'urlsafe_b64encode'):
-                enc_format = pgsql.ast.ConstantNode(value='base64')
-                b64_encode = pgsql.ast.FunctionCallNode(name='encode', args=[args[0], enc_format])
-                unsafe_chars = pgsql.ast.ConstantNode(value='+/')
-                safe_chars = pgsql.ast.ConstantNode(value='-_')
-                pad_char = pgsql.ast.ConstantNode(value='=')
-                safe_encode = pgsql.ast.FunctionCallNode(name='translate',
-                                            args=[b64_encode, unsafe_chars, safe_chars])
-                result = safe_encode
-
-            elif expr.name == ('rand', 'bytes'):
-                args[0] = pgsql.ast.TypeCastNode(expr=args[0], type=pgsql.ast.TypeNode(name='int'))
-                name = common.qname('caos', 'gen_random_bytes')
-
-            elif expr.name == ('rand', 'random'):
-                name = 'random'
-
-            elif expr.name == 'getitem':
-                index = self._process_expr(context, expr.args[1], cte)
-                upper = pgsql.ast.BinOpNode(left=index, op=ast.ops.ADD,
-                                            right=pgsql.ast.ConstantNode(value=1))
-                indirection = pgsql.ast.IndexIndirectionNode(upper=upper)
-                _expr = self._process_expr(context, expr.args[0], cte)
-                result = pgsql.ast.IndirectionNode(expr=_expr, indirection=indirection)
-
-            elif expr.name == 'getslice':
-                start = args[1]
-                stop = args[2]
-                one = pgsql.ast.ConstantNode(value=1)
-                zero = pgsql.ast.ConstantNode(value=0)
-
-                is_string = False
-                arg_type = self.get_expr_type(expr.args[0], context.current.proto_schema)
-
-                if isinstance(arg_type, caos_types.ProtoAtom):
-                    b = arg_type.get_topmost_base(context.current.proto_schema, top_prototype=True)
-                    is_string = b.name == 'metamagic.caos.builtins.str'
-
-                if start.value is None and start.index is None:
-                    start = zero
-                    lower = one
-                else:
-                    lower = pgsql.ast.BinOpNode(left=start, op=ast.ops.ADD, right=one)
-
-                if is_string:
-                    args = [args[0], lower]
-
-                    if stop.value is not None or stop.index is not None:
-                        stop = pgsql.ast.BinOpNode(left=stop, op=ast.ops.SUB, right=start)
-                        args.append(stop)
-
-                    name = 'substr'
-
-                else:
-                    if stop.value is None and stop.index is None:
-                        upper = pgsql.ast.FunctionCallNode(name='array_upper',
-                                                           args=[args[0], one])
-                    else:
-                        upper = stop
-
-                    indirection = pgsql.ast.IndexIndirectionNode(lower=lower, upper=upper)
-                    result = pgsql.ast.IndirectionNode(expr=args[0], indirection=indirection)
-
-            elif expr.name == ('geo', 'covers'):
-                # _st_covers instead of st_covers, because Postgres chokes on && operator
-                # inside st_covers for some reason.
-                name = common.qname('caos_aux_feat_gis', '_st_covers')
-                context.current.search_path.append('caos_aux_feat_gis')
-
-            elif expr.name == ('geo', 'distance'):
-                args = self._geo_convert_to_geometry(context, args)
-                name = common.qname('caos_aux_feat_gis', 'st_distance_sphere')
-                context.current.search_path.append('caos_aux_feat_gis')
-
-            elif isinstance(expr.name, tuple):
-                assert False, 'unsupported function %s' % (expr.name,)
-
-            else:
-                name = expr.name
-
-            if not result:
-                result = pgsql.ast.FunctionCallNode(name=name, args=args,
-                                                    aggregates=bool(expr.aggregates),
-                                                    agg_sort=agg_sort)
-
-                if expr.window:
-                    result.over = pgsql.ast.WindowDefNode()
-
-        return result
-
     def _geo_convert_to_geometry(self, context, exprs):
         result = []
 
@@ -2740,11 +2845,11 @@ class CaosTreeTransformer(CaosExprTransformer):
                 return
 
         if not step_cte:
-            if caos_path_tip.anchor:
+            if caos_path_tip.pathvar:
                 # If the path caos_path_tip has been assigned a named pointer, re-use it in the
                 # CTE alias.
                 #
-                cte_alias = context.current.genalias(hint=caos_path_tip.anchor)
+                cte_alias = context.current.genalias(hint=caos_path_tip.pathvar)
             else:
                 cte_alias = context.current.genalias(hint=str(caos_path_tip.id))
 
@@ -2790,8 +2895,8 @@ class CaosTreeTransformer(CaosExprTransformer):
             join = fromnode.expr if fromnode.expr else sql_path_tip
 
             map_join_type = 'left' if weak else 'inner'
-            tip_anchor = caos_path_tip.anchor if caos_path_tip else None
-            linkmap_key = link_proto, link.direction, link.source, tip_anchor
+            tip_pathvar = caos_path_tip.pathvar if caos_path_tip else None
+            linkmap_key = link_proto, link.direction, link.source, tip_pathvar
 
             try:
                 # The same link map must not be joined more than once,

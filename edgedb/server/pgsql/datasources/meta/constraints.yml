@@ -1,0 +1,42 @@
+##
+# Copyright (c) 2013 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%SCHEMA metamagic.caos.datasources.schemas.Sql
+%NAME Constraints
+---
+params:
+    name:
+        type: str
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+            a.id           AS id,
+            a.name         AS name,
+            a.title        AS title,
+            a.description  AS description,
+            a.is_abstract  AS is_abstract,
+            a.is_final     AS is_final,
+            a.base         AS base,
+            a.expr         AS expr,
+            a.subjectexpr  AS subjectexpr,
+            a.localfinalexpr AS localfinalexpr,
+            a.finalexpr    AS finalexpr,
+            a.errmessage   AS errmessage,
+            a.paramtypes   AS paramtypes,
+            a.inferredparamtypes AS inferredparamtypes,
+            a.args         AS args,
+            subj.name      AS subject
+        FROM
+            caos.constraint a
+            LEFT JOIN caos.metaobject subj ON (subj.id = a.subject)
+        WHERE
+            %(name)s::text IS NULL OR a.name LIKE %(name)s::text
+...

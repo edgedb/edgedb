@@ -38,7 +38,6 @@ class ConstantExpr:
             return None
 
 
-
 class TextSearchExpr:
     def __init__(self):
         self.pattern = None

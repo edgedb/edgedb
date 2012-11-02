@@ -13,6 +13,7 @@ from metamagic.utils import datastructures
 from .. import common
 from . import base
 from . import composites
+from . import constraints
 from . import ddl
 
 
@@ -51,6 +52,14 @@ class Table(composites.CompositeDBObject):
 
     def get_id(self):
         return common.qname(*self.name)
+
+    @property
+    def system_catalog(self):
+        return 'pg_class'
+
+    @property
+    def oid_type(self):
+        return 'regclass'
 
 
 class Column(base.DBObject):
@@ -92,40 +101,18 @@ class TableColumn(base.DBObject):
         return common.qname(self.table_name[0], self.table_name[1], self.column.name)
 
 
-class TableConstraint(base.DBObject):
-    def __init__(self, table_name, column_name=None, constraint_name=None):
-        self.table_name = table_name
-        self.column_name = column_name
-        self._constraint_name = constraint_name
-
-    def constraint_name(self, quote=True):
-        if quote and self._constraint_name:
-            return common.quote_ident(self._constraint_name)
-        else:
-            return self._constraint_name
-
-    def code(self, context):
-        return None
-
-    def rename_code(self, context):
-        return None
-
-    def extra(self, context, alter_table):
+class TableConstraint(constraints.Constraint):
+    def extra(self, context):
         return None
 
     def rename_extra(self, context, new_name):
         return None
 
-    def get_type(self):
-        return 'CONSTRAINT'
-
-    def get_id(self):
-        constr_id = self.constraint_name()
-
-        if self.table_name:
-            constr_id += ' ON {}'.format(common.qname(*self.table_name))
-
-        return constr_id
+    def get_subject_type(self):
+        return '' # For table constraints the accepted syntax is
+                  # simply CONSTRAINT ON "{tab_name}", not
+                  # CONSTRAINT ON TABLE, unlike constraints on
+                  # other objects.
 
 
 class PrimaryKey(TableConstraint):
@@ -133,7 +120,7 @@ class PrimaryKey(TableConstraint):
         super().__init__(table_name)
         self.columns = columns
 
-    def code(self, context):
+    def constraint_code(self, context):
         code = 'PRIMARY KEY (%s)' % ', '.join(common.quote_ident(c) for c in self.columns)
         return code
 
@@ -143,7 +130,7 @@ class UniqueConstraint(TableConstraint):
         super().__init__(table_name)
         self.columns = columns
 
-    def code(self, context):
+    def constraint_code(self, context):
         code = 'UNIQUE (%s)' % ', '.join(common.quote_ident(c) for c in self.columns)
         return code
 
@@ -154,7 +141,7 @@ class CheckConstraint(TableConstraint):
         self.expr = expr
         self.inherit = inherit
 
-    def code(self, context):
+    def constraint_code(self, context):
         if isinstance(self.expr, base.Query):
             expr = context.db.prepare(self.expr.text).first(*self.expr.params)
         else:
@@ -225,7 +212,7 @@ class CreateTable(ddl.SchemaObjectOperation):
 
     def code(self, context):
         elems = [c.code(context) for c in self.table.columns(only_self=True)]
-        elems += [c.code(context) for c in self.table.constraints]
+        elems += [c.constraint_code(context) for c in self.table.constraints]
 
         name = common.qname(*self.table.name)
         cols = ', '.join(c for c in elems)
@@ -266,7 +253,7 @@ class AlterTableFragment(ddl.DDLOperation):
         return 'COLUMN'
 
 
-class AlterTable(AlterTableBaseMixin, base.CompositeCommandGroup):
+class AlterTable(AlterTableBaseMixin, ddl.DDLOperation, base.CompositeCommandGroup):
     def __init__(self, name, *, contained=False, conditions=None, neg_conditions=None, priority=0):
         base.CompositeCommandGroup.__init__(self, conditions=conditions,
                                             neg_conditions=neg_conditions,
@@ -369,6 +356,7 @@ class TableConstraintExists(base.Condition):
 
 class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
     def __init__(self, constraint):
+        assert not isinstance(constraint, list)
         self.constraint = constraint
 
     def code(self, context):
@@ -377,45 +365,33 @@ class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
         if name:
             code += 'CONSTRAINT {} '.format(name)
 
-        return code + self.constraint.code(context)
+        return code + self.constraint.constraint_code(context)
 
     def extra(self, context, alter_table):
-        return self.constraint.extra(context, alter_table)
+        return self.constraint.extra(context)
 
     def __repr__(self):
         return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__,
                                self.constraint)
 
 
-class AlterTableRenameConstraintSimple(AlterTableFragment, TableConstraintCommand):
-    def __init__(self, old_name, new_name):
+class AlterTableRenameConstraintSimple(AlterTableBase, TableConstraintCommand):
+    def __init__(self, name, *, old_name, new_name, **kwargs):
+        assert name
+        super().__init__(name=name, **kwargs)
         self.old_name = old_name
         self.new_name = new_name
 
     def code(self, context):
-        return 'RENAME CONSTRAINT {} TO {}'.format(common.quote_ident(self.old_name),
-                                                   common.quote_ident(self.new_name))
+        code = self.prefix_code(context)
+        code += ' RENAME CONSTRAINT {} TO {}'.format(
+                        common.quote_ident(self.old_name),
+                        common.quote_ident(self.new_name))
+        return code
 
     def __repr__(self):
         return '<%s.%s %r to %r>' % (self.__class__.__module__, self.__class__.__name__,
                                      self.old_name, self.new_name)
-
-
-class AlterTableRenameConstraint(AlterTableBase, TableConstraintCommand):
-    def __init__(self, table_name, constraint, new_constraint, **kwargs):
-        super().__init__(table_name, **kwargs)
-        self.constraint = constraint
-        self.new_constraint = new_constraint
-
-    def code(self, context):
-        return self.constraint.rename_code(context, self.new_constraint)
-
-    def extra(self, context):
-        return self.constraint.rename_extra(context, self.new_constraint)
-
-    def __repr__(self):
-        return '<%s.%s %r to %r>' % (self.__class__.__module__, self.__class__.__name__,
-                                       self.constraint, self.new_constraint)
 
 
 class AlterTableDropConstraint(AlterTableFragment, TableConstraintCommand):
