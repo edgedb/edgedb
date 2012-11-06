@@ -86,12 +86,18 @@ class SchemaModule(types.ModuleType):
                     protoname = name[prefix_len_end + prefix_len + 2:]
                     nsname = name[prefix_len_end + 1:prefix_len_end + prefix_len + 1]
 
-        proto = self.__sx_prototypes__.get(protoname, nsname=nsname)
+        try:
+            proto = self.__sx_prototypes__.get(protoname, nsname=nsname)
+        except self.__sx_prototypes__.get_schema_error():
+            raise AttributeError('{!r} object has no attribute {!r}'.format(self, name))
+
         schema = get_loaded_proto_schema(self.__class__)
+
         try:
             cls = proto(schema, cache=False)
         except Exception as e:
             raise SemantixError('could not create class from prototype') from e
+
         setattr(self, name, cls)
         return cls
 
