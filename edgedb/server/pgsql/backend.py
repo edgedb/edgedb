@@ -1729,7 +1729,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             for module in modules.values():
                 mod = caos.proto.ProtoModule(name=module['name'],
-                                             imports=tuple(module['imports'] or ()))
+                                             imports=frozenset(module['imports'] or ()))
                 self.meta.add_module(mod)
                 mods.append(mod)
 

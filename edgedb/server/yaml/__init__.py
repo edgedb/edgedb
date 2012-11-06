@@ -857,7 +857,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
         imports = context.document.imports.copy()
 
-        self.module.imports = tuple(m.__name__ for m in imports.values())
+        self.module.imports = frozenset(m.__name__ for m in imports.values())
 
         if this_module != localschema.builtins_module:
             # Add implicit builtins import
