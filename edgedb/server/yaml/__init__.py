@@ -12,7 +12,6 @@ import importlib
 import builtins
 import collections
 import itertools
-import decimal
 import sys
 
 from semantix.utils import lang
@@ -312,25 +311,12 @@ class AtomConstraintPrecision(AtomConstraint, adapts=proto.AtomConstraintPrecisi
 
 
 class AtomConstraintRounding(AtomConstraint, adapts=proto.AtomConstraintRounding):
-    map = {
-        'ceiling': decimal.ROUND_CEILING,
-        'down': decimal.ROUND_DOWN,
-        'floor': decimal.ROUND_FLOOR,
-        'half-down': decimal.ROUND_HALF_DOWN,
-        'half-even': decimal.ROUND_HALF_EVEN,
-        'half-up': decimal.ROUND_HALF_UP,
-        'up': decimal.ROUND_UP,
-        '05up': decimal.ROUND_05UP
-    }
-
-    rmap = dict(zip(map.values(), map.keys()))
-
     def __sx_setstate__(self, data):
-        proto.AtomConstraintRounding.__init__(self, self.map[data['rounding']])
+        proto.AtomConstraintRounding.__init__(self, data['rounding'])
 
     @classmethod
     def __sx_getstate__(cls, data):
-        return {'rounding': cls.rmap[data.value]}
+        return {'rounding': data.value}
 
 
 class AtomConstraintExpr(AtomConstraint, adapts=proto.AtomConstraintExpr):
