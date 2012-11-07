@@ -218,6 +218,10 @@ class FPDecimal(decimal.Decimal):
             else:
                 _fix(context)
 
+        if isinstance(result, decimal.Decimal) and not isinstance(result, cls):
+            # Workaround Python bug #16431
+            result = str(result)
+
         return super().__new__(cls, result)
 
     def __str__(self):
