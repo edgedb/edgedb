@@ -1534,8 +1534,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def store_links(self, source, targets, link_name, session, merge=False):
         link_map = self.get_link_map(session)
 
-        target = getattr(source.__class__, str(link_name))
-        link_cls = target.as_link()
+        target_cls = getattr(source.__class__, str(link_name))
+        link_cls = target_cls.as_link()
         link_proto = link_cls.__sx_prototype__
 
         if (link_proto.atomic() and link_proto.singular()
@@ -1547,8 +1547,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         target_col = target_ptr_stor_info.column_name
 
         table = self._type_mech.get_table(link_cls.__sx_prototype__, session.proto_schema)
-
-        link_names = [(target, caos.types.prototype(link_cls).name)]
 
         cmds = []
         records = []
@@ -1564,11 +1562,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         for link_obj in targets:
             target = link_obj.target
 
-            for t, full_link_name in link_names:
-                if isinstance(target, t):
-                    break
-            else:
-                assert False, "No link found"
+            if not isinstance(target, target_cls):
+                expected_target = str(target_cls.__sx_prototype__.name)
+                source_name = source.__sx_prototype__.name
+                link_name = link_proto.normal_name()
+                msg = ('unexpected link target when storing "{}"."{}": '
+                       'expected instance of {!r}, got {!r}').format(source_name, link_name,
+                                                                     expected_target, target)
+                raise ValueError(msg)
 
             attrs = {}
             for prop_name, prop_cls in link_cls._iter_all_pointers():
@@ -1588,7 +1589,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             rec = table.record(**attrs)
 
             setattr(rec, source_col, source.id)
-            rec.link_type_id = link_map[full_link_name]
+            rec.link_type_id = link_map[link_proto.name]
 
             if target_in_table:
                 if target_is_concept:
