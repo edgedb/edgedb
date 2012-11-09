@@ -981,7 +981,7 @@ class JSParser:
             if self.tentative_match(','):
                 continue
 
-            elif self.tentative_match('in', consume=statement):
+            elif self.tentative_match('in', 'of', consume=statement):
                 # this can only happen in 'noin' mode
                 break
 

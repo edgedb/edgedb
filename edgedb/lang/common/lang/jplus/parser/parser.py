@@ -29,6 +29,58 @@ class Parser(JSParser):
         table.append(('rbp', 'Unary', ('@',), True));
         return table
 
+    @stamp_state('loop', affectslabels=True)
+    def parse_for_guts(self):
+        """Parse for loop."""
+
+        self.must_match('(')
+        init_expr = None
+        for_type = 'simple'
+
+        # skip classical for, without initializer
+        #
+        if not self.tentative_match(';', consume=False):
+            self.enter_state('noin')
+
+            if self.tentative_match('var'):
+                # var declaration
+                init_expr = self.parse_var_guts(statement=False)
+            else:
+                init_expr = self.parse_expression()
+
+            self.exit_state()
+
+        expr = expr2 = expr3 = None
+
+        if self.tentative_match('in', 'of', consume=False):
+            for_type = self.token.value
+            self.get_next_token()
+            # for (x in [1,2,3]) ...
+            #
+            expr = self.parse_expression()
+
+        else:
+            # we've got 'classical' for
+            #
+            self.must_match(';', allowsemi=False)
+
+            if not self.tentative_match(';'):
+                expr2 = self.parse_expression()
+                self.must_match(';', allowsemi=False)
+
+            if not self.tentative_match(')', consume=False):
+                expr3 = self.parse_expression()
+
+        self.must_match(')')
+        stmt = self.parse_statement()
+
+        if for_type == 'simple':
+            return js_ast.ForNode(part1=init_expr, part2=expr2, part3=expr3, statement=stmt);
+        elif for_type == 'of':
+            return ast.ForOfNode(init=init_expr, container=expr, statement=stmt);
+        else:
+            return js_ast.ForInNode(init=init_expr, container=expr, statement=stmt);
+
     @stamp_state('class')
     def parse_class_guts(self):
         name = self.parse_ID().name
