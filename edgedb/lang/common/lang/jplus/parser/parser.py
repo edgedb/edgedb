@@ -72,6 +72,37 @@ class Parser(JSParser):
         return ast.DecoratedNode(node=self.parse_statement(),
                                  decorators=decorators)
 
+    def nud_SUPER(self, token):
+        return self.parse_super_guts()
+
+    def parse_super_guts(self):
+        self.must_match('(', regexp=False)
+
+        cls = instance = None
+        if self.token.type == 'ID':
+            cls = self.parse_assignment_expression()
+
+            if self.tentative_match(',', regexp=False):
+                if self.token.type == 'ID' or self.token.type == 'THIS':
+                    instance = self.parse_assignment_expression()
+                else:
+                    raise UnexpectedToken(self.token, parser=self)
+
+        self.must_match(')', '.', regexp=False)
+
+        if self.token.type != 'ID':
+            raise UnexpectedToken(self.token, parser=self)
+
+        method = self.token.value
+        self.get_next_token(False)
+
+        self.must_match('(', regexp=False)
+        arguments = self.parse_expression_list()
+        self.must_match(')', regexp=False)
+
+        return ast.SuperCallNode(cls=cls, instance=instance,
+                                 arguments=arguments, method=method)
+
     def parse_static_guts(self):
         if not self.enclosing_state('class'):
             raise IllegalStatic(self.token)

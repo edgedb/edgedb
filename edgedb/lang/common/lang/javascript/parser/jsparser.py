@@ -202,6 +202,7 @@ class JSParser:
         'void'      : 'VOID',
         'typeof'    : 'TYPEOF',
         'new'       : 'NEW',
+        'super'     : 'SUPER',
 
         'true'  : 'TRUE',
         'false' : 'FALSE',
@@ -250,7 +251,7 @@ class JSParser:
             ('lbp', '',         ('new', '[', '.', 'function'), True),
             ('lbp', '',         ('(', ), True),
             ('lbp', 'Unary',    ('++', '--'), True),
-            ('rbp', 'Unary',    ('++', '--', '+', '-', '~', '!', 'delete', 'void', 'typeof'), True),
+            ('rbp', 'Unary',    ('++', '--', '+', '-', '~', '!', 'delete', 'void', 'typeof', 'super'), True),
             ('lbp', 'Binary',   ('*', '/', '%'), True),
             ('lbp', 'Binary',   ('+', '-'), True),
             ('lbp', 'Binary',   ('<<', '>>', '>>>'), True),

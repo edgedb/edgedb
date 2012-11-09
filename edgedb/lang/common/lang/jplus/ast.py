@@ -17,3 +17,5 @@ class ClassNode(ast.Base): __fields = ['name', ('bases', list), 'body']
 class DecoratedNode(ast.Base): __fields = ['node', ('decorators', list)]
 
 class StaticDeclarationNode(ast.Base): __fields = ['decl']
+
+class SuperCallNode(ast.Expression): __fields = ['cls', 'instance', 'method', ('arguments', list)]
