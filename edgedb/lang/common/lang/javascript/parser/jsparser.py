@@ -767,7 +767,14 @@ class JSParser:
                     and self.get_token_special_type(self.token, 'led') == 'Unary')
                and not (not self.generatorexprsupport and self.arraycompsupport and
                         not self.enclosing_state('[') and self.token.string == 'for')
-               ):
+               # 'new' and 'function' have unintuitive binding power, it is mainly dictated by
+               # the need to be of the same power as '[' and '.'
+               #
+               # Unfortunately, due to a deficiency of bp assignment we need to exclude
+               # the possibility of 'new' and 'function' to be considered OPERATORS
+               # explicitly in this loop guard.
+               #
+               and not self.token.value in ('new', 'function')):
 
             self.get_next_token(regexp=(self.token.type == 'OP'))
             # it's an error to have consecutive unary postfix operators

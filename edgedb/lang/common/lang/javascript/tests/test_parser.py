@@ -221,6 +221,13 @@ print(---a);"""
         // method and convert result to number "0..1"
         """
 
+    def test_utils_lang_js_parser_unary8(self):
+        '''
+        +1
+        function a() { print('123'); }
+        a()
+        '''
+
     def test_utils_lang_js_parser_binexpr1(self):
         """
         print(2 + 3);
