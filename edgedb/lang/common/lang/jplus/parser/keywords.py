@@ -16,5 +16,6 @@ js_keywords.update({
     'from': base_keywords.RESERVED_KEYWORD,
     'import': base_keywords.RESERVED_KEYWORD,
     'as': base_keywords.RESERVED_KEYWORD,
-    'of': base_keywords.RESERVED_KEYWORD
+    'of': base_keywords.RESERVED_KEYWORD,
+    'nonlocal': base_keywords.RESERVED_KEYWORD
 })

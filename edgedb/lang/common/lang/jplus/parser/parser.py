@@ -155,6 +155,10 @@ class Parser(JSParser):
         return ast.SuperCallNode(cls=cls, instance=instance,
                                  arguments=arguments, method=method)
 
+    def parse_nonlocal_guts(self):
+        var_list = self.parse_declaration_helper(statement=True)
+        return js_ast.StatementNode(statement=ast.NonlocalNode(vars=var_list))
+
     def parse_static_guts(self):
         if not self.enclosing_state('class'):
             raise IllegalStatic(self.token)
