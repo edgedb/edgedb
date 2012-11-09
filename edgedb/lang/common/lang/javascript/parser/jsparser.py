@@ -241,10 +241,8 @@ class JSParser:
         self.generatorexprsupport = generatorexprsupport
         self.setup_operators()
 
-    def setup_operators(self):
-        'Setup operators and precedence.'
-
-        self.PREC = [
+    def _get_operators_table(self):
+        return [
         #   (<bp>, <special type>, <token vals>, <active>)
             ('rbp', '',         ('{', ), True),
         # XXX: '{' is right-binding because it functions like a prefix operator
@@ -269,6 +267,11 @@ class JSParser:
              ('=', '+=', '-=', '*=', '/=', '%=', '<<=', '>>=', '>>>=', '&=', '|=', '^='), True),
             ('rbp', '',         ('let', ), self.letsupport)
         ]
+
+    def setup_operators(self):
+        'Setup operators and precedence.'
+
+        self.PREC = self._get_operators_table()
 
         #: this will contain mappings from values to token information for various operations
         #:

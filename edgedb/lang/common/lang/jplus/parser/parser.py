@@ -23,6 +23,12 @@ class Parser(JSParser):
     def __init__(self):
         super().__init__()
 
+    def _get_operators_table(self):
+        table = super()._get_operators_table()
+        # (<bp>, <special type>, <token vals>, <active>)
+        table.append(('rbp', 'Unary', ('@',), True));
+        return table
+
     @stamp_state('class')
     def parse_class_guts(self):
         name = self.parse_ID().name
@@ -34,17 +40,37 @@ class Parser(JSParser):
 
         body = []
         while not self.tentative_match('}', consume=True):
-            if (not self.tentative_match('var', consume=False)
-                        and not self.tentative_match('function', consume=False)
-                        and not self.tentative_match('static', consume=False)):
+            if self.tentative_match('@', 'var', 'function', 'static', consume=False):
+                statement = self.parse_statement()
+
+                if statement:
+                    body.append(statement)
+
+                continue
+
+            raise UnexpectedToken(self.token, parser=self)
+
+        return ast.ClassNode(name=name, bases=bases, body=body)
+
+    def nud_AT(self, token):
+        # parse decorator list
+        decorators = []
+        at_rbp = token.rbp
+
+        while True:
+            if self.token.type != 'ID':
                 raise UnexpectedToken(self.token, parser=self)
 
-            statement = self.parse_statement()
+            decorators.append(self.parse_assignment_expression(at_rbp))
 
-            if statement:
-                body.append(statement)
+            if not self.tentative_match('@', regexp=False):
+                break
 
-        return ast.ClassDefNode(name=name, bases=bases, body=body)
+        if not self.tentative_match('class', 'function', 'static', consume=False):
+            raise UnexpectedToken(self.token, parser=self)
+
+        return ast.DecoratedNode(node=self.parse_statement(),
+                                 decorators=decorators)
 
     def parse_static_guts(self):
         if not self.enclosing_state('class'):

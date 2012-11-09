@@ -177,6 +177,11 @@ INITIAL:
         advance_line_col(self)
         return "COMMA"
 
+    # '@' is used for decorators in JPlus
+    "@":
+        advance_line_col(self)
+        return "AT"
+
     # special handling of '/', '/=' and regexp
     "/[^\*/]":
         if self.regexp_possible:
