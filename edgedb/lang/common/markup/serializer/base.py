@@ -187,7 +187,8 @@ def serialize_exception(obj, *, ctx):
     cause = context = None
     if obj.__cause__ is not None and obj.__cause__ is not obj:
         cause = serialize(obj.__cause__, ctx=ctx)
-    elif obj.__context__ is not None and obj.__context__ is not obj:
+    elif (not obj.__suppress_context__ and obj.__context__ is not None
+                                                and obj.__context__ is not obj):
         context = serialize(obj.__context__, ctx=ctx)
 
     details_context = None
