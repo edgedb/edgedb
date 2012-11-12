@@ -12,12 +12,12 @@ from metamagic.exceptions import SemantixError
 from metamagic.utils.ast.transformer import NodeTransformer
 from . import ast
 
-from semantix.utils.lang.jplus.support import base as base_js
-from semantix.utils.lang.javascript import sx as sx_js
+from metamagic.utils.lang.jplus.support import base as base_js
+from metamagic.utils.lang.javascript import sx as sx_js
 
-import semantix.utils.lang.javascript
-__import__('semantix.utils.lang.javascript.class')
-class_js = getattr(semantix.utils.lang.javascript, 'class')
+import metamagic.utils.lang.javascript
+__import__('metamagic.utils.lang.javascript.class')
+class_js = getattr(metamagic.utils.lang.javascript, 'class')
 
 
 class ScopeHead:
@@ -292,21 +292,35 @@ class Transpiler(NodeTransformer):
         scope.add(Variable('~class_name', value=name, sys=True))
 
         dct_items = []
+        dct_static_items = []
+
         with scope:
             for child in node.body:
+                collection = dct_items
+
+                if isinstance(child, ast.StaticDeclarationNode):
+                    child = child.decl
+                    collection = dct_static_items
+
                 if isinstance(child, js_ast.FunctionNode):
                     child = self.visit(child)
-                    dct_items.append(js_ast.SimplePropertyNode(
+                    collection.append(js_ast.SimplePropertyNode(
                                         name=js_ast.StringLiteralNode(value=child.name),
                                         value=child))
                 elif isinstance(child, js_ast.AssignmentExpressionNode):
                     child = self.visit(child)
-                    dct_items.append(js_ast.SimplePropertyNode(
+                    collection.append(js_ast.SimplePropertyNode(
                                         name=js_ast.StringLiteralNode(value=child.left.name),
                                         value=child.right))
                 else:
                     raise TranspilerError('unsupported AST node in class body: {}'.
                                           format(child))
+
+        if dct_static_items:
+            dct_items.append(js_ast.SimplePropertyNode(
+                name=js_ast.StringLiteralNode(value='statics'),
+                value=js_ast.ObjectLiteralNode(
+                    properties=dct_static_items)))
 
         return js_ast.StatementNode(
                    statement=js_ast.AssignmentExpressionNode(

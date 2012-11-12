@@ -96,7 +96,32 @@ class TestTranslation(base_test.BaseJPlusTest):
             }
         }
 
-        print(Spam().bar())
+        print(Spam().bar() + new Spam().bar())
+
+        %%
+        84
+        '''
+
+    def test_utils_lang_jp_tr_class_3(self):
+        '''JS+
+
+        class Foo {
+            static x = 10;
+
+            static function bar(a, b) {
+                return this.x + (a || 0) + (b || 0);
+            }
+        }
+
+        class Bar {}
+
+        class Spam(Foo, Bar) {
+            static function bar() {
+                return super().bar(1, 2) + 29;
+            }
+        }
+
+        print(Spam.bar())
 
         %%
         42

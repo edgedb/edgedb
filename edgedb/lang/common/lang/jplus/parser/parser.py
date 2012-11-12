@@ -189,10 +189,17 @@ class Parser(JSParser):
             raise IllegalStatic(self.token)
 
         node = None
-        if self.tentative_match('var', regexp=False):
-            node = self.parse_var_guts()
-        elif self.tentative_match('function', regexp=False):
+        if self.tentative_match('function', regexp=False):
             node = self.parse_function_guts()
+        elif self.token.type == 'ID':
+            id = self.parse_ID()
+            self.must_match('=')
+            right = self.parse_assignment_expression()
+            self.tentative_match(';', consume=True)
+            node = js_ast.AssignmentExpressionNode(
+                        left=id,
+                        op='=',
+                        right=right)
 
         if node is None:
             raise UnexpectedToken(self.token, parser=self)
