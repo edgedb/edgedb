@@ -126,3 +126,107 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         42
         '''
+
+    def test_utils_lang_jp_tr_dec_1(self):
+        '''JS+
+
+        function make_dec(inc, sign) {
+            return function dec(func) {
+                return function() {
+                    if (!sign) {
+                        return func.apply(this, arguments) + inc;
+                    } else {
+                        return func.apply(this, arguments) * inc;
+                    }
+                }
+            }
+        }
+
+        dec1 = make_dec(10, '+');
+
+        @dec1
+        @make_dec(20, '*')
+        function abc() {
+            return 20;
+        }
+
+        print(abc());
+
+        %%
+        4000
+        '''
+
+    def test_utils_lang_jp_tr_dec_n_classes_1(self):
+        '''JS+
+
+        function dec(func) {
+            return function() {
+                return func.apply(this, arguments) + 10;
+            }
+        }
+
+        function class_dec(cls) {
+            cls.attr = -11;
+            return cls;
+        }
+
+        @class_dec
+        class Foo {
+            @dec
+            function spam() {
+                return 11;
+            }
+
+            @dec
+            static function ham() {
+                return 22;
+            }
+        }
+
+        print(Foo().spam() + Foo.ham() + Foo.attr)
+
+        %%
+        42
+        '''
+
+    def test_utils_lang_jp_tr_dec_n_classes_2(self):
+        '''JS+
+
+        function one_dec(obj) {
+            return 1;
+        }
+
+        @one_dec
+        class Foo {}
+
+        class Bar {
+            @one_dec
+            static function abc() {
+                return 10;
+            }
+
+            @one_dec
+            @one_dec
+            static function edf() {
+                return 10;
+            }
+        }
+
+        print(Foo + Bar.abc + Bar.edf)
+
+        %%
+        3
+        '''
+
+    def test_utils_lang_jp_tr_func_defaults_1(self):
+        '''JS+
+
+        function a(a, b, c=10) {
+            return a + b + c;
+        }
+
+        print(a(1, 2) + a(2, 3, 4));
+
+        %%
+        22
+        '''

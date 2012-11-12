@@ -1151,6 +1151,21 @@ class JSParser:
             self.must_match(';')
             return jsast.YieldNode(expression=expr)
 
+    def parse_function_parameters(self):
+        param = []
+
+        if not self.tentative_match(')'):
+
+            while True:
+                param.append(self.parse_ID())
+
+                if not self.tentative_match(')'):
+                    self.must_match(',')
+
+                else:
+                    break
+
+        return param
 
     @stamp_state('function', affectslabels=True)
     def parse_function_guts(self, is_declaration=False):
@@ -1171,18 +1186,7 @@ class JSParser:
 
         # grab the arglist
         #
-        param = []
-
-        if not self.tentative_match(')'):
-
-            while True:
-                param.append(self.parse_ID())
-
-                if not self.tentative_match(')'):
-                    self.must_match(',')
-
-                else:
-                    break
+        param = self.parse_function_parameters()
 
         self.must_match('{')
         body = self.parse_block_guts()

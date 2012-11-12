@@ -272,3 +272,33 @@ class Parser(JSParser):
             names.append(self.parse_import_alias())
         return js_ast.StatementNode(statement=ast.ImportFromNode(names=names, module=module,
                                                              level=level))
+
+
+    def parse_function_parameters(self):
+        params = []
+
+        defaults_mode = False
+        if not self.tentative_match(')'):
+            while True:
+                name = self.parse_ID()
+
+                if defaults_mode or self.tentative_match('=', consume=False):
+                    defaults_mode = True
+                    self.must_match('=')
+                    default = self.parse_assignment_expression()
+
+                    param = ast.FunctionParameter(name=name.name,
+                                                  default=default)
+
+                else:
+                    param = ast.FunctionParameter(name=name.name)
+
+                params.append(param)
+
+                if self.tentative_match(')'):
+                    break
+                else:
+                    self.must_match(',')
+
+        return params
+

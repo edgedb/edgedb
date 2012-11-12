@@ -6,6 +6,8 @@
 ##
 
 
+import collections
+
 from metamagic.utils.lang.javascript import ast as js_ast
 from metamagic.exceptions import SemantixError
 
@@ -85,7 +87,8 @@ class Scope:
             self.scope_head.head = self.prev_head
 
     def __repr__(self):
-        return '<{} {!r} 0x{:x}>'.format(type(self).__name__, self.vars, id(self))
+        return '<{} {!r} 0x{:x}>'.format(type(self).__name__, self.vars.values(),
+                                         id(self))
 
     def use(self, what):
         parent = self
@@ -185,7 +188,7 @@ class Transpiler(NodeTransformer):
         if scope.vars:
             vars = [js_ast.VarInitNode(
                         name=js_ast.IDNode(
-                                name=v.name)) for v in scope.vars.values()
+                            name=v.name)) for v in scope.vars.values()
                                                         if v.needs_decl and not v.sys]
             if vars:
                 return js_ast.StatementNode(
@@ -247,19 +250,28 @@ class Transpiler(NodeTransformer):
                                         statements=processed)))]))])
 
     def visit_js_AssignmentExpressionNode(self, node):
-        assert isinstance(node.left, js_ast.IDNode)
-        if not self.scope.is_local(node.left.name):
+        if (isinstance(node.left, js_ast.IDNode) and not self.scope.is_local(node.left.name)):
             self.scope.add(Variable(node.left.name, needs_decl=True))
         node.right = self.visit(node.right)
         return node
 
     def visit_js_FunctionNode(self, node):
-        self.scope.add(Variable(node.name))
+        name = node.name
+        if not self.scope.is_local(name):
+            self.scope.add(Variable(name))
 
         scope = FunctionScope(self)
 
+        defaults = collections.OrderedDict()
+        new_params = []
         for param in node.param:
             scope.add(Variable(param.name))
+            new_params.append(js_ast.IDNode(name=param.name))
+            if param.default is not None:
+                param.default = self.visit(param.default)
+                defaults[param.name] = param.default
+
+        node.param = new_params
 
         with scope:
             self.visit(node.body)
@@ -268,6 +280,85 @@ class Transpiler(NodeTransformer):
         if var:
             assert isinstance(node.body, js_ast.StatementBlockNode)
             node.body.statements.insert(0, var)
+
+        if defaults:
+            # OK, we have function parameters with default values.
+            # Let's transform it.
+            #
+            # Imagine we have a function:
+            #
+            # function spam(a, b=10) {
+            #     return a + b;
+            # }
+            #
+            # if we have defaults we want to transform our function to:
+            #
+            # spam = (function() {
+            #     var __sxjsp_def_b = 10;
+            #     return function spam(a, b) {
+            #         var __sx_jsp_arglen = arguments.length;
+            #         (__sx_jsp_arglen < 2) && (b = __sxjsp_def_b);
+            #         return a + b;
+            #     }
+            # }
+            # })();
+
+            wrapper_body = []
+
+            wrapper_body.append(js_ast.StatementNode(
+                            statement=js_ast.VarDeclarationNode(
+                                vars=[js_ast.VarInitNode(
+                                    name=js_ast.IDNode(
+                                        name='__sxjsp_def_{}'.format(name)),
+                                    value=value) for name, value in defaults.items()])))
+
+            wrapper_body.append(js_ast.StatementNode(
+                            statement=js_ast.ReturnNode(
+                                expression=node)))
+
+            if not isinstance(self.scope, ClassScope):
+                self.scope[name].needs_decl = True
+
+            defaults_init = [
+                js_ast.StatementNode(
+                    statement=js_ast.VarDeclarationNode(
+                        vars=[js_ast.VarInitNode(
+                            name=js_ast.IDNode(
+                                name='__sx_jsp_arglen'),
+                            value=js_ast.IDNode(
+                                name='arguments.length'))]))
+            ]
+
+            non_def_len = len(node.param) - len(defaults)
+            for idx, def_name in enumerate(defaults.keys()):
+                defaults_init.append(js_ast.StatementNode(
+                                        statement=js_ast.BinExpressionNode(
+                                            left=js_ast.BinExpressionNode(
+                                                left=js_ast.IDNode(
+                                                    name='__sx_jsp_arglen'),
+                                                op = '<',
+                                                right=js_ast.NumericLiteralNode(
+                                                    value=non_def_len + idx + 1)),
+                                            op='&&',
+                                            right=js_ast.AssignmentExpressionNode(
+                                                left=js_ast.IDNode(
+                                                    name=def_name),
+                                                op='=',
+                                                right=js_ast.IDNode(
+                                                    name='__sxjsp_def_{}'.format(def_name))))))
+
+            func_body = node.body.statements
+            func_body.insert(0, js_ast.SourceElementsNode(code=defaults_init))
+
+            node = js_ast.AssignmentExpressionNode(
+                       left=js_ast.IDNode(name=name),
+                       op='=',
+                       right=js_ast.StatementNode(
+                           statement=js_ast.CallNode(
+                               call=js_ast.FunctionNode(
+                                   isdeclaration=False,
+                                   body=js_ast.StatementBlockNode(
+                                       statements=wrapper_body)))))
 
         return node
 
@@ -298,17 +389,20 @@ class Transpiler(NodeTransformer):
             for child in node.body:
                 collection = dct_items
 
+                if isinstance(child, js_ast.StatementNode):
+                    child = self.visit(child.statement)
+
                 if isinstance(child, ast.StaticDeclarationNode):
                     child = child.decl
                     collection = dct_static_items
 
+                child = self.visit(child)
+
                 if isinstance(child, js_ast.FunctionNode):
-                    child = self.visit(child)
                     collection.append(js_ast.SimplePropertyNode(
                                         name=js_ast.StringLiteralNode(value=child.name),
                                         value=child))
                 elif isinstance(child, js_ast.AssignmentExpressionNode):
-                    child = self.visit(child)
                     collection.append(js_ast.SimplePropertyNode(
                                         name=js_ast.StringLiteralNode(value=child.left.name),
                                         value=child.right))
@@ -335,11 +429,13 @@ class Transpiler(NodeTransformer):
                                    properties=dct_items)
                            ])))
 
-
     def visit_jp_SuperCallNode(self, node):
         super_name  = self.scope.use('super')
 
         clsname = self.scope['~class_name'].value
+
+        assert node.cls is None
+        assert node.instance is None
 
         args = [
             js_ast.IDNode(name=clsname),
@@ -354,3 +450,46 @@ class Transpiler(NodeTransformer):
                    call=js_ast.IDNode(name=super_name),
                    arguments=args)
 
+    def visit_jp_DecoratedNode(self, node):
+        is_static = False
+
+        wrapped = node.node
+        if isinstance(wrapped, ast.StaticDeclarationNode):
+            is_static = True
+            wrapped = wrapped.decl
+
+        if not isinstance(wrapped, (js_ast.FunctionNode, ast.ClassNode)):
+            raise TranspilerError('unsupported decorated node (only funcs & classes expected): {}'.
+                                  format(wrapped))
+
+        is_class = isinstance(wrapped, ast.ClassNode)
+        name = wrapped.name
+
+        wrapped = self.visit(wrapped)
+
+        if is_class:
+            assert not is_static
+            class_shell = wrapped
+            wrapped = wrapped.statement.right
+
+        for dec in reversed(node.decorators):
+            wrapped = js_ast.CallNode(
+                          call=dec,
+                          arguments=[wrapped])
+
+        if not isinstance(self.scope, ClassScope):
+            self.scope[name].needs_decl = True
+
+        if is_class:
+            class_shell.statement.right = wrapped
+            return class_shell
+
+        func = js_ast.AssignmentExpressionNode(
+                  left=js_ast.IDNode(name=name),
+                  op='=',
+                  right=wrapped)
+
+        if is_static:
+            func = ast.StaticDeclarationNode(decl=func)
+
+        return func

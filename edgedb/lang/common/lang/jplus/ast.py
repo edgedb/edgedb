@@ -25,3 +25,5 @@ class SuperCallNode(ast.Expression): __fields = ['cls', 'instance', 'method', ('
 class ForOfNode(ast.Base): __fields = ['init', 'container', 'statement']
 
 class NonlocalNode(ast.Base): __fields = [('ids', list)]
+
+class FunctionParameter(ast.Base): __fields = ['name', 'default']
