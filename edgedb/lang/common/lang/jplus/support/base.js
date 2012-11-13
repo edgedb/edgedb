@@ -94,7 +94,8 @@ $SXJSP = (function() {
                 if (arg_cnt != 1) {
                     error('foreach supports only one iterator variable when iterating over arrays');
                 }
-                return Array_some.call(it, cb, scope);
+                Array_some.call(it, cb, scope);
+                return;
             }
 
             if (t == '[object Object]') {

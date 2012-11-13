@@ -505,6 +505,13 @@ class Transpiler(NodeTransformer):
             return js_ast.ReturnNode(expression=js_ast.BooleanLiteralNode(value=True))
         return node
 
+    def visit_js_ForInNode(self, node):
+        assert isinstance(node.init, js_ast.IDNode)
+        init_name = node.init.name
+        if not self.scope.is_local(init_name):
+            self.scope.add(Variable(init_name, needs_decl=True))
+        return self.generic_visit(node)
+
     def visit_jp_ForeachNode(self, node):
         each_name  = self.scope.use('each')
 

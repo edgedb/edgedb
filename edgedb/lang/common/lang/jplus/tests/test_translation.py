@@ -306,3 +306,36 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         a-b-c
         '''
+
+    def test_utils_lang_jp_tr_for_in(self):
+        '''JS+
+        cnt = 0;
+
+        a = {'10': 2, '20': 3}
+        for (i in a) {
+            if (i == '20') break;
+            if (a.hasOwnProperty(i)) {
+                cnt += parseInt(i);
+            }
+        }
+
+        print(cnt);
+
+        %%
+        10
+        '''
+
+    def test_utils_lang_jp_tr_for_plain(self):
+        '''JS+
+        cnt = 0;
+        a = [10, 20, 30];
+        for (i = 0, len = a.length, j=1000; i < len; i++, j+=1000) {
+            if (j > 10e6) continue;
+            cnt += i * j + a[i];
+        }
+
+        print(cnt);
+
+        %%
+        8060
+        '''
