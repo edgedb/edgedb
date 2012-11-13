@@ -11,10 +11,12 @@ $SXJSP = (function() {
 
     var modules = {};
 
-    var hop = Object.prototype.hasOwnProperty,
-        tos = Object.prototype.toString;
+    var StdObject = {}.constructor,
+        StdArray = [].constructor,
+        hop = StdObject.prototype.hasOwnProperty,
+        tos = StdObject.prototype.toString;
 
-    var Array_some = Array.prototype.some;
+    var Array_some = StdArray.prototype.some;
     if (typeof Array_some == 'undefined') {
         Array_some = function(cb, scope) {
             'use strict';
