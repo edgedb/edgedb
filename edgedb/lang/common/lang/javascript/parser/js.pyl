@@ -21,6 +21,7 @@ code:
     #  - line (starting line counter)
     #  - col (starting col counter)
 
+    pyggy.lexer.lexer.multiline_strings = False
     pyggy.lexer.lexer.regexp_possible = True
     pyggy.lexer.lexer.swallow_line_cont = False
     pyggy.lexer.lexer.line = 1
@@ -120,6 +121,24 @@ INITIAL:
     "{id}":
         advance_line_col(self)
         return "ID"
+
+    "\"\"\"":
+        if not self.multiline_strings:
+            return '#ERR#'
+
+        self.string = ""
+        self.start = (self.line, self.col)
+        self.col += len(self.value)
+        self.PUSHSTATE(MULTILINE_DQ)
+
+    "\'\'\'":
+        if not self.multiline_strings:
+            return '#ERR#'
+
+        self.string = ""
+        self.start = (self.line, self.col)
+        self.col += len(self.value)
+        self.PUSHSTATE(MULTILINE_SQ)
 
     # string literals
     "\"":
@@ -227,6 +246,51 @@ MULTILINECOMMENT:
     "\*+/":
         self.col += len(self.value)
         self.POPSTATE()
+
+
+MULTILINE_SQ:
+    "{lineterminator}":
+        self.col = 1
+        self.line += 1
+        self.string += self.value
+
+    "\'\'\'":
+        self.POPSTATE()
+        self.col += len(self.value)
+        self.value = self.string
+        self.end = (self.line, self.col)
+        return "STRING"
+
+    "\'":
+        self.col += len(self.value)
+        self.string += self.value
+
+    "[^\'\r\n]*":
+        self.col += len(self.value)
+        self.string += self.value
+
+
+MULTILINE_DQ:
+    "{lineterminator}":
+        self.col = 1
+        self.line += 1
+        self.string += self.value
+
+    "\"\"\"":
+        self.POPSTATE()
+        self.col += len(self.value)
+        self.value = self.string
+        self.end = (self.line, self.col)
+        return "STRING"
+
+    "\"":
+        self.col += len(self.value)
+        self.string += self.value
+
+    "[^\"\r\n]*":
+        self.col += len(self.value)
+        self.string += self.value
+
 
 DOUBLEQUOTE:
     "{doublestringchar}+":

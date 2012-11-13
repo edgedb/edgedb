@@ -365,3 +365,29 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         E2
         '''
+
+    def test_utils_lang_jp_tr_multiline_sq_string(self):
+        r"""JS+
+        a = '''''' + '''!''' + '''
+
+        12
+
+        '''
+
+        print(a.replace(/\n/g, '~').replace(/\s/g, '.'))
+        %%
+        !~~........12~~........
+        """
+
+    def test_utils_lang_jp_tr_multiline_dq_string(self):
+        r'''JS+
+        a = """""" + """!""" + """
+
+        12
+
+        """
+
+        print(a.replace(/\n/g, '~').replace(/\s/g, '.'))
+        %%
+        !~~........12~~........
+        '''
