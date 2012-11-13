@@ -102,7 +102,8 @@ class ModuleScope(Scope):
         super().__init__(*args, **kwargs)
         self.sys_deps = {
             'class': ('__SXJSP_define_class', class_js, 'sx.define'),
-            'super': ('__SXJSP_super', class_js, 'sx.parent')
+            'super': ('__SXJSP_super', class_js, 'sx.parent'),
+            'each': ('__SXJSP_each', base_js, '$SXJSP.each')
         }
         self.deps = set()
 
@@ -493,3 +494,39 @@ class Transpiler(NodeTransformer):
             func = ast.StaticDeclarationNode(decl=func)
 
         return func
+
+    def visit_js_ContinueNode(self, node):
+        if self.scope.is_local('~for_each') and self.scope['~for_each'].value:
+            return js_ast.ReturnNode()
+        return node
+
+    def visit_js_BreakNode(self, node):
+        if self.scope.is_local('~for_each') and self.scope['~for_each'].value:
+            return js_ast.ReturnNode(expression=js_ast.BooleanLiteralNode(value=True))
+        return node
+
+    def visit_jp_ForeachNode(self, node):
+        each_name  = self.scope.use('each')
+
+        on = self.visit(node.container)
+
+        if self.scope.is_local('~for_each'):
+            self.scope['~for_each'].value = True
+        else:
+            self.scope.add(Variable('~for_each', value=True, sys=True))
+        statement = self.visit(node.statement)
+        self.scope['~for_each'].value = False
+
+        return js_ast.StatementNode(
+                   statement=js_ast.CallNode(
+                       call=js_ast.IDNode(
+                           name=each_name),
+                       arguments=[
+                           js_ast.NumericLiteralNode(
+                                value=len(node.init)),
+                           on,
+                           js_ast.FunctionNode(
+                               param=node.init,
+                               body=statement),
+                           js_ast.ThisNode()
+                       ]))

@@ -230,3 +230,79 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         22
         '''
+
+    def test_utils_lang_jp_tr_foreach_array(self):
+        '''JS+
+
+        Array.prototype.foo = '123';
+
+        a = [1, 2, 3, 4];
+        cnt = 0;
+
+        foreach (value in []) {
+            cnt += 100000;
+        }
+
+        foreach (i in a) {
+            if (i == 3) {
+                continue;
+            }
+            cnt += i;
+        }
+
+        print(cnt);
+
+        %%
+        7
+        '''
+
+    def test_utils_lang_jp_tr_foreach_obj(self):
+        '''JS+
+
+        Object.prototype.foo = '123';
+
+        a = {'0': 1, '1': 2, '2': 3, '3': 4};
+        cnt = 0;
+
+        foreach (value in {}) {
+            cnt += 100000;
+        }
+
+        foreach (idx, value in a) {
+            cnt += parseInt(idx) * 100 + value * 1000;
+        }
+
+        foreach (i in a) {
+            if (i[1] == 3) {
+                continue;
+            }
+            cnt += i[1];
+        }
+
+        foreach (i in a) {
+            if (i[1] == 3) {
+                break;
+            }
+            cnt += i[1];
+        }
+
+        print(cnt);
+
+        %%
+        10610
+        '''
+
+    def test_utils_lang_jp_tr_foreach_str(self):
+        '''JS+
+
+        out = [];
+
+        foreach(ch in 'abc') {
+            out.push(ch);
+        }
+
+        print(out.join('-'));
+
+        %%
+        a-b-c
+        '''

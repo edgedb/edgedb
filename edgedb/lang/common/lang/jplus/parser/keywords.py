@@ -48,6 +48,7 @@ js_keywords = {
     'as': RESERVED_KEYWORD,
     'of': RESERVED_KEYWORD,
     'nonlocal': RESERVED_KEYWORD,
+    'foreach': RESERVED_KEYWORD,
 
     "yield" : RESERVED_KEYWORD
 }

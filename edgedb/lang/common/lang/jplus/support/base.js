@@ -11,7 +11,23 @@ $SXJSP = (function() {
 
     var modules = {};
 
-    var hop = Object.hasOwnProperty;
+    var hop = Object.prototype.hasOwnProperty,
+        tos = Object.prototype.toString;
+
+    var Array_some = Array.prototype.some;
+    if (typeof Array_some == 'undefined') {
+        Array_some = function(cb, scope) {
+            'use strict';
+
+            var i = 0, len = this.length >>> 0;
+            for (; i < len; i++) {
+                if (cb.call(scope, this[i], i)) {
+                    return true;
+                }
+            }
+        }
+    }
+
 
     function Module(name, dct) {
         this.$name = name;
@@ -69,6 +85,58 @@ $SXJSP = (function() {
             } else {
                 next[mod_name] = new Module(name, dct);
             }
+        },
+
+        each: function(arg_cnt, it, cb, scope) {
+            var t = tos.call(it);
+
+            if (t == '[object Array]') {
+                if (arg_cnt != 1) {
+                    error('foreach supports only one iterator variable when iterating over arrays');
+                }
+                return Array_some.call(it, cb, scope);
+            }
+
+            if (t == '[object Object]') {
+                var k;
+                if (arg_cnt == 2) {
+                    for (k in it) {
+                        if (hop.call(it, k)) {
+                            if (cb.call(scope, k, it[k])) {
+                                return;
+                            }
+                        }
+                    }
+                } else {
+                    // arg_cnt == 1
+                    for (k in it) {
+                        if (hop.call(it, k)) {
+                            if (cb.call(scope, [k, it[k]])) {
+                                return;
+                            }
+                        }
+                    }
+                }
+                return;
+            }
+
+            if (t == '[object String]' || t == '[object NodeList]') {
+                if (arg_cnt != 1) {
+                    error('foreach supports only one iterator variable when iterating over '
+                          + 'strings or NodeList');
+                }
+
+                var len = it.length >>> 0, i = 0;
+
+                for (; i < len; i++) {
+                    if (cb.call(scope, it[i])) {
+                        return;
+                    }
+                }
+                return;
+            }
+
+            error('foreach: unsupported iterable: ' + it);
         }
     };
 })();

@@ -22,7 +22,7 @@ class StaticDeclarationNode(ast.Base): __fields = ['decl']
 
 class SuperCallNode(ast.Expression): __fields = ['cls', 'instance', 'method', ('arguments', list)]
 
-class ForOfNode(ast.Base): __fields = ['init', 'container', 'statement']
+class ForeachNode(ast.Base): __fields = ['init', 'container', 'statement']
 
 class NonlocalNode(ast.Base): __fields = [('ids', list)]
 
