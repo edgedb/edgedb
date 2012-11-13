@@ -46,6 +46,7 @@ class Parser(JSParser):
         while self.tentative_match('catch'):
             if self.tentative_match('('):
                 ex_type = []
+                ex_name = None
                 if self.tentative_match('['):
                     while True:
                         ex_type.append(self.parse_ID())

@@ -667,8 +667,10 @@ class Transpiler(NodeTransformer):
                                     call=js_ast.IDNode(name=isinst_name),
                                     arguments=[
                                         js_ast.IDNode(name=catch_all_name),
-                                        js_ast.ArrayLiteralNode(
-                                            array=handle.type)
+
+                                        (js_ast.ArrayLiteralNode(array=handle.type)
+                                            if len(handle.type) > 1 else
+                                        handle.type[0])
                                     ])
                 else:
                     check_node = js_ast.IDNode(name='true')

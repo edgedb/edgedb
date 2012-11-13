@@ -620,6 +620,55 @@ class TestTranslation(base_test.BaseJPlusTest):
         -and-fail
         '''
 
+    def test_utils_lang_jp_tr_try_7(self):
+        '''JS+
+
+        r = '';
+
+        class E {}
+
+        try {
+            throw '123';
+        }
+        catch (Object as e) {
+            r += e;
+        }
+        finally {
+            r += '-';
+        }
+
+        print(r)
+
+        %%
+        123-
+        '''
+
+    def test_utils_lang_jp_tr_try_8(self):
+        '''JS+
+
+        r = '';
+
+        class E {}
+
+        try {
+            throw '123';
+        }
+        catch (E) {
+            r += 'E'
+        }
+        catch (Object) {
+            r += 'smth'
+        }
+        finally {
+            r += '-';
+        }
+
+        print(r)
+
+        %%
+        smth-
+        '''
+
     def test_utils_lang_jp_tr_multiline_sq_string(self):
         r"""JS+
         a = '''''' + '''!''' + '''
