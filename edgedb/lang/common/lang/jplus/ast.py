@@ -30,7 +30,7 @@ class NonlocalNode(ast.Base): __fields = [('ids', list)]
 class FunctionParameter(ast.Base): __fields = ['name', 'default']
 
 class TryNode(ast.Base):
-    __fields = ['body', ('handlers', list), 'orelse', 'finalbody']
+    __fields = ['body', ('handlers', list), 'jscatch', 'orelse', 'finalbody']
 
-class CatchNode(ast.Base):
+class ExceptNode(ast.Base):
     __fields = ['type', 'name', 'body']

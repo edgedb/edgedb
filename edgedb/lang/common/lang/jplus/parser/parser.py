@@ -42,43 +42,54 @@ class Parser(JSParser):
         self.must_match('{')
         body = self.parse_block_guts()
 
+        jscatch = None
+        if self.tentative_match('catch'):
+            old_mode = True
+            self.must_match('(')
+            ex_name = self.parse_ID().name
+            self.must_match(')', '{')
+            ex_body = self.parse_block_guts()
+            jscatch = js_ast.CatchNode(catchid=ex_name, catchblock=ex_body)
+
         handlers = []
-        while self.tentative_match('catch'):
-            if self.tentative_match('('):
-                ex_type = []
-                ex_name = None
-                if self.tentative_match('['):
-                    while True:
-                        ex_type.append(self.parse_ID())
-                        if not self.tentative_match(','):
-                            break
-                    self.must_match(']')
-                else:
-                    ex_type.append(self.parse_ID())
-
-                if self.tentative_match('as'):
-                    ex_name = self.parse_ID()
-
-                self.must_match(')', '{')
-                ex_body = self.parse_block_guts()
-
-                handlers.append(ast.CatchNode(type=ex_type, name=ex_name, body=ex_body))
-            else:
-                self.must_match('{')
-                ex_body = self.parse_block_guts()
-                handlers.append(ast.CatchNode(type=None, name=None, body=ex_body))
-
         orelse = None
-        if handlers and self.tentative_match('else'):
-            self.must_match('{')
-            orelse = self.parse_block_guts()
+        if jscatch is None:
+            while self.tentative_match('except'):
+                if self.tentative_match('('):
+                    ex_type = []
+                    ex_name = None
+                    if self.tentative_match('['):
+                        while True:
+                            ex_type.append(self.parse_ID())
+                            if not self.tentative_match(','):
+                                break
+                        self.must_match(']')
+                    else:
+                        ex_type.append(self.parse_ID())
+
+                    if self.tentative_match('as'):
+                        ex_name = self.parse_ID()
+
+                    self.must_match(')', '{')
+                    ex_body = self.parse_block_guts()
+
+                    handlers.append(ast.ExceptNode(type=ex_type, name=ex_name, body=ex_body))
+                else:
+                    self.must_match('{')
+                    ex_body = self.parse_block_guts()
+                    handlers.append(ast.ExceptNode(type=None, name=None, body=ex_body))
+
+            if handlers and self.tentative_match('else'):
+                self.must_match('{')
+                orelse = self.parse_block_guts()
 
         finalbody = None
         if self.tentative_match('finally'):
             self.must_match('{')
             finalbody = self.parse_block_guts()
 
-        return ast.TryNode(body=body, handlers=handlers, orelse=orelse, finalbody=finalbody)
+        return ast.TryNode(body=body, handlers=handlers, orelse=orelse,
+                           finalbody=finalbody, jscatch=jscatch)
 
     @stamp_state('loop', affectslabels=True)
     def parse_for_guts(self):

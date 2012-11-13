@@ -467,6 +467,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         class E2(E) {}
         class E3(E) {}
         class EA(E2, E3) {}
+        class E4() {}
 
         function t(n=0) {
             try {
@@ -476,18 +477,19 @@ class TestTranslation(base_test.BaseJPlusTest):
                     case 2: throw E2();
                     case 3: throw E3();
                     case 4: throw EA();
+                    case 5: throw E4();
                 }
             }
-            catch (E1 as ex) {
+            except (E1 as ex) {
                 e = '.' + ex.$cls.$name + '.';
             }
-            catch ([E2, E3] as ex) {
+            except ([E2, E3] as ex) {
                 e ='+' + ex.$cls.$name + '+';
             }
-            catch (E) {
+            except (E) {
                 e = '-e-';
             }
-            else {
+            except {
                 e = '=42=';
             }
             finally {
@@ -501,12 +503,12 @@ class TestTranslation(base_test.BaseJPlusTest):
             return ' ' + e + ' ';
         }
 
-        e = t() + t(100) + t(1) + t(2) + t(3) + t(4);
+        e = t() + t(100) + t(1) + t(2) + t(3) + t(4) + t(5);
 
         print(e);
 
         %%
-        -e-^  =42=^  .E1.^  +E2+^  +E3+^  +EA+^
+        -e-^  ^  .E1.^  +E2+^  +E3+^  +EA+^  =42=^
         '''
 
     def test_utils_lang_jp_tr_try_2(self):
@@ -516,7 +518,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         try {
             abc.foo
         }
-        catch {
+        except {
             r += 'caught'
         }
         finally {
@@ -541,7 +543,7 @@ class TestTranslation(base_test.BaseJPlusTest):
             finally {
                 r += '-and-fail'
             }
-        } catch {}
+        } except {}
 
         print(r)
 
@@ -556,11 +558,11 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         try {
             abc.foo
-        } catch {
+        } except {
             try {
                 abc.foo
             }
-            catch {}
+            except {}
             finally {
                 r += '-and-fail'
             }
@@ -579,12 +581,12 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         try {
         }
-        catch {}
+        except {}
         else {
             try {
                 abc.foo
             }
-            catch {}
+            except {}
             finally {
                 r += '-and-fail'
             }
@@ -603,12 +605,12 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         try {
         }
-        catch {}
+        except {}
         finally {
             try {
                 abc.foo
             }
-            catch {}
+            except {}
             finally {
                 r += '-and-fail'
             }
@@ -630,7 +632,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         try {
             throw '123';
         }
-        catch (Object as e) {
+        except (Object as e) {
             r += e;
         }
         finally {
@@ -653,10 +655,10 @@ class TestTranslation(base_test.BaseJPlusTest):
         try {
             throw '123';
         }
-        catch (E) {
+        except (E) {
             r += 'E'
         }
-        catch (Object) {
+        except (Object) {
             r += 'smth'
         }
         finally {
@@ -667,6 +669,27 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         %%
         smth-
+        '''
+
+    def test_utils_lang_jp_tr_try_std_1(self):
+        '''JS+
+
+        r = '';
+
+        try {
+            throw '123';
+        }
+        catch (e) {
+            r += e;
+        }
+        finally {
+            r += '=';
+        }
+
+        print(r);
+
+        %%
+        123=
         '''
 
     def test_utils_lang_jp_tr_multiline_sq_string(self):

@@ -606,6 +606,18 @@ class Transpiler(NodeTransformer):
         if node.finalbody:
             finally_body = self.generic_visit(node.finalbody).statements
 
+        if node.jscatch:
+            # We have the old 'try..catch' case here, and as we don't
+            # support 'except' and 'else' keywords for such 'try' blocks
+            # we just return plain TryNode.
+            jscatch = self.generic_visit(node.jscatch)
+            return js_ast.TryNode(
+                        tryblock=js_ast.StatementBlockNode(
+                            statements=try_body),
+                        finallyblock=(js_ast.StatementBlockNode(
+                            statements=finally_body) if finally_body else None),
+                        catch=jscatch)
+
         if node.orelse:
             orelse_name = self.scope.aux_var(name='orelse', needs_decl=True)
             try_body.append(js_ast.StatementNode(
@@ -714,4 +726,3 @@ class Transpiler(NodeTransformer):
     def visit_js_WhileNode(self, node):
         with WhileState(self):
             return self.generic_visit(node)
-
