@@ -27,14 +27,61 @@ class ScopeHead:
         self.head = head
 
 
+class StateHead:
+    def __init__(self, head):
+        self.head = head
+
+
+class State:
+    def __init__(self, transpiler, **kwargs):
+        self._state_head = transpiler.state_head
+        self._children = set()
+        self._parent = self._state_head.head
+        if self._parent and self._parent is not self:
+            self._parent._children.add(self)
+        self._vars = kwargs
+
+    def __enter__(self):
+        self._prev_head = self._state_head.head
+        self._state_head.head = self
+        return self
+
+    def __exit__(self, *args):
+        if self._prev_head is not None:
+            self._state_head.head = self._prev_head
+
+    def __getattr__(self, attr):
+        return self._vars[attr]
+
+    def __call__(self, parent_state_class):
+        assert issubclass(parent_state_class, State)
+        cur = self
+        while cur is not None:
+            if isinstance(cur, parent_state_class):
+                return cur
+            cur = cur._parent
+
+
+class ModuleState(State):
+    pass
+
+
+class ClassState(State):
+    pass
+
+
+class ForeachState(State):
+    pass
+
+
 class Variable:
-    def __init__(self, name, *, needs_decl=False, sys=False, value=None):
+    def __init__(self, name, *, needs_decl=False, aux=False, value=None):
         self.name = name
         self.needs_decl = needs_decl
-        self.sys = sys
         self.value = value
+        self.aux = aux
 
-    def __repr__(self):
+    def __repr__(self): # pragma: no cover
         return '<Variable {}>'.format(self.name)
 
 
@@ -47,16 +94,11 @@ class Scope:
         self.node = node
         if self.parent and self.parent is not self:
             self.parent.children.add(self)
-
-    def vars(self):
-        return self.vars.keys()
+        self.aux_var_cnt = 0
 
     def add(self, var):
         assert var.name not in self.vars
         self.vars[var.name] = var
-
-    def get(self, name):
-        return self.vars.get(name)
 
     def is_local(self, name):
         return name in self.vars
@@ -86,7 +128,7 @@ class Scope:
         if self.prev_head is not None:
             self.scope_head.head = self.prev_head
 
-    def __repr__(self):
+    def __repr__(self): # pragma: no cover
         return '<{} {!r} 0x{:x}>'.format(type(self).__name__, self.vars.values(),
                                          id(self))
 
@@ -96,6 +138,12 @@ class Scope:
             parent = parent.parent
         return parent.use(what)
 
+    def aux_var(self, *, name='', needs_decl=True):
+        self.aux_var_cnt += 1
+        name = '__SXJSP_aux_{}_{}'.format(name, self.aux_var_cnt)
+        self.add(Variable(name, needs_decl=needs_decl, aux=True))
+        return name
+
 
 class ModuleScope(Scope):
     def __init__(self, *args, **kwargs):
@@ -103,22 +151,10 @@ class ModuleScope(Scope):
         self.sys_deps = {
             'class': ('__SXJSP_define_class', class_js, 'sx.define'),
             'super': ('__SXJSP_super', class_js, 'sx.parent'),
-            'each': ('__SXJSP_each', base_js, '$SXJSP.each')
+            'each': ('__SXJSP_each', base_js, '$SXJSP.each'),
+            'isinstance': ('__SXJSP_isinstance', class_js, 'sx.isinstance')
         }
         self.deps = set()
-
-    def list_load_global_vars(self):
-        result = set()
-
-        def _list(node):
-            for var in node.vars.values():
-                if var.load_global:
-                    result.add(var.name)
-            for child in node.children:
-                _list(child)
-
-        _list(self)
-        return result
 
     def use(self, what):
         self.deps.add(what)
@@ -151,18 +187,26 @@ class Transpiler(NodeTransformer):
     def __init__(self):
         super().__init__()
         self.scope_head = ScopeHead(head=None)
+        self.state_head = StateHead(head=None)
 
     @property
     def scope(self):
         return self.scope_head.head
 
+    @property
+    def state(self):
+        return self.state_head.head
+
     def transpile(self, node, *, module='__main__'):
         scope = BuiltinsScope(self)
-        scope.add(Variable('~module_name', sys=True, value=module))
-        scope.add(Variable('~deps', sys=True, value=set()))
-        with scope:
+        state = ModuleState(self,
+                            module_name=module,
+                            deps=set())
+
+        with scope, state:
             js = self.visit(node)
-        return js, (scope['~deps'].value | {base_js})
+
+        return js, (state.deps | {base_js})
 
     def visit(self, node):
         name = node.__class__.__name__
@@ -181,7 +225,7 @@ class Transpiler(NodeTransformer):
             if prefix == 'js':
                 return self.generic_visit(node)
 
-            raise TranspilerError('unsupported ast node: {}'.format(node)) from None
+            raise TranspilerError('unsupported ast node: {}'.format(node)) from None # pragma: no cover
 
         return method(node)
 
@@ -190,7 +234,7 @@ class Transpiler(NodeTransformer):
             vars = [js_ast.VarInitNode(
                         name=js_ast.IDNode(
                             name=v.name)) for v in scope.vars.values()
-                                                        if v.needs_decl and not v.sys]
+                                                        if v.needs_decl]
             if vars:
                 return js_ast.StatementNode(
                            statement=js_ast.VarDeclarationNode(
@@ -221,14 +265,14 @@ class Transpiler(NodeTransformer):
                                                 name=js_ast.IDNode(name=dep_desc[0]),
                                                 value=js_ast.IDNode(name=dep_desc[2]))])))
                 mod_deps.add(dep_desc[1])
-            scope['~deps'].value = mod_deps
+            self.state(ModuleState).deps |= mod_deps
 
 
-        name = self.scope['~module_name'].value
+        name = self.state(ModuleState).module_name
 
         mod_properties = []
         if scope.vars:
-            names = [v.name for v in scope.vars.values() if not v.sys]
+            names = [v.name for v in scope.vars.values() if not v.aux]
             mod_properties = [js_ast.SimplePropertyNode(
                                 name=js_ast.StringLiteralNode(value=n),
                                 value=js_ast.IDNode(name=n)) for n in names]
@@ -283,16 +327,15 @@ class Transpiler(NodeTransformer):
             node.body.statements.insert(0, var)
 
         if defaults:
-            # OK, we have function parameters with default values.
-            # Let's transform it.
+            # We have function parameters with default values.
             #
-            # Imagine we have a function:
+            # Transformation example:
             #
             # function spam(a, b=10) {
             #     return a + b;
             # }
             #
-            # if we have defaults we want to transform our function to:
+            # would be transformed to:
             #
             # spam = (function() {
             #     var __sxjsp_def_b = 10;
@@ -310,7 +353,7 @@ class Transpiler(NodeTransformer):
                             statement=js_ast.VarDeclarationNode(
                                 vars=[js_ast.VarInitNode(
                                     name=js_ast.IDNode(
-                                        name='__sxjsp_def_{}'.format(name)),
+                                        name='__SXJSP_aux_default_{}'.format(name)),
                                     value=value) for name, value in defaults.items()])))
 
             wrapper_body.append(js_ast.StatementNode(
@@ -320,12 +363,13 @@ class Transpiler(NodeTransformer):
             if not isinstance(self.scope, ClassScope):
                 self.scope[name].needs_decl = True
 
+            arglen_var = self.scope.aux_var(name='argslen', needs_decl=False)
             defaults_init = [
                 js_ast.StatementNode(
                     statement=js_ast.VarDeclarationNode(
                         vars=[js_ast.VarInitNode(
                             name=js_ast.IDNode(
-                                name='__sx_jsp_arglen'),
+                                name=arglen_var),
                             value=js_ast.IDNode(
                                 name='arguments.length'))]))
             ]
@@ -336,7 +380,7 @@ class Transpiler(NodeTransformer):
                                         statement=js_ast.BinExpressionNode(
                                             left=js_ast.BinExpressionNode(
                                                 left=js_ast.IDNode(
-                                                    name='__sx_jsp_arglen'),
+                                                    name=arglen_var),
                                                 op = '<',
                                                 right=js_ast.NumericLiteralNode(
                                                     value=non_def_len + idx + 1)),
@@ -346,7 +390,7 @@ class Transpiler(NodeTransformer):
                                                     name=def_name),
                                                 op='=',
                                                 right=js_ast.IDNode(
-                                                    name='__sxjsp_def_{}'.format(def_name))))))
+                                                    name='__SXJSP_aux_default_{}'.format(def_name))))))
 
             func_body = node.body.statements
             func_body.insert(0, js_ast.SourceElementsNode(code=defaults_init))
@@ -372,7 +416,7 @@ class Transpiler(NodeTransformer):
             self.scope.add(Variable(name))
 
     def visit_jp_ClassNode(self, node):
-        modulename = self.scope['~module_name'].value
+        modulename = self.state(ModuleState).module_name
         name = node.name
         qualname = '{}.{}'.format(modulename, name)
 
@@ -381,12 +425,12 @@ class Transpiler(NodeTransformer):
         self.scope.add(Variable(name, needs_decl=True))
 
         scope = ClassScope(self)
-        scope.add(Variable('~class_name', value=name, sys=True))
+        state = ClassState(self, class_name=name)
 
         dct_items = []
         dct_static_items = []
 
-        with scope:
+        with scope, state:
             for child in node.body:
                 collection = dct_items
 
@@ -433,7 +477,7 @@ class Transpiler(NodeTransformer):
     def visit_jp_SuperCallNode(self, node):
         super_name  = self.scope.use('super')
 
-        clsname = self.scope['~class_name'].value
+        clsname = self.state(ClassState).class_name
 
         assert node.cls is None
         assert node.instance is None
@@ -496,12 +540,12 @@ class Transpiler(NodeTransformer):
         return func
 
     def visit_js_ContinueNode(self, node):
-        if self.scope.is_local('~for_each') and self.scope['~for_each'].value:
+        if isinstance(self.state, ForeachState):
             return js_ast.ReturnNode()
         return node
 
     def visit_js_BreakNode(self, node):
-        if self.scope.is_local('~for_each') and self.scope['~for_each'].value:
+        if isinstance(self.state, ForeachState):
             return js_ast.ReturnNode(expression=js_ast.BooleanLiteralNode(value=True))
         return node
 
@@ -517,12 +561,9 @@ class Transpiler(NodeTransformer):
 
         on = self.visit(node.container)
 
-        if self.scope.is_local('~for_each'):
-            self.scope['~for_each'].value = True
-        else:
-            self.scope.add(Variable('~for_each', value=True, sys=True))
-        statement = self.visit(node.statement)
-        self.scope['~for_each'].value = False
+        state = ForeachState(self)
+        with state:
+            statement = self.visit(node.statement)
 
         return js_ast.StatementNode(
                    statement=js_ast.CallNode(
@@ -537,3 +578,103 @@ class Transpiler(NodeTransformer):
                                body=statement),
                            js_ast.ThisNode()
                        ]))
+
+    def visit_jp_TryNode(self, node):
+        try_body = self.generic_visit(node.body).statements
+        finally_body = []
+        if node.finalbody:
+            finally_body = self.generic_visit(node.finalbody).statements
+
+        if node.orelse:
+            orelse_name = self.scope.aux_var(name='orelse', needs_decl=True)
+            try_body.append(js_ast.StatementNode(
+                                statement=js_ast.AssignmentExpressionNode(
+                                    left=js_ast.IDNode(
+                                        name=orelse_name),
+                                    op='=',
+                                    right=js_ast.IDNode(
+                                        name='true'))))
+
+            orelse_body = self.generic_visit(node.orelse).statements
+
+            if finally_body:
+                finally_body = [js_ast.TryNode(
+                                    tryblock=js_ast.StatementBlockNode(
+                                        statements=[
+                                            js_ast.IfNode(
+                                                ifclause=js_ast.IDNode(
+                                                    name=orelse_name),
+                                                thenclause=js_ast.StatementBlockNode(
+                                                    statements=orelse_body))]),
+                                    finallyblock=js_ast.StatementBlockNode(
+                                        statements=finally_body))]
+            else:
+                finally_body = orelse_body
+
+        try_node = js_ast.TryNode(
+                        tryblock=js_ast.StatementBlockNode(
+                            statements=try_body),
+                        finallyblock=(js_ast.StatementBlockNode(
+                            statements=finally_body) if finally_body else None))
+
+        catch_all_name = self.scope.aux_var(name='all_ex', needs_decl=False)
+        if node.handlers:
+            isinst_name = self.scope.use('isinstance')
+
+            catch_body = []
+            first_catch = None
+            prev_catch = None
+            for handle in node.handlers:
+                handle = self.generic_visit(handle)
+                handle_body = handle.body.statements
+
+                if handle.type:
+                    if handle.name:
+                        handle_varname = handle.name.name
+                        if not self.scope.is_local(handle_varname):
+                            self.scope.add(Variable(handle_varname, needs_decl=True))
+
+                        handle_body.insert(0, js_ast.StatementNode(
+                                                statement=js_ast.AssignmentExpressionNode(
+                                                    left=js_ast.IDNode(
+                                                        name=handle_varname),
+                                                    op='=',
+                                                    right=js_ast.IDNode(
+                                                        name=catch_all_name))))
+
+                    check_node = js_ast.CallNode(
+                                    call=js_ast.IDNode(name=isinst_name),
+                                    arguments=[
+                                        js_ast.IDNode(name=catch_all_name),
+                                        js_ast.ArrayLiteralNode(
+                                            array=handle.type)
+                                    ])
+                else:
+                    check_node = js_ast.IDNode(name='true')
+
+                catch_node = js_ast.IfNode(
+                                    ifclause=check_node,
+                                    thenclause=js_ast.StatementBlockNode(
+                                        statements=handle_body))
+
+                if first_catch is None:
+                    prev_catch = first_catch = catch_node
+                else:
+                    prev_catch.elseclause = js_ast.StatementBlockNode(
+                                                statements=[catch_node])
+                    prev_catch = catch_node
+
+            prev_catch.elseclause = js_ast.StatementBlockNode(
+                                        statements=[js_ast.ThrowNode(
+                                            expression=js_ast.IDNode(
+                                                name=catch_all_name))])
+
+
+            catch_node = js_ast.CatchNode(
+                            catchid=catch_all_name,
+                            catchblock=js_ast.StatementBlockNode(
+                                statements=[first_catch]))
+
+            try_node.catch = catch_node
+
+        return try_node

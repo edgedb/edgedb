@@ -340,30 +340,164 @@ class TestTranslation(base_test.BaseJPlusTest):
         8060
         '''
 
-    def _test_utils_lang_jp_tr_try1(self):
+    def test_utils_lang_jp_tr_try_1(self):
         '''JS+
         class E {}
         class E1(E) {}
         class E2(E) {}
         class E3(E) {}
+        class EA(E2, E3) {}
 
-        try {
-            throw E2();
-        }
-        catch (E1 as ex) {
-            e = ex;
-        }
-        catch ([E2, E3] as ex) {
-            e = ex;
-        }
-        else {
-            e = 42;
+        function t(n=0) {
+            try {
+                switch (n) {
+                    case 0: throw E();
+                    case 1: throw E1();
+                    case 2: throw E2();
+                    case 3: throw E3();
+                    case 4: throw EA();
+                }
+            }
+            catch (E1 as ex) {
+                e = '.' + ex.$cls.$name + '.';
+            }
+            catch ([E2, E3] as ex) {
+                e ='+' + ex.$cls.$name + '+';
+            }
+            catch (E) {
+                e = '-e-';
+            }
+            else {
+                e = '=42=';
+            }
+            finally {
+                if (e) {
+                    e += '^';
+                } else {
+                    e = '^'
+                }
+            }
+
+            return ' ' + e + ' ';
         }
 
-        print(e.$cls.$name)
+        e = t() + t(100) + t(1) + t(2) + t(3) + t(4);
+
+        print(e);
 
         %%
-        E2
+        -e-^  =42=^  .E1.^  +E2+^  +E3+^  +EA+^
+        '''
+
+    def test_utils_lang_jp_tr_try_2(self):
+        '''JS+
+
+        r = ''
+        try {
+            abc.foo
+        }
+        catch {
+            r += 'caught'
+        }
+        finally {
+            r += '-and-fail'
+        }
+
+        print(r)
+
+        %%
+        caught-and-fail
+        '''
+
+    def test_utils_lang_jp_tr_try_3(self):
+        '''JS+
+
+        r = '';
+
+        try {
+            try {
+                abc.foo
+            }
+            finally {
+                r += '-and-fail'
+            }
+        } catch {}
+
+        print(r)
+
+        %%
+        -and-fail
+        '''
+
+    def test_utils_lang_jp_tr_try_4(self):
+        '''JS+
+
+        r = '';
+
+        try {
+            abc.foo
+        } catch {
+            try {
+                abc.foo
+            }
+            catch {}
+            finally {
+                r += '-and-fail'
+            }
+        }
+
+        print(r)
+
+        %%
+        -and-fail
+        '''
+
+    def test_utils_lang_jp_tr_try_5(self):
+        '''JS+
+
+        r = '';
+
+        try {
+        }
+        catch {}
+        else {
+            try {
+                abc.foo
+            }
+            catch {}
+            finally {
+                r += '-and-fail'
+            }
+        }
+
+        print(r)
+
+        %%
+        -and-fail
+        '''
+
+    def test_utils_lang_jp_tr_try_6(self):
+        '''JS+
+
+        r = '';
+
+        try {
+        }
+        catch {}
+        finally {
+            try {
+                abc.foo
+            }
+            catch {}
+            finally {
+                r += '-and-fail'
+            }
+        }
+
+        print(r)
+
+        %%
+        -and-fail
         '''
 
     def test_utils_lang_jp_tr_multiline_sq_string(self):

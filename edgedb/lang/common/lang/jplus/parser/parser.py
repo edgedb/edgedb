@@ -62,9 +62,13 @@ class Parser(JSParser):
                 ex_body = self.parse_block_guts()
 
                 handlers.append(ast.CatchNode(type=ex_type, name=ex_name, body=ex_body))
+            else:
+                self.must_match('{')
+                ex_body = self.parse_block_guts()
+                handlers.append(ast.CatchNode(type=None, name=None, body=ex_body))
 
         orelse = None
-        if self.tentative_match('else'):
+        if handlers and self.tentative_match('else'):
             self.must_match('{')
             orelse = self.parse_block_guts()
 

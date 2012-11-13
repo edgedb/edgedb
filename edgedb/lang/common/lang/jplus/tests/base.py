@@ -91,7 +91,7 @@ class BaseJPlusTestMeta(js_base_test.JSFunctionalTestMeta):
             file.flush()
 
             result = subprocess.getoutput('{} {}'.format(mcls.v8_executable, file.name))
-            result.strip()
+            result = result.strip()
 
             if result != expected:
                 """LOG [jsp] RESULT
