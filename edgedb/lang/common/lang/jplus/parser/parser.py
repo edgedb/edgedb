@@ -127,7 +127,8 @@ class Parser(JSParser):
         name = self.parse_ID().name
 
         bases = []
-        if self.tentative_match('(', regexp=False):
+        if (self.tentative_match('(', regexp=False)
+                    and not self.tentative_match(')', regexp=False)):
             bases = self.parse_expression_list()
             self.must_match(')', regexp=False)
 
