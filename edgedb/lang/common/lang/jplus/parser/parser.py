@@ -34,6 +34,46 @@ class Parser(JSParser):
         table.append(('rbp', 'Unary', ('@',), True));
         return table
 
+    @stamp_state('stmt', affectslabels=True)
+    def parse_try_guts(self):
+        """Parse try statement."""
+
+        self.must_match('{')
+        body = self.parse_block_guts()
+
+        handlers = []
+        while self.tentative_match('catch'):
+            if self.tentative_match('('):
+                ex_type = []
+                if self.tentative_match('['):
+                    while True:
+                        ex_type.append(self.parse_ID())
+                        if not self.tentative_match(','):
+                            break
+                    self.must_match(']')
+                else:
+                    ex_type.append(self.parse_ID())
+
+                if self.tentative_match('as'):
+                    ex_name = self.parse_ID()
+
+                self.must_match(')', '{')
+                ex_body = self.parse_block_guts()
+
+                handlers.append(ast.CatchNode(type=ex_type, name=ex_name, body=ex_body))
+
+        orelse = None
+        if self.tentative_match('else'):
+            self.must_match('{')
+            orelse = self.parse_block_guts()
+
+        finalbody = None
+        if self.tentative_match('finally'):
+            self.must_match('{')
+            finalbody = self.parse_block_guts()
+
+        return ast.TryNode(body=body, handlers=handlers, orelse=orelse, finalbody=finalbody)
+
     @stamp_state('loop', affectslabels=True)
     def parse_foreach_guts(self):
         """Parse foreach loop."""

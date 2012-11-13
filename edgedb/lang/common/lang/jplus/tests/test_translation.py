@@ -339,3 +339,29 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         8060
         '''
+
+    def _test_utils_lang_jp_tr_try1(self):
+        '''JS+
+        class E {}
+        class E1(E) {}
+        class E2(E) {}
+        class E3(E) {}
+
+        try {
+            throw E2();
+        }
+        catch (E1 as ex) {
+            e = ex;
+        }
+        catch ([E2, E3] as ex) {
+            e = ex;
+        }
+        else {
+            e = 42;
+        }
+
+        print(e.$cls.$name)
+
+        %%
+        E2
+        '''
