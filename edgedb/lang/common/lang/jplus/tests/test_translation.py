@@ -680,16 +680,33 @@ class TestTranslation(base_test.BaseJPlusTest):
             throw '123';
         }
         catch (e) {
-            r += e;
+            r += '=' + e;
         }
         finally {
             r += '=';
         }
 
+        try {
+            throw '123';
+        }
+        catch (e) {
+            r += '=' + e;
+        }
+
+        try {
+            try {
+                throw '123';
+            }
+            finally {
+                r += 'finally'
+            }
+        }
+        except {}
+
         print(r);
 
         %%
-        123=
+        =123==123finally
         '''
 
     def test_utils_lang_jp_tr_multiline_sq_string(self):
