@@ -20,7 +20,6 @@ sx.$bootstrap_class_system = function(opts) {
         tos = StdObject.prototype.toString,
         slice = StdArray.prototype.slice,
         indexOf = StdArray.prototype.indexOf,
-
         error_mcls_conflict = 'metaclass conflict: the metaclass of a derived class must be ' +
                               'a (non-strict) subclass of the metaclasses of all its bases',
 
@@ -674,9 +673,10 @@ sx.$bootstrap_class_system = function(opts) {
         var mro = cls[MRO_ATTR];
 
         if (tos.call(parents) == '[object Array]') {
-            var i = 0, len = parents.length;
+            var i = 0, len = parents.length, p;
             for (; i < len; ++i) {
-                if (indexOf.call(mro, parents[i]) >= 0) {
+                p = parents[i];
+                if (p === StdObject || indexOf.call(mro, p) >= 0) {
                    return true;
                 }
             }
@@ -684,7 +684,7 @@ sx.$bootstrap_class_system = function(opts) {
             return false;
 
         } else if (hop.call(parents, MRO_ATTR)) {
-            return indexOf.call(mro, parents) >= 0;
+            return indexOf.call(mro, parents) >= 0 || parents === StdObject;
         }
 
         return false;
@@ -695,7 +695,7 @@ sx.$bootstrap_class_system = function(opts) {
             return true;
         }
 
-        if (cls === BaseObject) {
+        if (cls === StdObject || cls === BaseObject) {
             return true;
         }
 
