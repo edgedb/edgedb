@@ -243,7 +243,7 @@ class TestTranslation(base_test.BaseJPlusTest):
             cnt += 100000;
         }
 
-        for each (i in a) {
+        for each ([i] in a) {
             if (i == 3) {
                 continue;
             }
@@ -268,7 +268,7 @@ class TestTranslation(base_test.BaseJPlusTest):
             cnt += 100000;
         }
 
-        for each (idx, value in a) {
+        for each ([idx, value] in a) {
             cnt += parseInt(idx) * 100 + value * 1000;
         }
 

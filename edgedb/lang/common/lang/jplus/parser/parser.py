@@ -99,9 +99,15 @@ class Parser(JSParser):
             self.must_match('(')
 
             init = []
-            init.append(self.parse_ID())
 
-            if self.tentative_match(',', regexp=False):
+            if self.tentative_match('[', regexp=False):
+                init.append(self.parse_ID())
+
+                if self.tentative_match(',', regexp=False):
+                    init.append(self.parse_ID())
+
+                self.must_match(']')
+            else:
                 init.append(self.parse_ID())
 
             self.must_match('in')
