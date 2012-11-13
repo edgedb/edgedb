@@ -80,25 +80,29 @@ class Parser(JSParser):
         return ast.TryNode(body=body, handlers=handlers, orelse=orelse, finalbody=finalbody)
 
     @stamp_state('loop', affectslabels=True)
-    def parse_foreach_guts(self):
+    def parse_for_guts(self):
         """Parse foreach loop."""
 
-        self.must_match('(')
+        if self.tentative_match('each'):
+            self.must_match('(')
 
-        init = []
-        init.append(self.parse_ID())
-
-        if self.tentative_match(',', regexp=False):
+            init = []
             init.append(self.parse_ID())
 
-        self.must_match('in')
+            if self.tentative_match(',', regexp=False):
+                init.append(self.parse_ID())
 
-        expr = self.parse_expression()
+            self.must_match('in')
 
-        self.must_match(')')
-        stmt = self.parse_statement()
+            expr = self.parse_expression()
 
-        return ast.ForeachNode(init=init, container=expr, statement=stmt);
+            self.must_match(')')
+            stmt = self.parse_statement()
+
+            return ast.ForeachNode(init=init, container=expr, statement=stmt)
+
+        else:
+            return super().parse_for_guts()
 
     @stamp_state('class')
     def parse_class_guts(self):
@@ -286,7 +290,6 @@ class Parser(JSParser):
             names.append(self.parse_import_alias())
         return js_ast.StatementNode(statement=ast.ImportFromNode(names=names, module=module,
                                                              level=level))
-
 
     def parse_function_parameters(self):
         params = []

@@ -239,11 +239,11 @@ class TestTranslation(base_test.BaseJPlusTest):
         a = [1, 2, 3, 4];
         cnt = 0;
 
-        foreach (value in []) {
+        for each (value in []) {
             cnt += 100000;
         }
 
-        foreach (i in a) {
+        for each (i in a) {
             if (i == 3) {
                 continue;
             }
@@ -264,22 +264,22 @@ class TestTranslation(base_test.BaseJPlusTest):
         a = {'0': 1, '1': 2, '2': 3, '3': 4};
         cnt = 0;
 
-        foreach (value in {}) {
+        for each (value in {}) {
             cnt += 100000;
         }
 
-        foreach (idx, value in a) {
+        for each (idx, value in a) {
             cnt += parseInt(idx) * 100 + value * 1000;
         }
 
-        foreach (i in a) {
+        for each (i in a) {
             if (i[1] == 3) {
                 continue;
             }
             cnt += i[1];
         }
 
-        foreach (i in a) {
+        for each (i in a) {
             if (i[1] == 3) {
                 break;
             }
@@ -297,7 +297,7 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         out = [];
 
-        foreach(ch in 'abc') {
+        for each (ch in 'abc') {
             out.push(ch);
         }
 
@@ -330,7 +330,7 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         function a() {
             res = '';
-            foreach (v in [1]) {
+            for each (v in [1]) {
                 switch (42) {
                     case 42:
                         res += '-';
@@ -354,7 +354,7 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         function a() {
             res = '-';
-            foreach (v in [1]) {
+            for each (v in [1]) {
                 for (i in [2, 3]) {
                     if (i != '1') {
                         continue;
@@ -377,7 +377,7 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         function a() {
             res = '-';
-            foreach (v in [1]) {
+            for each (v in [1]) {
                 i = 0;
                 while (i < 10) {
                     i ++;
@@ -402,7 +402,7 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         function a() {
             res = '-';
-            foreach (v in [1]) {
+            for each (v in [1]) {
                 i = 0;
                 do {
                     i ++;
@@ -427,7 +427,7 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         function a() {
             res = '-';
-            foreach (v in [1]) {
+            for each (v in [1]) {
                 for (i = 0; i < 10; i++) {
                     if (i != 2) {
                         continue;
