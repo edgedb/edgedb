@@ -74,6 +74,22 @@ class ForeachState(State):
     pass
 
 
+class SwitchState(State):
+    pass
+
+
+class ForInState(State):
+    pass
+
+
+class ForState(State):
+    pass
+
+
+class WhileState(State):
+    pass
+
+
 class Variable:
     def __init__(self, name, *, needs_decl=False, aux=False, value=None):
         self.name = name
@@ -549,12 +565,17 @@ class Transpiler(NodeTransformer):
             return js_ast.ReturnNode(expression=js_ast.BooleanLiteralNode(value=True))
         return node
 
+    def visit_js_ForNode(self, node):
+        with ForState(self):
+            return self.generic_visit(node)
+
     def visit_js_ForInNode(self, node):
-        assert isinstance(node.init, js_ast.IDNode)
-        init_name = node.init.name
-        if not self.scope.is_local(init_name):
-            self.scope.add(Variable(init_name, needs_decl=True))
-        return self.generic_visit(node)
+        with ForInState(self):
+            assert isinstance(node.init, js_ast.IDNode)
+            init_name = node.init.name
+            if not self.scope.is_local(init_name):
+                self.scope.add(Variable(init_name, needs_decl=True))
+            return self.generic_visit(node)
 
     def visit_jp_ForeachNode(self, node):
         each_name  = self.scope.use('each')
@@ -678,3 +699,17 @@ class Transpiler(NodeTransformer):
             try_node.catch = catch_node
 
         return try_node
+
+    def visit_js_SwitchNode(self, node):
+        state = SwitchState(self)
+        with state:
+            return self.generic_visit(node)
+
+    def visit_js_DoNode(self, node):
+        with WhileState(self):
+            return self.generic_visit(node)
+
+    def visit_js_WhileNode(self, node):
+        with WhileState(self):
+            return self.generic_visit(node)
+

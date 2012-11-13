@@ -325,6 +325,126 @@ class TestTranslation(base_test.BaseJPlusTest):
         10
         '''
 
+    def test_utils_lang_jp_tr_foreach_switch(self):
+        '''JS+
+
+        function a() {
+            res = '';
+            foreach (v in [1]) {
+                switch (42) {
+                    case 42:
+                        res += '-';
+                    case 42:
+                        res += '42';
+                        break;
+                }
+                res += '-';
+            }
+            return res;
+        }
+
+        print(a());
+
+        %%
+        -42-
+        '''
+
+    def test_utils_lang_jp_tr_foreach_forin_cont(self):
+        '''JS+
+
+        function a() {
+            res = '-';
+            foreach (v in [1]) {
+                for (i in [2, 3]) {
+                    if (i != '1') {
+                        continue;
+                    }
+                    res += i;
+                }
+                res += '-';
+            }
+            return res;
+        }
+
+        print(a());
+
+        %%
+        -1-
+        '''
+
+    def test_utils_lang_jp_tr_foreach_while_cont(self):
+        '''JS+
+
+        function a() {
+            res = '-';
+            foreach (v in [1]) {
+                i = 0;
+                while (i < 10) {
+                    i ++;
+                    if (i != 3) {
+                        continue;
+                    }
+                    res += i;
+                }
+                res += '-';
+            }
+            return res;
+        }
+
+        print(a());
+
+        %%
+        -3-
+        '''
+
+    def test_utils_lang_jp_tr_foreach_dowhile_cont(self):
+        '''JS+
+
+        function a() {
+            res = '-';
+            foreach (v in [1]) {
+                i = 0;
+                do {
+                    i ++;
+                    if (i != 3) {
+                        continue;
+                    }
+                    res += i;
+                } while (i < 10);
+                res += '-';
+            }
+            return res;
+        }
+
+        print(a());
+
+        %%
+        -3-
+        '''
+
+    def test_utils_lang_jp_tr_foreach_for_cont(self):
+        '''JS+
+
+        function a() {
+            res = '-';
+            foreach (v in [1]) {
+                for (i = 0; i < 10; i++) {
+                    if (i != 2) {
+                        continue;
+                    }
+                    res += i;
+                }
+                res += '-';
+            }
+            return res;
+        }
+
+        print(a());
+
+        %%
+        -2-
+        '''
+
     def test_utils_lang_jp_tr_for_plain(self):
         '''JS+
         cnt = 0;
