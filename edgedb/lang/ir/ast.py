@@ -13,7 +13,7 @@ from semantix.exceptions import SemantixError
 from semantix.utils import ast
 from semantix.caos import name as caos_name
 from semantix.caos import types as caos_types
-from semantix.utils.datastructures import StrSingleton
+from semantix.utils.datastructures import StrSingleton, typed
 
 
 class ASTError(SemantixError):
@@ -30,9 +30,17 @@ class Base(ast.AST):
 
         for field_name, field_value in kwargs.items():
             field_spec = self._fields.get(field_name)
-            if field_spec and field_spec.traverse:
+            if field_spec and self._can_pull_refs(field_spec):
                 if isinstance(field_value, Base):
                     self.merge_refs_from(field_value)
+
+    def _can_pull_refs(self, field):
+        traverse = field.traverse
+        return traverse[0] if isinstance(traverse, tuple) else traverse
+
+    def _can_replace_refs(self, field):
+        traverse = field.traverse
+        return traverse[1] if isinstance(traverse, tuple) else field.child_traverse
 
     def merge_refs_from(self, node):
         refs = set()
@@ -47,7 +55,7 @@ class Base(ast.AST):
 
     def __setattr__(self, name, value):
         field_spec = self._fields.get(name)
-        if field_spec and field_spec.traverse and isinstance(value, Base):
+        if field_spec and self._can_pull_refs(field_spec) and isinstance(value, Base):
             self.merge_refs_from(value)
         super().__setattr__(name, value)
 
@@ -68,7 +76,7 @@ class Base(ast.AST):
         for name, field in self._fields.items():
             value = getattr(self, name)
             if isinstance(value, Base):
-                if deep and field.child_traverse:
+                if deep and self._can_replace_refs(field):
                     value.replace_refs(old, new, deep, _memo)
                 if value in old:
                     setattr(self, name, new)
@@ -76,7 +84,7 @@ class Base(ast.AST):
             elif isinstance(value, list):
                 for i, item in enumerate(value):
                     if isinstance(item, Base):
-                        if deep and field.child_traverse:
+                        if deep and self._can_replace_refs(field):
                             item.replace_refs(old, new, deep, _memo)
                         if item in old:
                             value[i] = new
@@ -84,7 +92,7 @@ class Base(ast.AST):
             elif isinstance(value, (set, weakref.WeakSet)):
                 for item in value.copy():
                     if isinstance(item, Base):
-                        if deep and field.child_traverse:
+                        if deep and self._can_replace_refs(field):
                             item.replace_refs(old, new, deep, _memo)
                         if item in old:
                             value.remove(item)
@@ -94,7 +102,7 @@ class Base(ast.AST):
                 newset = {v for v in value}
                 for item in value:
                     if isinstance(item, Base):
-                        if deep and field.child_traverse:
+                        if deep and self._can_replace_refs(field):
                             item.replace_refs(old, new, deep, _memo)
                         if item in old:
                             newset.remove(item)
@@ -129,7 +137,7 @@ class SubgraphRef(Path):
 
 
 class BaseRef(Path):
-    __fields = ['id', ('ref', Base, None, False), ('rlink', Base, None, False, False, True),
+    __fields = ['id', ('ref', Base, None, False), ('rlink', Base, None, (False, True), False, True),
                 'ptr_proto']
 
     def __init__(self, **kwargs):
@@ -257,6 +265,10 @@ class Conjunction(PathCombination):
     pass
 
 
+class AtomicRefSet(typed.TypedSet, type=AtomicRef):
+    pass
+
+
 class EntitySet(Path):
     __fields = ['id', 'anchor', ('concept', caos_types.ProtoNode), 'atom',
                 ('conceptfilter', dict),
@@ -266,7 +278,7 @@ class EntitySet(Path):
                 ('reference', Path, None, False),
                 ('origin', Path, None, False),
                 ('rlink', EntityLink, None, False),
-                ('atomrefs', set), ('metarefs', set), ('users', set),
+                ('atomrefs', AtomicRefSet), ('metarefs', set), ('users', set),
                 ('joins', set, set, False)]
 
     def __setattr__(self, name, value):
