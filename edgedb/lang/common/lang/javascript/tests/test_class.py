@@ -36,8 +36,8 @@ class TestJSClass(JSFunctionalTest):
         assert.equal(Bar.$module, 'test.sub');
         assert.equal(Bar.$qualname, 'test.sub.Bar');
 
-        assert.equal(sx.type.$qualname, 'sx.type');
-        assert.equal(sx.object.$qualname, 'sx.object');
+        assert.equal(sx.type.$qualname, 'type');
+        assert.equal(sx.object.$qualname, 'object');
         '''
 
     def test_utils_lang_js_sx_class_2(self):
@@ -834,8 +834,8 @@ class TestJSClass(JSFunctionalTest):
         sx.define('com.acme.Bar');
         assert.equal(com.acme.Bar() + '', '<instance of com.acme.Bar>');
         assert.equal(com.acme.Bar + '', '<class com.acme.Bar>');
-        assert.equal(sx.type + '', '<class sx.type>');
-        assert.equal(sx.object + '', '<class sx.object>');
+        assert.equal(sx.type + '', '<class type>');
+        assert.equal(sx.object + '', '<class object>');
         '''
 
     def test_utils_lang_js_sx_class_statics_scope(self):

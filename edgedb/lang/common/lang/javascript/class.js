@@ -40,7 +40,7 @@ sx.$bootstrap_class_system = function(opts) {
 
             type_cls_name: 'type',
             object_cls_name: 'object',
-            builtins_name: 'sx',
+            builtins_name: 'builtins',
 
             auto_register_ns: true
         };
@@ -450,7 +450,7 @@ sx.$bootstrap_class_system = function(opts) {
     new_class[NAME_ATTR] = CONSTRUCTOR;
     TypeClass[STATICS_ATTR] = false;
     TypeClass[OWN_ATTR] = false;
-    var type_qualname = TypeClass[QUALNAME_ATTR] = opts.builtins_name + '.' + opts.type_cls_name;
+    var type_qualname = TypeClass[QUALNAME_ATTR] = opts.type_cls_name;
 
     var object_constructor = function() {};
     var ObjectClass = make_universal_constructor();
@@ -479,7 +479,7 @@ sx.$bootstrap_class_system = function(opts) {
     ObjectClass[BASES_ATTR] = [ObjectClass];
     ObjectClass[NAME_ATTR] = opts.object_cls_name;
     ObjectClass[MODULE_ATTR] = opts.builtins_name;
-    var obj_qualname = ObjectClass[QUALNAME_ATTR] = opts.builtins_name + '.' + opts.object_cls_name;
+    var obj_qualname = ObjectClass[QUALNAME_ATTR] = opts.object_cls_name;
     ObjectClass[MRO_ATTR] = [ObjectClass];
     ObjectClass[OWN_ATTR] = false;
     ObjectClass.toString = function() { return '<class ' + obj_qualname + '>'; };
