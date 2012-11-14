@@ -22,8 +22,6 @@ $SXJSP = (function() {
     var Array_some = StdArray.prototype.some;
     if (typeof Array_some == 'undefined') {
         Array_some = function(cb, scope) {
-            'use strict';
-
             var i = 0, len = this.length >>> 0;
             for (; i < len; i++) {
                 if (cb.call(scope, this[i], i)) {
