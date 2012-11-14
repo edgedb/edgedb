@@ -38,8 +38,8 @@ sx.$bootstrap_class_system = function(opts) {
             module_attr: '$module',
             qualname_attr: '$qualname',
 
-            type_cls_name: 'Type',
-            object_cls_name: 'Object',
+            type_cls_name: 'type',
+            object_cls_name: 'object',
             builtins_name: 'sx',
 
             auto_register_ns: true
@@ -664,8 +664,8 @@ sx.$bootstrap_class_system = function(opts) {
     };
 
     return {
-        Object: ObjectClass,
-        Type: TypeClass,
+        object: ObjectClass,
+        type: TypeClass,
         define: sx_define,
         issubclass: sx_issubclass,
         isinstance: sx_isinstance,

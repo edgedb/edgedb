@@ -36,8 +36,8 @@ class TestJSClass(JSFunctionalTest):
         assert.equal(Bar.$module, 'test.sub');
         assert.equal(Bar.$qualname, 'test.sub.Bar');
 
-        assert.equal(sx.Type.$qualname, 'sx.Type');
-        assert.equal(sx.Object.$qualname, 'sx.Object');
+        assert.equal(sx.type.$qualname, 'sx.type');
+        assert.equal(sx.object.$qualname, 'sx.object');
         '''
 
     def test_utils_lang_js_sx_class_2(self):
@@ -59,10 +59,10 @@ class TestJSClass(JSFunctionalTest):
         assert.equal(A.$name, 'A');
         assert.equal(A.$module, '');
 
-        assert.equal(A.$mro, [A, sx.Object]);
-        assert.equal(B.$mro, [B, sx.Object]);
-        assert.equal(sx.Object.$mro, [sx.Object]);
-        assert.equal(C.$mro, [C, A, B, sx.Object]);
+        assert.equal(A.$mro, [A, sx.object]);
+        assert.equal(B.$mro, [B, sx.object]);
+        assert.equal(sx.object.$mro, [sx.object]);
+        assert.equal(C.$mro, [C, A, B, sx.object]);
 
         assert.equal((new A()).a(), 1);
         assert.equal((new B()).b(), 2);
@@ -89,13 +89,13 @@ class TestJSClass(JSFunctionalTest):
 
         var Z = sx.define('Z', [A2]);
 
-        assert.equal(A.$mro, [A, B, C, D, E, F, sx.Object]);
-        assert.equal(A2.$mro, [A2, B2, E, C, D, F, sx.Object]);
+        assert.equal(A.$mro, [A, B, C, D, E, F, sx.object]);
+        assert.equal(A2.$mro, [A2, B2, E, C, D, F, sx.object]);
 
-        assert.equal(F.$mro, [F, sx.Object]);
-        assert.equal(C.$mro, [C, D, F, sx.Object]);
+        assert.equal(F.$mro, [F, sx.object]);
+        assert.equal(C.$mro, [C, D, F, sx.object]);
 
-        assert.equal(Z.$mro, [Z, A2, B2, E, C, D, F, sx.Object]);
+        assert.equal(Z.$mro, [Z, A2, B2, E, C, D, F, sx.object]);
         '''
 
     def test_utils_lang_js_sx_class_4(self):
@@ -112,7 +112,7 @@ class TestJSClass(JSFunctionalTest):
         var K3 = sx.define('K3', [D, A]);
         var Z = sx.define('Z', [K1, K2, K3]);
 
-        assert.equal(Z.$mro, [Z, K1, K2, K3, D, A, B, C, E, sx.Object]);
+        assert.equal(Z.$mro, [Z, K1, K2, K3, D, A, B, C, E, sx.object]);
         '''
 
     def test_utils_lang_js_sx_class_call_parent_1(self):
@@ -215,15 +215,15 @@ class TestJSClass(JSFunctionalTest):
         assert.ok(sx.issubclass(A, A));
         assert.ok(sx.issubclass(B, A));
         assert.not(sx.issubclass(A, B));
-        assert.not(sx.issubclass(B, [sx.Type]));
-        assert.ok(sx.issubclass(B, [sx.Type, A]));
+        assert.not(sx.issubclass(B, [sx.type]));
+        assert.ok(sx.issubclass(B, [sx.type, A]));
         assert.ok(sx.issubclass(G, A));
 
         assert.ok(sx.isinstance(A(), A));
         assert.ok(sx.isinstance(B(), A));
         assert.not(sx.isinstance(A(), B));
-        assert.not(sx.isinstance(B(), [sx.Type]));
-        assert.ok(sx.isinstance(B(), [sx.Type, A]));
+        assert.not(sx.isinstance(B(), [sx.type]));
+        assert.ok(sx.isinstance(B(), [sx.type, A]));
         assert.ok(sx.isinstance(G(), A));
 
         assert.equal(A.cm(), [A, 'A']);
@@ -295,7 +295,7 @@ class TestJSClass(JSFunctionalTest):
         '''JS
         // %from metamagic.utils.lang.javascript import class
 
-        var MA = sx.define('MA', [sx.Type], {
+        var MA = sx.define('MA', [sx.type], {
             statics: {
                 construct: function(name, bases, dct) {
                     dct.foo = name + name;
@@ -322,9 +322,9 @@ class TestJSClass(JSFunctionalTest):
         '''JS
         // %from metamagic.utils.lang.javascript import class
 
-        var MA = sx.define('MA', [sx.Type]);
+        var MA = sx.define('MA', [sx.type]);
 
-        assert.equal(MA.$mro, [MA, sx.Type, sx.Object]);
+        assert.equal(MA.$mro, [MA, sx.type, sx.object]);
 
         var A = sx.define('A', [], {
             metaclass: MA
@@ -341,7 +341,7 @@ class TestJSClass(JSFunctionalTest):
         '''JS
         // %from metamagic.utils.lang.javascript import class
 
-        var MA = sx.define('MA', [sx.Type], {
+        var MA = sx.define('MA', [sx.type], {
             statics: {
                 construct: function(name, bases, dct) {
                     dct.foo = name + name;
@@ -392,12 +392,12 @@ class TestJSClass(JSFunctionalTest):
         '''JS
         // %from metamagic.utils.lang.javascript import class
 
-        var MA = sx.define('MA', [sx.Type]);
+        var MA = sx.define('MA', [sx.type]);
         var A = sx.define('A', [], {
             metaclass: MA
         });
 
-        var MB = sx.define('MB', [sx.Type]);
+        var MB = sx.define('MB', [sx.type]);
         var B = sx.define('B', [], {
             metaclass: MB,
 
@@ -439,7 +439,7 @@ class TestJSClass(JSFunctionalTest):
         '''JS
         // %from metamagic.utils.lang.javascript import class
 
-        var MA = sx.define('MA', [sx.Type], {
+        var MA = sx.define('MA', [sx.type], {
             construct: function(name, bases, dct) {
                 this.baz = 42;
             },
@@ -449,8 +449,8 @@ class TestJSClass(JSFunctionalTest):
                     assert.equal(this.$name, 'MA');
                     dct.foo = name + name;
                     var cls = sx.parent(MA, this, 'construct', [name, bases, dct]);
-                    assert.ok(sx.issubclass(cls, sx.Object));
-                    assert.not(sx.issubclass(cls, sx.Type));
+                    assert.ok(sx.issubclass(cls, sx.object));
+                    assert.not(sx.issubclass(cls, sx.type));
                     assert.equal(cls.$cls, MA);
                     assert.equal(cls.$name, name);
                     assert.ok('a' in cls.prototype);
@@ -460,7 +460,7 @@ class TestJSClass(JSFunctionalTest):
             }
         });
 
-        var Foo = MA('Foo', [sx.Object],
+        var Foo = MA('Foo', [sx.object],
                          {a: function() { return this.$cls.bar; }} );
 
         var Bar = sx.define('Bar', [Foo], {
@@ -497,7 +497,7 @@ class TestJSClass(JSFunctionalTest):
             }
         });
 
-        var MMA = sx.define('MMA', [sx.Type], {
+        var MMA = sx.define('MMA', [sx.type], {
             construct: function() {
                 this.bar = function() { return 'bar'; };
             }
@@ -527,7 +527,7 @@ class TestJSClass(JSFunctionalTest):
         '''JS
         // %from metamagic.utils.lang.javascript import class
 
-        var MA = sx.define('MA', [sx.Type], {
+        var MA = sx.define('MA', [sx.type], {
             bar: 42,
             foo: function() {
                 return this.bar;
@@ -588,7 +588,7 @@ class TestJSClass(JSFunctionalTest):
 
         var chk = [];
 
-        var ProtoObject = sx.define('ProtoObject', [sx.Type], {
+        var ProtoObject = sx.define('ProtoObject', [sx.type], {
             construct: function() {
                 chk.push('ProtoObject');
                 return sx.parent(ProtoObject, this, 'construct');
@@ -627,7 +627,7 @@ class TestJSClass(JSFunctionalTest):
 
         var chk = [];
 
-        var ProtoObject = sx.define('ProtoObject', [sx.Type], {
+        var ProtoObject = sx.define('ProtoObject', [sx.type], {
             statics: {
                 construct: function(name, bases, dct) {
                     chk.push('ProtoObject');
@@ -813,10 +813,10 @@ class TestJSClass(JSFunctionalTest):
         });
         assert.equal(com.acme.Foo.$qualname, 'com.acme.Foo');
         assert.equal(com.acme.Foo.$name, 'Foo');
-        assert.ok(sx.isinstance(com.acme.Foo, sx.Type));
+        assert.ok(sx.isinstance(com.acme.Foo, sx.type));
 
-        sx.define('com.acme.BarMeta', ['sx.Type']);
-        sx.define('com.acme.Bar', ['com.acme.Foo', sx.Object], {
+        sx.define('com.acme.BarMeta', ['sx.type']);
+        sx.define('com.acme.Bar', ['com.acme.Foo', sx.object], {
             metaclass: 'com.acme.BarMeta',
             foo: function() {
                 return 32 + sx.parent('com.acme.Bar', this, 'foo');
@@ -834,8 +834,8 @@ class TestJSClass(JSFunctionalTest):
         sx.define('com.acme.Bar');
         assert.equal(com.acme.Bar() + '', '<instance of com.acme.Bar>');
         assert.equal(com.acme.Bar + '', '<class com.acme.Bar>');
-        assert.equal(sx.Type + '', '<class sx.Type>');
-        assert.equal(sx.Object + '', '<class sx.Object>');
+        assert.equal(sx.type + '', '<class sx.type>');
+        assert.equal(sx.object + '', '<class sx.object>');
         '''
 
     def test_utils_lang_js_sx_class_statics_scope(self):
