@@ -595,6 +595,7 @@ sx.$bootstrap_class_system = function(opts) {
     function BaseObject() {
         throw new Error('BaseObject cannot be instantiated');
     }
+    BaseObject.toString = function() { return '<class BaseObject>' }
 
     function sx_issubclass(cls, parents) {
         if (!cls || !hop.call(cls, MRO_ATTR)) {
