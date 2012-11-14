@@ -29,6 +29,7 @@ $SXJSP = (function() {
             }
         }
     }
+    var Array_slice = StdArray.prototype.slice;
 
     function Module(name, dct) {
         this.$name = name;
@@ -149,7 +150,7 @@ $SXJSP = (function() {
         },
 
         slice1: function(obj, num) {
-            return StdArray.prototype.slice.call(obj, num);
+            return Array_slice.call(obj, num);
         }
     };
 })();
