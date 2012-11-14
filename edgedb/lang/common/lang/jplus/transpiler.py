@@ -171,7 +171,9 @@ class ModuleScope(Scope):
             'each': ('__SXJSP_each', base_js, '$SXJSP.each'),
             'isinstance': ('__SXJSP_isinstance', class_js, 'sx.isinstance'),
             'validate_with': ('__SXJSP_validate_with', base_js, '$SXJSP.validate_with'),
-            'slice1': ('__SXJSP_slice1', base_js, '$SXJSP.slice1')
+            'slice1': ('__SXJSP_slice1', base_js, '$SXJSP.slice1'),
+            'is': ('__SXJSP_is', base_js, '$SXJSP.is'),
+            'isnt': ('__SXJSP_isnt', base_js, '$SXJSP.isnt')
         }
         self.deps = set()
 
@@ -838,3 +840,14 @@ class Transpiler(NodeTransformer):
             wrap_next = js_ast.StatementBlockNode(statements=body)
 
         return js_ast.SourceElementsNode(code=wrap_next.statements)
+
+    def visit_js_BinExpressionNode(self, node):
+        if node.op in ('is', 'isnt'):
+            func = self.scope.use(node.op)
+            left = self.visit(node.left)
+            right = self.visit(node.right)
+            return js_ast.CallNode(
+                        call=js_ast.IDNode(name=func),
+                        arguments=[left, right])
+        else:
+            return self.generic_visit(node)

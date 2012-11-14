@@ -66,7 +66,7 @@ class TestJSParser(metaclass=MetaJSParserTest_Functional):
     def test_utils_lang_js_parser_basic6(self):
         """a=b=c=d='hello'; print(a,b,c,d);"""
 
-    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 1})
+    @jxfail(UnknownToken, attrs={'line' : 1, 'col' : 1})
     def test_utils_lang_js_parser_basic7(self):
         """@a=1; print(@a);"""
 

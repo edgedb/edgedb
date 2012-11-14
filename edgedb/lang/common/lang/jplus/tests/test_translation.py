@@ -891,3 +891,12 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         ~1~1+2~|2|2-3|(10)$(2)$(2)3$(2)3*4$
         '''
+
+    def test_utils_lang_jp_is_isnt(self):
+        '''JS+
+
+        print((1 is 1 isnt false is true) && (NaN is NaN));
+
+        %%
+        true
+        '''

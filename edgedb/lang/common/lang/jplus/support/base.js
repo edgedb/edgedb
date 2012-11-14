@@ -46,6 +46,19 @@ $SXJSP = (function() {
         throw '$SXJSP: ' + msg;
     }
 
+    function is(x, y) {
+        return (x === y) ? (x !== 0 || 1 / x === 1 / y) : (x !== x && y !== y);
+        //                             [1]                         [2]
+
+        // [1]: 0 === -0, but they are not identical
+
+        // [2]: NaN !== NaN, but they are identical.
+        // NaNs are the only non-reflexive value, i.e., if x !== x,
+        // then x is a NaN.
+        // isNaN is broken: it converts its argument to number, so
+        // isNaN("foo") => true
+    }
+
     return {
         module: function(name, dct) {
             var parts = name.split('.'),
@@ -151,6 +164,11 @@ $SXJSP = (function() {
 
         slice1: function(obj, num) {
             return Array_slice.call(obj, num);
+        },
+
+        is: is,
+        isnt: function(x, y) {
+            return !is(x, y);
         }
     };
 })();

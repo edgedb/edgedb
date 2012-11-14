@@ -6,6 +6,8 @@
 ##
 
 
+import copy
+
 from metamagic.utils.lang.javascript.parser.jsparser import *
 from metamagic.utils.lang.javascript import ast as js_ast
 
@@ -19,6 +21,10 @@ class IllegalStatic(SyntaxError):
 
 class Parser(JSParser):
     keywords = keywords
+
+    SPECIAL_NAMES = copy.copy(JSParser.SPECIAL_NAMES)
+    SPECIAL_NAMES['is'] = 'Binary'
+    SPECIAL_NAMES['isnt'] = 'Binary'
 
     def __init__(self):
         super().__init__()
@@ -184,6 +190,7 @@ class Parser(JSParser):
             raise UnexpectedToken(self.token, parser=self)
 
         return ast.ClassNode(name=name, bases=bases, body=body)
+
 
     def nud_AT(self, token):
         # parse decorator list

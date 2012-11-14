@@ -25,4 +25,6 @@ js_keywords.update({
     'of': RESERVED_KEYWORD,
     'nonlocal': RESERVED_KEYWORD,
     'each': RESERVED_KEYWORD,
+    'is': RESERVED_KEYWORD,
+    'isnt': RESERVED_KEYWORD
 })

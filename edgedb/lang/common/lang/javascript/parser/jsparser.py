@@ -256,7 +256,7 @@ class JSParser:
             ('lbp', 'Binary',   ('+', '-'), True),
             ('lbp', 'Binary',   ('<<', '>>', '>>>'), True),
             ('lbp', 'Binary',   ('<', '>', '<=', '>=', 'instanceof', 'in'), True),
-            ('lbp', 'Binary',   ('==', '!=', '===', '!=='), True),
+            ('lbp', 'Binary',   ('==', '!=', '===', '!==', 'is', 'isnt'), True), # XXX: is, isnt - JPlus
             ('lbp', 'Binary',   ('&', ), True),
             ('lbp', 'Binary',   ('^', ), True),
             ('lbp', 'Binary',   ('|', ), True),
@@ -296,7 +296,6 @@ class JSParser:
                     self.OP_2_INFO[val][spec_id] = special
 
             bp_val -= 10
-
 
     def get_bp(self, val, bp_type):
         "Returns the bp for a given token value and type of binding ('rbp' and 'lbp')."
