@@ -526,6 +526,8 @@ class TreeTransformer:
                                            p.target not in _visited_records}
 
             for link_name, recurse_spec in recurse_links.items():
+                el = None
+
                 link = recurse_spec.ptr_proto
                 link_direction = recurse_spec.ptr_direction or caos_types.OutboundDirection
 
@@ -713,7 +715,10 @@ class TreeTransformer:
                     subgraph.selector.append(selexpr)
                     el = caos_ast.SubgraphRef(ref=subgraph, name=link_name, rlink=link_node)
 
-                elements.append(el)
+                # Record element may be none if link target is non-atomic and
+                # recursion has been prohibited on this level to prevent infinite looping.
+                if el is not None:
+                    elements.append(el)
 
             metaref_id = caos_ast.MetaRef(name='id', ref=ref)
             metaref_name = caos_ast.MetaRef(name='name', ref=ref)
