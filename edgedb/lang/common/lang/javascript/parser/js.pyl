@@ -22,6 +22,8 @@ code:
     #  - col (starting col counter)
 
     pyggy.lexer.lexer.multiline_strings = False
+    pyggy.lexer.lexer.at_literal = False
+    pyggy.lexer.lexer.ellipsis_literal = False
     pyggy.lexer.lexer.regexp_possible = True
     pyggy.lexer.lexer.swallow_line_cont = False
     pyggy.lexer.lexer.line = 1
@@ -198,10 +200,14 @@ INITIAL:
 
     # '@' is used for decorators in JPlus
     "@":
+        if not self.at_literal:
+            return '#ERR#'
         advance_line_col(self)
         return "AT"
 
     "\.\.\.":
+        if not self.ellipsis_literal:
+            return '#ERR#'
         advance_line_col(self)
         return "ELLIPSIS"
 

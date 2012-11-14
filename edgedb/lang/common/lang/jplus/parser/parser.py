@@ -23,6 +23,8 @@ class Parser(JSParser):
     def __init__(self):
         super().__init__()
         self.lexer.multiline_strings = True
+        self.lexer.at_literal = True
+        self.lexer.ellipsis_literal = True
 
     def parse(self, *args, **kwargs):
         node = super().parse(*args, **kwargs)
