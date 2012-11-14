@@ -732,3 +732,94 @@ class Transpiler(NodeTransformer):
     def visit_js_WhileNode(self, node):
         with WhileState(self):
             return self.generic_visit(node)
+
+    def visit_jp_WithNode(self, node):
+        wrap_next = self.generic_visit(node.body)
+        for withitem in reversed(node.withitems):
+            body = []
+            expr = self.generic_visit(withitem.expr)
+
+            with_name = self.scope.aux_var(name='with', needs_decl=True)
+            with_we_name = self.scope.aux_var(name='with_was_exc', needs_decl=True)
+            body.append(js_ast.StatementNode(
+                            statement=js_ast.AssignmentExpressionNode(
+                                left=js_ast.IDNode(name=with_name),
+                                op='=',
+                                right=expr)))
+
+            with_call = js_ast.CallNode(
+                            call=js_ast.DotExpressionNode(
+                                left=js_ast.IDNode(name=with_name),
+                                right=js_ast.IDNode(name='enter')))
+
+            if withitem.asname:
+                asname = withitem.asname
+                if not self.scope.is_local(asname):
+                    self.scope.add(Variable(asname, needs_decl=True))
+
+                body.append(js_ast.StatementNode(
+                                statement=js_ast.AssignmentExpressionNode(
+                                    left=js_ast.IDNode(name=asname),
+                                    op='=',
+                                    right=with_call)))
+            else:
+                body.append(js_ast.StatementNode(
+                                statement=with_call))
+
+            body.append(js_ast.StatementNode(
+                            statement=js_ast.AssignmentExpressionNode(
+                                left=js_ast.IDNode(name=with_we_name),
+                                op='=',
+                                right=js_ast.BooleanLiteralNode(value=False))))
+
+            catch_all_var = self.scope.aux_var(name='with_exc', needs_decl=False)
+            catch_node = js_ast.CatchNode(
+                            catchid=catch_all_var,
+                            catchblock=js_ast.StatementBlockNode(
+                                statements=[
+                                    js_ast.StatementNode(
+                                        statement=js_ast.AssignmentExpressionNode(
+                                            left=js_ast.IDNode(name=with_we_name),
+                                            op='=',
+                                            right=js_ast.BooleanLiteralNode(value=True))),
+
+                                    js_ast.IfNode(
+                                        ifclause=js_ast.BinExpressionNode(
+                                            left=js_ast.CallNode(
+                                                call=js_ast.DotExpressionNode(
+                                                    left=js_ast.IDNode(
+                                                        name=with_name),
+                                                    right=js_ast.IDNode(
+                                                        name='exit')),
+                                                arguments=[js_ast.IDNode(name=catch_all_var)]),
+                                            op='!==',
+                                            right=js_ast.BooleanLiteralNode(value=True)),
+                                        thenclause=js_ast.StatementBlockNode(
+                                            statements=[js_ast.ThrowNode(
+                                                expression=js_ast.IDNode(
+                                                    name=catch_all_var))]))]))
+
+            finally_node = js_ast.StatementBlockNode(
+                                statements=[js_ast.IfNode(
+                                    ifclause=js_ast.PrefixExpressionNode(
+                                        expression=js_ast.IDNode(
+                                            name=with_we_name),
+                                        op='!'),
+                                    thenclause=js_ast.StatementBlockNode(
+                                        statements=[js_ast.StatementNode(
+                                            statement=js_ast.CallNode(
+                                                call=js_ast.DotExpressionNode(
+                                                    left=js_ast.IDNode(
+                                                        name=with_name),
+                                                    right=js_ast.IDNode(
+                                                        name='exit'))))]))])
+
+            try_node = js_ast.TryNode(
+                            tryblock=wrap_next,
+                            catch=catch_node,
+                            finallyblock=finally_node)
+
+            body.append(try_node)
+            wrap_next = js_ast.StatementBlockNode(statements=body)
+
+        return js_ast.SourceElementsNode(code=wrap_next.statements)

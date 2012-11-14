@@ -734,3 +734,80 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         !~~........12~~........
         '''
+
+    def test_utils_lang_jp_tr_with_1(self):
+        '''JS+
+
+        chk = '';
+
+        class E {}
+
+        class W1 {
+            function enter() {
+                nonlocal chk;
+                chk += '-enter-';
+                return {'a': 'b'};
+            }
+
+            function exit(exc) {
+                nonlocal chk;
+                chk += '-exit-';
+                if (exc) {
+                    chk += '(' + exc.$cls.$name + ')';
+                } else {
+                    chk += '()';
+                }
+                return true;
+            }
+        }
+
+        with (W1() as w) {
+            chk += w['a'];
+        }
+
+        chk += '|';
+
+        with (W1() as w) {
+            throw E();
+        }
+
+        print(chk)
+
+        %%
+        -enter-b-exit-()|-enter--exit-(E)
+        '''
+
+    def test_utils_lang_jp_tr_with_2(self):
+        '''JS+
+
+        chk = '';
+
+        class W {
+            function construct(name) {
+                this.name = name;
+                nonlocal chk;
+                chk += 'create(' + name + ')-';
+            }
+
+            function enter() {
+                nonlocal chk;
+                chk += 'enter(' + this.name + ')-';
+                return this;
+            }
+
+            function exit() {
+                nonlocal chk;
+                chk += 'exit(' + this.name + ')-';
+            }
+        }
+
+        with (W('a0') as a0, W('a1'), W('a2')) {
+            chk += '|' + a0.name + '|';
+        }
+
+        print(chk);
+
+        %%
+
+        create(a0)-enter(a0)-create(a1)-enter(a1)-create(a2)-enter(a2)-|a0|exit(a2)-exit(a1)-exit(a0)-
+        '''

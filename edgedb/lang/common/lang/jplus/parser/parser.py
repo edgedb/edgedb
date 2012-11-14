@@ -36,6 +36,28 @@ class Parser(JSParser):
         return table
 
     @stamp_state('stmt', affectslabels=True)
+    def parse_with_guts(self):
+        self.must_match('(')
+
+        items = []
+        while True:
+            asname = None
+            expr = self.parse_assignment_expression()
+
+            if self.tentative_match('as', regexp=False):
+                asname = self.parse_ID().name
+
+            items.append(ast.WithItemNode(expr=expr, asname=asname))
+
+            if not self.tentative_match(',', regexp=False):
+                break
+
+        self.must_match(')', '{')
+        body = self.parse_block_guts()
+
+        return ast.WithNode(withitems=items, body=body)
+
+    @stamp_state('stmt', affectslabels=True)
     def parse_try_guts(self):
         """Parse try statement."""
 

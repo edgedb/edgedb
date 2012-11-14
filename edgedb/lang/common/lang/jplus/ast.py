@@ -34,3 +34,6 @@ class TryNode(ast.Base):
 
 class ExceptNode(ast.Base):
     __fields = ['type', 'name', 'body']
+
+class WithNode(ast.Base): __fields = [('withitems', list), 'body']
+class WithItemNode(ast.Base): __fields = ['expr', 'asname']
