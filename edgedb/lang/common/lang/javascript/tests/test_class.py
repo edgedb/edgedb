@@ -765,13 +765,13 @@ class TestJSClass(JSFunctionalTest):
         assert.ok(sx.isinstance(new Number(10), [Number, String]));
         assert.ok(sx.isinstance('spam', String));
         assert.ok(sx.isinstance(10, Number));
-        assert.ok(sx.isinstance(10, Object));
+        assert.ok(sx.isinstance(10, sx.BaseObject));
         assert.ok(sx.isinstance(true, Boolean));
         assert.ok(sx.isinstance(false, Boolean));
 
         assert.not(sx.isinstance(null, String));
-        assert.not(sx.isinstance(null, Object));
-        assert.not(sx.isinstance(void(0), Object));
+        assert.not(sx.isinstance(null, sx.BaseObject));
+        assert.not(sx.isinstance(void(0), sx.BaseObject));
 
         var a = function(){};
         var b = function(){};

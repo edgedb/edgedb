@@ -588,6 +588,14 @@ sx.$bootstrap_class_system = function(opts) {
         }
     };
 
+    // BaseObject is an empty class that is not intended
+    // to be ever instantiated.  It's main purpose is
+    // to play role of the 'root' javascript class, that
+    // everything else is an instance of.
+    function BaseObject() {
+        throw new Error('BaseObject cannot be instantiated');
+    }
+
     function sx_issubclass(cls, parents) {
         if (!cls || !hop.call(cls, MRO_ATTR)) {
             return false;
@@ -621,7 +629,7 @@ sx.$bootstrap_class_system = function(opts) {
             return true;
         }
 
-        if (cls === Object) {
+        if (cls === BaseObject) {
             return true;
         }
 
@@ -664,6 +672,7 @@ sx.$bootstrap_class_system = function(opts) {
     };
 
     return {
+        BaseObject: BaseObject,
         object: ObjectClass,
         type: TypeClass,
         define: sx_define,
