@@ -695,7 +695,7 @@ sx.$bootstrap_class_system = function(opts) {
             return true;
         }
 
-        if (cls === StdObject || cls === BaseObject) {
+        if (cls === BaseObject) {
             return true;
         }
 
