@@ -180,17 +180,8 @@ sx.$bootstrap_class_system = function(opts) {
         return result;
     };
 
-    function sx_parent(cls, ths, method, args) {
-        var mro, mro_len, i, pos, base, func, cls;
-
-        if (AUTO_REGISTER_NS && typeof cls == 'string') {
-            cls = sx_ns_resolve(cls);
-        }
-
-        args = args || [];
-        if (arguments.length > 4) {
-            throw new Error('invalid `parent` call, should receive arguments as array');
-        }
+    function sx_find_parent(cls, ths, method) {
+        var mro, mro_len, i, pos, base, func;
 
         if (hop.call(ths, MRO_ATTR) && !sx_issubclass(ths[CLS_ATTR], cls)) {
             // class
@@ -205,7 +196,7 @@ sx.$bootstrap_class_system = function(opts) {
                         if (hop.call(func, WRAPPED_ATTR)) {
                             func = func[WRAPPED_ATTR];
                         }
-                        return func.apply(ths, args);
+                        return func;
                     }
                 }
             }
@@ -219,13 +210,26 @@ sx.$bootstrap_class_system = function(opts) {
                     base = mro[i].prototype;
 
                     if (hop.call(base, method)) {
-                        return base[method].apply(ths, args);
+                        return base[method];
                     }
                 }
             }
         }
 
         throw new Error("can't find '" + method + "' parent method for '" + cls + "'");
+    };
+
+    function sx_parent(cls, ths, method, args) {
+        if (AUTO_REGISTER_NS && typeof cls == 'string') {
+            cls = sx_ns_resolve(cls);
+        }
+
+        args = args || [];
+        if (arguments.length > 4) {
+            throw new Error('invalid `parent` call, should receive arguments as array');
+        }
+
+        return sx_find_parent(cls, ths, method).apply(ths, args);
     };
 
     function make_universal_constructor() {
@@ -665,7 +669,8 @@ sx.$bootstrap_class_system = function(opts) {
         define: sx_define,
         issubclass: sx_issubclass,
         isinstance: sx_isinstance,
-        parent: sx_parent
+        parent: sx_parent,
+        parent_method: sx_find_parent
     }
 };
 
