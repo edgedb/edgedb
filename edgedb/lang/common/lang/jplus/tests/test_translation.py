@@ -811,3 +811,21 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         create(a0)-enter(a0)-create(a1)-enter(a1)-create(a2)-enter(a2)-|a0|exit(a2)-exit(a1)-exit(a0)-
         '''
+
+    def test_utils_lang_jp_tr_with_3(self):
+        '''JS+
+        try {
+            with (1) {}
+            print('fail');
+        } catch (e) {
+            e2 = e + '';
+            if (e2.indexOf("context managers must") > 0) {
+                print('ok');
+            } else {
+                throw e;
+            }
+        }
+
+        %%
+        ok
+        '''

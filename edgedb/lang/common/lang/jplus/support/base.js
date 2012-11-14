@@ -30,7 +30,6 @@ $SXJSP = (function() {
         }
     }
 
-
     function Module(name, dct) {
         this.$name = name;
         this.$initialized = dct != null;
@@ -140,6 +139,13 @@ $SXJSP = (function() {
             }
 
             error('foreach: unsupported iterable: ' + it);
+        },
+
+        validate_with: function(obj) {
+            if (!obj.enter || tos.call(obj.enter) != '[object Function]'
+                   || !obj.exit || tos.call(obj.exit) != '[object Function]') {
+                error('with: context managers must have "enter" and "exit" methods');
+            }
         }
     };
 })();

@@ -168,7 +168,8 @@ class ModuleScope(Scope):
             'class': ('__SXJSP_define_class', class_js, 'sx.define'),
             'super': ('__SXJSP_super', class_js, 'sx.parent'),
             'each': ('__SXJSP_each', base_js, '$SXJSP.each'),
-            'isinstance': ('__SXJSP_isinstance', class_js, 'sx.isinstance')
+            'isinstance': ('__SXJSP_isinstance', class_js, 'sx.isinstance'),
+            'validate_with': ('__SXJSP_validate_with', base_js, '$SXJSP.validate_with')
         }
         self.deps = set()
 
@@ -736,6 +737,8 @@ class Transpiler(NodeTransformer):
             return self.generic_visit(node)
 
     def visit_jp_WithNode(self, node):
+        validate_with_name = self.scope.use('validate_with')
+
         wrap_next = self.generic_visit(node.body)
         for withitem in reversed(node.withitems):
             body = []
@@ -748,6 +751,10 @@ class Transpiler(NodeTransformer):
                                 left=js_ast.IDNode(name=with_name),
                                 op='=',
                                 right=expr)))
+            body.append(js_ast.StatementNode(
+                            statement=js_ast.CallNode(
+                                call=js_ast.IDNode(name=validate_with_name),
+                                arguments=[js_ast.IDNode(name=with_name)])))
 
             with_call = js_ast.CallNode(
                             call=js_ast.DotExpressionNode(
