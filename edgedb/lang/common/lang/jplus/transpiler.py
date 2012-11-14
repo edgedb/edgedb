@@ -312,6 +312,8 @@ class Transpiler(NodeTransformer):
 
     def visit_js_AssignmentExpressionNode(self, node):
         if (isinstance(node.left, js_ast.IDNode) and not self.scope.is_local(node.left.name)):
+            if node.op != '=':
+                raise NameError(node.left.name)
             self.scope.add(Variable(node.left.name, needs_decl=True))
         node.right = self.visit(node.right)
         return node
