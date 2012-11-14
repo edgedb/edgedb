@@ -154,10 +154,11 @@ class Scope:
             parent = parent.parent
         return parent.use(what)
 
-    def aux_var(self, *, name='', needs_decl=True):
+    def aux_var(self, *, name='', needs_decl=True, value=None):
+        assert value is None or isinstance(value, js_ast.Base)
         self.aux_var_cnt += 1
         name = '__SXJSP_aux_{}_{}'.format(name, self.aux_var_cnt)
-        self.add(Variable(name, needs_decl=needs_decl, aux=True))
+        self.add(Variable(name, needs_decl=needs_decl, aux=True, value=value))
         return name
 
 
@@ -251,7 +252,8 @@ class Transpiler(NodeTransformer):
         if scope.vars:
             vars = [js_ast.VarInitNode(
                         name=js_ast.IDNode(
-                            name=v.name)) for v in scope.vars.values()
+                            name=v.name),
+                        value=v.value) for v in scope.vars.values()
                                                         if v.needs_decl]
             if vars:
                 return js_ast.StatementNode(
@@ -352,26 +354,6 @@ class Transpiler(NodeTransformer):
         if not defaults and not rest:
             return node
 
-        # We have function parameters with default values.
-        #
-        # Transformation example:
-        #
-        # function spam(a, b=10) {
-        #     return a + b;
-        # }
-        #
-        # would be transformed to:
-        #
-        # spam = (function() {
-        #     var __sxjsp_def_b = 10;
-        #     return function spam(a, b) {
-        #         var __sx_jsp_arglen = arguments.length;
-        #         (__sx_jsp_arglen < 2) && (b = __sxjsp_def_b);
-        #         return a + b;
-        #     }
-        # }
-        # })();
-
         if not isinstance(self.scope, ClassScope):
             self.scope[name].needs_decl = True
 
@@ -385,22 +367,13 @@ class Transpiler(NodeTransformer):
                         value=js_ast.IDNode(
                             name='arguments.length'))]))]
 
-        to_wrap = False
         if defaults:
-            to_wrap = True
-
-            wrapper_body = []
-
-            wrapper_body.append(js_ast.StatementNode(
-                            statement=js_ast.VarDeclarationNode(
-                                vars=[js_ast.VarInitNode(
-                                    name=js_ast.IDNode(
-                                        name='__SXJSP_aux_default_{}'.format(name)),
-                                    value=value) for name, value in defaults.items()])))
-
-            wrapper_body.append(js_ast.StatementNode(
-                            statement=js_ast.ReturnNode(
-                                expression=node)))
+            def_aux_map = {}
+            for def_name, def_value in defaults.items():
+                aux_def = self.scope.aux_var(name='default_{}'.format(def_name),
+                                             needs_decl=True,
+                                             value=def_value)
+                def_aux_map[def_name] = aux_def
 
             non_def_len = len(node.param) - len(defaults) - (1 if rest else 0)
             for idx, def_name in enumerate(defaults.keys()):
@@ -418,7 +391,7 @@ class Transpiler(NodeTransformer):
                                                     name=def_name),
                                                 op='=',
                                                 right=js_ast.IDNode(
-                                                    name='__SXJSP_aux_default_{}'.format(def_name))))))
+                                                    name=def_aux_map[def_name])))))
 
         if rest:
             slice1_name = self.scope.use('slice1')
@@ -437,18 +410,6 @@ class Transpiler(NodeTransformer):
 
         func_body = node.body.statements
         func_body.insert(0, js_ast.SourceElementsNode(code=defaults_init))
-
-        if to_wrap:
-            node = js_ast.AssignmentExpressionNode(
-                       left=js_ast.IDNode(name=name),
-                       op='=',
-                       right=js_ast.StatementNode(
-                           statement=js_ast.CallNode(
-                               call=js_ast.FunctionNode(
-                                   isdeclaration=False,
-                                   body=js_ast.StatementBlockNode(
-                                       statements=wrapper_body)))))
-
         return node
 
     def visit_jp_NonlocalNode(self, node):
