@@ -602,15 +602,17 @@ class Transpiler(NodeTransformer):
 
     def visit_jp_TryNode(self, node):
         try_body = self.generic_visit(node.body).statements
-        finally_body = []
-        if node.finalbody:
-            finally_body = self.generic_visit(node.finalbody).statements
 
         if node.jscatch:
             # We have the old 'try..catch' case here, and as we don't
             # support 'except' and 'else' keywords for such 'try' blocks
             # we just return plain TryNode.
             jscatch = self.generic_visit(node.jscatch)
+
+            finally_body = []
+            if node.finalbody:
+                finally_body = self.generic_visit(node.finalbody).statements
+
             return js_ast.TryNode(
                         tryblock=js_ast.StatementBlockNode(
                             statements=try_body),
@@ -618,39 +620,8 @@ class Transpiler(NodeTransformer):
                             statements=finally_body) if finally_body else None),
                         catch=jscatch)
 
-        if node.orelse:
-            orelse_name = self.scope.aux_var(name='orelse', needs_decl=True)
-            try_body.append(js_ast.StatementNode(
-                                statement=js_ast.AssignmentExpressionNode(
-                                    left=js_ast.IDNode(
-                                        name=orelse_name),
-                                    op='=',
-                                    right=js_ast.IDNode(
-                                        name='true'))))
-
-            orelse_body = self.generic_visit(node.orelse).statements
-
-            if finally_body:
-                finally_body = [js_ast.TryNode(
-                                    tryblock=js_ast.StatementBlockNode(
-                                        statements=[
-                                            js_ast.IfNode(
-                                                ifclause=js_ast.IDNode(
-                                                    name=orelse_name),
-                                                thenclause=js_ast.StatementBlockNode(
-                                                    statements=orelse_body))]),
-                                    finallyblock=js_ast.StatementBlockNode(
-                                        statements=finally_body))]
-            else:
-                finally_body = orelse_body
-
-        try_node = js_ast.TryNode(
-                        tryblock=js_ast.StatementBlockNode(
-                            statements=try_body),
-                        finallyblock=(js_ast.StatementBlockNode(
-                            statements=finally_body) if finally_body else None))
-
         catch_all_name = self.scope.aux_var(name='all_ex', needs_decl=False)
+        catch_node = None
         if node.handlers:
             isinst_name = self.scope.use('isinstance')
 
@@ -685,7 +656,7 @@ class Transpiler(NodeTransformer):
                                         handle.type[0])
                                     ])
                 else:
-                    check_node = js_ast.IDNode(name='true')
+                    check_node = js_ast.BooleanLiteralNode(value=True)
 
                 catch_node = js_ast.IfNode(
                                     ifclause=check_node,
@@ -710,7 +681,42 @@ class Transpiler(NodeTransformer):
                             catchblock=js_ast.StatementBlockNode(
                                 statements=[first_catch]))
 
-            try_node.catch = catch_node
+        if node.orelse:
+            orelse_name = self.scope.aux_var(name='orelse', needs_decl=True)
+            try_body.append(js_ast.StatementNode(
+                                statement=js_ast.AssignmentExpressionNode(
+                                    left=js_ast.IDNode(
+                                        name=orelse_name),
+                                    op='=',
+                                    right=js_ast.BooleanLiteralNode(value=True))))
+
+            orelse_body = self.generic_visit(node.orelse).statements
+
+            if node.finalbody:
+                finally_body = self.generic_visit(node.finalbody).statements
+                finally_body = [js_ast.TryNode(
+                                    tryblock=js_ast.StatementBlockNode(
+                                        statements=[
+                                            js_ast.IfNode(
+                                                ifclause=js_ast.IDNode(
+                                                    name=orelse_name),
+                                                thenclause=js_ast.StatementBlockNode(
+                                                    statements=orelse_body))]),
+                                    finallyblock=js_ast.StatementBlockNode(
+                                        statements=finally_body))]
+            else:
+                finally_body = orelse_body
+        else:
+            finally_body = []
+            if node.finalbody:
+                finally_body = self.generic_visit(node.finalbody).statements
+
+        try_node = js_ast.TryNode(
+                        tryblock=js_ast.StatementBlockNode(
+                            statements=try_body),
+                        finallyblock=(js_ast.StatementBlockNode(
+                            statements=finally_body) if finally_body else None),
+                        catch=catch_node)
 
         return try_node
 
