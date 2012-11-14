@@ -829,3 +829,26 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         ok
         '''
+
+    def test_utils_lang_jp_tr_func_rest_1(self):
+        '''JS+
+
+        function test0(...a) {
+            return a.join('+') + '~'
+        }
+
+        function test1(a, ...b) {
+            return b.join('-') + '|';
+        }
+
+        function test2(a, b=10, ...c) {
+            return '(' + b + ')' + c.join('*') + '$';
+        }
+
+        print(test0() + test0(1) + test0(1, 2) +
+              test1(1) + test1(1, 2) + test1(1, 2, 3) +
+              test2(1) + test2(1, 2) + test2(1, 2, 3) + test2(1, 2, 3, 4))
+
+        %%
+        ~1~1+2~|2|2-3|(10)$(2)$(2)3$(2)3*4$
+        '''

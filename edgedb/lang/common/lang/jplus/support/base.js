@@ -146,6 +146,10 @@ $SXJSP = (function() {
                    || !obj.exit || tos.call(obj.exit) != '[object Function]') {
                 error('with: context managers must have "enter" and "exit" methods');
             }
+        },
+
+        slice1: function(obj, num) {
+            return StdArray.prototype.slice.call(obj, num);
         }
     };
 })();

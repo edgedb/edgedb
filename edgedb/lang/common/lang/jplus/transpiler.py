@@ -169,7 +169,8 @@ class ModuleScope(Scope):
             'super': ('__SXJSP_super', class_js, 'sx.parent'),
             'each': ('__SXJSP_each', base_js, '$SXJSP.each'),
             'isinstance': ('__SXJSP_isinstance', class_js, 'sx.isinstance'),
-            'validate_with': ('__SXJSP_validate_with', base_js, '$SXJSP.validate_with')
+            'validate_with': ('__SXJSP_validate_with', base_js, '$SXJSP.validate_with'),
+            'slice1': ('__SXJSP_slice1', base_js, '$SXJSP.slice1')
         }
         self.deps = set()
 
@@ -326,6 +327,7 @@ class Transpiler(NodeTransformer):
 
         scope = FunctionScope(self)
 
+        rest = None
         defaults = collections.OrderedDict()
         new_params = []
         for param in node.param:
@@ -334,6 +336,8 @@ class Transpiler(NodeTransformer):
             if param.default is not None:
                 param.default = self.visit(param.default)
                 defaults[param.name] = param.default
+            if param.rest:
+                rest = param
 
         node.param = new_params
 
@@ -345,26 +349,45 @@ class Transpiler(NodeTransformer):
             assert isinstance(node.body, js_ast.StatementBlockNode)
             node.body.statements.insert(0, var)
 
+        if not defaults and not rest:
+            return node
+
+        # We have function parameters with default values.
+        #
+        # Transformation example:
+        #
+        # function spam(a, b=10) {
+        #     return a + b;
+        # }
+        #
+        # would be transformed to:
+        #
+        # spam = (function() {
+        #     var __sxjsp_def_b = 10;
+        #     return function spam(a, b) {
+        #         var __sx_jsp_arglen = arguments.length;
+        #         (__sx_jsp_arglen < 2) && (b = __sxjsp_def_b);
+        #         return a + b;
+        #     }
+        # }
+        # })();
+
+        if not isinstance(self.scope, ClassScope):
+            self.scope[name].needs_decl = True
+
+        arglen_var = self.scope.aux_var(name='argslen', needs_decl=False)
+        defaults_init = [
+            js_ast.StatementNode(
+                statement=js_ast.VarDeclarationNode(
+                    vars=[js_ast.VarInitNode(
+                        name=js_ast.IDNode(
+                            name=arglen_var),
+                        value=js_ast.IDNode(
+                            name='arguments.length'))]))]
+
+        to_wrap = False
         if defaults:
-            # We have function parameters with default values.
-            #
-            # Transformation example:
-            #
-            # function spam(a, b=10) {
-            #     return a + b;
-            # }
-            #
-            # would be transformed to:
-            #
-            # spam = (function() {
-            #     var __sxjsp_def_b = 10;
-            #     return function spam(a, b) {
-            #         var __sx_jsp_arglen = arguments.length;
-            #         (__sx_jsp_arglen < 2) && (b = __sxjsp_def_b);
-            #         return a + b;
-            #     }
-            # }
-            # })();
+            to_wrap = True
 
             wrapper_body = []
 
@@ -379,21 +402,7 @@ class Transpiler(NodeTransformer):
                             statement=js_ast.ReturnNode(
                                 expression=node)))
 
-            if not isinstance(self.scope, ClassScope):
-                self.scope[name].needs_decl = True
-
-            arglen_var = self.scope.aux_var(name='argslen', needs_decl=False)
-            defaults_init = [
-                js_ast.StatementNode(
-                    statement=js_ast.VarDeclarationNode(
-                        vars=[js_ast.VarInitNode(
-                            name=js_ast.IDNode(
-                                name=arglen_var),
-                            value=js_ast.IDNode(
-                                name='arguments.length'))]))
-            ]
-
-            non_def_len = len(node.param) - len(defaults)
+            non_def_len = len(node.param) - len(defaults) - (1 if rest else 0)
             for idx, def_name in enumerate(defaults.keys()):
                 defaults_init.append(js_ast.StatementNode(
                                         statement=js_ast.BinExpressionNode(
@@ -411,9 +420,25 @@ class Transpiler(NodeTransformer):
                                                 right=js_ast.IDNode(
                                                     name='__SXJSP_aux_default_{}'.format(def_name))))))
 
-            func_body = node.body.statements
-            func_body.insert(0, js_ast.SourceElementsNode(code=defaults_init))
+        if rest:
+            slice1_name = self.scope.use('slice1')
+            defaults_init.append(js_ast.StatementNode(
+                                    statement=js_ast.AssignmentExpressionNode(
+                                        left=js_ast.IDNode(
+                                            name=rest.name),
+                                            op='=',
+                                            right=js_ast.CallNode(
+                                                call=js_ast.IDNode(name=slice1_name),
+                                                arguments=[
+                                                    js_ast.IDNode(name='arguments'),
+                                                    js_ast.NumericLiteralNode(
+                                                        value=len(node.param)-1)]))))
 
+
+        func_body = node.body.statements
+        func_body.insert(0, js_ast.SourceElementsNode(code=defaults_init))
+
+        if to_wrap:
             node = js_ast.AssignmentExpressionNode(
                        left=js_ast.IDNode(name=name),
                        op='=',

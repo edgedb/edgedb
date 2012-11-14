@@ -201,6 +201,10 @@ INITIAL:
         advance_line_col(self)
         return "AT"
 
+    "\.\.\.":
+        advance_line_col(self)
+        return "ELLIPSIS"
+
     # special handling of '/', '/=' and regexp
     "/[^\*/]":
         if self.regexp_possible:

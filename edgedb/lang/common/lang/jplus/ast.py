@@ -27,7 +27,7 @@ class ForeachNode(ast.Base): __fields = ['init', 'container', 'statement']
 
 class NonlocalNode(ast.Base): __fields = [('ids', list)]
 
-class FunctionParameter(ast.Base): __fields = ['name', 'default']
+class FunctionParameter(ast.Base): __fields = ['name', 'default', ('rest', bool, False)]
 
 class TryNode(ast.Base):
     __fields = ['body', ('handlers', list), 'jscatch', 'orelse', 'finalbody']

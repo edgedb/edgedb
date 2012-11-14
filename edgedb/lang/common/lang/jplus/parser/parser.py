@@ -338,9 +338,13 @@ class Parser(JSParser):
         defaults_mode = False
         if not self.tentative_match(')'):
             while True:
+                rest_param = False
+                if self.tentative_match('...', regexp=False):
+                    rest_param = True
+
                 name = self.parse_ID()
 
-                if defaults_mode or self.tentative_match('=', consume=False):
+                if (not rest_param) and (defaults_mode or self.tentative_match('=', consume=False)):
                     defaults_mode = True
                     self.must_match('=')
                     default = self.parse_assignment_expression()
@@ -349,11 +353,14 @@ class Parser(JSParser):
                                                   default=default)
 
                 else:
-                    param = ast.FunctionParameter(name=name.name)
+                    param = ast.FunctionParameter(name=name.name, rest=rest_param)
 
                 params.append(param)
 
-                if self.tentative_match(')'):
+                if rest_param:
+                    self.must_match(')')
+                    break
+                elif self.tentative_match(')'):
                     break
                 else:
                     self.must_match(',')
