@@ -127,6 +127,45 @@ class TestTranslation(base_test.BaseJPlusTest):
         42
         '''
 
+    def test_utils_lang_jp_tr_class_super_1(self):
+        '''JS+
+
+        class Foo {
+            function construct(base) {
+                this.base = base;
+            }
+
+            function ham(b) {
+                return this.base + b;
+            }
+        }
+
+        class Bar(Foo) {
+            function ham(b) {
+                return super().ham.apply(this, arguments) + 100;
+            }
+        }
+
+        class Baz(Bar) {
+            function ham(base, b) {
+                meth = super().ham;
+                if (base) {
+                    return meth.call(base, b);
+                } else {
+                    return meth.call(this, b);
+                }
+            }
+
+        }
+
+        baz = Baz(10)
+        baz2 = Baz(20000)
+        print(baz.ham(null, 10) + '|' + baz.ham(baz2, 10))
+
+        %%
+        120|20110
+        '''
+
     def test_utils_lang_jp_tr_dec_1(self):
         '''JS+
 

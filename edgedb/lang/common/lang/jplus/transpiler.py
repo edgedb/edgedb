@@ -167,7 +167,7 @@ class ModuleScope(Scope):
         super().__init__(*args, **kwargs)
         self.sys_deps = {
             'class': ('__SXJSP_define_class', class_js, 'sx.define'),
-            'super': ('__SXJSP_super', class_js, 'sx.parent'),
+            'super_method': ('__SXJSP_super_meth', class_js, 'sx.parent_method'),
             'each': ('__SXJSP_each', base_js, '$SXJSP.each'),
             'isinstance': ('__SXJSP_isinstance', class_js, 'sx.isinstance'),
             'validate_with': ('__SXJSP_validate_with', base_js, '$SXJSP.validate_with'),
@@ -479,26 +479,46 @@ class Transpiler(NodeTransformer):
                                    properties=dct_items)
                            ])))
 
-    def visit_jp_SuperCallNode(self, node):
-        super_name  = self.scope.use('super')
+    def visit_jp_SuperNode(self, node):
+        super_name = self.scope.use('super_method')
 
         clsname = self.state(ClassState).class_name
 
         assert node.cls is None
         assert node.instance is None
 
-        args = [
+        return js_ast.CallNode(
+            call=js_ast.IDNode(name=super_name),
+            arguments=[
+                js_ast.IDNode(name=clsname),
+                js_ast.ThisNode(),
+                js_ast.StringLiteralNode(value=node.method)
+            ])
+
+    def visit_jp_SuperCallNode(self, node):
+        super_name  = self.scope.use('super_method')
+
+        clsname = self.state(ClassState).class_name
+
+        assert node.cls is None
+        assert node.instance is None
+
+        super_args = [
             js_ast.IDNode(name=clsname),
             js_ast.ThisNode(),
             js_ast.StringLiteralNode(value=node.method),
         ]
 
-        if node.arguments:
-            args.append(js_ast.ArrayLiteralNode(array=node.arguments))
+        call_args = node.arguments
+        call_args.insert(0, js_ast.ThisNode())
 
-        return js_ast.CallNode(
-                   call=js_ast.IDNode(name=super_name),
-                   arguments=args)
+        return js_ast.DotExpressionNode(
+                    left=js_ast.CallNode(
+                        call=js_ast.IDNode(name=super_name),
+                        arguments=super_args),
+                    right=js_ast.CallNode(
+                        call=js_ast.IDNode(name='call'),
+                        arguments=call_args))
 
     def visit_jp_DecoratedNode(self, node):
         is_static = False

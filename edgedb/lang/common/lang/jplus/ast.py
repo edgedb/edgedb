@@ -21,6 +21,7 @@ class DecoratedNode(ast.Base): __fields = ['node', ('decorators', list)]
 
 class StaticDeclarationNode(ast.Base): __fields = ['decl']
 
+class SuperNode(ast.Expression): __fields = ['cls', 'instance', 'method']
 class SuperCallNode(ast.Expression): __fields = ['cls', 'instance', 'method', ('arguments', list)]
 
 class ForeachNode(ast.Base): __fields = ['init', 'container', 'statement']

@@ -229,14 +229,16 @@ class Parser(JSParser):
         method = self.token.value
         self.get_next_token(False)
 
-        self.must_match('(', regexp=False)
-        arguments = []
-        if not self.tentative_match(')', regexp=False):
-            arguments = self.parse_expression_list()
-            self.must_match(')', regexp=False)
+        if self.tentative_match('(', regexp=False):
+            arguments = []
+            if not self.tentative_match(')', regexp=False):
+                arguments = self.parse_expression_list()
+                self.must_match(')', regexp=False)
 
-        return ast.SuperCallNode(cls=cls, instance=instance,
-                                 arguments=arguments, method=method)
+            return ast.SuperCallNode(cls=cls, instance=instance,
+                                     arguments=arguments, method=method)
+        else:
+            return ast.SuperNode(cls=cls, instance=instance, method=method)
 
     def parse_nonlocal_guts(self):
         ids = []
