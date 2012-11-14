@@ -9,7 +9,7 @@
 from metamagic.utils import ast
 
 
-class Base(ast.AST): pass
+class Base(ast.AST): __fields = [('position', tuple, None)]
 
 
 class Expression(Base): pass

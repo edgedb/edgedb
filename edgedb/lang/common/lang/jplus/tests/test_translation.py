@@ -554,6 +554,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         '''JS+
 
         r = ''
+        abc = null
         try {
             abc.foo
         }
@@ -574,6 +575,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         '''JS+
 
         r = '';
+        abc = null;
 
         try {
             try {
@@ -594,6 +596,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         '''JS+
 
         r = '';
+        abc = void(0);
 
         try {
             abc.foo
@@ -617,6 +620,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         '''JS+
 
         r = '';
+        abc = null;
 
         try {
         }
@@ -641,6 +645,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         '''JS+
 
         r = '';
+        abc = null;
 
         try {
         }
@@ -671,7 +676,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         try {
             throw '123';
         }
-        except (Object as e) {
+        except (BaseObject as e) {
             r += e;
         }
         finally {
@@ -697,7 +702,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         except (E) {
             r += 'E'
         }
-        except (Object) {
+        except (BaseObject) {
             r += 'smth'
         }
         finally {
@@ -899,4 +904,172 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         %%
         true
+        '''
+
+    def test_utils_lang_jp_is_instanceof(self):
+        '''JS+
+
+        class Foo {}
+        class Bar(Foo) {}
+
+        print((Bar() instanceof Foo) && ('bar' instanceof BaseObject)
+              && ([] instanceof Array) && !([] instanceof String))
+
+        %%
+        true
+        '''
+
+    def test_utils_lang_jp_builtins_1(self):
+        '''JS+
+
+        print(isinstance(1, BaseObject) && 1 instanceof BaseObject);
+
+        %%
+
+        true
+        '''
+
+    def test_utils_lang_jp_builtins_2(self):
+        '''JS+
+
+        print(1 instanceof BaseObject);
+
+        %%
+
+        true
+        '''
+
+    def test_utils_lang_jp_builtins_3(self):
+        '''JS+
+
+        print(object.$name);
+
+        %%
+        object
+        '''
+
+    def test_utils_lang_jp_builtins_4(self):
+        '''JS+
+
+        print(object + type);
+
+        %%
+        <class object><class type>
+        '''
+
+    def test_utils_lang_jp_builtins_5(self):
+        '''JS+
+
+        object
+
+        %%
+        '''
+
+    def test_utils_lang_jp_builtins_6(self):
+        '''JS+
+
+        print([1, object, type][0])
+
+        %%
+        1
+        '''
+
+    def test_utils_lang_jp_builtins_7(self):
+        '''JS+
+
+        print({'a': 'b', 'c': object}['a']);
+
+        %%
+        b
+        '''
+
+    def test_utils_lang_jp_builtins_8(self):
+        '''JS+
+
+        a = {'b' : {'c': function() { print('aaaa')}}};
+
+        a.b.c();
+
+        %%
+        aaaa
+        '''
+
+    def test_utils_lang_jp_builtins_9(self):
+        '''JS+
+
+        new object()
+
+        %%
+        '''
+
+    def test_utils_lang_jp_builtins_10(self):
+        '''JS+
+
+        print(typeof object)
+
+        %%
+        function
+        '''
+
+    def test_utils_lang_jp_builtins_11(self):
+        '''JS+
+
+        print(object['$name'])
+
+        %%
+        object
+        '''
+
+    def test_utils_lang_jp_builtins_12(self):
+        '''JS+
+
+        print(void object)
+
+        %%
+        undefined
+        '''
+
+    def test_utils_lang_jp_builtins_13(self):
+        '''JS+
+
+        print('abc' in object)
+
+        %%
+        false
+        '''
+
+    def test_utils_lang_jp_builtins_14(self):
+        '''JS+
+
+        print(object instanceof Object)
+
+        %%
+        false
+        '''
+
+    def test_utils_lang_jp_builtins_15(self):
+        '''JS+
+
+        print(isinstance((1, object), type))
+
+        %%
+        true
+        '''
+
+    def test_utils_lang_jp_builtins_16(self):
+        '''JS+
+
+        print((--object) + (type++))
+
+        %%
+        NaN
+        '''
+
+    def test_utils_lang_jp_builtins_17(self):
+        '''JS+
+
+        print((object ? '1' : '2') + (1 ? type : '3') + (0 ? 1 : BaseObject))
+
+        %%
+        1<class type><class BaseObject>
         '''

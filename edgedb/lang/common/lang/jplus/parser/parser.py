@@ -45,17 +45,21 @@ class Parser(JSParser):
 
     @stamp_state('stmt', affectslabels=True)
     def parse_with_guts(self):
+        started_at = self.prevtoken.position
+
         self.must_match('(')
 
         items = []
         while True:
             asname = None
+            item_started_at = self.token.position
             expr = self.parse_assignment_expression()
 
             if self.tentative_match('as', regexp=False):
                 asname = self.parse_ID().name
 
-            items.append(ast.WithItemNode(expr=expr, asname=asname))
+            items.append(ast.WithItemNode(expr=expr, asname=asname,
+                                          position=item_started_at))
 
             if not self.tentative_match(',', regexp=False):
                 break
@@ -63,28 +67,33 @@ class Parser(JSParser):
         self.must_match(')', '{')
         body = self.parse_block_guts()
 
-        return ast.WithNode(withitems=items, body=body)
+        return ast.WithNode(withitems=items, body=body, position=started_at)
 
     @stamp_state('stmt', affectslabels=True)
     def parse_try_guts(self):
         """Parse try statement."""
+
+        started_at = self.prevtoken.position
 
         self.must_match('{')
         body = self.parse_block_guts()
 
         jscatch = None
         if self.tentative_match('catch'):
+            catch_started_at = self.prevtoken.position
             old_mode = True
             self.must_match('(')
             ex_name = self.parse_ID().name
             self.must_match(')', '{')
             ex_body = self.parse_block_guts()
-            jscatch = js_ast.CatchNode(catchid=ex_name, catchblock=ex_body)
+            jscatch = js_ast.CatchNode(catchid=ex_name, catchblock=ex_body,
+                                       position=catch_started_at)
 
         handlers = []
         orelse = None
         if jscatch is None:
             while self.tentative_match('except'):
+                except_started_at = self.prevtoken.position
                 if self.tentative_match('('):
                     ex_type = []
                     ex_name = None
@@ -103,11 +112,13 @@ class Parser(JSParser):
                     self.must_match(')', '{')
                     ex_body = self.parse_block_guts()
 
-                    handlers.append(ast.ExceptNode(type=ex_type, name=ex_name, body=ex_body))
+                    handlers.append(ast.ExceptNode(type=ex_type, name=ex_name, body=ex_body,
+                                                   position=except_started_at))
                 else:
                     self.must_match('{')
                     ex_body = self.parse_block_guts()
-                    handlers.append(ast.ExceptNode(type=None, name=None, body=ex_body))
+                    handlers.append(ast.ExceptNode(type=None, name=None, body=ex_body,
+                                                   position=except_started_at))
 
             if handlers and self.tentative_match('else'):
                 self.must_match('{')
@@ -119,11 +130,14 @@ class Parser(JSParser):
             finalbody = self.parse_block_guts()
 
         return ast.TryNode(body=body, handlers=handlers, orelse=orelse,
-                           finalbody=finalbody, jscatch=jscatch)
+                           finalbody=finalbody, jscatch=jscatch,
+                           position=started_at)
 
     @stamp_state('loop', affectslabels=True)
     def parse_for_guts(self):
         """Parse foreach loop."""
+
+        started_at = self.prevtoken.position
 
         if self.tentative_match('each'):
             self.must_match('(')
@@ -147,13 +161,16 @@ class Parser(JSParser):
             self.must_match(')')
             stmt = self.parse_statement()
 
-            return ast.ForeachNode(init=init, container=expr, statement=stmt)
+            return ast.ForeachNode(init=init, container=expr, statement=stmt,
+                                   position=started_at)
 
         else:
             return super().parse_for_guts()
 
     @stamp_state('class')
     def parse_class_guts(self):
+        started_at = self.prevtoken.position
+
         name = self.parse_ID().name
 
         bases = []
@@ -183,19 +200,23 @@ class Parser(JSParser):
                 body.append(js_ast.AssignmentExpressionNode(
                                 left=id,
                                 op='=',
-                                right=right))
+                                right=right,
+                                position=id.position))
 
                 continue
 
             raise UnexpectedToken(self.token, parser=self)
 
-        return ast.ClassNode(name=name, bases=bases, body=body)
+        return ast.ClassNode(name=name, bases=bases, body=body,
+                             position=started_at)
 
 
     def nud_AT(self, token):
         # parse decorator list
         decorators = []
         at_rbp = token.rbp
+
+        started_at = self.prevtoken.position
 
         while True:
             if self.token.type != 'ID':
@@ -210,12 +231,15 @@ class Parser(JSParser):
             raise UnexpectedToken(self.token, parser=self)
 
         return ast.DecoratedNode(node=self.parse_statement(),
-                                 decorators=decorators)
+                                 decorators=decorators,
+                                 position=started_at)
 
     def nud_SUPER(self, token):
         return self.parse_super_guts()
 
     def parse_super_guts(self):
+        started_at = self.prevtoken.position
+
         self.must_match('(', regexp=False)
 
         cls = instance = None
@@ -243,18 +267,23 @@ class Parser(JSParser):
                 self.must_match(')', regexp=False)
 
             return ast.SuperCallNode(cls=cls, instance=instance,
-                                     arguments=arguments, method=method)
+                                     arguments=arguments, method=method,
+                                     position=started_at)
         else:
-            return ast.SuperNode(cls=cls, instance=instance, method=method)
+            return ast.SuperNode(cls=cls, instance=instance, method=method,
+                                 position=started_at)
 
     def parse_nonlocal_guts(self):
+        started_at = self.prevtoken.position
         ids = []
         ids.append(self.parse_ID())
         while self.tentative_match(','):
             ids.append(self.parse_ID())
-        return ast.NonlocalNode(ids=ids)
+        return ast.NonlocalNode(ids=ids, position=started_at)
 
     def parse_static_guts(self):
+        started_at = self.prevtoken.position
+
         if not self.enclosing_state('class'):
             raise IllegalStatic(self.token)
 
@@ -269,16 +298,18 @@ class Parser(JSParser):
             node = js_ast.AssignmentExpressionNode(
                         left=id,
                         op='=',
-                        right=right)
+                        right=right,
+                        position=id.position)
 
         if node is None:
             raise UnexpectedToken(self.token, parser=self)
 
         self.tentative_match(';', regexp=False)
 
-        return ast.StaticDeclarationNode(decl=node)
+        return ast.StaticDeclarationNode(decl=node, position=started_at)
 
     def parse_import_alias(self):
+        started_at = self.prevtoken.position
         asname = None
         name = ''
         while True:
@@ -300,16 +331,20 @@ class Parser(JSParser):
 
             break
 
-        return ast.ImportAliasNode(name=name, asname=asname)
+        return ast.ImportAliasNode(name=name, asname=asname, position=started_at)
 
     def parse_import_guts(self):
+        started_at = self.prevtoken.position
         names = []
         names.append(self.parse_import_alias())
         while self.tentative_match(',', regexp=False):
             names.append(self.parse_import_alias())
-        return js_ast.StatementNode(statement=ast.ImportNode(names=names))
+        return js_ast.StatementNode(
+                    statement=ast.ImportNode(names=names, position=started_at),
+                    position=started_at)
 
     def parse_from_guts(self):
+        started_at = self.prevtoken.position
         level = 0
         while self.tentative_match('.', regexp=False):
             level += 1
@@ -340,8 +375,13 @@ class Parser(JSParser):
         names.append(self.parse_import_alias())
         while self.tentative_match(',', regexp=False):
             names.append(self.parse_import_alias())
-        return js_ast.StatementNode(statement=ast.ImportFromNode(names=names, module=module,
-                                                             level=level))
+        return js_ast.StatementNode(
+                    statement=ast.ImportFromNode(
+                        names=names,
+                        module=module,
+                        level=level,
+                        position=started_at),
+                    position=started_at)
 
     def parse_function_parameters(self):
         params = []
@@ -349,6 +389,7 @@ class Parser(JSParser):
         defaults_mode = False
         if not self.tentative_match(')'):
             while True:
+                started_at = self.token.position
                 rest_param = False
                 if self.tentative_match('...', regexp=False):
                     rest_param = True
@@ -361,10 +402,13 @@ class Parser(JSParser):
                     default = self.parse_assignment_expression()
 
                     param = ast.FunctionParameter(name=name.name,
-                                                  default=default)
+                                                  default=default,
+                                                  position=started_at)
 
                 else:
-                    param = ast.FunctionParameter(name=name.name, rest=rest_param)
+                    param = ast.FunctionParameter(name=name.name,
+                                                  rest=rest_param,
+                                                  position=started_at)
 
                 params.append(param)
 

@@ -18,8 +18,6 @@ from metamagic.utils.debug import debug
 from metamagic.utils.lang.javascript.tests import base as js_base_test
 from metamagic.utils.lang.javascript.codegen import JavascriptSourceGenerator
 
-from metamagic.utils.lang.jplus.support import base as base_js
-
 from metamagic.utils.datastructures import OrderedSet
 
 

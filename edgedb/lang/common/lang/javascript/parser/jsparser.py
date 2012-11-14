@@ -162,6 +162,10 @@ class Token(tokenize.TokenInfo):
     def value(self):
         return self.string
 
+    @property
+    def position(self):
+        return self.start
+
     def __init__(self, *args, **kwargs):
         self.parser = None
 
@@ -506,54 +510,60 @@ class JSParser:
 
     def nud_Unary(self, token):
         operand = self.parse_assignment_expression(token.rbp)
-        return jsast.PrefixExpressionNode(op=token.string, expression=operand)
+        return jsast.PrefixExpressionNode(op=token.string, expression=operand,
+                                          position=token.position)
 
 
     def led_Unary(self, left, token):
-        return jsast.PostfixExpressionNode(op=token.string, expression=left)
+        return jsast.PostfixExpressionNode(op=token.string, expression=left,
+                                           position=token.position)
 
 
     def led_Binary(self, left, token):
         right = self.parse_assignment_expression(token.lbp)
-        return jsast.BinExpressionNode(left=left, op=token.string, right=right)
+        return jsast.BinExpressionNode(left=left, op=token.string, right=right,
+                                       position=left.position)
 
 
     def led_Assign(self, left, token):
         right = self.parse_assignment_expression(token.lbp - 1)
-        return jsast.AssignmentExpressionNode(left=left, op=token.string, right=right)
+        return jsast.AssignmentExpressionNode(left=left, op=token.string, right=right,
+                                              position=left.position)
 
     #
     # defining proper handling for some special operators
     #
     def nud_VOID(self, token):
         operand = self.parse_assignment_expression(token.rbp)
-        return jsast.VoidNode(expression=operand)
+        return jsast.VoidNode(expression=operand, position=token.position)
 
 
     def nud_DELETE(self, token):
         operand = self.parse_assignment_expression(token.rbp)
-        return jsast.DeleteNode(expression=operand)
+        return jsast.DeleteNode(expression=operand, position=token.position)
 
 
     def nud_TYPEOF(self, token):
         operand = self.parse_assignment_expression(token.rbp)
-        return jsast.TypeOfNode(expression=operand)
+        return jsast.TypeOfNode(expression=operand, position=token.position)
 
 
     def led_IN(self, left, token):
         right = self.parse_assignment_expression(token.lbp)
-        return jsast.InNode(expression=left, container=right)
+        return jsast.InNode(expression=left, container=right,
+                            position=left.position)
 
 
     def led_INSTANCEOF(self, left, token):
         right = self.parse_assignment_expression(token.lbp)
-        return jsast.InstanceOfNode(expression=left, type=right)
+        return jsast.InstanceOfNode(expression=left, type=right,
+                                    position=left.position)
 
 
     def led_DOT(self, left, token):
         right = self.parse_ID(allowkeyword=True)
-        return jsast.DotExpressionNode(left=left, right=right)
-
+        return jsast.DotExpressionNode(left=left, right=right,
+                                       position=left.position)
 
     def nud_NEW(self, token):
         # new expression, read the expression up to '('
@@ -570,7 +580,8 @@ class JSParser:
                 args = self.parse_expression_list()
             self.must_match(')', regexp=False)
 
-        return jsast.NewNode(expression=expr, arguments=args)
+        return jsast.NewNode(expression=expr, arguments=args,
+                             position=token.position)
 
 
     def nud_FUNCTION(self, token):
@@ -600,14 +611,15 @@ class JSParser:
                 if (can_be_comprehension and self.tentative_match(']')):
                     return jsast.ArrayComprehensionNode(generator=array[0])
 
-        return jsast.ArrayLiteralNode(array=array)
+        return jsast.ArrayLiteralNode(array=array, position=token.position)
 
     @stamp_state('[')
     def led_LSBRACKET(self, left, token):
         "Indexing"
         expr = self.parse_expression()
         self.must_match(']', regexp=False)
-        return jsast.SBracketExpressionNode(list=left, element=expr)
+        return jsast.SBracketExpressionNode(list=left, element=expr,
+                                            position=token.position)
 
 
     @stamp_state('(')
@@ -626,7 +638,8 @@ class JSParser:
         if not self.tentative_match(')', regexp=False):
             args = self.parse_expression_list()
             self.must_match(')', regexp=False)
-        return jsast.CallNode(call=left, arguments=args)
+        return jsast.CallNode(call=left, arguments=args,
+                              position=token.position)
 
 
     @stamp_state('{')
@@ -640,7 +653,7 @@ class JSParser:
                 break
             else:
                 self.must_match(',')
-        return jsast.ObjectLiteralNode(properties=guts)
+        return jsast.ObjectLiteralNode(properties=guts, position=token.position)
 
 
     def led_HOOK(self, left, token):
@@ -650,23 +663,28 @@ class JSParser:
         iftrue = self.parse_assignment_expression()
         self.must_match(':')
         iffalse = self.parse_assignment_expression()
-        return jsast.ConditionalExpressionNode(condition=left, true=iftrue, false=iffalse)
+        return jsast.ConditionalExpressionNode(condition=left, true=iftrue, false=iffalse,
+                                               position=left.position)
 
     #
     # extra features
     #
     def nud_LET(self, token, isstatement=False):
         'Process let expression (or the beginning of a let statement)'
+        started_at = self.prevtoken.position
+
         self.must_match('(')
         var_list = self.parse_declaration_helper(statement=False, decompsupport=True)
         self.must_match(')')
 
         if isstatement:
-            return jsast.LetStatementNode(vars=var_list, statement=self.parse_statement())
+            return jsast.LetStatementNode(vars=var_list, statement=self.parse_statement(),
+                                          position=started_at)
 
         else:
             return jsast.LetExpressionNode(vars=var_list,
-                                           expression=self.parse_assignment_expression(token.rbp))
+                                           expression=self.parse_assignment_expression(token.rbp),
+                                           position=started_at)
 
     def led_FOR(self, left, token):
         'Process generator expression.'
@@ -687,28 +705,28 @@ class JSParser:
         tok_type = self.get_token_special_type(token, 'nud')
 
         if tok_type == 'ID':
-            return jsast.IDNode(name=token.value)
+            return jsast.IDNode(name=token.value, position=token.position)
 
         elif tok_type == 'STRING':
-            return jsast.StringLiteralNode(value=token.value)
+            return jsast.StringLiteralNode(value=token.value, position=token.position)
 
         elif tok_type == 'NUMBER':
-            return jsast.NumericLiteralNode(value=token.value)
+            return jsast.NumericLiteralNode(value=token.value, position=token.position)
 
         elif tok_type == 'TRUE':
-            return jsast.BooleanLiteralNode(value=True)
+            return jsast.BooleanLiteralNode(value=True, position=token.position)
 
         elif tok_type == 'FALSE':
-            return jsast.BooleanLiteralNode(value=False)
+            return jsast.BooleanLiteralNode(value=False, position=token.position)
 
         elif tok_type == 'NULL':
-            return jsast.NullNode()
+            return jsast.NullNode(position=token.position)
 
         elif tok_type == 'THIS':
-            return jsast.ThisNode()
+            return jsast.ThisNode(position=token.position)
 
         elif tok_type == 'REGEXP':
-            return jsast.RegExpNode(regexp=token.value)
+            return jsast.RegExpNode(regexp=token.value, position=token.position)
 
         elif tok_type == 'KEYWORD':
             nud = getattr(self, 'nud_' + self.keywords.js_keywords[token.value][0], None)
@@ -796,10 +814,11 @@ class JSParser:
     def parse_expression(self):
         """This is the parsing step for expression lists. Used as 'expression' in most rules."""
 
+        started_at = self.token.position
         expr = self.parse_expression_list()
 
         if len(expr) > 1:
-            return jsast.ExpressionListNode(expressions=expr)
+            return jsast.ExpressionListNode(expressions=expr, position=started_at)
 
         else:
             return expr[0]
@@ -815,7 +834,7 @@ class JSParser:
             raise UnexpectedToken(self.token, parser=self)
 
         self.get_next_token(regexp=False)
-        return jsast.IDNode(name=tok.string)
+        return jsast.IDNode(name=tok.string, position=tok.position)
 
 
     #
@@ -880,7 +899,7 @@ class JSParser:
                                        statement=self.parse_statement(labels=labels + [label]))
             else:
                 self.must_match(';')
-                return jsast.StatementNode(statement=expr)
+                return jsast.StatementNode(statement=expr, position=expr.position)
 
 
     def parse_statement_list(self, *delim, consume=True):
@@ -921,18 +940,24 @@ class JSParser:
         """Parse statements inside a block.
         The end delimiter is different from source parsing."""
 
-        return jsast.StatementBlockNode(statements=self.parse_statement_list('}'))
+        return jsast.StatementBlockNode(statements=self.parse_statement_list('}'),
+                                        position=self.token.position)
 
 
     def parse_var_guts(self, statement=True):
         """Parse the VAR declaration."""
+        started_at = self.prevtoken.position
         var_list = self.parse_declaration_helper(statement=statement)
 
         if statement:
-            return jsast.StatementNode(statement=jsast.VarDeclarationNode(vars=var_list))
+            return jsast.StatementNode(
+                        statement=jsast.VarDeclarationNode(
+                            vars=var_list,
+                            position=started_at),
+                        position=started_at)
 
         else:
-            return jsast.VarDeclarationNode(vars=var_list)
+            return jsast.VarDeclarationNode(vars=var_list, position=started_at)
 
     def parse_debugger_guts(self):
         self.tentative_match(';')
@@ -940,6 +965,8 @@ class JSParser:
 
     def parse_let_guts(self, statement=True):
         """Parse the LET declaration."""
+
+        started_at = self.prevtoken.position
 
         if not self.letsupport:
             raise UnknownToken(self.prevtoken)
@@ -950,14 +977,20 @@ class JSParser:
         var_list = self.parse_declaration_helper(statement=statement, decompsupport=True)
 
         if statement:
-            return jsast.StatementNode(statement=jsast.LetDeclarationNode(vars=var_list))
+            return jsast.StatementNode(
+                            statement=jsast.LetDeclarationNode(
+                                vars=var_list,
+                                position=started_at),
+                            position=started_at)
 
         else:
-            return jsast.LetDeclarationNode(vars=var_list)
+            return jsast.LetDeclarationNode(vars=var_list, position=started_at)
 
 
     def parse_declaration_helper(self, statement=True, decompsupport=False):
         """Parse the variable declaration."""
+
+        started_at = self.token.position
 
         var_list = []
 
@@ -972,10 +1005,12 @@ class JSParser:
 
             if self.tentative_match('='):
                 var_list.append(jsast.VarInitNode(name=varname,
-                                                  value=self.parse_assignment_expression()))
+                                                  value=self.parse_assignment_expression(),
+                                                  position=started_at))
 
             else:
-                var_list.append(jsast.VarInitNode(name=varname, value=None))
+                var_list.append(jsast.VarInitNode(name=varname, value=None,
+                                                  position=started_at))
 
             if self.tentative_match(','):
                 continue
@@ -1009,6 +1044,8 @@ class JSParser:
     def parse_property(self):
         """Parse object property"""
 
+        started_at = self.token.position
+
         # get the property name, will use alot
         #
         prop, id = self.parse_property_name()
@@ -1019,7 +1056,8 @@ class JSParser:
                 # still a simple property definition
                 #
                 val = self.parse_assignment_expression()
-                return jsast.SimplePropertyNode(name=prop, value=val)
+                return jsast.SimplePropertyNode(name=prop, value=val,
+                                                position=started_at)
 
             elif prop.name == 'get':
                 prop = self.parse_property_name()[0]
@@ -1029,7 +1067,8 @@ class JSParser:
                 #
                 self.labels = []
                 func = self.parse_block_guts()
-                return jsast.GetPropertyNode(name=prop, functionbody=func)
+                return jsast.GetPropertyNode(name=prop, functionbody=func,
+                                             position=started_at)
 
             elif prop.name == 'set':
                 prop = self.parse_property_name()[0]
@@ -1041,7 +1080,9 @@ class JSParser:
                 #
                 self.labels = []
                 func = self.parse_block_guts()
-                return jsast.SetPropertyNode(name=prop, param=param, functionbody=func)
+                return jsast.SetPropertyNode(name=prop, param=param,
+                                             functionbody=func,
+                                             position=started_at)
 
             else:
                 # kinda hacky, but generates the right error message
@@ -1053,7 +1094,7 @@ class JSParser:
         else:
             self.must_match(':')
             val = self.parse_assignment_expression()
-            return jsast.SimplePropertyNode(name=prop, value=val)
+            return jsast.SimplePropertyNode(name=prop, value=val, position=started_at)
 
 
     def parse_property_name(self):
@@ -1062,11 +1103,11 @@ class JSParser:
         id = self.token.type
 
         if self.token.type == 'NUMBER':
-            prop = jsast.NumericLiteralNode(value=self.token.string)
+            prop = jsast.NumericLiteralNode(value=self.token.string, position=self.token.position)
             self.get_next_token()
 
         elif self.token.type == 'STRING':
-            prop = jsast.StringLiteralNode(value=self.token.string)
+            prop = jsast.StringLiteralNode(value=self.token.string, position=self.token.position)
             self.get_next_token()
 
         else:
@@ -1086,7 +1127,7 @@ class JSParser:
             if not self.enclosing_state('loop'):
                 raise IllegalContinue(errtok)
 
-            return jsast.ContinueNode(id=None)
+            return jsast.ContinueNode(id=None, position=errtok.position)
 
         else:
             # must have a valid label in enclosing loop
@@ -1098,7 +1139,7 @@ class JSParser:
                 raise UndefinedLabel(tok)
 
             self.must_match(';')
-            return jsast.ContinueNode(id=id)
+            return jsast.ContinueNode(id=id, position=errtok.position)
 
 
     def parse_break_guts(self):
@@ -1111,7 +1152,7 @@ class JSParser:
             if not self.enclosing_state('loop', 'switch'):
                 raise IllegalBreak(errtok)
 
-            return jsast.BreakNode(id=None)
+            return jsast.BreakNode(id=None, position=errtok.position)
 
         else:
             # must have a valid label in enclosing stmt
@@ -1123,7 +1164,7 @@ class JSParser:
                 raise UndefinedLabel(tok)
 
             self.must_match(';')
-            return jsast.BreakNode(id=id)
+            return jsast.BreakNode(id=id, position=errtok.position)
 
 
     def parse_return_guts(self):
@@ -1134,21 +1175,23 @@ class JSParser:
         else:
             expr = self.parse_expression()
             self.must_match(';')
-            return jsast.ReturnNode(expression=expr)
+            return jsast.ReturnNode(expression=expr, position=started_at)
 
 
     def parse_yield_guts(self):
         """Parse the rest of the yield statement."""
 
+        started_at = self.prevtoken.position
+
         if not self.yieldsupport:
             raise UnknownToken(self.prevtoken)
 
         if self.tentative_match(';', allowsemi=True):
-            return jsast.YieldNode(expression=None)
+            return jsast.YieldNode(expression=None, position=started_at)
         else:
             expr = self.parse_expression()
             self.must_match(';')
-            return jsast.YieldNode(expression=expr)
+            return jsast.YieldNode(expression=expr, position=started_at)
 
     def parse_function_parameters(self):
         param = []
@@ -1170,6 +1213,8 @@ class JSParser:
     def parse_function_guts(self, is_declaration=False):
         """Parses a function as a declaration or as an expression."""
 
+        started_at = self.prevtoken.position
+
         # clear the labels since none of them matter inside
         #
         self.labels = []
@@ -1190,44 +1235,54 @@ class JSParser:
         self.must_match('{')
         body = self.parse_block_guts()
         return jsast.FunctionNode(name=name, param=param,
-                                  body=body, isdeclaration=is_declaration)
+                                  body=body, isdeclaration=is_declaration,
+                                  position=started_at)
 
 
     @stamp_state('stmt', affectslabels=True)
     def parse_with_guts(self):
         """Parse 'with' statement."""
 
+        started_at = self.prevtoken.position
+
         self.must_match('(')
         expr = self.parse_expression()
         self.must_match(')')
         stmt = self.parse_statement()
-        return jsast.WithNode(expression=expr, statement=stmt)
+        return jsast.WithNode(expression=expr, statement=stmt,
+                              position=started_at)
 
 
     def parse_throw_guts(self):
         """Parse throw statement."""
+
+        started_at = self.prevtoken.position
 
         if self.linebreak_detected:
             raise UnexpectedNewline(self.prevtoken)
 
         expr = self.parse_expression()
         self.must_match(';')
-        return jsast.ThrowNode(expression=expr)
+        return jsast.ThrowNode(expression=expr, position=started_at)
 
 
     def parse_switch_guts(self):
         """Parse switch statement."""
 
+        started_at = self.prevtoken.position
+
         self.must_match('(')
         expr = self.parse_expression()
         self.must_match(')')
-        return jsast.SwitchNode(expression=expr, cases=self.parse_switchblock())
+        return jsast.SwitchNode(expression=expr, cases=self.parse_switchblock(),
+                                position=started_at)
 
 
     @stamp_state('switch', affectslabels=True)
     def parse_switchblock(self):
         """Parse the switch block statements."""
 
+        statement_started_at = self.token.position
         self.must_match('{')
         code = []
         has_default = False
@@ -1235,26 +1290,39 @@ class JSParser:
         while not self.tentative_match('}'):
 
             if self.tentative_match('case'):
+                started_at = self.prevtoken.position
                 expr = self.parse_expression()
                 self.must_match(':')
                 stmt_list = self.parse_statement_list('case', 'default','}', consume=False)
-                code.append(jsast.CaseNode(case=expr, statements=jsast.SourceElementsNode(code=stmt_list)))
+                code.append(jsast.CaseNode(
+                                    case=expr,
+                                    statements=jsast.SourceElementsNode(
+                                        code=stmt_list,
+                                        position=self.token.position),
+                                    position=started_at))
 
             elif not has_default and self.tentative_match('default'):
+                started_at = self.prevtoken.position
                 has_default = True
                 self.must_match(':')
                 stmt_list = self.parse_statement_list('case', 'default','}', consume=False)
-                code.append(jsast.DefaultNode(statements=jsast.SourceElementsNode(code=stmt_list)))
+                code.append(jsast.DefaultNode(
+                                    statements=jsast.SourceElementsNode(
+                                        code=stmt_list,
+                                        position=self.token.position),
+                                    position=started_at))
 
             elif has_default and self.token.string == 'default':
                 raise SecondDefaultToken(self.token)
 
-        return jsast.StatementBlockNode(statements=code)
+        return jsast.StatementBlockNode(statements=code, position=statement_started_at)
 
 
     @stamp_state('stmt', affectslabels=True)
     def parse_try_guts(self):
         """Parse try statement."""
+
+        statement_started_at = self.token.position
 
         self.must_match('{')
         tryblock = self.parse_block_guts()
@@ -1288,15 +1356,15 @@ class JSParser:
             self.must_match('{')
             finallyblock = self.parse_block_guts()
 
-        if self.catchifsupport:
-            return jsast.TryNode(tryblock=tryblock, catch=catch, finallyblock=finallyblock)
-        else:
-            return jsast.TryNode(tryblock=tryblock, catch=catch, finallyblock=finallyblock)
+        return jsast.TryNode(tryblock=tryblock, catch=catch, finallyblock=finallyblock,
+                             position=statement_started_at)
 
 
     def parse_catch_helper(self):
         'Parse the catch clause of the try/catch/finally statement.'
         catchid = condition = catchblock = None
+
+        started_at = self.token.position
 
         if self.tentative_match('catch'):
             self.must_match('(')
@@ -1311,10 +1379,12 @@ class JSParser:
         # verify we have a catchblock before we return
         #
         if catchid and not self.catchifsupport:
-            return jsast.CatchNode(catchid=catchid, catchblock=catchblock)
+            return jsast.CatchNode(catchid=catchid, catchblock=catchblock,
+                                   position=started_at)
 
         elif catchid and self.catchifsupport:
-            return jsast.CatchIfNode(catchid=catchid, condition=condition, catchblock=catchblock)
+            return jsast.CatchIfNode(catchid=catchid, condition=condition, catchblock=catchblock,
+                                     position=started_at)
 
         else:
             return None
@@ -1323,6 +1393,8 @@ class JSParser:
     @stamp_state('stmt', affectslabels=True)
     def parse_if_guts(self):
         """Parse if statement."""
+
+        started_at = self.token.position
 
         self.must_match('(')
         expr = self.parse_expression()
@@ -1333,31 +1405,41 @@ class JSParser:
         if self.tentative_match('else'):
             elsestmt = self.parse_statement()
 
-        return jsast.IfNode(ifclause=expr, thenclause=thenstmt, elseclause=elsestmt)
+        return jsast.IfNode(ifclause=expr, thenclause=thenstmt, elseclause=elsestmt,
+                            position=started_at)
 
     @stamp_state('loop', affectslabels=True)
     def parse_do_guts(self):
         """Parse do loop."""
 
+        started_at = self.token.position
+
         stmt = self.parse_statement()
         self.must_match('while', '(')
         expr = self.parse_expression()
         self.must_match(')', ';')
-        return jsast.DoNode(statement=stmt, expression=expr)
+        return jsast.DoNode(statement=stmt, expression=expr, position=started_at)
 
     @stamp_state('loop', affectslabels=True)
     def parse_while_guts(self):
         """Parse while loop."""
 
+        started_at = self.token.position
+
         self.must_match('(')
         expr = self.parse_expression()
         self.must_match(')')
         stmt = self.parse_statement()
-        return jsast.WhileNode(statement=stmt, expression=expr)
+        return jsast.WhileNode(statement=stmt, expression=expr, position=started_at)
 
     @stamp_state('loop', affectslabels=True)
     def parse_for_guts(self):
         """Parse for loop."""
+
+        statement_started_at = self.token.position
+
+        if self.foreachsupport and self.tentative_match('each'):
+            return self.parse_for_each_guts()
 
         self.must_match('(')
         noin_expr = None
@@ -1406,10 +1488,12 @@ class JSParser:
         stmt = self.parse_statement()
 
         if expr:
-            return jsast.ForInNode(init=noin_expr, container=expr, statement=stmt);
+            return jsast.ForInNode(init=noin_expr, container=expr, statement=stmt,
+                                   position=statement_started_at)
 
         else:
-            return jsast.ForNode(part1=noin_expr, part2=expr2, part3=expr3, statement=stmt);
+            return jsast.ForNode(part1=noin_expr, part2=expr2, part3=expr3, statement=stmt,
+                                 position=statement_started_at)
 
 
 
