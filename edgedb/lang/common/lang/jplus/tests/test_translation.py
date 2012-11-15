@@ -1047,3 +1047,20 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         1-4-3\nok
         '''
+
+    def test_utils_lang_jp_builtins_abs_1(self):
+        '''JS+
+
+        print(abs(-1) + abs(2.2))
+
+        try {
+            abs('foo')
+        } except (TypeError) {
+            print('ok')
+        } else {
+            print('fail') // Math.abs would return NaN
+        }
+
+        %%
+        3.2\nok
+        '''

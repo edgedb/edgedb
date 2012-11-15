@@ -104,6 +104,19 @@ $SXJSP = (function() {
         throw new TypeError('object "' + obj + '" has no len()');
     }
 
+    function isnumber(n) {
+        // From StackOverflow answer by Christian C. Salvadó
+        return !isNaN(parseFloat(n)) && isFinite(n);
+    }
+
+    function abs(num) {
+        if (isnumber(num)) {
+            return Math.abs(num);
+        }
+
+        throw new TypeError('bad operand type for abs(): "' + num + '"');
+    }
+
     function EXPORTS(x) { return x; } // for static analysis
 
     return EXPORTS({
@@ -175,6 +188,8 @@ $SXJSP = (function() {
 
         keys: Object_keys,
         len: len,
+        abs: abs,
+        isnumber: isnumber,
 
         isinstance: sx.isinstance,
         issubclass: sx.issubclass,
