@@ -290,6 +290,19 @@ class TestTranslation(base_test.BaseJPlusTest):
         22
         '''
 
+    def test_utils_lang_jp_tr_func_defaults_2(self):
+        '''JS+
+
+        function a(a, b=a*a) {
+            return a + b;
+        }
+
+        print(a(10) + a(2, 3));
+
+        %%
+        115
+        '''
+
     def test_utils_lang_jp_tr_foreach_array(self):
         '''JS+
 
@@ -1092,4 +1105,17 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         %%
         1<class type><class BaseObject>
+        '''
+
+    def test_utils_lang_jp_builtins_18(self):
+        '''JS+
+
+        function a(a=object) {
+            return a;
+        }
+
+        print(a()+'')
+
+        %%
+        <class object>
         '''

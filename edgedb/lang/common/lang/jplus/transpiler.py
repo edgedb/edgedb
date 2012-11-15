@@ -427,9 +427,11 @@ class Transpiler(NodeTransformer):
         defaults = collections.OrderedDict()
         new_params = []
         for param in node.param:
-            scope.add(Variable(param.name))
+            scope.add(Variable(param.name, needs_decl=False))
             new_params.append(js_ast.IDNode(name=param.name))
             if param.default is not None:
+                if isinstance(param.default, js_ast.IDNode):
+                    self.check_scope_load(param.default.name)
                 param.default = self.visit(param.default)
                 defaults[param.name] = param.default
             if param.rest:
@@ -462,15 +464,8 @@ class Transpiler(NodeTransformer):
                             name='arguments.length'))]))]
 
         if defaults:
-            def_aux_map = {}
-            for def_name, def_value in defaults.items():
-                aux_def = self.scope.aux_var(name='default_{}'.format(def_name),
-                                             needs_decl=True,
-                                             value=def_value)
-                def_aux_map[def_name] = aux_def
-
             non_def_len = len(node.param) - len(defaults) - (1 if rest else 0)
-            for idx, def_name in enumerate(defaults.keys()):
+            for idx, (def_name, def_value) in enumerate(defaults.items()):
                 defaults_init.append(js_ast.StatementNode(
                                         statement=js_ast.BinExpressionNode(
                                             left=js_ast.BinExpressionNode(
@@ -484,8 +479,7 @@ class Transpiler(NodeTransformer):
                                                 left=js_ast.IDNode(
                                                     name=def_name),
                                                 op='=',
-                                                right=js_ast.IDNode(
-                                                    name=def_aux_map[def_name])))))
+                                                right=def_value))))
 
         if rest:
             slice1_name = self.scope.use('_slice1')
