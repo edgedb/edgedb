@@ -1064,3 +1064,43 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         3.2\nok
         '''
+
+    def test_utils_lang_jp_builtins_isnumber_1(self):
+        '''JS+
+
+        print(isnumber(1) + '|' + isnumber('aa') + '|' + isnumber(' ') +
+              '|' + isnumber(Infinity) + '|' + isnumber(1.2) + '|' + isnumber('\t'))
+
+        %%
+        true|false|false|false|true|false
+        '''
+
+    def test_utils_lang_jp_builtins_isarray_1(self):
+        '''JS+
+
+        print(isarray(1) + '|' + isarray('aa') + '|' + isarray({}) +
+              '|' + isarray([]))
+
+        %%
+        false|false|false|true
+        '''
+
+    def test_utils_lang_jp_builtins_isobject_1(self):
+        '''JS+
+
+        print(isobject(1) + '|' + isobject('aa') + '|' + isobject({}) +
+              '|' + isobject([]) + '|' + isobject(new (function() {})))
+
+        %%
+        false|false|true|false|true
+        '''
+
+    def test_utils_lang_jp_builtins_isstring_1(self):
+        '''JS+
+
+        print(isstring(1) + '|' + isstring('aa') + '|' + isstring({}) +
+              '|' + isstring([]) + '|' + isstring(String('sdf')))
+
+        %%
+        false|true|false|false|true
+        '''

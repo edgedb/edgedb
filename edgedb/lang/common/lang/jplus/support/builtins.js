@@ -109,6 +109,18 @@ $SXJSP = (function() {
         return !isNaN(parseFloat(n)) && isFinite(n);
     }
 
+    function isarray(a) {
+        return tos.call(a) == '[object Array]';
+    }
+
+    function isstring(s) {
+        return typeof s == 'string';
+    }
+
+    function isobject(o) {
+        return tos.call(o) == '[object Object]';
+    }
+
     function abs(num) {
         if (isnumber(num)) {
             return Math.abs(num);
@@ -189,7 +201,11 @@ $SXJSP = (function() {
         keys: Object_keys,
         len: len,
         abs: abs,
+
         isnumber: isnumber,
+        isarray: isarray,
+        isstring: isstring,
+        isobject: isobject,
 
         isinstance: sx.isinstance,
         issubclass: sx.issubclass,
