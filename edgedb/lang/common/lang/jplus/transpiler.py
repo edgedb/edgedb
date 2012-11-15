@@ -523,7 +523,7 @@ class Transpiler(NodeTransformer):
                 if isinstance(base, js_ast.IDNode):
                     self.check_scope_load(base.name)
 
-                bases.append(self.generic_visit(base))
+                bases.append(self.visit(base))
 
         with scope, state:
             for child in node.body:
@@ -692,7 +692,7 @@ class Transpiler(NodeTransformer):
                             js_ast.AssignmentExpressionNode(
                                 left=js_ast.IDNode(name=on_name),
                                 op='=',
-                                right=self.generic_visit(for_container)),
+                                right=for_container),
                             js_ast.AssignmentExpressionNode(
                                 left=js_ast.IDNode(name=onlen_name),
                                 op='=',
@@ -721,7 +721,7 @@ class Transpiler(NodeTransformer):
                     statement=for_body)
 
     def visit_jp_TryNode(self, node):
-        try_body = self.generic_visit(node.body).statements
+        try_body = self.visit(node.body).statements
 
         if node.jscatch:
             # We have the old 'try..catch' case here, and as we don't
@@ -732,11 +732,11 @@ class Transpiler(NodeTransformer):
             if not self.scope.is_local(catchid):
                 self.scope.add(Variable(catchid, needs_decl=False, aux=True))
 
-            jscatch = self.generic_visit(node.jscatch)
+            jscatch = self.visit(node.jscatch)
 
             finally_body = []
             if node.finalbody:
-                finally_body = self.generic_visit(node.finalbody).statements
+                finally_body = self.visit(node.finalbody).statements
 
             return js_ast.TryNode(
                         tryblock=js_ast.StatementBlockNode(
@@ -759,6 +759,7 @@ class Transpiler(NodeTransformer):
                     if not self.scope.is_local(handle_varname):
                         self.scope.add(Variable(handle_varname, needs_decl=True))
 
+                #: We don't have handler for ExceptNode, hence generic_visit
                 handle = self.generic_visit(handle)
                 handle_body = handle.body.statements
 
@@ -824,10 +825,10 @@ class Transpiler(NodeTransformer):
                                     op='=',
                                     right=js_ast.BooleanLiteralNode(value=True))))
 
-            orelse_body = self.generic_visit(node.orelse).statements
+            orelse_body = self.visit(node.orelse).statements
 
             if node.finalbody:
-                finally_body = self.generic_visit(node.finalbody).statements
+                finally_body = self.visit(node.finalbody).statements
                 finally_body = [js_ast.TryNode(
                                     tryblock=js_ast.StatementBlockNode(
                                         statements=[
@@ -843,7 +844,7 @@ class Transpiler(NodeTransformer):
         else:
             finally_body = []
             if node.finalbody:
-                finally_body = self.generic_visit(node.finalbody).statements
+                finally_body = self.visit(node.finalbody).statements
 
         try_node = js_ast.TryNode(
                         tryblock=js_ast.StatementBlockNode(
@@ -874,7 +875,7 @@ class Transpiler(NodeTransformer):
         wrap_next = None
         for withitem in reversed(node.withitems):
             body = []
-            expr = self.generic_visit(withitem.expr)
+            expr = self.visit(withitem.expr)
 
             with_name = self.scope.aux_var(name='with', needs_decl=True)
             with_we_name = self.scope.aux_var(name='with_was_exc', needs_decl=True)
@@ -969,7 +970,7 @@ class Transpiler(NodeTransformer):
 
         # We do it here as only at this point our scope is filled
         # with 'as VAR' variables.
-        inner_try.tryblock = self.generic_visit(node.body)
+        inner_try.tryblock = self.visit(node.body)
 
         return js_ast.SourceElementsNode(code=wrap_next.statements)
 
