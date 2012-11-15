@@ -123,15 +123,7 @@ class ClassState(State):
     pass
 
 
-class ForeachState(State):
-    pass
-
-
 class SwitchState(State):
-    pass
-
-
-class ForInState(State):
     pass
 
 
@@ -295,8 +287,7 @@ class Transpiler(NodeTransformer):
 
     def check_scope_local(self, varname):
         if not self.scope.is_local(varname):
-            if not (self.state(ForeachState) and (varname in self.scope)):
-                raise NameError('variable {!r} must be local to the scope'.format(varname))
+            raise NameError('variable {!r} must be local to the scope'.format(varname))
 
     def transpile(self, node, *, module='__main__'):
         state = ModuleState(self,
@@ -669,53 +660,65 @@ class Transpiler(NodeTransformer):
 
         return func
 
-    def visit_js_ContinueNode(self, node):
-        if isinstance(self.state, ForeachState):
-            return js_ast.ReturnNode()
-        return node
-
-    def visit_js_BreakNode(self, node):
-        if isinstance(self.state, ForeachState):
-            return js_ast.ReturnNode(expression=js_ast.BooleanLiteralNode(value=True))
-        return node
-
     def visit_js_ForNode(self, node):
         with ForState(self):
             return self.generic_visit(node)
 
     def visit_js_ForInNode(self, node):
-        with ForInState(self):
+        with ForState(self):
             assert isinstance(node.init, js_ast.IDNode)
             init_name = node.init.name
             if not self.scope.is_local(init_name):
                 self.scope.add(Variable(init_name, needs_decl=True))
             return self.generic_visit(node)
 
-    def visit_jp_ForeachNode(self, node):
-        each_name  = self.scope.use('_each')
+    def visit_js_ForOfNode(self, node):
+        on_name = self.scope.aux_var(name='forof_of', needs_decl=True)
+        onlen_name = self.scope.aux_var(name='forof_of_len', needs_decl=True)
+        i_name = self.scope.aux_var(name='forof_i', needs_decl=True)
 
-        on = self.visit(node.container)
+        assert isinstance(node.init, js_ast.IDNode)
+        init_name = node.init.name
+        if not self.scope.is_local(init_name):
+            self.scope.add(Variable(init_name, needs_decl=True))
 
-        state = ForeachState(self)
-        func = js_ast.FunctionNode(
-                   param=[ast.FunctionParameter(name=v.name) for v in node.init],
-                   body=node.statement)
+        with ForState(self):
+            for_container = self.visit(node.container)
+            for_body = self.visit(node.statement)
 
-        with state:
-            func = self.visit(func)
-            assert isinstance(func, js_ast.FunctionNode)
-
-        return js_ast.StatementNode(
-                   statement=js_ast.CallNode(
-                       call=js_ast.IDNode(
-                           name=each_name),
-                       arguments=[
-                           js_ast.NumericLiteralNode(
-                                value=len(node.init)),
-                           on,
-                           func,
-                           js_ast.ThisNode()
-                       ]))
+        return js_ast.ForNode(
+                    part1=js_ast.ExpressionListNode(
+                        expressions=[
+                            js_ast.AssignmentExpressionNode(
+                                left=js_ast.IDNode(name=on_name),
+                                op='=',
+                                right=self.generic_visit(for_container)),
+                            js_ast.AssignmentExpressionNode(
+                                left=js_ast.IDNode(name=onlen_name),
+                                op='=',
+                                right=js_ast.DotExpressionNode(
+                                    left=js_ast.IDNode(name=on_name),
+                                    right=js_ast.IDNode(name='length'))),
+                            js_ast.AssignmentExpressionNode(
+                                left=js_ast.IDNode(name=i_name),
+                                op='=',
+                                right=js_ast.NumericLiteralNode(value=0))]),
+                    part2=js_ast.ExpressionListNode(
+                        expressions=[
+                            js_ast.BinExpressionNode(
+                                left=js_ast.IDNode(name=i_name),
+                                op='<',
+                                right=js_ast.IDNode(name=onlen_name)),
+                            js_ast.AssignmentExpressionNode(
+                                left=js_ast.IDNode(name=init_name),
+                                op='=',
+                                right=js_ast.SBracketExpressionNode(
+                                    list=js_ast.IDNode(name=on_name),
+                                    element=js_ast.IDNode(name=i_name)))]),
+                    part3=js_ast.PostfixExpressionNode(
+                        expression=js_ast.IDNode(name=i_name),
+                        op='++'),
+                    statement=for_body)
 
     def visit_jp_TryNode(self, node):
         try_body = self.generic_visit(node.body).statements

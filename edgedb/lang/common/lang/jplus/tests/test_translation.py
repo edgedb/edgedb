@@ -303,7 +303,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         115
         '''
 
-    def test_utils_lang_jp_tr_foreach_array(self):
+    def test_utils_lang_jp_tr_forof_array(self):
         '''JS+
 
         Array.prototype.foo = '123';
@@ -311,11 +311,11 @@ class TestTranslation(base_test.BaseJPlusTest):
         a = [1, 2, 3, 4];
         cnt = 0;
 
-        for each (value in []) {
+        for (value of []) {
             cnt += 100000;
         }
 
-        for each ([i] in a) {
+        for (i of a) {
             if (i == 3) {
                 continue;
             }
@@ -328,7 +328,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         7
         '''
 
-    def test_utils_lang_jp_tr_foreach_obj(self):
+    def test_utils_lang_jp_tr_forof_obj(self):
         '''JS+
 
         Object.prototype.foo = '123';
@@ -336,40 +336,27 @@ class TestTranslation(base_test.BaseJPlusTest):
         a = {'0': 1, '1': 2, '2': 3, '3': 4};
         cnt = 0;
 
-        for each (value in {}) {
+        for (value of keys({})) {
             cnt += 100000;
         }
 
-        for each ([idx, value] in a) {
-            cnt += parseInt(idx) * 100 + value * 1000;
-        }
-
-        for each (i in a) {
-            if (i[1] == 3) {
-                continue;
-            }
-            cnt += i[1];
-        }
-
-        for each (i in a) {
-            if (i[1] == 3) {
-                break;
-            }
-            cnt += i[1];
+        for (key of keys(a)) {
+            value = a[key];
+            cnt += parseInt(key) * 100 + value * 1000;
         }
 
         print(cnt);
 
         %%
-        10610
+        10600
         '''
 
-    def test_utils_lang_jp_tr_foreach_str(self):
+    def test_utils_lang_jp_tr_forof_str(self):
         '''JS+
 
         out = [];
 
-        for each (ch in 'abc') {
+        for (ch of 'abc') {
             out.push(ch);
         }
 
@@ -395,126 +382,6 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         %%
         10
-        '''
-
-    def test_utils_lang_jp_tr_foreach_switch(self):
-        '''JS+
-
-        function a() {
-            res = '';
-            for each (v in [1]) {
-                switch (42) {
-                    case 42:
-                        res += '-';
-                    case 42:
-                        res += '42';
-                        break;
-                }
-                res += '-';
-            }
-            return res;
-        }
-
-        print(a());
-
-        %%
-        -42-
-        '''
-
-    def test_utils_lang_jp_tr_foreach_forin_cont(self):
-        '''JS+
-
-        function a() {
-            res = '-';
-            for each (v in [1]) {
-                for (i in [2, 3]) {
-                    if (i != '1') {
-                        continue;
-                    }
-                    res += i;
-                }
-                res += '-';
-            }
-            return res;
-        }
-
-        print(a());
-
-        %%
-        -1-
-        '''
-
-    def test_utils_lang_jp_tr_foreach_while_cont(self):
-        '''JS+
-
-        function a() {
-            res = '-';
-            for each (v in [1]) {
-                i = 0;
-                while (i < 10) {
-                    i ++;
-                    if (i != 3) {
-                        continue;
-                    }
-                    res += i;
-                }
-                res += '-';
-            }
-            return res;
-        }
-
-        print(a());
-
-        %%
-        -3-
-        '''
-
-    def test_utils_lang_jp_tr_foreach_dowhile_cont(self):
-        '''JS+
-
-        function a() {
-            res = '-';
-            for each (v in [1]) {
-                i = 0;
-                do {
-                    i ++;
-                    if (i != 3) {
-                        continue;
-                    }
-                    res += i;
-                } while (i < 10);
-                res += '-';
-            }
-            return res;
-        }
-
-        print(a());
-
-        %%
-        -3-
-        '''
-
-    def test_utils_lang_jp_tr_foreach_for_cont(self):
-        '''JS+
-
-        function a() {
-            res = '-';
-            for each (v in [1]) {
-                for (i = 0; i < 10; i++) {
-                    if (i != 2) {
-                        continue;
-                    }
-                    res += i;
-                }
-                res += '-';
-            }
-            return res;
-        }
-
-        print(a());
-
-        %%
-        -2-
         '''
 
     def test_utils_lang_jp_tr_for_plain(self):

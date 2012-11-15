@@ -133,40 +133,6 @@ class Parser(JSParser):
                            finalbody=finalbody, jscatch=jscatch,
                            position=started_at)
 
-    @stamp_state('loop', affectslabels=True)
-    def parse_for_guts(self):
-        """Parse foreach loop."""
-
-        started_at = self.prevtoken.position
-
-        if self.tentative_match('each'):
-            self.must_match('(')
-
-            init = []
-
-            if self.tentative_match('[', regexp=False):
-                init.append(self.parse_ID())
-
-                if self.tentative_match(',', regexp=False):
-                    init.append(self.parse_ID())
-
-                self.must_match(']')
-            else:
-                init.append(self.parse_ID())
-
-            self.must_match('in')
-
-            expr = self.parse_expression()
-
-            self.must_match(')')
-            stmt = self.parse_statement()
-
-            return ast.ForeachNode(init=init, container=expr, statement=stmt,
-                                   position=started_at)
-
-        else:
-            return super().parse_for_guts()
-
     @stamp_state('class')
     def parse_class_guts(self):
         started_at = self.prevtoken.position

@@ -172,6 +172,10 @@ class ForInNode(Base):
     __fields = ['init', 'container', 'statement']
 
 
+class ForOfNode(Base):
+    __fields = ['init', 'container', 'statement']
+
+
 class WithNode(Base):
     __fields = ['expression', 'statement']
 

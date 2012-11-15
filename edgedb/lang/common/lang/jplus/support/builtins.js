@@ -19,17 +19,43 @@ $SXJSP = (function() {
         hop = StdObject.prototype.hasOwnProperty,
         tos = StdObject.prototype.toString;
 
-    var Array_some = StdArray.prototype.some;
-    if (typeof Array_some == 'undefined') {
-        Array_some = function(cb, scope) {
-            var i = 0, len = this.length >>> 0;
-            for (; i < len; i++) {
-                if (cb.call(scope, this[i], i)) {
-                    return true;
+
+    var Object_keys = StdObject.keys || (function () {
+        // Code from:
+        // https://developer.mozilla.org/en-US/docs/JavaScript/Reference/Global_Objects/Object/keys
+        var hasDontEnumBug = !{toString:null}.propertyIsEnumerable("toString"),
+            DontEnums = [
+                'toString',
+                'toLocaleString',
+                'valueOf',
+                'hasOwnProperty',
+                'isPrototypeOf',
+                'propertyIsEnumerable',
+                'constructor'
+            ],
+            DontEnumsLength = DontEnums.length;
+
+        return function (o) {
+            if (typeof o != "object" && typeof o != "function" || o === null)
+                throw new TypeError("Object.keys called on a non-object");
+
+            var result = [];
+            for (var name in o) {
+                if (hop.call(o, name))
+                    result.push(name);
+            }
+
+            if (hasDontEnumBug) {
+                for (var i = 0; i < DontEnumsLength; i++) {
+                    if (hop.call(o, DontEnums[i]))
+                        result.push(DontEnums[i]);
                 }
             }
-        }
-    }
+
+            return result;
+        };
+    })();
+
     var Array_slice = StdArray.prototype.slice;
 
     function Module(name, dct) {
@@ -44,7 +70,7 @@ $SXJSP = (function() {
     }
 
     function error(msg) {
-        throw '$SXJSP: ' + msg;
+        throw new TypeError('$SXJSP: ' + msg);
     }
 
     function is(x, y) {
@@ -107,59 +133,6 @@ $SXJSP = (function() {
             }
         },
 
-        _each: function(arg_cnt, it, cb, scope) {
-            var t = tos.call(it);
-
-            if (t == '[object Array]') {
-                if (arg_cnt != 1) {
-                    error('foreach supports only one iterator variable when iterating over arrays');
-                }
-                Array_some.call(it, cb, scope);
-                return;
-            }
-
-            if (t == '[object Object]') {
-                var k;
-                if (arg_cnt == 2) {
-                    for (k in it) {
-                        if (hop.call(it, k)) {
-                            if (cb.call(scope, k, it[k])) {
-                                return;
-                            }
-                        }
-                    }
-                } else {
-                    // arg_cnt == 1
-                    for (k in it) {
-                        if (hop.call(it, k)) {
-                            if (cb.call(scope, [k, it[k]])) {
-                                return;
-                            }
-                        }
-                    }
-                }
-                return;
-            }
-
-            if (t == '[object String]' || t == '[object NodeList]') {
-                if (arg_cnt != 1) {
-                    error('foreach supports only one iterator variable when iterating over '
-                          + 'strings or NodeList');
-                }
-
-                var len = it.length >>> 0, i = 0;
-
-                for (; i < len; i++) {
-                    if (cb.call(scope, it[i])) {
-                        return;
-                    }
-                }
-                return;
-            }
-
-            error('foreach: unsupported iterable: ' + it);
-        },
-
         _validate_with: function(obj) {
             if (!obj.enter || tos.call(obj.enter) != '[object Function]'
                    || !obj.exit || tos.call(obj.exit) != '[object Function]') {
@@ -181,6 +154,8 @@ $SXJSP = (function() {
         _isinstance: sx.isinstance,
 
         /* public */
+
+        keys: Object_keys,
 
         isinstance: sx.isinstance,
         issubclass: sx.issubclass,

@@ -1467,12 +1467,22 @@ class JSParser:
 
         expr = expr2 = expr3 = None
 
-        if not multiple_decl and self.tentative_match('in'):
-            # for (x in [1,2,3]) ...
-            #
-            expr = self.parse_expression()
+        for_type = None
 
+        if not multiple_decl:
+            if self.tentative_match('in'):
+                # for (x in [1,2,3]) ...
+                for_type = 'in'
+            elif self.tentative_match('of'):
+                # for (x in [1,2,3]) ...
+                for_type = 'of'
+
+        if for_type:
+            # for-of or for-in
+            expr = self.parse_expression()
         else:
+            for_type = 'classy'
+
             # we've got 'classical' for
             #
             self.must_match(';', allowsemi=False)
@@ -1487,14 +1497,15 @@ class JSParser:
         self.must_match(')')
         stmt = self.parse_statement()
 
-        if expr:
-            return jsast.ForInNode(init=noin_expr, container=expr, statement=stmt,
-                                   position=statement_started_at)
-
-        else:
+        if for_type == 'classy':
             return jsast.ForNode(part1=noin_expr, part2=expr2, part3=expr3, statement=stmt,
                                  position=statement_started_at)
-
+        elif for_type == 'in':
+            return jsast.ForInNode(init=noin_expr, container=expr, statement=stmt,
+                                   position=statement_started_at)
+        else:
+            return jsast.ForOfNode(init=noin_expr, container=expr, statement=stmt,
+                                   position=statement_started_at)
 
 
     def parse_comprehension(self, expr):
