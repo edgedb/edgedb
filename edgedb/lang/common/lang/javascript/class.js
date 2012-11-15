@@ -232,6 +232,8 @@ sx.$bootstrap_class_system = function(opts) {
         return sx_find_parent(cls, ths, method).apply(ths, args);
     };
 
+    sx_parent.find = sx_find_parent;
+
     function make_universal_constructor() {
         // For compatibility with IE prior 9 version, we create a '_class' variable explicitly
         var _class = function _class_ctr(arg0 /*, ...*/) {
@@ -496,8 +498,55 @@ sx.$bootstrap_class_system = function(opts) {
 
     TypeClass.toString = function() { return '<class ' + type_qualname + '>'; };
 
+    function find_metaclass(bases) {
+        var bases_len = bases.length,
+            ms, ms_len, i, mcls, j, found;
+
+        if (bases_len == 1) {
+            return bases[0][CLS_ATTR];
+        } else {
+            ms = calc_metaclasses(bases);
+            ms_len = ms.length;
+
+            if (ms_len == 1) {
+                return ms[0];
+            } else {
+                for (i = 0; i < ms_len; ++i) {
+                    mcls = ms[i];
+                    found = true;
+                    for (j = 0; j < ms_len; ++j) {
+                        if (!sx_issubclass(mcls, ms[j])) {
+                            found = false;
+                            break;
+                        }
+                    }
+                    if (found) {
+                        return mcls;
+                    }
+                }
+            }
+        }
+
+        throw new Error(error_mcls_conflict);
+    }
+
+    function validate_metaclass(bases, metaclass) {
+        var ms, i;
+
+        if (sx_issubclass(metaclass, TypeClass)) {
+            ms = calc_metaclasses(bases);
+            i = ms.length;
+
+            for (; i--;) {
+                if (!sx_issubclass(metaclass, ms[i])) {
+                    throw new Error(error_mcls_conflict);
+                }
+            }
+        }
+    };
+
     function sx_define(name, bases, body) {
-        var bases_len, metaclass, ms, i, ms_len, j, mcls, found, args;
+        var bases_len, metaclass, ms, i, args;
 
         body = body || {};
         bases = bases || [];
@@ -533,46 +582,9 @@ sx.$bootstrap_class_system = function(opts) {
         }
 
         if (metaclass == null) {
-            if (!bases_len) {
-                metaclass = TypeClass;
-            } else if (bases_len == 1) {
-                metaclass = bases[0][CLS_ATTR];
-            } else {
-                ms = calc_metaclasses(bases);
-                ms_len = ms.length;
-
-                if (ms_len == 1) {
-                    metaclass = ms[0];
-                } else {
-                    for (i = 0; i < ms_len; ++i) {
-                        mcls = ms[i];
-                        found = true;
-                        for (j = 0; j < ms_len; ++j) {
-                            if (!sx_issubclass(mcls, ms[j])) {
-                                found = false;
-                                break;
-                            }
-                        }
-                        if (found) {
-                            metaclass = mcls;
-                            break;
-                        }
-                    }
-
-                    if (metaclass == null) {
-                        throw new Error(error_mcls_conflict);
-                    }
-                }
-            }
-        } else if (sx_issubclass(metaclass, TypeClass)) {
-            ms = calc_metaclasses(bases);
-            i = ms.length;
-
-            for (; i--;) {
-                if (!sx_issubclass(metaclass, ms[i])) {
-                    throw new Error(error_mcls_conflict);
-                }
-            }
+            metaclass = find_metaclass(bases);
+        } else {
+            validate_metaclass(bases, metaclass);
         }
 
         if (arguments.length > 3) {
@@ -587,6 +599,27 @@ sx.$bootstrap_class_system = function(opts) {
             }
         }
     };
+
+    // Low-level function that should be used by compilers only
+    function sx_define_ll(name, bases, body, metaclass) {
+        if (bases.length == 0) {
+            bases.push(ObjectClass);
+        }
+
+        if (metaclass == null) {
+            metaclass = find_metaclass(bases);
+        } else {
+            validate_metaclass(bases, metaclass);
+        }
+
+        if (hop.call(metaclass, MRO_ATTR)) {
+            return new metaclass(name, bases, body);
+        } else {
+            return metaclass(name, bases, body);
+        }
+    };
+
+    sx_define.new_class = sx_define_ll;
 
     // BaseObject is an empty class that is not intended
     // to be ever instantiated.  It's main purpose is
@@ -679,8 +712,7 @@ sx.$bootstrap_class_system = function(opts) {
         define: sx_define,
         issubclass: sx_issubclass,
         isinstance: sx_isinstance,
-        parent: sx_parent,
-        parent_method: sx_find_parent
+        parent: sx_parent
     }
 };
 
