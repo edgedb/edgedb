@@ -178,6 +178,11 @@ class TestJSParser(metaclass=MetaJSParserTest_Functional):
     def test_utils_lang_js_parser_object21(self):
         "print({a: '1', '}':'}'});"
 
+    def test_utils_lang_js_parser_object22(self):
+        """a=1
+        {b:1}
+        print(a);"""
+
     def test_utils_lang_js_parser_unary1(self):
         """
         a=1;

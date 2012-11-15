@@ -263,7 +263,9 @@ class JSParser:
 
         self.PREC = [
         #   (<bp>, <special type>, <token vals>, <active>)
-            ('lbp', '',         ('{', ), True),
+            ('rbp', '',         ('{', ), True),
+        # XXX: '{' is right-binding because it functions like a prefix operator
+        #       creating an object literal or variable unpacking expression
             ('lbp', '',         ('new', '[', '.', 'function'), True),
             ('lbp', '',         ('(', ), True),
             ('lbp', 'Unary',    ('++', '--'), True),
