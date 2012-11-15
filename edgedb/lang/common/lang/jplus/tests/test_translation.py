@@ -615,6 +615,50 @@ class TestTranslation(base_test.BaseJPlusTest):
         smth-
         '''
 
+    def test_utils_lang_jp_tr_try_9(self):
+        '''JS+
+
+        r = '';
+
+        class E {}
+
+        try {
+            1
+        }
+        except (E) {
+            r += 'E'
+        }
+        else {
+            r += 'OK'
+        }
+        print(r)
+
+        %%
+        OK
+        '''
+
+    def test_utils_lang_jp_tr_try_10(self):
+        '''JS+
+
+        r = '';
+
+        class E {}
+
+        try {
+            throw E()
+        }
+        except (E) {
+            r += 'E'
+        }
+        else {
+            r += 'OK'
+        }
+        print(r)
+
+        %%
+        E
+        '''
+
     def test_utils_lang_jp_tr_try_std_1(self):
         '''JS+
 

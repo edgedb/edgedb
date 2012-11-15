@@ -827,20 +827,21 @@ class Transpiler(NodeTransformer):
 
             orelse_body = self.visit(node.orelse).statements
 
+            else_block = [js_ast.IfNode(
+                            ifclause=js_ast.IDNode(
+                                name=orelse_name),
+                            thenclause=js_ast.StatementBlockNode(
+                                statements=orelse_body))]
+
             if node.finalbody:
                 finally_body = self.visit(node.finalbody).statements
                 finally_body = [js_ast.TryNode(
                                     tryblock=js_ast.StatementBlockNode(
-                                        statements=[
-                                            js_ast.IfNode(
-                                                ifclause=js_ast.IDNode(
-                                                    name=orelse_name),
-                                                thenclause=js_ast.StatementBlockNode(
-                                                    statements=orelse_body))]),
+                                        statements=else_block),
                                     finallyblock=js_ast.StatementBlockNode(
                                         statements=finally_body))]
             else:
-                finally_body = orelse_body
+                finally_body = else_block
         else:
             finally_body = []
             if node.finalbody:
