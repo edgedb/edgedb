@@ -106,7 +106,7 @@ $SXJSP = (function() {
 
     function isnumber(n) {
         // From StackOverflow answer by Christian C. Salvadó
-        return !isNaN(parseFloat(n)) && isFinite(n);
+        return typeof n == 'number' && isFinite(n) && !isNaN(n);
     }
 
     function isarray(a) {
@@ -131,6 +131,18 @@ $SXJSP = (function() {
 
     function callable(obj) {
         return (typeof obj == 'function') || (tos.call(obj) == '[object Function]');
+    }
+
+    function pow(x, y) {
+        if (!isnumber(x)) {
+            throw new TypeError('bad first argument type for pow(): "' + x + '"');
+        }
+
+        if (!isnumber(y)) {
+            throw new TypeError('bad second argument type for pow(): "' + y + '"');
+        }
+
+        return Math.pow(x, y);
     }
 
     function EXPORTS(x) { return x; } // for static analysis
@@ -205,6 +217,7 @@ $SXJSP = (function() {
         keys: Object_keys,
         len: len,
         abs: abs,
+        pow: pow,
 
         isnumber: isnumber,
         isarray: isarray,

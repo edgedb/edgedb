@@ -1069,10 +1069,11 @@ class TestTranslation(base_test.BaseJPlusTest):
         '''JS+
 
         print(isnumber(1) + '|' + isnumber('aa') + '|' + isnumber(' ') +
-              '|' + isnumber(Infinity) + '|' + isnumber(1.2) + '|' + isnumber('\t'))
+              '|' + isnumber(Infinity) + '|' + isnumber(1.2) + '|' + isnumber('\t') +
+              '|' + isnumber(NaN) + '|' + isnumber('1'))
 
         %%
-        true|false|false|false|true|false
+        true|false|false|false|true|false|false|false
         '''
 
     def test_utils_lang_jp_builtins_isarray_1(self):
@@ -1115,4 +1116,29 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         %%
         false|true|false|true|false|true|true
+        '''
+
+    def test_utils_lang_jp_builtins_pow_1(self):
+        '''JS+
+
+        print(pow(5.0, 2))
+
+        try {
+            pow('1 ', 2)
+        } except (TypeError) {
+            print('ok')
+        } else {
+            print('fail')
+        }
+
+        try {
+            pow(1, '2 ')
+        } except (TypeError) {
+            print('ok')
+        } else {
+            print('fail')
+        }
+
+        %%
+        25\nok\nok
         '''
