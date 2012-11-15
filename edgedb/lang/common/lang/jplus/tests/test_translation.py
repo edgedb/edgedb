@@ -127,6 +127,26 @@ class TestTranslation(base_test.BaseJPlusTest):
         42
         '''
 
+    def test_utils_lang_jp_tr_metaclass_1(self):
+        '''JS+
+
+        class MA(type) {
+            static function construct(name, bases, dct) {
+                dct.foo = name + name;
+                return super().construct(name, bases, dct)
+            }
+        }
+
+        class A(metaclass=MA) {}
+
+        class B(A, object) {}
+
+        print(A().foo + ' | ' + B().foo)
+
+        %%
+        __main__.A__main__.A | __main__.B__main__.B
+        '''
+
     def test_utils_lang_jp_tr_class_super_1(self):
         '''JS+
 

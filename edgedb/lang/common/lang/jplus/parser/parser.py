@@ -173,11 +173,28 @@ class Parser(JSParser):
 
         name = self.parse_ID().name
 
+        metaclass = None
         bases = []
         if (self.tentative_match('(', regexp=False)
                     and not self.tentative_match(')', regexp=False)):
-            bases = self.parse_expression_list()
-            self.must_match(')', regexp=False)
+
+            while True:
+                before_next_token = self.token
+                next = self.parse_assignment_expression()
+
+                if isinstance(next, js_ast.AssignmentExpressionNode):
+                    if (not isinstance(next.left, js_ast.IDNode)
+                                        or next.left.name != 'metaclass'):
+                        raise UnexpectedToken(before_next_token, parser=self)
+
+                    metaclass = next.right
+                    self.must_match(')', regexp=False)
+                    break
+
+                bases.append(next)
+                if not self.tentative_match(',', regexp=False):
+                    self.must_match(')', regexp=False)
+                    break
 
         self.must_match('{', regexp=False)
 
@@ -208,7 +225,7 @@ class Parser(JSParser):
             raise UnexpectedToken(self.token, parser=self)
 
         return ast.ClassNode(name=name, bases=bases, body=body,
-                             position=started_at)
+                             position=started_at, metaclass=metaclass)
 
 
     def nud_AT(self, token):

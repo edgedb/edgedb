@@ -351,6 +351,9 @@ class Transpiler(NodeTransformer):
                                         value='use strict'))]
 
         scope = ModuleScope(self, node=node)
+        name = self.state(ModuleState).module_name
+        scope.add(Variable(name='__SXJSP_module_name', needs_decl=True,
+                           value=js_ast.StringLiteralNode(value=name), aux=True))
 
         with scope:
             for child in node.body:
@@ -378,8 +381,6 @@ class Transpiler(NodeTransformer):
 
             self.state(ModuleState).deps |= mod_deps
 
-
-        name = self.state(ModuleState).module_name
 
         mod_properties = []
         if scope.vars:
@@ -514,11 +515,9 @@ class Transpiler(NodeTransformer):
             self.scope.add(Variable(name))
 
     def visit_jp_ClassNode(self, node):
-        modulename = self.state(ModuleState).module_name
         name = node.name
-        qualname = '{}.{}'.format(modulename, name)
 
-        js_classdef = self.scope.use('_class')
+        js_classdef = self.scope.use('_newclass')
 
         self.scope.add(Variable(name, needs_decl=True))
 
@@ -527,6 +526,19 @@ class Transpiler(NodeTransformer):
 
         dct_items = []
         dct_static_items = []
+
+        metaclass = js_ast.NullNode()
+        if node.metaclass:
+            self.check_scope_load(node.metaclass.name)
+            metaclass = node.metaclass
+
+        bases = []
+        if node.bases:
+            for base in node.bases:
+                if isinstance(base, js_ast.IDNode):
+                    self.check_scope_load(base.name)
+
+                bases.append(self.generic_visit(base))
 
         with scope, state:
             for child in node.body:
@@ -566,10 +578,16 @@ class Transpiler(NodeTransformer):
                        right=js_ast.CallNode(
                            call=js_ast.IDNode(name=js_classdef),
                            arguments=[
-                               js_ast.StringLiteralNode(value=qualname),
-                               js_ast.ArrayLiteralNode(array=node.bases),
+                               js_ast.BinExpressionNode(
+                                    left=js_ast.IDNode(
+                                        name='__SXJSP_module_name'),
+                                    op='+',
+                                    right=js_ast.StringLiteralNode(
+                                        value='.' + name)),
+                               js_ast.ArrayLiteralNode(array=bases),
                                js_ast.ObjectLiteralNode(
-                                   properties=dct_items)
+                                   properties=dct_items),
+                               metaclass
                            ])))
 
     def visit_jp_SuperNode(self, node):

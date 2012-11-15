@@ -16,7 +16,7 @@ class ImportNode(ast.Base): __fields = [('names', list)]
 class ImportFromNode(ast.Base):
     __fields = [('level', int, 0), ('names', list), ('module', str, None)]
 
-class ClassNode(ast.Base): __fields = ['name', ('bases', list), 'body']
+class ClassNode(ast.Base): __fields = ['name', ('bases', list), 'body', 'metaclass']
 class DecoratedNode(ast.Base): __fields = ['node', ('decorators', list)]
 
 class StaticDeclarationNode(ast.Base): __fields = ['decl']
