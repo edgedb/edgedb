@@ -86,6 +86,24 @@ $SXJSP = (function() {
         // isNaN("foo") => true
     }
 
+    function len(obj) {
+        var t = tos.call(obj);
+
+        if (t == '[object Array]') {
+            return obj.length;
+        }
+
+        if (t == '[object Object]') {
+            return Object_keys(obj).length;
+        }
+
+        if (t == '[object String]') {
+            return obj.length;
+        }
+
+        throw new TypeError('object "' + obj + '" has no len()');
+    }
+
     function EXPORTS(x) { return x; } // for static analysis
 
     return EXPORTS({
@@ -156,6 +174,7 @@ $SXJSP = (function() {
         /* public */
 
         keys: Object_keys,
+        len: len,
 
         isinstance: sx.isinstance,
         issubclass: sx.issubclass,

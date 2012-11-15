@@ -25,7 +25,7 @@ JSBuiltins = ['NaN', 'Object', 'Function', 'undefined', 'Math', 'JSON', 'String'
               'Array', 'Infinity', 'window', 'Array', 'Boolean', 'Date',
               'RegExp',
               'decodeURI', 'decodeURIComponent', 'encodeURI', 'encodeURIComponent',
-              'eval', 'isFinite', 'isNaN', 'parseInt', 'parseFloat']
+              'eval', 'isFinite', 'isNaN', 'parseInt', 'parseFloat', 'TypeError']
 
 
 _exports_cache = {}

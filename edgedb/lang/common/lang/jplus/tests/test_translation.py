@@ -1030,3 +1030,20 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         <class object>
         '''
+
+    def test_utils_lang_jp_builtins_len_1(self):
+        '''JS+
+
+        print(len({'a':'b'}) + '-' + len([1, 2, 3, 4]) + '-' + len('123'))
+
+        try {
+            len(null)
+        } except (TypeError) {
+            print('ok')
+        } else {
+            print('fail')
+        }
+
+        %%
+        1-4-3\nok
+        '''
