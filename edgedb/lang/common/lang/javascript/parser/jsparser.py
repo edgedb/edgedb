@@ -229,7 +229,7 @@ class JSParser:
                  expansionsupport=False,
                  catchifsupport=False,
                  arraycompsupport=False,
-                 generatorexprsupport=False
+                 generatorexprsupport=False,
                  foreachsupport=False,
                  forofsupport=False,
                  ppsupport=False
