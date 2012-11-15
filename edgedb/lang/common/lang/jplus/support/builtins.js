@@ -129,6 +129,10 @@ $SXJSP = (function() {
         throw new TypeError('bad operand type for abs(): "' + num + '"');
     }
 
+    function callable(obj) {
+        return (typeof obj == 'function') || (tos.call(obj) == '[object Function]');
+    }
+
     function EXPORTS(x) { return x; } // for static analysis
 
     return EXPORTS({
@@ -206,6 +210,7 @@ $SXJSP = (function() {
         isarray: isarray,
         isstring: isstring,
         isobject: isobject,
+        callable: callable,
 
         isinstance: sx.isinstance,
         issubclass: sx.issubclass,

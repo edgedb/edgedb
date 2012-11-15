@@ -1104,3 +1104,15 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         false|true|false|false|true
         '''
+
+    def test_utils_lang_jp_builtins_callable_1(self):
+        '''JS+
+
+        print(callable(1) + '|' + callable(function(){}) + '|' +
+              callable({}) + '|' + callable(len) + '|' +
+              callable(new function() {}) + '|' + callable(Object) + '|' +
+              callable(type))
+
+        %%
+        false|true|false|true|false|true|true
+        '''
