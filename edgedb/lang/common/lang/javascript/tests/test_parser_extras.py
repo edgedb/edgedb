@@ -23,15 +23,15 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
     def test_utils_lang_js_parser_extra_let1(self):
         '''{let a, b = [3, 4]; print(a, b);}'''
 
-    @flags(letsupport=True)
+    @flags(letsupport=True, expansionsupport=True)
     def test_utils_lang_js_parser_extra_let2(self):
         '''{let [a, b] = [3, 4]; print(a, b);}'''
 
-    @flags(letsupport=True)
+    @flags(letsupport=True, expansionsupport=True)
     def test_utils_lang_js_parser_extra_let3(self):
         '''print(((let ([a, b] = [3, 4]) (a + b)) + 42));'''
 
-    @flags(letsupport=True)
+    @flags(letsupport=True, expansionsupport=True)
     def test_utils_lang_js_parser_extra_let4(self):
         '''let ([a, b] = [3, 4]) print(a, b);'''
 
@@ -46,6 +46,10 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
     @flags(expansionsupport=True)
     def test_utils_lang_js_parser_extra_regr_expansion_1(self):
         '''var hasDontEnumBug = !{toString:null}.propertyIsEnumerable("toString")'''
+
+    @flags(foreachsupport=True)
+    def test_utils_lang_js_parser_extra_foreach1(self):
+        '''for each (a in [1, 3 , 42]) print(a);'''
 
     @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 5})
     def test_utils_lang_js_parser_extra_foreach2(self):

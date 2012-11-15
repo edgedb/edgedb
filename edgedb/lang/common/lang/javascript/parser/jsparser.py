@@ -230,6 +230,9 @@ class JSParser:
                  catchifsupport=False,
                  arraycompsupport=False,
                  generatorexprsupport=False
+                 foreachsupport=False,
+                 forofsupport=False,
+                 ppsupport=False
                  ):
         super().__init__()
 
@@ -241,6 +244,8 @@ class JSParser:
         self.yieldsupport = yieldsupport
         self.letsupport = letsupport
         self.expansionsupport = expansionsupport
+        self.foreachsupport = foreachsupport
+        self.forofsupport = forofsupport
         self.catchifsupport = catchifsupport
         self.arraycompsupport = arraycompsupport or generatorexprsupport
         self.generatorexprsupport = generatorexprsupport
@@ -647,12 +652,27 @@ class JSParser:
         "Object literal parsing"
 
         guts = []
-        while not self.tentative_match('}', regexp=False):
-            guts.append(self.parse_property())
-            if self.tentative_match('}', regexp=False):
-                break
-            else:
-                self.must_match(',')
+
+        if not self.tentative_match('}', regexp=False):
+            if self.token.type == 'ID':
+                id = self.parse_ID()
+
+                if self.tentative_match(',', regexp=False):
+                    pl = self.parse_assignment_property_list()
+                    pl.properties.insert(0, id)
+                    return pl
+
+                guts.append(self.parse_property(id=id))
+                if not self.tentative_match('}', regexp=False, consume=False):
+                    self.must_match(',')
+
+            while not self.tentative_match('}', regexp=False):
+                guts.append(self.parse_property())
+                if self.tentative_match('}', regexp=False):
+                    break
+                else:
+                    self.must_match(',')
+
         return jsast.ObjectLiteralNode(properties=guts, position=token.position)
 
 
@@ -862,7 +882,39 @@ class JSParser:
         elif self.tentative_match('{'):
             # block, converts direct labels into indirect
             #
-            return self.parse_block_guts()
+            block = self.parse_block_guts()
+
+            eq_token = self.token
+            if (self.expansionsupport and self.tentative_match('=', regexp=False)):
+
+                right = self.parse_assignment_expression()
+
+                if len(block.statements) == 1:
+                    st = block.statements[0]
+
+                    if isinstance(st, jsast.StatementNode):
+                        if isinstance(st.statement, jsast.IDNode):
+                            return jsast.ObjectAssignmentPattern(
+                                        list=jsast.AssignmentPropertyList(
+                                            properties=[st.statement]),
+                                        right=right)
+
+                        if isinstance(st.statement, jsast.ExpressionListNode):
+                            vars = []
+                            for expr in st.statement.expressions:
+                                if isinstance(expr, jsast.IDNode):
+                                    vars.append(expr)
+                                else:
+                                    break
+                            else:
+                                return jsast.ObjectAssignmentPattern(
+                                            list=jsast.AssignmentPropertyList(
+                                                properties=vars),
+                                            right=right)
+
+                raise UnexpectedToken(eq_token, parser=self)
+            else:
+                return block
 
         elif self.tentative_match('function'):
             # function declaration
@@ -997,9 +1049,13 @@ class JSParser:
         while True:
             # variable name will be used a lot...
             #
-            if (self.letsupport or self.expansionsupport) and self.tentative_match('['):
-                varname = self.nud_LSBRACKET(self.token)
-
+            if self.expansionsupport:
+                if self.tentative_match('['):
+                    varname = self.parse_assignment_elements_list()
+                elif self.tentative_match('{'):
+                    varname = self.parse_assignment_property_list()
+                else:
+                    varname = self.parse_ID()
             else:
                 varname = self.parse_ID()
 
@@ -1041,14 +1097,17 @@ class JSParser:
         return var_list
 
 
-    def parse_property(self):
+    def parse_property(self, id=None):
         """Parse object property"""
 
         started_at = self.token.position
 
-        # get the property name, will use alot
-        #
-        prop, id = self.parse_property_name()
+        if id is None:
+            # get the property name, will use alot
+            #
+            prop, id = self.parse_property_name()
+        else:
+            prop, id = id, 'ID'
 
         if id == 'ID':
 
@@ -1432,6 +1491,34 @@ class JSParser:
         stmt = self.parse_statement()
         return jsast.WhileNode(statement=stmt, expression=expr, position=started_at)
 
+    def parse_assignment_property_list(self):
+        assert self.expansionsupport
+
+        vars = []
+
+        while True:
+            vars.append(self.parse_ID())
+
+            if not self.tentative_match(',', regexp=False):
+                self.must_match('}')
+                break
+
+        return jsast.AssignmentPropertyList(properties=vars)
+
+    def parse_assignment_elements_list(self):
+        assert self.expansionsupport
+
+        vars = []
+
+        while True:
+            vars.append(self.parse_ID())
+
+            if not self.tentative_match(',', regexp=False):
+                self.must_match(']')
+                break
+
+        return jsast.AssignmentElementList(elements=vars)
+
     @stamp_state('loop', affectslabels=True)
     def parse_for_guts(self):
         """Parse for loop."""
@@ -1460,6 +1547,14 @@ class JSParser:
                 noin_expr = self.parse_let_guts(statement=False)
                 multiple_decl = len(noin_expr.vars) > 1
 
+            elif (self.expansionsupport and
+                        self.tentative_match('{', regexp=False)):
+                noin_expr = self.parse_assignment_property_list()
+
+            elif (self.expansionsupport and
+                        self.tentative_match('[', regexp=False)):
+                noin_expr = self.parse_assignment_elements_list()
+
             else:
                 noin_expr = self.parse_expression()
 
@@ -1473,7 +1568,7 @@ class JSParser:
             if self.tentative_match('in'):
                 # for (x in [1,2,3]) ...
                 for_type = 'in'
-            elif self.tentative_match('of'):
+            elif self.forofsupport and self.tentative_match('of'):
                 # for (x in [1,2,3]) ...
                 for_type = 'of'
 

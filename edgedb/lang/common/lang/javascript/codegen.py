@@ -523,3 +523,26 @@ class JavascriptSourceGenerator(codegen.PP_SourceGenerator):
         if len(node.comprehensions) > 1:
             self.indentation-=len(node.comprehensions)
 
+    def visit_AssignmentPropertyList(self, node):
+        self.write('{')
+
+        l = len(node.properties)
+        for i, p in enumerate(node.properties):
+            self.visit(p)
+
+            if i != l-1:
+                self.write(',')
+
+        self.write('}')
+
+    def visit_AssignmentElementList(self, node):
+        self.write('[')
+
+        l = len(node.elements)
+        for i, p in enumerate(node.elements):
+            self.visit(p)
+
+            if i != l-1:
+                self.write(',')
+
+        self.write(']')
