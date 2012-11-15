@@ -22,7 +22,7 @@ from metamagic.utils.lang.jplus.support import builtins as builtins_js
 
 
 JSBuiltins = ['NaN', 'Object', 'Function', 'undefined', 'Math', 'JSON', 'String',
-              'Array', 'Infinity', 'window', 'Array', 'Boolean', 'Date',
+              'Array', 'Infinity', 'window', 'Array', 'Boolean', 'Date', 'Number',
               'RegExp',
               'decodeURI', 'decodeURIComponent', 'encodeURI', 'encodeURIComponent',
               'eval', 'isFinite', 'isNaN', 'parseInt', 'parseFloat', 'TypeError']

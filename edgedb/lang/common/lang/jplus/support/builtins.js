@@ -105,8 +105,8 @@ $SXJSP = (function() {
     }
 
     function isnumber(n) {
-        // From StackOverflow answer by Christian C. Salvadó
-        return typeof n == 'number' && isFinite(n) && !isNaN(n);
+        return (typeof n == 'number' || tos.call(n) == '[object Number]')
+                                                    && isFinite(n) && !isNaN(n);
     }
 
     function isarray(a) {

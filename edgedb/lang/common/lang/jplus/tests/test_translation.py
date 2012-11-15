@@ -1070,10 +1070,10 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         print(isnumber(1) + '|' + isnumber('aa') + '|' + isnumber(' ') +
               '|' + isnumber(Infinity) + '|' + isnumber(1.2) + '|' + isnumber('\t') +
-              '|' + isnumber(NaN) + '|' + isnumber('1'))
+              '|' + isnumber(NaN) + '|' + isnumber('1') + '|' + isnumber(new Number(1)))
 
         %%
-        true|false|false|false|true|false|false|false
+        true|false|false|false|true|false|false|false|true
         '''
 
     def test_utils_lang_jp_builtins_isarray_1(self):
