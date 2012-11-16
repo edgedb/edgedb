@@ -12,11 +12,12 @@
 sx.$bootstrap_class_system = function(opts) {
     'use strict';
 
-    var instances = [],
-        hop = {}.constructor.prototype.hasOwnProperty,
-        tos = {}.constructor.prototype.toString,
-        slice = instances.constructor.prototype.slice,
-        indexOf = instances.constructor.prototype.indexOf,
+    var StdArray = [].constructor,
+        StdObject = {}.constructor,
+        hop = StdObject.prototype.hasOwnProperty,
+        tos = StdObject.prototype.toString,
+        slice = StdArray.prototype.slice,
+        indexOf = StdArray.prototype.indexOf,
 
         error_mcls_conflict = 'metaclass conflict: the metaclass of a derived class must be ' +
                               'a (non-strict) subclass of the metaclasses of all its bases',
@@ -37,6 +38,7 @@ sx.$bootstrap_class_system = function(opts) {
             statics_attr: '$$statics',
             module_attr: '$module',
             qualname_attr: '$qualname',
+            last_instance_attr: '$$_last_instance',
 
             type_cls_name: 'type',
             object_cls_name: 'object',
@@ -62,7 +64,9 @@ sx.$bootstrap_class_system = function(opts) {
         STATICS_ATTR = opts.statics_attr,
         MODULE_ATTR = opts.module_attr,
         QUALNAME_ATTR = opts.qualname_attr,
-        AUTO_REGISTER_NS = opts.auto_register_ns;
+        AUTO_REGISTER_NS = opts.auto_register_ns,
+        LAST_INST_ATTR = opts.last_instance_attr,
+        ARGS_MARKER = {};
 
     if (AUTO_REGISTER_NS) {
         var sx_ns_resolve = sx.ns.resolve;
@@ -236,27 +240,22 @@ sx.$bootstrap_class_system = function(opts) {
 
     function make_universal_constructor() {
         // For compatibility with IE prior 9 version, we create a '_class' variable explicitly
-        var _class = function _class_ctr(arg0 /*, ...*/) {
-            var args, base, pos, mro, mro_len, i, ths = null, func;
+        var _class = function _class_ctr(arg0, arg1 /*, ...*/) {
+            var args, base, pos, mro, mro_len, i, ths = null, func, prev_instance;
 
             if (this instanceof _class) {
-                args = (arg0 != null && hop.call(arg0, '$SX_CLS_ARG$')) ? arg0 : arguments;
+                args = arg0 === ARGS_MARKER ? arg1 : arguments;
 
                 mro = _class[MRO_ATTR];
-                for (i = 0; base = mro[i]; ++i) {
+                mro_len = mro.length;
+
+                for (i = 0; i < mro_len, base = mro[i]; ++i) {
                     if (hop.call(base, CONSTRUCTOR)) {
                         func = base[CONSTRUCTOR];
-                        if (hop.call(func, WRAPPED_ATTR)) {
-                            func = func[WRAPPED_ATTR];
-                        }
-                        instances.push(this);
-                        try {
-                            ths = func.apply(_class, args);
-                        } finally {
-                            if (instances[instances.length - 1] === this) {
-                                instances.pop();
-                            }
-                        }
+                        prev_instance = _class[LAST_INST_ATTR];
+                        _class[LAST_INST_ATTR] = this;
+                        ths = func.apply(_class, args);
+                        _class[LAST_INST_ATTR] = prev_instance;
                         break;
                     }
                 }
@@ -265,7 +264,7 @@ sx.$bootstrap_class_system = function(opts) {
                     throw new Error(_class + ': could not create an instance');
                 }
 
-                for (i = 0, mro_len = mro.length - 1; i < mro_len; ++i) {
+                for (i = 0, --mro_len; i < mro_len; ++i) {
                     base = mro[i].prototype;
 
                     if (hop.call(base, CONSTRUCTOR)) {
@@ -276,8 +275,7 @@ sx.$bootstrap_class_system = function(opts) {
 
                 return ths;
             } else {
-                arguments.$SX_CLS_ARG$ = 1;
-                return new _class(arguments);
+                return new _class(ARGS_MARKER, arguments);
             }
         };
         return _class;
@@ -443,6 +441,7 @@ sx.$bootstrap_class_system = function(opts) {
         }
 
         cls[STATICS_ATTR] = static_attrs.length ? static_attrs : false;
+        cls[LAST_INST_ATTR] = null;
         return cls;
     };
 
@@ -468,7 +467,7 @@ sx.$bootstrap_class_system = function(opts) {
     };
     ObjectClass.prototype[CONSTRUCTOR] = object_constructor;
     ObjectClass[CONSTRUCTOR] = function() {
-        var instance = instances.pop();
+        var instance = this[LAST_INST_ATTR];
         instance[CLS_ATTR] = this;
         return instance;
     };
