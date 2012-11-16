@@ -115,7 +115,6 @@ class TestJSParser(metaclass=MetaJSParserTest_Functional):
         print(a[2], a[{}], a[{a:2}]);
         """
 
-    # weird bug here if ';' is remved at the end of func declaration
     def test_utils_lang_js_parser_object7(self):
         """
         var a = [];
@@ -1014,6 +1013,17 @@ foo();
         """function f() {return 1
         '}'}
         print(f())"""
+
+    # weird bug WAS here due to ';' being remved at the end of func declaration
+    def test_utils_lang_js_parser_semicolon27(self):
+        """
+        var a = [];
+        function fill(array) {
+            array[2] = "foo"; array[{}] = "bar"; array[{b : 2}] = "weird";
+            return a;
+        }
+        print(fill(a)[2], fill(a)[{}], fill(a)[{b:2}]);
+        """
 
     def test_utils_lang_js_parser_instanceof(self):
         """print([] instanceof Array)"""
