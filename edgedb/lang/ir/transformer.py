@@ -495,7 +495,9 @@ class TreeTransformer:
             rec = caos_ast.Record(elements=elements, concept=concept, rlink=p.rlink)
 
             _new_visited_records = _visited_records.copy()
-            _new_visited_records[concept] = rec
+
+            if isinstance(concept, caos_types.ProtoConcept):
+                _new_visited_records[concept] = rec
 
             if concept.is_virtual:
                 ptrs = concept.get_children_common_pointers(schema)
@@ -629,13 +631,21 @@ class TreeTransformer:
                     el = newstep
                 else:
                     if _recurse:
-                        new_recurse = (newstep.concept not in _new_visited_records or
-                                       (recurse_spec is not None and recurse_spec.recurse is None))
+                        _memo = _new_visited_records
+
+                        if recurse_spec is not None and recurse_spec.recurse is not None:
+                            _memo = {}
+                            new_recurse = True
+                        elif newstep.concept not in _visited_records:
+                            new_recurse = True
+                        else:
+                            new_recurse = False
+
                         recurse_pathspec = recurse_spec.pathspec if recurse_spec is not None \
                                                                  else None
                         el = self.entityref_to_record(newstep, schema,
                                                       pathspec=recurse_pathspec,
-                                                      _visited_records=_new_visited_records,
+                                                      _visited_records=_memo,
                                                       _recurse=new_recurse)
 
                 prop_elements = []
@@ -687,7 +697,7 @@ class TreeTransformer:
                     newstep.ref = link_node
                     lref.disjunction.update(link_node)
 
-                if not link_singular or recurse_spec.recurse is not None:
+                if (not link_singular or recurse_spec.recurse is not None) and el is not None:
                     if link.atomic():
                         link_node.proprefs.add(newstep)
 
@@ -756,23 +766,95 @@ class TreeTransformer:
                 # Push the looping spec one step down so that the loop starts on the first
                 # pointer target, not the source.
                 #
+
                 if ptrspec.pathspec is None:
-                    if (ptrspec.ptr_proto.target.issubclass(proto_schema, source) or
-                            source.issubclass(proto_schema, ptrspec.ptr_proto.target)):
-                        ptrspec.pathspec = pathspec[:]
-                    else:
-                        assert False
+                    ptrspec.pathspec = []
+
+                    for ptr in ptrspec.target_proto.pointers.values():
+                        if not isinstance(ptr, caos_types.ProtoComputable) \
+                                and ptr.get_loading_behaviour() == caos_types.EagerLoading:
+                            ptrspec.pathspec.append(caos_ast.PtrPathSpec(ptr_proto=ptr))
+
+                recspec = caos_ast.PtrPathSpec(ptr_proto=ptrspec.ptr_proto,
+                                               ptr_direction=ptrspec.ptr_direction,
+                                               recurse=ptrspec.recurse,
+                                               target_proto=ptrspec.target_proto,
+                                               sorter=ptrspec.sorter,
+                                               pathspec=ptrspec.pathspec[:])
 
                 for i, subptrspec in enumerate(ptrspec.pathspec):
                     if subptrspec.ptr_proto.normal_name() == ptrspec.ptr_proto.normal_name():
-                        ptrspec.pathspec[i] = caos_ast.PtrPathSpec(ptr_proto=ptrspec.ptr_proto,
-                                                                   ptr_direction=ptrspec.ptr_direction,
-                                                                   recurse=ptrspec.recurse,
-                                                                   target_proto=ptrspec.target_proto,
-                                                                   sorter=ptrspec.sorter)
+                        ptrspec.pathspec[i] = recspec
+                        break
+                else:
+                    ptrspec.pathspec.append(recspec)
 
                 ptrspec.recurse = None
                 ptrspec.sorter = []
+
+    def _merge_pathspecs(self, pathspec1, pathspec2, target_most_generic=True):
+        merged_right = set()
+
+        if not pathspec1:
+            return pathspec2
+
+        if not pathspec2:
+            return pathspec1
+
+        result = []
+
+        for item1 in pathspec1:
+            item1_subspec = item1.pathspec
+
+            item1_lname = item1.ptr_proto.normal_name()
+            item1_ldir = item1.ptr_direction
+
+            for i, item2 in enumerate(pathspec2):
+                if i in merged_right:
+                    continue
+
+                item2_subspec = item2.pathspec
+
+                item2_lname = item2.ptr_proto.normal_name()
+                item2_ldir = item2.ptr_direction
+
+                if item1_lname == item2_lname and item1_ldir == item2_ldir:
+                    # Do merge
+
+                    if item1.target_proto != item2.target_proto:
+                        schema = self.context.current.proto_schema
+                        minimize_by = 'most_generic' if target_most_generic else 'least_generic'
+                        target = item1.ptr_proto.create_common_target(schema, (item1, item2),
+                                                                      minimize_by=minimize_by)
+                    else:
+                        target = item1.target_proto
+
+                    subspec = self._merge_pathspecs(item1_subspec, item2_subspec,
+                                                    target_most_generic=target_most_generic)
+
+                    merged = item1.__class__(
+                        ptr_proto=item1.ptr_proto,
+                        pathspec=subspec,
+                        ptr_direction=item1.ptr_direction,
+                        target_proto=target,
+                        recurse=item1.recurse,
+                        sorter=item1.orderexprs,
+                        generator=item1.generator
+                    )
+
+                    result.append(merged)
+
+                    merged_right.add(i)
+
+                    break
+            else:
+                result.append(item1)
+
+        for i, item2 in enumerate(pathspec2):
+            if i not in merged_right:
+                result.append(item2)
+
+        return result
 
     def _dump(self, tree):
         if tree is not None:

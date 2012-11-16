@@ -1577,7 +1577,14 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                                  index_only=False)
         if target is None:
             target = pointer.get_common_target(localschema, targets)
-            self._add_proto(localschema, target)
+
+            existing = localschema.get(target.name, default=None, type=proto.Concept,
+                                       index_only=False)
+
+            if existing is None:
+                self._add_proto(localschema, target)
+            else:
+                target = existing
 
         return target
 

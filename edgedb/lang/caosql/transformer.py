@@ -578,6 +578,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         for ptrspec in pathspec:
             if isinstance(ptrspec, qlast.PointerGlobNode):
                 filter_exprs = []
+                glob_specs = []
 
                 if ptrspec.filters:
                     for ptrspec_flt in ptrspec.filters:
@@ -596,7 +597,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 if ptrspec.type == 'link':
                     for ptr in source.pointers.values():
                         if not filter_exprs or all(((f[0](ptr) == f[1]) for f in filter_exprs)):
-                            result.append(tree.ast.PtrPathSpec(ptr_proto=ptr))
+                            glob_specs.append(tree.ast.PtrPathSpec(ptr_proto=ptr))
 
                 elif ptrspec.type == 'property':
                     if rlink_proto is None:
@@ -608,11 +609,13 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                             continue
 
                         if not filter_exprs or all(((f[0](ptr) == f[1]) for f in filter_exprs)):
-                            result.append(tree.ast.PtrPathSpec(ptr_proto=ptr))
+                            glob_specs.append(tree.ast.PtrPathSpec(ptr_proto=ptr))
 
                 else:
                     msg = 'unexpected pointer spec type'
                     raise errors.CaosQLError(msg)
+
+                result = self._merge_pathspecs(result, glob_specs, target_most_generic=False)
             else:
                 ptrname = (ptrspec.expr.namespace, ptrspec.expr.name)
 
@@ -663,8 +666,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 if ptrspec.pathspec is not None:
                     node.pathspec = self._process_pathspec(context, target_proto,
                                                            ptr, ptrspec.pathspec)
+                else:
+                    node.pathspec = None
 
-                result.append(node)
+                result = self._merge_pathspecs(result, [node], target_most_generic=False)
 
         self._normalize_pathspec_recursion(result, source, context.current.proto_schema)
 
@@ -841,7 +846,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                                           module_aliases=modaliases)
 
                         targets = {l.get_far_endpoint(direction) for l in links}
-                        link_target = link_item.create_common_target(self.proto_schema, targets)
+                        link_target = link_item.create_common_target(self.proto_schema, targets,
+                                                                     minimize_by='most_generic')
 
                     else:
                         link_item = list(links)[0]
