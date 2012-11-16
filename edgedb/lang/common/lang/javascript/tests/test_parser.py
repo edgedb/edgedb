@@ -182,6 +182,9 @@ class TestJSParser(metaclass=MetaJSParserTest_Functional):
         {b:1}
         print(a);"""
 
+#    def test_utils_lang_js_parser_object23(self):
+#        "{a: funciton() {print(1)}}.foo()"
+
     def test_utils_lang_js_parser_unary1(self):
         """
         a=1;

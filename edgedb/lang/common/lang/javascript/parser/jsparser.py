@@ -497,6 +497,15 @@ class JSParser:
                 self.get_next_token(regexp)
             return True
 
+    def check_optional_semicolon(self):
+        if (self.token.string == '}' and self.token.type == 'OP'    # [1]
+            or self.linebreak_detected                              # [2]
+            or self.token.type == '#EOF#'):                         # [3]
+            # [1] problems parsing '}'
+            # [2] there is a newline before the problematic token
+            # [3] at the end of program
+            #
+            return True
 
     def check_optional_semicolon(self):
         if (self.token.string == '}' and self.token.type == 'OP'    # [1]
@@ -1233,8 +1242,10 @@ class JSParser:
     def parse_return_guts(self):
         """Parse the rest of the return statement."""
 
+        started_at = self.prevtoken.position
+
         if self.tentative_match(';', allowsemi=True):
-            return jsast.ReturnNode(expression=None)
+            return jsast.ReturnNode(expression=None, position=started_at)
         else:
             expr = self.parse_expression()
             self.must_match(';')
