@@ -38,7 +38,8 @@ sx.$bootstrap_class_system = function(opts) {
             statics_attr: '$$statics',
             module_attr: '$module',
             qualname_attr: '$qualname',
-            last_instance_attr: '$$_last_instance',
+            last_instance_attr: '$$_lastinst',
+            cached_constructor: '$$_cached_c',
 
             type_cls_name: 'type',
             object_cls_name: 'object',
@@ -66,7 +67,8 @@ sx.$bootstrap_class_system = function(opts) {
         QUALNAME_ATTR = opts.qualname_attr,
         AUTO_REGISTER_NS = opts.auto_register_ns,
         LAST_INST_ATTR = opts.last_instance_attr,
-        ARGS_MARKER = {};
+        ARGS_MARKER = {},
+        CACHED_CONSTR = opts.cached_constructor;
 
     if (AUTO_REGISTER_NS) {
         var sx_ns_resolve = sx.ns.resolve;
@@ -241,36 +243,24 @@ sx.$bootstrap_class_system = function(opts) {
     function make_universal_constructor() {
         // For compatibility with IE prior 9 version, we create a '_class' variable explicitly
         var _class = function _class_ctr(arg0, arg1 /*, ...*/) {
-            var args, base, pos, mro, mro_len, i, ths = null, func, prev_instance;
+            var args, constr, ths = null, prev_instance;
 
             if (this instanceof _class) {
                 args = arg0 === ARGS_MARKER ? arg1 : arguments;
 
-                mro = _class[MRO_ATTR];
-                mro_len = mro.length;
-
-                for (i = 0; i < mro_len, base = mro[i]; ++i) {
-                    if (hop.call(base, CONSTRUCTOR)) {
-                        func = base[CONSTRUCTOR];
-                        prev_instance = _class[LAST_INST_ATTR];
-                        _class[LAST_INST_ATTR] = this;
-                        ths = func.apply(_class, args);
-                        _class[LAST_INST_ATTR] = prev_instance;
-                        break;
-                    }
-                }
+                constr = _class[CACHED_CONSTR];
+                prev_instance = _class[LAST_INST_ATTR];
+                _class[LAST_INST_ATTR] = this;
+                ths = constr.apply(_class, args);
+                _class[LAST_INST_ATTR] = prev_instance;
 
                 if (ths == null) {
                     throw new Error(_class + ': could not create an instance');
                 }
 
-                for (i = 0, --mro_len; i < mro_len; ++i) {
-                    base = mro[i].prototype;
-
-                    if (hop.call(base, CONSTRUCTOR)) {
-                        base[CONSTRUCTOR].apply(ths, args);
-                        break;
-                    }
+                if (hop.call(ths, CLS_ATTR)) {
+                    constr = ths[CLS_ATTR].prototype[CACHED_CONSTR];
+                    constr && constr.apply(ths, args);
                 }
 
                 return ths;
@@ -323,7 +313,7 @@ sx.$bootstrap_class_system = function(opts) {
 
     function new_class(name, bases, dct) {
         var i, j, cls, parent, proto, attr,
-            mro, attrs_flag = 0, parent_proto, mro_len_1,
+            mro, attrs_flag = 0, parent_proto, mro_len, mro_len_1,
             static_attrs_cache = {}, static_attrs = [],
             statics, static_name, own = [], parent_own, parent_mro;
 
@@ -346,9 +336,25 @@ sx.$bootstrap_class_system = function(opts) {
 
         cls[CLS_ATTR] = this;
         proto = cls.prototype = {};
+
         cls[BASES_ATTR] = bases;
         mro = cls[MRO_ATTR] = calc_mro(cls);
-        mro_len_1 = mro.length - 1;
+        mro_len = mro.length;
+        mro_len_1 = mro_len - 1;
+
+
+        var constr = hop.call(dct, CONSTRUCTOR) && dct[CONSTRUCTOR];
+        if (!constr) {
+            for (i = 1; i < mro_len; i++) {
+                parent = mro[i].prototype;
+                if (hop.call(parent, CONSTRUCTOR)) {
+                    constr = parent[CONSTRUCTOR];
+                    break;
+                }
+            }
+        }
+
+        proto[CACHED_CONSTR] = constr; // false is OK too
 
         for (i in dct) {
             if (hop.call(dct, i) && i != 'metaclass' && i != 'statics') {
@@ -372,7 +378,7 @@ sx.$bootstrap_class_system = function(opts) {
             if (parent_own) {
                 for (j = parent_own.length; j--;) {
                     attr = parent_own[j];
-                    if (!hop.call(proto, attr)) {
+                    if (!hop.call(proto, attr) && attr != CONSTRUCTOR) {
                         proto[attr] = parent_proto[attr];
                         (attr != CONSTRUCTOR) && (attrs_flag = 1);
                     }
@@ -386,8 +392,12 @@ sx.$bootstrap_class_system = function(opts) {
 
         attrs_flag && (cls.$SX_CLS_ATTR$ = 1);
 
+        constr = false;
         if (hop.call(dct, 'statics')) {
             statics = dct.statics;
+
+            constr = hop.call(statics, CONSTRUCTOR) && statics[CONSTRUCTOR];
+
             for (static_name in statics) {
                 if (hop.call(statics, static_name)) {
                     static_attrs_cache[static_name] = true;
@@ -402,6 +412,18 @@ sx.$bootstrap_class_system = function(opts) {
                 }
             }
         }
+
+        if (!constr) {
+            for (i = 1; i < mro_len; i++) {
+                parent = mro[i];
+                if (hop.call(parent, CONSTRUCTOR)) {
+                    constr = parent[CONSTRUCTOR];
+                    break;
+                }
+            }
+        }
+        cls[CACHED_CONSTR] = constr;
+
 
         for (i = 1; i < mro_len_1; ++i) {
             parent_mro = mro[i];
@@ -446,7 +468,7 @@ sx.$bootstrap_class_system = function(opts) {
     };
 
     var TypeClass = make_universal_constructor();
-    TypeClass[CONSTRUCTOR] = new_class;
+    TypeClass[CACHED_CONSTR] = TypeClass[CONSTRUCTOR] = new_class;
     new_class[CLS_ATTR] = TypeClass;
     new_class[NAME_ATTR] = CONSTRUCTOR;
     TypeClass[STATICS_ATTR] = false;
@@ -466,7 +488,8 @@ sx.$bootstrap_class_system = function(opts) {
         toString: ObjectClass_toString
     };
     ObjectClass.prototype[CONSTRUCTOR] = object_constructor;
-    ObjectClass[CONSTRUCTOR] = function() {
+    ObjectClass.prototype[CACHED_CONSTR] = false;
+    ObjectClass[CACHED_CONSTR] = ObjectClass[CONSTRUCTOR] = function() {
         var instance = this[LAST_INST_ATTR];
         instance[CLS_ATTR] = this;
         return instance;
@@ -492,6 +515,7 @@ sx.$bootstrap_class_system = function(opts) {
     TypeClass[MRO_ATTR] = [TypeClass, ObjectClass];
     TypeClass.prototype = {}
     TypeClass.prototype[CONSTRUCTOR] = function() {};
+    TypeClass.prototype[CACHED_CONSTR] = false;
     TypeClass.prototype[CONSTRUCTOR][CLS_ATTR] = TypeClass;
     TypeClass.prototype[CONSTRUCTOR][NAME_ATTR] = CONSTRUCTOR;
 
