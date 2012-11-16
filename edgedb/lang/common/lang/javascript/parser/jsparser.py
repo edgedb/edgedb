@@ -1512,7 +1512,10 @@ class JSParser:
         vars = []
 
         while True:
-            vars.append(self.parse_ID())
+            if self.tentative_match('{'):
+                vars.append(self.parse_assignment_property_list())
+            else:
+                vars.append(self.parse_ID())
 
             if not self.tentative_match(',', regexp=False):
                 self.must_match('}')
@@ -1526,7 +1529,12 @@ class JSParser:
         vars = []
 
         while True:
-            vars.append(self.parse_ID())
+            if self.tentative_match('['):
+                vars.append(self.parse_assignment_elements_list())
+            elif self.tentative_match('{'):
+                vars.append(self.parse_assignment_property_list())
+            else:
+                vars.append(self.parse_ID())
 
             if not self.tentative_match(',', regexp=False):
                 self.must_match(']')

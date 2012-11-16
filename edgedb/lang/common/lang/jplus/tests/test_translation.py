@@ -1066,3 +1066,71 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         2|1|3|1000
         '''
+
+    def test_utils_lang_jp_tr_dest_assign_3(self):
+        '''JS+
+
+        [a, [b, [c, d], e], f, [g]] = [1, [2, [3, 4], 5], 6, [7, 8]];
+
+        print(a, b, c, d, e, f, g)
+
+        %%
+        1 2 3 4 5 6 7
+        '''
+
+    def test_utils_lang_jp_tr_dest_assign_4(self):
+        '''JS+
+
+        [a, {x, z, y}, f, [g]] = [1, {z:[10], y:'aa', x:42}, 6, [7, 8]];
+
+        print(a, z[0], y[0], x, f, g)
+
+        %%
+        1 10 'a' 42 6 7
+        '''
+
+    def test_utils_lang_jp_tr_dest_assign_5(self):
+        '''JS+
+
+        x = 'x'; y = 'y';
+
+        [x, y] = [y, x];
+
+        print(x + ':' + y)
+
+        %%
+        y:x
+        '''
+
+    def test_utils_lang_jp_tr_dest_assign_6(self):
+        '''JS+
+
+        {$name, $module} = type
+
+        print($name, $module)
+
+        %%
+        type builtins
+        '''
+
+    def test_utils_lang_jp_tr_dest_assign_forof_1(self):
+        '''JS+
+
+        for ([x, y, [z]] of [ [1, 2, [7, 8]], [3, 4, [8, 9]] ]) {
+            print(x + '-' + y + '-' + z)
+        }
+
+        %%
+        1-2-7\n3-4-8
+        '''
+
+    def test_utils_lang_jp_tr_dest_assign_forof_2(self):
+        '''JS+
+
+        for ([x, {y}] of [[1, {y: [20]}]]) {
+            print(x + '-' + y[0])
+        }
+
+        %%
+        1-20
+        '''
