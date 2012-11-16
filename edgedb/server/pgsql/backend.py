@@ -945,6 +945,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         # Use insort to maintain total order on each level
                         bisect.insort(parent_updates, (total_order[target], target))
 
+                else:
+                    # If it turns out to be a leaf node, make sure we force an empty set update
+                    try:
+                        parent_updates = updates[entity.id]
+                    except KeyError:
+                        parent_updates = updates[entity.id] = []
+
         for parent_id, items in updates.items():
             session._merge(parent_id, None, {connecting_attribute: (i[1] for i in items)})
 
