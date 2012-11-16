@@ -466,49 +466,51 @@ class JSParser:
         Consumes the token if it is correct, raises an exception otherwise."""
 
         for val in tok:
+            # automatic ';' insertion
+            #
+            if allowsemi and val ==';':
+                if self.check_optional_semicolon():
+                    continue
+
             if self.token.type == 'STRING':
                 raise UnexpectedToken(self.token, tok, parser=self)
 
-            if self.token.string != val:
-                # automatic ';' insertion
-                #
-
-                if allowsemi:
-
-                    if self.token.string == '}':
-                        continue # problems parsing '}'
-
-                    elif self.linebreak_detected and val == ';':
-                        continue # there is a newline before the problematic token
-
-                    elif self.token.type == '#EOF#' and val == ';':
-                        continue # at the end of program
-
-                    else:
-                        raise UnexpectedToken(self.token, tok, parser=self)
-
-                else:
-                    raise UnexpectedToken(self.token, tok, parser=self)
+            elif self.token.string != val:
+                raise UnexpectedToken(self.token, tok, parser=self)
 
             self.get_next_token(regexp)
 
 
-    def tentative_match(self, *tok, regexp=True, consume=True):
+    def tentative_match(self, *tok, regexp=True, consume=True, allowsemi=False):
         """Checks if the current token matches any of the provided values.
         Only checks ONE token, not a sequence, like 'must_match'.
         If it does, the token is returned and next token is processed from the lexer.
         If there is no match, None is returned and the token stays."""
 
+        # try automatic semicolon insertion if we expected one potentially
+        #
+        if allowsemi and ';' in tok:
+            if self.check_optional_semicolon():
+                return True
+
         if self.token.type == 'STRING':
             return
 
-        if self.token.string in tok:
-            t = self.token
+        elif self.token.string in tok:
             if consume:
                 self.get_next_token(regexp)
-            return t
+            return True
 
 
+    def check_optional_semicolon(self):
+        if (self.token.string == '}' and self.token.type == 'OP'    # [1]
+            or self.linebreak_detected                              # [2]
+            or self.token.type == '#EOF#'):                         # [3]
+            # [1] problems parsing '}'
+            # [2] there is a newline before the problematic token
+            # [3] at the end of program
+            #
+            return True
 
     #
     # Section: Expressions
@@ -1091,7 +1093,7 @@ class JSParser:
         """Parse the rest of the continue statement."""
         errtok = self.prevtoken
 
-        if self.tentative_match(';') or self.linebreak_detected:
+        if self.tentative_match(';', allowsemi=True):
             # must be inside a loop
             #
             if not self.enclosing_state('loop'):
@@ -1116,7 +1118,7 @@ class JSParser:
         """Parse the rest of the break statement."""
         errtok = self.prevtoken
 
-        if self.tentative_match(';') or self.linebreak_detected:
+        if self.tentative_match(';', allowsemi=True):
             # must be inside a loop or switch
             #
             if not self.enclosing_state('loop', 'switch'):
@@ -1140,9 +1142,8 @@ class JSParser:
     def parse_return_guts(self):
         """Parse the rest of the return statement."""
 
-        if self.tentative_match(';') or self.linebreak_detected:
+        if self.tentative_match(';', allowsemi=True):
             return jsast.ReturnNode(expression=None)
-
         else:
             expr = self.parse_expression()
             self.must_match(';')
@@ -1155,9 +1156,8 @@ class JSParser:
         if not self.yieldsupport:
             raise UnknownToken(self.prevtoken)
 
-        if self.tentative_match(';') or self.linebreak_detected:
+        if self.tentative_match(';', allowsemi=True):
             return jsast.YieldNode(expression=None)
-
         else:
             expr = self.parse_expression()
             self.must_match(';')

@@ -183,6 +183,9 @@ class TestJSParser(metaclass=MetaJSParserTest_Functional):
         {b:1}
         print(a);"""
 
+#    def test_utils_lang_js_parser_object23(self):
+#        "{a: funciton() {print(1)}}.foo()"
+
     def test_utils_lang_js_parser_unary1(self):
         """
         a=1;
@@ -990,6 +993,27 @@ foo();
         var a = 'test'
         print(a)
         """
+
+    @jxfail(UnexpectedToken, attrs={'line' : 2, 'col' : 32})
+    def test_utils_lang_js_parser_semicolon23(self):
+        """
+        function f() {print(1) return}
+        f()"""
+
+    def test_utils_lang_js_parser_semicolon24(self):
+        """function f() {print(1)
+        return}
+        f()"""
+
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 22})
+    def test_utils_lang_js_parser_semicolon25(self):
+        """function f() {print(1}
+        f()"""
+
+    def test_utils_lang_js_parser_semicolon26(self):
+        """function f() {return 1
+        '}'}
+        print(f())"""
 
     def test_utils_lang_js_parser_instanceof(self):
         """print([] instanceof Array)"""
