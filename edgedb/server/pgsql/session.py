@@ -100,9 +100,9 @@ class Session(session.Session):
             self.init_connection()
         return self._connection
 
-    def get_prepared_statement(self, query):
+    def get_prepared_statement(self, query, raw=True):
         connection = self.get_connection()
-        return connection.get_prepared_statement(query)
+        return connection.get_prepared_statement(query, raw=raw)
 
     def _transaction(self, parent):
         return Transaction(session=self, parent=parent)

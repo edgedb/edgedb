@@ -166,7 +166,7 @@ class PreparedQuery:
         else:
             text = query.text
 
-        self.statement = session.get_prepared_statement(text)
+        self.statement = session.get_prepared_statement(text, raw=not query.scrolling_cursor)
         self.init_args = args
 
         if query.record_info:

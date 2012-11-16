@@ -205,11 +205,16 @@ class Connection(pq3.Connection, caos_pool.Connection):
 
         self._prepared_statements = {}
 
-    def get_prepared_statement(self, query):
+    def get_prepared_statement(self, query, raw=True):
         try:
-            statement = self._prepared_statements[query]
+            statement = self._prepared_statements[query, raw]
         except KeyError:
-            statement = self._prepared_statements[query] = self.prepare(query)
+            if raw:
+                stmt_id = 'sx_{:x}'.format(hash(query)).replace('-', '_')
+                self.execute('PREPARE {} AS {}'.format(stmt_id, query))
+                statement = self._prepared_statements[query, raw] = self.statement_from_id(stmt_id)
+            else:
+                statement = self._prepared_statements[query, raw] = self.prepare(query)
 
         return statement
 
