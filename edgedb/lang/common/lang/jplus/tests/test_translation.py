@@ -1030,3 +1030,29 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         <class object>
         '''
+
+    def test_utils_lang_jp_tr_dest_assign_1(self):
+        '''JS+
+
+        c = [a, b] = [2, 3, 4, 5];
+        [z] = [100]
+
+        print(c.join('*') + '|' + a + '-' + b + '|' + z);
+
+        %%
+        2*3*4*5|2-3|100
+        '''
+
+    def test_utils_lang_jp_tr_dest_assign_2(self):
+        '''JS+
+
+        dct = {'a': 1, 'b': 2, 'c': 3}
+
+        res = {a, c} = dct
+        {b} = {a:100, b: 1000}
+
+        print(res.b + '|' + a + '|' + c + '|' + b)
+
+        %%
+        2|1|3|1000
+        '''

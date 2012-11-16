@@ -894,10 +894,12 @@ class JSParser:
 
                     if isinstance(st, jsast.StatementNode):
                         if isinstance(st.statement, jsast.IDNode):
-                            return jsast.ObjectAssignmentPattern(
-                                        list=jsast.AssignmentPropertyList(
-                                            properties=[st.statement]),
-                                        right=right)
+                            return jsast.StatementNode(
+                                        statement=jsast.AssignmentExpressionNode(
+                                            left=jsast.AssignmentPropertyList(
+                                                properties=[st.statement]),
+                                            op='=',
+                                            right=right))
 
                         if isinstance(st.statement, jsast.ExpressionListNode):
                             vars = []
@@ -907,10 +909,12 @@ class JSParser:
                                 else:
                                     break
                             else:
-                                return jsast.ObjectAssignmentPattern(
-                                            list=jsast.AssignmentPropertyList(
-                                                properties=vars),
-                                            right=right)
+                                return jsast.StatementNode(
+                                            statement=jsast.AssignmentExpressionNode(
+                                                left=jsast.AssignmentPropertyList(
+                                                    properties=vars),
+                                                op='=',
+                                                right=right))
 
                 raise UnexpectedToken(eq_token, parser=self)
             else:

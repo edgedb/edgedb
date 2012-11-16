@@ -397,13 +397,63 @@ class Transpiler(NodeTransformer):
                                     body=js_ast.StatementBlockNode(
                                         statements=processed)))]))])
 
+    def is_assignment_list(self, node):
+        assert isinstance(node, js_ast.ArrayLiteralNode)
+
+        for el in node.array:
+            if not isinstance(el, js_ast.IDNode):
+                return False
+
+        return True
+
     def visit_js_AssignmentExpressionNode(self, node):
         if isinstance(node.left, js_ast.IDNode):
-            if node.op != '=':
-                self.check_scope_local(node.left.name)
-            else:
+            if node.op == '=':
                 if not self.scope.is_local(node.left.name):
                     self.scope.add(Variable(node.left.name, needs_decl=True))
+            else:
+                self.check_scope_local(node.left.name)
+
+        elif isinstance(node.left, js_ast.ArrayLiteralNode) and self.is_assignment_list(node.left):
+            tmp_name = self.scope.aux_var(name='as_expr', needs_decl=True)
+            exprs = []
+            exprs.append(js_ast.AssignmentExpressionNode(
+                            left=js_ast.IDNode(name=tmp_name),
+                            op='=',
+                            right=self.visit(node.right)))
+            for idx, el in enumerate(node.left.array):
+                if not self.scope.is_local(el.name):
+                    self.scope.add(Variable(el.name, needs_decl=True))
+                exprs.append(js_ast.AssignmentExpressionNode(
+                                left=js_ast.IDNode(name=el.name),
+                                op='=',
+                                right=js_ast.SBracketExpressionNode(
+                                    list=js_ast.IDNode(name=tmp_name),
+                                    element=js_ast.NumericLiteralNode(
+                                        value=idx))))
+            exprs.append(js_ast.IDNode(name=tmp_name))
+            return js_ast.ExpressionListNode(expressions=exprs)
+
+        elif isinstance(node.left, js_ast.AssignmentPropertyList):
+            tmp_name = self.scope.aux_var(name='as_expr', needs_decl=True)
+            exprs = []
+            exprs.append(js_ast.AssignmentExpressionNode(
+                            left=js_ast.IDNode(name=tmp_name),
+                            op='=',
+                            right=self.visit(node.right)))
+            for el in node.left.properties:
+                if not self.scope.is_local(el.name):
+                    self.scope.add(Variable(el.name, needs_decl=True))
+                exprs.append(js_ast.AssignmentExpressionNode(
+                                left=js_ast.IDNode(name=el.name),
+                                op='=',
+                                right=js_ast.DotExpressionNode(
+                                    left=js_ast.IDNode(name=tmp_name),
+                                    right=js_ast.IDNode(
+                                        name=el.name))))
+            exprs.append(js_ast.IDNode(name=tmp_name))
+            return js_ast.ExpressionListNode(expressions=exprs)
+
         node.right = self.visit(node.right)
         return node
 

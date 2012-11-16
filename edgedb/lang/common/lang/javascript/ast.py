@@ -271,10 +271,6 @@ class GeneratorExprNode(Expression):
     __fields = ['expr', ('forstring', str, 'for'), ('comprehensions', list)]
 
 
-class ObjectAssignmentPattern(Expression):
-    __fields = ['list', 'right']
-
-
 class AssignmentPropertyList(Base):
     __fields = [('properties', list)]
 
