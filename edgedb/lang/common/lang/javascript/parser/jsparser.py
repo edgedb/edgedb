@@ -925,7 +925,6 @@ class JSParser:
         else:
             raise UnexpectedToken(self.token, parser=self)
 
-
     @stamp_state('stmt', affectslabels=True)
     def parse_block_guts(self):
         """Parse statements inside a block.
@@ -944,6 +943,9 @@ class JSParser:
         else:
             return jsast.VarDeclarationNode(vars=var_list)
 
+    def parse_debugger_guts(self):
+        self.tentative_match(';')
+        return jsast.DebuggerNode()
 
     def parse_let_guts(self, statement=True):
         """Parse the LET declaration."""
