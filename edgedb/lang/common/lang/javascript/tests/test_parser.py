@@ -311,6 +311,9 @@ print(---a);"""
     def test_utils_lang_js_parser_ifexpr2(self):
         """var a = -4; a*=3; print(a = 0 ? "positive" : "negative");"""
 
+    def test_utils_lang_js_parser_ifexpr3(self):
+        """var a, b = true ? a = 3 : 1; print(a, b);"""
+
     def test_utils_lang_js_parser_throw(self):
         """throw "oops!";"""
 

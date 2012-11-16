@@ -655,9 +655,12 @@ class JSParser:
 
 
     def led_HOOK(self, left, token):
-        iftrue = self.parse_assignment_expression(token.lbp)
+        # The binding power of '?' has nothing to do with ':'.
+        # Since ':' is not an operator, it will ALWAYS act as a separator.
+        #
+        iftrue = self.parse_assignment_expression()
         self.must_match(':')
-        iffalse = self.parse_assignment_expression(token.lbp)
+        iffalse = self.parse_assignment_expression()
         return jsast.ConditionalExpressionNode(condition=left, true=iftrue, false=iffalse)
 
     #
