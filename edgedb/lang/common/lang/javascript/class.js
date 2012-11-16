@@ -41,7 +41,6 @@ sx.$bootstrap_class_system = function(opts) {
             qualname_attr: '$qualname',
             last_instance_attr: '$$_lastinst',
             cached_constructor: '$$_cached_c',
-
             type_cls_name: 'type',
             object_cls_name: 'object',
             builtins_name: 'builtins',
