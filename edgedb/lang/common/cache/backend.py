@@ -59,7 +59,7 @@ class NonBlockingBackend(Backend):
 
 class MemoryBackend(NonBlockingBackend):
     max_size = config.cvalue(32 * 1024 * 1024, type=int, doc='Maximum cache size in bytes')
-    max_item_size = config.cvalue(500 * 1024, type=int, doc='Maximum cache item size in bytes')
+    max_item_size = config.cvalue(1024 * 1024, type=int, doc='Maximum cache item size in bytes')
 
     def __init__(self):
         self._data = collections.OrderedDict()
