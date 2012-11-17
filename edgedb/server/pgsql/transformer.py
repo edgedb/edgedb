@@ -2513,7 +2513,14 @@ class CaosTreeTransformer(CaosExprTransformer):
             metarefs = {'id'} | {f.name for f in caos_path_tip.metarefs}
 
             if len(metarefs) > 1:
-                datatable = pgsql.ast.TableNode(name='metaobject',
+                if isinstance(caos_path_tip.concept, caos_types.ProtoConcept):
+                    metatable = 'concept'
+                else:
+                    msg ='unexpected path tip type when resolving metarefs: {}' \
+                                .format(caos_path_tip.concept)
+                    raise ValueError(msg)
+
+                datatable = pgsql.ast.TableNode(name=metatable,
                                                 schema='caos',
                                                 concepts=None,
                                                 alias=context.current.genalias(hint='metaobject'))
