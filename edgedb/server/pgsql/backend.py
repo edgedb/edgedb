@@ -1111,7 +1111,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def store_entity(self, entity, session):
         cls = entity.__class__
         prototype = caos.types.prototype(cls)
-        concept = cls._metadata.name
+        concept = prototype.name
         id = entity.id
         links = entity._instancedata.pointers
         table = self._type_mech.get_table(prototype, session.proto_schema)
@@ -1404,7 +1404,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def store_entity_batch(self, entities, session, batch_id):
         context = delta_cmds.CommandContext(session.get_connection(), session)
 
-        key = lambda i: i.__class__._metadata.name
+        key = lambda i: i.__class__.__sx_prototype__.name
         for concept, entities in itertools.groupby(sorted(entities, key=key), key=key):
             concept = session.schema.get(concept)
             concept_proto = concept.__sx_prototype__
@@ -1419,7 +1419,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     @debug
     def delete_entities(self, entities, session):
-        key = lambda i: i.__class__._metadata.name
+        key = lambda i: i.__class__.__sx_prototype__.name
         result = set()
         modstat_t = common.qname(*deltadbops.EntityModStatType().name)
 
@@ -1640,9 +1640,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         key = lambda i: i[0]
         for link_name, pairs in itertools.groupby(sorted(flatten_links(links), key=key), key=key):
             link = session.schema.get(link_name)
-            link_proto = link._metadata.root_prototype
-            table, _, _ = self.get_batch_instruments(link._metadata.root_prototype, session,
-                                                     batch_id)
+            link_proto = session.proto_schema.get(link.__sx_prototype__.normal_name())
+            table, _, _ = self.get_batch_instruments(link_proto, session,batch_id)
 
             self.batches.setdefault(batch_id, {'objects': set()})['objects'].add(link_proto)
 
@@ -2685,7 +2684,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def sequence_next(self, seqcls):
-        name = common.atom_name_to_sequence_name(seqcls._metadata.name)
+        name = common.atom_name_to_sequence_name(seqcls.__sx_prototype__.name)
         name = postgresql.string.quote_literal(name)
         return self.runquery("SELECT nextval(%s)" % name, compat=False, return_stmt=True).first()
 

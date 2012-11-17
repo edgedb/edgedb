@@ -133,7 +133,7 @@ class Session(session.Session):
                 return None
             concept = self.schema.get(concept_name)
         else:
-            concept_name = concept._metadata.name
+            concept_name = concept.__sx_prototype__.name
 
         links = self.backend.load_entity(concept_name, id, session=self)
 
