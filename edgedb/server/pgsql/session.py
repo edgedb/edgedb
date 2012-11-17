@@ -145,26 +145,8 @@ class Session(session.Session):
     def sequence_next(self, seqcls):
         return self.backend.sequence_next(seqcls)
 
-    def start_batch(self, batch):
-        super().start_batch(batch)
-        self.backend.start_batch(self, id(batch))
-
-    def commit_batch(self, batch):
-        super().commit_batch(batch)
-        self.backend.commit_batch(self, id(batch))
-
-    def close_batch(self, batch):
-        super().close_batch(batch)
-        self.backend.close_batch(self, id(batch))
-
-    def _store_entity_batch(self, entities, batch):
-        self.backend.store_entity_batch(entities, self, id(batch))
-
-    def _store_link_batch(self, links, batch):
-        self.backend.store_link_batch(links, self, id(batch))
-
-    def sync(self, skipbatch=False):
-        self.do_sync(skipbatch=skipbatch)
+    def sync(self):
+        self.do_sync()
 
     def interrupt(self):
         if self._connection is not None and self._connection.pq.xact and \

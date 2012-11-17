@@ -56,21 +56,6 @@ class Session(session.Session):
     def _load_link(self, link, pointers):
         raise NotImplementedError
 
-    def start_batch(self, batch):
-        raise NotImplementedError
-
-    def commit_batch(self, batch):
-        raise NotImplementedError
-
-    def close_batch(self, batch):
-        raise NotImplementedError
-
-    def _store_entity_batch(self, entities, batch):
-        raise NotImplementedError
-
-    def _store_link_batch(self, links, batch):
-        raise NotImplementedError
-
     def sync(self):
         raise NotImplementedError
 

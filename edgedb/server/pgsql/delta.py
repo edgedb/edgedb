@@ -669,26 +669,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             self.pgops.add(dbops.AlterTableRenameTo(old_table_name, new_table_name[1],
                                                     conditions=(cond,)))
 
-        old_func_name = (old_table_name[0],
-                         common.caos_name_to_pg_name(old_name.name + '_batch_merger'))
-        new_func_name = (new_table_name[0],
-                         common.caos_name_to_pg_name(new_name.name + '_batch_merger'))
-
-        cond = dbops.FunctionExists(old_func_name, args=('text',),)
-        cmd = dbops.RenameFunction(old_func_name, args=('text',), new_name=new_func_name,
-                             conditions=(cond,))
-        self.pgops.add(cmd)
-
-    def delete(self, meta, context, proto):
-        super().delete(meta, context, proto)
-
-        schema = common.caos_module_name_to_schema_name(proto.name.module)
-        name = common.caos_name_to_pg_name(proto.name.name + '_batch_merger')
-        func_name = (schema, name)
-        cond = dbops.FunctionExists(func_name, args=('text',),)
-        cmd = dbops.DropFunction(func_name, args=('text',), conditions=(cond,))
-        self.pgops.add(cmd)
-
     def search_index_add(self, host, pointer, meta, context):
         if self.update_search_indexes is None:
             self.update_search_indexes = UpdateSearchIndexes(host)
