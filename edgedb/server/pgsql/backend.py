@@ -1188,9 +1188,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             """
 
             if is_object:
-                updates = {'id': id[0], 'ctime': id[1], 'mtime': id[2]}
+                updates = {'semantix.caos.builtins.id': id[0],
+                           'semantix.caos.builtins.ctime': id[1],
+                           'semantix.caos.builtins.mtime': id[2]}
             else:
-                updates = {'id': id[0]}
+                updates = {'semantix.caos.builtins.id': id[0]}
             entity._instancedata.update(entity, updates, register_changes=False, allow_ro=True)
             session.add(entity)
 
