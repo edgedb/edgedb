@@ -279,6 +279,9 @@ class OrderedSet(BaseOrderedSet, collections.MutableSequence):
     def __delitem__(self, slice):
         raise NotImplementedError
 
+    def __contains__(self, key):
+        return key in self.map
+
     append = BaseOrderedSet.add
 
     def appendleft(self, key):
