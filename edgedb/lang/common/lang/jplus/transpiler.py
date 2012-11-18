@@ -407,6 +407,9 @@ class Transpiler(NodeTransformer):
         return True
 
     def visit_js_AssignmentExpressionNode(self, node):
+        if isinstance(node.right, js_ast.IDNode):
+            self.check_scope_load(node.right.name)
+
         if isinstance(node.left, js_ast.IDNode):
             if node.op == '=':
                 if not self.scope.is_local(node.left.name):

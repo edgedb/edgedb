@@ -1031,6 +1031,16 @@ class TestTranslation(base_test.BaseJPlusTest):
         <class object>
         '''
 
+    def test_utils_lang_jp_tr_name_resolution_19(self):
+        '''JS+
+
+        a = object;
+        print(a+'')
+
+        %%
+        <class object>
+        '''
+
     def test_utils_lang_jp_tr_dest_assign_1(self):
         '''JS+
 
