@@ -41,3 +41,7 @@ class Schema(Base):
 
 class ModuleSchema(Schema):
     _schema_base_cls = ModuleSchemaBase
+
+
+class CachingSchema:
+    pass

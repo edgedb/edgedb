@@ -153,6 +153,11 @@ class _SemantixImportsHook:
         imports.extend(self.parse(source))
 
 
+class ModuleCache(loader.ModuleCache):
+    def get_magic(self):
+        return self._loader.__class__._cache_magic
+
+
 class Loader(loader.SourceFileLoader):
     logger = logging.getLogger('semantix')
 
@@ -264,13 +269,13 @@ class Loader(loader.SourceFileLoader):
         super().__init__(fullname, filename)
         self._lang = language
 
-    def get_cache_magic(self):
-        return self.__class__._cache_magic
+    def new_cache(self, modname):
+        return ModuleCache(modname, self)
 
     def cache_path_from_source_path(self, source_path):
         return imp_utils.cache_from_source(source_path, cache_ext='.js')
 
-    def code_from_source(self, module, source_bytes, log=True):
+    def code_from_source(self, module, source_bytes, *, cache=None, log=True):
         if not len(self._import_detect_hooks):
             # No import hooks?  We can't find any imports then.
             #

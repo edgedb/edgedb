@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2011 Sprymix Inc.
+# Copyright (c) 2011-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -8,11 +8,61 @@
 
 import collections
 import io
+import importlib
+import marshal
+import sys
 
 from semantix.utils.lang.import_ import loader
 from semantix.utils.lang.import_ import module as module_types
 
 from .context import DocumentContext
+
+
+class LanguageCodeObject:
+    def __init__(self, imports, code):
+        self.code = code
+        self.imports = imports
+
+
+class LangModuleCacheMetaInfo(loader.ModuleCacheMetaInfo):
+    def __init__(self, modname, *, magic=None, modver=None, code_offset=None):
+        super().__init__(modname, magic=magic, modver=modver, code_offset=code_offset)
+        self.dependencies = None
+
+    def marshal_extras(self):
+        extras = self.get_extras()
+        if extras:
+            return marshal.dumps(extras)
+        else:
+            return None
+
+    def get_extras(self):
+        if self.dependencies:
+            return {'deps': self.dependencies}
+        else:
+            return None
+
+    def unmarshal_extras(self, data):
+        try:
+            data = marshal.loads(data)
+        except Exception as e:
+            raise ImportError('could not unmarshal metainfo extras') from e
+
+        self.set_extras(data)
+
+    def set_extras(self, data):
+        deps = data.get('deps')
+
+        if deps:
+            self.dependencies = deps
+
+
+class LangModuleCache(loader.ModuleCache):
+    metainfo_class = LangModuleCacheMetaInfo
+
+    def validate(self):
+        super().validate()
+        self._loader._language.validate_code(self.code)
 
 
 class LanguageLoader:
@@ -21,10 +71,13 @@ class LanguageLoader:
         self._language = language
         self._context = fullname
 
+    def create_cache(self, modname):
+        return LangModuleCache(modname, self)
+
     def get_proxy_module_class(self):
         return self._language.proxy_module_cls
 
-    def code_from_source(self, module, source_bytes):
+    def code_from_source(self, module, source_bytes, *, cache=None):
         modinfo = module_types.ModuleInfo(module)
         context = DocumentContext(module=modinfo, import_context=module.__name__)
 
@@ -32,13 +85,60 @@ class LanguageLoader:
 
         try:
             code = self._language.load_code(stream, context=context)
-        except NotImplementedError:
+        except (NotImplementedError, ImportError):
             raise
         except Exception as error:
             raise ImportError('unable to import "%s" (%s: %s)' \
                               % (module.__name__, type(error).__name__, error)) from error
 
+        if isinstance(code, LanguageCodeObject) and code.imports and cache is not None:
+            cache.metainfo.dependencies = code.imports
+
         return code
+
+    def get_module_version(self, modname, cache):
+        my_modver = super().get_module_version(modname, cache)
+
+        if cache is not None and getattr(cache.metainfo, 'dependencies', None):
+            deps_modver = self._get_deps_modver(cache.metainfo.dependencies)
+
+            if deps_modver > my_modver:
+                my_modver = deps_modver
+
+        return my_modver
+
+    def _get_deps_modver(self, deps):
+        max_modver = 0
+
+        for dep in deps:
+            impmod = importlib.import_module(dep)
+
+            try:
+                modver = impmod.__sx_modversion__
+            except AttributeError:
+                # Module not handled by any of our loaders, fallback to native loader check
+                dep_loader = self._get_loader(dep)
+                dep_modpath = dep_loader.get_filename(dep)
+                modver = self.modver_from_path_stats(dep_loader.path_stats(dep_modpath))
+
+            if modver > max_modver:
+                max_modver = modver
+
+        return max_modver
+
+    def _get_loader(self, modname):
+        if '.' in modname:
+            dep_parent, _, _ = modname.rpartition('.')
+            dep_parent = importlib.import_module(dep_parent)
+            dep_path = dep_parent.__path__
+        else:
+            dep_path = None
+
+        dep_loader = importlib.find_loader(modname, path=dep_path)
+        if dep_loader is None:
+            raise ImportError('could not find loader for dependency module {}'.format(modname))
+
+        return dep_loader
 
     def _execute(self, module, data, method):
         try:
@@ -46,6 +146,9 @@ class LanguageLoader:
             context = DocumentContext(module=modinfo, import_context=self._context)
             attributes = getattr(self._language, method)(data, context=context)
             self.set_module_attributes(module, attributes)
+
+        except ImportError:
+            raise
 
         except Exception as error:
             raise ImportError('unable to import "%s" (%s: %s)' \

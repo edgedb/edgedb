@@ -1,16 +1,29 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2010, 2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
 
+import collections
+import importlib
+import itertools
 import os
 import yaml
-from semantix.utils.lang import meta, context as lang_context
+
+from semantix.utils.lang import meta, context as lang_context, loader as lang_loader
 from semantix.utils.lang.yaml import loader, dumper
+from semantix.utils.lang.yaml import schema as yaml_schema
 from semantix.utils.functional import Adapter
+
+
+class YAMLCodeObject(lang_loader.LanguageCodeObject):
+    def __init__(self, imports, code, yaml_event_stream, schemas, module_schema):
+        super().__init__(imports, code)
+        self.yaml_event_stream = yaml_event_stream
+        self.schemas = schemas
+        self.module_schema = module_schema
 
 
 class Language(meta.Language):
@@ -44,16 +57,93 @@ class Language(meta.Language):
             context = lang_context.DocumentContext()
 
         ldr = loader.RecordingLoader(stream, context)
-        return ldr.get_code()
+
+        yaml_code = ldr.get_code()
+        documents = ldr.get_documents()
+        caching_schemas = False
+        schemas = []
+        module_schema = None
+        imports = {}
+
+        for document in documents:
+            if document.schema is not None:
+                schema_modname, _, schema_attrname = document.schema.rpartition('.')
+
+                try:
+                    schema_mod = importlib.import_module(schema_modname)
+                except ImportError as e:
+                    raise ValueError('could not import YAML document schema') from e
+                else:
+                    try:
+                        schema = getattr(schema_mod, schema_attrname)
+                    except AttributeError as e:
+                        raise ValueError('could not import YAML document schema') from e
+
+                if issubclass(schema, yaml_schema.ModuleSchemaBase):
+                    docname = None
+                    module_schema = schema
+                else:
+                    docname = document.document_name
+                    schemas.append(schema)
+
+                if not caching_schemas and issubclass(schema, yaml_schema.CachingSchema):
+                    caching_schemas = True
+
+                imports[docname] = document.imports
+
+        if caching_schemas:
+            # To obtain caches produced by schemas, the stream has to be replayed
+            rldr = loader.ReplayLoader(yaml_code, context)
+            data = list(rldr.get_dict())
+
+            all_imports = list(itertools.chain.from_iterable(imports.values()))
+            all_imports.sort()
+            return YAMLCodeObject(all_imports, data, yaml_event_stream=ldr.get_code(),
+                                  schemas=schemas, module_schema=module_schema)
+
+        else:
+            return ldr.get_code()
 
     @classmethod
     def execute_code(cls, code, context=None):
-        if not context:
-            context = lang_context.DocumentContext()
+        if isinstance(code, YAMLCodeObject):
+            imports = set()
 
-        ldr = loader.ReplayLoader(code, context)
-        for d in ldr.get_dict():
-            yield d
+            for imp in code.imports:
+                imports.add(importlib.import_module(imp))
+
+            if code.module_schema is not None:
+                implicit_imports = code.module_schema.get_implicit_imports()
+                for imp in implicit_imports:
+                    imports.add(importlib.import_module(imp))
+
+                code.module_schema.normalize_code(code.code, imports)
+
+                for d in code.code:
+                    yield d
+            else:
+                for i, d in enumerate(code.code):
+                    implicit_imports = code.module_schema.get_implicit_imports()
+                    for imp in implicit_imports:
+                        imports.add(importlib.import_module(imp))
+
+                    code.schemas[i].normalize_code(d[1], imports)
+                    yield d
+        else:
+            if not context:
+                context = lang_context.DocumentContext()
+
+            ldr = loader.ReplayLoader(code, context)
+            for d in ldr.get_dict():
+                yield d
+
+    @classmethod
+    def validate_code(cls, code):
+        if isinstance(code, YAMLCodeObject):
+            pass
+        else:
+            if code is None:
+                raise ImportError('invalid YAML eventlog')
 
 
 class ObjectMeta(Adapter):

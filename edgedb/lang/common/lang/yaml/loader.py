@@ -81,18 +81,35 @@ class RecordingLoader(Loader):
         if event is not None:
             self._eventlog.append(event)
 
+            if isinstance(event, yaml.DocumentStartEvent):
+                self._documents.append(event)
+
     current_event = property(_get_current_event, _set_current_event)
 
     def __init__(self, stream, context=None):
         super().__init__(stream, context)
         self._current_event = None
         self._eventlog = []
+        self._documents = []
+        self._loaded = False
 
-    def get_code(self):
+    def _load(self):
         while self.check_event():
             self.get_event()
 
+        self._loaded = True
+
+    def get_code(self):
+        if not self._loaded:
+            self._load()
+
         return self._eventlog
+
+    def get_documents(self):
+        if not self._loaded:
+            self._load()
+
+        return self._documents
 
 
 class ReplayLoader(Loader):
