@@ -46,6 +46,15 @@ class Parser(JSParser):
         table.append(('rbp', 'Unary', ('@',), True));
         return table
 
+    def parse_assert_guts(self):
+        test = self.parse_assignment_expression()
+
+        failexpr = None
+        if self.tentative_match(',', regexp=False):
+            failexpr = self.parse_assignment_expression()
+
+        return ast.AssertNode(test=test, failexpr=failexpr)
+
     @stamp_state('stmt', affectslabels=True)
     def parse_with_guts(self):
         started_at = self.prevtoken.position

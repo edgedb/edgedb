@@ -23,7 +23,7 @@ from metamagic.utils.lang.jplus.support import builtins as builtins_js
 
 JSBuiltins = ['NaN', 'Object', 'Function', 'undefined', 'Math', 'JSON', 'String',
               'Array', 'Infinity', 'window', 'Array', 'Boolean', 'Date', 'Number',
-              'RegExp',
+              'RegExp', 'Error',
               'decodeURI', 'decodeURIComponent', 'encodeURI', 'encodeURIComponent',
               'eval', 'isFinite', 'isNaN', 'parseInt', 'parseFloat', 'TypeError']
 
@@ -1204,3 +1204,29 @@ class Transpiler(NodeTransformer):
                     call=js_ast.IDNode(name=isinst),
                     arguments=[self.visit(node.expression),
                               self.visit(node.type)])
+
+    def visit_jp_AssertNode(self, node):
+        # TODO:
+        # 1. Raise true AssertionError
+        # 2. There should be an option to somehow turn all
+        # asserts off.
+
+        test = self.visit(node.test)
+        if isinstance(test, js_ast.IDNode):
+            self.check_scope_load(test.name)
+
+        failexpr = None
+        if node.failexpr is not None:
+            failexpr = self.visit(node.failexpr)
+            if isinstance(failexpr, js_ast.IDNode):
+                self.check_scope_load(failexpr.name)
+
+        assert_fail = self.scope.use('_throw_assert_error')
+        return js_ast.StatementNode(
+                statement=js_ast.IfNode(
+                    ifclause=js_ast.PrefixExpressionNode(
+                        expression=test,
+                        op='!'),
+                    thenclause=js_ast.CallNode(
+                        call=js_ast.IDNode(name=assert_fail),
+                        arguments=[failexpr] if failexpr else [])))

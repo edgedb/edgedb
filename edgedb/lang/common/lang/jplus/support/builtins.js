@@ -208,6 +208,10 @@ $SXJSP = (function() {
             return !is(x, y);
         },
 
+        _throw_assert_error: function(expr) {
+            throw new Error(expr);
+        },
+
         _newclass: sx.define.new_class,
         _super_method: sx.parent.find,
         _isinstance: sx.isinstance,

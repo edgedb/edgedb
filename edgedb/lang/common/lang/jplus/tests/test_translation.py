@@ -1134,3 +1134,45 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         1-20
         '''
+
+    def test_utils_lang_jp_tr_dest_assign_forof_3(self):
+        '''JS+
+
+        for ({x} of [{x:1},{x:2}]) {
+            print(x);
+        }
+
+        %%
+        1\n2
+        '''
+
+    def test_utils_lang_jp_tr_assert_1(self):
+        '''JS+
+
+        try {
+            assert (1, 0), ('Error!', 'and fail...')
+        } except (Error) {
+            print('ok')
+        } else {
+            print('fail')
+        }
+
+        try {
+            assert true, ('Error!', 'and fail...')
+        } except (Error) {
+            print('fail2')
+        } else {
+            print('ok2')
+        }
+
+        try {
+            assert !object
+        } except (Error) {
+            print('ok3')
+        } else {
+            print('fail3')
+        }
+
+        %%
+        ok\nok2\nok3
+        '''
