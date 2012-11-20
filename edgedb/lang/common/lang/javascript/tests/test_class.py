@@ -120,7 +120,7 @@ class TestJSClass(JSFunctionalTest):
         // %from metamagic.utils.lang.javascript import class
 
         var A = sx.define('A', [], {
-            construct: function() {
+            constructor: function() {
                 this.field = 'A';
             },
 
@@ -136,8 +136,8 @@ class TestJSClass(JSFunctionalTest):
         });
 
         var B = sx.define('B', [A], {
-            construct: function() {
-                sx.parent(B, this, 'construct');
+            constructor: function() {
+                sx.parent(B, this, 'constructor');
                 this.field += 'B';
             },
 
@@ -153,8 +153,8 @@ class TestJSClass(JSFunctionalTest):
         });
 
         var C = sx.define('C', [A], {
-            construct: function() {
-                sx.parent(C, this, 'construct');
+            constructor: function() {
+                sx.parent(C, this, 'constructor');
                 this.field += 'C';
             },
 
@@ -170,8 +170,8 @@ class TestJSClass(JSFunctionalTest):
         });
 
         var D = sx.define('D', [C, B], {
-            construct: function() {
-                sx.parent(D, this, 'construct');
+            constructor: function() {
+                sx.parent(D, this, 'constructor');
                 this.field += 'D';
             },
 
@@ -241,7 +241,7 @@ class TestJSClass(JSFunctionalTest):
         var chk = [];
 
         var ProtoObject = sx.define('ProtoObject', [], {
-            construct: function() {
+            constructor: function() {
                 chk.push('ProtoObject');
             }
         });
@@ -249,9 +249,9 @@ class TestJSClass(JSFunctionalTest):
         var ClassPrototype = sx.define('ClassPrototype', [ProtoObject]);
 
         var ProtoSource = sx.define('ProtoSource', [ClassPrototype], {
-            construct: function() {
+            constructor: function() {
                 chk.push('ProtoSource');
-                sx.parent(ProtoSource, this, 'construct');
+                sx.parent(ProtoSource, this, 'constructor');
             }
         });
 
@@ -268,7 +268,7 @@ class TestJSClass(JSFunctionalTest):
         // %from metamagic.utils.lang.javascript import class
 
         var Test = sx.define('Test', [], {
-            construct: function(v, w) {
+            constructor: function(v, w) {
                 this.foo = v + ':' + w;
             }
         });
@@ -278,7 +278,7 @@ class TestJSClass(JSFunctionalTest):
         assert.equal(Test().$cls, Test);
 
         var Test2 = sx.define('Test2', [], {
-            construct: function(v) {
+            constructor: function(v) {
                 this.foo = v;
             }
         });
@@ -297,9 +297,9 @@ class TestJSClass(JSFunctionalTest):
 
         var MA = sx.define('MA', [sx.type], {
             statics: {
-                construct: function(name, bases, dct) {
+                constructor: function(name, bases, dct) {
                     dct.foo = name + name;
-                    return sx.parent(MA, this, 'construct', [name, bases, dct]);
+                    return sx.parent(MA, this, 'constructor', [name, bases, dct]);
                 }
             }
         });
@@ -343,9 +343,9 @@ class TestJSClass(JSFunctionalTest):
 
         var MA = sx.define('MA', [sx.type], {
             statics: {
-                construct: function(name, bases, dct) {
+                constructor: function(name, bases, dct) {
                     dct.foo = name + name;
-                    return sx.parent(MA, this, 'construct', [name, bases, dct]);
+                    return sx.parent(MA, this, 'constructor', [name, bases, dct]);
                 }
             }
         });
@@ -356,9 +356,9 @@ class TestJSClass(JSFunctionalTest):
 
         var MB = sx.define('MB', [MA], {
             statics: {
-                construct: function(name, bases, dct) {
+                constructor: function(name, bases, dct) {
                     dct.bar = name + name + 'bar';
-                    return sx.parent(MB, this, 'construct', [name, bases, dct]);
+                    return sx.parent(MB, this, 'constructor', [name, bases, dct]);
                 }
             }
         });
@@ -440,15 +440,15 @@ class TestJSClass(JSFunctionalTest):
         // %from metamagic.utils.lang.javascript import class
 
         var MA = sx.define('MA', [sx.type], {
-            construct: function(name, bases, dct) {
+            constructor: function(name, bases, dct) {
                 this.baz = 42;
             },
 
             statics: {
-                construct: function(name, bases, dct) {
+                constructor: function(name, bases, dct) {
                     assert.equal(this.$name, 'MA');
                     dct.foo = name + name;
-                    var cls = sx.parent(MA, this, 'construct', [name, bases, dct]);
+                    var cls = sx.parent(MA, this, 'constructor', [name, bases, dct]);
                     assert.ok(sx.issubclass(cls, sx.object));
                     assert.not(sx.issubclass(cls, sx.type));
                     assert.equal(cls.$cls, MA);
@@ -464,16 +464,16 @@ class TestJSClass(JSFunctionalTest):
                          {a: function() { return this.$cls.bar; }} );
 
         var Bar = sx.define('Bar', [Foo], {
-            construct: function(p1, p2) {
+            constructor: function(p1, p2) {
                 assert.equal(this.$cls.$name, 'Bar');
                 this.foo += p2;
             },
 
             statics: {
-                construct: function(p1, p2) {
+                constructor: function(p1, p2) {
                     assert.equal(this.$name, 'Bar');
                     assert.equal(this.$cls, MA);
-                    var obj = sx.parent(this, this, 'construct', arguments);
+                    var obj = sx.parent(this, this, 'constructor', arguments);
                     obj.foo += p1;
                     return obj;
                 }
@@ -498,17 +498,17 @@ class TestJSClass(JSFunctionalTest):
         });
 
         var MMA = sx.define('MMA', [sx.type], {
-            construct: function() {
+            constructor: function() {
                 this.bar = function() { return 'bar'; };
             }
         });
 
         var MA = sx.define('MA', [MMA], {
             statics: {
-                construct: function(name, bases, dct, foo) {
+                constructor: function(name, bases, dct, foo) {
                     assert.equal(foo, 123);
                     bases.splice(0, 0, Base);
-                    var cls = sx.parent(this, this, 'construct', arguments);
+                    var cls = sx.parent(this, this, 'constructor', arguments);
                     cls.bar = this.bar;
                     return cls;
                 }
@@ -589,18 +589,18 @@ class TestJSClass(JSFunctionalTest):
         var chk = [];
 
         var ProtoObject = sx.define('ProtoObject', [sx.type], {
-            construct: function() {
+            constructor: function() {
                 chk.push('ProtoObject');
-                return sx.parent(ProtoObject, this, 'construct');
+                return sx.parent(ProtoObject, this, 'constructor');
             }
         });
 
         var ClassPrototype = sx.define('ClassPrototype', [ProtoObject]);
 
         var ProtoSource = sx.define('ProtoSource', [ClassPrototype], {
-            construct: function() {
+            constructor: function() {
                 chk.push('ProtoSource');
-                return sx.parent(ProtoSource, this, 'construct');
+                return sx.parent(ProtoSource, this, 'constructor');
             }
         });
 
@@ -629,9 +629,9 @@ class TestJSClass(JSFunctionalTest):
 
         var ProtoObject = sx.define('ProtoObject', [sx.type], {
             statics: {
-                construct: function(name, bases, dct) {
+                constructor: function(name, bases, dct) {
                     chk.push('ProtoObject');
-                    return sx.parent(ProtoObject, this, 'construct', arguments);
+                    return sx.parent(ProtoObject, this, 'constructor', arguments);
                 }
             }
         });
@@ -640,9 +640,9 @@ class TestJSClass(JSFunctionalTest):
 
         var ProtoSource = sx.define('ProtoSource', [ClassPrototype], {
             statics: {
-                construct: function(name, bases, dct) {
+                constructor: function(name, bases, dct) {
                     chk.push('ProtoSource');
-                    return sx.parent(ProtoSource, this, 'construct', arguments);
+                    return sx.parent(ProtoSource, this, 'constructor', arguments);
                 }
             }
         });
@@ -721,7 +721,7 @@ class TestJSClass(JSFunctionalTest):
         var chk = [];
 
         var A = sx.define('A', [], {
-            construct: function(a) {
+            constructor: function(a) {
                 if (a == 3) {
                     throw 'spam';
                 }
@@ -729,7 +729,7 @@ class TestJSClass(JSFunctionalTest):
                 this.a = a;
             },
             statics: {
-                construct: function(a) {
+                constructor: function(a) {
                     if (a == 1) {
                         new A(2);
                     }
@@ -740,7 +740,7 @@ class TestJSClass(JSFunctionalTest):
                         } catch (e) {}
                     }
 
-                    return sx.parent(A, this, 'construct', [a]);
+                    return sx.parent(A, this, 'constructor', [a]);
                 }
             }
         });
@@ -781,12 +781,12 @@ class TestJSClass(JSFunctionalTest):
         assert.not(sx.isinstance(8, a));
         '''
 
-    def test_utils_lang_js_sx_class_null_constructor_arg(self):
+    def test_utils_lang_js_sx_class_null_constructoror_arg(self):
         '''JS
         // %from metamagic.utils.lang.javascript import class
 
         var Foo = sx.define('Foo', [], {
-            construct: function(a) {
+            constructor: function(a) {
                 this.a = a;
             }
         });

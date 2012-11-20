@@ -27,7 +27,7 @@ sx.$bootstrap_class_system = function(opts) {
         i,
 
         default_opts = {
-            constructor_name: 'construct',
+            constructor_name: 'constructor',
 
             cls_attr: '$cls',
             mro_attr: '$mro',
