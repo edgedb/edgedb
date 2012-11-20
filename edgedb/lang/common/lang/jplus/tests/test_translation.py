@@ -131,9 +131,9 @@ class TestTranslation(base_test.BaseJPlusTest):
         '''JS+
 
         class MA(type) {
-            static function construct(name, bases, dct) {
+            static function constructor(name, bases, dct) {
                 dct.foo = name + name;
-                return super().construct(name, bases, dct)
+                return super().constructor(name, bases, dct)
             }
         }
 
@@ -151,7 +151,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         '''JS+
 
         class Foo {
-            function construct(base) {
+            function constructor(base) {
                 this.base = base;
             }
 
@@ -771,7 +771,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         chk = '';
 
         class W {
-            function construct(name) {
+            function constructor(name) {
                 this.name = name;
                 nonlocal chk;
                 chk += 'create(' + name + ')-';
