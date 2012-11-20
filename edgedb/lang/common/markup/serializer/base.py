@@ -111,22 +111,19 @@ def serialize(obj, *, ctx):
 
 
 @no_ref_detect
-def serialize_traceback_point(obj, *, ctx, include_source=True, source_window_size=2,
+def _serialize_traceback_point(obj, frame, lineno, *, ctx, include_source=True, source_window_size=2,
                               include_locals=False, point_cls=elements.lang.TracebackPoint):
-
-    assert type(obj) is types.TracebackType
     assert source_window_size >= 0
 
-    lineno = obj.tb_lineno
-    name = obj.tb_frame.f_code.co_name
-    filename = obj.tb_frame.f_code.co_filename
+    name = frame.f_code.co_name
+    filename = frame.f_code.co_filename
 
     locals = None
     if include_locals or ('markup.tb.locals' in debug.channels):
-        locals = serialize(dict(obj.tb_frame.f_locals), ctx=ctx)
+        locals = serialize(dict(frame.f_locals), ctx=ctx)
 
     if filename.startswith('.'):
-        frame_fn = obj.tb_frame.f_globals.get('__file__')
+        frame_fn = frame.f_globals.get('__file__')
         if frame_fn and frame_fn.endswith(filename[2:]):
             filename = frame_fn
 
@@ -137,6 +134,28 @@ def serialize_traceback_point(obj, *, ctx, include_source=True, source_window_si
         point.load_source(window=source_window_size)
 
     return point
+
+
+@no_ref_detect
+def serialize_traceback_point(obj, *, ctx, include_source=True, source_window_size=2,
+                              include_locals=False, point_cls=elements.lang.TracebackPoint):
+    assert type(obj) is types.TracebackType
+
+    return _serialize_traceback_point(obj, obj.tb_frame, obj.tb_lineno, ctx=ctx,
+                                      include_source=include_source,
+                                      source_window_size=source_window_size,
+                                      include_locals=include_locals, point_cls=point_cls)
+
+
+@no_ref_detect
+def serialize_callstack_point(obj, *, ctx, include_source=True, source_window_size=2,
+                              include_locals=False, point_cls=elements.lang.TracebackPoint):
+    assert type(obj) is types.FrameType
+
+    return _serialize_traceback_point(obj, obj, obj.f_lineno, ctx=ctx,
+                                      include_source=include_source,
+                                      source_window_size=source_window_size,
+                                      include_locals=include_locals, point_cls=point_cls)
 
 
 @serializer(handles=types.TracebackType)

@@ -1,10 +1,12 @@
 ##
-# Copyright (c) 2011 Sprymix Inc.
+# Copyright (c) 2011-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
+
+import sys
 
 from . import elements, serializer, renderers
 from .serializer import serialize, Context
@@ -53,4 +55,30 @@ def dump(obj, *, header=None, file=None, trim=True):
 
 def dump_code(code:str, *, lexer='python', header=None, file=None):
     markup = serializer.serialize_code(code, lexer=lexer)
+    _dump(markup, header, file)
+
+
+def dump_callstack(f=None, *, limit=None, header=None, file=None, trim=True):
+    if f is None:
+        try:
+            raise ZeroDivisionError
+        except ZeroDivisionError:
+            f = sys.exc_info()[2].tb_frame.f_back
+
+    if limit is None:
+        limit = getattr(sys, 'tracebacklimit', None)
+
+    result = []
+    i = 0
+    start_frame = f
+
+    ctx = _base_serializer.Context(trim=trim)
+
+    while f is not None and (limit is None or i < limit):
+        result.append(_base_serializer.serialize_callstack_point(f, ctx=ctx))
+        f = f.f_back
+        i += 1
+
+    result.reverse()
+    markup = elements.lang.Traceback(items=result, id=id(start_frame))
     _dump(markup, header, file)
