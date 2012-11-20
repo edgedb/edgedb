@@ -215,6 +215,9 @@ $SXJSP = (function() {
         _newclass: sx.define.new_class,
         _super_method: sx.parent.find,
         _isinstance: sx.isinstance,
+        __cleanup_modules: function() {
+            modules = {}; // for tests only
+        },
 
         /* public */
 

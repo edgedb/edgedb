@@ -33,16 +33,29 @@ class BaseJPlusTestMeta(js_base_test.JSFunctionalTestMeta):
     doc_prefix = 'JS+'
 
     @classmethod
-    @debug
-    def do_test(mcls, source, name=None, data=None):
-        source = source[len(mcls.doc_prefix)+1:]
-        expected = ''
+    def parse_test(mcls, source, post='', *args, **kwargs):
+        # Used to generate tests in HTML format; this method needs
+        # to understand our '%%' syntax
 
+        if source.startswith(mcls.doc_prefix):
+            source = source[len(mcls.doc_prefix)+1:]
+
+        expected = ''
         if '%%' in source:
             source, expected = source.split('%%')
             expected = expected.strip()
+            expected = '\nprint("Expected: ", {!r});\n'.format(expected)
 
+        source, js_deps, all_deps = mcls.compile(source)
+        source += expected
 
+        post = '''$SXJSP.__cleanup_modules();''' + post
+
+        return super().parse_test(source, base_deps=js_deps, post=post, *args, **kwargs)
+
+    @classmethod
+    @debug
+    def compile(mcls, source):
         p = parser.Parser()
         jsp_ast = p.parse(source)
 
@@ -70,6 +83,22 @@ class BaseJPlusTestMeta(js_base_test.JSFunctionalTestMeta):
         """LOG [jsp] Resultant JS Source
         dump_code(js_src, lexer='javascript', header='Resultant JS Source')
         """
+
+        return js_src, js_deps, all_deps
+
+    @classmethod
+    @debug
+    def do_test(mcls, source, name=None, data=None):
+        if source.startswith(mcls.doc_prefix):
+            source = source[len(mcls.doc_prefix)+1:]
+        expected = ''
+
+        if '%%' in source:
+            source, expected = source.split('%%')
+            expected = expected.strip()
+
+
+        js_src, _, all_deps = mcls.compile(source)
 
         bootstrap = []
         for dep in all_deps:
