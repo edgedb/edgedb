@@ -47,10 +47,6 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
     def test_utils_lang_js_parser_extra_regr_expansion_1(self):
         '''var hasDontEnumBug = !{toString:null}.propertyIsEnumerable("toString")'''
 
-    @flags(foreachsupport=True)
-    def test_utils_lang_js_parser_extra_foreach1(self):
-        '''for each (a in [1, 3 , 42]) print(a);'''
-
     @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 5})
     def test_utils_lang_js_parser_extra_foreach2(self):
         '''for each (a in [1, 3 , 42]) print(a);'''

@@ -244,7 +244,6 @@ class JSParser:
         self.yieldsupport = yieldsupport
         self.letsupport = letsupport
         self.expansionsupport = expansionsupport
-        self.foreachsupport = foreachsupport
         self.forofsupport = forofsupport
         self.catchifsupport = catchifsupport
         self.arraycompsupport = arraycompsupport or generatorexprsupport
@@ -1547,9 +1546,6 @@ class JSParser:
         """Parse for loop."""
 
         statement_started_at = self.token.position
-
-        if self.foreachsupport and self.tentative_match('each'):
-            return self.parse_for_each_guts()
 
         self.must_match('(')
         noin_expr = None
