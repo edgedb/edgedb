@@ -68,7 +68,29 @@ sx.$bootstrap_class_system = function(opts) {
         AUTO_REGISTER_NS = opts.auto_register_ns,
         LAST_INST_ATTR = opts.last_instance_attr,
         ARGS_MARKER = {},
-        CACHED_CONSTR = opts.cached_constructor;
+        CACHED_CONSTR = opts.cached_constructor,
+
+        dont_enums = [
+            'toString',
+            'toLocaleString',
+            'valueOf',
+            'hasOwnProperty',
+            'isPrototypeOf',
+            'propertyIsEnumerable',
+            'constructor'
+        ],
+        dont_enums_len = dont_enums.length,
+        has_dont_enum_bug = !{toString:null}.propertyIsEnumerable("toString");
+
+    function copy_dont_enums(to, from) {
+        var i, e;
+        for (i = 0; i < dont_enums_len; i++) {
+            e = dont_enums[i];
+            if (hop.call(from, e)) {
+                to[e] = from[e];
+            }
+        }
+    }
 
     if (AUTO_REGISTER_NS) {
         var sx_ns_resolve = sx.ns.resolve;
@@ -375,6 +397,10 @@ sx.$bootstrap_class_system = function(opts) {
             }
         }
 
+        if (has_dont_enum_bug) {
+            copy_dont_enums(proto, dct);
+        }
+
         cls[OWN_ATTR] = (attrs_flag = own.length) ? own : false;
 
         for (i = 1; i < mro_len_1; ++i) {
@@ -417,6 +443,10 @@ sx.$bootstrap_class_system = function(opts) {
 
                     cls[static_name] = attr;
                 }
+            }
+
+            if (has_dont_enum_bug) {
+                copy_dont_enums(cls, statics);
             }
         }
 
