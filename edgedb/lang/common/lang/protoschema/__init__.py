@@ -22,6 +22,7 @@ from semantix.utils import abc
 from semantix.utils.functional import hybridmethod, get_safe_attrname
 from semantix.utils.datastructures.struct import MixedStruct, MixedStructMeta, Field
 from semantix.utils.datastructures import Void
+from semantix.utils.lang.import_ import module as module_types
 
 from .error import SchemaError, NoPrototypeError
 from .name import SchemaName
@@ -553,7 +554,7 @@ class ProtoSchema:
             self.modules[name] = proto_module
         else:
             name = proto_module.__name__
-            self.foreign_modules[name] = proto_module
+            self.foreign_modules[name] = module_types.ModuleInfo(proto_module)
 
         if alias is not Void:
             self.set_module_alias(name, alias)
@@ -701,6 +702,10 @@ class ProtoSchema:
                 except KeyError as e:
                     module_err = e
 
+                try:
+                    proto_module = sys.modules[proto_module.__name__]
+                except KeyError as e:
+                    module_err = e
 
             if proto_module is None:
                 if default_raise:
