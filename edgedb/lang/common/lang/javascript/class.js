@@ -249,10 +249,17 @@ sx.$bootstrap_class_system = function(opts) {
                 args = arg0 === ARGS_MARKER ? arg1 : arguments;
 
                 constr = _class[CACHED_CONSTR];
-                prev_instance = _class[LAST_INST_ATTR];
-                _class[LAST_INST_ATTR] = this;
-                ths = constr.apply(_class, args);
-                _class[LAST_INST_ATTR] = prev_instance;
+                if (constr === ObjectClass_Constructor) {
+                    // Fast path for all classes without a custom
+                    // static constructor
+                    ths = this;
+                    ths[CLS_ATTR] = _class;
+                } else {
+                    prev_instance = _class[LAST_INST_ATTR];
+                    _class[LAST_INST_ATTR] = this;
+                    ths = constr.apply(_class, args);
+                    _class[LAST_INST_ATTR] = prev_instance;
+                }
 
                 if (ths == null) {
                     throw new Error(_class + ': could not create an instance');
@@ -489,7 +496,7 @@ sx.$bootstrap_class_system = function(opts) {
     };
     ObjectClass.prototype[CONSTRUCTOR] = object_constructor;
     ObjectClass.prototype[CACHED_CONSTR] = false;
-    ObjectClass[CACHED_CONSTR] = ObjectClass[CONSTRUCTOR] = function() {
+    var ObjectClass_Constructor = ObjectClass[CACHED_CONSTR] = ObjectClass[CONSTRUCTOR] = function() {
         var instance = this[LAST_INST_ATTR];
         instance[CLS_ATTR] = this;
         return instance;
