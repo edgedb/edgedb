@@ -259,6 +259,9 @@ class JavascriptSourceGenerator(codegen.PP_SourceGenerator):
         self.write("if (")
         self.visit(node.ifclause)
         self.write(") ")
+        if node.is_expr:
+            return
+
         if node.thenclause:
             if isinstance(node.thenclause, jsast.StatementBlockNode):
                 self.visit_StatementBlockNode(node.thenclause,
@@ -309,7 +312,7 @@ class JavascriptSourceGenerator(codegen.PP_SourceGenerator):
         self.write(') ')
         if node.statement:
             self.visit(node.statement)
-        else:
+        elif not node.is_expr:
             self.write(";")
             self.newline()
 
@@ -321,7 +324,19 @@ class JavascriptSourceGenerator(codegen.PP_SourceGenerator):
         self.write(") ")
         if node.statement:
             self.visit(node.statement)
-        else:
+        elif not node.is_expr:
+            self.write(";")
+            self.newline()
+
+    def visit_ForOfNode(self, node):
+        self.write("for (")
+        self.visit(node.init)
+        self.write(" of ")
+        self.visit(node.container)
+        self.write(") ")
+        if node.statement:
+            self.visit(node.statement)
+        elif not node.is_expr:
             self.write(";")
             self.newline()
 
@@ -448,27 +463,6 @@ class JavascriptSourceGenerator(codegen.PP_SourceGenerator):
         self.write(') ')
         self.visit(node.statement)
 
-    def visit_ForEachNode(self, node):
-        self.write("for each (")
-        self.visit(node.var)
-        self.write(" in ")
-        self.visit(node.container)
-        self.write(") ")
-        if node.statement:
-            self.visit(node.statement)
-        else:
-            self.write(";")
-            self.newline()
-
-#    def visit_TryCatchIfNode(self, node):
-#        self.write("try ")
-#        self.visit(node.tryblock)
-#        if node.catch:
-#            self.visit_list_helper(node.catch, separator='')
-#        if node.finallyblock:
-#            self.write("finally ")
-#            self.visit(node.finallyblock)
-
     def visit_CatchIfNode(self, node):
         self.write("catch (" + node.catchid)
         if node.condition:
@@ -479,20 +473,8 @@ class JavascriptSourceGenerator(codegen.PP_SourceGenerator):
 
     def visit_ArrayComprehensionNode(self, node):
         self.write('[')
-#        self.visit_comprehension_helepr(node, forstring='for each')
         self.visit(node.generator)
         self.write(']')
-
-    def visit_ComprehensionNode(self, node):
-        self.write('(')
-        self.visit(node.var)
-        self.write(" in ")
-        self.visit(node.container)
-        self.write(')')
-        if node.condition:
-            self.write(' if (')
-            self.visit(node.condition)
-            self.write(')')
 
     def visit_GeneratorExprNode(self, node):
         is_array_compr = isinstance(node.parent, jsast.ArrayComprehensionNode)
@@ -500,12 +482,12 @@ class JavascriptSourceGenerator(codegen.PP_SourceGenerator):
         if (isinstance(node.parent, jsast.VarInitNode) or
             isinstance(node.parent, jsast.Expression) and not is_array_compr):
             self.write("(")
-        self.visit_comprehension_helepr(node, forstring=node.forstring)
+        self.visit_comprehension_helepr(node)
         if (isinstance(node.parent, jsast.VarInitNode) or
             isinstance(node.parent, jsast.Expression) and not is_array_compr):
             self.write(")")
 
-    def visit_comprehension_helepr(self, node, forstring='for'):
+    def visit_comprehension_helepr(self, node):
         self.visit(node.expr)
         if len(node.comprehensions) > 1:
             self.indentation+=1
@@ -514,7 +496,6 @@ class JavascriptSourceGenerator(codegen.PP_SourceGenerator):
             self.write(' ')
 
         for i, compr in enumerate(node.comprehensions):
-            self.write(forstring + ' ')
             self.visit(compr)
             if i != (len(node.comprehensions) - 1):
                 self.indentation+=1

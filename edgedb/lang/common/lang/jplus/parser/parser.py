@@ -27,13 +27,12 @@ class Parser(JSParser):
     SPECIAL_NAMES['isnt'] = 'Binary'
 
     def __init__(self):
-        super().__init__()
+        super().__init__(expansionsupport=True, forofsupport=True,
+                         arraycompsupport=True)
+
         self.lexer.multiline_strings = True
         self.lexer.at_literal = True
         self.lexer.ellipsis_literal = True
-        self.expansionsupport = True
-        self.forofsupport = True
-        self.expansionsupport = True
 
     def parse(self, *args, **kwargs):
         node = super().parse(*args, **kwargs)

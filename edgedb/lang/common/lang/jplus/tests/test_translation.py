@@ -1176,3 +1176,28 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         ok\nok2\nok3
         '''
+
+    def _test_utils_lang_jp_tr_comprehension_for_of_1(self):
+        '''JS+
+
+        out = [ch for (ch of 'abc')];
+
+        print(out.join('-'));
+
+        %%
+        a-b-c
+        '''
+
+    def _test_utils_lang_jp_tr_comprehension_for_of_2(self):
+        '''JS+
+        cnt = 0;
+
+        a = {'10': 2, '20': 3}
+        b = [i for (i of a) for (i; i<al; a) if (a)]
+
+        print(b.join('-'));
+
+        %%
+        10-20
+        '''
+

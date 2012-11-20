@@ -133,7 +133,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
     def test_utils_lang_js_parser_extra_comprehension1(self):
         """
         a = [2,3,4,5];
-        print([("foo" + el) for (el in a) if ((el%2) == 1)]);
+        print([("foo" + el) for (el of a) if ((el%2) == 1)]);
         """
 
     @flags(arraycompsupport=True)
@@ -145,9 +145,9 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
 
         var collection = [
         (((((name + " ") + equation) + " so ") + adjective) + "!")
-        for (name in girls)
-        for (equation in equations)
-        for (adjective in adjectives)
+        for (name of girls)
+        for (equation of equations)
+        for (adjective of adjectives)
         if (name != "Kit")
         ];
 
@@ -158,7 +158,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
     def test_utils_lang_js_parser_extra_comprehension3(self):
         """
         a = [2,3,4,5];
-        gen = (("foo" + el) for (el in a) if ((el%2) == 1));
+        gen = (("foo" + el) for (el of a) if ((el%2) == 1));
         print(gen.next());
         """
 
@@ -171,9 +171,9 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
 
         var collection = (
         (((((name + " ") + equation) + " so ") + adjective) + "!")
-        for (name in girls)
-        for (equation in equations)
-        for (adjective in adjectives)
+        for (name of girls)
+        for (equation of equations)
+        for (adjective of adjectives)
         if (name != "Kit")
         );
 
@@ -184,7 +184,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
     def test_utils_lang_js_parser_extra_comprehension5(self):
         """
         a = [2,3,4,5];
-        gen = [("foo" + el) for (el in a) if ((el%2) == 1)];
+        gen = [("foo" + el) for (el of a) if ((el%2) == 1)];
         print(gen);
         """
 
@@ -197,9 +197,9 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
 
         var collection = [
         (((((name + " ") + equation) + " so ") + adjective) + "!")
-        for (name in girls)
-        for (equation in equations)
-        for (adjective in adjectives)
+        for (name of girls)
+        for (equation of equations)
+        for (adjective of adjectives)
         if (name != "Kit")
         ];
 
@@ -210,12 +210,12 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
     def test_utils_lang_js_parser_extra_comprehension7(self):
         """
         a = [2,3,4,5];
-        gen = (("foo" + el) for (el in a) if ((el%2) == 1));
+        gen = (("foo" + el) for (el of a) if ((el%2) == 1));
         print(gen.next());
         """
 
     @flags(generatorexprsupport=True)
-    @jxfail(UnexpectedToken, attrs={'line' : 2, 'col' : 26})
+    @jxfail(UnexpectedToken, attrs={'line' : 2, 'col' : 23})
     def test_utils_lang_js_parser_extra_comprehension8(self):
         """
         a = [2,3,4,5] for;
@@ -226,7 +226,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
     def test_utils_lang_js_parser_extra_comprehension9(self):
         """
         a = [2,3,4,5];
-        print([("foo" + el) for (el in a) if ((el%2) == 1)]);
+        print([("foo" + el) for (el of a) if ((el%2) == 1)]);
         """
 
     def test_utils_lang_js_parser_extra_comprehension10(self):
@@ -251,7 +251,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
         """
         a = [2,3,4,5];
         b = [("foo" + el)
-        for (el in a) if ((el%2) == 1)];
+        for (el of a) if ((el%2) == 1)];
         print(b);
         """
 
@@ -260,7 +260,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
         """
         a = [2,3,4,5];
         b = (("foo" + el)
-        for (el in a) if ((el%2) == 1));
+        for (el of a) if ((el%2) == 1));
         print(b);
         """
 
@@ -270,7 +270,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
         """
         a = [2,3,4,5];
         b = (("foo" + el)
-        for (el in a) if ((el%2) == 1));
+        for (el of a) if ((el%2) == 1));
         print(b);
         """
 
@@ -279,8 +279,15 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
         """
         a = [2,3,4,5];
         b = ("foo" + el)
-        for (el in a) if ((el%2) == 1);
+        for (el of a) if ((el%2) == 1);
         print(b);
+        """
+
+    @flags(arraycompsupport=True)
+    def test_utils_lang_js_parser_extra_comprehension17(self):
+        """
+        a = [i for (i=0; i<10; i++) if (i%2)];
+        print(a);
         """
 
     def test_utils_lang_js_parser_extra_expand1(self):

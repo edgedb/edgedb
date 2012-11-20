@@ -153,7 +153,7 @@ class StatementBlockNode(Base):
 
 
 class IfNode(Base):
-    __fields = ['ifclause', 'thenclause', 'elseclause']
+    __fields = ['ifclause', 'thenclause', 'elseclause', ('is_expr', bool, False)]
 
 
 class DoNode(Base):
@@ -165,15 +165,15 @@ class WhileNode(Base):
 
 
 class ForNode(Base):
-    __fields = ['part1', 'part2', 'part3', 'statement']
+    __fields = ['part1', 'part2', 'part3', 'statement', ('is_expr', bool, False)]
 
 
 class ForInNode(Base):
-    __fields = ['init', 'container', 'statement']
+    __fields = ['init', 'container', 'statement', ('is_expr', bool, False)]
 
 
 class ForOfNode(Base):
-    __fields = ['init', 'container', 'statement']
+    __fields = ['init', 'container', 'statement', ('is_expr', bool, False)]
 
 
 class WithNode(Base):
@@ -242,33 +242,18 @@ class LetStatementNode(Base):
     __fields = [('vars', list), 'statement']
 
 
-class ForEachNode(Base):
-    __fields = ['var', 'container', 'statement']
-
-
-#class TryCatchIfNode(Base):
-#    __fields = ['tryblock', ('catch', list), 'finallyblock']
-
-
 class CatchIfNode(Base):
     __fields = ['catchid', 'condition', 'catchblock']
 
 
-#class ArrayComprehensionNode(Expression):
-#    __fields = ['expr', ('comprehensions', list)]
-#
 #!!! seems that syntactically, there's just a generator expression inside
 #
 class ArrayComprehensionNode(Expression):
     __fields = ['generator']
 
 
-class ComprehensionNode(Base):
-    __fields = ['var', 'container', 'condition']
-
-
 class GeneratorExprNode(Expression):
-    __fields = ['expr', ('forstring', str, 'for'), ('comprehensions', list)]
+    __fields = ['expr', ('comprehensions', list)]
 
 
 class AssignmentPropertyList(Base):

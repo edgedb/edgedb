@@ -244,10 +244,10 @@ class JSParser:
         self.yieldsupport = yieldsupport
         self.letsupport = letsupport
         self.expansionsupport = expansionsupport
-        self.forofsupport = forofsupport
         self.catchifsupport = catchifsupport
-        self.arraycompsupport = arraycompsupport or generatorexprsupport
         self.generatorexprsupport = generatorexprsupport
+        self.arraycompsupport = arraycompsupport or self.generatorexprsupport
+        self.forofsupport = forofsupport or self.arraycompsupport
         self.setup_operators()
 
     def _get_operators_table(self):
@@ -271,7 +271,6 @@ class JSParser:
             ('lbp', 'Binary',   ('&&', ), True),
             ('lbp', 'Binary',   ('||', ), True),
             ('lbp', '',         ('?', ), True),
-            ('lbp', '',         ('for', ), self.arraycompsupport or self.generatorexprsupport),
             ('lbp', 'Assign',
              ('=', '+=', '-=', '*=', '/=', '%=', '<<=', '>>=', '>>>=', '&=', '|=', '^='), True),
             ('rbp', '',         ('let', ), self.letsupport)
@@ -620,9 +619,10 @@ class JSParser:
                 array.append(self.parse_assignment_expression())
                 if self.tentative_match(','):
                     can_be_comprehension = False
-
-                if (can_be_comprehension and self.tentative_match(']')):
-                    return jsast.ArrayComprehensionNode(generator=array[0])
+                elif (can_be_comprehension and self.tentative_match('for')):
+                    gen = self.parse_comprehension(array[0])
+                    self.must_match(']')
+                    return jsast.ArrayComprehensionNode(generator=gen)
 
         return jsast.ArrayLiteralNode(array=array, position=token.position)
 
@@ -639,7 +639,11 @@ class JSParser:
     def nud_LPAREN(self, token):
         "Parenthesis enclosed expression"
 
-        expr = self.parse_expression()
+        if self.tentative_match(')', regexp=False):
+            self.must_match('=>')
+            return self.led_FatArrow(None, self.prevtoken)
+
+        expr = self.parse_expression(allow_generator=self.generatorexprsupport)
         self.must_match(')', regexp=False)
         return expr
 
@@ -714,15 +718,6 @@ class JSParser:
                                            expression=self.parse_assignment_expression(token.rbp),
                                            position=started_at)
 
-    def led_FOR(self, left, token):
-        'Process generator expression.'
-        if (self.generatorexprsupport or
-            self.arraycompsupport):
-            return self.parse_comprehension(left)
-
-        else:
-            raise UnexpectedToken(self.prevtoken, parser=self)
-
     #
     # core methods for expression processing
     #
@@ -791,6 +786,7 @@ class JSParser:
         rbp - specifies Right Binding Power of the current token"""
 
         self.get_next_token(regexp=(self.token.type == 'OP'))
+
         left = self.nud(self.prevtoken)
 
         # don't go if lbp is weaker,
@@ -804,8 +800,6 @@ class JSParser:
                     (self.prevtoken.lbp == 0 or
                      self.get_token_special_type(self.prevtoken, 'led') == 'Unary')
                     and self.get_token_special_type(self.token, 'led') == 'Unary')
-               and not (not self.generatorexprsupport and self.arraycompsupport and
-                        not self.enclosing_state('[') and self.token.string == 'for')
                # 'new' and 'function' have unintuitive binding power, it is mainly dictated by
                # the need to be of the same power as '[' and '.'
                #
@@ -828,10 +822,15 @@ class JSParser:
         return left
 
 
-    def parse_expression_list(self):
-        """This is the parsing step for parsing lists of expressions (args or expression)."""
+    def parse_expression_list(self, allow_generator=False):
+        """This is the parsing step for parsing lists of expressions (args or expression).
+
+        It can also parse generator expression."""
 
         expr = [self.parse_assignment_expression()]
+
+        if allow_generator and self.tentative_match('for'):
+            return self.parse_comprehension(expr[0])
 
         while self.tentative_match(','):
             expr += [self.parse_assignment_expression()]
@@ -839,13 +838,18 @@ class JSParser:
         return expr
 
 
-    def parse_expression(self):
-        """This is the parsing step for expression lists. Used as 'expression' in most rules."""
+    def parse_expression(self, allow_generator=False):
+        """This is the parsing step for expression lists. Used as 'expression' in most rules.
+
+        It can also parse generator expression."""
 
         started_at = self.token.position
-        expr = self.parse_expression_list()
+        expr = self.parse_expression_list(allow_generator=allow_generator)
 
-        if len(expr) > 1:
+        if isinstance(expr, jsast.GeneratorExprNode):
+            return expr
+
+        elif len(expr) > 1:
             return jsast.ExpressionListNode(expressions=expr, position=started_at)
 
         else:
@@ -1464,7 +1468,7 @@ class JSParser:
 
 
     @stamp_state('stmt', affectslabels=True)
-    def parse_if_guts(self):
+    def parse_if_guts(self, *, as_expr=False):
         """Parse if statement."""
 
         started_at = self.token.position
@@ -1472,6 +1476,10 @@ class JSParser:
         self.must_match('(')
         expr = self.parse_expression()
         self.must_match(')')
+
+        if as_expr:
+            return jsast.IfNode(ifclause=expr, is_expr=True)
+
         thenstmt = self.parse_statement()
         elsestmt = None
 
@@ -1542,7 +1550,7 @@ class JSParser:
         return jsast.AssignmentElementList(elements=vars)
 
     @stamp_state('loop', affectslabels=True)
-    def parse_for_guts(self):
+    def parse_for_guts(self, *, fors_allowed=('of', 'in', 'std'), as_expr=False):
         """Parse for loop."""
 
         statement_started_at = self.token.position
@@ -1581,22 +1589,23 @@ class JSParser:
 
         expr = expr2 = expr3 = None
 
-        for_type = None
+        for_type = 'std'
 
         if not multiple_decl:
-            if self.tentative_match('in'):
+            if self.tentative_match('in') and 'in' in fors_allowed:
                 # for (x in [1,2,3]) ...
                 for_type = 'in'
             elif self.forofsupport and self.tentative_match('of'):
                 # for (x in [1,2,3]) ...
                 for_type = 'of'
 
-        if for_type:
+        if for_type not in fors_allowed:
+            raise UnexpectedToken(self.prevtoken)
+
+        if for_type in ('in', 'of'):
             # for-of or for-in
             expr = self.parse_expression()
         else:
-            for_type = 'classy'
-
             # we've got 'classical' for
             #
             self.must_match(';', allowsemi=False)
@@ -1609,17 +1618,21 @@ class JSParser:
                 expr3 = self.parse_expression()
 
         self.must_match(')')
-        stmt = self.parse_statement()
 
-        if for_type == 'classy':
+        if as_expr:
+            stmt = None
+        else:
+            stmt = self.parse_statement()
+
+        if for_type == 'std':
             return jsast.ForNode(part1=noin_expr, part2=expr2, part3=expr3, statement=stmt,
-                                 position=statement_started_at)
+                                 position=statement_started_at, is_expr=as_expr)
         elif for_type == 'in':
             return jsast.ForInNode(init=noin_expr, container=expr, statement=stmt,
-                                   position=statement_started_at)
+                                   position=statement_started_at, is_expr=as_expr)
         else:
             return jsast.ForOfNode(init=noin_expr, container=expr, statement=stmt,
-                                   position=statement_started_at)
+                                   position=statement_started_at, is_expr=as_expr)
 
 
     def parse_comprehension(self, expr):
@@ -1628,32 +1641,17 @@ class JSParser:
         # [ expr for - already parsed...
 
         comprehensions = []
+        comprehensions.append(self.parse_for_guts(as_expr=True, fors_allowed=('std', 'of')))
 
         while True:
-            comprehensions.append(self.parse_comprehension_chunk())
-
-            if not self.tentative_match('for'):
+            if self.tentative_match('for', regexp=False):
+                comprehensions.append(self.parse_for_guts(as_expr=True, fors_allowed=('std', 'of')))
+            elif self.tentative_match('if', regexp=False):
+                comprehensions.append(self.parse_if_guts(as_expr=True))
                 break
 
-        return jsast.GeneratorExprNode(expr=expr, forstring='for',
-                                       comprehensions=comprehensions)
+        return jsast.GeneratorExprNode(expr=expr, comprehensions=comprehensions)
 
-
-    def parse_comprehension_chunk(self):
-        "Parse the comprehension part of an array expression."
-        self.must_match('(')
-        var = self.parse_ID()
-        self.must_match('in')
-        container = self.parse_expression()
-        self.must_match(')')
-
-        condition = None
-        if self.tentative_match('if'):
-            self.must_match('(')
-            condition = self.parse_expression()
-            self.must_match(')')
-
-        return jsast.ComprehensionNode(var=var, container=container, condition=condition)
 
     def parse(self, program, *, filename=None):
         self.filename = filename
