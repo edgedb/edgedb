@@ -43,9 +43,9 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
     def test_utils_lang_js_parser_extra_let6(self):
         '''let ([a, b] = [3, 4]) print(a, b);'''
 
-    @flags(foreachsupport=True)
-    def test_utils_lang_js_parser_extra_foreach1(self):
-        '''for each (a in [1, 3 , 42]) print(a);'''
+    @flags(expansionsupport=True)
+    def test_utils_lang_js_parser_extra_regr_expansion_1(self):
+        '''var hasDontEnumBug = !{toString:null}.propertyIsEnumerable("toString")'''
 
     @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' : 5})
     def test_utils_lang_js_parser_extra_foreach2(self):
@@ -133,7 +133,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
     def test_utils_lang_js_parser_extra_comprehension1(self):
         """
         a = [2,3,4,5];
-        print([("foo" + el) for each (el in a) if ((el%2) == 1)]);
+        print([("foo" + el) for (el in a) if ((el%2) == 1)]);
         """
 
     @flags(arraycompsupport=True)
@@ -145,9 +145,9 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
 
         var collection = [
         (((((name + " ") + equation) + " so ") + adjective) + "!")
-        for each (name in girls)
-        for each (equation in equations)
-        for each (adjective in adjectives)
+        for (name in girls)
+        for (equation in equations)
+        for (adjective in adjectives)
         if (name != "Kit")
         ];
 
@@ -210,15 +210,15 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
     def test_utils_lang_js_parser_extra_comprehension7(self):
         """
         a = [2,3,4,5];
-        gen = (("foo" + el) for each (el in a) if ((el%2) == 1));
+        gen = (("foo" + el) for (el in a) if ((el%2) == 1));
         print(gen.next());
         """
 
     @flags(generatorexprsupport=True)
-    @jxfail(UnexpectedToken, attrs={'line' : 2, 'col' : 31})
+    @jxfail(UnexpectedToken, attrs={'line' : 2, 'col' : 26})
     def test_utils_lang_js_parser_extra_comprehension8(self):
         """
-        a = [2,3,4,5] for each;
+        a = [2,3,4,5] for;
         print(a);
         """
 
@@ -226,7 +226,7 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
     def test_utils_lang_js_parser_extra_comprehension9(self):
         """
         a = [2,3,4,5];
-        print([("foo" + el) for each (el in a) if ((el%2) == 1)]);
+        print([("foo" + el) for (el in a) if ((el%2) == 1)]);
         """
 
     def test_utils_lang_js_parser_extra_comprehension10(self):
@@ -234,15 +234,6 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
         a = [2,3,4,5];
         b = ("foo" + el)
         for (el in a) if ((el%2) == 1);
-        print(b);
-        """
-
-    @flags(foreachsupport=True)
-    def test_utils_lang_js_parser_extra_comprehension11(self):
-        """
-        a = [2,3,4,5];
-        b = ("foo" + el)
-        for each (el in a) if ((el%2) == 1);
         print(b);
         """
 
@@ -273,22 +264,22 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
         print(b);
         """
 
-    @flags(foreachsupport=True, arraycompsupport=True)
+    @flags(arraycompsupport=True)
     @jxfail(UnexpectedToken, attrs={'line' : 4, 'col' : 9})
     def test_utils_lang_js_parser_extra_comprehension15(self):
         """
         a = [2,3,4,5];
         b = (("foo" + el)
-        for each (el in a) if ((el%2) == 1));
+        for (el in a) if ((el%2) == 1));
         print(b);
         """
 
-    @flags(foreachsupport=True, arraycompsupport=True)
+    @flags(arraycompsupport=True)
     def test_utils_lang_js_parser_extra_comprehension16(self):
         """
         a = [2,3,4,5];
         b = ("foo" + el)
-        for each (el in a) if ((el%2) == 1);
+        for (el in a) if ((el%2) == 1);
         print(b);
         """
 

@@ -236,7 +236,6 @@ class JSParser:
                  yieldsupport=False,
                  letsupport=False,
                  expansionsupport=False,
-                 foreachsupport=False,
                  catchifsupport=False,
                  arraycompsupport=False,
                  generatorexprsupport=False
@@ -251,7 +250,6 @@ class JSParser:
         self.yieldsupport = yieldsupport
         self.letsupport = letsupport
         self.expansionsupport = expansionsupport
-        self.foreachsupport = foreachsupport
         self.catchifsupport = catchifsupport
         self.arraycompsupport = arraycompsupport or generatorexprsupport
         self.generatorexprsupport = generatorexprsupport
@@ -684,7 +682,7 @@ class JSParser:
     def led_FOR(self, left, token):
         'Process generator expression.'
         if (self.generatorexprsupport or
-            self.arraycompsupport and self.token.value == 'each'):
+            self.arraycompsupport):
             return self.parse_comprehension(left)
 
         else:
@@ -1368,9 +1366,6 @@ class JSParser:
     def parse_for_guts(self):
         """Parse for loop."""
 
-        if self.foreachsupport and self.tentative_match('each'):
-            return self.parse_for_each_guts()
-
         self.must_match('(')
         noin_expr = None
         multiple_decl = False
@@ -1424,17 +1419,6 @@ class JSParser:
             return jsast.ForNode(part1=noin_expr, part2=expr2, part3=expr3, statement=stmt);
 
 
-    def parse_for_each_guts(self):
-        """Parse for each loop."""
-        self.must_match('(')
-        var = self.parse_ID()
-        self.must_match('in')
-        expr = self.parse_expression()
-        self.must_match(')')
-        stmt = self.parse_statement()
-
-        return jsast.ForEachNode(var=var, container=expr, statement=stmt);
-
 
     def parse_comprehension(self, expr):
         """Parse array comprehension or a generator expression,
@@ -1444,22 +1428,12 @@ class JSParser:
         comprehensions = []
 
         while True:
-#            if not isgeneratorexpr:
-#                self.must_match('each')
-            # !!! 'for' or 'for each' seem to be interchangeable here???
-            #
-            if self.tentative_match('each'):
-                forstring = 'for each'
-
-            else:
-                forstring = 'for'
-
             comprehensions.append(self.parse_comprehension_chunk())
 
             if not self.tentative_match('for'):
                 break
 
-        return jsast.GeneratorExprNode(expr=expr, forstring=forstring,
+        return jsast.GeneratorExprNode(expr=expr, forstring='for',
                                        comprehensions=comprehensions)
 
 
