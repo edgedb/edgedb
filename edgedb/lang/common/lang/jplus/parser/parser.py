@@ -28,11 +28,11 @@ class Parser(JSParser):
 
     def __init__(self):
         super().__init__(expansionsupport=True, forofsupport=True,
-                         arraycompsupport=True, arrowfuncsupport=True)
+                         arraycompsupport=True, arrowfuncsupport=True,
+                         paramdefaultsupport=True, paramrestsupport=True)
 
         self.lexer.multiline_strings = True
         self.lexer.at_literal = True
-        self.lexer.ellipsis_literal = True
 
     def parse(self, *args, **kwargs):
         node = super().parse(*args, **kwargs)
@@ -376,43 +376,3 @@ class Parser(JSParser):
                         level=level,
                         position=started_at),
                     position=started_at)
-
-    def parse_function_parameters(self):
-        params = []
-
-        defaults_mode = False
-        if not self.tentative_match(')'):
-            while True:
-                started_at = self.token.position
-                rest_param = False
-                if self.tentative_match('...', regexp=False):
-                    rest_param = True
-
-                name = self.parse_ID()
-
-                if (not rest_param) and (defaults_mode or self.tentative_match('=', consume=False)):
-                    defaults_mode = True
-                    self.must_match('=')
-                    default = self.parse_assignment_expression()
-
-                    param = js_ast.FunctionParameter(name=name.name,
-                                                     default=default,
-                                                     position=started_at)
-
-                else:
-                    param = js_ast.FunctionParameter(name=name.name,
-                                                     rest=rest_param,
-                                                     position=started_at)
-
-                params.append(param)
-
-                if rest_param:
-                    self.must_match(')')
-                    break
-                elif self.tentative_match(')'):
-                    break
-                else:
-                    self.must_match(',')
-
-        return params
-

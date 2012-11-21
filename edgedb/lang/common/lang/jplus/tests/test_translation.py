@@ -1261,7 +1261,7 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         print((function() {
             x = x => {
-                y = y => this.a
+                y = () => this.a
                 return y()
             }
             return x()
@@ -1284,4 +1284,14 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         %%
         10|20-30
+        '''
+
+    def test_utils_lang_jp_tr_fat_arrow_6(self):
+        '''JS+
+
+        x = () => ({a: 'b'})
+        a = x().a
+        print(a)
+        %%
+        b
         '''

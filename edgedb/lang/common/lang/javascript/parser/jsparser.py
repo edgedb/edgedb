@@ -233,8 +233,9 @@ class JSParser:
                  generatorexprsupport=False,
                  foreachsupport=False,
                  forofsupport=False,
-                 arrowfuncsupport=False
-                 ):
+                 arrowfuncsupport=False,
+                 paramdefaultsupport=False,
+                 paramrestsupport=False):
 
         super().__init__()
 
@@ -251,6 +252,9 @@ class JSParser:
         self.arraycompsupport = arraycompsupport or self.generatorexprsupport
         self.forofsupport = forofsupport or self.arraycompsupport
         self.arrowfuncsupport = arrowfuncsupport
+        self.paramdefaultsupport = paramdefaultsupport
+        self.paramrestsupport = paramrestsupport
+        self.lexer.ellipsis_literal = paramrestsupport
         self.setup_operators()
 
     def _get_operators_table(self):
@@ -1307,21 +1311,46 @@ class JSParser:
             return jsast.YieldNode(expression=expr, position=started_at)
 
     def parse_function_parameters(self):
-        param = []
+        params = []
 
+        defaults_mode = False
         if not self.tentative_match(')'):
-
             while True:
-                id = self.parse_ID()
-                param.append(jsast.FunctionParameter(name=id.name))
+                started_at = self.token.position
+                rest_param = False
+                if self.paramrestsupport and self.tentative_match('...', regexp=False):
+                    rest_param = True
 
-                if not self.tentative_match(')'):
-                    self.must_match(',')
+                name = self.parse_ID()
+
+                if (self.paramdefaultsupport
+                        and ((not rest_param)
+                                and (defaults_mode or self.tentative_match('=', consume=False)))):
+
+                    defaults_mode = True
+                    self.must_match('=')
+                    default = self.parse_assignment_expression()
+
+                    param = jsast.FunctionParameter(name=name.name,
+                                                    default=default,
+                                                    position=started_at)
 
                 else:
-                    break
+                    param = jsast.FunctionParameter(name=name.name,
+                                                    rest=rest_param,
+                                                    position=started_at)
 
-        return param
+                params.append(param)
+
+                if rest_param:
+                    self.must_match(')')
+                    break
+                elif self.tentative_match(')'):
+                    break
+                else:
+                    self.must_match(',')
+
+        return params
 
     @stamp_state('function', affectslabels=True)
     def parse_function_guts(self, is_declaration=False):
