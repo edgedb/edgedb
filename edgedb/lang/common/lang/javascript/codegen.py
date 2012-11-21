@@ -231,7 +231,10 @@ class JavascriptSourceGenerator(SourceGenerator):
             self.write(node.name)
         self.write("(")
         if node.param:
-            self.visit_list_helper(node.param)
+            for i, param in enumerate(node.param):
+                self.write(param.name)
+                if i != (len(node.param) - 1):
+                    self.write(', ')
         self.write(") ")
 
         # We only want a newline at the end of function declaration

@@ -84,6 +84,14 @@ class TestJSParser(metaclass=MetaJSParserTest_Functional):
     def test_utils_lang_js_parser_basic11(self):
         "print(')')"
 
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' :11})
+    def test_utils_lang_js_parser_basic12(self):
+        """var a = b => c"""
+
+    @jxfail(UnexpectedToken, attrs={'line' : 1, 'col' :10})
+    def test_utils_lang_js_parser_basic13(self):
+        """var a = ()"""
+
     def test_utils_lang_js_parser_object1(self):
         """var a = {do : 1}; print(a.do);"""
 

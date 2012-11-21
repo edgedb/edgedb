@@ -26,8 +26,6 @@ class SuperCallNode(ast.Expression): __fields = ['cls', 'instance', 'method', ('
 
 class NonlocalNode(ast.Base): __fields = [('ids', list)]
 
-class FunctionParameter(ast.Base): __fields = ['name', 'default', ('rest', bool, False)]
-
 class TryNode(ast.Base):
     __fields = ['body', ('handlers', list), 'jscatch', 'orelse', 'finalbody']
 

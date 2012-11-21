@@ -198,6 +198,7 @@ class JSParser:
         '{'     : 'LCBRACKET',
         '?'     : 'HOOK',
         '.'     : 'DOT',
+        '=>'    : 'FatArrow',
 
         'function'  : 'FUNCTION',
         'instanceof': 'INSTANCEOF',
@@ -232,8 +233,9 @@ class JSParser:
                  generatorexprsupport=False,
                  foreachsupport=False,
                  forofsupport=False,
-                 ppsupport=False
+                 arrowfuncsupport=False
                  ):
+
         super().__init__()
 
         if not lex_name:
@@ -248,6 +250,7 @@ class JSParser:
         self.generatorexprsupport = generatorexprsupport
         self.arraycompsupport = arraycompsupport or self.generatorexprsupport
         self.forofsupport = forofsupport or self.arraycompsupport
+        self.arrowfuncsupport = arrowfuncsupport
         self.setup_operators()
 
     def _get_operators_table(self):
@@ -256,7 +259,7 @@ class JSParser:
             ('rbp', '',         ('{', ), True),
         # XXX: '{' is right-binding because it functions like a prefix operator
         #       creating an object literal or variable unpacking expression
-            ('lbp', '',         ('new', '[', '.', 'function'), True),
+            ('lbp', '',         ('new', '[', '.', 'function', '=>'), True),
             ('lbp', '',         ('(', ), True),
             ('lbp', 'Unary',    ('++', '--'), True),
             ('rbp', 'Unary',    ('++', '--', '+', '-', '~', '!', 'delete', 'void', 'typeof', 'super'), True),
@@ -290,9 +293,8 @@ class JSParser:
         bp_val = len(self.PREC) * 10
 
         for bp, special, vals, active in self.PREC:
-
-            for val in vals:
-                if active:
+            if active:
+                for val in vals:
                     # initialize a dict entry if need be
                     #
                     if not self.OP_2_INFO.get(val, None):
@@ -595,6 +597,41 @@ class JSParser:
         return jsast.NewNode(expression=expr, arguments=args,
                              position=token.position)
 
+    def led_FatArrow(self, left, token):
+        if not self.arrowfuncsupport:
+            raise UnexpectedToken(token)
+
+        params = []
+        if left is not None:
+            if isinstance(left, jsast.IDNode):
+                params.append(jsast.FunctionParameter(
+                                name=left.name,
+                                position=left.position))
+            elif isinstance(left, jsast.ExpressionListNode):
+                defaults_started = False
+                for sub in left.expressions:
+                    if not defaults_started and isinstance(sub, jsast.IDNode):
+                        params.append(jsast.FunctionParameter(
+                                        name=sub.name,
+                                        position=sub.position))
+                        continue
+                    elif isinstance(sub, jsast.AssignmentExpressionNode):
+                        if sub.op == '=' and isinstance(sub.left, jsast.IDNode):
+                            defaults_started = True
+                            params.append(jsast.FunctionParameter(
+                                                name=sub.left.name,
+                                                default=sub.right,
+                                                position=sub.left.position))
+                            continue
+
+                    raise UnexpectedToken(token)
+
+        if self.tentative_match('{'):
+            body = self.parse_block_guts()
+        else:
+            body = self.parse_assignment_expression()
+
+        return jsast.FatArrowFunctionNode(param=params, body=body)
 
     def nud_FUNCTION(self, token):
         "Function expression"
@@ -634,12 +671,11 @@ class JSParser:
         return jsast.SBracketExpressionNode(list=left, element=expr,
                                             position=token.position)
 
-
     @stamp_state('(')
     def nud_LPAREN(self, token):
         "Parenthesis enclosed expression"
 
-        if self.tentative_match(')', regexp=False):
+        if self.arrowfuncsupport and self.tentative_match(')', regexp=False):
             self.must_match('=>')
             return self.led_FatArrow(None, self.prevtoken)
 
@@ -1276,7 +1312,8 @@ class JSParser:
         if not self.tentative_match(')'):
 
             while True:
-                param.append(self.parse_ID())
+                id = self.parse_ID()
+                param.append(jsast.FunctionParameter(name=id.name))
 
                 if not self.tentative_match(')'):
                     self.must_match(',')

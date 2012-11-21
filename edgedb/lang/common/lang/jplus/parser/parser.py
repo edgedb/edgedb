@@ -395,14 +395,14 @@ class Parser(JSParser):
                     self.must_match('=')
                     default = self.parse_assignment_expression()
 
-                    param = ast.FunctionParameter(name=name.name,
-                                                  default=default,
-                                                  position=started_at)
+                    param = js_ast.FunctionParameter(name=name.name,
+                                                     default=default,
+                                                     position=started_at)
 
                 else:
-                    param = ast.FunctionParameter(name=name.name,
-                                                  rest=rest_param,
-                                                  position=started_at)
+                    param = js_ast.FunctionParameter(name=name.name,
+                                                     rest=rest_param,
+                                                     position=started_at)
 
                 params.append(param)
 

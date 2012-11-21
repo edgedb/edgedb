@@ -142,6 +142,14 @@ class FunctionNode(Base):
     __fields = ['name', ('param', list), 'body', ('isdeclaration', bool)]
 
 
+class FatArrowFunctionNode(Base):
+    __fields = [('param', list), 'body']
+
+
+class FunctionParameter(Base):
+    __fields = ['name', 'default', ('rest', bool, False)]
+
+
 # Statements
 #
 class SourceElementsNode(Base):
