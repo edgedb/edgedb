@@ -6,6 +6,8 @@
 ##
 
 
+import py.test
+
 from . import base as base_test
 
 
@@ -1215,4 +1217,71 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         %%
         0\n1\n2\n3
+        '''
+
+    def test_utils_lang_jp_tr_fat_arrow_1(self):
+        '''JS+
+
+        x = b => {return b*b}
+
+        print(x(10))
+
+        %%
+        100
+        '''
+
+    def test_utils_lang_jp_tr_fat_arrow_2(self):
+        '''JS+
+
+        x = [b => b*i for (i = 1; i < 3; i++)]
+
+        print(x[0](100) + '|' + x[1](200))
+
+        %%
+        300|600
+        '''
+
+    def test_utils_lang_jp_tr_fat_arrow_3(self):
+        '''JS+
+
+        print((() => {})())
+        print(typeof () => {})
+
+        %%
+        undefined\nfunction
+        '''
+
+    def test_utils_lang_jp_tr_fat_arrow_4(self):
+        '''JS+
+
+        print((function() {
+            x = x => this.a
+            return x()
+        }).apply({a:42}))
+
+        print((function() {
+            x = x => {
+                y = y => this.a
+                return y()
+            }
+            return x()
+        }).apply({a:43}))
+
+        %%
+        42\n43
+        '''
+
+    @py.test.mark.xfail
+    def test_utils_lang_jp_tr_fat_arrow_5(self):
+        # XXX UnexpectedTocken on "...args"
+        '''JS+
+
+        x = (a, ...args) => {
+            print(a + '|' + args.join('-'));
+        }
+
+        x(10, 20, 30)
+
+        %%
+        10|20-30
         '''

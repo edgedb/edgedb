@@ -114,6 +114,17 @@ class State:
                 return cur
             cur = cur._parent
 
+    def distance(self, parent_state_class):
+        assert issubclass(parent_state_class, State)
+        idx = 0
+        cur = self
+        while cur is not None:
+            if isinstance(cur, parent_state_class):
+                return idx
+            cur = cur._parent
+            idx += 1
+        return 100000000
+
 
 class ModuleState(State):
     pass
@@ -132,6 +143,10 @@ class ForState(State):
 
 
 class WhileState(State):
+    pass
+
+
+class ArrowFuncState(State):
     pass
 
 
@@ -1275,9 +1290,7 @@ class Transpiler(NodeTransformer):
         body.append(to_wrap)
 
         # Return from function
-        body.append(js_ast.StatementNode(
-                        statement=js_ast.ReturnNode(
-                            expression=js_ast.IDNode(name=result_name))))
+        body.append(js_ast.ReturnNode(expression=js_ast.IDNode(name=result_name)))
 
         # That's the generator transformed into a function
         func = js_ast.FunctionNode(
@@ -1285,6 +1298,31 @@ class Transpiler(NodeTransformer):
                         statements=body))
 
         # Now, let's process its guts (to register variables etc)
-        func = self.visit_js_FunctionNode(func)
+        func = self.visit(func)
 
         return js_ast.CallNode(call=func)
+
+    def visit_js_FatArrowFunctionNode(self, node):
+        body = node.body
+        if not isinstance(body, js_ast.StatementBlockNode):
+            body = js_ast.StatementBlockNode(
+                        statements=[js_ast.ReturnNode(
+                                expression=body)])
+
+        func = js_ast.FunctionNode(
+                    param=node.param,
+                    body=body)
+
+        with ArrowFuncState(self):
+            func = self.visit(func)
+
+        bind_name = self.scope.use('_bind')
+
+        return js_ast.CallNode(
+                    call=js_ast.DotExpressionNode(
+                        left=js_ast.IDNode(name=bind_name),
+                        right=js_ast.IDNode(name='call')),
+                    arguments=[
+                        func,
+                        js_ast.ThisNode()
+                    ])

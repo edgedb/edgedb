@@ -28,7 +28,7 @@ class Parser(JSParser):
 
     def __init__(self):
         super().__init__(expansionsupport=True, forofsupport=True,
-                         arraycompsupport=True)
+                         arraycompsupport=True, arrowfuncsupport=True)
 
         self.lexer.multiline_strings = True
         self.lexer.at_literal = True

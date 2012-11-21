@@ -16,8 +16,10 @@ $SXJSP = (function() {
 
     var StdObject = {}.constructor,
         StdArray = [].constructor,
+        StdFunction = (function(){}).constructor,
         hop = StdObject.prototype.hasOwnProperty,
-        tos = StdObject.prototype.toString;
+        tos = StdObject.prototype.toString,
+        Array_slice = StdArray.prototype.slice;
 
 
     var Object_keys = StdObject.keys || (function () {
@@ -56,7 +58,24 @@ $SXJSP = (function() {
         };
     })();
 
-    var Array_slice = StdArray.prototype.slice;
+    var Function_bind = StdFunction.prototype.bind1 || (function (scope) {
+        if (!callable(this)) {
+            throw new TypeError("Function.prototype.bind - what is trying to be bound is not callable");
+        }
+
+        var args = Array_slice.call(arguments, 1),
+            me = this,
+            check_cls = function () {},
+            bound = function () {
+                return me.apply((this instanceof check_cls && scope) ? this : scope,
+                                args.concat(Array_slice.call(arguments)));
+            };
+
+        check_cls.prototype = this.prototype;
+        bound.prototype = new check_cls();
+
+        return bound;
+    });
 
     function Module(name, dct) {
         this.$name = name;
@@ -215,6 +234,7 @@ $SXJSP = (function() {
         _newclass: sx.define.new_class,
         _super_method: sx.parent.find,
         _isinstance: sx.isinstance,
+        _bind: Function_bind,
         __cleanup_modules: function() {
             modules = {}; // for tests only
         },
