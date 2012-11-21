@@ -7,7 +7,7 @@
 
 
 from metamagic.utils.lang.javascript import ast as jsast
-from metamagic.utils.lang.preprocessor import codegen
+from metamagic.utils.ast import SourceGenerator
 
 
 def string_escape(string):
@@ -25,7 +25,16 @@ def string_escape(string):
     return "".join([replace.get(char, char) for char in string])
 
 
-class JavascriptSourceGenerator(codegen.PP_SourceGenerator):
+class JavascriptSourceGenerator(SourceGenerator):
+    def visit_list_helper(self, list, separator=', '):
+        "goes through a list and visits each member printing ','"
+
+        for i, var in enumerate(list):
+            if var:
+                self.visit(var)
+            if i != (len(list) - 1):
+                self.write(separator)
+
     def visit_StatementNode(self, node):
         if node.statement:
             self.visit(node.statement)
