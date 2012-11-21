@@ -1686,6 +1686,8 @@ class JSParser:
             elif self.tentative_match('if', regexp=False):
                 comprehensions.append(self.parse_if_guts(as_expr=True))
                 break
+            else:
+                break
 
         return jsast.GeneratorExprNode(expr=expr, comprehensions=comprehensions)
 

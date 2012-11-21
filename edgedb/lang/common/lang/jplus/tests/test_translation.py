@@ -1177,27 +1177,42 @@ class TestTranslation(base_test.BaseJPlusTest):
         ok\nok2\nok3
         '''
 
-    def _test_utils_lang_jp_tr_comprehension_for_of_1(self):
+    def test_utils_lang_jp_tr_comprehension_for_of_1(self):
         '''JS+
 
         out = [ch for (ch of 'abc')];
+        print(out.join('-'));
 
+        out = [ch for (ch of [1, 2, 3, 4]) if (ch > 2)];
+        print(out.join('-'));
+
+        out = [ch+10 for (ar of [[2, 3], [4, 5]]) for (ch of ar) if (ch > 2)];
         print(out.join('-'));
 
         %%
-        a-b-c
+        a-b-c\n3-4\n13-14-15
         '''
 
-    def _test_utils_lang_jp_tr_comprehension_for_of_2(self):
+    def test_utils_lang_jp_tr_comprehension_for_of_2(self):
+        # Python list-comp for ref
+        # [[el*2 for el in lst if el % 2] for lst in [[1,2,3],[4,5,6],[3]] if len(lst)>2]
         '''JS+
-        cnt = 0;
 
-        a = {'10': 2, '20': 3}
-        b = [i for (i of a) for (i; i<al; a) if (a)]
+        a = [  [el*2 for (el of lst) if (el % 2)]
 
-        print(b.join('-'));
+                            for (lst of [[1, 2, 3], [4, 5, 6], [3]]) if (len(lst) > 2)]
+
+        print(JSON.stringify(a))
 
         %%
-        10-20
+        [[2,6],[10]]
         '''
 
+    def test_utils_lang_jp_tr_comprehension_for_1(self):
+        '''JS+
+
+        [print(i) for (i = 0; i < 4; i++)]
+
+        %%
+        0\n1\n2\n3
+        '''

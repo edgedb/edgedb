@@ -1230,3 +1230,61 @@ class Transpiler(NodeTransformer):
                     thenclause=js_ast.CallNode(
                         call=js_ast.IDNode(name=assert_fail),
                         arguments=[failexpr] if failexpr else [])))
+
+    def visit_js_ArrayComprehensionNode(self, node):
+        assert isinstance(node.generator, js_ast.GeneratorExprNode)
+
+        # NOTE: We don't "visit" any node's child here directly.
+        # It'll be a task for visit_js_FunctionNode later.
+
+        body = []
+
+        #: This is a name of container that will hold the comprehension
+        #: results
+        result_name = '__SXJSP_aux_comp_res'
+
+        # Let's init it with an empty array
+        body.append(js_ast.StatementNode(
+                        statement=js_ast.AssignmentExpressionNode(
+                            left=js_ast.IDNode(name=result_name),
+                            op='=',
+                            right=js_ast.ArrayLiteralNode())))
+
+        # That's the most inner part of comprehension -- actual push
+        # of a result value to the results list
+        to_wrap = js_ast.StatementNode(
+                        statement=js_ast.CallNode(
+                            call=js_ast.DotExpressionNode(
+                                left=js_ast.IDNode(name=result_name),
+                                right=js_ast.IDNode(name='push')),
+                            arguments=[node.generator.expr]))
+
+        for comp in reversed(node.generator.comprehensions):
+            comp.is_expr = False
+
+            if isinstance(comp, js_ast.IfNode):
+                comp.thenclause = js_ast.StatementBlockNode(
+                                    statements=[to_wrap])
+            else:
+                assert isinstance(comp, (js_ast.ForNode, js_ast.ForOfNode))
+                comp.statement = js_ast.StatementBlockNode(
+                                    statements=[to_wrap])
+
+            to_wrap = comp
+
+        body.append(to_wrap)
+
+        # Return from function
+        body.append(js_ast.StatementNode(
+                        statement=js_ast.ReturnNode(
+                            expression=js_ast.IDNode(name=result_name))))
+
+        # That's the generator transformed into a function
+        func = js_ast.FunctionNode(
+                    body=js_ast.StatementBlockNode(
+                        statements=body))
+
+        # Now, let's process its guts (to register variables etc)
+        func = self.visit_js_FunctionNode(func)
+
+        return js_ast.CallNode(call=func)
