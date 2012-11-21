@@ -141,20 +141,6 @@ class UnexpectedNewline(SyntaxError):
                          token.end[0], token.end[1])
 
 
-class PP_UnexpectedToken(SyntaxError):
-    def __init__(self, token):
-        super().__init__("unexpected preprocessor token %r (line %i, column %i)." %
-                         (token.string, token.start[0], token.start[1]),
-                         token.start[0], token.start[1])
-
-
-class PP_MalformedToken(SyntaxError):
-    def __init__(self, token):
-        super().__init__("malformed preprocessor token %r (line %i, column %i)." %
-                         (token.string, token.start[0], token.start[1]),
-                         token.end[0], token.end[1])
-
-
 # decorator for certain parsing methods that need to keep track of labels
 #
 def stamp_state(name, affectslabels=False):

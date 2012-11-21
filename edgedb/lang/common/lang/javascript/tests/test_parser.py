@@ -10,7 +10,7 @@ from .base import MetaJSParserTest_Functional, jxfail
 from metamagic.utils.lang.javascript.parser.jsparser import \
     UnknownToken, UnexpectedToken, UnknownOperator,\
     SecondDefaultToken, IllegalBreak, IllegalContinue, UndefinedLabel, DuplicateLabel,\
-    UnexpectedNewline, PP_UnexpectedToken, PP_MalformedToken
+    UnexpectedNewline
 
 
 class TestJSParser(metaclass=MetaJSParserTest_Functional):
