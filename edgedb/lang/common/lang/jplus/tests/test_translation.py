@@ -1271,9 +1271,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         42\n43
         '''
 
-    @py.test.mark.xfail
     def test_utils_lang_jp_tr_fat_arrow_5(self):
-        # XXX UnexpectedTocken on "...args"
         '''JS+
 
         x = (a, ...args) => {

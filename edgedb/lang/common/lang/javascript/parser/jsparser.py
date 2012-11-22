@@ -611,13 +611,16 @@ class JSParser:
                 params.append(jsast.FunctionParameter(
                                 name=left.name,
                                 position=left.position))
-            elif isinstance(left, jsast.ExpressionListNode):
+            elif isinstance(left, list):
                 defaults_started = False
-                for sub in left.expressions:
+                for sub in left:
                     if not defaults_started and isinstance(sub, jsast.IDNode):
                         params.append(jsast.FunctionParameter(
                                         name=sub.name,
                                         position=sub.position))
+                        continue
+                    elif isinstance(sub, jsast.FunctionParameter):
+                        params.append(sub)
                         continue
                     elif isinstance(sub, jsast.AssignmentExpressionNode):
                         if sub.op == '=' and isinstance(sub.left, jsast.IDNode):
@@ -679,9 +682,35 @@ class JSParser:
     def nud_LPAREN(self, token):
         "Parenthesis enclosed expression"
 
-        if self.arrowfuncsupport and self.tentative_match(')', regexp=False):
-            self.must_match('=>')
-            return self.led_FatArrow(None, self.prevtoken)
+        if self.arrowfuncsupport:
+            if self.tentative_match(')', regexp=False):
+                # '''() => smth''' case
+                self.must_match('=>')
+                return self.led_FatArrow(None, self.prevtoken)
+
+            self.enter_state('arrowfunc')
+            # in 'arrowfunc' state, 'parse_expression_list' will recognize '...'
+            try:
+                expr = self.parse_expression(allow_generator=self.generatorexprsupport)
+            finally:
+                self.exit_state()
+
+            self.must_match(')')
+
+            if (isinstance(expr, jsast.ExpressionListNode) and expr.expressions
+                    and isinstance(expr.expressions[-1], jsast.FunctionParameter)):
+                # last parameter here must be 'rest'
+                # and 'expr' is arrow function's parameters list
+                assert expr.expressions[-1].rest
+                self.must_match('=>')
+                return self.led_FatArrow(expr.expressions, self.prevtoken)
+
+            if self.tentative_match('=>', regexp=False):
+                # We've got an arrow function, and 'expr' is its parameters list
+                assert isinstance(expr, jsast.ExpressionListNode)
+                return self.led_FatArrow(expr.expressions, self.prevtoken)
+
+            return expr
 
         expr = self.parse_expression(allow_generator=self.generatorexprsupport)
         self.must_match(')', regexp=False)
@@ -867,12 +896,28 @@ class JSParser:
 
         It can also parse generator expression."""
 
+        # Arrow functions support: see nul_LPAREN for details
+        of_arrowfunc = self._scope and self._scope[-1][0] == 'arrowfunc'
+
+        if of_arrowfunc and self.tentative_match('...'):
+            it = jsast.FunctionParameter(name=self.parse_ID().name,
+                                         rest=True)
+            # no need to continue parsing, as ')' is must be the next token
+            return [it]
+
         expr = [self.parse_assignment_expression()]
 
         if allow_generator and self.tentative_match('for'):
             return self.parse_comprehension(expr[0])
 
         while self.tentative_match(','):
+            if of_arrowfunc and self.tentative_match('...'):
+                it = jsast.FunctionParameter(name=self.parse_ID().name,
+                                             rest=True)
+                expr.append(it)
+                # no need to continue parsing, as ')' is must be the next token
+                return expr
+
             expr += [self.parse_assignment_expression()]
 
         return expr
