@@ -12,14 +12,14 @@
 $SXJSP = (function() {
     'use strict';
 
-    var modules = {};
-
-    var StdObject = {}.constructor,
+    var modules = {},
+        StdObject = {}.constructor,
         StdArray = [].constructor,
         StdFunction = (function(){}).constructor,
         hop = StdObject.prototype.hasOwnProperty,
         tos = StdObject.prototype.toString,
-        Array_slice = StdArray.prototype.slice;
+        Array_slice = StdArray.prototype.slice,
+        _no_kwarg = {}; // marker
 
 
     var Object_keys = StdObject.keys || (function () {
@@ -218,8 +218,21 @@ $SXJSP = (function() {
             }
         },
 
-        _slice1: function(obj, num) {
-            return Array_slice.call(obj, num);
+        _slice1: function(obj, n) {
+            return Array_slice.call(obj, n);
+        },
+        _slice2: function(obj, n1, n2) {
+            return Array_slice.call(obj, n1, n2);
+        },
+        _no_kwarg: _no_kwarg,
+        _filter_kwargs: function(kwargs) {
+            var result = {};
+            for (var i in kwargs) {
+                if (hop.call(kwargs, i) && kwargs[i] !== _no_kwarg && i != '__jpkw') {
+                    result[i] = kwargs[i];
+                }
+            }
+            return result;
         },
 
         _is: is,
@@ -231,12 +244,28 @@ $SXJSP = (function() {
             throw new Error(expr);
         },
 
+        _hop: function(obj, attr) {
+            return hop.call(obj, attr);
+        },
         _newclass: sx.define.new_class,
         _super_method: sx.parent.find,
         _isinstance: sx.isinstance,
         _bind: Function_bind,
         __cleanup_modules: function() {
             modules = {}; // for tests only
+        },
+        _required_kwonly_arg_missing: function(name, arg_name) {
+            throw new TypeError(name + '() needs keyword-only argument ' + arg_name);
+        },
+        _inv_pos_only_args: function(name, got, total) {
+            throw new TypeError(name + '() takes ' + total + ' of positional only arguments ' +
+                                '(' + got + ' given)');
+        },
+        _assert_empty_kwargs: function(name, kw) {
+            if (len(kw)) {
+                throw new TypeError(name + '() got an unexpected keyword argument ' +
+                                    Object_keys(kw)[0]);
+            }
         },
 
         /* public */

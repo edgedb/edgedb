@@ -9,12 +9,12 @@
 import subprocess
 import tempfile
 
-from metamagic.utils import resource
+from metamagic.utils import resource, functional
 from metamagic.utils.markup import dump, dump_code
 
 from .. import transpiler, parser
 
-from metamagic.utils.debug import debug
+from metamagic.utils.debug import debug, assert_raises
 from metamagic.utils.lang.javascript.tests import base as js_base_test
 from metamagic.utils.lang.javascript.codegen import JavascriptSourceGenerator
 
@@ -25,8 +25,14 @@ from metamagic.utils.lang.javascript import Loader as JSLoader, BaseJavaScriptMo
                                             Language as JSLanguage, JavaScriptModule, \
                                             VirtualJavaScriptResource
 
-
 from metamagic.node.targets import Target
+
+
+def expected_fail(*args, **kwargs):
+    def wrap(func):
+        func.expected_fail = (args, kwargs)
+        return func
+    return wrap
 
 
 class BaseJPlusTestMeta(js_base_test.JSFunctionalTestMeta):
@@ -130,6 +136,24 @@ class BaseJPlusTestMeta(js_base_test.JSFunctionalTestMeta):
                 """
 
             assert result == expected, result
+
+    @classmethod
+    def make_test(mcls, meth, doc):
+        def do_test(self, meth=meth, name=meth.__name__, source=doc, mcls=mcls):
+            try:
+                ef = meth.expected_fail
+            except AttributeError:
+                ef = None
+
+            if ef:
+                with assert_raises(*ef[0], **ef[1]):
+                    mcls.do_test(source, name=meth.__name__)
+            else:
+                mcls.do_test(source, name=meth.__name__)
+
+        functional.decorate(do_test, meth)
+        return do_test
+
 
 class BaseJPlusTest(metaclass=BaseJPlusTestMeta):
     pass

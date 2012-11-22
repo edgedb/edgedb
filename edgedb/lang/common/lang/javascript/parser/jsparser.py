@@ -235,7 +235,8 @@ class JSParser:
                  forofsupport=False,
                  arrowfuncsupport=False,
                  paramdefaultsupport=False,
-                 paramrestsupport=False):
+                 paramrestsupport=False,
+                 spreadsupport=False):
 
         super().__init__()
 
@@ -254,7 +255,8 @@ class JSParser:
         self.arrowfuncsupport = arrowfuncsupport
         self.paramdefaultsupport = paramdefaultsupport
         self.paramrestsupport = paramrestsupport
-        self.lexer.ellipsis_literal = paramrestsupport
+        self.spreadsupport = spreadsupport
+        self.lexer.ellipsis_literal = paramrestsupport or spreadsupport
         self.setup_operators()
 
     def _get_operators_table(self):
@@ -652,15 +654,22 @@ class JSParser:
 
         array = []
         while not self.tentative_match(']', regexp=False):
+            spread = False
+            if self.spreadsupport and self.tentative_match('...'):
+                spread = True
+                can_be_comprehension = False
+
             # take care of elision
             #
-            if self.tentative_match(','):
+            if not spread and self.tentative_match(','):
                 array.append(None)
                 can_be_comprehension = False
 
             else: # process the next expression with its trailing comma
-
-                array.append(self.parse_assignment_expression())
+                expr = self.parse_assignment_expression()
+                if spread:
+                    expr = jsast.SpreadElement(expression=expr)
+                array.append(expr)
                 if self.tentative_match(','):
                     can_be_comprehension = False
                 elif (can_be_comprehension and self.tentative_match('for')):
@@ -707,7 +716,8 @@ class JSParser:
 
             if self.tentative_match('=>', regexp=False):
                 # We've got an arrow function, and 'expr' is its parameters list
-                assert isinstance(expr, jsast.ExpressionListNode)
+                if not isinstance(expr, jsast.ExpressionListNode):
+                    raise UnexpectedToken(self.prevtoken)
                 return self.led_FatArrow(expr.expressions, self.prevtoken)
 
             return expr
@@ -899,7 +909,7 @@ class JSParser:
         # Arrow functions support: see nul_LPAREN for details
         of_arrowfunc = self._scope and self._scope[-1][0] == 'arrowfunc'
 
-        if of_arrowfunc and self.tentative_match('...'):
+        if of_arrowfunc and self.paramrestsupport and self.tentative_match('...'):
             it = jsast.FunctionParameter(name=self.parse_ID().name,
                                          rest=True)
             # no need to continue parsing, as ')' is must be the next token
@@ -911,7 +921,7 @@ class JSParser:
             return self.parse_comprehension(expr[0])
 
         while self.tentative_match(','):
-            if of_arrowfunc and self.tentative_match('...'):
+            if of_arrowfunc and self.paramrestsupport and self.tentative_match('...'):
                 it = jsast.FunctionParameter(name=self.parse_ID().name,
                                              rest=True)
                 expr.append(it)
@@ -1707,7 +1717,7 @@ class JSParser:
                 # for (x in [1,2,3]) ...
                 for_type = 'in'
             elif self.forofsupport and self.tentative_match('of'):
-                # for (x in [1,2,3]) ...
+                # for (x of [1,2,3]) ...
                 for_type = 'of'
 
         if for_type not in fors_allowed:

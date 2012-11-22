@@ -330,3 +330,49 @@ class TestJSParser_withExtras(metaclass=MetaJSParserTest_Base):
         """
         var a = ([a, ...b]) => ()
         """
+
+    @jxfail(UnexpectedToken, attrs={'line' : 2, 'col' : 25})
+    @flags(arrowfuncsupport=True, paramdefaultsupport=True, paramrestsupport=True,
+           spreadsupport=True)
+    def test_utils_lang_js_parser_extra_fat_arrow_6(self):
+        """
+        var a = (a, ...b, c)
+        """
+
+    @jxfail(UnexpectedToken, attrs={'line' : 2, 'col' : 29})
+    @flags(arrowfuncsupport=True, paramdefaultsupport=True, paramrestsupport=True,
+           spreadsupport=True)
+    def test_utils_lang_js_parser_extra_fat_arrow_7(self):
+        """
+        var a = ([a, ...b]) => ()
+        """
+
+    @flags(arrowfuncsupport=True, paramdefaultsupport=True, paramrestsupport=True,
+           spreadsupport=True)
+    def test_utils_lang_js_parser_extra_spread_1(self):
+        """
+        var a = [a, ...b, c, ...[1, 2, 3], e, ...foo()]
+        """
+
+    @flags(arrowfuncsupport=True, paramdefaultsupport=True, paramrestsupport=True,
+           spreadsupport=True)
+    def test_utils_lang_js_parser_extra_spread_2(self):
+        """
+        var a = [...a]
+        """
+
+    @jxfail(UnexpectedToken, attrs={'line' : 2, 'col' : 9})
+    @flags(arrowfuncsupport=True, paramdefaultsupport=True, paramrestsupport=True,
+           spreadsupport=True)
+    def test_utils_lang_js_parser_extra_spread_3(self):
+        """
+        ...a
+        """
+
+    @jxfail(UnexpectedToken, attrs={'line' : 2, 'col' : 21})
+    @flags(arrowfuncsupport=True, paramdefaultsupport=True, paramrestsupport=True,
+           spreadsupport=True)
+    def test_utils_lang_js_parser_extra_spread_4(self):
+        """
+        var a = [...]
+        """

@@ -29,7 +29,7 @@ class Parser(JSParser):
     def __init__(self):
         super().__init__(expansionsupport=True, forofsupport=True,
                          arraycompsupport=True, arrowfuncsupport=True,
-                         paramdefaultsupport=True, paramrestsupport=True)
+                         paramdefaultsupport=True)
 
         self.lexer.multiline_strings = True
         self.lexer.at_literal = True
@@ -177,35 +177,42 @@ class Parser(JSParser):
 
         body = []
         while not self.tentative_match('}', consume=True):
-            if self.tentative_match('@', 'function', 'static', consume=False):
-                statement = self.parse_statement()
-
-                if statement:
-                    body.append(statement)
-
-                continue
-
-            if self.token.type == 'ID':
-                id = self.parse_ID()
-                self.must_match('=')
-                right = self.parse_assignment_expression()
-                self.tentative_match(';', consume=True)
-
-                body.append(js_ast.AssignmentExpressionNode(
-                                left=id,
-                                op='=',
-                                right=right,
-                                position=id.position))
-
-                continue
-
-            raise UnexpectedToken(self.token, parser=self)
+            if self.tentative_match('@'):
+                body.append(self.nud_AT(self.prevtoken, inclass=True))
+            else:
+                body.append(self.parse_class_member())
+                self.must_match(';')
 
         return ast.ClassNode(name=name, bases=bases, body=body,
                              position=started_at, metaclass=metaclass)
 
+    def parse_class_member(self, methodonly=False):
+        is_static = bool(self.tentative_match('static'))
 
-    def nud_AT(self, token):
+        started_at = self.token.position
+        nxt = self.parse_ID()
+
+        if not methodonly and self.tentative_match('='):
+            return ast.ClassMemberNode(
+                            name=nxt.name,
+                            is_static=is_static,
+                            value=self.parse_assignment_expression(),
+                            position=started_at)
+
+        self.must_match('(')
+        param = self.parse_function_parameters()
+        self.must_match('{')
+        body = self.parse_block_guts()
+
+        return ast.ClassMethodNode(
+                            name=nxt.name,
+                            is_static=is_static,
+                            param=param,
+                            body=body,
+                            isdeclaration=True,
+                            position=started_at)
+
+    def nud_AT(self, token, inclass=False):
         # parse decorator list
         decorators = []
         at_rbp = token.rbp
@@ -221,7 +228,12 @@ class Parser(JSParser):
             if not self.tentative_match('@', regexp=False):
                 break
 
-        if not self.tentative_match('class', 'function', 'static', consume=False):
+        if inclass:
+            return ast.DecoratedNode(node=self.parse_class_member(methodonly=True),
+                                     decorators=decorators,
+                                     position=started_at)
+
+        if not self.tentative_match('class', 'function', consume=False):
             raise UnexpectedToken(self.token, parser=self)
 
         return ast.DecoratedNode(node=self.parse_statement(),
@@ -274,33 +286,6 @@ class Parser(JSParser):
         while self.tentative_match(','):
             ids.append(self.parse_ID())
         return ast.NonlocalNode(ids=ids, position=started_at)
-
-    def parse_static_guts(self):
-        started_at = self.prevtoken.position
-
-        if not self.enclosing_state('class'):
-            raise IllegalStatic(self.token)
-
-        node = None
-        if self.tentative_match('function', regexp=False):
-            node = self.parse_function_guts()
-        elif self.token.type == 'ID':
-            id = self.parse_ID()
-            self.must_match('=')
-            right = self.parse_assignment_expression()
-            self.tentative_match(';', consume=True)
-            node = js_ast.AssignmentExpressionNode(
-                        left=id,
-                        op='=',
-                        right=right,
-                        position=id.position)
-
-        if node is None:
-            raise UnexpectedToken(self.token, parser=self)
-
-        self.tentative_match(';', regexp=False)
-
-        return ast.StaticDeclarationNode(decl=node, position=started_at)
 
     def parse_import_alias(self):
         started_at = self.prevtoken.position
@@ -376,3 +361,147 @@ class Parser(JSParser):
                         level=level,
                         position=started_at),
                     position=started_at)
+
+    def parse_function_parameters(self):
+        params = []
+
+        state = ast.POSITIONAL_ONLY
+
+        if not self.tentative_match(')'):
+            while True:
+                started_at_tok = self.token
+
+                if self.tentative_match('*', regexp=False):
+                    if self.tentative_match('*', regexp=False):
+                        name = self.parse_ID()
+                        params.append(ast.FunctionParameter(
+                                name=name.name,
+                                type=ast.VAR_KEYWORD))
+                        self.must_match(')')
+                        break
+
+                    if state < ast.KEYWORD_ONLY:
+                        state = ast.KEYWORD_ONLY
+                        if self.token.type == 'ID':
+                            name = self.parse_ID()
+                            params.append(ast.FunctionParameter(
+                                    name=name.name,
+                                    type=ast.VAR_POSITIONAL))
+
+                        elif not self.tentative_match(',', consume=False, regexp=False):
+                            raise UnexpectedToken(self.token)
+                    else:
+                        raise UnexpectedToken(started_at_tok)
+
+                else:
+                    if state == ast.POSITIONAL_ONLY:
+                        name = self.parse_ID()
+                        if self.tentative_match('=', regexp=False):
+                            default = self.parse_assignment_expression()
+                            state = ast.POSITIONAL_ONLY_DEFAULT
+                            params.append(ast.FunctionParameter(
+                                    name=name.name,
+                                    default=default,
+                                    type=ast.POSITIONAL_ONLY_DEFAULT))
+                        else:
+                            params.append(ast.FunctionParameter(
+                                    name=name.name,
+                                    type=ast.POSITIONAL_ONLY))
+
+                    elif state == ast.POSITIONAL_ONLY_DEFAULT:
+                        name = self.parse_ID()
+                        self.must_match('=')
+                        default = self.parse_assignment_expression()
+                        params.append(ast.FunctionParameter(
+                                name=name.name,
+                                default=default,
+                                type=ast.POSITIONAL_ONLY_DEFAULT))
+
+                    elif state == ast.KEYWORD_ONLY:
+                        name = self.parse_ID()
+                        if self.tentative_match('='):
+                            default = self.parse_assignment_expression()
+                            params.append(ast.FunctionParameter(
+                                    name=name.name,
+                                    default=default,
+                                    type=ast.KEYWORD_ONLY))
+                        else:
+                            params.append(ast.FunctionParameter(
+                                    name=name.name,
+                                    type=ast.KEYWORD_ONLY))
+
+                    else:
+                        raise UnexpectedToken(started_at_tok)
+
+                if not self.tentative_match(',', regexp=False):
+                    self.must_match(')', regexp=False)
+                    break
+
+        return params
+
+    @stamp_state('(')
+    def led_LPAREN(self, left, token):
+        "This is parenthesis as operator, implying callable"
+
+        args = []
+        state = ast.POSITIONAL_ONLY
+
+        if not self.tentative_match(')', regexp=False):
+            while True:
+                started_at_tok = self.token
+
+                if self.tentative_match('*', regexp=False):
+                    if self.tentative_match('*', regexp=False):
+                        args.append(ast.CallArgument(
+                                            name=self.parse_ID(),
+                                            type=ast.VAR_KEYWORD))
+                        self.must_match(')', regexp=False)
+                        break
+
+                    if state < ast.KEYWORD_ONLY:
+                        state = ast.KEYWORD_ONLY
+                        args.append(ast.CallArgument(
+                                        name=self.parse_ID(),
+                                        type=ast.VAR_POSITIONAL))
+                    else:
+                        raise UnexpectedToken(started_at_tok)
+
+                else:
+                    if state == ast.POSITIONAL_ONLY:
+                        was_bracket = self.tentative_match('(', regexp=False, consume=False)
+                        arg = self.parse_assignment_expression()
+                        if not was_bracket and isinstance(arg, js_ast.AssignmentExpressionNode):
+                            if not isinstance(arg.left, js_ast.IDNode):
+                                raise UnexpectedToken(started_at_tok)
+
+                            state = ast.KEYWORD_ONLY
+                            args.append(ast.CallArgument(
+                                                name=arg.left.name,
+                                                value=arg.right,
+                                                type=ast.KEYWORD_ONLY))
+                        else:
+                            args.append(ast.CallArgument(
+                                                value=arg,
+                                                type=ast.POSITIONAL_ONLY))
+
+                    elif (state == ast.KEYWORD_ONLY and
+                                not self.tentative_match('(', regexp=False, consume=False)):
+                        arg = self.parse_assignment_expression()
+                        if (not isinstance(arg, js_ast.AssignmentExpressionNode) or
+                                not isinstance(arg.left, js_ast.IDNode)):
+                            raise UnexpectedToken(self.token)
+
+                        args.append(ast.CallArgument(
+                                            name=arg.left.name,
+                                            value=arg.right,
+                                            type=state))
+
+                    else:
+                        raise UnexpectedToken(started_at_tok)
+
+                if not self.tentative_match(',', regexp=False):
+                    self.must_match(')', regexp=False)
+                    break
+
+        return ast.CallNode(call=left, arguments=args,
+                            position=token.position)

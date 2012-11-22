@@ -539,3 +539,7 @@ class JavascriptSourceGenerator(SourceGenerator):
                 self.write(',')
 
         self.write(']')
+
+    def visit_SpreadElement(self, node):
+        self.write('...')
+        self.visit(node.expression)

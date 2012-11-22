@@ -221,7 +221,7 @@ class Scope:
     def aux_var(self, *, name='', needs_decl=True, value=None):
         assert value is None or isinstance(value, js_ast.Base)
         self.aux_var_cnt += 1
-        name = '__SXJSP_aux_{}_{}'.format(name, self.aux_var_cnt)
+        name = '__jp_{}_{}'.format(name, self.aux_var_cnt)
         self.add(Variable(name, needs_decl=needs_decl, aux=True, value=value))
         return name
 
@@ -259,7 +259,7 @@ class ModuleScope(Scope):
         self.deps.add(what)
 
         if what[0] == '_':
-            return '__SXJSP_builtin{}'.format(what)
+            return '__jp_bltn{}'.format(what)
         else:
             return what
 
@@ -283,10 +283,16 @@ class NameError(TranspilerError):
 
 
 class Transpiler(NodeTransformer):
-    def __init__(self):
+    def __init__(self, *, debug=True):
         super().__init__()
         self.scope_head = ScopeHead(head=None)
         self.state_head = StateHead(head=None)
+
+        self._kwargs_marker = '__jpkw' # NOTE! Same name in builtins.js.
+
+        # In debug mode code will:
+        # - Ensure arguments correctness (more args than needed, no undefineds etc)
+        self.debug = debug
 
     @property
     def scope(self):
@@ -373,7 +379,7 @@ class Transpiler(NodeTransformer):
             mod_deps = set()
             for dep in scope.deps:
                 if dep[0] == '_':
-                    dep_jsname = '__SXJSP_builtin{}'.format(dep)
+                    dep_jsname = '__jp_bltn{}'.format(dep)
                 else:
                     dep_jsname = dep
 
@@ -536,81 +542,394 @@ class Transpiler(NodeTransformer):
 
         scope = FunctionScope(self)
 
-        rest = None
-        defaults = collections.OrderedDict()
+        has_parameters = bool(node.param)
         new_params = []
-        for param in node.param:
-            scope.add(Variable(param.name, needs_decl=False))
-            new_params.append(js_ast.IDNode(name=param.name))
-            if param.default is not None:
-                if isinstance(param.default, js_ast.IDNode):
-                    self.check_scope_load(param.default.name)
-                param.default = self.visit(param.default)
-                defaults[param.name] = param.default
-            if param.rest:
-                rest = param
+        pytype = False
+        has_var_pos = has_var_kw = has_ko = False
+        has_pos_only = has_pos_only_def = 0
+        maxtype = ast.POSITIONAL_ONLY
+        params = node.param
 
+        if params:
+            pytype = isinstance(node.param[0], ast.FunctionParameter)
+
+            for param in params:
+                if pytype:
+                    if param.type == ast.POSITIONAL_ONLY:
+                        has_pos_only += 1
+                    elif param.type == ast.POSITIONAL_ONLY_DEFAULT:
+                        has_pos_only_def += 1
+                    elif param.type == ast.VAR_POSITIONAL:
+                        has_var_pos = True
+                    elif param.type == ast.KEYWORD_ONLY:
+                        has_ko = True
+                    elif param.type == ast.VAR_KEYWORD:
+                        has_var_kw = True
+                else:
+                    param.type = ast.POSITIONAL_ONLY
+
+                scope.add(Variable(param.name, needs_decl=False))
+                if param.default is not None:
+                    if isinstance(param.default, js_ast.IDNode):
+                        self.check_scope_load(param.default.name)
+                    param.default = self.visit(param.default)
+                    if not pytype:
+                        maxtype = param.type = ast.POSITIONAL_ONLY_DEFAULT
+
+                new_params.append(js_ast.IDNode(name=param.name))
+
+        if pytype:
+            maxtype = node.param[-1].type
+
+        # In JS we have only comma-separated list of IDs as function
+        # parameters.
         node.param = new_params
 
         with scope:
             self.visit(node.body)
 
-        var = self._gen_var(scope)
-        if var:
+        # Generate 'var' statement for all variables that are used
+        # inside the function
+        func_var_stmt = self._gen_var(scope)
+        if func_var_stmt:
             assert isinstance(node.body, js_ast.StatementBlockNode)
-            node.body.statements.insert(0, var)
+            node.body.statements.insert(0, func_var_stmt)
 
-        if not defaults and not rest:
-            return node
+        if not has_parameters or (maxtype == ast.POSITIONAL_ONLY and not self.debug):
+            return node # <- plain JS function with ordinary arguments
 
-        if name and not isinstance(self.scope, ClassScope):
-            self.scope[name].needs_decl = True
+        #
+        # Processing of keyword-only, defaults and *args with **kwargs
+        #
+
+        kwargs_obj = has_var_kw or has_ko
+
+        # XXXXXX ??
+        #if name and not isinstance(self.scope, ClassScope):
+        #    self.scope[name].needs_decl = True
 
         arglen_var = self.scope.aux_var(name='argslen', needs_decl=False)
-        defaults_init = [
+        args_init = [
             js_ast.StatementNode(
                 statement=js_ast.VarDeclarationNode(
                     vars=[js_ast.VarInitNode(
                         name=js_ast.IDNode(
                             name=arglen_var),
-                        value=js_ast.IDNode(
-                            name='arguments.length'))]))]
+                        value=js_ast.DotExpressionNode(
+                            left=js_ast.IDNode(name='arguments'),
+                            right=js_ast.IDNode(name='length')))]))]
 
-        if defaults:
-            non_def_len = len(node.param) - len(defaults) - (1 if rest else 0)
-            for idx, (def_name, def_value) in enumerate(defaults.items()):
-                defaults_init.append(js_ast.StatementNode(
+        if kwargs_obj or self.debug:
+            hop_name = self.scope.use('_hop')
+
+            kwtmp_var = self.scope.aux_var(name='kwtmp', needs_decl=False)
+            args_init[0].statement.vars.append(
+                js_ast.VarInitNode(
+                    name=js_ast.IDNode(name=kwtmp_var)))
+
+            # __jpkw = (
+            #    __jp_argslen_1 && (
+            #        __jp_kwtmp_2 = arguments[(__jp_argslen_1 - 1)],
+            #        __jp_bltn_hop(__jp_kwtmp_2, "__jpkw")
+            #              ?
+            #                  (--__jp_argslen_1, __jp_kwtmp_2)
+            #              :
+            #                  0
+            #        )
+            #   ) || 0
+
+            args_init[0].statement.vars.append(
+                js_ast.VarInitNode(
+                    name=js_ast.IDNode(name=self._kwargs_marker),
+                    value=js_ast.BinExpressionNode(
+                        left=js_ast.BinExpressionNode(
+                            left=js_ast.IDNode(
+                                name=arglen_var),
+                            op='&&',
+                            right=js_ast.ExpressionListNode(
+                                expressions=[
+                                    js_ast.AssignmentExpressionNode(
+                                        left=js_ast.IDNode(
+                                            name=kwtmp_var),
+                                        op='=',
+                                        right=js_ast.SBracketExpressionNode(
+                                            list=js_ast.IDNode(name='arguments'),
+                                            element=js_ast.BinExpressionNode(
+                                                left=js_ast.IDNode(
+                                                    name=arglen_var),
+                                                op='-',
+                                                right=js_ast.NumericLiteralNode(
+                                                    value=1)))),
+
+                                    js_ast.ConditionalExpressionNode(
+                                        condition=js_ast.BinExpressionNode(
+                                            left=js_ast.IDNode(
+                                                name=kwtmp_var),
+                                            op='&&',
+                                            right=js_ast.CallNode(
+                                                call=js_ast.IDNode(name=hop_name),
+                                                arguments=[
+                                                    js_ast.IDNode(name=kwtmp_var),
+                                                    js_ast.StringLiteralNode(
+                                                        value=self._kwargs_marker)
+                                                ])),
+                                        true=js_ast.ExpressionListNode(
+                                            expressions=[
+                                                js_ast.PrefixExpressionNode(
+                                                    op='--',
+                                                    expression=js_ast.IDNode(
+                                                        name=arglen_var)),
+                                                js_ast.IDNode(
+                                                        name=kwtmp_var)
+                                            ]),
+                                        false=js_ast.NumericLiteralNode(
+                                                    value=0))
+                                ])),
+                        op='||',
+                        right=js_ast.NumericLiteralNode(value=0))))
+
+        if self.debug and (has_pos_only or has_pos_only_def):
+            check_pos_only = self.scope.use('_inv_pos_only_args');
+
+            # In debug mode we also check that all positional-only args were
+            # passed, as we don't want them to be undefined
+
+            args_init.append(js_ast.StatementNode(
+                                statement=js_ast.BinExpressionNode(
+                                    left=js_ast.BinExpressionNode(
+                                        left=js_ast.IDNode(name=arglen_var),
+                                        op='<',
+                                        right=js_ast.NumericLiteralNode(
+                                            value=has_pos_only)),
+                                    op='&&',
+                                    right=js_ast.CallNode(
+                                        call=js_ast.IDNode(name=check_pos_only),
+                                        arguments=[
+                                            js_ast.StringLiteralNode(
+                                                value=(name or 'anonymous')),
+                                            js_ast.IDNode(name=arglen_var),
+                                            js_ast.NumericLiteralNode(
+                                                value=has_pos_only)
+                                        ]))))
+
+
+            if not has_var_pos:
+                args_init.append(js_ast.StatementNode(
+                                    statement=js_ast.BinExpressionNode(
+                                        left=js_ast.BinExpressionNode(
+                                            left=js_ast.IDNode(name=arglen_var),
+                                            op='>',
+                                            right=js_ast.NumericLiteralNode(
+                                                value=has_pos_only + has_pos_only_def)),
+                                        op='&&',
+                                        right=js_ast.CallNode(
+                                            call=js_ast.IDNode(name=check_pos_only),
+                                            arguments=[
+                                                js_ast.StringLiteralNode(
+                                                    value=(name or 'anonymous')),
+                                                js_ast.IDNode(name=arglen_var),
+                                                js_ast.NumericLiteralNode(
+                                                    value=has_pos_only + has_pos_only_def)
+                                            ]))))
+
+
+
+        for param_pos, param in enumerate(params):
+            if param.type == ast.POSITIONAL_ONLY:
+                # These should be resolved automatically
+                # (as they have the same behaviour as ordinary js args)
+                ## XXX workaround (a, b, *, c=1) <- (1, kwargs) ---- should set b to undefined
+                continue
+
+            if param.type == ast.POSITIONAL_ONLY_DEFAULT:
+                args_init.append(js_ast.StatementNode(
                                         statement=js_ast.BinExpressionNode(
                                             left=js_ast.BinExpressionNode(
                                                 left=js_ast.IDNode(
                                                     name=arglen_var),
                                                 op = '<',
                                                 right=js_ast.NumericLiteralNode(
-                                                    value=non_def_len + idx + 1)),
+                                                    value=param_pos + 1)),
                                             op='&&',
                                             right=js_ast.AssignmentExpressionNode(
                                                 left=js_ast.IDNode(
-                                                    name=def_name),
+                                                    name=param.name),
                                                 op='=',
-                                                right=def_value))))
+                                                right=param.default))))
 
-        if rest:
-            slice1_name = self.scope.use('_slice1')
-            defaults_init.append(js_ast.StatementNode(
+            elif param.type == ast.VAR_POSITIONAL:
+                slice2_name = self.scope.use('_slice2')
+                args_init.append(js_ast.StatementNode(
                                     statement=js_ast.AssignmentExpressionNode(
                                         left=js_ast.IDNode(
-                                            name=rest.name),
-                                            op='=',
-                                            right=js_ast.CallNode(
-                                                call=js_ast.IDNode(name=slice1_name),
-                                                arguments=[
-                                                    js_ast.IDNode(name='arguments'),
-                                                    js_ast.NumericLiteralNode(
-                                                        value=len(node.param)-1)]))))
+                                            name=param.name),
+                                        op='=',
+                                        right=js_ast.CallNode(
+                                            call=js_ast.IDNode(name=slice2_name),
+                                            arguments=[
+                                                js_ast.IDNode(name='arguments'),
+                                                js_ast.NumericLiteralNode(
+                                                    value=param_pos),
+                                                js_ast.IDNode(
+                                                    name=arglen_var)]))))
 
+            elif param.type == ast.KEYWORD_ONLY:
+                no_kwarg_mrkr = self.scope.use('_no_kwarg')
+
+                for_default = param.default
+                if not for_default:
+                    missing = self.scope.use('_required_kwonly_arg_missing')
+                    for_default = js_ast.CallNode(
+                                        call=js_ast.IDNode(name=missing),
+                                        arguments=[
+                                            js_ast.StringLiteralNode(
+                                                value=(name or 'anonymous')),
+                                            js_ast.StringLiteralNode(
+                                                value=param.name)
+                                        ])
+
+                if has_var_kw or self.debug:
+                    assign = js_ast.ExpressionListNode(
+                                    expressions=[
+                                        js_ast.AssignmentExpressionNode(
+                                            left=js_ast.IDNode(
+                                                name=kwtmp_var),
+                                            op='=',
+                                            right=js_ast.DotExpressionNode(
+                                                left=js_ast.IDNode(
+                                                    name=self._kwargs_marker),
+                                                right=js_ast.IDNode(
+                                                    name=param.name))),
+                                        js_ast.AssignmentExpressionNode(
+                                            left=js_ast.DotExpressionNode(
+                                                left=js_ast.IDNode(
+                                                    name=self._kwargs_marker),
+                                                right=js_ast.IDNode(
+                                                    name=param.name)),
+                                            op='=',
+                                            right=js_ast.IDNode(
+                                                name=no_kwarg_mrkr)),
+                                        js_ast.IDNode(
+                                            name=kwtmp_var)
+                                    ])
+                else:
+                    assign = js_ast.DotExpressionNode(
+                                    left=js_ast.IDNode(
+                                        name=self._kwargs_marker),
+                                    right=js_ast.IDNode(
+                                        name=param.name))
+
+                args_init.append(js_ast.StatementNode(
+                                    statement=js_ast.AssignmentExpressionNode(
+                                        left=js_ast.IDNode(
+                                            name=param.name),
+                                        op='=',
+                                        right=js_ast.ConditionalExpressionNode(
+                                            condition=js_ast.CallNode(
+                                                call=js_ast.IDNode(
+                                                    name=hop_name),
+                                                arguments=[
+                                                    js_ast.IDNode(
+                                                        name=self._kwargs_marker),
+                                                    js_ast.StringLiteralNode(
+                                                        value=param.name)
+                                                ]),
+                                            true=assign,
+                                            false=for_default))))
+
+            elif param.type == ast.VAR_KEYWORD:
+                filter_kwarg = self.scope.use('_filter_kwargs')
+
+                args_init.append(js_ast.StatementNode(
+                                    statement=js_ast.AssignmentExpressionNode(
+                                        left=js_ast.IDNode(
+                                            name=param.name),
+                                        op='=',
+                                        right=js_ast.CallNode(
+                                            call=js_ast.IDNode(
+                                                name=filter_kwarg),
+                                            arguments=[
+                                                js_ast.IDNode(
+                                                    name=self._kwargs_marker)
+                                            ]))))
+
+        if self.debug and not has_var_kw:
+            filter_kwarg = self.scope.use('_filter_kwargs')
+            assert_empty_kwargs = self.scope.use('_assert_empty_kwargs')
+            args_init.append(js_ast.StatementNode(
+                                    statement=js_ast.CallNode(
+                                        call=js_ast.IDNode(
+                                            name=assert_empty_kwargs),
+                                        arguments=[
+                                            js_ast.StringLiteralNode(
+                                                value=(name or 'anonymous')),
+                                            js_ast.CallNode(
+                                                call=js_ast.IDNode(
+                                                    name=filter_kwarg),
+                                                arguments=[
+                                                    js_ast.IDNode(
+                                                        name=self._kwargs_marker)
+                                                ])])))
 
         func_body = node.body.statements
-        func_body.insert(0, js_ast.SourceElementsNode(code=defaults_init))
+        func_body.insert(0, js_ast.SourceElementsNode(code=args_init))
+
+        return node
+
+    def visit_jp_ClassMethodNode(self, node):
+        func = js_ast.FunctionNode(
+                    name=node.name,
+                    param=node.param,
+                    body=node.body,
+                    isdeclaration=True)
+
+        return self.visit_js_FunctionNode(func)
+
+    def visit_jp_CallArgument(self, node):
+        if isinstance(node.value, js_ast.IDNode):
+            self.check_scope_load(node.value.name)
+        return self.generic_visit(node)
+
+    def visit_jp_CallNode(self, node):
+        if isinstance(node.call, js_ast.IDNode):
+            self.check_scope_load(node.call.name)
+
+        node = self.generic_visit(node)
+
+        has_args = has_kwargs = has_ko = False
+
+        positional_values = []
+        keywords = []
+
+        for arg in node.arguments:
+            if arg.type == ast.VAR_POSITIONAL:
+                has_args = True
+            elif arg.type == ast.KEYWORD_ONLY:
+                has_ko = True
+                keywords.append(arg)
+            elif arg.type == ast.VAR_KEYWORD:
+                has_kwargs = True
+            elif arg.type == ast.POSITIONAL_ONLY:
+                positional_values.append(arg.value)
+            else:
+                assert 0
+
+        assert not has_args and not has_kwargs, 'unsupported'
+
+        if not has_ko:
+            node.arguments = positional_values
+            return node
+
+        kw_properties = [js_ast.SimplePropertyNode(
+                                    name=js_ast.IDNode(name=k.name),
+                                    value=k.value) for k in keywords]
+        kw_properties.append(js_ast.SimplePropertyNode(
+                                    name=js_ast.IDNode(name=self._kwargs_marker),
+                                    value=js_ast.NumericLiteralNode(
+                                        value=1)))
+        positional_values.append(js_ast.ObjectLiteralNode(properties=kw_properties))
+
+        node.arguments = positional_values
         return node
 
     def visit_jp_NonlocalNode(self, node):
@@ -649,28 +968,36 @@ class Transpiler(NodeTransformer):
 
         with scope, state:
             for child in node.body:
-                collection = dct_items
+                is_static = False
+                is_member = False
+                child_name = None
 
-                if isinstance(child, js_ast.StatementNode):
-                    child = self.visit(child.statement)
-
-                if isinstance(child, ast.StaticDeclarationNode):
-                    child = child.decl
-                    collection = dct_static_items
-
-                child = self.visit(child)
-
-                if isinstance(child, js_ast.FunctionNode):
-                    collection.append(js_ast.SimplePropertyNode(
-                                        name=js_ast.StringLiteralNode(value=child.name),
-                                        value=child))
-                elif isinstance(child, js_ast.AssignmentExpressionNode):
-                    collection.append(js_ast.SimplePropertyNode(
-                                        name=js_ast.StringLiteralNode(value=child.left.name),
-                                        value=child.right))
+                if isinstance(child, ast.ClassMemberNode):
+                    is_static = child.is_static
+                    is_member = True
+                    child_name = child.name
+                elif isinstance(child, ast.ClassMethodNode):
+                    is_static = child.is_static
+                    child_name = child.name
+                elif isinstance(child, ast.DecoratedNode):
+                    if not isinstance(child.node, ast.ClassMethodNode):
+                        raise TranspilerError('unsupported AST node in class body: {}'.
+                                              format(child.node))
+                    is_static = child.node.is_static
+                    child_name = child.node.name
                 else:
                     raise TranspilerError('unsupported AST node in class body: {}'.
                                           format(child))
+
+                if is_member:
+                    class_node = self.visit(child.value)
+                else:
+                    class_node = self.visit(child)
+
+                collection = dct_static_items if is_static else dct_items
+                collection.append(js_ast.SimplePropertyNode(
+                                        name=js_ast.IDNode(name=child_name),
+                                        value=class_node))
 
         if dct_static_items:
             dct_items.append(js_ast.SimplePropertyNode(
@@ -739,12 +1066,8 @@ class Transpiler(NodeTransformer):
                         arguments=call_args))
 
     def visit_jp_DecoratedNode(self, node):
-        is_static = False
-
         wrapped = node.node
-        if isinstance(wrapped, ast.StaticDeclarationNode):
-            is_static = True
-            wrapped = wrapped.decl
+        is_method = isinstance(wrapped, ast.ClassMethodNode)
 
         if not isinstance(wrapped, (js_ast.FunctionNode, ast.ClassNode)):
             raise TranspilerError('unsupported decorated node (only funcs & classes expected): {}'.
@@ -756,7 +1079,7 @@ class Transpiler(NodeTransformer):
         wrapped = self.visit(wrapped)
 
         if is_class:
-            assert not is_static
+            assert not is_method
             class_shell = wrapped
             wrapped = wrapped.statement.right
 
@@ -772,15 +1095,13 @@ class Transpiler(NodeTransformer):
             class_shell.statement.right = wrapped
             return class_shell
 
-        func = js_ast.AssignmentExpressionNode(
+        if is_method:
+            return wrapped
+
+        return js_ast.AssignmentExpressionNode(
                   left=js_ast.IDNode(name=name),
                   op='=',
                   right=wrapped)
-
-        if is_static:
-            func = ast.StaticDeclarationNode(decl=func)
-
-        return func
 
     def visit_js_ForNode(self, node):
         with ForState(self):
@@ -1146,7 +1467,8 @@ class Transpiler(NodeTransformer):
                                                     left=js_ast.IDNode(
                                                         name=with_name),
                                                     right=js_ast.IDNode(
-                                                        name='exit'))))]))])
+                                                        name='exit')),
+                                                arguments=[js_ast.NullNode()]))]))])
 
             try_node = js_ast.TryNode(
                             catch=catch_node,

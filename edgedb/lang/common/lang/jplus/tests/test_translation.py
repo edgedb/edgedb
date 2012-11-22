@@ -54,7 +54,7 @@ class TestTranslation(base_test.BaseJPlusTest):
     def test_utils_lang_jp_tr_scope_3(self):
         '''JS+
         a = 2;
-        function aaa(a) {
+        function aaa() {
             a = 3;
         }
         aaa();
@@ -68,7 +68,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         '''JS+
 
         class Foo {
-            function bar() {
+            bar() {
                 return 10;
             }
         }
@@ -85,7 +85,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         class Foo {
             x = 10;
 
-            function bar(a, b) {
+            bar(a, b) {
                 return this.x + (a || 0) + (b || 0);
             }
         }
@@ -93,7 +93,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         class Bar {}
 
         class Spam(Foo, Bar) {
-            function bar() {
+            bar() {
                 return super().bar(1, 2) + 29;
             }
         }
@@ -110,7 +110,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         class Foo {
             static x = 10;
 
-            static function bar(a, b) {
+            static bar(a, b) {
                 return this.x + (a || 0) + (b || 0);
             }
         }
@@ -118,7 +118,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         class Bar {}
 
         class Spam(Foo, Bar) {
-            static function bar() {
+            static bar() {
                 return super().bar(1, 2) + 29;
             }
         }
@@ -133,7 +133,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         '''JS+
 
         class MA(type) {
-            static function constructor(name, bases, dct) {
+            static constructor(name, bases, dct) {
                 dct.foo = name + name;
                 return super().constructor(name, bases, dct)
             }
@@ -153,23 +153,23 @@ class TestTranslation(base_test.BaseJPlusTest):
         '''JS+
 
         class Foo {
-            function constructor(base) {
+            constructor(base) {
                 this.base = base;
             }
 
-            function ham(b) {
+            ham(b) {
                 return this.base + b;
             }
         }
 
         class Bar(Foo) {
-            function ham(b) {
+            ham(b) {
                 return super().ham.apply(this, arguments) + 100;
             }
         }
 
         class Baz(Bar) {
-            function ham(base, b) {
+            ham(base, b) {
                 meth = super().ham;
                 if (base) {
                     return meth.call(base, b);
@@ -234,12 +234,12 @@ class TestTranslation(base_test.BaseJPlusTest):
         @class_dec
         class Foo {
             @dec
-            function spam() {
+            spam() {
                 return 11;
             }
 
             @dec
-            static function ham() {
+            static ham() {
                 return 22;
             }
         }
@@ -262,13 +262,13 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         class Bar {
             @one_dec
-            static function abc() {
+            static abc() {
                 return 10;
             }
 
             @one_dec
             @one_dec
-            static function edf() {
+            static edf() {
                 return 10;
             }
         }
@@ -733,13 +733,13 @@ class TestTranslation(base_test.BaseJPlusTest):
         class E {}
 
         class W1 {
-            function enter() {
+            enter() {
                 nonlocal chk;
                 chk += '-enter-';
                 return {'a': 'b'};
             }
 
-            function exit(exc) {
+            exit(exc) {
                 nonlocal chk;
                 chk += '-exit-';
                 if (exc) {
@@ -773,19 +773,19 @@ class TestTranslation(base_test.BaseJPlusTest):
         chk = '';
 
         class W {
-            function constructor(name) {
+            constructor(name) {
                 this.name = name;
                 nonlocal chk;
                 chk += 'create(' + name + ')-';
             }
 
-            function enter() {
+            enter() {
                 nonlocal chk;
                 chk += 'enter(' + this.name + ')-';
                 return this;
             }
 
-            function exit() {
+            exit() {
                 nonlocal chk;
                 chk += 'exit(' + this.name + ')-';
             }
@@ -823,15 +823,15 @@ class TestTranslation(base_test.BaseJPlusTest):
     def test_utils_lang_jp_tr_func_rest_1(self):
         '''JS+
 
-        function test0(...a) {
+        function test0(*a) {
             return a.join('+') + '~'
         }
 
-        function test1(a, ...b) {
+        function test1(a, *b) {
             return b.join('-') + '|';
         }
 
-        function test2(a, b=10, ...c) {
+        function test2(a, b=10, *c) {
             return '(' + b + ')' + c.join('*') + '$';
         }
 
@@ -1274,22 +1274,45 @@ class TestTranslation(base_test.BaseJPlusTest):
     def test_utils_lang_jp_tr_fat_arrow_5(self):
         '''JS+
 
-        x = (a, ...args) => {
-            print(a + '|' + args.join('-'));
-        }
-
-        x(10, 20, 30)
-
-        %%
-        10|20-30
-        '''
-
-    def test_utils_lang_jp_tr_fat_arrow_6(self):
-        '''JS+
-
         x = () => ({a: 'b'})
         a = x().a
         print(a)
         %%
         b
         '''
+
+    def test_utils_lang_jp_tr_pyargs_1(self):
+        '''JS+
+
+        function test1(a, *, d, e=1, f) {
+            print(a, d, e, f)
+        }
+
+        test1(1, d=6, f=42)
+        %%
+        1 6 1 42
+        '''
+
+    def test_utils_lang_jp_tr_pyargs_2(self):
+        '''JS+
+
+        class assert_raises {
+            constructor: function(exc_cls, msg=null) {
+                this.exc_cls = exc_cls;
+                this.msg = msg;
+            }
+        }
+
+        function test1(a) {
+            print(a)
+        }
+
+        try {
+            test1(1, 2)
+        } except (TypeError as ex) {
+            assert ex.toString().indexOf('takes 1 of positional only arguments (2 given)') > 0
+        } else {
+            assert 0
+        }
+        '''
+

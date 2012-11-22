@@ -270,3 +270,7 @@ class AssignmentPropertyList(Base):
 
 class AssignmentElementList(Base):
     __fields = [('elements', list)]
+
+
+class SpreadElement(Expression):
+    __fields = ['expression']
