@@ -1654,15 +1654,13 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                                                                       module_aliases)
 
                         first = list(tree.result_types.values())[0][0]
-                        if len(tree.result_types) > 1 or not \
-                                            first.issubclass(localschema, link.target):
+                        if len(tree.result_types) > 1 or not first.issubclass(link.target):
                             raise MetaError(('default value query must yield a '
                                              'single-column result of type "%s"') %
                                              link.target.name, context=def_context)
 
                         if not isinstance(link.target, caos.types.ProtoAtom):
-                            if link.mapping not in (caos.types.ManyToOne,
-                                                    caos.types.ManyToMany):
+                            if link.mapping not in (caos.types.ManyToOne, caos.types.ManyToMany):
                                 raise MetaError('concept links with query defaults ' \
                                                 'must have either a "*1" or "**" mapping',
                                                  context=def_context)

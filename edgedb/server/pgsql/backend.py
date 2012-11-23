@@ -1497,7 +1497,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     for constraint in constraints:
                         atom.add_constraint(constraint)
 
-            if atom.issubclass(meta, caos_objects.sequence.Sequence):
+            if atom.issubclass(caos_objects.sequence.Sequence):
                 seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
                 if seq_name not in seqs:
                     msg = 'internal metadata incosistency'

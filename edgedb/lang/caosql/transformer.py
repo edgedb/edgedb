@@ -1043,8 +1043,6 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             raise errors.CaosQLReferenceError(msg)
 
         if target is not None:
-            proto_schema = context.current.proto_schema
-
             if direction == caos_types.OutboundDirection:
                 ptrs = outbound
                 link_end = 'target'
@@ -1052,7 +1050,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 ptrs = inbound
                 link_end = 'source'
 
-            flt = lambda p: target.issubclass(proto_schema, getattr(p, link_end))
+            flt = lambda p: target.issubclass(getattr(p, link_end))
             ptrs = tuple(filter(flt, ptrs))
 
             if direction == caos_types.OutboundDirection:

@@ -208,7 +208,7 @@ class PgSQLExprTransformer(ast.visitor.NodeVisitor):
             for l in local_to_source.pointers.values():
                 name = l.normal_name()
                 colname = common.caos_name_to_pg_name(l.normal_name())
-                source = context.current.source.get_pointer_origin(schema, name, farthest=True)
+                source = context.current.source.get_pointer_origin(name, farthest=True)
                 context.current.attmap[colname] = (name, source)
 
         return self._process_expr(context, tree)
@@ -1811,7 +1811,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
             pg_expr = self._process_expr(context, expr.expr, cte)
 
-            if expr_type and expr_type is bool and expr.type.issubclass(schema, int_proto):
+            if expr_type and expr_type is bool and expr.type.issubclass(int_proto):
                 when_expr = pgsql.ast.CaseWhenNode(expr=pg_expr,
                                                    result=pgsql.ast.ConstantNode(value=1))
                 default = pgsql.ast.ConstantNode(value=0)
@@ -1927,8 +1927,8 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                 link_proto = expr.ptr_proto.source
 
-                if localizable is not None and link_proto.issubclass(schema, localizable) \
-                                           and link_proto.target.issubclass(schema, str_t):
+                if localizable is not None and link_proto.issubclass(localizable) \
+                                           and link_proto.target.issubclass(str_t):
                     lang = pgsql.ast.IdentNode(name='C')
                     result = pgsql.ast.CollateClauseNode(expr=result, collation_name=lang)
 

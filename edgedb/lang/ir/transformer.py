@@ -349,7 +349,7 @@ class TreeTransformer:
 
                 link_proto = expr.link_proto
 
-                if localizable is not None and link_proto.issubclass(schema, localizable):
+                if localizable is not None and link_proto.issubclass(localizable):
                     cvars = self.context.current.context_vars
 
                     lang = caos_ast.Constant(index='__context_lang',
@@ -1490,7 +1490,7 @@ class TreeTransformer:
                 if left.origin is None and right.origin is not None:
                     left.origin = right.origin
 
-                if right.concept.issubclass(self.context.current.proto_schema, left.concept):
+                if right.concept.issubclass(left.concept):
                     left.concept = right.concept
 
                 if merge_filters:
@@ -1661,7 +1661,7 @@ class TreeTransformer:
                 if left_set.origin is None and right_set.origin is not None:
                     left_set.origin = right_set.origin
 
-                if right_set.concept.issubclass(self.context.current.proto_schema, left_set.concept):
+                if right_set.concept.issubclass(left_set.concept):
                     left_set.concept = right_set.concept
 
                 disjunction = self.intersect_paths(left_set.disjunction,
@@ -2750,7 +2750,7 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.AtomicRefSimple):
             if isinstance(expr.ref, caos_ast.PathCombination):
                 targets = [t.concept for t in expr.ref.paths]
-                concept = caos_utils.get_prototype_nearest_common_ancestor(targets, schema)
+                concept = caos_utils.get_prototype_nearest_common_ancestor(targets)
             else:
                 concept = expr.ref.concept
 
@@ -2762,12 +2762,12 @@ class TreeTransformer:
             if len(targets) == 1:
                 result = targets[0]
             else:
-                result = caos_utils.get_prototype_nearest_common_ancestor(targets, schema)
+                result = caos_utils.get_prototype_nearest_common_ancestor(targets)
 
         elif isinstance(expr, caos_ast.LinkPropRefSimple):
             if isinstance(expr.ref, caos_ast.PathCombination):
                 targets = [t.link_proto for t in expr.ref.paths]
-                link = caos_utils.get_prototype_nearest_common_ancestor(targets, schema)
+                link = caos_utils.get_prototype_nearest_common_ancestor(targets)
             else:
                 link = expr.ref.link_proto
 

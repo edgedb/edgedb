@@ -346,7 +346,7 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
         if not atom.automatic:
             self.pgops.add(dbops.CreateDomain(name=new_domain_name, base=base))
 
-            if atom.issubclass(meta, caos_objects.sequence.Sequence):
+            if atom.issubclass(caos_objects.sequence.Sequence):
                 seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
                 self.pgops.add(dbops.CreateSequence(name=seq_name))
 
@@ -412,7 +412,7 @@ class RenameAtom(AtomMetaCommand, adapts=delta_cmds.RenameAtom):
         self.pgops.add(dbops.RenameDomain(name=domain_name, new_name=new_domain_name))
         self.rename(meta, context, self.prototype_name, self.new_name)
 
-        if not proto.automatic and proto.issubclass(meta, caos_objects.sequence.Sequence):
+        if not proto.automatic and proto.issubclass(caos_objects.sequence.Sequence):
             seq_name = common.atom_name_to_sequence_name(self.prototype_name, catenate=False)
             new_seq_name = common.atom_name_to_sequence_name(self.new_name, catenate=False)
 
@@ -560,7 +560,7 @@ class DeleteAtom(AtomMetaCommand, adapts=delta_cmds.DeleteAtom):
         ops.add(dbops.Delete(table=deltadbops.AtomTable(),
                              condition=[('name', str(self.prototype_name))]))
 
-        if not atom.automatic and atom.issubclass(meta, caos_objects.sequence.Sequence):
+        if not atom.automatic and atom.issubclass(caos_objects.sequence.Sequence):
             seq_name = common.atom_name_to_sequence_name(self.prototype_name, catenate=False)
             self.pgops.add(dbops.DropSequence(name=seq_name))
 
@@ -760,7 +760,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 # Get the nearest source defining the pointer, i. e., the source
                 # that has pointer_name in its own_pointers index.
                 #
-                origin = source.get_pointer_origin(meta, pointer_name)
+                origin = source.get_pointer_origin(pointer_name)
                 origin_op = proto_idx.get(origin)
                 if origin_op:
                     # Replicate each pointer origin constraint operation.
@@ -913,7 +913,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             op = dbops.AlterTableAddConstraint(constraint=constr)
             alter_table.add_operation(op)
 
-            constraint_origins = source.get_constraint_origins(meta, pointer_name, constraint)
+            constraint_origins = source.get_constraint_origins(pointer_name, constraint)
             assert constraint_origins
 
             cuct = self._constr_mech.create_unique_constraint_trigger(source, pointer_name, constr,
@@ -937,7 +937,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             alter_table.add_operation(op)
 
             if not conditional:
-                constraint_origins = source.get_constraint_origins(meta, pointer_name, constraint)
+                constraint_origins = source.get_constraint_origins(pointer_name, constraint)
                 assert constraint_origins
 
             drop_trig = self._constr_mech.drop_unique_constraint_trigger(source, pointer_name,
