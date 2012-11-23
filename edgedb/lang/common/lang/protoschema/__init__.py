@@ -366,6 +366,12 @@ class ProtoModule:
     def get(self, name, default=default_err, module_aliases=None, type=None,
                   include_pyobjects=False, index_only=True, implicit_builtins=True,
                   nsname=None):
+
+        if nsname == 'all':
+            nsname = tuple(self.namespaces)
+
+        fail_cause = None
+
         if isinstance(type, tuple):
             for typ in type:
                 try:
@@ -377,10 +383,21 @@ class ProtoModule:
                 else:
                     if prototype is not None:
                         return prototype
+        elif isinstance(nsname, tuple):
+            for nsname_ in nsname:
+                try:
+                    prototype = self.get(name, module_aliases=module_aliases,
+                                         type=None, include_pyobjects=include_pyobjects,
+                                         index_only=index_only, default=None,
+                                         nsname=nsname_)
+                except self.SchemaError:
+                    pass
+                else:
+                    if prototype is not None:
+                        return prototype
         else:
             ns = self.get_namespace(type, name=nsname)
 
-            fail_cause = None
             prototype = None
 
             fq_name = '{}.{}'.format(self.name, name)
