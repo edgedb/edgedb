@@ -82,14 +82,15 @@ class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
             pass
 
         elif issubclass(field.type[0], typed.AbstractTypedCollection) \
-                and isinstance(field.type[0].type, caos.types.PrototypeClass):
+                and issubclass(field.type[0].type, caos.proto.PrototypeOrNativeClass):
             vals = []
             for v in value:
-                v = caos.name.Name(v)
-                ref_type = field.type[0].type.ref_type
-                v = ref_type(prototype_name=v)
+                if isinstance(v, str):
+                    v = caos.name.Name(v)
+                    ref_type = field.type[0].type.ref_type
+                    v = ref_type(prototype_name=v)
                 vals.append(v)
-            value = vals
+            value = field.type[0](vals)
 
         else:
             value = MixedStructMeta.adapt_value(field, value)
@@ -132,8 +133,19 @@ class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
         if data['properties']:
             for prop in data['properties']:
                 for prop_name, (old_value, new_value) in prop.items():
+                    # Backwards compat
+                    if prop_name == 'base':
+                        prop_name = 'bases'
+
                     field = self.prototype_class._fields.get(prop_name)
                     if field:
+                        if prop_name == 'bases':
+                            if new_value is not None and not isinstance(new_value, (list, tuple)):
+                                new_value = [new_value]
+
+                            if old_value is not None and not isinstance(old_value, (list, tuple)):
+                                old_value = [old_value]
+
                         if old_value is not None:
                             old_value = self.adapt_value(field, old_value)
                         if new_value is not None:

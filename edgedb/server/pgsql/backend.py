@@ -1418,6 +1418,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         atom_list = datasources.meta.atoms.AtomList(self.connection).fetch()
 
+        basemap = {}
+        constrmap = {}
+
         for row in atom_list:
             name = caos.Name(row['name'])
 
@@ -1446,30 +1449,53 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if atom_data['default']:
                 atom_data['default'] = self.unpack_default(row['default'])
 
-            base = caos.Name(atom_data['base'])
-            atom = proto.Atom(name=name, base=base, default=atom_data['default'],
+            basemap[name] = atom_data['base']
+            constrmap[name] = (domain['constraints'], row['constraints'])
+
+            atom = proto.Atom(name=name, default=atom_data['default'],
                               title=atom_data['title'], description=atom_data['description'],
                               automatic=atom_data['automatic'],
                               is_abstract=atom_data['is_abstract'],
                               is_final=atom_data['is_final'],
                               attributes=atom_data['attributes'])
 
+            meta.add(atom)
+
+        for atom in meta('atom', include_automatic=True):
+            try:
+                basename = basemap[atom.name]
+            except KeyError:
+                pass
+            else:
+                base = meta.get(caos.Name(basename), include_pyobjects=True)
+
+                if not isinstance(base, caos.types.ProtoAtom):
+                    base = caos.proto.NativeClassRef(class_name=basename)
+
+                atom.bases = [base]
+
+        for atom in meta('atom', include_automatic=True):
             # Copy constraints from parent (row['constraints'] does not contain any inherited constraints)
             atom.acquire_parent_data(meta)
 
-            if domain['constraints']:
-                constraints = atom.normalize_constraints(meta, domain['constraints'])
-                for constraint in constraints:
-                    atom.add_constraint(constraint)
+            try:
+                domain_constraints, local_constraints = constrmap[atom.name]
+            except KeyError:
+                pass
+            else:
+                if domain_constraints:
+                    constraints = atom.normalize_constraints(meta, domain_constraints)
+                    for constraint in constraints:
+                        atom.add_constraint(constraint)
 
-            if row['constraints']:
-                constraints = []
-                for cls, val in row['constraints'].items():
-                    constraints.append(get_object(cls)(next(iter(yaml.Language.load(val)))))
+                if local_constraints:
+                    constraints = []
+                    for cls, val in local_constraints.items():
+                        constraints.append(get_object(cls)(next(iter(yaml.Language.load(val)))))
 
-                constraints = atom.normalize_constraints(meta, constraints)
-                for constraint in constraints:
-                    atom.add_constraint(constraint)
+                    constraints = atom.normalize_constraints(meta, constraints)
+                    for constraint in constraints:
+                        atom.add_constraint(constraint)
 
             if atom.issubclass(meta, caos_objects.sequence.Sequence):
                 seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
@@ -1478,8 +1504,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     details = 'Missing sequence for sequence atom "%s"' % atom.name
                     raise caos.MetaError(msg, details=details)
                 seen_seqs.add(seq_name)
-
-            meta.add(atom)
 
         extra_seqs = set(seqs) - seen_seqs
         if extra_seqs:
@@ -1715,6 +1739,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         ptr_constraints = self._constr_mech.get_table_ptr_constraints(self.connection)
 
         concept_indexes = self.read_search_indexes()
+        basemap = {}
 
         for name, r in links_list.items():
             bases = tuple()
@@ -1743,7 +1768,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             exposed_behaviour = caos.types.LinkExposedBehaviour(r['exposed_behaviour']) \
                                         if r['exposed_behaviour'] else None
 
-            link = proto.Link(name=name, base=bases, source=source,
+            basemap[name] = bases
+
+            link = proto.Link(name=name, source=source,
                               mapping=caos.types.LinkMapping(r['mapping']),
                               exposed_behaviour=exposed_behaviour,
                               required=required,
@@ -1797,6 +1824,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             meta.add(link)
 
         for link in meta(type='link', include_automatic=True):
+            try:
+                bases = basemap[link.name]
+            except KeyError:
+                pass
+            else:
+                link.bases = [meta.get(b) for b in bases]
+
+        for link in meta(type='link', include_automatic=True):
             link.acquire_parent_data(meta)
 
 
@@ -1810,8 +1845,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         for link in meta(type='link', include_automatic=True):
             g[link.name] = {"item": link, "merge": [], "deps": []}
-            if link.base:
-                g[link.name]['merge'].extend(link.base)
+            if link.bases:
+                g[link.name]['merge'].extend(b.name for b in link.bases)
 
         topological.normalize(g, merger=proto.Link.merge)
 
@@ -1841,6 +1876,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         link_props = collections.OrderedDict((caos.Name(r['name']), r) for r in link_props)
         atom_constraints = self._constr_mech.get_table_atom_constraints(self.connection)
         ptr_constraints = self._constr_mech.get_table_ptr_constraints(self.connection)
+        basemap = {}
 
         for name, r in link_props.items():
             bases = ()
@@ -1866,7 +1902,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             loading = caos.types.PointerLoading(r['loading']) if r['loading'] else None
 
-            prop = proto.LinkProperty(name=name, base=bases, source=source, target=target,
+            basemap[name] = bases
+
+            prop = proto.LinkProperty(name=name,
+                                      source=source, target=target,
                                       required=required,
                                       title=title, description=description,
                                       readonly=r['readonly'],
@@ -1910,14 +1949,22 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             meta.add(prop)
 
+        for prop in meta('link_property', include_automatic=True):
+            try:
+                bases = basemap[prop.name]
+            except KeyError:
+                pass
+            else:
+                prop.bases = [meta.get(b, type=proto.LinkProperty) for b in bases]
+
 
     def order_link_properties(self, meta):
         g = {}
 
         for prop in meta(type='link_property', include_automatic=True):
             g[prop.name] = {"item": prop, "merge": [], "deps": []}
-            if prop.base:
-                g[prop.name]['merge'].extend(prop.base)
+            if prop.bases:
+                g[prop.name]['merge'].extend(b.name for b in prop.bases)
 
         topological.normalize(g, merger=proto.LinkProperty.merge)
 
@@ -1944,13 +1991,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             target = meta.get(r['target'])
             expression = r['expression']
             is_local = r['is_local']
-            bases = (proto.Link.normalize_name(name),)
+            bases = [meta.get(proto.Pointer.normalize_name(name),
+                              type=(proto.Link, proto.LinkProperty))]
 
             computable = proto.Computable(name=name, source=source, target=target,
                                           title=title, description=description,
                                           is_local=is_local,
                                           expression=expression,
-                                          base=bases)
+                                          bases=bases)
 
             source.add_pointer(computable)
             meta.add(computable)
@@ -2070,11 +2118,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             link.readonly = False
 
             src_pname = 'semantix.caos.builtins.source'
+            src_pbase = meta.get('semantix.caos.builtins.source')
             src_pname_s = proto.LinkProperty.generate_specialized_name(link.name, concept.name,
                                                                        src_pname)
 
             src_pname_s = caos.Name(name=src_pname_s, module=link.name.module)
-            src_p = caos.proto.LinkProperty(name=src_pname_s, base=(src_pname,),
+            src_p = caos.proto.LinkProperty(name=src_pname_s, bases=[src_pbase],
                                             source=link, target=concept,
                                             loading=caos.types.EagerLoading)
             src_p.acquire_parent_data(meta)
@@ -2083,10 +2132,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             link.add_pointer(src_p)
 
             tgt_pname = 'semantix.caos.builtins.target'
+            tgt_pbase = meta.get('semantix.caos.builtins.target')
             tgt_pname_s = proto.LinkProperty.generate_specialized_name(link.name, target.name,
                                                                        tgt_pname)
             tgt_pname_s = caos.Name(name=tgt_pname_s, module=link.name.module)
-            tgt_p = caos.proto.LinkProperty(name=tgt_pname_s, base=(tgt_pname,),
+            tgt_p = caos.proto.LinkProperty(name=tgt_pname_s, bases=[tgt_pbase],
                                             source=link, target=target,
                                             loading=caos.types.EagerLoading)
             tgt_p.acquire_parent_data(meta)
@@ -2122,7 +2172,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             if ptr_stor_info.table_type[0] == 'source' or ptr_stor_info.in_record:
                 if ptr.target.automatic:
-                    target = schema.get(ptr.target.base, type=ptr.target.get_canonical_class())
+                    target = ptr.target.bases[0]
                 else:
                     target = ptr.target
                 ptr = ptr.derive(schema, updated_concept, target)
@@ -2164,11 +2214,17 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if table_name not in bases:
                 alter = base_delta.AlterConcept(prototype_name=c.name,
                                                 prototype_class=c.__class__.get_canonical_class())
-                prop = base_delta.AlterPrototypeProperty(property='base', old_value=c.base,
-                                                         new_value=c.base + (updated_concept.name,))
+                old_bases = [caos.proto.PrototypeRef(prototype_name=b.name) for b in c.bases]
+                new_bases = old_bases + [caos.proto.PrototypeRef(prototype_name=updated_concept.name)]
+
+                prop = base_delta.AlterPrototypeProperty(property='bases',
+                                                         old_value=old_bases,
+                                                         new_value=new_bases)
+
+                new_base_names = tuple(p.prototype_name for p in new_bases)
                 rebase = base_delta.RebaseConcept(prototype_name=c.name,
                                                   prototype_class=c.__class__.get_canonical_class(),
-                                                  new_base=c.base + (updated_concept.name,))
+                                                  new_base=new_base_names)
                 alter.add(prop)
                 alter.add(rebase)
                 delta.add(alter)
@@ -2215,6 +2271,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         table_to_concept_map = {common.concept_name_to_table_name(n, catenate=False): c \
                                                                 for n, c in concept_list.items()}
 
+        basemap = {}
+
         for name, row in concept_list.items():
             concept = {'name': name,
                        'title': self.hstore_to_word_combination(row['title']),
@@ -2241,14 +2299,26 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             bases = self.pg_table_inheritance_to_bases(table['name'], table['schema'],
                                                                       table_to_concept_map)
 
-            concept = proto.Concept(name=name, base=bases, title=concept['title'],
+            basemap[name] = bases
+
+            custombases = [proto.NativeClassRef(class_name=b) for b in concept['custombases']]
+
+            concept = proto.Concept(name=name, title=concept['title'],
                                     description=concept['description'],
                                     is_abstract=concept['is_abstract'],
                                     is_final=concept['is_final'],
                                     is_virtual=concept['is_virtual'],
-                                    custombases=tuple(concept['custombases']))
+                                    custombases=custombases)
 
             meta.add(concept)
+
+        for concept in meta('concept'):
+            try:
+                bases = basemap[concept.name]
+            except KeyError:
+                pass
+            else:
+                concept.bases = [meta.get(b) for b in bases]
 
         tabdiff = set(tables.keys()) - visited_tables
         if tabdiff:
@@ -2267,8 +2337,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         g = {}
         for concept in meta(type='concept', include_automatic=True):
             g[concept.name] = {"item": concept, "merge": [], "deps": []}
-            if concept.base:
-                g[concept.name]["merge"].extend(concept.base)
+            if concept.bases:
+                g[concept.name]["merge"].extend(b.name for b in concept.bases)
 
         topological.normalize(g, merger=proto.Concept.merge)
 
@@ -2430,7 +2500,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     typ = base.get_topmost_base(meta)
                     atom_default = [proto.LiteralDefaultSpec(value=typ(atom_default))]
 
-                atom = proto.Atom(name=derived_name, base=atom.name, default=atom_default,
+                atom = proto.Atom(name=derived_name, bases=[atom], default=atom_default,
                                   automatic=True)
 
                 constraints = atom.normalize_constraints(meta, constraints)

@@ -60,25 +60,25 @@ def get_atom_base_and_constraints(meta, atom, own_only=True):
 
     atom_constraints = atom.effective_local_constraints if own_only else atom.constraints
 
-    base = meta.get(atom.base, include_pyobjects=True, index_only=False)
+    base = atom.bases[0]
 
     if isinstance(base, caos.types.ProtoAtom):
         # Base is another atom prototype, check if it is fundamental,
         # if not, then it is another domain
-        base = base_type_name_map.get(atom.base)
+        base = base_type_name_map.get(atom.bases[0].name)
         if base:
             if not isinstance(base, str):
-                base, constraints_encoded = base(meta.get(atom.base), atom_constraints)
+                base, constraints_encoded = base(atom.bases[0], atom_constraints)
         else:
-            base = common.atom_name_to_domain_name(atom.base)
+            base = common.atom_name_to_domain_name(atom.bases[0].name)
     else:
         # Base is a Python type, must correspond to PostgreSQL type
         base = base_type_name_map.get(atom.name)
         if not base:
-            base_class = get_object(str(atom.base))
+            base_class = get_object(str(atom.bases[0].class_name))
             base_type = getattr(base_class, 'adapts', None)
             assert base_type, '"%s" is not in builtins and does not define "adapts" attribute' \
-                              % atom.base
+                              % atom.bases[0].name
             base = base_type_name_map[base_type]
 
         if not isinstance(base, str):
@@ -109,7 +109,7 @@ def pg_type_from_atom(meta, atom, topbase=False):
     if topbase:
         column_type = base_type_name_map.get(base.name)
         if not column_type:
-            base_class = meta.get(base.base, include_pyobjects=True, index_only=False)
+            base_class = base.bases[0]
             column_type = base_type_name_map[base_class.adapts]
     elif not atom.automatic:
         column_type = base_type_name_map.get(atom.name)

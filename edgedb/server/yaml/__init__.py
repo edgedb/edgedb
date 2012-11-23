@@ -24,6 +24,7 @@ from semantix.utils.nlang import morphology
 from semantix.utils.algos.persistent_hash import persistent_hash
 from semantix.utils.algos import topological
 from semantix.utils.datastructures import xvalue, OrderedSet, typed
+from semantix.utils.lang.import_ import get_object
 
 from semantix import caos
 from semantix.caos import proto
@@ -92,7 +93,7 @@ class Decimal(yaml.Object, metaclass=DecimalMeta,
         return str(data)
 
 
-class TypedSetMeta(type(yaml.Object), type(typed.TypedSet)):
+class TypedCollectionMeta(type(yaml.Object), type(typed.AbstractTypedCollection)):
     def __new__(mcls, name, bases, dct, *, adapts=None, ignore_aliases=False, type=None):
         builtins.type(typed.TypedSet).__new__(mcls, name, bases, dct, type=type)
         result = builtins.type(yaml.Object).__new__(mcls, name, bases, dct,
@@ -106,14 +107,12 @@ class TypedSetMeta(type(yaml.Object), type(typed.TypedSet)):
                                                  adapts=adapts, ignore_aliases=ignore_aliases)
 
 
-class TypedSet(yaml.Object, metaclass=TypedSetMeta, adapts=typed.TypedSet, type=object):
+class AbstractTypedCollection(yaml.Object, metaclass=TypedCollectionMeta,
+                              adapts=typed.AbstractTypedCollection, type=object):
     _TYPE_ARGS = ('type',)
 
     def __sx_setstate__(self, data):
-        if not isinstance(data, list):
-            data = (data,)
-
-        typed.TypedSet.__init__(self, data)
+        raise NotImplementedError
 
     @classmethod
     def __sx_getstate__(cls, data):
@@ -193,6 +192,21 @@ class LinkSearchWeight(StrLangObject, adapts=caos.types.LinkSearchWeight, ignore
     @classmethod
     def __sx_getstate__(cls, data):
         return str(data)
+
+
+class PrototypeOrNativeClassRefList(AbstractTypedCollection,
+                                    adapts=proto.PrototypeOrNativeClassRefList,
+                                    type=proto.PointerCascadeAction):
+    @classmethod
+    def __sx_getstate__(cls, data):
+        result = []
+
+        for item in data:
+            if isinstance(item, proto.Prototype):
+                item = item.name
+            result.append(item)
+
+        return result
 
 
 class PrototypeMeta(LangObjectMeta, MixedStructMeta):
@@ -344,22 +358,28 @@ class Atom(Prototype, adapts=proto.Atom):
         if default and not isinstance(default, list):
             default = [default]
 
-        proto.Atom.__init__(self, name=default_name, base=data['extends'],
+        proto.Atom.__init__(self, name=default_name,
                             default=default, title=data['title'],
                             description=data['description'], is_abstract=data['abstract'],
                             is_final=data['final'],
                             attributes=data.get('attributes'),
                             _setdefaults_=False, _relaxrequired_=True)
         self._constraints = data.get('constraints')
+        self._bases = [data['extends']]
 
     @classmethod
     def __sx_getstate__(cls, data):
-        result = {
-            'extends': data.base
-        }
+        result = {}
 
-        if data.base:
-            result['extends'] = data.base
+        if data.bases:
+            extends = []
+
+            for b in data.bases:
+                try:
+                    extends.append(b.name)
+                except AttributeError:
+                    extends.append(b.class_name)
+            result['extends'] = extends
 
         if data.default is not None:
             result['default'] = data.default
@@ -394,10 +414,10 @@ class Concept(Prototype, adapts=proto.Concept):
                 extends = [extends]
 
         proto.Concept.__init__(self, name=default_name,
-                               base=tuple(extends) if extends else tuple(),
                                title=data.get('title'), description=data.get('description'),
                                is_abstract=data.get('abstract'), is_final=data.get('final'),
                                _setdefaults_=False, _relaxrequired_=True)
+        self._bases = extends
         self._links = data.get('links', {})
         self._computables = data.get('computables', {})
         self._indexes = data.get('indexes') or ()
@@ -405,7 +425,8 @@ class Concept(Prototype, adapts=proto.Concept):
     @classmethod
     def __sx_getstate__(cls, data):
         result = {
-            'extends': list(itertools.chain(data.base, data.custombases))
+            'extends': list(itertools.chain((b.name for b in data.bases),
+                                            (b.class_name for b in data.custombases)))
         }
 
         if data.title:
@@ -425,7 +446,7 @@ class Concept(Prototype, adapts=proto.Concept):
             result['computables'] = {}
             for ptr_name, ptr in data.own_pointers.items():
                 if isinstance(ptr.target, proto.Atom) and ptr.target.automatic:
-                    key = ptr.target.base
+                    key = ptr.target.bases[0].name
                 else:
                     if isinstance(ptr.target, proto.Concept) and ptr.target.is_virtual:
                         key = tuple(t.name for t in ptr.target.children())
@@ -481,8 +502,8 @@ class PointerCascadeAction(LangObject, adapts=proto.PointerCascadeAction):
         return result
 
 
-class PointerCascadeActionSet(TypedSet, adapts=proto.PointerCascadeActionSet,
-                                        type=proto.PointerCascadeAction):
+class PointerCascadeActionSet(AbstractTypedCollection, adapts=proto.PointerCascadeActionSet,
+                                                       type=proto.PointerCascadeAction):
     def __sx_setstate__(self, data):
         if not isinstance(data, list):
             data = (data,)
@@ -495,6 +516,10 @@ class PointerCascadeActionSet(TypedSet, adapts=proto.PointerCascadeActionSet,
 
         proto.PointerCascadeActionSet.__init__(self, items)
 
+    @classmethod
+    def __sx_getstate__(cls, data):
+        return [item.name for item in data]
+
 
 class PointerCascadeEvent(LangObject, adapts=proto.PointerCascadeEvent):
     def __sx_setstate__(self, data):
@@ -504,17 +529,17 @@ class PointerCascadeEvent(LangObject, adapts=proto.PointerCascadeEvent):
                 extends = [extends]
 
         proto.PointerCascadeEvent.__init__(self, name=default_name, title=data['title'],
-                                           base=tuple(extends) if extends else tuple(),
                                            description=data['description'],
                                            allowed_actions=data['allowed-actions'],
                                            _setdefaults_=False, _relaxrequired_=True)
+        self._bases = extends
 
     @classmethod
     def __sx_getstate__(cls, data):
         result = {}
 
-        if data.base:
-            result['extends'] = next(iter(data.base))
+        if data.bases:
+            result['extends'] = data.bases[0].name
 
         if data.title:
             result['title'] = data.title
@@ -548,18 +573,19 @@ class LinkPropertyDef(Prototype, proto.LinkProperty):
                 extends = [extends]
 
         proto.LinkProperty.__init__(self, name=default_name, title=data['title'],
-                                    base=tuple(extends) if extends else tuple(),
                                     description=data['description'], readonly=data['readonly'],
                                     loading=data['loading'], required=data['required'],
                                     _setdefaults_=False, _relaxrequired_=True)
+
+        self._bases = extends
 
     @classmethod
     def __sx_getstate__(cls, data):
         result = {}
 
         if data.generic():
-            if data.base:
-                result['extends'] = list(data.base)
+            if data.bases:
+                result['extends'] = [b.name for b in data.bases]
 
         if data.title:
             result['title'] = data.title
@@ -661,7 +687,6 @@ class LinkDef(Prototype, adapts=proto.Link):
             default = [default]
 
         proto.Link.__init__(self, name=default_name,
-                            base=tuple(extends) if extends else tuple(),
                             title=data['title'], description=data['description'],
                             is_abstract=data.get('abstract'), is_final=data.get('final'),
                             readonly=data.get('readonly'),
@@ -671,6 +696,7 @@ class LinkDef(Prototype, adapts=proto.Link):
                             default=default,
                             _setdefaults_=False, _relaxrequired_=True)
 
+        self._bases = extends
         self._properties = data['properties']
         self._computables = data.get('computables', {})
         self._indexes = data.get('indexes') or ()
@@ -681,8 +707,8 @@ class LinkDef(Prototype, adapts=proto.Link):
         result = {}
 
         if data.generic():
-            if data.base:
-                result['extends'] = list(data.base)
+            if data.bases:
+                result['extends'] = [b.name for b in data.bases]
 
         if data.title:
             result['title'] = data.title
@@ -1007,10 +1033,16 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
     def _check_base(self, element, base_name, localschema):
         base = localschema.get(base_name, type=element.__class__.get_canonical_class(),
                                include_pyobjects=True, index_only=False)
-        if isinstance(base, caos.types.ProtoObject) and base.is_final:
-            context = lang_context.SourceContext.from_object(element)
-            raise MetaError('"%s" is final and cannot be inherited from' % base.name,
-                            context=context)
+        if isinstance(base, caos.types.ProtoObject):
+            if base.is_final:
+                context = lang_context.SourceContext.from_object(element)
+                raise MetaError('"%s" is final and cannot be inherited from' % base.name,
+                                context=context)
+        else:
+            # Native class reference
+            base = caos.proto.NativeClassRef(class_name='{}.{}'.format(base.__module__,
+                                                                       base.__name__))
+
         return base
 
 
@@ -1045,12 +1077,17 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         for event in self.module('cascade-event', include_automatic=True):
             g[event.name] = {"item": event, "merge": [], "deps": []}
 
-            if event.base:
-                for base_name in event.base:
+            if event._bases:
+                bases = []
+
+                for base_name in event._bases:
                     base = self._check_base(event, base_name, localschema)
                     if base_name.module != self.module.name:
                         g[base_name] = {"item": base, "merge": [], "deps": []}
-                g[event.name]["merge"].extend(event.base)
+                    bases.append(base)
+
+                event.bases = bases
+                g[event.name]["merge"].extend(event._bases)
 
         atoms = topological.normalize(g, merger=proto.PointerCascadeEvent.merge)
         return list(filter(lambda a: a.name.module == self.module.name, atoms))
@@ -1122,14 +1159,9 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             self._add_proto(localschema, atom)
 
         for atom in self.module('atom'):
-            if atom.base:
+            if atom._bases:
                 try:
-                    base = self._check_base(atom, atom.base, localschema)
-
-                    if isinstance(base, caos.types.ProtoAtom):
-                        atom.base = base.name
-                    else:
-                        atom.base = '{}.{}'.format(base.__module__, base.__name__)
+                    atom.bases = [self._check_base(atom, atom._bases[0], localschema)]
                 except caos.MetaError as e:
                     context = lang_context.SourceContext.from_object(atom)
                     raise MetaError(e, context=context) from e
@@ -1151,11 +1183,11 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     for constraint in constraints:
                         atom.add_constraint(constraint)
 
-                if atom.base:
-                    atom_base = localschema.get(atom.base, include_pyobjects=True, index_only=False)
+                if atom.bases:
+                    atom_base = atom.bases[0]
+
                     if isinstance(atom_base, proto.Atom) and atom.name:
-                        atom.base = atom_base.name
-                        g[atom.name]['merge'].append(atom.base)
+                        g[atom.name]['merge'].append(atom_base.name)
                         if atom_base.name.module != self.module.name:
                             g[atom_base.name] = {"item": atom_base, "merge": [], "deps": []}
 
@@ -1191,14 +1223,15 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             self._add_proto(localschema, property)
 
         for prop in self.module('link_property'):
-            if prop.base:
+            if prop._bases:
                 bases = []
-                for base_name in prop.base:
+                for base_name in prop._bases:
                     base = self._check_base(prop, base_name, localschema)
-                    bases.append(base.name)
-                prop.base = tuple(bases)
+                    bases.append(base)
+                prop.bases = bases
             elif prop.name != 'semantix.caos.builtins.link_property':
-                prop.base = (caos.Name('semantix.caos.builtins.link_property'),)
+                prop.bases = [localschema.get('semantix.caos.builtins.link_property',
+                                              type=proto.LinkProperty)]
 
 
     def order_link_properties(self, localschema):
@@ -1207,12 +1240,10 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         for prop in self.module('link_property', include_automatic=True):
             g[prop.name] = {"item": prop, "merge": [], "deps": []}
 
-            if prop.base:
-                g[prop.name]['merge'].extend(prop.base)
+            if prop.bases:
+                g[prop.name]['merge'].extend(pb.name for pb in prop.bases)
 
-                for b in prop.base:
-                    base = self._check_base(prop, b, localschema)
-
+                for base in prop.bases:
                     if base.name.module != self.module.name:
                         g[base.name] = {"item": base, "merge": [], "deps": []}
 
@@ -1244,8 +1275,9 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     # definition. The only attribute that is used for global definition
                     # is the name.
                     property_qname = caos.Name(name=property_name, module=self.module.name)
-                    propdef = proto.LinkProperty(name=property_qname,
-                                    base=(caos.Name('semantix.caos.builtins.link_property'),))
+                    propdef_base = localschema.get('semantix.caos.builtins.link_property',
+                                                   type=proto.LinkProperty)
+                    propdef = proto.LinkProperty(name=property_qname, bases=[propdef_base])
                     self._add_proto(localschema, propdef)
                 else:
                     property_qname = caos.Name(property_name)
@@ -1256,7 +1288,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 property.target = localschema.get(property._target)
                 proptarget = property.target
             else:
-                link_base = localschema.get(link.base[0], type=proto.Link, index_only=False)
+                link_base = link.bases[0]
                 propdef = link_base.pointers.get(property_qname)
                 if not propdef:
                     raise caos.MetaError('link "%s" does not define property "%s"' \
@@ -1274,7 +1306,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
             # A new specialized subclass of the link property is created for each
             # (source, property_name, target_atom) combination
-            property.base = (property_qname,)
+            property.bases = [localschema.get(property_qname, type=caos.proto.LinkProperty)]
             prop_genname = proto.LinkProperty.generate_specialized_name(link.name,
                                                                         target_name,
                                                                         property_qname)
@@ -1296,7 +1328,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         base = 'semantix.caos.builtins.link' if type is proto.Link else \
                'semantix.caos.builtins.link_property'
 
-        linkdef = type(name=link_qname, base=(caos.Name(base),), _setdefaults_=False)
+        base = localschema.get(base, type=type)
+        linkdef = type(name=link_qname, bases=[base], _setdefaults_=False)
 
         self._add_proto(localschema, linkdef)
         return linkdef
@@ -1333,7 +1366,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 super = self._create_base_link(computable, computable.normal_name(), localschema,
                                                type=type)
 
-            computable.base = (super.name,)
+            computable.bases = [super]
 
             self._add_proto(localschema, computable)
 
@@ -1352,14 +1385,14 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             self._add_proto(localschema, link)
 
         for link in self.module('link'):
-            if link.base:
+            if link._bases:
                 bases = []
-                for base_name in link.base:
+                for base_name in link._bases:
                     base = self._check_base(link, base_name, localschema)
-                    bases.append(base.name)
-                link.base = tuple(bases)
+                    bases.append(base)
+                link.bases = bases
             elif link.name != 'semantix.caos.builtins.link':
-                link.base = (caos.Name('semantix.caos.builtins.link'),)
+                link.bases = [localschema.get('semantix.caos.builtins.link')]
 
             self._read_computables(link, localschema)
 
@@ -1393,7 +1426,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                         atom_constraints = None
                     if atom_constraints:
                         # Got an inline atom definition.
-                        atom = self.genatom(localschema, link, property.target.name, property_name,
+                        atom = self.genatom(localschema, link, property.target, property_name,
                                             constraints=atom_constraints, default=property.default)
                         self._add_proto(localschema, atom)
                         property.target = atom
@@ -1424,13 +1457,12 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             if cascade_policies:
                 self._read_cascade_policies(link, cascade_policies, localschema)
 
-            if link.base:
-                for base_name in link.base:
-                    base = self._check_base(link, base_name, localschema)
-                    if base_name.module != self.module.name:
-                        g[base_name] = {"item": base, "merge": [], "deps": []}
+            if link.bases:
+                for base in link.bases:
+                    if base.name.module != self.module.name:
+                        g[base.name] = {"item": base, "merge": [], "deps": []}
 
-                g[link.name]['merge'].extend(link.base)
+                g[link.name]['merge'].extend(b.name for b in link.bases)
 
         try:
             links = topological.normalize(g, merger=proto.Link.merge)
@@ -1467,25 +1499,25 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             bases = []
             custombases = []
 
-            if concept.base:
-                for b in concept.base:
-                    base = localschema.get(b, include_pyobjects=True, index_only=False)
-                    if isinstance(base, caos.types.ProtoObject):
-                        base_name = base.name
-                        bases.append(base_name)
-                    else:
-                        base_name = '{}.{}'.format(base.__module__, base.__name__)
+            if concept._bases:
+                for b in concept._bases:
+                    base = self._check_base(concept, b, localschema)
 
-                        if not issubclass(base, caos.concept.Concept):
+                    if isinstance(base, proto.NativeClassRef):
+                        base_cls = get_object(base.class_name)
+
+                        if not issubclass(base_cls, caos.concept.Concept):
                             raise caos.MetaError('custom concept base classes must inherit from '
-                                                 'caos.concept.Concept: %s' % base_name)
-                        custombases.append(base_name)
+                                                 'caos.concept.Concept: %s' % base.class_name)
+                        custombases.append(base)
+                    else:
+                        bases.append(base)
 
             if not bases and concept.name != 'semantix.caos.builtins.BaseObject':
-                bases.append(caos.Name('semantix.caos.builtins.Object'))
+                bases.append(localschema.get('semantix.caos.builtins.Object'))
 
-            concept.base = tuple(bases)
-            concept.custombases = tuple(custombases)
+            concept.bases = bases
+            concept.custombases = custombases
 
             for link_name, link in concept._links.items():
                 link = link.link
@@ -1524,7 +1556,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
                 # A new specialized subclass of the link is created for each
                 # (source, link_name, target) combination
-                link.base = (link_qname,)
+                link.bases = [localschema.get(link_qname)]
 
                 link_genname = proto.Link.generate_specialized_name(link.source.name, target_name,
                                                                     link_qname)
@@ -1534,6 +1566,9 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
                 self._add_proto(localschema, link)
                 concept.add_pointer(link)
+
+        source_pbase = localschema.get('semantix.caos.builtins.source', type=proto.LinkProperty)
+        target_pbase = localschema.get('semantix.caos.builtins.target', type=proto.LinkProperty)
 
         for concept in self.module('concept'):
             for link_name, link in concept._links.items():
@@ -1545,14 +1580,14 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
                 target_pname = caos.Name('semantix.caos.builtins.target')
                 target = proto.LinkProperty(name=target_pname,
-                                            base=tuple(target_pname,),
+                                            bases=[target_pbase],
                                             loading=caos.types.EagerLoading,
                                             _setdefaults_=False, _relaxrequired_=True)
                 target._target = link.target.name
 
                 source_pname = caos.Name('semantix.caos.builtins.source')
                 source = proto.LinkProperty(name=source_pname,
-                                            base=tuple(source_pname,),
+                                            bases=[source_pbase],
                                             loading=caos.types.EagerLoading,
                                             _setdefaults_=False, _relaxrequired_=True)
                 source._target = link.source.name
@@ -1693,7 +1728,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
                         if atom_constraints and not link.target.name.name.startswith('__'):
                             # Got an inline atom definition.
-                            atom = self.genatom(localschema, concept, link.target.name, link_name,
+                            atom = self.genatom(localschema, concept, link.target, link_name,
                                                 constraints=atom_constraints,
                                                 default=link.default)
                             try:
@@ -1705,12 +1740,11 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                             tgt_prop = link.pointers['semantix.caos.builtins.target']
                             tgt_prop.target = atom
 
-            if concept.base:
-                for base_name in concept.base:
-                    base = self._check_base(concept, base_name, localschema)
-                    if base_name.module != self.module.name:
-                        g[base_name] = {"item": base, "merge": [], "deps": []}
-                g[concept.name]["merge"].extend(concept.base)
+            if concept.bases:
+                for base in concept.bases:
+                    if base.name.module != self.module.name:
+                        g[base.name] = {"item": base, "merge": [], "deps": []}
+                g[concept.name]["merge"].extend(b.name for b in concept.bases)
 
         concepts = list(filter(lambda c: c.name.module == self.module.name,
                                topological.normalize(g, merger=proto.Concept.merge)))
@@ -1731,7 +1765,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
     def genatom(self, meta, host, base, link_name, constraints, default):
         atom_name = Atom.gen_atom_name(host, link_name)
         atom = proto.Atom(name=caos.Name(name=atom_name, module=host.name.module),
-                          base=base, automatic=True, default=default)
+                          bases=[base], automatic=True, default=default)
         atom.normalize_constraints(meta, constraints)
         for constraint in constraints:
             atom.add_constraint(constraint)

@@ -93,15 +93,34 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeC
             fields = self.get_struct_properties(include_old_value=True)
 
             for name, value in fields.items():
+                if name == 'bases':
+                    name = 'base'
+
                 # XXX: for backwards compatibility, should convert the delta code
                 #      to expect objects in 'source' and 'target' fields of pointers,
                 if isinstance(value[0], caos.proto.PrototypeRef):
                     v0 = value[0].prototype_name
+                elif isinstance(value[0], proto.PrototypeOrNativeClassRefList):
+                    v0 = []
+
+                    for v in value[0]:
+                        if isinstance(v, proto.PrototypeRef):
+                            v0.append(v.prototype_name)
+                        else:
+                            v0.append(v.class_name)
                 else:
                     v0 = value[0]
 
                 if isinstance(value[1], caos.proto.PrototypeRef):
                     v1 = value[1].prototype_name
+                elif isinstance(value[1], proto.PrototypeOrNativeClassRefList):
+                    v1 = []
+
+                    for v in value[1]:
+                        if isinstance(v, proto.PrototypeRef):
+                            v1.append(v.prototype_name)
+                        else:
+                            v1.append(v.class_name)
                 else:
                     v1 = value[1]
 
@@ -241,7 +260,7 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
         rec, updates = super().fill_record(schema, rec, obj)
         if rec:
             if rec.base:
-                rec.base = str(rec.base)
+                rec.base = str(rec.base[0])
 
         default = list(self(delta_cmds.AlterDefault))
         if default:
@@ -307,7 +326,7 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
 
         if not host:
             for child_atom in meta(type='atom', include_automatic=True):
-                if child_atom.base == atom.name:
+                if [b.name for b in child_atom.bases] == [atom.name]:
                     self.alter_atom_type(child_atom, meta, None, None, target_type, 'alter')
 
         if intent == 'drop' or (intent == 'alter' and not simple_alter):
@@ -1046,10 +1065,10 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
     def apply_base_delta(self, orig_source, source, meta, context):
         realm = context.get(delta_cmds.RealmCommandContext)
-        orig_source.base = tuple(realm.op._renames.get(b, b) for b in orig_source.base)
+        orig_source.bases = [realm.op._renames.get(b, b) for b in orig_source.bases]
 
-        dropped_bases = set(orig_source.base) - set(source.base)
-        added_bases = set(source.base) - set(orig_source.base)
+        dropped_bases = {b.name for b in orig_source.bases} - {b.name for b in source.bases}
+        added_bases = {b.name for b in source.bases} - {b.name for b in orig_source.bases}
 
         if isinstance(source, caos.types.ProtoConcept):
             nameconv = common.concept_name_to_table_name
@@ -1074,9 +1093,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
             inherited_aptrs = set()
 
-            for base in source.base:
-                base = meta.get(base)
-
+            for base in source.bases:
                 for ptr in base.pointers.values():
                     if ptr.atomic():
                         inherited_aptrs.add(ptr.normal_name())
@@ -1239,7 +1256,7 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
                                           columns=['semantix.caos.builtins.id'])
             alter_table.add_operation(dbops.AlterTableAddConstraint(constraint))
 
-        bases = (common.concept_name_to_table_name(p, catenate=False)
+        bases = (common.concept_name_to_table_name(caos.Name(p), catenate=False)
                  for p in fields['base'][1] if proto.Concept.is_prototype(meta, p))
         concept_table.bases = list(bases)
 
@@ -1270,7 +1287,7 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
         realm = context.get(delta_cmds.RealmCommandContext)
         assert realm
 
-        realm.op._renames[concept.original_proto.name] = proto.name
+        realm.op._renames[concept.original_proto] = proto
 
         concept.op.attach_alter_table(context)
 
@@ -1724,12 +1741,11 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         table.add_columns(columns)
         table.constraints = constraints
 
-        if link.base:
+        if link.bases:
             bases = []
 
-            for p in link.base:
-                if proto.Concept.is_prototype(meta, p):
-                    parent = meta.get(p)
+            for parent in link.bases:
+                if isinstance(parent, caos.types.ProtoObject):
                     tabname = common.get_table_name(parent, catenate=False)
                     self.create_table(parent, meta, context, conditional=True)
                     bases.append(tabname)
@@ -1755,10 +1771,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
 
     def provide_table(self, link, meta, context):
         if not link.generic():
-            base = next(iter(link.base))
-            gen_link = meta.get(base, include_pyobjects=True, default=None,
-                                type=type(link).get_canonical_class(), index_only=False)
-
+            gen_link = link.bases[0]
             if self.has_table(gen_link, meta):
                 self.create_table(gen_link, meta, context, conditional=True)
 
@@ -2118,7 +2131,7 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
         link = context.get(delta_cmds.LinkCommandContext)
 
         if link:
-            generic_link = link.proto if link.proto.generic() else meta.get(link.proto.base[0])
+            generic_link = link.proto if link.proto.generic() else link.proto.bases[0]
         else:
             generic_link = None
 
