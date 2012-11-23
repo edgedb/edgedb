@@ -71,14 +71,15 @@ def sort(graph, return_record=False, root_only=False):
         return (graph[item]["item"] for item in sorted)
 
 
-def normalize(graph, merger):
+def normalize(graph, merger, context=None):
     merged = OrderedDict()
+    merger_kwargs = {'context': context} if context is not None else {}
 
     for name, item in sort(graph, return_record=True):
         merge = item.get("merge")
         if merge:
             for m in merge:
-                merger(item["item"], merged[m])
+                merger(item["item"], merged[m], **merger_kwargs)
 
         merged.setdefault(name, item["item"])
 
