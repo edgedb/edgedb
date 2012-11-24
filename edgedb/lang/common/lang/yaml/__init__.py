@@ -19,8 +19,8 @@ from semantix.utils.functional import Adapter
 
 
 class YAMLCodeObject(lang_loader.LanguageCodeObject):
-    def __init__(self, imports, code, yaml_event_stream, schemas, module_schema):
-        super().__init__(imports, code)
+    def __init__(self, code, imports, yaml_event_stream, schemas, module_schema):
+        super().__init__(code, imports)
         self.yaml_event_stream = yaml_event_stream
         self.schemas = schemas
         self.module_schema = module_schema
@@ -98,7 +98,7 @@ class Language(meta.Language):
 
             all_imports = list(itertools.chain.from_iterable(imports.values()))
             all_imports.sort()
-            return YAMLCodeObject(all_imports, data, yaml_event_stream=ldr.get_code(),
+            return YAMLCodeObject(data, all_imports, yaml_event_stream=ldr.get_code(),
                                   schemas=schemas, module_schema=module_schema)
 
         else:
