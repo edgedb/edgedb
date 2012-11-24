@@ -10,7 +10,7 @@ import collections
 import io
 import importlib
 import marshal
-import sys
+import os
 
 from semantix.utils.lang.import_ import loader
 from semantix.utils.lang.import_ import module as module_types
@@ -77,9 +77,17 @@ class LanguageLoader:
     def get_proxy_module_class(self):
         return self._language.proxy_module_cls
 
-    def code_from_source(self, module, source_bytes, *, cache=None):
-        modinfo = module_types.ModuleInfo(module)
-        context = DocumentContext(module=modinfo, import_context=module.__name__)
+    def code_from_source(self, modname, source_bytes, *, cache=None):
+        filename = self.get_filename(modname)
+        if self.is_package(modname):
+            path = [os.path.dirname(filename)]
+            package = modname
+        else:
+            path = None
+            package = modname.rpartition('.')[0]
+
+        modinfo = module_types.ModuleInfo(name=modname, package=package, path=path, file=filename)
+        context = DocumentContext(module=modinfo, import_context=modname)
 
         stream = io.BytesIO(source_bytes)
 
@@ -89,7 +97,7 @@ class LanguageLoader:
             raise
         except Exception as error:
             raise ImportError('unable to import "%s" (%s: %s)' \
-                              % (module.__name__, type(error).__name__, error)) from error
+                              % (modname, type(error).__name__, error)) from error
 
         if isinstance(code, LanguageCodeObject) and code.imports and cache is not None:
             cache.metainfo.dependencies = code.imports

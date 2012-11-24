@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -43,6 +43,12 @@ class LightProxyModule(BaseProxyModule):
 
 
 class ModuleInfo:
-    def __init__(self, module):
-        for attr in ('__name__', '__package__', '__path__', '__file__'):
-            setattr(self, attr, getattr(module, attr, None))
+    def __init__(self, module=None, *, name=None, package=None, path=None, file=None):
+        if module is not None:
+            for attr in ('__name__', '__package__', '__path__', '__file__'):
+                setattr(self, attr, getattr(module, attr, None))
+        else:
+            self.__name__ = name
+            self.__package__ = package
+            self.__path__ = path
+            self.__file__ = file

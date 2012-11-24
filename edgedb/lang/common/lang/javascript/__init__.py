@@ -149,7 +149,7 @@ class _SemantixImportsHook:
 
         return imports
 
-    def __call__(self, module, imports, source):
+    def __call__(self, loader, modname, imports, source):
         imports.extend(self.parse(source))
 
 
@@ -275,7 +275,7 @@ class Loader(loader.SourceFileLoader):
     def cache_path_from_source_path(self, source_path):
         return imp_utils.cache_from_source(source_path, cache_ext='.js')
 
-    def code_from_source(self, module, source_bytes, *, cache=None, log=True):
+    def code_from_source(self, modname, source_bytes, *, cache=None, log=True):
         if not len(self._import_detect_hooks):
             # No import hooks?  We can't find any imports then.
             #
@@ -288,19 +288,17 @@ class Loader(loader.SourceFileLoader):
         raw_imports = []
 
         if log and len(self._import_detect_hooks):
-            self.logger.debug('parsing javascript module: {!r}'.format(module.__name__))
+            self.logger.debug('parsing javascript module: {!r}'.format(modname))
 
         for hook in self._import_detect_hooks.values():
-            hook(module, raw_imports, source)
+            hook(self, modname, raw_imports, source)
 
         if not len(raw_imports):
             # Source was analyzed and no imports found.
             #
             return ()
 
-        module_name = module.__name__
-        module_file = module.__file__
-        is_package = self.is_package(module_file)
+        is_package = self.is_package(modname)
 
         imports = OrderedSet()
         for imp in raw_imports:
@@ -313,7 +311,7 @@ class Loader(loader.SourceFileLoader):
 
                 imp_package = imp.name
                 if imp_package.startswith('.'):
-                    mod_package = module_name
+                    mod_package = modname
 
                     if is_package:
                         # Import from __init__
@@ -359,13 +357,13 @@ class Loader(loader.SourceFileLoader):
             # XXX mask bug in importlib; to be removed
             return sys.modules[fullname]
 
-        module = JavaScriptModule(self._path, fullname)
-        module.__file__ = self._path
+        module = JavaScriptModule(self.path, fullname)
+        module.__file__ = self.path
 
-        is_package = os.path.splitext(os.path.basename(self._path))[0] == '__init__'
+        is_package = os.path.splitext(os.path.basename(self.path))[0] == '__init__'
 
         if is_package:
-            module.__path__ = [os.path.dirname(self._path)]
+            module.__path__ = [os.path.dirname(self.path)]
         else:
             module.__package__ = module.__name__.rpartition('.')[0]
 

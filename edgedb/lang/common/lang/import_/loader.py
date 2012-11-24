@@ -28,7 +28,7 @@ class LoaderIface:
     def invalidate_module(self, module):
         pass
 
-    def get_code(self, module):
+    def get_code(self, modname):
         raise NotImplementedError
 
     def execute_module_code(self, module, code):
@@ -86,7 +86,7 @@ class LoaderCommon:
 
         try:
             try:
-                code = self.get_code(module)
+                code = self._get_code(module)
                 self.execute_module_code(module, code)
             except NotImplementedError:
                 self.execute_module(module)
@@ -134,7 +134,7 @@ class LoaderCommon:
 
 
 class SourceLoader:
-    def code_from_source(self, module, source_bytes, *, cache=None):
+    def code_from_source(self, modname, source_bytes, *, cache=None):
         raise NotImplementedError
 
     def get_source_bytes(self, fullname):
@@ -149,9 +149,12 @@ class SourceLoader:
     def get_source(self, fullname):
         return self.get_source_bytes(fullname).decode()
 
-    def get_code(self, module):
-        source_bytes = self.get_source_bytes(module.__name__)
-        return self.code_from_source(module, source_bytes)
+    def get_code(self, modname):
+        source_bytes = self.get_source_bytes(modname)
+        return self.code_from_source(modname, source_bytes)
+
+    def _get_code(self, module):
+        return self.get_code(module.__name__)
 
     def modver_from_path_stats(self, path_stats):
         return int(path_stats['mtime'])
@@ -364,8 +367,7 @@ class ModuleCache:
 
 
 class CachingLoader:
-    def get_code(self, module):
-        modname = module.__name__
+    def get_code(self, modname):
         cache = self.create_cache(modname)
 
         code = None
@@ -388,22 +390,24 @@ class CachingLoader:
                 cache.fix()
 
             source_bytes = self.get_source_bytes(modname)
-            code = self.code_from_source(module, source_bytes, cache=cache)
+            code = self.code_from_source(modname, source_bytes, cache=cache)
 
             if not sys.dont_write_bytecode and cache is not None:
-                module.__sx_modversion__ = cache.metainfo.modver
-
                 cache.code = code
 
                 try:
                     cache.dump()
                 except NotImplementedError:
                     pass
-                else:
-                    module.__cached__ = cache.path
 
-        else:
+        return code, cache
+
+    def _get_code(self, module):
+        code, cache = self.get_code(module.__name__)
+
+        if cache is not None:
             module.__sx_modversion__ = cache.metainfo.modver
+            module.__cached__ = cache.path
 
         return code
 
@@ -414,15 +418,15 @@ class CachingLoader:
 
 class FileLoader:
     def __init__(self, modname, path):
-        self._name = modname
-        self._path = path
+        self.name = modname
+        self.path = path
 
     def is_package(self, fullname):
         filename = self.get_filename(fullname).rpartition(os.path.sep)[2]
         return filename.rsplit('.', 1)[0] == '__init__'
 
     def get_filename(self, modname):
-        return self._path
+        return self.path
 
     def cache_path_from_source_path(self, source_path):
         return imp_utils.cache_from_source(source_path)

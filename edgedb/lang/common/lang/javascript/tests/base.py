@@ -84,7 +84,7 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
 
         loader = JSLoader(module.__name__, '', JSLanguage)
         with debug.debug_logger_off():
-            imports = loader.code_from_source(module, source.encode('utf-8'), log=False)
+            imports = loader.code_from_source(module.__name__, source.encode('utf-8'), log=False)
             if imports:
                 deps = loader._process_imports(imports, module)
             else:
