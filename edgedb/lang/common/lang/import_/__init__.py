@@ -21,13 +21,17 @@ def reload(module):
         sys.modules[module.__name__] = module.__wrapped__
 
         # XXX: imp.reload has a hardcoded check that fails on instances of module subclasses
-        new_mod = module.__wrapped__.__loader__.load_module(module.__name__)
-        if isinstance(new_mod, module_types.BaseProxyModule):
-            module.__wrapped__ = new_mod.__wrapped__
-        else:
-            module.__wrapped__ = new_mod
+        try:
+            new_mod = module.__wrapped__.__loader__.load_module(module.__name__)
 
-        sys.modules[module.__name__] = module
+            if isinstance(new_mod, module_types.BaseProxyModule):
+                module.__wrapped__ = new_mod.__wrapped__
+            else:
+                module.__wrapped__ = new_mod
+
+        finally:
+            sys.modules[module.__name__] = module
+
         return module
 
     else:

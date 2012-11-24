@@ -70,6 +70,7 @@ class LoaderCommon:
         reload = getattr(module, '__loaded__', False)
 
         if reload:
+            orig_dict = module.__odict__
             self.invalidate_module(module)
 
         module.__file__ = self.get_filename(module.__name__)
@@ -84,10 +85,17 @@ class LoaderCommon:
         module.__loader__ = self
 
         try:
-            code = self.get_code(module)
-            self.execute_module_code(module, code)
-        except NotImplementedError:
-            self.execute_module(module)
+            try:
+                code = self.get_code(module)
+                self.execute_module_code(module, code)
+            except NotImplementedError:
+                self.execute_module(module)
+        except ImportError:
+            # A reload has failed, revert the module to its original state and re-raise
+            if reload:
+                module.__dict__.update(orig_dict)
+
+            raise
 
         try:
             module_class = module.__sx_moduleclass__
