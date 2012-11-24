@@ -12,6 +12,8 @@ import os.path
 import sys
 
 
+from semantix.utils.algos import topological
+
 from .context import ImportContext
 from . import module as module_types
 
@@ -137,3 +139,45 @@ def modules_from_import_statements(package, imports):
             modules.append(fq_name)
 
     return modules
+
+
+def modified_modules():
+    for module in list(sys.modules.values()):
+        try:
+            loader = module.__loader__
+        except AttributeError:
+            # Weird custom module, skip
+            continue
+
+        try:
+            loaded_modver = module.__sx_modversion__
+        except AttributeError:
+            # Unmanaged module
+            continue
+
+        try:
+            imports = module.__sx_imports__
+        except AttributeError:
+            imports = ()
+
+        current_modver = loader.get_module_version(module.__name__, imports)
+
+        if loaded_modver != current_modver:
+            yield module
+
+
+def reload_modified(modified=None):
+    if modified is None:
+        modified = modified_modules()
+
+    modified = tuple(modified)
+    modified_names = {m.__name__ for m in modified}
+
+    modg = {}
+
+    for module in modified:
+        imports = set(getattr(module, '__sx_imports__', ())) & modified_names
+        modg[module.__name__] = {'item': module, 'deps': imports}
+
+    for module in topological.sort(modg):
+        reload(module)
