@@ -104,11 +104,11 @@ class LanguageLoader:
 
         return code
 
-    def get_module_version(self, modname, cache):
-        my_modver = super().get_module_version(modname, cache)
+    def get_module_version(self, modname, imports):
+        my_modver = super().get_module_version(modname, imports)
 
-        if cache is not None and getattr(cache.metainfo, 'dependencies', None):
-            deps_modver = self._get_deps_modver(cache.metainfo.dependencies)
+        if imports:
+            deps_modver = self._get_deps_modver(imports)
 
             if deps_modver > my_modver:
                 my_modver = deps_modver
@@ -121,16 +121,35 @@ class LanguageLoader:
         for dep in deps:
             impmod = importlib.import_module(dep)
 
+            dep_modver = None
+
             try:
-                modver = impmod.__sx_modversion__
+                loader = impmod.__loader__
             except AttributeError:
+                pass
+            else:
+                try:
+                    getmodver = loader.get_module_version
+                except AttributeError:
+                    pass
+                else:
+                    dep_modver = getmodver(dep, getattr(impmod, '__sx_imports__', ()))
+
+            if dep_modver is None:
                 # Module not handled by any of our loaders, fallback to native loader check
                 dep_loader = self._get_loader(dep)
-                dep_modpath = dep_loader.get_filename(dep)
-                modver = self.modver_from_path_stats(dep_loader.path_stats(dep_modpath))
+                try:
+                    getfn = dep_loader.get_filename
+                    pstats = dep_loader.path_stats
+                except AttributeError:
+                    # pytest's AssertionRewritingHook does not implement the above
+                    dep_modver = 0
+                else:
+                    dep_modpath = getfn(dep)
+                    dep_modver = self.modver_from_path_stats(pstats(dep_modpath))
 
-            if modver > max_modver:
-                max_modver = modver
+            if dep_modver > max_modver:
+                max_modver = dep_modver
 
         return max_modver
 

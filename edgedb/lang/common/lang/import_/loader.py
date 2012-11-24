@@ -159,7 +159,7 @@ class SourceLoader:
     def modver_from_path_stats(self, path_stats):
         return int(path_stats['mtime'])
 
-    def get_module_version(self, modname, cache):
+    def get_module_version(self, modname, imports):
         source_path = self.get_filename(modname)
         source_stats = self.path_stats(source_path)
         return self.modver_from_path_stats(source_stats)
@@ -324,7 +324,8 @@ class ModuleCache:
             magic = 0
 
         self._metainfo.magic = magic
-        self._metainfo.modver = self._loader.get_module_version(self._modname, self)
+        imports = getattr(self.metainfo, 'dependencies', None)
+        self._metainfo.modver = self._loader.get_module_version(self._modname, imports)
 
     def dumpb_metainfo(self):
         if self._metainfo is None:
@@ -360,7 +361,8 @@ class ModuleCache:
             if metainfo.magic != expected_magic:
                 raise ImportError('bad magic number in "{}" cache'.format(self._modname))
 
-        cur_modver = self._loader.get_module_version(self._modname, self)
+        imports = getattr(self.metainfo, 'dependencies', None)
+        cur_modver = self._loader.get_module_version(self._modname, imports)
 
         if cur_modver != metainfo.modver:
             raise ImportError('"{}" cache is stale'.format(self._modname))
