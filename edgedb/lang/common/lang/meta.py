@@ -79,6 +79,10 @@ class Language(object, metaclass=LanguageMeta, register=False):
     def execute_code(cls, code, context):
         raise NotImplementedError
 
+    @classmethod
+    def validate_code(cls, code):
+        pass
+
 
 class ObjectError(Exception):
     def __init__(self, msg, context=None, code=None, note=None):
