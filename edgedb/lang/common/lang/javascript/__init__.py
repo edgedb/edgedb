@@ -18,7 +18,7 @@ import zlib
 
 from semantix.utils.datastructures import OrderedSet
 from semantix.utils import resource, abc
-from semantix.utils.lang import meta as lang_meta
+from semantix.utils.lang import meta as lang_meta, loader as lang_loader
 from semantix.utils.lang.import_ import module, loader, utils as imp_utils
 
 
@@ -158,7 +158,7 @@ class ModuleCache(loader.ModuleCache):
         return self._loader.__class__._cache_magic
 
 
-class Loader(loader.SourceFileLoader):
+class Loader(lang_loader.LanguageSourceFileLoader):
     logger = logging.getLogger('semantix')
 
     #: version of cache format
@@ -265,10 +265,6 @@ class Loader(loader.SourceFileLoader):
 
         return res
 
-    def __init__(self, fullname, filename, language):
-        super().__init__(fullname, filename)
-        self._lang = language
-
     def new_cache(self, modname):
         return ModuleCache(modname, self)
 
@@ -352,32 +348,12 @@ class Loader(loader.SourceFileLoader):
                 #
                 self.run_hooks(mod, parent, weak)
 
-    def load_module(self, fullname):
-        if fullname in sys.modules:
-            # XXX mask bug in importlib; to be removed
-            return sys.modules[fullname]
+    def new_module(self, fullname):
+        return JavaScriptModule(self.path, fullname)
 
-        module = JavaScriptModule(self.path, fullname)
-        module.__file__ = self.path
-
-        is_package = os.path.splitext(os.path.basename(self.path))[0] == '__init__'
-
-        if is_package:
-            module.__path__ = [os.path.dirname(self.path)]
-        else:
-            module.__package__ = module.__name__.rpartition('.')[0]
-
-        module.__loader__ = self
-        module.__language__ = self._lang
-
-        # Time to add newly created module to 'sys.modules'. Important to do so before
-        # processing inner modules to avoid recursion.
-        #
-        sys.modules[module.__name__] = module
-
-        imports = self.get_code(module)
-        if imports:
-            self._process_imports(imports, module)
+    def execute_module_code(self, module, code):
+        if code:
+            self._process_imports(code, module)
 
         if '.' in module.__name__:
             # Link parent package
@@ -388,9 +364,10 @@ class Loader(loader.SourceFileLoader):
             if isinstance(parent, resource.Resource):
                 module.__sx_resource_parent__ = parent
 
-        module.__loaded__ = True
-
-        return module
+    def execute_module(self, module):
+        source_bytes = self.get_source_bytes(module.__name__)
+        code = self.code_from_source(module.__name__, source_bytes)
+        self.execute_module_code(module, code)
 
 
 # XXX Do this implicitly?
