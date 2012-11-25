@@ -161,8 +161,12 @@ class SourceLoader:
 
     def get_module_version(self, modname, imports):
         source_path = self.get_filename(modname)
-        source_stats = self.path_stats(source_path)
-        return self.modver_from_path_stats(source_stats)
+        try:
+            source_stats = self.path_stats(source_path)
+        except FileNotFoundError:
+            return 0
+        else:
+            return self.modver_from_path_stats(source_stats)
 
 
 class ModuleCacheMetaInfo:
