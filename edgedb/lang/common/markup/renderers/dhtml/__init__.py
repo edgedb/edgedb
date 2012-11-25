@@ -8,7 +8,7 @@
 
 import os
 
-from semantix.rendering.css import dumps as scss_dumps, reload as scss_reload
+from semantix.rendering.css import dumps as scss_dumps
 from .. import json
 from ... import serialize
 
@@ -91,7 +91,6 @@ class Renderer:
             scripts += ';\n' + f.read()
 
         from . import styles
-        scss_reload(styles)
         rendered_styles = scss_dumps(styles)
 
         cls.TPL_START = _HTML_TPL_START.format(styles=rendered_styles, scripts=scripts)
