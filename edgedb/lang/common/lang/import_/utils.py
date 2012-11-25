@@ -180,4 +180,10 @@ def reload_modified(modified=None):
         modg[module.__name__] = {'item': module, 'deps': imports}
 
     for module in topological.sort(modg):
-        reload(module)
+        try:
+            reload(module)
+        except ImportError as e:
+            if isinstance(e.__cause__, FileNotFoundError):
+                del sys.modules[module.__name__]
+            else:
+                raise
