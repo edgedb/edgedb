@@ -706,6 +706,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         elif link:
             property = context.get(delta_cmds.LinkPropertyCommandContext)
             source, pointer = link, property
+        else:
+            source = pointer = None
 
         return source, pointer
 
