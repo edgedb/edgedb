@@ -1698,7 +1698,7 @@ class PointerMetaCommand(MetaCommand):
             elif link.has_user_defined_properties():
                 return True
             else:
-                for l in link.children():
+                for l in link.children(meta):
                     if not l.generic() and not isinstance(l, caos.types.ProtoComputable):
                         ptr_stor_info = types.get_pointer_storage_info(meta, l, resolve_type=False)
                         if ptr_stor_info.table_type[0] == 'pointer':
@@ -2061,7 +2061,7 @@ class CreatePointerConstraint(PointerConstraintMetaCommand,
                                                      meta, context)
 
 
-                for child in source.proto.children(recursive=True):
+                for child in source.proto.descendants(meta):
                     if isinstance(child, caos.types.ProtoLink) \
                             and not PointerMetaCommand.has_table(child, meta):
                         continue
@@ -2100,7 +2100,7 @@ class DeletePointerConstraint(PointerConstraintMetaCommand, adapts=delta_cmds.De
                     source.op.del_pointer_constraint(source.proto, pointer_name, constraint, meta,
                                                      context)
 
-                for child in source.proto.children(recursive=True):
+                for child in source.proto.descendants(meta):
                     if isinstance(child, caos.types.ProtoLink) \
                             and not PointerMetaCommand.has_table(child, meta):
                         continue

@@ -234,7 +234,7 @@ class PreparedQuery:
                 arg = arg.id
             elif isinstance(arg, caos.types.ConceptClass):
                 proto = caos.types.prototype(arg)
-                children = proto.children(recursive=True)
+                children = proto.descendants(arg.__sx_protoschema__)
                 arg = [self._concept_map[proto.name]]
                 arg.extend(self._concept_map[c.name] for c in children)
             elif isinstance(arg, tuple) and arg and isinstance(arg[0], caos.types.ConceptClass):
@@ -242,7 +242,7 @@ class PreparedQuery:
 
                 for cls in arg:
                     proto = caos.types.prototype(cls)
-                    children = proto.children(recursive=True)
+                    children = proto.descendants(cls.__sx_protoschema__)
                     ids.add(self._concept_map[proto.name])
                     ids.update(self._concept_map[c.name] for c in children)
 
@@ -1848,7 +1848,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if link.bases:
                 g[link.name]['merge'].extend(b.name for b in link.bases)
 
-        topological.normalize(g, merger=proto.Link.merge)
+        topological.normalize(g, merger=proto.Link.merge, context=meta)
 
         for link in meta(type='link', include_automatic=True):
             link.materialize(meta)
@@ -1966,7 +1966,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if prop.bases:
                 g[prop.name]['merge'].extend(b.name for b in prop.bases)
 
-        topological.normalize(g, merger=proto.LinkProperty.merge)
+        topological.normalize(g, merger=proto.LinkProperty.merge, context=meta)
 
         for prop in meta(type='link_property', include_automatic=True):
             if not prop.generic() and prop.source.generic():
@@ -2162,7 +2162,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         stored_concept = self.virtual_concept_from_table(session, my_schema, table_name)
 
         updated_concept = concept.copy()
-        updated_concept._children = concept._children.copy()
         updated_concept.automatic = True
 
         ptrs = updated_concept.get_children_common_pointers(schema)
@@ -2207,7 +2206,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if isinstance(concept_delta, base_delta.CreateConcept):
                 schema.delete(updated_concept)
 
-        for c in updated_concept.children():
+        for c in updated_concept.children(schema):
             c_table_name = common.concept_name_to_table_name(c.name, catenate=False)
 
             bases = self.pg_table_inheritance(c_table_name[1], c_table_name[0])
@@ -2340,7 +2339,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if concept.bases:
                 g[concept.name]["merge"].extend(b.name for b in concept.bases)
 
-        topological.normalize(g, merger=proto.Concept.merge)
+        topological.normalize(g, merger=proto.Concept.merge, context=meta)
 
         for concept in meta(type='concept', include_automatic=True):
             concept.materialize(meta)

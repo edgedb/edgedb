@@ -1331,7 +1331,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                     concept_ids = {data_backend.get_concept_id(cls, context.current.session,
                                                                cache='always') for cls in classes}
                     for cls in classes:
-                        for c in cls.children(recursive=True):
+                        for c in cls.descendants(context.current.proto_schema):
                             concept_id = data_backend.get_concept_id(c, context.current.session,
                                                                      cache='always')
                             concept_ids.add(concept_id)
@@ -2461,7 +2461,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                         common_ptrs = {ptr.normal_name() for ptr in common_ptrs}
 
                         if field in common_ptrs:
-                            descendants = set(concept.children(recursive=True))
+                            descendants = set(concept.descendants(proto_schema))
                             sources -= descendants
                             sources.add(concept)
 
@@ -2924,7 +2924,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                     context.current.concept_node_map[caosnode][field] = selexpr
 
 
-            path_concepts = sqlpath.concepts.union(*[c.children() for c in sqlpath.concepts])
+            path_concepts = sqlpath.concepts.union(*[c.children(context.current.proto_schema)
+                                                     for c in sqlpath.concepts])
             if concepts is None:
                 concepts = path_concepts.copy()
                 concept_filter = None

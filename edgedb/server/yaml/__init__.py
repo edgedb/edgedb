@@ -449,9 +449,9 @@ class Concept(Prototype, adapts=proto.Concept):
                     key = ptr.target.bases[0].name
                 else:
                     if isinstance(ptr.target, proto.Concept) and ptr.target.is_virtual:
-                        key = tuple(t.name for t in ptr.target.children())
+                        key = tuple(t.name for t in ptr.target._virtual_children)
                     else:
-                        key = ptr.target.name if ptr.target else 'unknown'
+                        key = ptr.target.name
 
                 section = 'computables' if isinstance(ptr, proto.Computable) else 'links'
 
@@ -1089,7 +1089,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 event.bases = bases
                 g[event.name]["merge"].extend(event._bases)
 
-        atoms = topological.normalize(g, merger=proto.PointerCascadeEvent.merge)
+        atoms = topological.normalize(g, merger=proto.PointerCascadeEvent.merge,
+                                      context=localschema)
         return list(filter(lambda a: a.name.module == self.module.name, atoms))
 
 
@@ -1191,7 +1192,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                         if atom_base.name.module != self.module.name:
                             g[atom_base.name] = {"item": atom_base, "merge": [], "deps": []}
 
-        atoms = topological.normalize(g, merger=proto.Atom.merge)
+        atoms = topological.normalize(g, merger=proto.Atom.merge, context=localschema)
         return list(filter(lambda a: a.name.module == self.module.name, atoms))
 
     def add_pointer_constraints(self, parent, constraints, type, constraint_type='regular'):
@@ -1247,7 +1248,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     if base.name.module != self.module.name:
                         g[base.name] = {"item": base, "merge": [], "deps": []}
 
-        p = topological.normalize(g, merger=proto.LinkProperty.merge)
+        p = topological.normalize(g, merger=proto.LinkProperty.merge, context=localschema)
         return list(filter(lambda p: p.name.module == self.module.name, p))
 
 
@@ -1465,7 +1466,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 g[link.name]['merge'].extend(b.name for b in link.bases)
 
         try:
-            links = topological.normalize(g, merger=proto.Link.merge)
+            links = topological.normalize(g, merger=proto.Link.merge, context=localschema)
         except caos.MetaError as e:
             if e.context:
                 raise MetaError(e.msg, hint=e.hint, details=e.details, context=e.context.context) from e
@@ -1745,7 +1746,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 g[concept.name]["merge"].extend(b.name for b in concept.bases)
 
         concepts = list(filter(lambda c: c.name.module == self.module.name,
-                               topological.normalize(g, merger=proto.Concept.merge)))
+                               topological.normalize(g, merger=proto.Concept.merge,
+                                                     context=localschema)))
 
         return concepts
 
