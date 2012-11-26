@@ -366,6 +366,7 @@ class Atom(Prototype, adapts=proto.Atom):
                             _setdefaults_=False, _relaxrequired_=True)
         self._constraints = data.get('constraints')
         self._bases = [data['extends']]
+        self._yml_workattrs = {'_constraints', '_bases'}
 
     @classmethod
     def __sx_getstate__(cls, data):
@@ -421,6 +422,7 @@ class Concept(Prototype, adapts=proto.Concept):
         self._links = data.get('links', {})
         self._computables = data.get('computables', {})
         self._indexes = data.get('indexes') or ()
+        self._yml_workattrs = {'_links', '_computables', '_indexes', '_bases'}
 
     @classmethod
     def __sx_getstate__(cls, data):
@@ -533,6 +535,7 @@ class PointerCascadeEvent(LangObject, adapts=proto.PointerCascadeEvent):
                                            allowed_actions=data['allowed-actions'],
                                            _setdefaults_=False, _relaxrequired_=True)
         self._bases = extends
+        self._yml_workattrs = {'_bases'}
 
     @classmethod
     def __sx_getstate__(cls, data):
@@ -578,6 +581,7 @@ class LinkPropertyDef(Prototype, proto.LinkProperty):
                                     _setdefaults_=False, _relaxrequired_=True)
 
         self._bases = extends
+        self._yml_workattrs = {'_bases'}
 
     @classmethod
     def __sx_getstate__(cls, data):
@@ -611,6 +615,7 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
             proto.LinkProperty.__init__(self, name=default_name,
                                               _setdefaults_=False, _relaxrequired_=True)
             self._target = data
+            self._yml_workattrs = {'_target'}
         else:
             atom_name, info = next(iter(data.items()))
 
@@ -626,6 +631,7 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
             self._constraints = info.get('constraints')
             self._abstract_constraints = info.get('abstract-constraints')
             self._target = atom_name
+            self._yml_workattrs = {'_constraints', '_abstract_constraints', '_target'}
 
     @classmethod
     def __sx_getstate__(cls, data):
@@ -701,6 +707,7 @@ class LinkDef(Prototype, adapts=proto.Link):
         self._computables = data.get('computables', {})
         self._indexes = data.get('indexes') or ()
         self._cascades = data.get('cascades')
+        self._yml_workattrs = {'_properties', '_computables', '_indexes', '_cascades', '_bases'}
 
     @classmethod
     def __sx_getstate__(cls, data):
@@ -834,6 +841,7 @@ class SpecializedLink(LangObject):
                               _relaxrequired_=True)
             lang_context.SourceContext.register_object(link, context)
             link._targets = (data,) if isinstance(data, str) else data
+            link._yml_workattrs = {'_targets'}
             self.link = link
 
         elif isinstance(data, dict):
@@ -871,6 +879,9 @@ class SpecializedLink(LangObject):
             link._properties = props
             link._targets = targets
             link._cascades = info['cascades']
+
+            link._yml_workattrs = {'_constraints', '_abstract_constraints', '_properties',
+                                   '_targets', '_cascades'}
 
             self.link = link
         else:
@@ -955,15 +966,27 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
         for atom in atoms:
             atom.setdefaults()
+            if hasattr(atom, '_yml_workattrs'):
+                for workattr in atom._yml_workattrs:
+                    delattr(atom, workattr)
+                delattr(atom, '_yml_workattrs')
 
         for comp in computables:
             comp.setdefaults()
 
         for prop in linkprops:
             prop.setdefaults()
+            if hasattr(prop, '_yml_workattrs'):
+                for workattr in prop._yml_workattrs:
+                    delattr(prop, workattr)
+                delattr(prop, '_yml_workattrs')
 
         for link in links:
             link.setdefaults()
+            if hasattr(link, '_yml_workattrs'):
+                for workattr in link._yml_workattrs:
+                    delattr(link, workattr)
+                delattr(link, '_yml_workattrs')
 
         for link in links:
             link.materialize(localschema)
@@ -972,6 +995,11 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
         for concept in concepts:
             concept.setdefaults()
+
+            if hasattr(concept, '_yml_workattrs'):
+                for workattr in concept._yml_workattrs:
+                    delattr(concept, workattr)
+                delattr(concept, '_yml_workattrs')
 
             try:
                 for index in concept.own_indexes:
