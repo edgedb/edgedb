@@ -701,13 +701,11 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         else:
             concept = link = None
 
-        if concept and link:
+        if concept:
             source, pointer = concept, link
         elif link:
             property = context.get(delta_cmds.LinkPropertyCommandContext)
             source, pointer = link, property
-        else:
-            source = pointer = None
 
         return source, pointer
 
@@ -1821,6 +1819,9 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
                     cond = dbops.ColumnExists(table_name=table_name, column_name=col.name)
                     cmd = dbops.AlterTableAddColumn(col)
                     concept_alter_table.add_operation((cmd, None, (cond,)))
+
+                if default_value is not None:
+                    self.alter_pointer_default(link, meta, context)
 
         if link.generic():
             self.affirm_pointer_defaults(link, meta, context)
