@@ -850,7 +850,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                                                      minimize_by='most_generic')
 
                     else:
-                        link_item = list(links)[0]
+                        try:
+                            link_item = list(links)[0]
+                        except IndexError:
+                            continue
 
                     if link_target is not None:
                         target = link_target
