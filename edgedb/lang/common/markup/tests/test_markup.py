@@ -10,6 +10,23 @@ from semantix.utils import markup
 from semantix.utils.markup.format import xrepr
 
 
+from semantix.utils.datastructures import Field
+class SpecialList(list): pass
+class _SpecialListNode(markup.elements.base.Markup):
+    pass
+class SpecialListNode(_SpecialListNode):
+    node = Field(_SpecialListNode, default=None)
+
+
+@markup.serializer.serializer(handles=SpecialList)
+def serialize_special(obj, *, ctx):
+    if obj and isinstance(obj[0], SpecialList):
+        child = markup.serialize(obj[0], ctx=ctx)
+        return SpecialListNode(node=child)
+    else:
+        return SpecialListNode()
+
+
 class TestUtilsMarkup:
     def _get_test_markup(self):
         def foobar():
@@ -63,7 +80,7 @@ class TestUtilsMarkup:
         #
         assert len(result) < 220
 
-    def test_utils_markup_overflow_deep(self):
+    def test_utils_markup_overflow_deep_1(self):
         obj = a = []
         for _ in range(200):
             a.append([])
@@ -75,6 +92,24 @@ class TestUtilsMarkup:
         # the OverflowBarier markup element
         #
         assert len(result) < 220
+
+    def test_utils_markup_overflow_deep_2(self):
+        assert isinstance(markup.elements.base.OverflowBarier(), markup.elements.lang.TreeNode)
+        assert issubclass(markup.elements.base.OverflowBarier, markup.elements.lang.TreeNode)
+        assert isinstance(markup.elements.base.SerializationError(text='1', cls='1'),
+                          markup.elements.lang.TreeNode)
+        assert issubclass(markup.elements.base.SerializationError, markup.elements.lang.TreeNode)
+        assert not isinstance(markup.elements.base.Markup(), markup.elements.lang.TreeNode)
+        assert not issubclass(markup.elements.base.Markup, markup.elements.lang.TreeNode)
+
+        from semantix.utils.markup.serializer.base import OVERFLOW_BARIER, Context
+
+        def gen(deep):
+            if deep > 0:
+                return SpecialList([gen(deep-1)])
+
+        assert not str(markup.serialize(gen(OVERFLOW_BARIER-1), ctx=Context())).count('Overflow')
+        assert str(markup.serialize(gen(OVERFLOW_BARIER+10), ctx=Context())).count('Overflow') == 1
 
     def test_utils_markup_overflow_wide(self):
         obj3 = []

@@ -32,6 +32,22 @@ class MarkupMeta(type(Struct)):
     def __init__(cls, name, bases, dct, ns=None, **kwargs):
         super().__init__(name, bases, dct, **kwargs)
 
+    def __instancecheck__(cls, inst):
+        # We make OverflowBarier and SerializationError be instanceof
+        # and subclassof any Markup class.  This avoids errors when
+        # they are being added to various TypedList & TypedMaps
+        # collections.
+        parent_check = type(Struct).__instancecheck__
+        if parent_check(cls, inst):
+            return True
+        return type(inst) in (OverflowBarier, SerializationError)
+
+    def __subclasscheck__(cls, subcls):
+        parent_check = type(Struct).__subclasscheck__
+        if parent_check(cls, subcls):
+            return True
+        return subcls in (OverflowBarier, SerializationError)
+
 
 class Markup(Struct, metaclass=MarkupMeta, use_slots=True):
     """Base class for all markup elements"""
