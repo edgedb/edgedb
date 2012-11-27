@@ -266,7 +266,7 @@ XC:
         return
 
     "<<EOF>>":
-        raise PgSQLSyntaxError("unterminated /* comment", token=self.token, lineno=self.lineno)
+        raise PgSQLParserError("unterminated /* comment", token=self.token, lineno=self.lineno)
 
 
 XB:
@@ -283,7 +283,7 @@ XB:
         return
 
     "<<EOF>>":
-        raise PgSQLSyntaxError("unterminated bit string literal",
+        raise PgSQLParserError("unterminated bit string literal",
                                token=self.token, lineno=self.lineno)
 
 
@@ -301,7 +301,7 @@ XH:
         return
 
     "<<EOF>>":
-        raise PgSQLSyntaxError("unterminated hexadecial string literal",
+        raise PgSQLParserError("unterminated hexadecial string literal",
                                token=self.token, lineno=self.lineno)
 
 
@@ -322,7 +322,7 @@ XQ:
         return
 
     "<<EOF>>":
-        raise PgSQLSyntaxError("unterminated quoted string",
+        raise PgSQLParserError("unterminated quoted string",
                                token=self.token, lineno=self.lineno)
 
 
@@ -347,14 +347,14 @@ XDOLQ:
         self.string += self.value
 
     "<<EOF>>":
-        raise PgSQLSyntaxError("unterminated dollar-quoted string literal",
+        raise PgSQLParserError("unterminated dollar-quoted string literal",
                                token=self.token, lineno=self.lineno)
 
 XD:
     "{xdstop}":
         self.PUSHSTATE(INITIAL)
         if len(self.string) == 0:
-            raise PgSQLSyntaxError("zero-length delimited identifier",
+            raise PgSQLParserError("zero-length delimited identifier",
                                    token=self.token, lineno=self.lineno)
 
         self.value = self.string
@@ -367,7 +367,7 @@ XD:
         self.string += self.value
 
     "<<EOF>>":
-        raise PgSQLSyntaxError("unterminated quoted identifier",
+        raise PgSQLParserError("unterminated quoted identifier",
                                token=self.token, lineno=self.lineno)
 
 
@@ -375,7 +375,7 @@ XUI:
     "{xuistop1}":
         self.PUSHSTATE(INITIAL)
         if len(self.string) == 0:
-            raise PgSQLSyntaxError("zero-length delimited identifier",
+            raise PgSQLParserError("zero-length delimited identifier",
                                    token=self.token, lineno=self.lineno)
 
         self.PUSHBACK(self.value[1:])
@@ -386,7 +386,7 @@ XUI:
     "{xuistop2}":
         self.PUSHSTATE(INITIAL)
         if len(self.string) == 0:
-            raise PgSQLSyntaxError("zero-length delimited identifier",
+            raise PgSQLParserError("zero-length delimited identifier",
                                    token=self.token, lineno=self.lineno)
 
         self.value = self.string
@@ -399,6 +399,6 @@ XUI:
         self.string += self.value
 
     "<<EOF>>":
-        raise PgSQLSyntaxError("unterminated quoted identifier",
+        raise PgSQLParserError("unterminated quoted identifier",
                                token=self.token, lineno=self.lineno)
 
