@@ -2456,13 +2456,14 @@ class CaosTreeTransformer(CaosExprTransformer):
                     assert sources
 
                     if concept.is_virtual:
-                        # Table for a virtual concept contains columns that are present
-                        # in all its children, so make sure to use parent table for
-                        # references to common columns.
-                        for source in tuple(sources):
-                            if source in concept.children():
-                                sources.discard(source)
-                                sources.add(concept)
+                        proto_schema = context.current.proto_schema
+                        common_ptrs = concept.get_children_common_pointers(proto_schema)
+                        common_ptrs = {ptr.normal_name() for ptr in common_ptrs}
+
+                        if field in common_ptrs:
+                            descendants = set(concept.children(recursive=True))
+                            sources -= descendants
+                            sources.add(concept)
 
                     for source in sources:
                         if source not in joined_atomref_sources:
