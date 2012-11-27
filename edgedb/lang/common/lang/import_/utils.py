@@ -116,12 +116,15 @@ def modules_from_import_statements(package, imports):
             if loader is None:
                 raise ValueError('could not find loader for module {}'.format(modname))
 
-            if not loader.is_package(modname):
+            if not isinstance(loader, importlib._bootstrap.NamespaceLoader) and not loader.is_package(modname):
                 break
 
-            modfile = loader.get_filename(modname)
-            # os.path.dirname(__file__) is a common importlib assumption for __path__
-            path = [os.path.dirname(modfile)]
+            if isinstance(loader, importlib._bootstrap.NamespaceLoader):
+                path = loader._path._path
+            else:
+                modfile = loader.get_filename(modname)
+                # os.path.dirname(__file__) is a common importlib assumption for __path__
+                path = [os.path.dirname(modfile)]
         else:
             if fromlist:
                 add_package = False
