@@ -182,7 +182,7 @@ class LanguageAST(AST):
 
     def __deepcopy__(self, memo):
         copied = super().__deepcopy__(memo)
-        copied.source_position = copy.deepcopy(self.source_position)
+        copied.source_position = self.source_position
         return copied
 
 
