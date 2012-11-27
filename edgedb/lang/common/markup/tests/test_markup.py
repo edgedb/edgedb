@@ -110,6 +110,7 @@ class TestUtilsMarkup:
 
         assert not str(markup.serialize(gen(OVERFLOW_BARIER-1), ctx=Context())).count('Overflow')
         assert str(markup.serialize(gen(OVERFLOW_BARIER+10), ctx=Context())).count('Overflow') == 1
+        assert not str(markup.serialize(gen(OVERFLOW_BARIER+10), ctx=Context())).count('SerializationError')
 
     def test_utils_markup_overflow_wide(self):
         obj3 = []
