@@ -185,11 +185,17 @@ def reload_modified(modified=None):
         imports = set(getattr(module, '__sx_imports__', ())) & modified_names
         modg[module.__name__] = {'item': module, 'deps': imports}
 
+    reloaded = []
+
     for module in topological.sort(modg):
         try:
-            reload(module)
+            module = reload(module)
         except ImportError as e:
             if isinstance(e.__cause__, FileNotFoundError):
                 del sys.modules[module.__name__]
             else:
                 raise
+        else:
+            reloaded.append(module)
+
+    return reloaded
