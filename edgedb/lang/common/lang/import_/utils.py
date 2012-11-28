@@ -15,6 +15,7 @@ import sys
 from semantix.utils.algos import topological
 
 from .context import ImportContext
+from . import cache as caches
 from . import module as module_types
 
 
@@ -145,6 +146,8 @@ def modules_from_import_statements(package, imports):
 
 
 def modified_modules():
+    caches.invalidate_modver_cache()
+
     for module in list(sys.modules.values()):
         try:
             loader = module.__loader__

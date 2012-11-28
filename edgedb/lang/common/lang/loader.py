@@ -104,8 +104,8 @@ class LanguageLoader:
 
         return code
 
-    def get_module_version(self, modname, imports):
-        my_modver = super().get_module_version(modname, imports)
+    def _get_module_version(self, modname, imports):
+        my_modver = super()._get_module_version(modname, imports)
 
         if imports:
             deps_modver = self._get_deps_modver(imports)

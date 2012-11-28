@@ -14,6 +14,7 @@ import pickle
 import struct
 import sys
 
+from . import cache as caches
 from . import module as module_types
 from . import utils as imp_utils
 
@@ -159,7 +160,7 @@ class SourceLoader:
     def modver_from_path_stats(self, path_stats):
         return int(path_stats['mtime'])
 
-    def get_module_version(self, modname, imports):
+    def _get_module_version(self, modname, imports):
         source_path = self.get_filename(modname)
         try:
             source_stats = self.path_stats(source_path)
@@ -167,6 +168,14 @@ class SourceLoader:
             return 0
         else:
             return self.modver_from_path_stats(source_stats)
+
+    def get_module_version(self, modname, imports):
+        try:
+            modver = caches.modver_cache[modname]
+        except KeyError:
+            modver = caches.modver_cache[modname] = self._get_module_version(modname, imports)
+
+        return modver
 
 
 class ModuleCacheMetaInfo:
@@ -329,6 +338,7 @@ class ModuleCache:
 
         self._metainfo.magic = magic
         imports = getattr(self.metainfo, 'dependencies', None)
+        caches.invalidate_modver_cache(self._modname)
         self._metainfo.modver = self._loader.get_module_version(self._modname, imports)
 
     def dumpb_metainfo(self):
@@ -366,7 +376,7 @@ class ModuleCache:
                 raise ImportError('bad magic number in "{}" cache'.format(self._modname))
 
         imports = getattr(self.metainfo, 'dependencies', None)
-        cur_modver = self._loader.get_module_version(self._modname, imports)
+        cur_modver = self._loader._get_module_version(self._modname, imports)
 
         if cur_modver != metainfo.modver:
             raise ImportError('"{}" cache is stale'.format(self._modname))
