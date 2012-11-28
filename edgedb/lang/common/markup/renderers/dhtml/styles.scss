@@ -31,7 +31,9 @@ body, html:
 
 
 .semantix-markup:
-    %from semantix.rendering.css.extras merge reset
+    %from semantix.rendering.css.extras.reset import reset
+    %merge reset
+
     font-family: Arial, Verdana, Helvetica, sans-serif
     font-size: 12px
 
