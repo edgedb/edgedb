@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2011 Sprymix Inc.
+# Copyright (c) 2011-2012 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -8,7 +8,6 @@
 
 import os
 
-from semantix.rendering.css import dumps as scss_dumps
 from .. import json
 from ... import serialize
 
@@ -90,8 +89,9 @@ class Renderer:
         with open(os.path.join(os.path.dirname(__file__), 'render.js')) as f:
             scripts += ';\n' + f.read()
 
+        import semantix.rendering.css
         from . import styles
-        rendered_styles = scss_dumps(styles)
+        rendered_styles = styles.__sx_resource_get_source__()
 
         cls.TPL_START = _HTML_TPL_START.format(styles=rendered_styles, scripts=scripts)
 
