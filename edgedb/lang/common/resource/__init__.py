@@ -216,7 +216,7 @@ class StaticPublisher(Publisher):
             raise ResourcePublisherError('directory {!r} is not writable and readable')
 
         self.pubdir = pubdir
-        self._published = None
+        self._published = set()
 
     published = property(lambda self: self._published)
 
@@ -256,14 +256,16 @@ class StaticPublisher(Publisher):
         with open(dest_path, 'wt+') as dest:
             dest.write(resource.__sx_resource_get_source__())
 
-    def publish_all(self):
-        """Publish all resources in the ``pubdir``"""
+    def publish(self, resources):
+        self._published.update(resources)
 
-        self._published = deps = self._collect_deps()
-
-        for resource in deps:
+        for resource in resources:
             if isinstance(resource, AbstractFileSystemResource):
                 self._publish_fs_resource(resource)
 
             elif isinstance(resource, VirtualFile):
                 self._publish_virtual_resource(resource)
+
+    def publish_all(self):
+        """Publish all resources in the ``pubdir``"""
+        self.publish(self._collect_deps())
