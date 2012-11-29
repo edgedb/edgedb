@@ -1556,6 +1556,9 @@ class Transpiler(NodeTransformer):
         # 2. There should be an option to somehow turn all
         # asserts off.
 
+        if not self.debug:
+            return
+
         test = self.visit(node.test)
         if isinstance(test, js_ast.IDNode):
             self.check_scope_load(test.name)
