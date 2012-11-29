@@ -1285,34 +1285,138 @@ class TestTranslation(base_test.BaseJPlusTest):
         '''JS+
 
         function test1(a, *, d, e=1, f) {
-            print(a, d, e, f)
+            return a+'|'+d+'|'+e+'|'+f+'--';
         }
 
-        test1(1, d=6, f=42)
+        print(test1(1, d=6, f=42)+test1(1, d=6, e=10, f=42))
         %%
-        1 6 1 42
+        1|6|1|42--1|6|10|42--
         '''
 
     def test_utils_lang_jp_tr_pyargs_2(self):
         '''JS+
 
         class assert_raises {
-            constructor: function(exc_cls, msg=null) {
+            constructor(exc_cls, msg=null) {
                 this.exc_cls = exc_cls;
                 this.msg = msg;
             }
+
+            enter() {}
+
+            exit(exc) {
+                if (!exc) {
+                    throw new Error('no exception was thrown, expected to get ' + this.exc_cls);
+                }
+
+                if (!isinstance(exc, this.exc_cls)) {
+                    throw new Error('expected ' + this.exc_cls + ' got ' + exc);
+                }
+
+                if (this.msg) {
+                    msg = exc.toString();
+
+                    if (msg.indexOf(this.msg) < 0) {
+                        throw new Error('expected ' + this.exc_cls + ' message to contain "' +
+                                        this.msg + '" got "' + msg + '"');
+                    }
+                }
+
+                return true;
+            }
         }
+
+        try {
+            with (assert_raises(Error)) {
+            }
+        } except (Error) {}
+        else { assert 0 }
+
+        try {
+            with (assert_raises(Error)) {
+                throw new Error('aaa')
+            }
+        } except (Error) {assert 0}
+
 
         function test1(a) {
             print(a)
         }
-
-        try {
+        with (assert_raises(TypeError, 'takes 1 of positional only arguments (2 given)')) {
             test1(1, 2)
-        } except (TypeError as ex) {
-            assert ex.toString().indexOf('takes 1 of positional only arguments (2 given)') > 0
-        } else {
-            assert 0
+        }
+        with (assert_raises(TypeError, 'takes 1 of positional only arguments (0 given)')) {
+            test1()
+        }
+
+        function test2(a, b=1) {
+            print(a)
+        }
+
+        with (assert_raises(TypeError, 'got an unexpected keyword argument b')) {
+            test2(1, b=2)
+        }
+
+        with (assert_raises(TypeError, 'got an unexpected keyword argument c')) {
+            test2(1, c=2)
+        }
+
+        with (assert_raises(TypeError, 'takes 2 of positional only arguments (3 given)')) {
+            test2(1, 2, 3)
+        }
+
+        with (assert_raises(TypeError, 'got an unexpected keyword argument c')) {
+            test2(1, 2, c=2)
+        }
+
+        function test3(a, *, b) {
+            print(a)
+        }
+
+        with (assert_raises(TypeError, 'takes 1 of positional only arguments (2 given)')) {
+            test3(1, 2)
+        }
+
+        with (assert_raises(TypeError, 'needs keyword-only argument b')) {
+            test3(1)
+        }
+
+        with (assert_raises(TypeError, 'needs keyword-only argument b')) {
+            test3(1, c=2)
+        }
+
+        with (assert_raises(TypeError, 'test3() got an unexpected keyword argument c')) {
+            test3(1, b=10, c=2)
         }
         '''
 
+    def test_utils_lang_jp_tr_pyargs_3(self):
+        '''JS+
+
+        function test1(a, *arg, d=2) {
+            return a + ':' + arg.join('|') + ':' + d + '--';
+        }
+
+        print(test1(1, 2, 3) + test1(1) + test1(2, d=6) + test1(1, 2, d=7))
+        %%
+        1:2|3:2--1::2--2::6--1:2:7--
+        '''
+
+    def test_utils_lang_jp_tr_pyargs_4(self):
+        '''JS+
+
+        function test1(arg_len, *arg, kwargs_len, **kwargs) {
+            assert !kwargs.__jpkw
+
+            assert len(arg) == arg_len
+            assert len(kwargs) == kwargs_len
+
+            return ('[' + arg.join(',') + ']+{' +
+                            [k+':'+kwargs[k] for (k of keys(kwargs))].join(',') + '} ');
+        }
+
+        print(test1(2, 1, 2, kwargs_len=3, a=1, b=2, c=3) +
+              test1(0, kwargs_len=0))
+        %%
+        [1,2]+{a:1,b:2,c:3} []+{}
+        '''
