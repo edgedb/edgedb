@@ -8,10 +8,10 @@
 
 import py.test
 
-from . import base as base_test
+from .base import BaseJPlusTest, transpiler_opts
 
 
-class TestTranslation(base_test.BaseJPlusTest):
+class TestTranslation(BaseJPlusTest):
     def test_utils_lang_jp_tr_empty(self):
         '''JS+
         '''
@@ -1177,6 +1177,17 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         %%
         ok\nok2\nok3
+        '''
+
+    @transpiler_opts(debug=False)
+    def test_utils_lang_jp_tr_assert_2(self):
+        '''JS+
+
+        assert 0
+        print('here')
+
+        %%
+        here
         '''
 
     def test_utils_lang_jp_tr_comprehension_for_of_1(self):
