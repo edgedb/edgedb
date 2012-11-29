@@ -28,6 +28,13 @@ from metamagic.utils.lang.javascript import Loader as JSLoader, BaseJavaScriptMo
 from metamagic.node.targets import Target
 
 
+def transpiler_opts(**kwargs):
+    def wrap(func):
+        func.transpiler_kwargs = kwargs
+        return func
+    return wrap
+
+
 def expected_fail(*args, **kwargs):
     def wrap(func):
         func.expected_fail = (args, kwargs)
@@ -61,7 +68,7 @@ class BaseJPlusTestMeta(js_base_test.JSFunctionalTestMeta):
 
     @classmethod
     @debug
-    def compile(mcls, source):
+    def compile(mcls, source, *, transpiler_kwargs=None):
         p = parser.Parser()
         jsp_ast = p.parse(source)
 
@@ -69,7 +76,7 @@ class BaseJPlusTestMeta(js_base_test.JSFunctionalTestMeta):
         dump(jsp_ast)
         """
 
-        t = transpiler.Transpiler()
+        t = transpiler.Transpiler(**(transpiler_kwargs or {}))
         js_ast, js_deps = t.transpile(jsp_ast)
 
         """LOG [jsp] Resultant JS AST
@@ -94,7 +101,7 @@ class BaseJPlusTestMeta(js_base_test.JSFunctionalTestMeta):
 
     @classmethod
     @debug
-    def do_test(mcls, source, name=None, data=None):
+    def do_test(mcls, source, name=None, data=None, transpiler_kwargs=None):
         if source.startswith(mcls.doc_prefix):
             source = source[len(mcls.doc_prefix)+1:]
         expected = ''
@@ -104,7 +111,7 @@ class BaseJPlusTestMeta(js_base_test.JSFunctionalTestMeta):
             expected = expected.strip()
 
 
-        js_src, _, all_deps = mcls.compile(source)
+        js_src, _, all_deps = mcls.compile(source, transpiler_kwargs=transpiler_kwargs)
 
         bootstrap = []
         for dep in all_deps:
@@ -145,11 +152,13 @@ class BaseJPlusTestMeta(js_base_test.JSFunctionalTestMeta):
             except AttributeError:
                 ef = None
 
+            transpiler_kwargs = getattr(meth, 'transpiler_kwargs', None)
+
             if ef:
                 with assert_raises(*ef[0], **ef[1]):
-                    mcls.do_test(source, name=meth.__name__)
+                    mcls.do_test(source, name=meth.__name__, transpiler_kwargs=transpiler_kwargs)
             else:
-                mcls.do_test(source, name=meth.__name__)
+                mcls.do_test(source, name=meth.__name__, transpiler_kwargs=transpiler_kwargs)
 
         functional.decorate(do_test, meth)
         return do_test
