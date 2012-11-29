@@ -128,11 +128,11 @@ class BaseJPlusTestMeta(js_base_test.JSFunctionalTestMeta):
 
             if result != expected:
                 """LOG [jsp] RESULT
-                dump(result, header='RESULT', trim=False)
+                print(result)
                 """
 
                 """LOG [jsp] EXPECTED
-                dump(expected, header='EXPECTED', trim=False)
+                print(expected)
                 """
 
             assert result == expected, result
