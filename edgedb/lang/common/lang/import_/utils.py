@@ -10,6 +10,7 @@ import imp
 import importlib
 import os.path
 import sys
+import types
 
 
 from semantix.utils.algos import topological
@@ -59,26 +60,32 @@ def import_module(full_module_name, *, loader=None):
     return importlib.import_module(full_module_name)
 
 
+_RELOADING = {}
+
 def reload(module):
-    if isinstance(module, module_types.BaseProxyModule):
-        sys.modules[module.__name__] = module.__wrapped__
+    # XXX: imp.reload has a hardcoded check that fails on instances of module subclasses,
+    # so we have to reimplement reload here
 
-        # XXX: imp.reload has a hardcoded check that fails on instances of module subclasses
+    if not isinstance(module, types.ModuleType):
+        raise TypeError('reload() argument must be module')
+
+    modname = module.__name__
+    if modname not in sys.modules:
+        raise ImportError('module {!r} is not in sys.modules'.format(modname), name=modname)
+
+    try:
+        return _RELOADING[modname]
+    except KeyError:
+        _RELOADING[modname] = module
+
         try:
-            new_mod = module.__wrapped__.__loader__.load_module(module.__name__)
-
-            if isinstance(new_mod, module_types.BaseProxyModule):
-                module.__wrapped__ = new_mod.__wrapped__
-            else:
-                module.__wrapped__ = new_mod
-
+            parent_name = modname.rpartition('.')[0]
+            if parent_name and parent_name not in sys.modules:
+                msg = 'parent {!r} not in sys.modules'
+                raise ImportError(msg.format(parent_name), name=parent_name)
+            return module.__loader__.load_module(modname)
         finally:
-            sys.modules[module.__name__] = module
-
-        return module
-
-    else:
-        return imp.reload(module)
+            _RELOADING.pop(modname, None)
 
 
 def modules_from_import_statements(package, imports):

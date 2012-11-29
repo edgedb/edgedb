@@ -198,11 +198,16 @@ class LanguageLoader:
         self._execute(module, stream, 'load_dict')
 
     def invalidate_module(self, module):
-        for k in module.__odict__.keys():
-            try:
-                del module.__dict__[k]
-            except KeyError:
-                pass
+        try:
+            odict = module.__odict__
+        except AttributeError:
+            pass
+        else:
+            for k in odict.keys():
+                try:
+                    del module.__dict__[k]
+                except KeyError:
+                    pass
 
 
 class LanguageSourceFileLoader(LanguageLoader, loader.SourceFileLoader):

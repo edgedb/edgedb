@@ -71,7 +71,11 @@ class LoaderCommon:
         reload = getattr(module, '__loaded__', False)
 
         if reload:
-            orig_dict = module.__odict__
+            try:
+                orig_dict = module.__odict__
+            except AttributeError:
+                orig_dict = module.__dict__.copy()
+
             self.invalidate_module(module)
 
         module.__file__ = self.get_filename(module.__name__)
