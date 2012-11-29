@@ -1330,6 +1330,14 @@ class Transpiler(NodeTransformer):
 
         if node.orelse:
             orelse_name = self.scope.aux_var(name='orelse', needs_decl=True)
+
+            try_body.insert(0, js_ast.StatementNode(
+                                statement=js_ast.AssignmentExpressionNode(
+                                    left=js_ast.IDNode(
+                                        name=orelse_name),
+                                    op='=',
+                                    right=js_ast.BooleanLiteralNode(value=False))))
+
             try_body.append(js_ast.StatementNode(
                                 statement=js_ast.AssignmentExpressionNode(
                                     left=js_ast.IDNode(
