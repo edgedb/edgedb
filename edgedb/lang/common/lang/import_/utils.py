@@ -88,30 +88,35 @@ def reload(module):
             _RELOADING.pop(modname, None)
 
 
+def resolve_module_name(name, package):
+    level = 0
+
+    while level < len(name) and name[level] == '.':
+        level += 1
+
+    if level > 0:
+        steps = package.rsplit('.', level - 1)
+        if len(steps) < level:
+            raise ValueError('relative import reaches beyond top-level package')
+
+        suffix = name[level:]
+
+        if suffix:
+            fq_name = '{}.{}'.format(steps[0], name[level:])
+        else:
+            fq_name = steps[0]
+    else:
+        fq_name = name
+
+    return fq_name
+
+
 def modules_from_import_statements(package, imports):
     modules = []
 
     for name, fromlist in imports:
-        level = 0
-
-        while level < len(name) and name[level] == '.':
-            level += 1
-
-        if level > 0:
-            steps = package.rsplit('.', level - 1)
-            if len(steps) < level:
-                raise ValueError('relative import reaches beyond top-level package')
-
-            suffix = name[level:]
-
-            if suffix:
-                fq_name = '{}.{}'.format(steps[0], name[level:])
-            else:
-                fq_name = steps[0]
-        else:
-            fq_name = name
-
         path = None
+        fq_name = resolve_module_name(name, package)
         steps = fq_name.split('.')
 
         add_package = True
@@ -134,7 +139,7 @@ def modules_from_import_statements(package, imports):
                 # os.path.dirname(__file__) is a common importlib assumption for __path__
                 path = [os.path.dirname(modfile)]
         else:
-            if fromlist:
+            if fromlist and not isinstance(fromlist, str):
                 add_package = False
 
                 for entry in fromlist:
