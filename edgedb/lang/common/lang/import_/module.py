@@ -6,6 +6,7 @@
 ##
 
 
+import importlib
 import types
 
 
@@ -48,6 +49,22 @@ class LightProxyModule(BaseProxyModule):
     def __repr__(self):
         return "<{} {!r} from {!r}>".format(object.__getattribute__(self, '__class__').__name__,
                                             self.__name__, self.__wrapped__.__file__)
+
+
+class AutoloadingLightProxyModule(LightProxyModule):
+    def __init__(self, name, module=None):
+        if module is None:
+            module = importlib.import_module(name)
+        super().__init__(name, module)
+
+    def __getattribute__(self, name):
+        if name in ('__reduce_ex__'):
+            return object.__getattribute__(self, name)
+        else:
+            return super().__getattribute__(name)
+
+    def __reduce_ex__(self, version):
+        return type(self), (self.__name__,)
 
 
 class ClassProxyMeta(type):

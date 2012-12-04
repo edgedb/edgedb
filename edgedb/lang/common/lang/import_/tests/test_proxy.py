@@ -7,6 +7,7 @@
 
 
 import importlib
+import pickle
 import sys
 import types
 
@@ -81,3 +82,25 @@ class TestLangImportModuleProxy:
         # Refs are kept after reload
         assert KlassRef is proxiedmod.Klass
         del sys.modules[mod.__name__]
+
+    def test_lang_import_module_autoloading_light_proxy(self):
+        mod = importlib.import_module(__package__ + '.testdata.proxiedmod')
+        proxiedmod = module_utils.AutoloadingLightProxyModule(mod.__name__, mod)
+
+        assert hasattr(proxiedmod, 'Klass')
+        K_1 = proxiedmod.Klass
+
+        dumped = pickle.dumps(proxiedmod)
+        loaded = pickle.loads(dumped)
+
+        assert hasattr(loaded, 'Klass')
+        assert loaded.Klass is K_1
+
+        del loaded
+        del proxiedmod
+        del sys.modules[mod.__name__]
+        del mod
+
+        proxiedmod = module_utils.AutoloadingLightProxyModule(__package__ + '.testdata.proxiedmod')
+        assert hasattr(proxiedmod, 'Klass')
+        assert proxiedmod.Klass is not K_1
