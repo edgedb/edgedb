@@ -84,7 +84,9 @@ class CommandGroup(CommandBase, name=None):
 
     def get_parser(self, subparsers):
         parser = self.create_parser(subparsers)
-        return parser.add_subparsers(dest=self.__class__._command_name + '_subcommand')
+        action = parser.add_subparsers(dest=self.__class__._command_name + '_subcommand')
+        action.required = True
+        return action
 
     def __call__(self, args, unknown_args):
         self.check_requirements()
