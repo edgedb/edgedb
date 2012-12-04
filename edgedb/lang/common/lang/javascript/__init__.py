@@ -239,7 +239,7 @@ class Loader(lang_loader.LanguageSourceFileLoader):
                         cls._module_hooks_cache.add(key)
                         source = hook(mod, res)
                         if source:
-                            res.__sx_resource_source__ += source
+                            res.__sx_resource_append_source__(source)
         else:
             for attr_name in dir(mod):
                 attr = getattr(mod, attr_name)
@@ -255,9 +255,9 @@ class Loader(lang_loader.LanguageSourceFileLoader):
                             cls._module_hooks_cache.add(key)
                             source = hook(mod, res, attr_name, attr)
                             if source:
-                                res.__sx_resource_source__ += source
+                                res.__sx_resource_append_source__(source)
 
-        if not res.__sx_resource_source__:
+        if not res.__sx_resource_source_value__:
             return
 
         if parent_resource is not None:

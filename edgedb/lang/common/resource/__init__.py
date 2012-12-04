@@ -91,45 +91,58 @@ class Resource:
         return tuple(collected)
 
 
-class VirtualFile(Resource):
+class AbstractFileResource(Resource):
+    def __init__(self, public_path):
+        super().__init__()
+        self.__sx_resource_public_path_value__ = public_path
+
+    def __sx_resource_get_public_path__(self):
+        return self.__sx_resource_public_path_value__
+
+    __sx_resource_public_path__ = property(__sx_resource_get_public_path__)
+
+
+class VirtualFile(AbstractFileResource):
     """A resource that encapsulates some information and stores it in memory, but
     later, in order to be published, will be dumped to a file"""
 
     def __init__(self, source, public_path):
-        super().__init__()
-
-        self.__sx_resource_source__ = source or ''
-        self.__sx_resource_public_path__ = public_path
+        super().__init__(public_path)
+        self.__sx_resource_source_value__ = source or ''
 
     def __sx_resource_set_source__(self, source):
         assert isinstance(source, str)
-        self.__sx_resource_source__ = source
+        self.__sx_resource_source_value__ = source
+
+    def __sx_resource_append_source__(self, src):
+        self.__sx_resource_source_value__ += src
 
     def __sx_resource_get_source__(self):
-        src = self.__sx_resource_source__
+        src = self.__sx_resource_source_value__
         if not src:
             raise ResourceError('no source for VirtualFile resource {}'.
                                 format(self.__sx_resource_public_path__))
         return src
 
+    __sx_resource_source__ = property(__sx_resource_get_source__, __sx_resource_set_source__)
 
-class AbstractFileSystemResource(Resource):
+
+class AbstractFileSystemResource(AbstractFileResource):
     """Abstract file system resource.
 
     .. note:: Don't use it directly, it's a base class for ``File``
               and ``Directory`` resources."""
 
     def __init__(self, path, public_path=None):
-        super().__init__()
+        if public_path is None:
+            public_path = os.path.basename(path)
+
+        super().__init__(public_path)
 
         if not os.path.exists(path):
             raise ResourceError('path {!r} does not exist'.format(path))
 
         self.__sx_resource_path__ = path
-
-        if public_path is None:
-            public_path = os.path.basename(path)
-        self.__sx_resource_public_path__ = public_path
 
 
 class File(AbstractFileSystemResource):
