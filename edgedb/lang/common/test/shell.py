@@ -27,10 +27,9 @@ class TestCommand(shell.Command, name='test', expose=True):
                                   'can be specified more than once'))
         parser.add_argument('--keep-going', action='store_true', default=False,
                             help='do not stop at the first failed test')
-        parser.add_argument('--no-magic', dest='magic', action='store_false', default=True,
-                            help='do not reinterpret asserts, no traceback cutting')
-        parser.add_argument('--no-assert', dest='asserts', action='store_false', default=True,
-                            help='disable python assert expression reinterpretation')
+        parser.add_argument('--assert', dest='assertmode', action='store', default='plain',
+                            metavar='MODE', choices=('rewrite', 'reinterp', 'plain'),
+                            help='control assertion debugging tools')
         parser.add_argument('-v', '--verbose', dest='verbose', action='store_true', default=False,
                             help='enable verbose output')
         parser.add_argument('--tb', dest='traceback_style', default=ExceptionConfig.traceback_style)
@@ -73,11 +72,8 @@ class TestCommand(shell.Command, name='test', expose=True):
         if term.use_colors():
             test_args.append('--colorize')
 
-        if not args.magic:
-            test_args.append('--nomagic')
-
-        if not args.asserts:
-            test_args.append('--no-assert')
+        if args.assertmode:
+            test_args.append('--assert={}'.format(args.assertmode))
 
         if not args.keep_going:
             test_args.append('-x')
