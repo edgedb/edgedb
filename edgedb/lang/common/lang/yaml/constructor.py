@@ -11,11 +11,12 @@ import yaml
 import importlib
 import collections
 import copy
+import types
 from string import Template
 
 from semantix.utils.lang import meta as lang_base
 from semantix.utils.lang import context as lang_context
-from semantix.utils.lang.import_ import module as module_types
+from semantix.utils.lang.import_ import module as module_types, utils as module_utils
 
 
 class Composer(yaml.composer.Composer):
@@ -83,18 +84,65 @@ class Constructor(yaml.constructor.Constructor):
 
     def construct_document(self, node):
         if node.imports:
-            for module_name, alias in node.imports.items():
-                try:
-                    if node.import_context:
-                        parent_context = self.document_context.import_context
-                        module_name = node.import_context.from_parent(module_name, parent=parent_context)
-                    mod = importlib.import_module(module_name)
-                except ImportError as e:
-                    raise yaml.constructor.ConstructorError(None, None, '%r' % e, node.start_mark) from e
+            namespace = {}
+            imports = {}
+            Proxy = module_types.AutoloadingLightProxyModule
 
-                if not alias:
-                    alias = mod.__name__
-                self.document_context.imports[alias] = module_types.ModuleInfo(mod)
+            for module_name, tail in node.imports.items():
+                try:
+                    pkg = self.document_context.module.__package__
+                except AttributeError:
+                    pkg = self.document_context.module.__name__
+
+                module_name = module_utils.resolve_module_name(module_name, pkg)
+
+                if getattr(node, 'import_context', None):
+                    parent_context = self.document_context.import_context
+                    module_name = node.import_context.from_parent(module_name,
+                                                                  parent=parent_context)
+
+                if tail and isinstance(tail, dict):
+                    fromlist = tuple(tail)
+                    alias = None
+                else:
+                    alias = tail
+                    fromlist = ()
+
+                try:
+                    mod = __import__(module_name, fromlist=fromlist)
+                except ImportError as e:
+                    raise yaml.constructor.ConstructorError(None, None, '%r' % e,
+                                                            node.start_mark) from e
+
+                if fromlist:
+                    for name in fromlist:
+                        try:
+                            modattr = getattr(mod, name)
+                        except AttributeError:
+                            msg = 'cannot import name {!r}'.format(name)
+                            raise yaml.constructor.ConstructorError(None, None, msg,
+                                                                    node.start_mark) from None
+                        else:
+                            if isinstance(modattr, types.ModuleType):
+                                modattr = Proxy(modattr.__name__, modattr)
+                            namespace[name] = modattr
+                else:
+                    namespace[mod.__name__] = Proxy(mod.__name__, mod)
+
+                    if module_name != mod.__name__:
+                        endmod = importlib.import_module(module_name)
+                    else:
+                        endmod = mod
+
+                    if alias is None:
+                        # XXX: should avoid doing this
+                        imports[module_name] = module_types.ModuleInfo(endmod)
+                    else:
+                        namespace[alias] = Proxy(endmod.__name__, endmod)
+                        imports[alias] = module_types.ModuleInfo(endmod)
+
+            self.document_context.imports.update(imports)
+            self.document_context.namespace.update(namespace)
 
         return super().construct_document(node)
 

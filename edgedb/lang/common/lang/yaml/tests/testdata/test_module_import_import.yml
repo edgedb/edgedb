@@ -1,0 +1,15 @@
+##
+# Copyright (c) 2012 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%SCHEMA semantix.utils.lang.yaml.tests.testdata.test_module_import_schema.ModuleImportSchema
+%NAME ImportImport
+%IMPORT semantix.utils.lang.yaml.tests.testdata.test_module_import_import_1
+%FROM . IMPORT test_module_import_import_1
+%FROM .test_module_import_import_1 IMPORT b
+---
+a: 1

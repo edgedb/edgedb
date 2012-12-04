@@ -10,6 +10,7 @@ import importlib
 import py.test
 
 from semantix.utils.debug import assert_raises
+from semantix.utils.lang import context as lang_context
 from semantix.utils.lang.yaml import exceptions as yaml_errors
 
 
@@ -40,3 +41,7 @@ class TestLangImport(object):
     def test_utils_lang_yaml_ambiguous_import(self):
         with assert_raises(ImportError):
             from semantix.utils.lang.yaml.tests.testdata.ambig import test
+
+    def test_utils_lang_yaml_module_import_import(self):
+        modname = 'semantix.utils.lang.yaml.tests.testdata.test_module_import_import'
+        importlib.import_module(modname)

@@ -33,6 +33,7 @@ class Scanner(yaml.scanner.Scanner):
             '%SCHEMA': functools.partial(self.scan_string, self.alnum_range + ['.']),
             '%NAME': functools.partial(self.scan_string, self.alnum_range),
             '%IMPORT': functools.partial(self.scan_string, self.alnum_range + ['.', ',', ' ']),
+            '%FROM': functools.partial(self.scan_string, self.alnum_range + ['.', ',', ' '])
         }
 
         for directive, handler in directives.items():
@@ -72,10 +73,26 @@ class Scanner(yaml.scanner.Scanner):
 
 
 class Parser(yaml.parser.Parser):
-    import_re = re.compile("""^(?P<import>(?P<module>\w+(?:\.\w+)*)(?:\s+AS\s+(?P<alias>\w+))?)
-                              (?P<tail>(?:\s*,\s*
+    import_re = re.compile(r"""^(?P<import>(?P<module>\w+(?:\.\w+)*)(?:\s+AS\s+(?P<alias>\w+))?)
+                               (?P<tail>(?:\s*,\s*
                                   (?:(?:\w+(?:\.\w+)*)(?:\s+AS\s+(?:\w+))?)
-                              )*)$""", re.X)
+                               )*)$""", re.X)
+
+    importlist_re = re.compile(r"""^
+                                    (?P<module>[\.\w]+)
+                                    \s+ IMPORT \s+
+                                       (?P<name>\w+)(?:\s+AS\s+(?P<alias>\w+))?
+                                       (?P<tail>(?:\s*,\s*
+                                          (?:(?:\w+)(?:\s+AS\s+(?:\w+))?)
+                                       )*)
+                               $""", re.X)
+
+    name_alias_re = re.compile(r"""^
+                                       (?P<name>\w+)(?:\s+AS\s+(?P<alias>\w+))?
+                                       (?P<tail>(?:\s*,\s*
+                                          (?:(?:\w+)(?:\s+AS\s+(?:\w+))?)
+                                       )*)
+                               $""", re.X)
 
     def __init__(self):
         super().__init__()
@@ -99,6 +116,8 @@ class Parser(yaml.parser.Parser):
                 self.document_name = token.value
             elif token.name == 'IMPORT':
                 self.imports.update(self.parse_imports(token))
+            elif token.name == 'FROM':
+                self.imports.update(self.parse_import_list(token))
             else:
                 rejected_tokens.append(token)
 
@@ -128,5 +147,26 @@ class Parser(yaml.parser.Parser):
             imports[match.group('module')] = match.group('alias')
             value = match.group('tail').strip(' ,')
             match = self.import_re.match(value)
+
+        return imports
+
+    def parse_import_list(self, token):
+        imports = collections.OrderedDict()
+        names = collections.OrderedDict()
+
+        value = token.value
+        match = self.importlist_re.match(value)
+
+        if not match:
+            raise yaml.parser.ParserError(None, None, "invalid IMPORT directive syntax", token.start_mark)
+
+        module = match.group('module')
+
+        while match:
+            names[match.group('name')] = match.group('alias')
+            value = match.group('tail').strip(' ,')
+            match = self.name_alias_re.match(value)
+
+        imports[module] = names
 
         return imports

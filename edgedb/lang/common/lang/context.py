@@ -51,6 +51,7 @@ class DocumentContext(object):
         self.module = module
         self.import_context = import_context
         self.imports = {}
+        self.namespace = {}
 
     def get_globals(self):
         _globals = {}

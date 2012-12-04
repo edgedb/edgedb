@@ -19,7 +19,7 @@ from .context import DocumentContext
 
 
 class LanguageCodeObject:
-    def __init__(self, code, imports):
+    def __init__(self, code, imports=()):
         self.code = code
         self.imports = imports
 

@@ -13,6 +13,7 @@ import os
 import yaml
 
 from semantix.utils.lang import meta, context as lang_context, loader as lang_loader
+from semantix.utils.lang.import_ import utils as import_utils
 from semantix.utils.lang.yaml import loader, dumper
 from semantix.utils.lang.yaml import schema as yaml_schema
 from semantix.utils.functional import Adapter
@@ -80,23 +81,28 @@ class Language(meta.Language):
                         raise ValueError('could not import YAML document schema') from e
 
                 if issubclass(schema, yaml_schema.ModuleSchemaBase):
-                    docname = None
                     module_schema = schema
                 else:
-                    docname = document.document_name
                     schemas.append(schema)
 
                 if not caching_schemas and issubclass(schema, yaml_schema.CachingSchema):
                     caching_schemas = True
 
-                imports[docname] = document.imports
+                imports.update(document.imports)
 
         if caching_schemas:
             # To obtain caches produced by schemas, the stream has to be replayed
             rldr = loader.ReplayLoader(yaml_code, context)
             data = list(rldr.get_dict())
 
-            all_imports = list(itertools.chain.from_iterable(imports.values()))
+            getmods = import_utils.modules_from_import_statements
+
+            if hasattr(context.module, '__path__'):
+                pkg = context.module.__name__
+            else:
+                pkg = context.module.__package__
+
+            all_imports = getmods(pkg, list(imports.items()))
             all_imports.sort()
             return YAMLCodeObject(data, all_imports, yaml_event_stream=ldr.get_code(),
                                   schemas=schemas, module_schema=module_schema)
