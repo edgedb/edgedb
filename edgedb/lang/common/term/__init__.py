@@ -17,8 +17,7 @@ import termios
 import struct
 import functools
 
-from semantix.rendering.datatypes import Color
-from semantix.utils.colorsys import rgb_distance as color_distance
+from semantix.utils.colorsys import rgb_distance as color_distance, Color
 
 
 def isatty(fileno):

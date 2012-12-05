@@ -20,7 +20,7 @@ import time
 from semantix import bootstrap
 from semantix.utils.functional import decorate
 from semantix.exceptions import MultiError
-from semantix.utils import config, term, logging
+from semantix.utils import config, logging
 from semantix.utils.datastructures import Void
 
 
