@@ -117,7 +117,13 @@ class Parser(yaml.parser.Parser):
             elif token.name == 'IMPORT':
                 self.imports.update(self.parse_imports(token))
             elif token.name == 'FROM':
-                self.imports.update(self.parse_import_list(token))
+                implist = self.parse_import_list(token)
+                try:
+                    existing = self.imports[next(iter(implist))]
+                except KeyError:
+                    existing = self.imports[next(iter(implist))] = collections.OrderedDict()
+
+                existing.update(next(iter(implist.values())))
             else:
                 rejected_tokens.append(token)
 

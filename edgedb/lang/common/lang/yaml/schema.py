@@ -23,7 +23,13 @@ class Base(validator.Schema):
 
 
 class ModuleSchemaBase(Base):
-    pass
+    @classmethod
+    def get_implicit_imports(cls):
+        return ()
+
+    @classmethod
+    def normalize_code(cls, module_data, imports):
+        pass
 
 
 class Schema(Base):
