@@ -64,6 +64,9 @@ class LangModuleCache(loader.ModuleCache):
         super().validate()
         self._loader._language.validate_code(self.code)
 
+    def get_magic(self):
+        return self._loader._language.get_language_version()
+
 
 class LanguageLoader:
     def __init__(self, fullname, filename, language):

@@ -83,6 +83,10 @@ class Language(object, metaclass=LanguageMeta, register=False):
     def validate_code(cls, code):
         pass
 
+    @classmethod
+    def get_language_version(cls):
+        return 0
+
 
 class ObjectError(Exception):
     def __init__(self, msg, context=None, code=None, note=None):
