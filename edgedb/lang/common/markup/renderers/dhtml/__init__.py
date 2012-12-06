@@ -91,7 +91,7 @@ class Renderer:
 
         import semantix.rendering.css
         from . import styles
-        rendered_styles = styles.__sx_resource_get_source__()
+        rendered_styles = styles.__sx_resource_get_source__().decode('utf-8')
 
         cls.TPL_START = _HTML_TPL_START.format(styles=rendered_styles, scripts=scripts)
 

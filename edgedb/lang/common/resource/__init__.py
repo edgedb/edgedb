@@ -107,14 +107,16 @@ class VirtualFile(AbstractFileResource):
     later, in order to be published, will be dumped to a file"""
 
     def __init__(self, source, public_path):
+        assert source is None or isinstance(source, bytes)
         super().__init__(public_path)
-        self.__sx_resource_source_value__ = source or ''
+        self.__sx_resource_source_value__ = source if source is not None else b''
 
     def __sx_resource_set_source__(self, source):
-        assert isinstance(source, str)
+        assert isinstance(source, bytes)
         self.__sx_resource_source_value__ = source
 
     def __sx_resource_append_source__(self, src):
+        assert isinstance(src, bytes)
         self.__sx_resource_source_value__ += src
 
     def __sx_resource_get_source__(self):
@@ -266,7 +268,7 @@ class StaticPublisher(Publisher):
         if os.path.exists(dest_path):
             os.remove(dest_path)
 
-        with open(dest_path, 'wt+') as dest:
+        with open(dest_path, 'wb+') as dest:
             dest.write(resource.__sx_resource_get_source__())
 
     def publish(self, resources):

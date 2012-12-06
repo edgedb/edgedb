@@ -103,7 +103,7 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
                     bootstrap.append(dep_f.read())
             elif (isinstance(dep, resource.VirtualFile) and
                                         isinstance(dep, BaseJavaScriptModule)):
-                bootstrap.append(dep.__sx_resource_get_source__())
+                bootstrap.append(dep.__sx_resource_get_source__().decode('utf-8'))
 
         if data is not None:
             bootstrap.append('var $ = ' + json.dumps(data) + ';');
