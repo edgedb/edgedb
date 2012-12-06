@@ -91,6 +91,10 @@ class Resource:
         return tuple(collected)
 
 
+class ResourceContainer(Resource):
+    pass
+
+
 class AbstractFileResource(Resource):
     def __init__(self, public_path):
         super().__init__()
