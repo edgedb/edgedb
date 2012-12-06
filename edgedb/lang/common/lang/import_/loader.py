@@ -183,7 +183,7 @@ class SourceLoader:
 
 
 class ModuleCacheMetaInfo:
-    _cache_struct = struct.Struct('!III')
+    _cache_struct = struct.Struct('!QII')
 
     def __init__(self, modname, *, magic=None, modver=None, code_offset=None):
         self.modname = modname
