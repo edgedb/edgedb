@@ -6,19 +6,20 @@
 ##
 
 
+from semantix.bootstrap.yaml import validator
 from semantix.utils.lang.import_ import get_object
 
-from . import types, error
+from semantix.utils.lang.yaml import constructor as yaml_constructor
 
-class Schema(object):
+
+class Schema(validator.Schema):
     @classmethod
     def prepare_class(cls, context, data):
-        cls.__dct = data
+        cls._schema_data = data
         cls._context = context
 
-    def __init__(self):
-        self.refs = {}
-        self.root = None
+    def init_constructor(self):
+        return yaml_constructor.Constructor()
 
     def _build(self, dct):
         dct_id = id(dct)
@@ -28,59 +29,23 @@ class Schema(object):
 
         if isinstance(dct, type) and issubclass(dct, Schema):
             # This happens when top-level anchor is assigned to the schema
-            dct = dct.__dct
+            dct = dct._schema_data
 
         elif isinstance(dct, str):
             imported_schema = self._get_imported_schema(dct)
-            dct = imported_schema.__dct
+            dct = imported_schema._schema_data
 
         elif dct.get('extends'):
             imported_schema = self._get_imported_schema(dct['extends'])()
 
-            imported_schema._build(imported_schema.__dct)
+            imported_schema._build(imported_schema._schema_data)
             self.refs.update(imported_schema.refs)
 
-            _dct = imported_schema.__dct.copy()
+            _dct = imported_schema._schema_data.copy()
             _dct.update(dct)
             dct = _dct
 
-        dct_type = dct['type']
-
-        if dct_type == 'choice':
-            tp = types.ChoiceType(self)
-        elif dct_type == 'map':
-            tp = types.MappingType(self)
-        elif dct_type == 'seq':
-            tp = types.SequenceType(self)
-        elif dct_type == 'str':
-            tp = types.StringType(self)
-        elif dct_type == 'int':
-            tp = types.IntType(self)
-        elif dct_type == 'float':
-            tp = types.FloatType(self)
-        elif dct_type == 'number':
-            tp = types.NumberType(self)
-        elif dct_type == 'text':
-            tp = types.TextType(self)
-        elif dct_type == 'any':
-            tp = types.AnyType(self)
-        elif dct_type == 'bool':
-            tp = types.BoolType(self)
-        elif dct_type == 'scalar':
-            tp = types.ScalarType(self)
-        elif dct_type == 'class':
-            tp = types.ClassType(self)
-        elif dct_type == 'none':
-            tp = types.NoneType(self)
-        elif dct_type == 'mapseq':
-            tp = types.MappingSequenceType(self)
-        else:
-            raise error.SchemaError('unknown type: ' + dct_type)
-
-        self.refs[dct_id] = tp
-
-        tp.load(dct)
-        return tp
+        return super()._build(dct)
 
     def _get_imported_schema(self, schema_name):
         # Reference to an external schema
@@ -93,22 +58,3 @@ class Schema(object):
         schema = get_object(head + '.' + tail)
 
         return schema
-
-    def check(self, node):
-        if self.root is None:
-            self.root = self._build(self.__dct)
-
-        self.root.begin_checks()
-        result = self.root.check(node)
-        self.root.end_checks()
-
-        return result
-
-    def push_tag(self, node, tag):
-        if not hasattr(node, 'tags'):
-            node.tags = [node.tag]
-        else:
-            node.tags.append(node.tag)
-        node.tag = tag
-
-        return tag
