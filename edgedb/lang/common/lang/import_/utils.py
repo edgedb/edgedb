@@ -78,13 +78,32 @@ def reload(module):
     except KeyError:
         _RELOADING[modname] = module
 
+        proxied = isinstance(module, module_types.BaseProxyModule)
+
+        if proxied:
+            sys.modules[modname] = module.__wrapped__
+
         try:
             parent_name = modname.rpartition('.')[0]
             if parent_name and parent_name not in sys.modules:
                 msg = 'parent {!r} not in sys.modules'
                 raise ImportError(msg.format(parent_name), name=parent_name)
-            return module.__loader__.load_module(modname)
+            mod = module.__loader__.load_module(modname)
+
+            if proxied:
+                if isinstance(mod, module_types.BaseProxyModule):
+                    module.__wrapped__ = mod.__wrapped__
+                else:
+                    module.__wrapped__ = mod
+
+                mod = module
+
+            return mod
+
         finally:
+            if proxied:
+                sys.modules[modname] = module
+
             _RELOADING.pop(modname, None)
 
 
