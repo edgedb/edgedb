@@ -132,9 +132,16 @@ class Update(DMLOperation):
                 if value is None:
                     cond.append('%s IS NULL' % field)
                 else:
-                    cond.append('%s %s $%d' % (field, op, i))
-                    vals.append(value)
-                    i += 1
+                    if isinstance(value, base.Query):
+                        expr = re.sub(r'\$(\d+)', lambda m: '$%s' % (int(m.groups(1)[0]) + i - 1),
+                                      value.text)
+                        cond.append('{} {} {}'.format(field, op, expr))
+                        i += len(value.params)
+                        vals.extend(value.params)
+                    else:
+                        cond.append('%s %s $%d' % (field, op, i))
+                        vals.append(value)
+                        i += 1
 
             where = 'WHERE ' + ' AND '.join(cond)
         else:
