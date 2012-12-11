@@ -131,6 +131,9 @@ class TableClassConstraint(dbops.TableConstraint):
         self.prefix = prefix if isinstance(prefix, tuple) else (prefix,)
         self.constrobj = constrobj
 
+    def copy(self):
+        return self.__class__(self.table_name, self.column_name, self.prefix, self.constrobj)
+
     def code(self, context):
         return 'CONSTRAINT %s %s' % (self.constraint_name(),
                                      self.constraint_code(context, self.column_name))
@@ -146,28 +149,18 @@ class TableClassConstraint(dbops.TableConstraint):
                                   cls.__module__, cls.__name__, self.suffix)
         return name
 
-    def constraint_name(self):
+    def constraint_name(self, quote=True):
         name = self.raw_constraint_name()
         name = common.caos_name_to_pg_name(name)
-        return common.quote_ident(name)
+
+        return common.quote_ident(name) if quote else name
 
     def rename_code(self, context, new_constraint):
-        return '''UPDATE
-                        pg_catalog.pg_constraint AS con
-                    SET
-                        conname = $1
-                    FROM
-                        pg_catalog.pg_class AS c,
-                        pg_catalog.pg_namespace AS ns
-                    WHERE
-                        con.conrelid = c.oid
-                        AND c.relnamespace = ns.oid
-                        AND ns.nspname = $3
-                        AND c.relname = $4
-                        AND con.conname = $2
-               ''', [common.caos_name_to_pg_name(new_constraint.raw_constraint_name()),
-                     common.caos_name_to_pg_name(self.raw_constraint_name()),
-                     new_constraint.table_name[0], new_constraint.table_name[1]]
+        return 'ALTER TABLE {} RENAME CONSTRAINT {} TO {}'.format(
+                    common.qname(*new_constraint.table_name),
+                    self.constraint_name(),
+                    new_constraint.constraint_name()
+               )
 
     def rename_extra(self, context, new_constraint):
         new_name = new_constraint.raw_constraint_name()
