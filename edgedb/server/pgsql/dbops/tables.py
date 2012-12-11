@@ -328,6 +328,23 @@ class TableConstraintCommand:
     pass
 
 
+class TableConstraintExists(base.Condition):
+    def __init__(self, table_name, constraint_name):
+        self.table_name = table_name
+        self.constraint_name = constraint_name
+
+    def code(self, context):
+        code = '''SELECT
+                        True
+                    FROM
+                        pg_catalog.pg_constraint c
+                        INNER JOIN pg_catalog.pg_class t ON c.conrelid = t.oid
+                        INNER JOIN pg_catalog.pg_namespace ns ON t.relnamespace = ns.oid
+                    WHERE
+                        conname = $1 AND relname = $3 AND nspname = $2'''
+        return code, (self.constraint_name,) + self.table_name
+
+
 class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
     def __init__(self, constraint):
         self.constraint = constraint
@@ -344,8 +361,8 @@ class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
 
 
 class AlterTableRenameConstraint(AlterTableBase, TableConstraintCommand):
-    def __init__(self, table_name, constraint, new_constraint):
-        super().__init__(table_name)
+    def __init__(self, table_name, constraint, new_constraint, **kwargs):
+        super().__init__(table_name, **kwargs)
         self.constraint = constraint
         self.new_constraint = new_constraint
 
