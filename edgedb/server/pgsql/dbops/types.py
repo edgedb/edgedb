@@ -145,7 +145,8 @@ class AlterCompositeTypeRenameTo(AlterCompositeTypeBase):
 
 class AlterCompositeTypeRenameAttribute(composites.AlterCompositeRenameAttribute,
                                         AlterCompositeTypeBase):
-    pass
+    def get_attribute_term(self):
+        return 'ATTRIBUTE'
 
 
 class DropCompositeType(ddl.SchemaObjectOperation):

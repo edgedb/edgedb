@@ -63,8 +63,10 @@ class AlterCompositeAlterAttributeType:
 
 
 class AlterCompositeRenameAttribute:
-    def __init__(self, name, old_attr_name, new_attr_name):
-        super().__init__(name)
+    def __init__(self, name, old_attr_name, new_attr_name, *, contained=False, conditions=None,
+                                                              neg_conditions=None, priority=0):
+        super().__init__(name, conditions=conditions, neg_conditions=neg_conditions,
+                         priority=priority)
         self.old_attr_name = old_attr_name
         self.new_attr_name = new_attr_name
 
