@@ -12,8 +12,8 @@ import functools
 import operator
 import logging
 
-from semantix.utils.lang import javascript
-from semantix.utils.debug import debug_logger_off
+from metamagic.utils.lang import javascript
+from metamagic.utils.debug import debug_logger_off
 
 
 def no_jsc_cache(func):
@@ -49,7 +49,7 @@ class TestUtilsLangJSImport:
     @no_jsc_cache
     def test_utils_lang_js_import_1(self):
         with debug_logger_off():
-            from semantix.utils.lang.javascript.tests.testimport import foo
+            from metamagic.utils.lang.javascript.tests.testimport import foo
 
         d = _deps(foo)
         assert len(d) == 3
@@ -57,12 +57,12 @@ class TestUtilsLangJSImport:
         assert d[1][0].__name__.endswith('inner')
         assert d[2][0].__name__.endswith('spam')
 
-        m = sys.modules['semantix.utils.lang.javascript.tests.testimport.inner.ham']
+        m = sys.modules['metamagic.utils.lang.javascript.tests.testimport.inner.ham']
         d = _deps(m)
         assert len(d)  == 1
         assert d[0][0].__name__.endswith('outer')
 
-        m = sys.modules['semantix.utils.lang.javascript.tests.testimport']
+        m = sys.modules['metamagic.utils.lang.javascript.tests.testimport']
         d = _deps(m)
         assert len(d)  == 1
         assert d[0][0].__name__.endswith('outer')
@@ -73,16 +73,16 @@ class TestUtilsLangJSImport:
     @no_jsc_cache
     def test_utils_lang_js_import_2(self):
         with debug_logger_off():
-            from semantix.utils.lang.javascript.tests.testimport import foo
+            from metamagic.utils.lang.javascript.tests.testimport import foo
 
         mods = []
         for mod in type(foo)._list_resources(foo):
             mods.append(mod.__name__)
 
-        assert mods == ['semantix.utils.lang.javascript.tests.testimport.outer',
-                        'semantix.utils.lang.javascript.tests.testimport',
-                        'semantix.utils.lang.javascript.tests.testimport.bar',
-                        'semantix.utils.lang.javascript.tests.testimport.inner.ham',
-                        'semantix.utils.lang.javascript.tests.testimport.inner',
-                        'semantix.utils.lang.javascript.tests.testimport.spam',
-                        'semantix.utils.lang.javascript.tests.testimport.foo']
+        assert mods == ['metamagic.utils.lang.javascript.tests.testimport.outer',
+                        'metamagic.utils.lang.javascript.tests.testimport',
+                        'metamagic.utils.lang.javascript.tests.testimport.bar',
+                        'metamagic.utils.lang.javascript.tests.testimport.inner.ham',
+                        'metamagic.utils.lang.javascript.tests.testimport.inner',
+                        'metamagic.utils.lang.javascript.tests.testimport.spam',
+                        'metamagic.utils.lang.javascript.tests.testimport.foo']

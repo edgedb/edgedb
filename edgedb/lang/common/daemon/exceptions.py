@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.exceptions import SemantixError
+from metamagic.exceptions import MetamagicError
 
 
-class DaemonError(SemantixError):
+class DaemonError(MetamagicError):
     pass

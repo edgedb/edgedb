@@ -10,10 +10,10 @@ from .meta import LanguageMeta
 from .import_ import ImportContext
 
 # Import languages to register them
-from semantix.utils.lang import yaml, python, javascript
+from metamagic.utils.lang import yaml, python, javascript
 
 
-class SemantixLangLoaderError(Exception):
+class MetamagicLangLoaderError(Exception):
     pass
 
 
@@ -26,4 +26,4 @@ def load(filename, context=None):
                 yield d
         return
 
-    raise SemantixLangLoaderError('unable to load file:  %s' % filename)
+    raise MetamagicLangLoaderError('unable to load file:  %s' % filename)

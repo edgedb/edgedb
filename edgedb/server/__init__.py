@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils import abc
+from metamagic.utils import abc
 
 
 class MetaBackend:

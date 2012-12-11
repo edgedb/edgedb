@@ -6,11 +6,11 @@
 ##
 
 
-from semantix import SemantixError
-from semantix.utils.parsing import ParserError
+from metamagic import MetamagicError
+from metamagic.utils.parsing import ParserError
 
 
-class CaosQLError(SemantixError):
+class CaosQLError(MetamagicError):
     pass
 
 

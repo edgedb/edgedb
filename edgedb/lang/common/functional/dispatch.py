@@ -9,7 +9,7 @@
 """A limited implementation of Multiple Dispatch pattern."""
 
 
-from semantix.utils.datastructures.registry import WeakObjectRegistry
+from metamagic.utils.datastructures.registry import WeakObjectRegistry
 
 
 _TYPE_HANDLER = 1

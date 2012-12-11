@@ -10,7 +10,7 @@ import copy
 import collections
 
 
-from semantix.utils import markup
+from metamagic.utils import markup
 
 
 class ASTError(Exception):

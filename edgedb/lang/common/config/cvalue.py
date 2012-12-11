@@ -8,9 +8,9 @@
 
 from string import Template
 
-from semantix.utils.slots import SlotsMeta
-from semantix.utils.datastructures.all import _Marker
-from semantix.utils.functional.types import Checker, FunctionValidator, \
+from metamagic.utils.slots import SlotsMeta
+from metamagic.utils.datastructures.all import _Marker
+from metamagic.utils.functional.types import Checker, FunctionValidator, \
                                             ChecktypeExempt, TypeChecker, CombinedChecker
 
 from .base import HEAD, ConfigRootNode

@@ -7,9 +7,9 @@
 
 
 import py
-from semantix.utils.debug import assert_raises
+from metamagic.utils.debug import assert_raises
 
-from semantix.utils.algos.packing.rectangles import *
+from metamagic.utils.algos.packing.rectangles import *
 
 
 class TestRectanglePacking:

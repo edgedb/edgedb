@@ -9,12 +9,12 @@
 import collections
 import re
 
-from semantix import caos
-from semantix.caos import proto
-from semantix.utils import datastructures
-from semantix.utils import markup
-from semantix.utils.lang import yaml
-from semantix.utils.lang.import_ import get_object
+from metamagic import caos
+from metamagic.caos import proto
+from metamagic.utils import datastructures
+from metamagic.utils import markup
+from metamagic.utils.lang import yaml
+from metamagic.utils.lang.import_ import get_object
 
 from .datasources import introspection
 from . import astexpr
@@ -444,8 +444,8 @@ class TypeMech:
             if isinstance(prototype, caos.types.ProtoLink):
                 cols.extend([
                     dbops.Column(name='link_type_id', type='int'),
-                    dbops.Column(name='semantix.caos.builtins.source', type='uuid'),
-                    dbops.Column(name='semantix.caos.builtins.target', type='uuid')
+                    dbops.Column(name='metamagic.caos.builtins.source', type='uuid'),
+                    dbops.Column(name='metamagic.caos.builtins.target', type='uuid')
                 ])
 
             elif isinstance(prototype, caos.types.ProtoConcept):
@@ -460,12 +460,12 @@ class TypeMech:
                 if isinstance(pointer, caos.types.ProtoComputable) or not pointer.singular():
                     continue
 
-                if pointer_name == 'semantix.caos.builtins.source':
+                if pointer_name == 'metamagic.caos.builtins.source':
                     continue
 
                 ptr_stor_info = types.get_pointer_storage_info(proto_schema, pointer)
 
-                if ptr_stor_info.column_name == 'semantix.caos.builtins.target':
+                if ptr_stor_info.column_name == 'metamagic.caos.builtins.target':
                     continue
 
                 if ptr_stor_info.table_type[0] == 'source':

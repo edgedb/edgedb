@@ -12,10 +12,10 @@ import os
 import sys
 
 
-from semantix.exceptions import SemantixError
+from metamagic.exceptions import MetamagicError
 
 
-class FileMagicError(SemantixError):
+class FileMagicError(MetamagicError):
     pass
 
 

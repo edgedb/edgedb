@@ -12,8 +12,8 @@ import itertools
 import functools
 
 from . import ast as py_ast
-from semantix.exceptions import SemantixError
-from semantix.utils.lang.generic import ast as generic_ast
+from metamagic.exceptions import MetamagicError
+from metamagic.utils.lang.generic import ast as generic_ast
 
 
 _Token = object()
@@ -27,7 +27,7 @@ class AstToPyAstConverter:
         new_cls = getattr(py_ast, 'Py' + name, None)
 
         if new_cls is None:
-            raise SemantixError('unknown python ast class "%s"' % name)
+            raise MetamagicError('unknown python ast class "%s"' % name)
 
         new_node = new_cls()
 
@@ -119,7 +119,7 @@ class PyAstToGeneric:
         if method:
             return method(node)
 
-        raise SemantixError('unable to convert python ast to generic: unknown ast node %s' % name)
+        raise MetamagicError('unable to convert python ast to generic: unknown ast node %s' % name)
 
     def visit_PyModule(self, old):
         return generic_ast.Module(body=[self.convert(el) for el in old.body])

@@ -9,7 +9,7 @@
 import functools
 import os
 
-from semantix import exceptions as sx_errors
+from metamagic import exceptions as sx_errors
 from .loader import LanguageSourceFileLoader
 from .import_ import finder
 
@@ -104,5 +104,5 @@ class Object:
         pass
 
 
-class LanguageError(sx_errors.SemantixError):
+class LanguageError(sx_errors.MetamagicError):
     pass

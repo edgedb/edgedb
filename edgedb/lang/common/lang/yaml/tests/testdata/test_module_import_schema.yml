@@ -6,7 +6,7 @@
 ##
 
 
-%SCHEMA semantix.utils.lang.yaml.schema.ModuleSchema
+%SCHEMA metamagic.utils.lang.yaml.schema.ModuleSchema
 %NAME ModuleImportSchema
 ---
 type: map

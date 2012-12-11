@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.algos import boolean
+from metamagic.utils.algos import boolean
 
 
 def test_algos_boolean_minimize():

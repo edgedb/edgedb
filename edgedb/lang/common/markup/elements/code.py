@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.datastructures import typed, struct
+from metamagic.utils.datastructures import typed, struct
 from . import base
 
 

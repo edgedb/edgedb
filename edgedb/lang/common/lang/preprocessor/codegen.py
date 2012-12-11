@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils.ast import SourceGenerator
-from semantix.utils.lang.preprocessor import ast as ppast
+from metamagic.utils.ast import SourceGenerator
+from metamagic.utils.lang.preprocessor import ast as ppast
 
 
 class PP_SourceGenerator(SourceGenerator):

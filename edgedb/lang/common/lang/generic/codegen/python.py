@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils.ast import SourceGenerator
-from semantix.utils.lang.generic import ast
+from metamagic.utils.ast import SourceGenerator
+from metamagic.utils.lang.generic import ast
 
 BOOLOP_SYMBOLS = {
     ast.And:        'and',

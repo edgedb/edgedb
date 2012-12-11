@@ -9,7 +9,7 @@
 import dis
 import types
 
-from semantix.utils.debug import assert_raises
+from metamagic.utils.debug import assert_raises
 
 from ..code import Code, opcodes, _SUPPORTED_FLAGS
 

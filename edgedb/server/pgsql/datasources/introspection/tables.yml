@@ -6,7 +6,7 @@
 ##
 
 
-%SCHEMA semantix.caos.datasources.schemas.Sql
+%SCHEMA metamagic.caos.datasources.schemas.Sql
 %NAME TableColumns
 ---
 params:
@@ -53,7 +53,7 @@ source: |
                 a.attnum
 ...
 
-%SCHEMA semantix.caos.datasources.schemas.Sql
+%SCHEMA metamagic.caos.datasources.schemas.Sql
 %NAME TableInheritance
 ---
 params:
@@ -108,7 +108,7 @@ source: |
                 depth, pos
 ...
 
-%SCHEMA semantix.caos.datasources.schemas.Sql
+%SCHEMA metamagic.caos.datasources.schemas.Sql
 %NAME TableList
 ---
 params:
@@ -148,7 +148,7 @@ source: |
                 AND c.relkind = 'r'
 ...
 
-%SCHEMA semantix.caos.datasources.schemas.Sql
+%SCHEMA metamagic.caos.datasources.schemas.Sql
 %NAME TableIndexes
 ---
 params:
@@ -196,7 +196,7 @@ source: |
                 i.table_name
 ...
 
-%SCHEMA semantix.caos.datasources.schemas.Sql
+%SCHEMA metamagic.caos.datasources.schemas.Sql
 %NAME TableConstraints
 ---
 params:

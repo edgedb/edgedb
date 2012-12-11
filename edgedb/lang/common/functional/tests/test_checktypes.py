@@ -11,9 +11,9 @@ import sys
 import warnings
 import functools
 
-from semantix.utils import functional
-from semantix.utils.functional import types
-from semantix.utils.debug import assert_raises
+from metamagic.utils import functional
+from metamagic.utils.functional import types
+from metamagic.utils.debug import assert_raises
 
 
 class TestUtilsFunctionalChecktypes:

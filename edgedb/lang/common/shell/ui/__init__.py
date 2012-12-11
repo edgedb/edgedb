@@ -6,4 +6,4 @@
 ##
 
 
-from semantix.utils.shell.ui import menu
+from metamagic.utils.shell.ui import menu

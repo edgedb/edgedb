@@ -8,8 +8,8 @@
 
 import pickle
 
-from semantix.utils.datastructures.typed import TypedDict, TypedList, StrList, TypedSet
-from semantix.utils.debug import assert_raises
+from metamagic.utils.datastructures.typed import TypedDict, TypedList, StrList, TypedSet
+from metamagic.utils.debug import assert_raises
 
 
 # StrDict and StrList are declared here (not in tests that use them)

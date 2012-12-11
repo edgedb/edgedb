@@ -6,13 +6,13 @@
 ##
 
 
-from semantix.utils import url as url_module
-from semantix.caos.backends.resolver.error import BackendResolverError
-from semantix.caos.backends.yaml.resolver import BackendResolver as YamlBackendResolver
-from semantix.caos.backends.pgsql.resolver import BackendResolver as PgsqlBackendResolver
-from semantix.caos.backends.dummy.resolver import BackendResolver as DummyBackendResolver
-from semantix.caos.backends.resolver.pymod import PyModResolver
-from semantix.caos.backends.resolver.data import DataResolver
+from metamagic.utils import url as url_module
+from metamagic.caos.backends.resolver.error import BackendResolverError
+from metamagic.caos.backends.yaml.resolver import BackendResolver as YamlBackendResolver
+from metamagic.caos.backends.pgsql.resolver import BackendResolver as PgsqlBackendResolver
+from metamagic.caos.backends.dummy.resolver import BackendResolver as DummyBackendResolver
+from metamagic.caos.backends.resolver.pymod import PyModResolver
+from metamagic.caos.backends.resolver.data import DataResolver
 
 
 class BackendResolver(object):

@@ -17,11 +17,11 @@ import contextlib
 import cProfile
 import time
 
-from semantix import bootstrap
-from semantix.utils.functional import decorate
-from semantix.exceptions import MultiError
-from semantix.utils import config, logging
-from semantix.utils.datastructures import Void
+from metamagic import bootstrap
+from metamagic.utils.functional import decorate
+from metamagic.exceptions import MultiError
+from metamagic.utils import config, logging
+from metamagic.utils.datastructures import Void
 
 
 """A collection of useful debugging routines"""
@@ -117,13 +117,13 @@ class debug:
                             # We want to use the first.
                             lineno = node.lineno - len(comment) + 1
 
-                            text = 'import semantix.utils.debug, os as _os_\n' \
-                                   'if semantix.utils.debug.channels & %r:\n' \
+                            text = 'import metamagic.utils.debug, os as _os_\n' \
+                                   'if metamagic.utils.debug.channels & %r:\n' \
                                    '    pass\n' % tags
 
                             if title:
                                 if type == 'LOG':
-                                    text += '    print(semantix.utils.debug._dump_header(%r))\n' % title
+                                    text += '    print(metamagic.utils.debug._dump_header(%r))\n' % title
                                 else:
                                     text += '    print(_os_.getpid(), %r, %s)' % (title, ', '.join(comment[1:]))
 
@@ -209,7 +209,7 @@ def profiler(filename=None, sort='time'):
 
     .. code-block:: python
 
-        from semantix.utils.debug import profiler
+        from metamagic.utils.debug import profiler
 
         with profiler():
             your_code()
@@ -230,7 +230,7 @@ def profiler(filename=None, sort='time'):
 
 
 @contextlib.contextmanager
-def debug_logger_on(logger_cls=logging.SemantixLogHandler):
+def debug_logger_on(logger_cls=logging.MetamagicLogHandler):
     '''Context manager, that enables printing log messages to stdout
     for the wrapped code'''
 
@@ -243,7 +243,7 @@ def debug_logger_on(logger_cls=logging.SemantixLogHandler):
 
 
 @contextlib.contextmanager
-def debug_logger_off(logger_cls=logging.SemantixLogHandler):
+def debug_logger_off(logger_cls=logging.MetamagicLogHandler):
     '''Context manager, that disables printing log messages to stdout
     for the wrapped code'''
 
@@ -442,7 +442,7 @@ def timeit(target):
 
     .. code-block:: python
 
-        from semantix.util.debug import timeit
+        from metamagic.util.debug import timeit
 
     1) in a "with" statement:
         >>> with timeit('long list'):

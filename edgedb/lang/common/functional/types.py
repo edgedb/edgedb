@@ -11,7 +11,7 @@ import inspect
 import warnings
 import itertools
 
-from semantix.exceptions import SemantixError
+from metamagic.exceptions import MetamagicError
 from . import tools
 
 
@@ -22,11 +22,11 @@ class ChecktypeExempt:
     __slots__ = ()
 
 
-class CheckerError(SemantixError):
+class CheckerError(MetamagicError):
     pass
 
 
-class ChecktypesError(SemantixError):
+class ChecktypesError(MetamagicError):
     pass
 
 

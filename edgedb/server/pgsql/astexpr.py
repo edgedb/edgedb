@@ -6,12 +6,12 @@
 ##
 
 
-from semantix.caos import proto
+from metamagic.caos import proto
 
-from semantix.utils.functional import adapter
+from metamagic.utils.functional import adapter
 
-from semantix.utils import ast
-from semantix.utils.ast import match as astmatch
+from metamagic.utils import ast
+from metamagic.utils.ast import match as astmatch
 from . import ast as pgast
 from  . import astmatch as pgastmatch
 

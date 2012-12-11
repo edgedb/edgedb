@@ -15,7 +15,7 @@ attr3: 4
 ...
 
 
-%SCHEMA semantix.utils.lang.yaml.tests.testdata.test_module_import_schema.ModuleImportSchema
+%SCHEMA metamagic.utils.lang.yaml.tests.testdata.test_module_import_schema.ModuleImportSchema
 ---
 attr1: test
 attr2: 1

@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils.datastructures.typed import TypedDict, TypedList
-from semantix.utils.json import Encoder as JsonEncoder, dumps as json_dumps, dumpb as json_dumpb
+from metamagic.utils.datastructures.typed import TypedDict, TypedList
+from metamagic.utils.json import Encoder as JsonEncoder, dumps as json_dumps, dumpb as json_dumpb
 from ..elements.base import Markup
 
 

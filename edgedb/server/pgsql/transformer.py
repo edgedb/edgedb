@@ -10,16 +10,16 @@ import collections
 import itertools
 import functools
 
-from semantix.utils import ast, markup
-from semantix.caos import caosql, tree
-from semantix.caos import types as caos_types
-from semantix.caos import name as caos_name
-from semantix.caos import utils as caos_utils
-from semantix.caos.backends import pgsql
-from semantix.caos.backends.pgsql import common, session as pg_session, driver as pg_driver
-from semantix.utils.debug import debug
-from semantix.utils.datastructures import OrderedSet
-from semantix import exceptions as base_err
+from metamagic.utils import ast, markup
+from metamagic.caos import caosql, tree
+from metamagic.caos import types as caos_types
+from metamagic.caos import name as caos_name
+from metamagic.caos import utils as caos_utils
+from metamagic.caos.backends import pgsql
+from metamagic.caos.backends.pgsql import common, session as pg_session, driver as pg_driver
+from metamagic.utils.debug import debug
+from metamagic.utils.datastructures import OrderedSet
+from metamagic import exceptions as base_err
 
 
 from . import types
@@ -476,7 +476,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             arg_index = codegen.param_index
 
             """LOG [caos.query]
-            from semantix.utils import markup
+            from metamagic.utils import markup
             qtext = ''.join(qchunks)
             markup.dump_code(qtext, lexer='sql', header='SQL Query')
             """
@@ -562,13 +562,13 @@ class CaosTreeTransformer(CaosExprTransformer):
                 ref_map = {prop.ref.link_proto: query.fromexpr}
                 context.current.link_node_map[prop.ref] = {'local_ref_map': ref_map}
 
-                sprop_name = common.caos_name_to_pg_name('semantix.caos.builtins.source')
+                sprop_name = common.caos_name_to_pg_name('metamagic.caos.builtins.source')
                 sref = pgsql.ast.FieldRefNode(table=query.fromexpr,
                                               field=sprop_name,
                                               origin=query.fromexpr,
                                               origin_field=sprop_name)
 
-                idprop_name = common.caos_name_to_pg_name('semantix.caos.builtins.linkid')
+                idprop_name = common.caos_name_to_pg_name('metamagic.caos.builtins.linkid')
                 idref = pgsql.ast.FieldRefNode(table=query.fromexpr,
                                               field=idprop_name,
                                               origin=query.fromexpr,
@@ -590,9 +590,9 @@ class CaosTreeTransformer(CaosExprTransformer):
                 context.current.ctemap[query] = {graph.optarget.ref: query}
 
                 filter = pgsql.ast.FieldRefNode(table=query.fromexpr,
-                                                field='semantix.caos.builtins.id',
+                                                field='metamagic.caos.builtins.id',
                                                 origin=query.fromexpr,
-                                                origin_field='semantix.caos.builtins.id')
+                                                origin_field='metamagic.caos.builtins.id')
 
                 sref = idref = filter
 
@@ -604,9 +604,9 @@ class CaosTreeTransformer(CaosExprTransformer):
                 context.current.ctemap[query] = {graph.optarget: query}
 
                 filter = pgsql.ast.FieldRefNode(table=query.fromexpr,
-                                                field='semantix.caos.builtins.id',
+                                                field='metamagic.caos.builtins.id',
                                                 origin=query.fromexpr,
-                                                origin_field='semantix.caos.builtins.id')
+                                                origin_field='metamagic.caos.builtins.id')
 
             query.where = pgsql.ast.BinOpNode(left=filter, op='IN', right=context.current.query)
 
@@ -748,7 +748,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         return query
 
     def _generate_recursive_query(self, context, query, recurse_link, recurse_depth):
-        idptr = caos_name.Name('semantix.caos.builtins.id')
+        idptr = caos_name.Name('metamagic.caos.builtins.id')
 
         child_end = recurse_link.source
         parent_end = recurse_link.target
@@ -965,7 +965,7 @@ class CaosTreeTransformer(CaosExprTransformer):
     def _pull_outerbonds(self, context, outer_ref, target_rel, source_rel):
         pulled_bonds = []
 
-        oref = context.current.concept_node_map[outer_ref]['semantix.caos.builtins.id']
+        oref = context.current.concept_node_map[outer_ref]['metamagic.caos.builtins.id']
         target_rel.targets.append(oref)
 
         refexpr = pgsql.ast.FieldRefNode(table=target_rel, field=oref.alias,
@@ -1010,7 +1010,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         outer_ref = context.current.concept_node_map[outer_ref]
 
-        idcol = 'semantix.caos.builtins.id'
+        idcol = 'metamagic.caos.builtins.id'
 
         if ((context.current.direct_subquery_ref or inline)
                                                 and context.current.location == 'nodefilter'):
@@ -1078,7 +1078,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 if subquery.outerbonds:
                     for outer_ref, inner_ref in subquery.outerbonds:
                         outer_ref = context.current.concept_node_map[outer_ref]
-                        outer_ref = outer_ref['semantix.caos.builtins.id']
+                        outer_ref = outer_ref['metamagic.caos.builtins.id']
 
                         subquery.targets.append(inner_ref)
                         if subquery.aggregates:
@@ -1190,7 +1190,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 expr = None
 
         if isinstance(expr, tree.ast.EntitySet):
-            return expr.concept.name == 'semantix.caos.builtins.BaseObject'
+            return expr.concept.name == 'metamagic.caos.builtins.BaseObject'
 
         return False
 
@@ -1690,7 +1690,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                         left_type = self.get_expr_type(expr.left, context.current.proto_schema)
                         if isinstance(left_type, caos_types.ProtoNode):
                             if isinstance(left_type, caos_types.ProtoConcept):
-                                left_type = left_type.pointers['semantix.caos.builtins.id'].target
+                                left_type = left_type.pointers['metamagic.caos.builtins.id'].target
                             left_type = types.pg_type_from_atom(context.current.proto_schema,
                                                                 left_type, topbase=True)
                             right.type = left_type + '[]'
@@ -1745,7 +1745,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                         if left_type and right_type:
                             if isinstance(left_type, caos_types.ProtoNode):
                                 if isinstance(left_type, caos_types.ProtoConcept):
-                                    left_type = left_type.pointers['semantix.caos.builtins.id'].target
+                                    left_type = left_type.pointers['metamagic.caos.builtins.id'].target
                                 left_type = types.pg_type_from_atom(context.current.proto_schema,
                                                                     left_type, topbase=True)
                             elif not isinstance(left_type, caos_types.ProtoObject) and \
@@ -1755,7 +1755,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                             if isinstance(right_type, caos_types.ProtoNode):
                                 if isinstance(right_type, caos_types.ProtoConcept):
-                                    right_type = right_type.pointers['semantix.caos.builtins.id'].target
+                                    right_type = right_type.pointers['metamagic.caos.builtins.id'].target
                                 right_type = types.pg_type_from_atom(context.current.proto_schema,
                                                                     right_type, topbase=True)
                             elif not isinstance(right_type, caos_types.ProtoObject) and \
@@ -1807,7 +1807,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 expr_type = None
 
             schema = context.current.proto_schema
-            int_proto = schema.get('semantix.caos.builtins.int')
+            int_proto = schema.get('metamagic.caos.builtins.int')
 
             pg_expr = self._process_expr(context, expr.expr, cte)
 
@@ -1920,10 +1920,10 @@ class CaosTreeTransformer(CaosExprTransformer):
 
             schema = context.current.proto_schema
 
-            if expr.name == 'semantix.caos.builtins.target':
-                localizable = schema.get('semantix.caos.extras.l10n.localizable',
+            if expr.name == 'metamagic.caos.builtins.target':
+                localizable = schema.get('metamagic.caos.extras.l10n.localizable',
                                          default=None)
-                str_t = schema.get('semantix.caos.builtins.str')
+                str_t = schema.get('metamagic.caos.builtins.str')
 
                 link_proto = expr.ptr_proto.source
 
@@ -2245,7 +2245,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 else:
                     mapslot[field] = fieldref
 
-                if field == 'semantix.caos.builtins.id':
+                if field == 'metamagic.caos.builtins.id':
                     bondref = pgsql.ast.FieldRefNode(table=target_rel, field=ref.alias,
                                                      origin=ref.expr.origin,
                                                      origin_field=ref.expr.origin_field)
@@ -2305,7 +2305,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         fromnode = step_cte.fromlist[0] if step_cte.fromlist else pgsql.ast.FromExprNode()
 
-        id_field = common.caos_name_to_pg_name('semantix.caos.builtins.id')
+        id_field = common.caos_name_to_pg_name('metamagic.caos.builtins.id')
 
         if caos_path_tip and isinstance(caos_path_tip.concept, caos_types.ProtoConcept):
             concept_table = self._relation_from_concepts(context, caos_path_tip)
@@ -2359,7 +2359,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 link_ref_map[link_proto] = map
             else:
                 if link_proto is None:
-                    link_name = caos_name.Name('link', 'semantix.caos.builtins')
+                    link_name = caos_name.Name('link', 'metamagic.caos.builtins')
                     table_schema, table_name = common.link_name_to_table_name(link_name, catenate=False)
                 else:
                     table_schema, table_name = common.get_table_name(link_proto, catenate=False)
@@ -2369,10 +2369,10 @@ class CaosTreeTransformer(CaosExprTransformer):
                                           alias=context.current.genalias(hint='map'))
                 link_ref_map[link_proto] = map
 
-            source_ref = pgsql.ast.FieldRefNode(table=map, field='semantix.caos.builtins.source',
-                                                origin=map, origin_field='semantix.caos.builtins.source')
-            target_ref = pgsql.ast.FieldRefNode(table=map, field='semantix.caos.builtins.target',
-                                                origin=map, origin_field='semantix.caos.buitlins.target')
+            source_ref = pgsql.ast.FieldRefNode(table=map, field='metamagic.caos.builtins.source',
+                                                origin=map, origin_field='metamagic.caos.builtins.source')
+            target_ref = pgsql.ast.FieldRefNode(table=map, field='metamagic.caos.builtins.target',
+                                                origin=map, origin_field='metamagic.caos.buitlins.target')
             valent_bond = join.bonds(link.source.id)[-1]
             forward_bond = self._join_condition(context, valent_bond, source_ref, op='=')
             backward_bond = self._join_condition(context, valent_bond, target_ref, op='=')
@@ -2432,7 +2432,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         if caos_path_tip and isinstance(caos_path_tip.concept, caos_types.ProtoConcept):
             # Process references to atoms.
             #
-            atomrefs = {'semantix.caos.builtins.id'} | \
+            atomrefs = {'metamagic.caos.builtins.id'} | \
                        {f.name for f in caos_path_tip.atomrefs}
 
             context.current.concept_node_map.setdefault(caos_path_tip, {})
@@ -2632,7 +2632,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             outer_ref = caos_path_tip.reference
 
             inner_ref = context.current.concept_node_map[caos_path_tip]
-            inner_ref = inner_ref['semantix.caos.builtins.id']
+            inner_ref = inner_ref['metamagic.caos.builtins.id']
 
             context.current.query.outerbonds.append((outer_ref, inner_ref))
 
@@ -2644,7 +2644,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
             has_bonds = step_cte.bonds(caos_path_tip.id)
             if not has_bonds:
-                bond = pgsql.ast.FieldRefNode(table=step_cte, field=aliases['semantix.caos.builtins.id'])
+                bond = pgsql.ast.FieldRefNode(table=step_cte, field=aliases['metamagic.caos.builtins.id'])
                 step_cte.addbond(caos_path_tip.id, bond)
 
         return step_cte
@@ -2664,7 +2664,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         concept_table = self._relation_from_concepts(context, caos_path_tip)
 
-        field_name = 'semantix.caos.builtins.id'
+        field_name = 'metamagic.caos.builtins.id'
         innerref = pgsql.ast.FieldRefNode(table=concept_table, field=field_name,
                                           origin=concept_table, origin_field=field_name)
         outerref = self.get_cte_fieldref_for_set(context, caos_path_tip, field_name,

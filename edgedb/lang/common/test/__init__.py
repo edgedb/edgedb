@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.config import ConfigurableMeta, cvalue
+from metamagic.utils.config import ConfigurableMeta, cvalue
 
 
 class Exceptions(metaclass=ConfigurableMeta):

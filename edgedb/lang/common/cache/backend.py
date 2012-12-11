@@ -9,7 +9,7 @@
 import collections
 import time
 
-from semantix.utils import config, abc, debug
+from metamagic.utils import config, abc, debug
 from . import exceptions, abstract
 
 

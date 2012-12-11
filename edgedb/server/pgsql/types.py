@@ -6,50 +6,50 @@
 ##
 
 
-from semantix import caos
-from semantix.caos import proto
-from semantix.utils.lang.import_ import get_object
+from metamagic import caos
+from metamagic.caos import proto
+from metamagic.utils.lang.import_ import get_object
 
 from . import common
 
 
 base_type_name_map = {
-    caos.Name('semantix.caos.builtins.str'): 'text',
-    caos.Name('semantix.caos.builtins.int'): 'bigint',
-    caos.Name('semantix.caos.builtins.sequence'): 'text',
-    caos.Name('semantix.caos.builtins.none'): 'text',
-    caos.Name('semantix.caos.builtins.decimal'): 'numeric',
-    caos.Name('semantix.caos.builtins.bool'): 'boolean',
-    caos.Name('semantix.caos.builtins.float'): 'double precision',
-    caos.Name('semantix.caos.builtins.uuid'): 'uuid',
-    caos.Name('semantix.caos.builtins.datetime'): 'timestamp with time zone',
-    caos.Name('semantix.caos.builtins.date'): 'date',
-    caos.Name('semantix.caos.builtins.time'): 'time without time zone',
-    caos.Name('semantix.caos.builtins.timedelta'): 'interval',
-    caos.Name('semantix.caos.builtins.bytes'): 'bytea'
+    caos.Name('metamagic.caos.builtins.str'): 'text',
+    caos.Name('metamagic.caos.builtins.int'): 'bigint',
+    caos.Name('metamagic.caos.builtins.sequence'): 'text',
+    caos.Name('metamagic.caos.builtins.none'): 'text',
+    caos.Name('metamagic.caos.builtins.decimal'): 'numeric',
+    caos.Name('metamagic.caos.builtins.bool'): 'boolean',
+    caos.Name('metamagic.caos.builtins.float'): 'double precision',
+    caos.Name('metamagic.caos.builtins.uuid'): 'uuid',
+    caos.Name('metamagic.caos.builtins.datetime'): 'timestamp with time zone',
+    caos.Name('metamagic.caos.builtins.date'): 'date',
+    caos.Name('metamagic.caos.builtins.time'): 'time without time zone',
+    caos.Name('metamagic.caos.builtins.timedelta'): 'interval',
+    caos.Name('metamagic.caos.builtins.bytes'): 'bytea'
 }
 
 base_type_name_map_r = {
-    'character varying': caos.Name('semantix.caos.builtins.str'),
-    'character': caos.Name('semantix.caos.builtins.str'),
-    'text': caos.Name('semantix.caos.builtins.str'),
-    'numeric': caos.Name('semantix.caos.builtins.decimal'),
-    'integer': caos.Name('semantix.caos.builtins.int'),
-    'bigint': caos.Name('semantix.caos.builtins.int'),
-    'int8': caos.Name('semantix.caos.builtins.int'),
-    'smallint': caos.Name('semantix.caos.builtins.int'),
-    'boolean': caos.Name('semantix.caos.builtins.bool'),
-    'bool': caos.Name('semantix.caos.builtins.bool'),
-    'double precision': caos.Name('semantix.caos.builtins.float'),
-    'float8': caos.Name('semantix.caos.builtins.float'),
-    'uuid': caos.Name('semantix.caos.builtins.uuid'),
-    'timestamp with time zone': caos.Name('semantix.caos.builtins.datetime'),
-    'timestamptz': caos.Name('semantix.caos.builtins.datetime'),
-    'date': caos.Name('semantix.caos.builtins.date'),
-    'time without time zone': caos.Name('semantix.caos.builtins.time'),
-    'time': caos.Name('semantix.caos.builtins.time'),
-    'interval': caos.Name('semantix.caos.builtins.timedelta'),
-    'bytea': caos.Name('semantix.caos.builtins.bytes')
+    'character varying': caos.Name('metamagic.caos.builtins.str'),
+    'character': caos.Name('metamagic.caos.builtins.str'),
+    'text': caos.Name('metamagic.caos.builtins.str'),
+    'numeric': caos.Name('metamagic.caos.builtins.decimal'),
+    'integer': caos.Name('metamagic.caos.builtins.int'),
+    'bigint': caos.Name('metamagic.caos.builtins.int'),
+    'int8': caos.Name('metamagic.caos.builtins.int'),
+    'smallint': caos.Name('metamagic.caos.builtins.int'),
+    'boolean': caos.Name('metamagic.caos.builtins.bool'),
+    'bool': caos.Name('metamagic.caos.builtins.bool'),
+    'double precision': caos.Name('metamagic.caos.builtins.float'),
+    'float8': caos.Name('metamagic.caos.builtins.float'),
+    'uuid': caos.Name('metamagic.caos.builtins.uuid'),
+    'timestamp with time zone': caos.Name('metamagic.caos.builtins.datetime'),
+    'timestamptz': caos.Name('metamagic.caos.builtins.datetime'),
+    'date': caos.Name('metamagic.caos.builtins.date'),
+    'time without time zone': caos.Name('metamagic.caos.builtins.time'),
+    'time': caos.Name('metamagic.caos.builtins.time'),
+    'interval': caos.Name('metamagic.caos.builtins.timedelta'),
+    'bytea': caos.Name('metamagic.caos.builtins.bytes')
 }
 
 
@@ -141,7 +141,7 @@ class PointerStorageInfo:
             table = common.get_table_name(pointer, catenate=False)
             ptr_type = 'generic'
             if not record_mode:
-                col_name = 'semantix.caos.builtins.target'
+                col_name = 'metamagic.caos.builtins.target'
                 if pointer.atomic():
                     col_name += '@atom'
                     ptr_type = 'specialized'
@@ -154,7 +154,7 @@ class PointerStorageInfo:
             table = common.get_table_name(pointer.source, catenate=False)
             ptr_name = pointer.normal_name()
 
-            if ptr_name == 'semantix.caos.builtins.target' and pointer.atomic():
+            if ptr_name == 'metamagic.caos.builtins.target' and pointer.atomic():
                 ptr_name += '@atom'
 
             col_name = common.caos_name_to_pg_name(ptr_name)

@@ -7,9 +7,9 @@
 
 
 import importlib
-from semantix.utils import lang
-from semantix.caos.backends.resolver import shell, BackendResolverError
-from semantix.caos.backends.yaml import Backend
+from metamagic.utils import lang
+from metamagic.caos.backends.resolver import shell, BackendResolverError
+from metamagic.caos.backends.yaml import Backend
 
 from .deltarepo import MetaDeltaRepository
 

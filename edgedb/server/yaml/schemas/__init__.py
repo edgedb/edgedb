@@ -6,9 +6,9 @@
 ##
 
 
-from semantix.caos import proto as caos_proto
-from semantix.utils.lang import protoschema
-from semantix.utils.lang.yaml.schema import CachingSchema
+from metamagic.caos import proto as caos_proto
+from metamagic.utils.lang import protoschema
+from metamagic.utils.lang.yaml.schema import CachingSchema
 
 from .semantics import Semantics
 from .delta import Delta
@@ -31,4 +31,4 @@ class Semantics(Semantics, CachingSchema):
     @classmethod
     def get_implicit_imports(cls):
         # cls.get_module_class().get_schema_class().get_builtins_module()
-        return ('semantix.caos.builtins',)
+        return ('metamagic.caos.builtins',)

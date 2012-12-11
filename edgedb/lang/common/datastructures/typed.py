@@ -10,7 +10,7 @@ import abc
 import builtins
 import collections
 
-from semantix.utils.datastructures.all import Void
+from metamagic.utils.datastructures.all import Void
 
 
 __all__ = 'TypedList', 'TypedDict'

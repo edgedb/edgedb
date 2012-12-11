@@ -6,9 +6,9 @@
 ##
 
 
-from semantix import SemantixError
+from metamagic import MetamagicError
 
-from semantix.utils import parsing
+from metamagic.utils import parsing
 
 class PgSQLParserError(parsing.ParserError):
     pass

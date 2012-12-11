@@ -12,7 +12,7 @@ import postgresql.types
 from postgresql.types.io import stdlib_datetime as pg_datetime_io
 from postgresql.python.functools import Composition as compose
 
-from semantix.caos.objects.datetime import TimeDelta, DateTime, Time
+from metamagic.caos.objects.datetime import TimeDelta, DateTime, Time
 
 
 def interval_pack(x):

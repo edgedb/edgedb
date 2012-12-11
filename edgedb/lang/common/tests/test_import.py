@@ -6,8 +6,8 @@
 ##
 
 
-import semantix.utils.lang
-from semantix.utils.debug import assert_raises
+import metamagic.utils.lang
+from metamagic.utils.debug import assert_raises
 
 
 class TestUtilsLangImports:
@@ -16,8 +16,8 @@ class TestUtilsLangImports:
 
         with assert_raises(ImportError):
             # test on package
-            import semantix.Utils
+            import metamagic.Utils
 
         with assert_raises(ImportError):
             # test on module
-            from semantix.utils import Debug
+            from metamagic.utils import Debug

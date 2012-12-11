@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.caos.backends import pool
+from metamagic.caos.backends import pool
 
 
 class ConnectionPool(pool.ConnectionPool):

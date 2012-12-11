@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils.lang.yaml import validator
-from semantix.utils.lang.yaml.validator.tests.base import SchemaTest, raises, result
+from metamagic.utils.lang.yaml import validator
+from metamagic.utils.lang.yaml.validator.tests.base import SchemaTest, raises, result
 
 
 class TestPerson(SchemaTest):

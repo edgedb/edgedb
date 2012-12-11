@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.markup.elements import code as code_el
+from metamagic.utils.markup.elements import code as code_el
 
 
 try:

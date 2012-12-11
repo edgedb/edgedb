@@ -17,7 +17,7 @@ import termios
 import struct
 import functools
 
-from semantix.utils.colorsys import rgb_distance as color_distance, Color
+from metamagic.utils.colorsys import rgb_distance as color_distance, Color
 
 
 def isatty(fileno):
@@ -84,7 +84,7 @@ def use_colors(fileno=None):
     """
 
     # To avoid circular imports
-    from semantix.utils import shell
+    from metamagic.utils import shell
 
     flag = shell.MainCommand.colorize
 

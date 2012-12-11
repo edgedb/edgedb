@@ -6,10 +6,10 @@
 ##
 
 
-from semantix import SemantixError
+from metamagic import MetamagicError
 
 
-class SchemaError(SemantixError):
+class SchemaError(MetamagicError):
     def __init__(self, msg=None, *, hint=None, details=None, context=None):
         super().__init__(msg, hint=hint, details=details)
         self.context = context

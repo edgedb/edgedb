@@ -7,7 +7,7 @@
 
 
 from .base import MetaJSParserTest_Base, jxfail, flags
-from semantix.utils.lang.javascript.parser.jsparser import UnknownToken, UnexpectedToken, \
+from metamagic.utils.lang.javascript.parser.jsparser import UnknownToken, UnexpectedToken, \
     PP_UnexpectedToken, PP_MalformedToken
 
 

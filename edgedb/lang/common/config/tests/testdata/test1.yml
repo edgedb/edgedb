@@ -5,7 +5,7 @@
 # See LICENSE for details.
 ##
 
-%SCHEMA semantix.utils.config.yaml.schema.Schema
+%SCHEMA metamagic.utils.config.yaml.schema.Schema
 %NAME config
 ---
 foo:

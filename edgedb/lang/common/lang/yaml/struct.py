@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils.lang import yaml
-from semantix.utils.datastructures import StructMeta, MixedStructMeta
+from metamagic.utils.lang import yaml
+from metamagic.utils.datastructures import StructMeta, MixedStructMeta
 
 
 class StructMeta(StructMeta):

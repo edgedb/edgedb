@@ -10,7 +10,7 @@ import os
 import sys
 import webbrowser
 
-from semantix.utils import shell
+from metamagic.utils import shell
 
 
 DOC_DIR = 'doc'
@@ -20,7 +20,7 @@ INDEX_FILE = 'index.rst'
 CONF_FILE = 'conf.py'
 
 
-DEFAULT_CONF_PY = '''from semantix.utils.doc.sphinx.default_conf import *
+DEFAULT_CONF_PY = '''from metamagic.utils.doc.sphinx.default_conf import *
 
 project = 'PROJECT'
 copyright = 'COPYRIGHT'

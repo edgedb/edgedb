@@ -8,7 +8,7 @@
 
 import weakref
 
-from semantix.utils import abc, config
+from metamagic.utils import abc, config
 
 
 class BucketMeta(abc.AbstractMeta):

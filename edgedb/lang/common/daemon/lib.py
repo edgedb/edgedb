@@ -19,7 +19,7 @@ import sys
 from .exceptions import DaemonError
 
 
-logger = logging.getLogger('semantix.utils.daemon')
+logger = logging.getLogger('metamagic.utils.daemon')
 
 
 def is_process_running(pid:int):

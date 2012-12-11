@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.datastructures import Struct, Field, typed
+from metamagic.utils.datastructures import Struct, Field, typed
 
 
 class MarkupMeta(type(Struct)):

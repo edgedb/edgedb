@@ -13,8 +13,8 @@ import base64
 
 import postgresql
 
-from semantix.caos import proto
-from semantix.caos import types as caos_types
+from metamagic.caos import proto
+from metamagic.caos import types as caos_types
 
 from . import driver
 from .driver import io as custom_type_io
@@ -131,7 +131,7 @@ def py_type_to_pg_type(typ):
         postgres_io_mods = {'postgresql.types.io.{}'.format(m) for m in
                             postgresql.types.io.io_modules}
 
-        caos_io_mods = {'semantix.caos.backends.pgsql.driver.io.{}'.format(m) for m in
+        caos_io_mods = {'metamagic.caos.backends.pgsql.driver.io.{}'.format(m) for m in
                         custom_type_io.io_modules}
 
         for mod in itertools.chain(postgres_io_mods, caos_io_mods):

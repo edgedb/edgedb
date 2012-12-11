@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils import debug, parsing
+from metamagic.utils import debug, parsing
 from .error import PgSQLParserError
 
 

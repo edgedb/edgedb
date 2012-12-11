@@ -9,10 +9,10 @@
 import types
 import functools
 
-from semantix.utils import functional
-from semantix.utils.debug import assert_raises
-from semantix.exceptions import SemantixError
-from semantix.utils.functional.tests import base
+from metamagic.utils import functional
+from metamagic.utils.debug import assert_raises
+from metamagic.exceptions import MetamagicError
+from metamagic.utils.functional.tests import base
 
 
 class TestUtilsFunctional(object):
@@ -128,7 +128,7 @@ class TestUtilsFunctional(object):
         class dec4(functional.Decorator):
             def __call__(self): pass
 
-        with assert_raises(SemantixError, error_re='does not support any arguments'):
+        with assert_raises(MetamagicError, error_re='does not support any arguments'):
             @dec4(1)
             def test(): pass
 

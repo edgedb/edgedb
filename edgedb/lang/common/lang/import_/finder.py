@@ -34,7 +34,7 @@ class FileFinder(machinery.FileFinder):
 
     @classmethod
     def path_hook(cls):
-        from semantix.utils.lang.meta import LanguageMeta
+        from metamagic.utils.lang.meta import LanguageMeta
 
         def path_hook_for_FileFinder(path):
             loader_details = list(_bootstrap._get_supported_file_loaders())
@@ -49,8 +49,8 @@ def install():
 
 
 def update_finders():
-    import semantix
-    from semantix.utils.lang.meta import LanguageMeta
+    import metamagic
+    from metamagic.utils.lang.meta import LanguageMeta
 
     rpath = os.path.realpath
 
@@ -58,5 +58,5 @@ def update_finders():
     loader_details.extend(LanguageMeta.get_loaders())
 
     for path, finder in list(sys.path_importer_cache.items()):
-        if isinstance(finder, FileFinder) or rpath(path) == rpath(semantix.__path__[0]):
+        if isinstance(finder, FileFinder) or rpath(path) == rpath(metamagic.__path__[0]):
             FileFinder.update_loaders(finder, loader_details, isinstance(finder, FileFinder))

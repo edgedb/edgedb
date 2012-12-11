@@ -6,11 +6,11 @@
 ##
 
 
-%SCHEMA semantix.utils.lang.yaml.schema.ModuleSchema
+%SCHEMA metamagic.utils.lang.yaml.schema.ModuleSchema
 %NAME Semantics
 ---
 type: map
-object: semantix.caos.backends.yaml.ProtoSchemaAdapter
+object: metamagic.caos.backends.yaml.ProtoSchemaAdapter
 mapping:
     "module":
         type: str
@@ -27,12 +27,12 @@ mapping:
         mapping:
             =: # name of an atom
                 type: map
-                object: semantix.caos.backends.yaml.Atom
+                object: metamagic.caos.backends.yaml.Atom
                 required: yes
                 mapping:
                     "title": &TEXT_WITH_GRAM_CATEGORIES
                         type: choice
-                        object: semantix.caos.backends.yaml.WordCombination
+                        object: metamagic.caos.backends.yaml.WordCombination
                         choice:
                             - type: str
                             - type: map
@@ -67,11 +67,11 @@ mapping:
                               type: choice
                               choice:
                                 - type: scalar
-                                  object: semantix.caos.backends.yaml.LiteralDefaultSpec
+                                  object: metamagic.caos.backends.yaml.LiteralDefaultSpec
                                   required: true
 
                                 - type: map
-                                  object: semantix.caos.backends.yaml.QueryDefaultSpec
+                                  object: metamagic.caos.backends.yaml.QueryDefaultSpec
                                   max-length: 1
                                   min-length: 1
                                   mapping:
@@ -95,63 +95,63 @@ mapping:
                           - type: choice
                             choice:
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomConstraintMaxLength
+                                  object: metamagic.caos.backends.yaml.AtomConstraintMaxLength
                                   max-length: 1
                                   min-length: 1
                                   mapping:
                                     "max-length":
                                         type: int
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomConstraintMaxValue
+                                  object: metamagic.caos.backends.yaml.AtomConstraintMaxValue
                                   max-length: 1
                                   min-length: 1
                                   mapping:
                                     "max-value":
                                         type: any
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomConstraintMaxExValue
+                                  object: metamagic.caos.backends.yaml.AtomConstraintMaxExValue
                                   max-length: 1
                                   min-length: 1
                                   mapping:
                                     "max-value-ex":
                                         type: any
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomConstraintMinLength
+                                  object: metamagic.caos.backends.yaml.AtomConstraintMinLength
                                   max-length: 1
                                   min-length: 1
                                   mapping:
                                     "min-length":
                                         type: int
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomConstraintMinValue
+                                  object: metamagic.caos.backends.yaml.AtomConstraintMinValue
                                   max-length: 1
                                   min-length: 1
                                   mapping:
                                     "min-value":
                                         type: any
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomConstraintMinExValue
+                                  object: metamagic.caos.backends.yaml.AtomConstraintMinExValue
                                   max-length: 1
                                   min-length: 1
                                   mapping:
                                     "min-value-ex":
                                         type: any
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomConstraintRegExp
+                                  object: metamagic.caos.backends.yaml.AtomConstraintRegExp
                                   max-length: 1
                                   min-length: 1
                                   mapping:
                                     "regexp":
                                         type: str
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomConstraintExpr
+                                  object: metamagic.caos.backends.yaml.AtomConstraintExpr
                                   max-length: 1
                                   min-length: 1
                                   mapping:
                                     "expr":
                                         type: str
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomConstraintPrecision
+                                  object: metamagic.caos.backends.yaml.AtomConstraintPrecision
                                   max-length: 1
                                   min-length: 1
                                   mapping:
@@ -165,7 +165,7 @@ mapping:
                                                 - type: int
                                             - type: int
                                 - type: map
-                                  object: semantix.caos.backends.yaml.AtomConstraintRounding
+                                  object: metamagic.caos.backends.yaml.AtomConstraintRounding
                                   max-length: 1
                                   min-length: 1
                                   mapping:
@@ -180,7 +180,7 @@ mapping:
         mapping:
             =: # name of a link property
                 type: map
-                object: semantix.caos.backends.yaml.LinkPropertyDef
+                object: metamagic.caos.backends.yaml.LinkPropertyDef
                 required: yes
                 mapping:
                     "title":
@@ -198,7 +198,7 @@ mapping:
                     "loading":
                         &POINTER_LOADING
                         type: str
-                        object: semantix.caos.backends.yaml.PointerLoading
+                        object: metamagic.caos.backends.yaml.PointerLoading
                         enum: [lazy, eager]
 
                     "extends":
@@ -216,7 +216,7 @@ mapping:
         mapping:
             =: # name of a cascade action
                 type: map
-                object: semantix.caos.backends.yaml.PointerCascadeAction
+                object: metamagic.caos.backends.yaml.PointerCascadeAction
                 required: yes
                 mapping:
                     "title":
@@ -231,7 +231,7 @@ mapping:
         mapping:
             =: # name of a cascade event
                 type: map
-                object: semantix.caos.backends.yaml.PointerCascadeEvent
+                object: metamagic.caos.backends.yaml.PointerCascadeEvent
                 required: yes
                 mapping:
                     "title":
@@ -246,7 +246,7 @@ mapping:
                     "allowed-actions":
                         type: choice
                         required: yes
-                        object: semantix.caos.backends.yaml.PointerCascadeActionSet
+                        object: metamagic.caos.backends.yaml.PointerCascadeActionSet
                         choice:
                             - type: str
                             - type: seq
@@ -259,7 +259,7 @@ mapping:
         mapping:
             =: # name of a link
                 type: map
-                object: semantix.caos.backends.yaml.LinkDef
+                object: metamagic.caos.backends.yaml.LinkDef
                 required: yes
                 mapping:
                     "title": *TEXT_WITH_GRAM_CATEGORIES
@@ -297,13 +297,13 @@ mapping:
 
                     "mapping": &LINK_MAPPING
                         type: str
-                        object: semantix.caos.backends.yaml.LinkMapping
+                        object: metamagic.caos.backends.yaml.LinkMapping
                         enum: ["1*", "11", "**", "*1"]
                         default: null
 
                     "exposed_behaviour": &LINK_EXPOSED_BEHAVIOUR
                         type: str
-                        object: semantix.caos.backends.yaml.LinkExposedBehaviour
+                        object: metamagic.caos.backends.yaml.LinkExposedBehaviour
                         enum: ["first-item", "set"]
                         default: null
 
@@ -325,7 +325,7 @@ mapping:
                         mapping:
                             =:
                                 type: choice
-                                object: semantix.caos.backends.yaml.LinkProperty
+                                object: metamagic.caos.backends.yaml.LinkProperty
                                 choice:
                                     - type: str
                                     - type: map
@@ -357,7 +357,7 @@ mapping:
                                                                - type: map
                                                                  max-length: 1
                                                                  min-length: 1
-                                                                 object: semantix.caos.backends.yaml.PointerConstraintUnique
+                                                                 object: metamagic.caos.backends.yaml.PointerConstraintUnique
                                                                  mapping:
                                                                    "unique":
                                                                        type: choice
@@ -381,7 +381,7 @@ mapping:
                             =:
                                 type: choice
                                 required: yes
-                                object: semantix.caos.backends.yaml.Computable
+                                object: metamagic.caos.backends.yaml.Computable
                                 choice:
                                     - type: str
                                     - type: map
@@ -402,7 +402,7 @@ mapping:
                         type: seq
                         sequence:
                             - type: str
-                              object: semantix.caos.backends.yaml.SourceIndex
+                              object: metamagic.caos.backends.yaml.SourceIndex
 
 
     "concepts":
@@ -411,7 +411,7 @@ mapping:
         mapping:
             =:
                 type: map
-                object: semantix.caos.backends.yaml.Concept
+                object: metamagic.caos.backends.yaml.Concept
                 mapping:
                     "title":
                         *TEXT_WITH_GRAM_CATEGORIES
@@ -442,7 +442,7 @@ mapping:
                         mapping:
                             =:
                                 type: map
-                                object: semantix.caos.backends.yaml.SpecializedLink
+                                object: metamagic.caos.backends.yaml.SpecializedLink
                                 type: choice
                                 required: yes
                                 choice:
@@ -491,20 +491,20 @@ mapping:
                                                   type: map
                                                   mapping:
                                                     =: # property name
-                                                        object: semantix.caos.backends.yaml.LinkPropertyProps
+                                                        object: metamagic.caos.backends.yaml.LinkPropertyProps
                                                         type: map
                                                         mapping:
                                                             "default":
                                                                 *DEFAULT
                                               "search":
                                                   type: choice
-                                                  object: semantix.caos.backends.yaml.LinkSearchConfiguration
+                                                  object: metamagic.caos.backends.yaml.LinkSearchConfiguration
                                                   choice:
                                                     - type: map
                                                       mapping:
                                                          "weight":
                                                             type: str
-                                                            object: semantix.caos.backends.yaml.LinkSearchWeight
+                                                            object: metamagic.caos.backends.yaml.LinkSearchWeight
                                                             enum: ['A', 'B', 'C', 'D']
                                                             required: True
                                                     - type: bool

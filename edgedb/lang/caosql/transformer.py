@@ -9,14 +9,14 @@
 import itertools
 import operator
 
-from semantix.caos import types as caos_types
-from semantix.caos import tree
-from semantix.caos import name as caos_name
-from semantix.caos import utils as caos_utils
-from semantix.caos.caosql import ast as qlast
-from semantix.caos.caosql import errors
-from semantix.caos.caosql import parser as caosql_parser
-from semantix.utils import ast
+from metamagic.caos import types as caos_types
+from metamagic.caos import tree
+from metamagic.caos import name as caos_name
+from metamagic.caos import utils as caos_utils
+from metamagic.caos.caosql import ast as qlast
+from metamagic.caos.caosql import errors
+from metamagic.caos.caosql import parser as caosql_parser
+from metamagic.utils import ast
 
 
 class ParseContextLevel(object):
@@ -840,7 +840,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                             lname = linkname
 
                         if lname[1] == '%':
-                            lname = ('semantix.caos.builtins', 'link')
+                            lname = ('metamagic.caos.builtins', 'link')
 
                         link_item = self.proto_schema.get('.'.join(lname),
                                                           module_aliases=modaliases)
@@ -931,7 +931,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                             atomref_id.add(link_item, direction, target)
 
                             if not link_proto.singular():
-                                ptr_name = caos_name.Name('semantix.caos.builtins.target')
+                                ptr_name = caos_name.Name('metamagic.caos.builtins.target')
                                 ptr_proto = link_proto.pointers[ptr_name]
                                 atomref = tree.ast.LinkPropRefSimple(name=ptr_name,
                                                                      ref=link,
@@ -1065,7 +1065,7 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
     def _normalize_concept(self, context, concept, namespace):
         if concept == '%':
-            concept = self.proto_schema.get(name='semantix.caos.builtins.BaseObject')
+            concept = self.proto_schema.get(name='metamagic.caos.builtins.BaseObject')
         else:
             if namespace:
                 name = caos_name.Name(name=concept, module=namespace)

@@ -30,8 +30,8 @@ body, html:
     user-select: none
 
 
-.semantix-markup:
-    %from semantix.rendering.css.extras.reset import reset
+.metamagic-markup:
+    %from metamagic.rendering.css.extras.reset import reset
     %merge reset
 
     font-family: Arial, Verdana, Helvetica, sans-serif

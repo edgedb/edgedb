@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.functional import hybridmethod
+from metamagic.utils.functional import hybridmethod
 from .all import Void
 
 
@@ -113,7 +113,7 @@ class Struct(metaclass=StructMeta):
 
     .. code-block:: pycon
 
-        >>> from semantix.utils.datastructures import Struct, Field
+        >>> from metamagic.utils.datastructures import Struct, Field
 
         >>> class MyStruct(Struct):
         ...    name = Field(type=str)

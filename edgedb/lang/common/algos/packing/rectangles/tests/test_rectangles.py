@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.algos.packing.rectangles import Point, Rectangle
+from metamagic.utils.algos.packing.rectangles import Point, Rectangle
 
 
 class TestRectangles:

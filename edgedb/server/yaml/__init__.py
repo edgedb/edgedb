@@ -14,25 +14,25 @@ import collections
 import itertools
 import sys
 
-from semantix.utils import lang
-from semantix.utils.lang import context as lang_context
-from semantix.utils.lang import yaml
-from semantix.utils.lang import protoschema as lang_protoschema
-from semantix.utils.lang.yaml import protoschema as yaml_protoschema
-from semantix.utils.lang.yaml.struct import MixedStructMeta
-from semantix.utils.nlang import morphology
-from semantix.utils.algos.persistent_hash import persistent_hash
-from semantix.utils.algos import topological
-from semantix.utils.datastructures import xvalue, OrderedSet, typed
-from semantix.utils.lang.import_ import get_object
+from metamagic.utils import lang
+from metamagic.utils.lang import context as lang_context
+from metamagic.utils.lang import yaml
+from metamagic.utils.lang import protoschema as lang_protoschema
+from metamagic.utils.lang.yaml import protoschema as yaml_protoschema
+from metamagic.utils.lang.yaml.struct import MixedStructMeta
+from metamagic.utils.nlang import morphology
+from metamagic.utils.algos.persistent_hash import persistent_hash
+from metamagic.utils.algos import topological
+from metamagic.utils.datastructures import xvalue, OrderedSet, typed
+from metamagic.utils.lang.import_ import get_object
 
-from semantix import caos
-from semantix.caos import proto
-from semantix.caos import backends
-from semantix.caos import delta as base_delta
-from semantix.caos import objects
-from semantix.caos.caosql import expr as caosql_expr
-from semantix.caos.caosql import errors as caosql_exc
+from metamagic import caos
+from metamagic.caos import proto
+from metamagic.caos import backends
+from metamagic.caos import delta as base_delta
+from metamagic.caos import objects
+from metamagic.caos.caosql import expr as caosql_expr
+from metamagic.caos.caosql import errors as caosql_exc
 
 from . import delta
 
@@ -1258,8 +1258,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     base = self._check_base(prop, base_name, localschema)
                     bases.append(base)
                 prop.bases = bases
-            elif prop.name != 'semantix.caos.builtins.link_property':
-                prop.bases = [localschema.get('semantix.caos.builtins.link_property',
+            elif prop.name != 'metamagic.caos.builtins.link_property':
+                prop.bases = [localschema.get('metamagic.caos.builtins.link_property',
                                               type=proto.LinkProperty)]
 
 
@@ -1304,7 +1304,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     # definition. The only attribute that is used for global definition
                     # is the name.
                     property_qname = caos.Name(name=property_name, module=self.module.name)
-                    propdef_base = localschema.get('semantix.caos.builtins.link_property',
+                    propdef_base = localschema.get('metamagic.caos.builtins.link_property',
                                                    type=proto.LinkProperty)
                     propdef = proto.LinkProperty(name=property_qname, bases=[propdef_base])
                     self._add_proto(localschema, propdef)
@@ -1354,8 +1354,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
     def _create_base_link(self, link, link_qname, localschema, type=None):
         type = type or proto.Link
 
-        base = 'semantix.caos.builtins.link' if type is proto.Link else \
-               'semantix.caos.builtins.link_property'
+        base = 'metamagic.caos.builtins.link' if type is proto.Link else \
+               'metamagic.caos.builtins.link_property'
 
         base = localschema.get(base, type=type)
         linkdef = type(name=link_qname, bases=[base], _setdefaults_=False)
@@ -1420,8 +1420,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     base = self._check_base(link, base_name, localschema)
                     bases.append(base)
                 link.bases = bases
-            elif link.name != 'semantix.caos.builtins.link':
-                link.bases = [localschema.get('semantix.caos.builtins.link')]
+            elif link.name != 'metamagic.caos.builtins.link':
+                link.bases = [localschema.get('metamagic.caos.builtins.link')]
 
             self._read_computables(link, localschema)
 
@@ -1542,8 +1542,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     else:
                         bases.append(base)
 
-            if not bases and concept.name != 'semantix.caos.builtins.BaseObject':
-                bases.append(localschema.get('semantix.caos.builtins.Object'))
+            if not bases and concept.name != 'metamagic.caos.builtins.BaseObject':
+                bases.append(localschema.get('metamagic.caos.builtins.Object'))
 
             concept.bases = bases
             concept.custombases = custombases
@@ -1596,8 +1596,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 self._add_proto(localschema, link)
                 concept.add_pointer(link)
 
-        source_pbase = localschema.get('semantix.caos.builtins.source', type=proto.LinkProperty)
-        target_pbase = localschema.get('semantix.caos.builtins.target', type=proto.LinkProperty)
+        source_pbase = localschema.get('metamagic.caos.builtins.source', type=proto.LinkProperty)
+        target_pbase = localschema.get('metamagic.caos.builtins.target', type=proto.LinkProperty)
 
         for concept in self.module('concept'):
             for link_name, link in concept._links.items():
@@ -1607,14 +1607,14 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 else:
                     link.target = localschema.get(link._target)
 
-                target_pname = caos.Name('semantix.caos.builtins.target')
+                target_pname = caos.Name('metamagic.caos.builtins.target')
                 target = proto.LinkProperty(name=target_pname,
                                             bases=[target_pbase],
                                             loading=caos.types.EagerLoading,
                                             _setdefaults_=False, _relaxrequired_=True)
                 target._target = link.target.name
 
-                source_pname = caos.Name('semantix.caos.builtins.source')
+                source_pname = caos.Name('metamagic.caos.builtins.source')
                 source = proto.LinkProperty(name=source_pname,
                                             bases=[source_pbase],
                                             loading=caos.types.EagerLoading,
@@ -1764,7 +1764,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                                 self._add_proto(localschema, atom)
 
                             link.target = atom
-                            tgt_prop = link.pointers['semantix.caos.builtins.target']
+                            tgt_prop = link.pointers['metamagic.caos.builtins.target']
                             tgt_prop.target = atom
 
             if concept.bases:
@@ -1980,5 +1980,5 @@ class Backend(backends.MetaBackend):
         return self._schema
 
     def dump_meta(self, meta):
-        prologue = '%SCHEMA semantix.caos.backends.yaml.schemas.Semantics\n---\n'
+        prologue = '%SCHEMA metamagic.caos.backends.yaml.schemas.Semantics\n---\n'
         return prologue + yaml.Language.dump(meta)

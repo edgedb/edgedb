@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.caos.frontends import javascript
+from metamagic.caos.frontends import javascript
 
 from . import _unpacker
 

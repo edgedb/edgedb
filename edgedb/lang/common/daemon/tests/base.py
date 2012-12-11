@@ -49,9 +49,9 @@ class BaseDaemonTestCase:
             sn = str(random.randint(0, 10**5)) + '.' + sn
         return os.path.join(tempfile.gettempdir(), sn)
 
-    pytest_funcarg__pid    = _gen_base_fn_funcarg('semantix.test.pid')
-    pytest_funcarg__stdin  = _gen_base_fn_funcarg('semantix.test.stdin')
-    pytest_funcarg__stdout = _gen_base_fn_funcarg('semantix.test.stdout')
-    pytest_funcarg__stderr = _gen_base_fn_funcarg('semantix.test.stderr')
-    pytest_funcarg__fn1    = _gen_base_fn_funcarg('semantix.test.fn1')
-    pytest_funcarg__fn2    = _gen_base_fn_funcarg('semantix.test.fn2')
+    pytest_funcarg__pid    = _gen_base_fn_funcarg('metamagic.test.pid')
+    pytest_funcarg__stdin  = _gen_base_fn_funcarg('metamagic.test.stdin')
+    pytest_funcarg__stdout = _gen_base_fn_funcarg('metamagic.test.stdout')
+    pytest_funcarg__stderr = _gen_base_fn_funcarg('metamagic.test.stderr')
+    pytest_funcarg__fn1    = _gen_base_fn_funcarg('metamagic.test.fn1')
+    pytest_funcarg__fn2    = _gen_base_fn_funcarg('metamagic.test.fn2')

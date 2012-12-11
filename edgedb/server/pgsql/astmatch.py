@@ -8,8 +8,8 @@
 
 import sys
 
-from semantix.utils import ast
-from semantix.utils.ast import match as astmatch
+from metamagic.utils import ast
+from metamagic.utils.ast import match as astmatch
 from  . import ast as pgast
 
 

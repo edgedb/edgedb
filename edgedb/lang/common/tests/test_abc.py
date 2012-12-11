@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils import abc
-from semantix.utils.debug import assert_raises
+from metamagic.utils import abc
+from metamagic.utils.debug import assert_raises
 
 
 class TestAbc:

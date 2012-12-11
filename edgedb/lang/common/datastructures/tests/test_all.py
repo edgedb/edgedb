@@ -8,8 +8,8 @@
 
 import pickle
 
-from semantix.utils.datastructures import Void
-from semantix.utils.debug import assert_raises
+from metamagic.utils.datastructures import Void
+from metamagic.utils.debug import assert_raises
 
 
 class TestUtilsDSAll:

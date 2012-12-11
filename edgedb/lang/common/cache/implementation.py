@@ -9,8 +9,8 @@
 import pickle
 from datetime import timedelta
 
-from semantix.utils import abc
-from semantix.utils.algos.persistent_hash import persistent_hash
+from metamagic.utils import abc
+from metamagic.utils.algos.persistent_hash import persistent_hash
 from . import backend, exceptions, abstract
 
 

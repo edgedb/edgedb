@@ -9,7 +9,7 @@
 import collections
 import types
 
-from semantix.utils.functional import decorate
+from metamagic.utils.functional import decorate
 
 
 class MenuMeta(type):

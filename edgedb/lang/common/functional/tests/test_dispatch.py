@@ -8,8 +8,8 @@
 
 import inspect
 
-from semantix.utils.functional import dispatch
-from semantix.utils.debug import assert_raises
+from metamagic.utils.functional import dispatch
+from metamagic.utils.debug import assert_raises
 
 
 class TestUtilsFunctionalDispatch:

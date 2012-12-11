@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.caos.backends.resolver.shell import BackendShell, BackendResolverHelper
-from semantix.caos.backends.dummy import Backend
+from metamagic.caos.backends.resolver.shell import BackendShell, BackendResolverHelper
+from metamagic.caos.backends.dummy import Backend
 
 from .deltarepo import MetaDeltaRepository
 

@@ -13,10 +13,10 @@ import Parsing
 import pyggy
 import pyggy.lexer
 
-from semantix.exceptions import SemantixError, _add_context
-from semantix.utils.lang import context as lang_context
-from semantix.utils.datastructures import xvalue
-from semantix.utils import markup
+from metamagic.exceptions import MetamagicError, _add_context
+from metamagic.utils.lang import context as lang_context
+from metamagic.utils.datastructures import xvalue
+from metamagic.utils import markup
 
 
 class TokenMeta(type):
@@ -166,7 +166,7 @@ class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
         return self.buffer[start:end], before
 
 
-class ParserError(SemantixError):
+class ParserError(MetamagicError):
     def __init__(self, msg=None, *, hint=None, details=None, token=None, lineno=None, expr=None,
                                context=None):
         if msg is None:

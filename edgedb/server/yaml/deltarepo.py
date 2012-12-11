@@ -10,10 +10,10 @@ import importlib
 import os
 import re
 
-from semantix.caos.backends import deltarepo
-from semantix.caos import delta as base_delta
+from metamagic.caos.backends import deltarepo
+from metamagic.caos import delta as base_delta
 
-from semantix.utils.lang import yaml
+from metamagic.utils.lang import yaml
 
 
 class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
@@ -115,5 +115,5 @@ class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
         return self.dump_delta_set(delta_set)
 
     def dump_delta_set(self, delta_set):
-        prologue = '%SCHEMA semantix.caos.backends.yaml.schemas.Delta\n---\n'
+        prologue = '%SCHEMA metamagic.caos.backends.yaml.schemas.Delta\n---\n'
         return prologue + yaml.Language.dump(delta_set)

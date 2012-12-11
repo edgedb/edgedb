@@ -6,9 +6,9 @@
 ##
 
 
-%SCHEMA semantix.utils.lang.yaml.tests.testdata.test_module_import_schema.ModuleImportSchema
+%SCHEMA metamagic.utils.lang.yaml.tests.testdata.test_module_import_schema.ModuleImportSchema
 %NAME ImportImport
-%IMPORT semantix.utils.lang.yaml.tests.testdata.test_module_import_import_1
+%IMPORT metamagic.utils.lang.yaml.tests.testdata.test_module_import_import_1
 %FROM . IMPORT test_module_import_import_1
 %FROM .test_module_import_import_1 IMPORT b
 ---

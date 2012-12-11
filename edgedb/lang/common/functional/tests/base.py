@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils import functional
+from metamagic.utils import functional
 
 
 def wrap(func):

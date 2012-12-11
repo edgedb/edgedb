@@ -88,13 +88,13 @@ class Encoder:
 
        .. [#f1] All characters required to be escaped by the JSON spec @ http://json.org are escaped
        .. [#f2] If present, encode_hook() is applied before and independently of all other encoders
-       .. [#f3] To avoid errors in the semantix framework ``bytes()``, ``bytearray()`` and derived
+       .. [#f3] To avoid errors in the metamagic framework ``bytes()``, ``bytearray()`` and derived
                 classes are deliberately not encoded using the built-in sequence encoder;
                 the only way to encode these objects is to either overwrite the encoders' default()
                 method or to provide __sx_serialize__ method in the object being serialized.
        .. [#f4] UUIDs and Decimals are encoded as strings.
        .. [#f5] JSON specification only supports string dictionary keys; since UUIDs
-                are also encoded to strings and are a common key in the semantix framework,
+                are also encoded to strings and are a common key in the metamagic framework,
                 this encoder also supports UUIDs as dictionary keys.
     """
 
@@ -127,10 +127,10 @@ class Encoder:
 
             # try to import the C version, if available
             try:
-                from semantix.utils.json._encoder import Encoder
+                from metamagic.utils.json._encoder import Encoder
             except ImportError:
                 # C version is unavailable - import Python version
-                from semantix.utils.json.encoder import Encoder
+                from metamagic.utils.json.encoder import Encoder
 
             class Bar:
                 pass

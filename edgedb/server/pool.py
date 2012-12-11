@@ -8,10 +8,10 @@
 
 import time
 
-from semantix.caos.error import CaosError
-from semantix.utils import config
+from metamagic.caos.error import CaosError
+from metamagic.utils import config
 
-from semantix.spin.pools import connection as connection_pool
+from metamagic.spin.pools import connection as connection_pool
 
 
 class PoolError(CaosError):

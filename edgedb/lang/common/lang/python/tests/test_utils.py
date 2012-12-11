@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.lang.python import utils
+from metamagic.utils.lang.python import utils
 
 class TestUtilsLangPythonUtils:
     def test_utils_lang_python_utils_resolve(self):

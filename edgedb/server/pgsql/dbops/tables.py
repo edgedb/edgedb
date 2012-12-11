@@ -8,7 +8,7 @@
 
 import postgresql.string
 
-from semantix.utils import datastructures
+from metamagic.utils import datastructures
 
 from .. import common
 from . import base

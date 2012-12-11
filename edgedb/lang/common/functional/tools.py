@@ -13,7 +13,7 @@ import inspect
 from types import MethodType as _method
 from functools import partial
 
-from semantix.exceptions import SemantixError
+from metamagic.exceptions import MetamagicError
 from .signature import signature as _signature
 
 
@@ -140,7 +140,7 @@ class Decorator(BaseDecorator):
         decorate(self, func)
 
     def handle_args(self, *args, **kwargs):
-        raise SemantixError('decorator %r does not support any arguments' % self.__class__.__name__)
+        raise MetamagicError('decorator %r does not support any arguments' % self.__class__.__name__)
 
     def __get__(self, obj, cls=None):
         if obj is None:

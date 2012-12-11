@@ -13,7 +13,7 @@ try:
 except ImportError:
     from importlib._bootstrap import SourceFileLoader as _SourceFileLoader
 
-from semantix.utils.lang import meta
+from metamagic.utils.lang import meta
 from . import ast
 
 

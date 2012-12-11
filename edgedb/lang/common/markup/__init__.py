@@ -11,8 +11,8 @@ import sys
 from . import elements, serializer, renderers
 from .serializer import serialize, Context
 from .serializer import base as _base_serializer
-from semantix.exceptions import ExceptionContext as _ExceptionContext
-from semantix.utils import abc
+from metamagic.exceptions import ExceptionContext as _ExceptionContext
+from metamagic.utils import abc
 
 
 @serializer.serializer(method='as_markup')

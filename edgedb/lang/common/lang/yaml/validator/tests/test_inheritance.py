@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils.lang.meta import Object
-from semantix.utils.lang.yaml.validator.tests.base import SchemaTest, raises, result
+from metamagic.utils.lang.meta import Object
+from metamagic.utils.lang.yaml.validator.tests.base import SchemaTest, raises, result
 
 
 class A(Object):

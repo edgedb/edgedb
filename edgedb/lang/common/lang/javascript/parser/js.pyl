@@ -7,7 +7,7 @@
 
 
 code:
-    # from semantix.utils.lang.javascript.parser.keywords import js_keywords
+    # from metamagic.utils.lang.javascript.parser.keywords import js_keywords
     import pyggy
 
     def advance_line_col(this):

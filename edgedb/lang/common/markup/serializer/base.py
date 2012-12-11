@@ -11,12 +11,12 @@ import decimal
 import collections
 import weakref
 
-from semantix.utils.functional.dispatch import TypeDispatcher
+from metamagic.utils.functional.dispatch import TypeDispatcher
 from .. import elements
 
-from semantix import exceptions
-from semantix.utils.markup.format import xrepr
-from semantix.utils import debug
+from metamagic import exceptions
+from metamagic.utils.markup.format import xrepr
+from metamagic.utils import debug
 
 
 #: Maximum level of nested structures that we can serialize.

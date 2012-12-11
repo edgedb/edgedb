@@ -11,8 +11,8 @@ import pickle
 import sys
 import types
 
-from semantix.utils.lang.import_ import module as module_utils
-from semantix.utils.lang.import_ import utils as import_utils
+from metamagic.utils.lang.import_ import module as module_utils
+from metamagic.utils.lang.import_ import utils as import_utils
 
 
 class TestLangImportModuleProxy:

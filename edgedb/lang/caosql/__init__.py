@@ -6,7 +6,7 @@
 ##
 
 
-from semantix import SemantixError
+from metamagic import MetamagicError
 
 from . import ast
 from .errors import CaosQLError, CaosQLQueryError

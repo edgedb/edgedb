@@ -20,33 +20,33 @@ import postgresql.copyman
 from postgresql.types.io import lib as pg_io_lib
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
-from semantix.utils import ast
-from semantix.utils.lang.import_ import get_object
-from semantix.utils.algos import topological, persistent_hash
-from semantix.utils.debug import debug
-from semantix.utils.lang import yaml
-from semantix.utils.lang import protoschema as lang_protoschema
-from semantix.utils.nlang import morphology
-from semantix.utils import datastructures, markup
+from metamagic.utils import ast
+from metamagic.utils.lang.import_ import get_object
+from metamagic.utils.algos import topological, persistent_hash
+from metamagic.utils.debug import debug
+from metamagic.utils.lang import yaml
+from metamagic.utils.lang import protoschema as lang_protoschema
+from metamagic.utils.nlang import morphology
+from metamagic.utils import datastructures, markup
 
-from semantix import caos
-from semantix.caos import objects as caos_objects
+from metamagic import caos
+from metamagic.caos import objects as caos_objects
 
-from semantix.caos import backends
-from semantix.caos import proto
-from semantix.caos import delta as base_delta
-from semantix.caos import debug as caos_debug
-from semantix.caos import error as caos_error
+from metamagic.caos import backends
+from metamagic.caos import proto
+from metamagic.caos import delta as base_delta
+from metamagic.caos import debug as caos_debug
+from metamagic.caos import error as caos_error
 
-from semantix.caos.caosql import transformer as caosql_transformer
-from semantix.caos.caosql import codegen as caosql_codegen
+from metamagic.caos.caosql import transformer as caosql_transformer
+from metamagic.caos.caosql import codegen as caosql_codegen
 
-from semantix.caos.backends import query as backend_query
-from semantix.caos.backends.pgsql import common
-from semantix.caos.backends.pgsql import dbops
-from semantix.caos.backends.pgsql import delta as delta_cmds
-from semantix.caos.backends.pgsql import deltadbops
-from semantix.caos.backends.pgsql import driver
+from metamagic.caos.backends import query as backend_query
+from metamagic.caos.backends.pgsql import common
+from metamagic.caos.backends.pgsql import dbops
+from metamagic.caos.backends.pgsql import delta as delta_cmds
+from metamagic.caos.backends.pgsql import deltadbops
+from metamagic.caos.backends.pgsql import driver
 
 from . import datasources
 from .datasources import introspection
@@ -353,9 +353,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     }
 
     link_source_colname = common.quote_ident(
-                                common.caos_name_to_pg_name('semantix.caos.builtins.source'))
+                                common.caos_name_to_pg_name('metamagic.caos.builtins.source'))
     link_target_colname = common.quote_ident(
-                                common.caos_name_to_pg_name('semantix.caos.builtins.target'))
+                                common.caos_name_to_pg_name('metamagic.caos.builtins.target'))
 
     def __init__(self, deltarepo, connector_factory):
         connector = connector_factory()
@@ -722,12 +722,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def concept_name_from_id(self, id, session):
-        concept = caos.Name('semantix.caos.builtins.BaseObject')
+        concept = caos.Name('metamagic.caos.builtins.BaseObject')
         query = '''SELECT c.name
                    FROM
                        %s AS e
                        INNER JOIN caos.concept AS c ON c.id = e.concept_id
-                   WHERE e."semantix.caos.builtins.id" = $1
+                   WHERE e."metamagic.caos.builtins.id" = $1
                 ''' % (common.concept_name_to_table_name(concept))
         ps = session.get_connection().prepare(query)
         concept_name = ps.first(id)
@@ -752,7 +752,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         links = {k: row[i] for k, i in attribute_link_map.items()}
         concept_cls = session.schema.get(real_concept)
-        return session._merge(links['semantix.caos.builtins.id'], concept_cls, links)
+        return session._merge(links['metamagic.caos.builtins.id'], concept_cls, links)
 
 
     def entity_from_row(self, session, record_info, links):
@@ -779,7 +779,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                  if l in valid_link_names or getattr(l, 'direction', caos.types.OutboundDirection)
                                              == caos.types.InboundDirection}
 
-        return session._merge(links['semantix.caos.builtins.id'], concept_cls, links)
+        return session._merge(links['metamagic.caos.builtins.id'], concept_cls, links)
 
 
     def _rebuild_tree_from_list(self, session, items, connecting_attribute):
@@ -787,7 +787,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         # maintaining total order.
         #
         updates = {}
-        uuid = session.schema.semantix.caos.builtins.BaseObject.id
+        uuid = session.schema.metamagic.caos.builtins.BaseObject.id
 
         toplevel = []
 
@@ -833,7 +833,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def load_entity(self, concept, id, session):
-        query = 'SELECT * FROM %s WHERE "semantix.caos.builtins.id" = $1' % \
+        query = 'SELECT * FROM %s WHERE "metamagic.caos.builtins.id" = $1' % \
                                                 (common.concept_name_to_table_name(concept))
 
         ps = session.get_connection().prepare(query)
@@ -847,7 +847,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                 if link.atomic() and link.singular() \
                                  and not isinstance(link, caos.types.ProtoComputable) \
-                            and link_name != 'semantix.caos.builtins.id' \
+                            and link_name != 'metamagic.caos.builtins.id' \
                             and link.loading != caos.types.LazyLoading:
                     colname = common.caos_name_to_pg_name(link_name)
 
@@ -877,7 +877,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         for prop_name in pointers:
             targets.append(common.qname('l', common.caos_name_to_pg_name(prop_name)))
 
-        source_col = common.caos_name_to_pg_name('semantix.caos.builtins.source')
+        source_col = common.caos_name_to_pg_name('metamagic.caos.builtins.source')
         ptr_stor_info = types.get_pointer_storage_info(session.proto_schema, proto_link)
 
         query = '''SELECT
@@ -973,9 +973,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             elif error_type == 'id':
                 msg = 'unique link constraint violation'
-                pointer = getattr(source.__class__, 'semantix.caos.builtins.id').as_link()
+                pointer = getattr(source.__class__, 'metamagic.caos.builtins.id').as_link()
                 errcls = caos.error.PointerConstraintUniqueViolationError
-                constraint = proto.PointerConstraintUnique(['semantix.caos.builtins.id'])
+                constraint = proto.PointerConstraintUnique(['metamagic.caos.builtins.id'])
                 return errcls(msg=msg, source=source, pointer=pointer, constraint=constraint)
         else:
             return caos.error.UninterpretedStorageError(err.message)
@@ -997,7 +997,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         idquery = dbops.Query(text='caos.uuid_generate_v1mc()', params=(), type='uuid')
         now = dbops.Query(text="'NOW'", params=(), type='timestamptz')
 
-        is_object = issubclass(cls, session.schema.semantix.caos.builtins.Object)
+        is_object = issubclass(cls, session.schema.metamagic.caos.builtins.Object)
 
         with connection.xact():
 
@@ -1005,7 +1005,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             for link_name, link_cls in cls._iter_all_pointers():
                 link_proto = link_cls._class_metadata.link.__sx_prototype__
                 if link_proto.atomic() and link_proto.singular() \
-                                       and link_name != 'semantix.caos.builtins.id' \
+                                       and link_name != 'metamagic.caos.builtins.id' \
                                        and not isinstance(link_proto, caos.types.ProtoComputable) \
                                        and link_name in links:
                     value = links[link_name]
@@ -1017,27 +1017,27 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             rec = table.record(**attrs)
 
-            returning = ['"semantix.caos.builtins.id"']
+            returning = ['"metamagic.caos.builtins.id"']
             if is_object:
-                returning.extend(('"semantix.caos.builtins.ctime"',
-                                  '"semantix.caos.builtins.mtime"'))
+                returning.extend(('"metamagic.caos.builtins.ctime"',
+                                  '"metamagic.caos.builtins.mtime"'))
 
             if id is not None and not entity._instancedata.new_predefined_id:
-                condition = [('semantix.caos.builtins.id', id)]
+                condition = [('metamagic.caos.builtins.id', id)]
 
                 if is_object:
-                    setattr(rec, 'semantix.caos.builtins.mtime', now)
-                    condition.append(('semantix.caos.builtins.mtime', entity.mtime))
+                    setattr(rec, 'metamagic.caos.builtins.mtime', now)
+                    condition.append(('metamagic.caos.builtins.mtime', entity.mtime))
 
                 cmd = dbops.Update(table=table, record=rec,
                                    condition=condition,
                                    returning=returning)
             else:
-                setattr(rec, 'semantix.caos.builtins.id', idquery if id is None else id)
+                setattr(rec, 'metamagic.caos.builtins.id', idquery if id is None else id)
 
                 if is_object:
-                    setattr(rec, 'semantix.caos.builtins.ctime', now)
-                    setattr(rec, 'semantix.caos.builtins.mtime', now)
+                    setattr(rec, 'metamagic.caos.builtins.ctime', now)
+                    setattr(rec, 'metamagic.caos.builtins.mtime', now)
 
                 rec.concept_id = concept_map[concept]
 
@@ -1062,11 +1062,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             """
 
             if is_object:
-                updates = {'semantix.caos.builtins.id': id[0],
-                           'semantix.caos.builtins.ctime': id[1],
-                           'semantix.caos.builtins.mtime': id[2]}
+                updates = {'metamagic.caos.builtins.id': id[0],
+                           'metamagic.caos.builtins.ctime': id[1],
+                           'metamagic.caos.builtins.mtime': id[2]}
             else:
-                updates = {'semantix.caos.builtins.id': id[0]}
+                updates = {'metamagic.caos.builtins.id': id[0]}
             entity._instancedata.update(entity, updates, register_changes=False, allow_ro=True)
             session.add(entity)
 
@@ -1086,10 +1086,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             query = '''DELETE FROM %s
                        WHERE
-                           ("semantix.caos.builtins.id", "semantix.caos.builtins.mtime")
+                           ("metamagic.caos.builtins.id", "metamagic.caos.builtins.mtime")
                            = any($1::%s[])
                        RETURNING
-                           "semantix.caos.builtins.id", "semantix.caos.builtins.mtime"
+                           "metamagic.caos.builtins.id", "metamagic.caos.builtins.mtime"
                     ''' % (table, modstat_t)
 
             deleted = list(self.runquery(query, (bunch,), session.get_connection(), compat=False))
@@ -1205,7 +1205,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                 and not link_proto.has_user_defined_properties()):
             return
 
-        source_col = common.caos_name_to_pg_name('semantix.caos.builtins.source')
+        source_col = common.caos_name_to_pg_name('metamagic.caos.builtins.source')
         target_ptr_stor_info = types.get_pointer_storage_info(session.proto_schema, link_proto)
         target_col = target_ptr_stor_info.column_name
 
@@ -1219,7 +1219,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         target_is_concept = not link_proto.atomic()
         target_in_table = target_ptr_stor_info.table_type[0] == 'pointer'
 
-        idcol = 'semantix.caos.builtins.linkid'
+        idcol = 'metamagic.caos.builtins.linkid'
         returning = ['"' + idcol + '"']
 
         for link_obj in targets:
@@ -1237,8 +1237,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             attrs = {}
             for prop_name, prop_cls in link_cls._iter_all_pointers():
                 if not isinstance(prop_cls._class_metadata.link, caos.types.ComputableClass):
-                    if prop_name not in {'semantix.caos.builtins.source',
-                                         'semantix.caos.builtins.target'}:
+                    if prop_name not in {'metamagic.caos.builtins.source',
+                                         'metamagic.caos.builtins.target'}:
                         try:
                             # We must look into link object __dict__ directly so as not to
                             # potentially trigger link object reload for lazy properties,
@@ -1638,7 +1638,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def _get_pointer_column_target(self, meta, source, pointer_name, col, constraints):
         derived_atom_name = proto.Atom.gen_atom_name(source, pointer_name)
         if col['column_type_schema'] == 'pg_catalog':
-            col_type_schema = common.caos_module_name_to_schema_name('semantix.caos.builtins')
+            col_type_schema = common.caos_module_name_to_schema_name('metamagic.caos.builtins')
             col_type = col['column_type_formatted']
         else:
             col_type_schema = col['column_type_schema']
@@ -1662,7 +1662,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def _get_pointer_attribute_target(self, meta, source, pointer_name, attr):
         derived_atom_name = proto.Atom.gen_atom_name(source, pointer_name)
         if attr['attribute_type_schema'] == 'pg_catalog':
-            col_type_schema = common.caos_module_name_to_schema_name('semantix.caos.builtins')
+            col_type_schema = common.caos_module_name_to_schema_name('metamagic.caos.builtins')
             col_type = attr['attribute_type_formatted']
         else:
             col_type_schema = attr['attribute_type_schema']
@@ -1748,8 +1748,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 bases = (proto.Link.normalize_name(name),)
             elif r['base']:
                 bases = tuple(caos.Name(b) for b in r['base'])
-            elif name != 'semantix.caos.builtins.link':
-                bases = (caos.Name('semantix.caos.builtins.link'),)
+            elif name != 'metamagic.caos.builtins.link':
+                bases = (caos.Name('metamagic.caos.builtins.link'),)
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
@@ -1885,8 +1885,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 bases = (proto.LinkProperty.normalize_name(name),)
             elif r['base']:
                 bases = tuple(caos.Name(b) for b in r['base'])
-            elif name != 'semantix.caos.builtins.link_property':
-                bases = (caos.Name('semantix.caos.builtins.link_property'),)
+            elif name != 'metamagic.caos.builtins.link_property':
+                bases = (caos.Name('metamagic.caos.builtins.link_property'),)
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
@@ -1912,8 +1912,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                       loading=loading,
                                       default=default)
 
-            if source and bases[0] not in {'semantix.caos.builtins.target',
-                                           'semantix.caos.builtins.source'}:
+            if source and bases[0] not in {'metamagic.caos.builtins.target',
+                                           'metamagic.caos.builtins.source'}:
                 # The property is attached to a link, check out link table columns for
                 # target information.
                 target, required = self.read_pointer_target_column(meta, prop, atom_constraints)
@@ -1929,9 +1929,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         constraints.extend(ptr_constr)
             else:
                 if bases:
-                    if bases[0] == 'semantix.caos.builtins.target' and source is not None:
+                    if bases[0] == 'metamagic.caos.builtins.target' and source is not None:
                         target = source.target
-                    elif bases[0] == 'semantix.caos.builtins.source' and source is not None:
+                    elif bases[0] == 'metamagic.caos.builtins.source' and source is not None:
                         target = source.source
 
             prop.target = target
@@ -2117,8 +2117,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             link.is_atom = True
             link.readonly = False
 
-            src_pname = 'semantix.caos.builtins.source'
-            src_pbase = meta.get('semantix.caos.builtins.source')
+            src_pname = 'metamagic.caos.builtins.source'
+            src_pbase = meta.get('metamagic.caos.builtins.source')
             src_pname_s = proto.LinkProperty.generate_specialized_name(link.name, concept.name,
                                                                        src_pname)
 
@@ -2131,8 +2131,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             link.add_pointer(src_p)
 
-            tgt_pname = 'semantix.caos.builtins.target'
-            tgt_pbase = meta.get('semantix.caos.builtins.target')
+            tgt_pname = 'metamagic.caos.builtins.target'
+            tgt_pbase = meta.get('metamagic.caos.builtins.target')
             tgt_pname_s = proto.LinkProperty.generate_specialized_name(link.name, target.name,
                                                                        tgt_pname)
             tgt_pname_s = caos.Name(name=tgt_pname_s, module=link.name.module)

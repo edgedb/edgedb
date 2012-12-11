@@ -6,11 +6,11 @@
 ##
 
 
-from semantix.utils.lang.import_ import get_object
-from semantix.utils.lang import context as lang_context
-from semantix.utils.lang.yaml import constructor as yaml_constructor
-from semantix.utils.lang.yaml import loader as yaml_loader
-from semantix.utils.functional import decorate
+from metamagic.utils.lang.import_ import get_object
+from metamagic.utils.lang import context as lang_context
+from metamagic.utils.lang.yaml import constructor as yaml_constructor
+from metamagic.utils.lang.yaml import loader as yaml_loader
+from metamagic.utils.functional import decorate
 
 
 def raises(ex_cls, ex_msg):
@@ -65,4 +65,4 @@ class SchemaTest(object):
 
     @staticmethod
     def get_schema(clsname):
-        return get_object('semantix.utils.lang.yaml.validator.tests.ymls.' + clsname)()
+        return get_object('metamagic.utils.lang.yaml.validator.tests.ymls.' + clsname)()

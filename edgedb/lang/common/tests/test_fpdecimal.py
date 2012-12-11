@@ -7,8 +7,8 @@
 
 
 import decimal
-from semantix.utils import fpdecimal
-from semantix.utils.debug import assert_raises
+from metamagic.utils import fpdecimal
+from metamagic.utils.debug import assert_raises
 
 
 class TestDecimal:

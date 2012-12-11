@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils.functional.signature import signature, BindError
-from semantix.utils.debug import assert_raises
+from metamagic.utils.functional.signature import signature, BindError
+from metamagic.utils.debug import assert_raises
 
 
 def call(func, *args, **kwargs):

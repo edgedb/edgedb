@@ -8,7 +8,7 @@
 
 from collections import defaultdict, OrderedDict
 
-from semantix.utils.datastructures import OrderedSet
+from metamagic.utils.datastructures import OrderedSet
 
 
 class UnresolvedReferenceError(Exception):

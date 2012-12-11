@@ -6,10 +6,10 @@
 ##
 
 
-from semantix.bootstrap.yaml import validator
-from semantix.utils.lang.import_ import get_object
+from metamagic.bootstrap.yaml import validator
+from metamagic.utils.lang.import_ import get_object
 
-from semantix.utils.lang.yaml import constructor as yaml_constructor
+from metamagic.utils.lang.yaml import constructor as yaml_constructor
 
 
 class Schema(validator.Schema):

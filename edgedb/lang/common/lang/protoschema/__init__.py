@@ -15,14 +15,14 @@ import re
 import sys
 import types
 
-from semantix import SemantixError
-from semantix.utils import lang
-from semantix.utils.datastructures import OrderedSet, ExtendedSet
-from semantix.utils import abc
-from semantix.utils.functional import hybridmethod, get_safe_attrname
-from semantix.utils.datastructures.struct import MixedStruct, MixedStructMeta, Field
-from semantix.utils.datastructures import Void
-from semantix.utils.lang.import_ import module as module_types
+from metamagic import MetamagicError
+from metamagic.utils import lang
+from metamagic.utils.datastructures import OrderedSet, ExtendedSet
+from metamagic.utils import abc
+from metamagic.utils.functional import hybridmethod, get_safe_attrname
+from metamagic.utils.datastructures.struct import MixedStruct, MixedStructMeta, Field
+from metamagic.utils.datastructures import Void
+from metamagic.utils.lang.import_ import module as module_types
 
 from .error import SchemaError, NoPrototypeError
 from .name import SchemaName
@@ -97,7 +97,7 @@ class SchemaModule(types.ModuleType):
         try:
             cls = proto(schema, cache=False)
         except Exception as e:
-            raise SemantixError('could not create class from prototype') from e
+            raise MetamagicError('could not create class from prototype') from e
 
         setattr(self, name, cls)
         return cls

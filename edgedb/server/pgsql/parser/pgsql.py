@@ -14,7 +14,7 @@
 import sys
 
 
-from semantix.utils import ast, parsing
+from metamagic.utils import ast, parsing
 from .. import ast as pgast
 
 from . import keywords

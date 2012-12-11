@@ -9,30 +9,30 @@
 import importlib
 import py.test
 
-from semantix.utils.debug import assert_raises
-from semantix.utils.lang import context as lang_context
-from semantix.utils.lang.yaml import exceptions as yaml_errors
+from metamagic.utils.debug import assert_raises
+from metamagic.utils.lang import context as lang_context
+from metamagic.utils.lang.yaml import exceptions as yaml_errors
 
 
 class TestLangImport(object):
     def test_utils_lang_yaml_import(self):
-        modname = 'semantix.utils.lang.yaml.tests.testdata.test_import'
+        modname = 'metamagic.utils.lang.yaml.tests.testdata.test_import'
         mod = importlib.import_module(modname)
         assert hasattr(mod, 'SimpleImport') and mod.SimpleImport['attr1'] == 'test'
 
     def test_utils_lang_yaml_module_import(self):
-        modname = 'semantix.utils.lang.yaml.tests.testdata.test_module_import'
+        modname = 'metamagic.utils.lang.yaml.tests.testdata.test_module_import'
         mod = importlib.import_module(modname)
         assert hasattr(mod, 'attr1') and hasattr(mod, 'attr2') and hasattr(mod, 'attr3')
 
     def test_utils_lang_yaml_module_import_bad1(self):
-        modname = 'semantix.utils.lang.yaml.tests.testdata.test_module_import_bad1'
+        modname = 'metamagic.utils.lang.yaml.tests.testdata.test_module_import_bad1'
         err = 'unexpected document after module-level schema document'
         with assert_raises(ImportError, cause=yaml_errors.YAMLCompositionError, error_re=err):
             importlib.import_module(modname)
 
     def test_utils_lang_yaml_module_import_bad2(self):
-        modname = 'semantix.utils.lang.yaml.tests.testdata.test_module_import_bad2'
+        modname = 'metamagic.utils.lang.yaml.tests.testdata.test_module_import_bad2'
         err = 'unexpected module-level schema document'
         with assert_raises(ImportError, cause=yaml_errors.YAMLCompositionError, error_re=err):
             importlib.import_module(modname)
@@ -40,8 +40,8 @@ class TestLangImport(object):
     @py.test.mark.xfail
     def test_utils_lang_yaml_ambiguous_import(self):
         with assert_raises(ImportError):
-            from semantix.utils.lang.yaml.tests.testdata.ambig import test
+            from metamagic.utils.lang.yaml.tests.testdata.ambig import test
 
     def test_utils_lang_yaml_module_import_import(self):
-        modname = 'semantix.utils.lang.yaml.tests.testdata.test_module_import_import'
+        modname = 'metamagic.utils.lang.yaml.tests.testdata.test_module_import_import'
         importlib.import_module(modname)

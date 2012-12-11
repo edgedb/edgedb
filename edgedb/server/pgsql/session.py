@@ -9,9 +9,9 @@
 import postgresql.exceptions
 import postgresql.protocol.xact3
 
-from semantix.caos import session
-from semantix.utils.algos import persistent_hash
-from semantix.utils.debug import debug
+from metamagic.caos import session
+from metamagic.utils.algos import persistent_hash
+from metamagic.utils.debug import debug
 
 
 class SessionPool(session.SessionPool):

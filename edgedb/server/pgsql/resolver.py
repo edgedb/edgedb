@@ -9,8 +9,8 @@
 import functools
 import urllib.parse
 
-from semantix.caos.backends.resolver.shell import BackendShell, BackendResolverHelper
-from semantix.caos.backends.pgsql.backend import Backend
+from metamagic.caos.backends.resolver.shell import BackendShell, BackendResolverHelper
+from metamagic.caos.backends.pgsql.backend import Backend
 
 from .deltarepo import MetaDeltaRepository
 

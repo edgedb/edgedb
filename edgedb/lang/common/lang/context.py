@@ -7,7 +7,7 @@
 
 
 import sys
-from semantix.utils.datastructures import registry
+from metamagic.utils.datastructures import registry
 
 
 class SourcePoint(object):

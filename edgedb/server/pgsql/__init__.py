@@ -9,7 +9,7 @@
 import os
 import postgresql.python.os
 
-from semantix.utils.config import ConfigurableMeta, cvalue, ConfigError
+from metamagic.utils.config import ConfigurableMeta, cvalue, ConfigError
 
 from . import ast
 from . import codegen

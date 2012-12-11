@@ -8,9 +8,9 @@
 
 from collections import OrderedDict
 
-from semantix.utils.xml import composer
-from semantix.utils.debug import assert_raises
-from semantix.utils.xml.types import Doctype
+from metamagic.utils.xml import composer
+from metamagic.utils.debug import assert_raises
+from metamagic.utils.xml.types import Doctype
 
 
 class TestXMLComposer:

@@ -6,10 +6,10 @@
 ##
 
 
-from semantix.caos.backends import MetaBackend, DataBackend
-from semantix.caos.proto import ProtoSchema
-from semantix.caos.delta import DeltaSet
-from semantix.caos import session
+from metamagic.caos.backends import MetaBackend, DataBackend
+from metamagic.caos.proto import ProtoSchema
+from metamagic.caos.delta import DeltaSet
+from metamagic.caos import session
 
 
 class SessionPool(session.SessionPool):

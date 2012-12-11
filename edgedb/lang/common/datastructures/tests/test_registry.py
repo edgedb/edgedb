@@ -8,8 +8,8 @@
 
 import gc
 
-from semantix.utils.datastructures.registry import WeakObjectRegistry
-from semantix.utils.debug import assert_raises
+from metamagic.utils.datastructures.registry import WeakObjectRegistry
+from metamagic.utils.debug import assert_raises
 
 
 class Obj:

@@ -10,11 +10,11 @@ import argparse
 import os
 import sys
 
-from semantix import SemantixError
-from semantix import bootstrap
+from metamagic import MetamagicError
+from metamagic import bootstrap
 
-from semantix.utils import datastructures
-from semantix.utils import debug, config
+from metamagic.utils import datastructures
+from metamagic.utils import debug, config
 
 from . import reqs
 
@@ -33,7 +33,7 @@ class CommandMeta(config.ConfigurableMeta):
                 if issubclass(cls, CommandMeta.main_command):
                     CommandMeta.main_command = cls
                 elif not issubclass(CommandMeta.main_command, cls):
-                    raise SemantixError('Main command is already defined by {} which {} does not' \
+                    raise MetamagicError('Main command is already defined by {} which {} does not' \
                                         ' subclass from'.format(CommandMeta.main_command, cls))
             else:
                 CommandMeta.main_command = cls
@@ -129,7 +129,7 @@ class MainCommand(CommandGroup, name='__main__'):
         if args.debug:
             debug.channels.update(args.debug)
 
-        with config.inline({'semantix.utils.shell.MainCommand.colorize': args.color}):
+        with config.inline({'metamagic.utils.shell.MainCommand.colorize': args.color}):
             result = super().__call__(args, unknown_args)
 
         return result

@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils import ast
+from metamagic.utils import ast
 
 
 class PPBase(ast.AST): pass

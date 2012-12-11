@@ -8,7 +8,7 @@
 
 import difflib
 
-from semantix.utils.datastructures import Field, typed
+from metamagic.utils.datastructures import Field, typed
 from . import base
 
 

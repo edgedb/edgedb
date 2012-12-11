@@ -8,9 +8,9 @@
 
 import yaml
 
-from semantix.utils.lang.meta import Object, ObjectError
-from semantix.utils.lang.yaml import validator
-from semantix.utils.lang.yaml.validator.tests.base import SchemaTest, result, raises
+from metamagic.utils.lang.meta import Object, ObjectError
+from metamagic.utils.lang.yaml import validator
+from metamagic.utils.lang.yaml.validator.tests.base import SchemaTest, result, raises
 
 
 class A(Object):
@@ -99,7 +99,7 @@ class TestObject(SchemaTest):
     def test_validator_object_class_type(self):
         """
         classtype:
-            semantix.utils.lang.yaml.validator.tests.test_object.A:
+            metamagic.utils.lang.yaml.validator.tests.test_object.A:
                 name: a
                 description: b
         """
@@ -108,7 +108,7 @@ class TestObject(SchemaTest):
     def test_validator_object_class_type_validation(self):
         """
         classtype:
-            semantix.utils.lang.yaml.validator.tests.test_object.A:
+            metamagic.utils.lang.yaml.validator.tests.test_object.A:
                 name: a
                 description: b
                 customfield: 21

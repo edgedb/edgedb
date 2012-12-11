@@ -11,9 +11,9 @@
 
 
 code:
-    from semantix.caos.backends.pgsql.parser.error import PgSQLParserError
-    from semantix.caos.backends.pgsql.parser.keywords import pg_keywords
-    from semantix.caos.backends.pgsql import ast as pgast
+    from metamagic.caos.backends.pgsql.parser.error import PgSQLParserError
+    from metamagic.caos.backends.pgsql.parser.keywords import pg_keywords
+    from metamagic.caos.backends.pgsql import ast as pgast
 
 definitions:
     space               "[ \t\n\r]"

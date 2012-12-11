@@ -9,10 +9,10 @@
 import os
 import py.test
 
-from semantix.utils.debug import assert_raises
+from metamagic.utils.debug import assert_raises
 
 try:
-    from semantix.utils import filemagic
+    from metamagic.utils import filemagic
 except ImportError:
     _SKIP_MAGIC = "True"
 else:

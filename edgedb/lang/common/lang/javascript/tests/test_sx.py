@@ -13,7 +13,7 @@ class TestJSsx(JSFunctionalTest):
     def test_utils_lang_js_sx_date_parse_iso(self):
         '''JS
 
-        // %from semantix.utils.lang.javascript import sx
+        // %from metamagic.utils.lang.javascript import sx
 
         var d = sx.date.parse_iso('2012-01-01T15:50:00+04:00');
         assert.equal(d.toUTCString(), 'Sun, 01 Jan 2012 11:50:00 GMT');
@@ -30,7 +30,7 @@ class TestJSsx(JSFunctionalTest):
 
     def test_utils_lang_js_sx_ns(self):
         '''JS
-        // %from semantix.utils.lang.javascript import sx
+        // %from metamagic.utils.lang.javascript import sx
 
         sx.ns('com.acme.foo');
         assert.ok(com.acme.foo);
@@ -69,7 +69,7 @@ class TestJSsx(JSFunctionalTest):
 
     def test_utils_lang_js_sx_is(self):
         '''JS
-        // %from semantix.utils.lang.javascript import sx
+        // %from metamagic.utils.lang.javascript import sx
 
         assert.ok(sx.is_string('aaa'));
         assert.ok(sx.is_string(''));
@@ -96,14 +96,14 @@ class TestJSsx(JSFunctionalTest):
 
     def test_utils_lang_js_sx_json_parse(self):
         '''JS
-        // %from semantix.utils.lang.javascript import sx
+        // %from metamagic.utils.lang.javascript import sx
 
         assert.equal(sx.json.parse('{"a":42}'), {'a': 42});
         '''
 
     def test_utils_lang_js_sx_error(self):
         '''JS
-        // %from semantix.utils.lang.javascript import sx
+        // %from metamagic.utils.lang.javascript import sx
 
         assert.equal(String(new sx.Error('foo')), 'sx.Error: foo');
         assert.equal(String(sx.Error), 'sx.Error');
@@ -111,7 +111,7 @@ class TestJSsx(JSFunctionalTest):
 
     def test_utils_lang_js_sx_contains(self):
         '''JS
-        // %from semantix.utils.lang.javascript import sx
+        // %from metamagic.utils.lang.javascript import sx
 
         assert.ok(sx.contains('foobar', 'ob'))
         assert.not(sx.contains('foobar', 'bo'))
@@ -136,7 +136,7 @@ class TestJSsx(JSFunctionalTest):
 
     def test_utils_lang_js_sx_hasattr(self):
         '''JS
-        // %from semantix.utils.lang.javascript import sx
+        // %from metamagic.utils.lang.javascript import sx
 
         assert.ok(sx.hasattr({'a': 'b'}, 'a'));
         assert.not(sx.hasattr({}, 'hasOwnProperty'));
@@ -166,7 +166,7 @@ class TestJSsx(JSFunctionalTest):
 
     def test_utils_lang_js_sx_first(self):
         '''JS
-        // %from semantix.utils.lang.javascript import sx
+        // %from metamagic.utils.lang.javascript import sx
 
         assert.ok(sx.first([1, 2, 3]) === 1);
         assert.ok(sx.first({'a': 'b', 'c': 'd'}) === 'b');
@@ -199,7 +199,7 @@ class TestJSsx(JSFunctionalTest):
 
     def test_utils_lang_js_sx_len(self):
         '''JS
-        // %from semantix.utils.lang.javascript import sx
+        // %from metamagic.utils.lang.javascript import sx
 
         assert.equal(sx.len([]), 0);
         assert.equal(sx.len([1]), 1);
@@ -227,7 +227,7 @@ class TestJSsx(JSFunctionalTest):
 
     def test_utils_lang_js_sx_each(self):
         '''JS
-        // %from semantix.utils.lang.javascript import sx
+        // %from metamagic.utils.lang.javascript import sx
 
         assert.equal(
             (function() {
@@ -358,14 +358,14 @@ class TestJSsx(JSFunctionalTest):
 
     def test_utils_lang_js_sx_id(self):
         '''JS
-        // %from semantix.utils.lang.javascript import sx
+        // %from metamagic.utils.lang.javascript import sx
 
         assert.ok(sx.id() !== sx.id());
         '''
 
     def test_utils_lang_js_sx_partial(self):
         '''JS
-        // %from semantix.utils.lang.javascript import sx
+        // %from metamagic.utils.lang.javascript import sx
 
         function foo(a, b, c) {
             a = a || 1;
@@ -395,7 +395,7 @@ class TestJSsx(JSFunctionalTest):
 
     def test_utils_lang_js_sx_apply(self):
         '''JS
-        // %from semantix.utils.lang.javascript import sx
+        // %from metamagic.utils.lang.javascript import sx
 
         var a = {'c': 'd'}, b = {'a': 'b'};
         var c = sx.apply(a, b);
@@ -416,7 +416,7 @@ class TestJSsx(JSFunctionalTest):
 
     def test_utils_lang_js_sx_str(self):
         '''JS
-        // %from semantix.utils.lang.javascript import sx
+        // %from metamagic.utils.lang.javascript import sx
 
         assert.equal(sx.str.trim('aaa'), 'aaa');
         assert.equal(sx.str.trim('a a  a'), 'a a  a');
@@ -457,7 +457,7 @@ class TestJSsx(JSFunctionalTest):
 
     def test_utils_lang_js_sx_array_insort(self):
         '''JS
-        // %from semantix.utils.lang.javascript import sx
+        // %from metamagic.utils.lang.javascript import sx
 
         var a1 = [],
             a2 = [],

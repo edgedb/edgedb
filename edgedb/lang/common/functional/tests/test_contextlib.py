@@ -8,8 +8,8 @@
 
 import contextlib
 
-from semantix.utils.functional import contextlib as sx_contextlib
-from semantix.utils.debug import assert_raises
+from metamagic.utils.functional import contextlib as sx_contextlib
+from metamagic.utils.debug import assert_raises
 
 
 class TestUtilsContextLib:

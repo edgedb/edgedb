@@ -11,10 +11,10 @@ import ast
 import inspect
 import functools
 
-from semantix.utils.lang.python.convert import AstToPyAstConverter, PyAstToGeneric
-from semantix.utils.lang.generic.codegen.python import GenericPythonSourceGenerator
-from semantix.utils.debug import _indent_code, debug, highlight
-from semantix.utils import markup
+from metamagic.utils.lang.python.convert import AstToPyAstConverter, PyAstToGeneric
+from metamagic.utils.lang.generic.codegen.python import GenericPythonSourceGenerator
+from metamagic.utils.debug import _indent_code, debug, highlight
+from metamagic.utils import markup
 
 
 class GenericLangTestSuiteMeta(type):

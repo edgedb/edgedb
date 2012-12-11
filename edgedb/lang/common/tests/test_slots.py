@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils import slots
-from semantix.utils.debug import assert_raises
+from metamagic.utils import slots
+from metamagic.utils.debug import assert_raises
 
 
 class TestUtilsSlotsMeta:

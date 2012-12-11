@@ -6,11 +6,11 @@
 ##
 
 
-from semantix.utils import ast, parsing, debug
+from metamagic.utils import ast, parsing, debug
 
-from semantix.caos.caosql.parser.errors import CaosQLSyntaxError
-from semantix.caos.caosql import ast as qlast, CaosQLQueryError
-from semantix.caos import types as caos_types
+from metamagic.caos.caosql.parser.errors import CaosQLSyntaxError
+from metamagic.caos.caosql import ast as qlast, CaosQLQueryError
+from metamagic.caos import types as caos_types
 
 
 class CaosQLParser(parsing.Parser):

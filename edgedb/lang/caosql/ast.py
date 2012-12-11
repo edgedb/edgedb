@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.caos.tree import ast as tree_ast
-from semantix.utils import ast
+from metamagic.caos.tree import ast as tree_ast
+from metamagic.utils import ast
 
 
 class RootNode(ast.AST): __fields = ['children']

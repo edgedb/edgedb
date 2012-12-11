@@ -13,11 +13,11 @@ import pyggy
 import os
 
 from .. import ast as jsast
-from semantix.utils.lang.preprocessor import ast as ppast
+from metamagic.utils.lang.preprocessor import ast as ppast
 from . import keywords
 
-from semantix.exceptions import SemantixError, _add_context
-from semantix.utils import markup
+from metamagic.exceptions import MetamagicError, _add_context
+from metamagic.utils import markup
 
 
 class ExceptionContext(markup.MarkupExceptionContext):
@@ -51,11 +51,11 @@ class ExceptionContext(markup.MarkupExceptionContext):
 # Various errors
 #
 
-class ParseError(SemantixError):
+class ParseError(MetamagicError):
     pass
 
 
-class SyntaxError(SemantixError):
+class SyntaxError(MetamagicError):
     def __init__(self, msg, line, col):
         super().__init__("Syntax error: %s" % msg)
         self.line = line

@@ -9,8 +9,8 @@
 import sys
 
 import py
-from semantix.utils import shell, term
-from semantix.utils.test import Exceptions as ExceptionConfig
+from metamagic.utils import shell, term
+from metamagic.utils.test import Exceptions as ExceptionConfig
 
 
 class TestCommand(shell.Command, name='test', expose=True):
@@ -47,7 +47,7 @@ class TestCommand(shell.Command, name='test', expose=True):
 
         test_args = []
 
-        plugins = ['-p', 'semantix.utils.test.pytest_semantix']
+        plugins = ['-p', 'metamagic.utils.test.pytest_metamagic']
         test_args.extend(plugins)
 
         test_args.append('-s')
@@ -59,7 +59,7 @@ class TestCommand(shell.Command, name='test', expose=True):
             test_args.append('--pdb')
 
         if args.debug:
-            test_args.extend('--semantix-debug=%s' % d for d in args.debug)
+            test_args.extend('--metamagic-debug=%s' % d for d in args.debug)
             test_args.append('--capture=no')
 
         if args.tests:

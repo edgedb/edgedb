@@ -7,7 +7,7 @@
 
 
 from xml.sax.saxutils import escape
-from semantix.utils.xml.types import Doctype
+from metamagic.utils.xml.types import Doctype
 
 
 class Composer:

@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.exceptions import SemantixError
+from metamagic.exceptions import MetamagicError
 
 
-class CacheError(SemantixError):
+class CacheError(MetamagicError):
     pass

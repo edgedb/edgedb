@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.caos import proto, delta
+from metamagic.caos import proto, delta
 
 
 class MetaDeltaRepository:

@@ -9,14 +9,14 @@
 import itertools
 import weakref
 
-from semantix.exceptions import SemantixError
-from semantix.utils import ast
-from semantix.caos import name as caos_name
-from semantix.caos import types as caos_types
-from semantix.utils.datastructures import StrSingleton, typed
+from metamagic.exceptions import MetamagicError
+from metamagic.utils import ast
+from metamagic.caos import name as caos_name
+from metamagic.caos import types as caos_types
+from metamagic.utils.datastructures import StrSingleton, typed
 
 
-class ASTError(SemantixError):
+class ASTError(MetamagicError):
     pass
 
 

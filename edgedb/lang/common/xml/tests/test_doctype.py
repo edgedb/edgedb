@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.xml.types import Doctype
+from metamagic.utils.xml.types import Doctype
 
 
 class TestXMLDoctype:

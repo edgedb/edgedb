@@ -7,8 +7,8 @@
 
 
 import time
-from semantix.utils.datastructures.expiringdict import ExpiringDict
-from semantix.utils.debug import assert_raises
+from metamagic.utils.datastructures.expiringdict import ExpiringDict
+from metamagic.utils.debug import assert_raises
 
 class TestUtilsDSExpiringDict:
     def test_utils_ds_expiringdict_1(self):

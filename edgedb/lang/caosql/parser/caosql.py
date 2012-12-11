@@ -8,14 +8,14 @@
 
 import sys
 
-from semantix.utils import ast
-from semantix.utils import parsing
+from metamagic.utils import ast
+from metamagic.utils import parsing
 
 from . import keywords
 from .errors import CaosQLSyntaxError
-from semantix.caos.caosql import ast as qlast, CaosQLQueryError
-from semantix.caos.tree import ast as caos_ast
-from semantix.caos import types as caos_types
+from metamagic.caos.caosql import ast as qlast, CaosQLQueryError
+from metamagic.caos.tree import ast as caos_ast
+from metamagic.caos import types as caos_types
 
 
 ##################

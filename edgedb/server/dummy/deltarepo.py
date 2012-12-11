@@ -6,10 +6,10 @@
 ##
 
 
-from semantix.caos.backends import deltarepo
-from semantix.utils.datastructures import OrderedIndex
+from metamagic.caos.backends import deltarepo
+from metamagic.utils.datastructures import OrderedIndex
 
-from semantix.caos import delta as delta_cmds
+from metamagic.caos import delta as delta_cmds
 
 
 class MetaDeltaRepository(deltarepo.MetaDeltaRepository):

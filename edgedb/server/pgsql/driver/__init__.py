@@ -20,17 +20,17 @@ from postgresql.types.io import lib as pg_types_io_lib
 from postgresql.string import quote_ident
 from postgresql.protocol import element3 as element
 
-from semantix.caos.objects import numeric, string
-from semantix.caos.backends import pool as caos_pool
-from semantix.caos import CaosError
-from semantix.utils import datetime as sx_datetime
-from semantix.utils.datastructures import Void, xvalue
+from metamagic.caos.objects import numeric, string
+from metamagic.caos.backends import pool as caos_pool
+from metamagic.caos import CaosError
+from metamagic.utils import datetime as sx_datetime
+from metamagic.utils.datastructures import Void, xvalue
 
-from semantix.caos.backends.pgsql.driver import io as pg_types_io
+from metamagic.caos.backends.pgsql.driver import io as pg_types_io
 
 _GREEN_SOCKET = False
 try:
-    from semantix.spin.green import socket as green_socket
+    from metamagic.spin.green import socket as green_socket
     _GREEN_SOCKET = True
 except ImportError:
     pass
@@ -180,7 +180,7 @@ class TypeIO(pq3.TypeIO):
                     assert data['value'] is not None
                     data = xvalue(data['value'], **data['attrs'])
 
-                elif record_info.proto_class == 'semantix.caos.proto.Concept':
+                elif record_info.proto_class == 'metamagic.caos.proto.Concept':
                     data = session.backend.entity_from_row(session, record_info, data)
 
             return data

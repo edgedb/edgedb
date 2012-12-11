@@ -82,14 +82,14 @@ class Renderer:
 
     @classmethod
     def _init(cls):
-        from semantix.utils.lang import javascript
+        from metamagic.utils.lang import javascript
         with open(os.path.join(os.path.dirname(javascript.__file__), 'sx.js')) as f:
             scripts = f.read()
 
         with open(os.path.join(os.path.dirname(__file__), 'render.js')) as f:
             scripts += ';\n' + f.read()
 
-        import semantix.rendering.css
+        import metamagic.rendering.css
         from . import styles
         rendered_styles = styles.__sx_resource_get_source__().decode('utf-8')
 

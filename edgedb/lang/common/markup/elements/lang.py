@@ -8,8 +8,8 @@
 
 import linecache
 
-from semantix.utils.datastructures import Field
-from semantix.utils.datastructures import typed
+from metamagic.utils.datastructures import Field
+from metamagic.utils.datastructures import typed
 from . import base
 
 

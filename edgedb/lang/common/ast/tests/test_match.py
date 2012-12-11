@@ -7,7 +7,7 @@
 
 
 import ast
-from semantix.utils.ast import match
+from metamagic.utils.ast import match
 
 from . import ast as tast
 from . import astmatch as tastmatch

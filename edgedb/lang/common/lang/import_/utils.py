@@ -13,7 +13,7 @@ import sys
 import types
 
 
-from semantix.utils.algos import topological
+from metamagic.utils.algos import topological
 
 from .context import ImportContext
 from . import cache as caches

@@ -40,7 +40,7 @@ static PyMethodDef EncodeMethods[] = {
 
 PyDoc_STRVAR(encoder_doc, "A C implementation of a JSON encoder for Python objects.\n\
 \n\
-Completely eqivalent to the semantix.utils.json.encoder.Encoder class:\n\
+Completely eqivalent to the metamagic.utils.json.encoder.Encoder class:\n\
  - has equivalent dumps(), dumpb() and default() methods\n\
  - natively supports the same set of Python objects (str, int, float, True, \
    False, None, list, tuple, dict, set, frozenset, collections.OrderedDict, \
@@ -474,7 +474,7 @@ static void _encode (PyObject * obj, EncodedData * encodedData)
  * By JSON specification only strings can be keys, thus only strings are encoded and
  * a TypeError is raised for all other object types; an exception is made for UUID
  * objects since they are also encoded to strings and UUIDs are a common dictionary
- * key in the semantix framework.
+ * key in the metamagic framework.
  *
  * The order in which different checks/encoders are applied is the same as in the
  * encode() method; __sx_serialize__() is also supported and is supposed to return

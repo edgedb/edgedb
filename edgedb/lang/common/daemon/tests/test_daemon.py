@@ -12,8 +12,8 @@ import multiprocessing
 import contextlib
 import signal
 
-from semantix.utils import daemon, debug
-from semantix.utils.daemon import lib as daemon_lib
+from metamagic.utils import daemon, debug
+from metamagic.utils.daemon import lib as daemon_lib
 from . import base
 
 

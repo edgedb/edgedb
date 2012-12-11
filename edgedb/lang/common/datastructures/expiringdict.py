@@ -10,7 +10,7 @@ import collections
 import heapq
 from datetime import timedelta, datetime
 
-from semantix.utils.datastructures.all import Void
+from metamagic.utils.datastructures.all import Void
 
 
 MAX_CONTROL_ID = 2**64 - 1

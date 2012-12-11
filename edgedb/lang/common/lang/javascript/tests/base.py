@@ -12,11 +12,11 @@ import tempfile
 import py.test
 import importlib
 
-from semantix.utils.datastructures import OrderedSet
-from semantix.utils import debug, functional, config, markup, resource, json
-import semantix.utils.lang.javascript.parser.jsparser as jsp
-from semantix.utils.lang.javascript.codegen import JavascriptSourceGenerator
-from semantix.utils.lang.javascript import Loader as JSLoader, BaseJavaScriptModule, \
+from metamagic.utils.datastructures import OrderedSet
+from metamagic.utils import debug, functional, config, markup, resource, json
+import metamagic.utils.lang.javascript.parser.jsparser as jsp
+from metamagic.utils.lang.javascript.codegen import JavascriptSourceGenerator
+from metamagic.utils.lang.javascript import Loader as JSLoader, BaseJavaScriptModule, \
                                            Language as JSLanguage, JavaScriptModule, \
                                            VirtualJavaScriptResource
 
@@ -49,8 +49,8 @@ class BaseJSFunctionalTestMeta(type, metaclass=config.ConfigurableMeta):
     def __new__(mcls, name, bases, dct):
         if mcls.v8_found is None:
             result = subprocess.getoutput('{} {}'.format(mcls.v8_executable,
-                                                         """-e 'print("semantix")'"""))
-            mcls.v8_found = result == 'semantix'
+                                                         """-e 'print("metamagic")'"""))
+            mcls.v8_found = result == 'metamagic'
             mcls.skipif = not mcls.v8_found
 
         return super().__new__(mcls, name, bases, dct)
@@ -65,7 +65,7 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
             print(JSON.stringify(obj, null, '  '));
         }
 
-        // %from semantix.utils.lang.javascript.tests import assert
+        // %from metamagic.utils.lang.javascript.tests import assert
     '''
 
     TEST_TPL_END = '''

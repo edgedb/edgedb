@@ -10,8 +10,8 @@ import _thread
 import threading
 
 from .tree import *
-from semantix.utils.functional import decorate
-from semantix.utils import slots
+from metamagic.utils.functional import decorate
+from metamagic.utils import slots
 
 
 __all__ = 'inline',

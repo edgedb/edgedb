@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils.datastructures import Multidict, CombinedMultidict
-from semantix.utils.debug import assert_raises
+from metamagic.utils.datastructures import Multidict, CombinedMultidict
+from metamagic.utils.debug import assert_raises
 
 
 class TestDatastructMultidict:

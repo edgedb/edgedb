@@ -8,7 +8,7 @@
 
 import collections
 
-from semantix.caos import types as caos_types
+from metamagic.caos import types as caos_types
 
 
 class Query:

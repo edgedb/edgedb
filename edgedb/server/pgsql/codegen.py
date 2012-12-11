@@ -9,12 +9,12 @@
 import numbers
 import postgresql.string
 
-from semantix import exceptions as sx_errors
-from semantix.caos.backends.pgsql import common
-from semantix.caos.backends.pgsql import ast as pgast
-from semantix.utils.ast import codegen
-from semantix.utils.datastructures import xvalue
-from semantix.utils import markup
+from metamagic import exceptions as sx_errors
+from metamagic.caos.backends.pgsql import common
+from metamagic.caos.backends.pgsql import ast as pgast
+from metamagic.utils.ast import codegen
+from metamagic.utils.datastructures import xvalue
+from metamagic.utils import markup
 
 
 class SQLSourceGeneratorContext(markup.MarkupExceptionContext):
@@ -37,7 +37,7 @@ class SQLSourceGeneratorContext(markup.MarkupExceptionContext):
         return me.lang.ExceptionContext(title=self.title, body=body)
 
 
-class SQLSourceGeneratorError(sx_errors.SemantixError):
+class SQLSourceGeneratorError(sx_errors.MetamagicError):
     def __init__(self, msg, *, node=None, details=None, hint=None):
         super().__init__(msg, details=details, hint=hint)
         if node is not None:

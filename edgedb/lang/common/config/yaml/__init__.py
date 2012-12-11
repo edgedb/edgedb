@@ -8,9 +8,9 @@
 
 import os
 
-from semantix.utils.lang import yaml
-from semantix.utils.lang import context as lang_context
-from semantix.utils.slots import SlotsMeta
+from metamagic.utils.lang import yaml
+from metamagic.utils.lang import context as lang_context
+from metamagic.utils.slots import SlotsMeta
 
 from ..base import ConfigRootNode
 from .schema import Schema # <- this must be imported in this module.

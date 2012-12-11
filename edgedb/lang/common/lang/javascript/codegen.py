@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils.lang.javascript import ast as jsast
-from semantix.utils.lang.preprocessor import codegen
+from metamagic.utils.lang.javascript import ast as jsast
+from metamagic.utils.lang.preprocessor import codegen
 
 
 def string_escape(string):

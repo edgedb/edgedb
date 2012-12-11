@@ -8,8 +8,8 @@
 
 import pickle
 
-from semantix.utils.datastructures.struct import Struct, MixedStruct, Field
-from semantix.utils.debug import assert_raises
+from metamagic.utils.datastructures.struct import Struct, MixedStruct, Field
+from metamagic.utils.debug import assert_raises
 
 
 class PickleTest(Struct):

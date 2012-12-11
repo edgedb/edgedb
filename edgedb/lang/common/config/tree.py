@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.slots import SlotsMeta
+from metamagic.utils.slots import SlotsMeta
 
 
 __all__ = 'TreeValue', 'TreeNode', 'TreeRootNode'

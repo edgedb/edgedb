@@ -9,8 +9,8 @@
 import py
 import re
 
-from semantix.utils.debug import highlight
-from semantix.utils import markup
+from metamagic.utils.debug import highlight
+from metamagic.utils import markup
 
 
 def format_code_context(lines, lineno, window_size=4, colorize=False):
@@ -106,7 +106,7 @@ class ReprExceptionInfo(BaseReprExceptionInfo):
     def toterminal(self, tw):
         super().toterminal(tw)
 
-        tw.sep("'", 'Semantix Exception Logger')
+        tw.sep("'", 'Metamagic Exception Logger')
 
         if hasattr(tw._file, 'fileno'):
             markup.dump(self._sx_ex, file=tw._file)
@@ -177,7 +177,7 @@ class PyTestPatcher:
 
 
 def pytest_addoption(parser):
-    parser.addoption("--semantix-debug", dest="semantix_debug", action="append")
+    parser.addoption("--metamagic-debug", dest="metamagic_debug", action="append")
     parser.addoption("--tests", dest="test_patterns", action="append")
     parser.addoption("--skip-tests", dest="test_skipped_patterns", action="append")
     parser.addoption("--shell", dest="shell_on_ex", action="store_true", default=False)
@@ -188,7 +188,7 @@ def pytest_addoption(parser):
 
 
 def pytest_configure(config):
-    global test_patterns, test_skipped_patterns, semantix_debug, traceback_style
+    global test_patterns, test_skipped_patterns, metamagic_debug, traceback_style
 
     if config.option.shell_on_ex:
         config.pluginmanager.register(ShellInvoker(), 'shell')
@@ -213,16 +213,16 @@ def pytest_configure(config):
     if tbs:
         traceback_style = tbs
 
-    sd = config.getvalue('semantix_debug')
+    sd = config.getvalue('metamagic_debug')
     if sd:
         debug = []
 
         for d in sd:
             debug.extend(d.split(","))
 
-        import semantix.utils.debug
-        semantix.utils.debug.enabled = True
-        semantix.utils.debug.channels.update(debug)
+        import metamagic.utils.debug
+        metamagic.utils.debug.enabled = True
+        metamagic.utils.debug.channels.update(debug)
 
 
 def pytest_unconfigure(config):

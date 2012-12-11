@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils.debug import assert_raises
-from semantix.utils.nlang.morphology import Singular, Plural, WordCombination
+from metamagic.utils.debug import assert_raises
+from metamagic.utils.nlang.morphology import Singular, Plural, WordCombination
 
 
 class TestNLangMorphology(object):

@@ -12,7 +12,7 @@ from .base import JSFunctionalTest
 class TestJSClass(JSFunctionalTest):
     def test_utils_lang_js_sx_class_1(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var Foo = sx.define('test.Foo', [], {
             foo: function() { return 1; }
@@ -42,7 +42,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_2(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var A = sx.define('A', [], {
             a: function() { return 1; }
@@ -74,7 +74,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_3(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var F = sx.define('F');
         var E = sx.define('E');
@@ -100,7 +100,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_4(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var A = sx.define('A');
         var B = sx.define('B');
@@ -117,7 +117,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_call_parent_1(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var A = sx.define('A', [], {
             construct: function() {
@@ -236,7 +236,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_call_parent_2(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var chk = [];
 
@@ -265,7 +265,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_no_new(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var Test = sx.define('Test', [], {
             construct: function(v, w) {
@@ -293,7 +293,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_metaclass_1(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var MA = sx.define('MA', [sx.Type], {
             statics: {
@@ -320,7 +320,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_metaclass_2(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var MA = sx.define('MA', [sx.Type]);
 
@@ -339,7 +339,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_metaclass_3(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var MA = sx.define('MA', [sx.Type], {
             statics: {
@@ -390,7 +390,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_metaclsss_4(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var MA = sx.define('MA', [sx.Type]);
         var A = sx.define('A', [], {
@@ -437,7 +437,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_metaclass_5(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var MA = sx.define('MA', [sx.Type], {
             construct: function(name, bases, dct) {
@@ -489,7 +489,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_metaclass_6(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var Base = sx.define('Base', [], {
             foo: function() {
@@ -525,7 +525,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_metaclass_7(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var MA = sx.define('MA', [sx.Type], {
             bar: 42,
@@ -584,7 +584,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_metaclass_8(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var chk = [];
 
@@ -623,7 +623,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_metaclass_9(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var chk = [];
 
@@ -667,7 +667,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_statics_1(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var A = sx.define('A', [], {
             statics: {
@@ -700,7 +700,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_natives(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var A = sx.define('A', [], {
             date: Date,
@@ -716,7 +716,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_obj_in_obj(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var chk = [];
 
@@ -758,7 +758,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_instanceof_sim(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         assert.ok(sx.isinstance([], Array));
         assert.ok(sx.isinstance(new String('spam'), String));
@@ -783,7 +783,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_null_constructor_arg(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         var Foo = sx.define('Foo', [], {
             construct: function(a) {
@@ -806,7 +806,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_ns(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         sx.define('com.acme.Foo', [], {
             foo: function() {return 10}
@@ -829,7 +829,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_to_string(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         sx.define('com.acme.Bar');
         assert.equal(com.acme.Bar() + '', '<instance of com.acme.Bar>');
@@ -840,7 +840,7 @@ class TestJSClass(JSFunctionalTest):
 
     def test_utils_lang_js_sx_class_statics_scope(self):
         '''JS
-        // %from semantix.utils.lang.javascript import class
+        // %from metamagic.utils.lang.javascript import class
 
         sx.define('com.acme.Bar', [], {
             statics: {

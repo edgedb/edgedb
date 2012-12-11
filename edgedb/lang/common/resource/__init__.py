@@ -15,17 +15,17 @@ import os
 import shutil
 import collections
 
-from semantix.exceptions import SemantixError
-from semantix.utils import config
-from semantix.utils.datastructures import OrderedSet
-from semantix.utils.debug import timeit
+from metamagic.exceptions import MetamagicError
+from metamagic.utils import config
+from metamagic.utils.datastructures import OrderedSet
+from metamagic.utils.debug import timeit
 
 
-class ResourceError(SemantixError):
+class ResourceError(MetamagicError):
     """Any error occurred during resource creation or manipulation"""
 
 
-class ResourcePublisherError(SemantixError):
+class ResourcePublisherError(MetamagicError):
     """An error occurred during resource publishing"""
 
 

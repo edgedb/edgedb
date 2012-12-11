@@ -8,7 +8,7 @@
 
 import logging
 
-from semantix.utils.debug import assert_raises, ErrorExpected, assert_logs, \
+from metamagic.utils.debug import assert_raises, ErrorExpected, assert_logs, \
                                  assert_shorter_than, assert_longer_than
 
 
@@ -121,7 +121,7 @@ class TestAssertRaises:
 
 
     def test_utils_debug_assert_logs(self):
-        logger = logging.getLogger('semantix.tests.debug')
+        logger = logging.getLogger('metamagic.tests.debug')
 
         with assert_raises(AssertionError,
                            error_re="no expected message matching 'spam' was logged"):
@@ -142,7 +142,7 @@ class TestAssertRaises:
         with assert_logs('spam'):
             logger.debug('spam')
 
-        with assert_logs('spam', logger_re='semantix.tests.debug'):
+        with assert_logs('spam', logger_re='metamagic.tests.debug'):
             logger.debug('spam')
 
     def test_utils_debug_assert_shorter_than(self):

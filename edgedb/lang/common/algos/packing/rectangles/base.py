@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.functional import cachedproperty, checktypes
+from metamagic.utils.functional import cachedproperty, checktypes
 
 
 __all__ = ['Point', 'Rectangle']

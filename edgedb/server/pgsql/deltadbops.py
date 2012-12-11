@@ -15,15 +15,15 @@ import postgresql.installation
 from postgresql.string import quote_literal as pg_ql
 from postgresql.string import quote_ident_if_needed as pg_quote_if_needed
 
-from semantix import caos
-from semantix.caos import proto
-from semantix.caos import delta as delta_cmds
+from metamagic import caos
+from metamagic.caos import proto
+from metamagic.caos import delta as delta_cmds
 
-from semantix.utils import datastructures
-from semantix.utils import functional
+from metamagic.utils import datastructures
+from metamagic.utils import functional
 
-from semantix.caos.backends.pgsql import common, Config
-from semantix.caos.backends.pgsql import dbops
+from metamagic.caos.backends.pgsql import common, Config
+from metamagic.caos.backends.pgsql import dbops
 
 
 class SchemaDBObjectMeta(functional.Adapter, type(proto.Prototype)):
@@ -553,8 +553,8 @@ class EntityModStatType(dbops.CompositeType):
         super().__init__(name=('caos', 'entity_modstat_rec_t'))
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='semantix.caos.builtins.id', type='uuid'),
-            dbops.Column(name='semantix.caos.builtins.mtime', type='timestamptz'),
+            dbops.Column(name='metamagic.caos.builtins.id', type='uuid'),
+            dbops.Column(name='metamagic.caos.builtins.mtime', type='timestamptz'),
         ])
 
         self._columns = self.columns()

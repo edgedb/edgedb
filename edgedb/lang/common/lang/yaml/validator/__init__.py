@@ -6,5 +6,5 @@
 ##
 
 
-from semantix.bootstrap.yaml.validator.error import SchemaError, SchemaValidationError
+from metamagic.bootstrap.yaml.validator.error import SchemaError, SchemaValidationError
 from .schema import Schema

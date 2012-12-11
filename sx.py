@@ -15,11 +15,11 @@ sys.path.insert(0, os.path.dirname(__file__))
 
 os.environ['SEMANTIX_AUTO_BOOTSTRAP'] = 'no'
 
-import semantix.bootstrap
+import metamagic.bootstrap
 
 imports = {
-    'required': ['semantix.shell']
+    'required': ['metamagic.shell']
 }
 
 if __name__ == '__main__':
-    sys.exit(semantix.bootstrap.run(sys.argv, imports))
+    sys.exit(metamagic.bootstrap.run(sys.argv, imports))

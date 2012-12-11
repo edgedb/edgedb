@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils.debug import assert_raises
-from semantix.utils.term import Style16, Style256
+from metamagic.utils.debug import assert_raises
+from metamagic.utils.term import Style16, Style256
 
 
 class TestUtilsIOTermStyle:

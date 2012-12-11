@@ -32,7 +32,7 @@ class TestJSsxCrypt(JSFunctionalTest):
     def test_utils_lang_js_sx_crypt_1(self):
         pass
     test_utils_lang_js_sx_crypt_1.__doc__ = '''JS
-    // %from semantix.utils.lang.javascript import crypt
+    // %from metamagic.utils.lang.javascript import crypt
 
     var hashes = ''' + hashes + ''';
 

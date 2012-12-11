@@ -12,8 +12,8 @@ import importlib
 import marshal
 import os
 
-from semantix.utils.lang.import_ import loader
-from semantix.utils.lang.import_ import module as module_types
+from metamagic.utils.lang.import_ import loader
+from metamagic.utils.lang.import_ import module as module_types
 
 from .context import DocumentContext
 

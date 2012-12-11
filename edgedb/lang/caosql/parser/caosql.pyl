@@ -7,9 +7,9 @@
 
 
 code:
-    from semantix.caos.caosql.parser.errors import CaosQLSyntaxError
-    from semantix.caos.caosql.parser.keywords import caosql_keywords
-    from semantix.caos.caosql import ast as qlast
+    from metamagic.caos.caosql.parser.errors import CaosQLSyntaxError
+    from metamagic.caos.caosql.parser.keywords import caosql_keywords
+    from metamagic.caos.caosql import ast as qlast
 
 definitions:
     space               "[ \t\n\r]"

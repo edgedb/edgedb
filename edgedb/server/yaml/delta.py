@@ -6,13 +6,13 @@
 ##
 
 
-from semantix import caos
-from semantix.caos import delta, proto
-from semantix.utils import datastructures
-from semantix.utils.datastructures import typed
-from semantix.utils.lang import yaml
-from semantix.utils.lang.import_ import get_object
-from semantix.utils.lang.yaml.struct import MixedStructMeta
+from metamagic import caos
+from metamagic.caos import delta, proto
+from metamagic.utils import datastructures
+from metamagic.utils.datastructures import typed
+from metamagic.utils.lang import yaml
+from metamagic.utils.lang.import_ import get_object
+from metamagic.utils.lang.yaml.struct import MixedStructMeta
 
 
 class DeltaMeta(type(yaml.Object), delta.DeltaMeta, MixedStructMeta):

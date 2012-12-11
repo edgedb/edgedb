@@ -7,15 +7,15 @@
 
 
 """Contains definitions and specifications of CPython VM opcodes.
-Used by :py:class:`semantix.utils.lang.python.code.Code` to enable
+Used by :py:class:`metamagic.utils.lang.python.code.Code` to enable
 python code object augmentation."""
 
 
 import sys
 import opcode as _opcode
 
-from semantix.utils import slots
-from semantix.utils.datastructures.all import Void as _no_arg
+from metamagic.utils import slots
+from metamagic.utils.datastructures.all import Void as _no_arg
 
 
 OPMAP       = {}

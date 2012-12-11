@@ -11,20 +11,20 @@ import itertools
 import postgresql.string
 import re
 
-from semantix import caos
-from semantix.caos import proto
-from semantix.caos import delta as delta_cmds
-from semantix.caos.caosql import expr as caosql_expr
-from semantix.caos import objects as caos_objects
+from metamagic import caos
+from metamagic.caos import proto
+from metamagic.caos import delta as delta_cmds
+from metamagic.caos.caosql import expr as caosql_expr
+from metamagic.caos import objects as caos_objects
 
-from semantix.utils import datastructures
-from semantix.utils.debug import debug
-from semantix.utils.lang import yaml
-from semantix.utils.algos.persistent_hash import persistent_hash
-from semantix.utils import markup
+from metamagic.utils import datastructures
+from metamagic.utils.debug import debug
+from metamagic.utils.lang import yaml
+from metamagic.utils.algos.persistent_hash import persistent_hash
+from metamagic.utils import markup
 
-from semantix.caos.backends.pgsql import common
-from semantix.caos.backends.pgsql import dbops, deltadbops, features
+from metamagic.caos.backends.pgsql import common
+from metamagic.caos.backends.pgsql import dbops, deltadbops, features
 from . import ast as pg_ast
 from . import codegen
 from . import datasources
@@ -1029,7 +1029,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                     oldcol = dbops.Column(name=old_ptr_stor_info.column_name,
                                           type=old_ptr_stor_info.column_type)
 
-                    if oldcol.name != 'semantix.caos.builtins.target':
+                    if oldcol.name != 'metamagic.caos.builtins.target':
                         pat.add_command(dbops.AlterTableDropColumn(oldcol))
 
                     # Moved from link to concept
@@ -1248,12 +1248,12 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
 
         cid_col = dbops.Column(name='concept_id', type='integer', required=True)
 
-        if concept.name == 'semantix.caos.builtins.BaseObject' or concept.is_virtual:
+        if concept.name == 'metamagic.caos.builtins.BaseObject' or concept.is_virtual:
             alter_table.add_operation(dbops.AlterTableAddColumn(cid_col))
 
         if not concept.is_virtual:
             constraint = dbops.PrimaryKey(table_name=alter_table.name,
-                                          columns=['semantix.caos.builtins.id'])
+                                          columns=['metamagic.caos.builtins.id'])
             alter_table.add_operation(dbops.AlterTableAddConstraint(constraint))
 
         bases = (common.concept_name_to_table_name(caos.Name(p), catenate=False)
@@ -1693,7 +1693,7 @@ class PointerMetaCommand(MetaCommand):
         if isinstance(link, caos.types.ProtoComputable):
             return False
         elif link.generic():
-            if link.name == 'semantix.caos.builtins.link':
+            if link.name == 'metamagic.caos.builtins.link':
                 return True
             elif link.has_user_defined_properties():
                 return True
@@ -1724,14 +1724,14 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         constraints = []
         columns = []
 
-        src_col = common.caos_name_to_pg_name('semantix.caos.builtins.source')
-        tgt_col = common.caos_name_to_pg_name('semantix.caos.builtins.target')
+        src_col = common.caos_name_to_pg_name('metamagic.caos.builtins.source')
+        tgt_col = common.caos_name_to_pg_name('metamagic.caos.builtins.target')
 
-        if link.name == 'semantix.caos.builtins.link':
+        if link.name == 'metamagic.caos.builtins.link':
             columns.append(dbops.Column(name=src_col, type='uuid', required=True,
-                                        comment='semantix.caos.builtins.source'))
+                                        comment='metamagic.caos.builtins.source'))
             columns.append(dbops.Column(name=tgt_col, type='uuid', required=False,
-                                        comment='semantix.caos.builtins.target'))
+                                        comment='metamagic.caos.builtins.target'))
             columns.append(dbops.Column(name='link_type_id', type='integer', required=True))
 
         constraints.append(dbops.UniqueConstraint(table_name=new_table_name,
@@ -2137,7 +2137,7 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
 
         if link and (link.proto.generic() or \
                         (property.normal_name() in
-                         {'semantix.caos.builtins.source', 'semantix.caos.builtins.target'}
+                         {'metamagic.caos.builtins.source', 'metamagic.caos.builtins.target'}
                          and self.has_table(generic_link, meta))):
 
             link.op.provide_table(link.proto, meta, context)
@@ -2217,7 +2217,7 @@ class AlterLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.AlterLinkProp
             new_type = None
             for op in self(delta_cmds.AlterPrototypeProperty):
                 if op.property == 'target' and prop.normal_name() not in \
-                                {'semantix.caos.builtins.source', 'semantix.caos.builtins.target'}:
+                                {'metamagic.caos.builtins.source', 'metamagic.caos.builtins.target'}:
                     new_type = op.new_value.prototype_name if op.new_value is not None else None
                     old_type = op.old_value.prototype_name if op.old_value is not None else None
                     break
@@ -2397,17 +2397,17 @@ class CreateMappingIndexes(MetaCommand):
         if mapping == caos.types.OneToOne:
             # Each source can have only one target and
             # each target can have only one source
-            sides = ('semantix.caos.builtins.source', 'semantix.caos.builtins.target')
+            sides = ('metamagic.caos.builtins.source', 'metamagic.caos.builtins.target')
 
         elif mapping == caos.types.OneToMany:
             # Each target can have only one source, but
             # one source can have many targets
-            sides = ('semantix.caos.builtins.target',)
+            sides = ('metamagic.caos.builtins.target',)
 
         elif mapping == caos.types.ManyToOne:
             # Each source can have only one target, but
             # one target can have many sources
-            sides = ('semantix.caos.builtins.source',)
+            sides = ('metamagic.caos.builtins.source',)
 
         else:
             sides = ()
@@ -2917,7 +2917,7 @@ class UpgradeBackend(MetaCommand):
 
         op.add_command(cmd)
 
-        from semantix.utils.lang import protoschema
+        from metamagic.utils.lang import protoschema
         schema = protoschema.get_loaded_proto_schema(proto.SchemaModule)
 
         modtab = deltadbops.ModuleTable()
@@ -3019,10 +3019,10 @@ class UpgradeBackend(MetaCommand):
 
         for feature in features:
             clsname = feature['class_name']
-            oldmod = 'semantix.caos.backends.pgsql.delta.'
+            oldmod = 'metamagic.caos.backends.pgsql.delta.'
             if clsname.startswith(oldmod):
                 rec = table.record()
-                rec.class_name = 'semantix.caos.backends.pgsql.features.' + clsname[len(oldmod):]
+                rec.class_name = 'metamagic.caos.backends.pgsql.features.' + clsname[len(oldmod):]
                 cond = [('name', feature['name'])]
                 ops.add_command(dbops.Update(table=table, record=rec, condition=cond))
 
@@ -3033,10 +3033,10 @@ class UpgradeBackend(MetaCommand):
         Backend format 7 renames source_id and target_id in link tables into link property cols.
         """
 
-        tabname = common.link_name_to_table_name(caos.Name('semantix.caos.builtins.link'),
+        tabname = common.link_name_to_table_name(caos.Name('metamagic.caos.builtins.link'),
                                                  catenate=False)
-        src_col = common.caos_name_to_pg_name('semantix.caos.builtins.source')
-        tgt_col = common.caos_name_to_pg_name('semantix.caos.builtins.target')
+        src_col = common.caos_name_to_pg_name('metamagic.caos.builtins.source')
+        tgt_col = common.caos_name_to_pg_name('metamagic.caos.builtins.target')
 
         cond = dbops.ColumnExists(table_name=tabname, column_name=src_col)
         cmd = dbops.CommandGroup(neg_conditions=[cond])
@@ -3095,8 +3095,8 @@ class UpgradeBackend(MetaCommand):
 
         link_props_by_link = {}
         for prop in link_props:
-            if not prop['source_id'] or prop['name'] in {'semantix.caos.builtins.source',
-                                                         'semantix.caos.builtins.target'}:
+            if not prop['source_id'] or prop['name'] in {'metamagic.caos.builtins.source',
+                                                         'metamagic.caos.builtins.target'}:
                 continue
 
             try:
@@ -3219,13 +3219,13 @@ class UpgradeBackend(MetaCommand):
                                     required=c['column_required'], default=c['column_default'])
                        for c in columns.values()]
 
-            src_col = common.caos_name_to_pg_name('semantix.caos.builtins.source')
-            tgt_col = common.caos_name_to_pg_name('semantix.caos.builtins.target')
+            src_col = common.caos_name_to_pg_name('metamagic.caos.builtins.source')
+            tgt_col = common.caos_name_to_pg_name('metamagic.caos.builtins.target')
 
             constraints.append(dbops.UniqueConstraint(table_name=new_table_name,
                                                       columns=[src_col, tgt_col, 'link_type_id']))
 
-            link_col.name = common.caos_name_to_pg_name('semantix.caos.builtins.target@atom')
+            link_col.name = common.caos_name_to_pg_name('metamagic.caos.builtins.target@atom')
             link_col.required = False
             columns.append(link_col)
 
@@ -3251,7 +3251,7 @@ class UpgradeBackend(MetaCommand):
 
             qtext = '''
                 SELECT {cols} FROM {table} WHERE link_type_id = {link_id}
-            '''.format(cols=','.join((common.qname(c.name) if c.name != 'semantix.caos.builtins.target@atom' else 'NULL') for c in table.columns()),
+            '''.format(cols=','.join((common.qname(c.name) if c.name != 'metamagic.caos.builtins.target@atom' else 'NULL') for c in table.columns()),
                        table=common.qname(*base_table_name), link_id=link['id'])
             copy = dbops.Insert(table=table, records=dbops.Query(text=qtext))
 
@@ -3334,9 +3334,9 @@ class UpgradeBackend(MetaCommand):
         Backend format 13 adds linkid property to all links.
         """
 
-        ltab = common.link_name_to_table_name(caos.Name('semantix.caos.builtins.link'),
+        ltab = common.link_name_to_table_name(caos.Name('metamagic.caos.builtins.link'),
                                               catenate=False)
-        colname = common.caos_name_to_pg_name(caos.Name('semantix.caos.builtins.linkid'))
+        colname = common.caos_name_to_pg_name(caos.Name('metamagic.caos.builtins.linkid'))
         cond = dbops.ColumnExists(table_name=ltab, column_name=colname)
 
         cmdgroup = dbops.CommandGroup(neg_conditions=(cond,))

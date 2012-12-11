@@ -11,9 +11,9 @@ import os.path
 import time
 import multiprocessing
 
-from semantix.utils.debug import assert_raises
-from semantix.utils.daemon import lib
-from semantix.utils import daemon
+from metamagic.utils.debug import assert_raises
+from metamagic.utils.daemon import lib
+from metamagic.utils import daemon
 
 from . import base
 

@@ -6,7 +6,7 @@
 ##
 
 
-%SCHEMA semantix.caos.datasources.schemas.Sql
+%SCHEMA metamagic.caos.datasources.schemas.Sql
 %NAME CascadeActions
 ---
 params:
@@ -29,7 +29,7 @@ source: |
 ...
 
 
-%SCHEMA semantix.caos.datasources.schemas.Sql
+%SCHEMA metamagic.caos.datasources.schemas.Sql
 %NAME CascadeEvents
 ---
 params:
@@ -63,7 +63,7 @@ source: |
 ...
 
 
-%SCHEMA semantix.caos.datasources.schemas.Sql
+%SCHEMA metamagic.caos.datasources.schemas.Sql
 %NAME CascadePolicies
 ---
 params:

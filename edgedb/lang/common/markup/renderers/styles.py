@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.term import Style16, Style256
+from metamagic.utils.term import Style16, Style256
 
 
 class StylesTable:

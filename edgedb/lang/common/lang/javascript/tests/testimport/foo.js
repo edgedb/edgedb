@@ -1,2 +1,2 @@
 // %from . import bar, inner
-// %import semantix.utils.lang.javascript.tests.testimport.bar, semantix.utils.lang.javascript.tests.testimport.spam
+// %import metamagic.utils.lang.javascript.tests.testimport.bar, metamagic.utils.lang.javascript.tests.testimport.spam

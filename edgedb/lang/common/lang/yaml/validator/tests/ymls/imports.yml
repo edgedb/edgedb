@@ -6,8 +6,8 @@
 ##
 
 
-%SCHEMA semantix.utils.lang.yaml.schema.Schema
-%IMPORT semantix.utils.lang.yaml.validator.tests.ymls.imported AS imported
+%SCHEMA metamagic.utils.lang.yaml.schema.Schema
+%IMPORT metamagic.utils.lang.yaml.validator.tests.ymls.imported AS imported
 %NAME Schema
 ---
 

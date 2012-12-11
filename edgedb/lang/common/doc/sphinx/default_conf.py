@@ -6,7 +6,7 @@
 ##
 
 
-"""Default Sphinx configuration file for semantix projects"""
+"""Default Sphinx configuration file for metamagic projects"""
 
 
 extensions = ['sphinx.ext.autodoc', 'sphinx.ext.todo',

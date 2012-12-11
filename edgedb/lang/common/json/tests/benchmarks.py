@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils.json._encoder import Encoder as CEncoder
-from semantix.utils.json.encoder import Encoder as PyEncoder
+from metamagic.utils.json._encoder import Encoder as CEncoder
+from metamagic.utils.json.encoder import Encoder as PyEncoder
 
 from json import dumps as std_dumps
 import time

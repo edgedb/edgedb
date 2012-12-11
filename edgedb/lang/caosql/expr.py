@@ -6,15 +6,15 @@
 ##
 
 
-from semantix import caos
-from semantix.caos import proto
-from semantix.utils import ast
+from metamagic import caos
+from metamagic.caos import proto
+from metamagic.utils import ast
 from . import ast as caosql_ast, parser, transformer, codegen
-from semantix.caos.tree import ast as caos_ast
-from semantix.caos.tree import transformer as caos_transformer
-from semantix.caos import caosql
+from metamagic.caos.tree import ast as caos_ast
+from metamagic.caos.tree import transformer as caos_transformer
+from metamagic.caos import caosql
 
-from semantix.utils import debug
+from metamagic.utils import debug
 
 from . import errors
 
@@ -73,7 +73,7 @@ class CaosQLExpression:
             aux_arg_types.update(arg_types)
 
         """LOG [caos.query] CaosQL tree:
-        from semantix.utils import markup
+        from metamagic.utils import markup
         markup.dump(caosql_tree)
         """
 
@@ -85,7 +85,7 @@ class CaosQLExpression:
         query_tree = self.transformer.transform(caosql_tree, aux_arg_types,
                                                 module_aliases=self.module_aliases)
         """LOG [caos.query] Caos tree:
-        from semantix.utils import markup
+        from metamagic.utils import markup
         markup.dump(query_tree)
         """
 

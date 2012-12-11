@@ -9,7 +9,7 @@
 """This package provides utilities to allow creation and modification of
 python code objects at the opcode level.
 
-Opcodes are defined in the :py:mod:`semantix.utils.lang.python.code.opcodes` module.
+Opcodes are defined in the :py:mod:`metamagic.utils.lang.python.code.opcodes` module.
 Some information about opcodes themselves can be found in :py:mod:`dis` module
 documentation in the standard library."""
 
@@ -17,7 +17,7 @@ documentation in the standard library."""
 import dis
 import types
 
-from semantix.utils.datastructures import OrderedSet
+from metamagic.utils.datastructures import OrderedSet
 from . import opcodes
 
 

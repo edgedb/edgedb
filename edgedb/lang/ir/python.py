@@ -9,17 +9,17 @@
 import collections
 import numbers
 
-from semantix.caos import types as caos_types
-from semantix.caos.tree.transformer import TreeTransformer
-from semantix.caos.expr.record import QuerySelectorRow
-from semantix.caos.backends import query as backend_query
+from metamagic.caos import types as caos_types
+from metamagic.caos.tree.transformer import TreeTransformer
+from metamagic.caos.expr.record import QuerySelectorRow
+from metamagic.caos.backends import query as backend_query
 
-from semantix.utils import ast
+from metamagic.utils import ast
 
-from semantix.utils.lang.python import ast as py_ast
-from semantix.utils.lang.python import codegen as py_codegen
+from metamagic.utils.lang.python import ast as py_ast
+from metamagic.utils.lang.python import codegen as py_codegen
 
-from semantix.utils import datastructures
+from metamagic.utils import datastructures
 
 from . import ast as caos_ast
 
@@ -67,9 +67,9 @@ class PreparedPythonQuery:
     def __init__(self, query, session):
         self.query = query
 
-        import semantix
-        from semantix import caos
-        self.globals = {'caos': caos, 'semantix': semantix}
+        import metamagic
+        from metamagic import caos
+        self.globals = {'caos': caos, 'metamagic': metamagic}
 
         self.statement = compile(query.text, '<string>', 'eval')
 
@@ -176,7 +176,7 @@ class CaosToPythonTransformer(TreeTransformer):
         elif isinstance(expr, (caos_ast.AtomicRefSimple, caos_ast.LinkPropRefSimple)):
             node = expr.ref
 
-            if expr.name == 'semantix.caos.builtins.target':
+            if expr.name == 'metamagic.caos.builtins.target':
                 path = [node.link_proto.normal_name()]
             else:
                 path = [expr.name]
@@ -195,7 +195,7 @@ class CaosToPythonTransformer(TreeTransformer):
                     node = None
 
             if (isinstance(expr, caos_ast.LinkPropRefSimple)
-                        and expr.name != 'semantix.caos.builtins.target'):
+                        and expr.name != 'metamagic.caos.builtins.target'):
                 # XXX
                 source = expr.ref
 

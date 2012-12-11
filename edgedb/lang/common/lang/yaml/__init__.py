@@ -12,11 +12,11 @@ import itertools
 import os
 import yaml
 
-from semantix.utils.lang import meta, context as lang_context, loader as lang_loader
-from semantix.utils.lang.import_ import utils as import_utils
-from semantix.utils.lang.yaml import loader, dumper
-from semantix.utils.lang.yaml import schema as yaml_schema
-from semantix.utils.functional import Adapter
+from metamagic.utils.lang import meta, context as lang_context, loader as lang_loader
+from metamagic.utils.lang.import_ import utils as import_utils
+from metamagic.utils.lang.yaml import loader, dumper
+from metamagic.utils.lang.yaml import schema as yaml_schema
+from metamagic.utils.functional import Adapter
 
 
 class YAMLCodeObject(lang_loader.LanguageCodeObject):

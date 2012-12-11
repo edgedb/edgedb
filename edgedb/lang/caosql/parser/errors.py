@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.caos.caosql.errors import CaosQLError
+from metamagic.caos.caosql.errors import CaosQLError
 
 
 class CaosQLSyntaxError(CaosQLError):

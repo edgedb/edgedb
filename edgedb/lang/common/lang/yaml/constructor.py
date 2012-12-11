@@ -14,9 +14,9 @@ import copy
 import types
 from string import Template
 
-from semantix.utils.lang import meta as lang_base
-from semantix.utils.lang import context as lang_context
-from semantix.utils.lang.import_ import module as module_types, utils as module_utils
+from metamagic.utils.lang import meta as lang_base
+from metamagic.utils.lang import context as lang_context
+from metamagic.utils.lang.import_ import module as module_types, utils as module_utils
 
 
 class Composer(yaml.composer.Composer):
@@ -181,7 +181,7 @@ class Constructor(yaml.constructor.Constructor):
         if not issubclass(cls, lang_base.Object):
             raise yaml.constructor.ConstructorError(
                     "while constructing a Python object", node.start_mark,
-                    "expected %s to be a subclass of semantix.utils.lang.meta.Object" % classname, node.start_mark)
+                    "expected %s to be a subclass of metamagic.utils.lang.meta.Object" % classname, node.start_mark)
 
         context = self._get_source_context(node, self.document_context)
 
@@ -266,22 +266,22 @@ class Constructor(yaml.constructor.Constructor):
 
 
 Constructor.add_multi_constructor(
-    'tag:semantix.sprymix.com,2009/semantix/class/derive:',
+    'tag:metamagic.sprymix.com,2009/metamagic/class/derive:',
     Constructor.construct_python_class
 )
 
 Constructor.add_multi_constructor(
-    'tag:semantix.sprymix.com,2009/semantix/object/create:',
+    'tag:metamagic.sprymix.com,2009/metamagic/object/create:',
     Constructor.construct_python_object
 )
 
 Constructor.add_constructor(
-    'tag:semantix.sprymix.com,2009/semantix/orderedmap',
+    'tag:metamagic.sprymix.com,2009/metamagic/orderedmap',
     Constructor.construct_ordered_map
 )
 
 Constructor.add_constructor(
-    'tag:semantix.sprymix.com,2009/semantix/mapseq',
+    'tag:metamagic.sprymix.com,2009/metamagic/mapseq',
     Constructor.construct_mapseq
 )
 

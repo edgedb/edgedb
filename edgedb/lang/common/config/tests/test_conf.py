@@ -8,10 +8,10 @@
 
 import os
 
-from semantix.utils.config import ConfigurableMeta, cvalue, inline
-from semantix.utils.config import base as config_base
-from semantix.utils.debug import assert_raises
-from semantix.utils.config.exceptions import ConfigError
+from metamagic.utils.config import ConfigurableMeta, cvalue, inline
+from metamagic.utils.config import base as config_base
+from metamagic.utils.debug import assert_raises
+from metamagic.utils.config.exceptions import ConfigError
 
 
 class TestConfig:
@@ -37,23 +37,23 @@ class TestConfig:
         assert Inh_1.attr == 42
         assert Inh_1().attr == 42
 
-        with inline({'semantix.utils.config.tests.test_conf.Inh_1.attr': 10}):
+        with inline({'metamagic.utils.config.tests.test_conf.Inh_1.attr': 10}):
             assert Inh_1.attr == 10
             assert Inh_1().attr == 10
             assert Inh2.attr == 10
 
-        with inline({'semantix.utils.config.tests.test_conf.Inh_1.attr': 10}):
-            with inline({'semantix.utils.config.tests.test_conf.Inh_11.attr': 11}):
+        with inline({'metamagic.utils.config.tests.test_conf.Inh_1.attr': 10}):
+            with inline({'metamagic.utils.config.tests.test_conf.Inh_11.attr': 11}):
                 assert Inh_1.attr == 10
                 assert Inh_1().attr == 10
                 assert Inh2.attr == 11
 
-        with inline({'semantix.utils.config.tests.test_conf.Inh_1.attr': '10'}):
+        with inline({'metamagic.utils.config.tests.test_conf.Inh_1.attr': '10'}):
             with assert_raises(TypeError, error_re='Invalid value'):
                 Inh_1.attr
 
     def test_utils_config_basic_import(self):
-        from semantix.utils.config.tests.testdata.test1 import config
+        from metamagic.utils.config.tests.testdata.test1 import config
 
         assert isinstance(config, config_base.ConfigRootNode)
         assert config.onemore == 42
@@ -75,8 +75,8 @@ class TestConfig:
 
         assert Foo.bar == 1
 
-        from semantix.utils.config.tests.testdata.test2_1 import config1, config2
-        from semantix.utils.config.tests.testdata.test2_2 import config as config3
+        from metamagic.utils.config.tests.testdata.test2_1 import config1, config2
+        from metamagic.utils.config.tests.testdata.test2_2 import config as config3
 
         with config1:
             assert Foo.bar == 2
@@ -117,7 +117,7 @@ class TestConfig:
         with assert_raises(ValueError):
             NDV1.bar
 
-        with inline({'semantix.utils.config.tests.test_conf.NDV1.bar': '142'}):
+        with inline({'metamagic.utils.config.tests.test_conf.NDV1.bar': '142'}):
             assert NDV1.bar == '142'
 
     def test_utils_config_tpl(self):
@@ -128,7 +128,7 @@ class TestConfig:
             tpl4 = cvalue(type=str)
             tpl5 = cvalue(type=str)
 
-        from semantix.utils.config.tests.testdata.test_tpl import config
+        from metamagic.utils.config.tests.testdata.test_tpl import config
 
         with config:
             assert os.path.abspath(TestTpl.tpl1).endswith('/config/tests')

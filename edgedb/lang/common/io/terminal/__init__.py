@@ -11,16 +11,16 @@ import sys
 import builtins
 
 
-from semantix.exceptions import SemantixError
-from semantix.utils.io.terminal.color import colorize, colorstr, dummycolorstr
-from semantix.utils.datastructures import xvalue
+from metamagic.exceptions import MetamagicError
+from metamagic.utils.io.terminal.color import colorize, colorstr, dummycolorstr
+from metamagic.utils.datastructures import xvalue
 
 
 def isatty(file):
     return os.isatty(file.fileno())
 
 
-class TerminalError(SemantixError):
+class TerminalError(MetamagicError):
     pass
 
 

@@ -6,13 +6,13 @@
 ##
 
 
-from semantix import SemantixError
-from semantix.utils.ast import codegen
+from metamagic import MetamagicError
+from metamagic.utils.ast import codegen
 
 from . import ast as caosql_ast
 
 
-class CaosQLSourceGeneratorError(SemantixError):
+class CaosQLSourceGeneratorError(MetamagicError):
     pass
 
 

@@ -6,9 +6,9 @@
 ##
 
 
-from semantix.caos.backends import deltarepo
+from metamagic.caos.backends import deltarepo
 
-from semantix.caos import delta as base_delta
+from metamagic.caos import delta as base_delta
 
 from . import common
 from . import dbops, deltadbops, delta

@@ -6,7 +6,7 @@
 **/
 
 
-// %import semantix.utils.lang.javascript.sx
+// %import metamagic.utils.lang.javascript.sx
 
 
 sx.Markup = sx.Markup || {};
@@ -705,7 +705,7 @@ sx.Markup.Renderer.prototype = {
         var spec = this._render(this.markup);
 
         try {
-            return {cls: 'semantix-markup', children: spec};
+            return {cls: 'metamagic-markup', children: spec};
         }
         finally {
             this._render_ctx = null;

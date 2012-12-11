@@ -8,10 +8,10 @@
 
 import yaml
 
-from semantix.utils.lang import context as lang_context
-from semantix.utils.lang.yaml import constructor, parser
-from semantix.utils.lang.yaml import exceptions as yaml_errors
-from semantix.utils.lang.yaml import schema as yaml_schema
+from metamagic.utils.lang import context as lang_context
+from metamagic.utils.lang.yaml import constructor, parser
+from metamagic.utils.lang.yaml import exceptions as yaml_errors
+from metamagic.utils.lang.yaml import schema as yaml_schema
 
 
 class Loader(yaml.reader.Reader, parser.Scanner, parser.Parser, constructor.Composer,

@@ -9,7 +9,7 @@
 import uuid
 
 
-from semantix.caos import types as caos_types
+from metamagic.caos import types as caos_types
 
 
 def check_type(variable, type):

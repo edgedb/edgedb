@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.lang.yaml.validator.tests.base import SchemaTest, raises, result
+from metamagic.utils.lang.yaml.validator.tests.base import SchemaTest, raises, result
 
 
 class TestImports(SchemaTest):

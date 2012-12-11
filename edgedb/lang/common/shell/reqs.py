@@ -6,10 +6,10 @@
 ##
 
 
-from semantix import app, SemantixError
+from metamagic import app, MetamagicError
 
 
-class UnsatisfiedRequirementError(SemantixError):
+class UnsatisfiedRequirementError(MetamagicError):
     pass
 
 

@@ -13,11 +13,11 @@ import sys
 
 from logging import *
 
-from semantix.bootstrap import SemantixLogHandler as BootstrapLogHandler
-from semantix.utils import config, term
+from metamagic.bootstrap import MetamagicLogHandler as BootstrapLogHandler
+from metamagic.utils import config, term
 
 
-class SemantixLogHandler(BootstrapLogHandler, metaclass=config.ConfigurableMeta):
+class MetamagicLogHandler(BootstrapLogHandler, metaclass=config.ConfigurableMeta):
     _enabled = config.cvalue(True, type=bool)
 
     _style_error = term.Style16(color='white', bgcolor='red')
@@ -46,5 +46,5 @@ class SemantixLogHandler(BootstrapLogHandler, metaclass=config.ConfigurableMeta)
 
 if BootstrapLogHandler._installed:
     BootstrapLogHandler.uninstall()
-    SemantixLogHandler.install(BootstrapLogHandler._level)
+    MetamagicLogHandler.install(BootstrapLogHandler._level)
 

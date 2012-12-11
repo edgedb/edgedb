@@ -6,7 +6,7 @@
 ##
 
 
-%SCHEMA semantix.caos.datasources.schemas.Sql
+%SCHEMA metamagic.caos.datasources.schemas.Sql
 %NAME TypesList
 ---
 params:
@@ -41,7 +41,7 @@ source: |
 ...
 
 
-%SCHEMA semantix.caos.datasources.schemas.Sql
+%SCHEMA metamagic.caos.datasources.schemas.Sql
 %NAME CompositeTypeAttributes
 ---
 params:

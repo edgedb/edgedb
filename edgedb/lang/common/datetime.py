@@ -13,7 +13,7 @@ import dateutil.tz
 import re
 import time
 
-from semantix.utils import config
+from metamagic.utils import config
 
 
 class DateTimeConfig(metaclass=config.ConfigurableMeta):

@@ -6,8 +6,8 @@
  */
 
 
-// %import semantix.utils.lang.javascript.types
-// %import semantix.caos.frontends.javascript.base
+// %import metamagic.utils.lang.javascript.types
+// %import metamagic.caos.frontends.javascript.base
 
 
 sx.types.register('pgjson.', function(format, data, metadata) {

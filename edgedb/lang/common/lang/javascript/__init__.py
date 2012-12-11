@@ -16,10 +16,10 @@ import types
 import sys
 import zlib
 
-from semantix.utils.datastructures import OrderedSet
-from semantix.utils import resource, abc
-from semantix.utils.lang import meta as lang_meta, loader as lang_loader
-from semantix.utils.lang.import_ import module, loader, utils as imp_utils
+from metamagic.utils.datastructures import OrderedSet
+from metamagic.utils import resource, abc
+from metamagic.utils.lang import meta as lang_meta, loader as lang_loader
+from metamagic.utils.lang.import_ import module, loader, utils as imp_utils
 
 
 class BaseJavaScriptModule(module.Module):
@@ -89,7 +89,7 @@ _sx_module = (function(global) {
 ''';
 
 _sx_module = BaseVirtualJavaScriptResource(_SX_MODULE_.encode('utf-8'),
-                                           'semantix.utils.lang.javascript.module')
+                                           'metamagic.utils.lang.javascript.module')
 
 
 class BaseModuleHook(metaclass=abc.AbstractMeta):
@@ -111,7 +111,7 @@ class ModuleAttributeHook(BaseModuleHook):
 ParsedImport = collections.namedtuple('ParsedImport', 'name, frm, weak')
 
 
-class _SemantixImportsHook:
+class _MetamagicImportsHook:
     import_re = re.compile(r'''
         ^(\s*)//(
             \s*(%import|%from)\s+
@@ -160,7 +160,7 @@ class ModuleCache(loader.ModuleCache):
 
 
 class Loader(lang_loader.LanguageSourceFileLoader):
-    logger = logging.getLogger('semantix')
+    logger = logging.getLogger('metamagic')
 
     #: version of cache format
     CACHE_MAGIC_BASE = 2
@@ -372,7 +372,7 @@ class Loader(lang_loader.LanguageSourceFileLoader):
 
 
 # XXX Do this implicitly?
-Loader.add_import_detect_hook(_SemantixImportsHook())
+Loader.add_import_detect_hook(_MetamagicImportsHook())
 
 
 class Language(lang_meta.Language):

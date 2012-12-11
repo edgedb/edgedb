@@ -8,8 +8,8 @@
 
 import weakref
 
-from semantix.utils import datastructures, ast
-from semantix.caos.tree import ast as tree_ast
+from metamagic.utils import datastructures, ast
+from metamagic.caos.tree import ast as tree_ast
 
 
 class Base(ast.AST):

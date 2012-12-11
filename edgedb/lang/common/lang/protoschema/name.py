@@ -7,7 +7,7 @@
 
 
 from .error import SchemaNameError
-from semantix.utils.algos.persistent_hash import persistent_hash
+from metamagic.utils.algos.persistent_hash import persistent_hash
 
 
 class SchemaName(str):

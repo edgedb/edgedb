@@ -9,19 +9,19 @@
 import collections
 import itertools
 
-from semantix.caos import name as caos_name
-from semantix.caos import error as caos_error
-from semantix.caos import utils as caos_utils
-from semantix.caos.utils import LinearPath
-from semantix.caos import types as caos_types
-from semantix.caos.tree import ast as caos_ast
+from metamagic.caos import name as caos_name
+from metamagic.caos import error as caos_error
+from metamagic.caos import utils as caos_utils
+from metamagic.caos.utils import LinearPath
+from metamagic.caos import types as caos_types
+from metamagic.caos.tree import ast as caos_ast
 
-from semantix.utils.algos import boolean
-from semantix.utils import datastructures, ast, debug, markup
-from semantix.utils.datastructures import Void
-from semantix.utils.functional import checktypes
+from metamagic.utils.algos import boolean
+from metamagic.utils import datastructures, ast, debug, markup
+from metamagic.utils.datastructures import Void
+from metamagic.utils.functional import checktypes
 
-from semantix import exceptions
+from metamagic import exceptions
 
 
 class PathIndex(dict):
@@ -65,7 +65,7 @@ class PathIndex(dict):
     """
 
 
-class TreeTransformerError(exceptions.SemantixError):
+class TreeTransformerError(exceptions.MetamagicError):
     pass
 
 
@@ -344,7 +344,7 @@ class TreeTransformer:
 
             if 'lang_rewrite' not in expr.rewrite_flags:
                 schema = self.context.current.proto_schema
-                localizable = schema.get('semantix.caos.extras.l10n.localizable',
+                localizable = schema.get('metamagic.caos.extras.l10n.localizable',
                                          default=None)
 
                 link_proto = expr.link_proto
@@ -353,10 +353,10 @@ class TreeTransformer:
                     cvars = self.context.current.context_vars
 
                     lang = caos_ast.Constant(index='__context_lang',
-                                             type=schema.get('semantix.caos.builtins.str'))
+                                             type=schema.get('metamagic.caos.builtins.str'))
                     cvars['lang'] = 'en-US'
 
-                    propn = caos_name.Name('semantix.caos.extras.l10n.lang')
+                    propn = caos_name.Name('metamagic.caos.extras.l10n.lang')
 
                     for langprop in expr.proprefs:
                         if langprop.name == propn:
@@ -508,9 +508,9 @@ class TreeTransformer:
 
             if pathspec is not None:
                 must_have_links = (
-                    caos_name.Name('semantix.caos.builtins.id'),
-                    caos_name.Name('semantix.caos.builtins.mtime'),
-                    caos_name.Name('semantix.caos.builtins.ctime')
+                    caos_name.Name('metamagic.caos.builtins.id'),
+                    caos_name.Name('metamagic.caos.builtins.mtime'),
+                    caos_name.Name('metamagic.caos.builtins.ctime')
                 )
 
                 recurse_links = {l: caos_ast.PtrPathSpec(ptr_proto=ptrs[l])
@@ -621,7 +621,7 @@ class TreeTransformer:
                                                            ptr_proto=link_proto)
                         atomrefs.append(newstep)
                     else:
-                        ptr_name = caos_name.Name('semantix.caos.builtins.target')
+                        ptr_name = caos_name.Name('metamagic.caos.builtins.target')
                         prop_id = LinearPath(ref.id)
                         prop_id.add(root_link_proto, caos_types.OutboundDirection, None)
                         prop_proto = link.pointers[ptr_name]
@@ -652,7 +652,7 @@ class TreeTransformer:
                 if link.has_user_defined_properties():
                     if recurse_spec.pathspec is not None:
                         must_have_props = (
-                            caos_name.Name('semantix.caos.builtins.linkid'),
+                            caos_name.Name('metamagic.caos.builtins.linkid'),
                         )
 
                         recurse_props = {propn: caos_ast.PtrPathSpec(ptr_proto=link.pointers[propn])
@@ -751,7 +751,7 @@ class TreeTransformer:
             assert len(concepts) == 1
 
             ref = p if len(expr.paths) == 1 else expr
-            link_name = caos_name.Name('semantix.caos.builtins.id')
+            link_name = caos_name.Name('metamagic.caos.builtins.id')
             link_proto = schema.get(link_name)
             target_proto = link_proto.target
             id = LinearPath(ref.id)
@@ -2123,7 +2123,7 @@ class TreeTransformer:
                 is_idfilter = isinstance(filter, caos_ast.BinOp) and \
                               filter.op == ast.ops.EQ and \
                               isinstance(filter.left, caos_ast.AtomicRefSimple) and \
-                              filter.left.name == 'semantix.caos.builtins.id' and \
+                              filter.left.name == 'metamagic.caos.builtins.id' and \
                               isinstance(filter.right, caos_ast.Constant)
                 if is_idfilter:
                     node_scope = 1
@@ -2463,7 +2463,7 @@ class TreeTransformer:
 
                     right_exprs = self.get_multipath(right)
 
-                    id_col = caos_name.Name('semantix.caos.builtins.id')
+                    id_col = caos_name.Name('metamagic.caos.builtins.id')
                     lrefs = [caos_ast.AtomicRefSimple(ref=p, name=id_col)
                                 for p in left_exprs.paths]
                     rrefs = [caos_ast.AtomicRefSimple(ref=p, name=id_col)
@@ -2501,7 +2501,7 @@ class TreeTransformer:
                     #       <const_id> IN <path>
                     #       <path> = <const_id>
 
-                    id_col = caos_name.Name('semantix.caos.builtins.id')
+                    id_col = caos_name.Name('metamagic.caos.builtins.id')
 
                     # <Constant> IN <EntitySet> is interpreted as a membership
                     # check of entity with ID represented by Constant in the EntitySet,
@@ -2677,7 +2677,7 @@ class TreeTransformer:
 
                 schema = self.context.current.proto_schema
                 if isinstance(op, (ast.ops.ComparisonOperator, ast.ops.EquivalenceOperator)):
-                    result_type = schema.get('semantix.caos.builtins.bool')
+                    result_type = schema.get('metamagic.caos.builtins.bool')
                 else:
                     if l.type == r.type:
                         result_type = l.type
@@ -2745,7 +2745,7 @@ class TreeTransformer:
 
     def get_expr_type(self, expr, schema):
         if isinstance(expr, caos_ast.MetaRef):
-            result = schema.get('semantix.caos.builtins.str')
+            result = schema.get('metamagic.caos.builtins.str')
 
         elif isinstance(expr, caos_ast.AtomicRefSimple):
             if isinstance(expr.ref, caos_ast.PathCombination):
@@ -2800,7 +2800,7 @@ class TreeTransformer:
 
         elif isinstance(expr, caos_ast.BinOp):
             if isinstance(expr.op, (ast.ops.ComparisonOperator, ast.ops.EquivalenceOperator)):
-                result = schema.get('semantix.caos.builtins.bool')
+                result = schema.get('metamagic.caos.builtins.bool')
             else:
                 left_type = self.get_expr_type(expr.left, schema)
                 right_type = self.get_expr_type(expr.right, schema)
@@ -2897,7 +2897,7 @@ class PathResolver(TreeTransformer):
             result = [('getattr', source, path.ptr_proto.normal_name())]
 
         elif isinstance(path, caos_ast.LinkPropRefSimple):
-            if path.name == 'semantix.caos.builtins.target':
+            if path.name == 'metamagic.caos.builtins.target':
                 source = self._serialize_path(path.ref.source)
                 result = [('getattr', source, path.ref.link_proto.normal_name())]
             else:

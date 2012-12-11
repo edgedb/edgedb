@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils import markup
-from semantix.utils.debug import debug
+from metamagic.utils import markup
+from metamagic.utils.debug import debug
 
 
 @markup.serializer.serializer(method='as_markup')

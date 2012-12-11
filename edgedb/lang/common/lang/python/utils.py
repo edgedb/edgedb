@@ -11,8 +11,8 @@ import ast
 import linecache
 import inspect
 
-from semantix.utils.lang.context import SourcePoint, SourceContext
-from semantix.utils import markup
+from metamagic.utils.lang.context import SourcePoint, SourceContext
+from metamagic.utils import markup
 
 
 def source_context_from_frame(frame):

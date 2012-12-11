@@ -40,7 +40,7 @@ class Schema(Base):
             node.tags = [node.tag]
         else:
             node.tags.append(node.tag)
-        tag = 'tag:semantix.sprymix.com,2009/semantix/class/derive:{}.{}'
+        tag = 'tag:metamagic.sprymix.com,2009/metamagic/class/derive:{}.{}'
         node.tag = tag.format(self._schema_base_cls.__module__, self._schema_base_cls.__name__)
         return node
 

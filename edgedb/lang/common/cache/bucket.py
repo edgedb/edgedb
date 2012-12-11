@@ -10,9 +10,9 @@ import time
 import functools
 from datetime import timedelta
 
-from semantix.utils.algos import persistent_hash
-from semantix.utils.functional import hybridmethod
-from semantix.utils.debug import debug
+from metamagic.utils.algos import persistent_hash
+from metamagic.utils.functional import hybridmethod
+from metamagic.utils.debug import debug
 from . import implementation
 from . import abstract
 

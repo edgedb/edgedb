@@ -14,7 +14,7 @@ from uuid import UUID
 import random
 from datetime import datetime, tzinfo, timedelta, date, time
 
-from semantix.utils.debug import assert_raises
+from metamagic.utils.debug import assert_raises
 
 
 class _BaseJsonEncoderTest:
@@ -409,7 +409,7 @@ class TestCJsonEncoder(_BaseJsonEncoderTest):
 
 def test_utils_json_dump():
     #test bindings
-    from semantix.utils.json import dumps, dumpb
+    from metamagic.utils.json import dumps, dumpb
 
     assert dumps(True) == 'true'
     assert dumpb(True) == b'true'

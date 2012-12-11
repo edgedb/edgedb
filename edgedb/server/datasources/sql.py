@@ -7,8 +7,8 @@
 
 
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
-from semantix.caos.datasources.base import Datasource, DatasourceError
-from semantix.utils.debug import debug
+from metamagic.caos.datasources.base import Datasource, DatasourceError
+from metamagic.utils.debug import debug
 
 
 class SqlDatasourceError(DatasourceError): pass

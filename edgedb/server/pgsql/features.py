@@ -10,7 +10,7 @@
 
 import postgresql.exceptions
 
-from semantix.caos.backends.pgsql import deltadbops
+from metamagic.caos.backends.pgsql import deltadbops
 
 
 class UuidFeature(deltadbops.Feature):

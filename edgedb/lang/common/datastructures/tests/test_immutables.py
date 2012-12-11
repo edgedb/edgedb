@@ -6,8 +6,8 @@
 ##
 
 
-from semantix.utils.datastructures import immutables
-from semantix.utils.debug import assert_raises
+from metamagic.utils.datastructures import immutables
+from metamagic.utils.debug import assert_raises
 
 
 class TestDatastructImmutables:

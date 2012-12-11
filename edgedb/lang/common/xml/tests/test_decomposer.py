@@ -6,9 +6,9 @@
 ##
 
 
-from semantix.utils.xml import composer, decomposer
-from semantix.utils.debug import assert_raises
-from semantix.utils.xml.types import Doctype
+from metamagic.utils.xml import composer, decomposer
+from metamagic.utils.debug import assert_raises
+from metamagic.utils.xml.types import Doctype
 
 
 class TestXMLDecomposer:

@@ -9,8 +9,8 @@
 import os
 import multiprocessing
 
-from semantix.utils.debug import assert_raises
-from semantix.utils.daemon import pidfile, exceptions, lib
+from metamagic.utils.debug import assert_raises
+from metamagic.utils.daemon import pidfile, exceptions, lib
 
 from . import base
 

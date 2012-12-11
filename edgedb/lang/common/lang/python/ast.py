@@ -6,7 +6,7 @@
 ##
 
 
-from semantix.utils.ast import *
+from metamagic.utils.ast import *
 
 
 class PyAST(LanguageAST): pass

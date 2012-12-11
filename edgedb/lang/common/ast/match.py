@@ -11,8 +11,8 @@
 
 import collections
 
-from semantix.utils import ast
-from semantix.utils.functional import adapter
+from metamagic.utils import ast
+from metamagic.utils.functional import adapter
 
 
 class MatchASTMeta(adapter.Adapter, ast.MetaAST):

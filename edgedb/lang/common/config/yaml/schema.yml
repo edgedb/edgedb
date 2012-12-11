@@ -6,15 +6,15 @@
 ##
 
 
-%SCHEMA semantix.utils.lang.yaml.schema.Schema
+%SCHEMA metamagic.utils.lang.yaml.schema.Schema
 %NAME Schema
 ---
 type: map
-object: semantix.utils.config.yaml.ConfigYAMLAdapter
+object: metamagic.utils.config.yaml.ConfigYAMLAdapter
 mapping:
     =:
         &CONFIG_DATA
-        object: semantix.utils.config.yaml._YamlObject
+        object: metamagic.utils.config.yaml._YamlObject
         type: choice
         choice:
             - type: map
