@@ -37,25 +37,42 @@ class CreateDomain(ddl.SchemaObjectOperation):
         return 'CREATE DOMAIN %s AS %s' % (common.qname(*self.name), self.base)
 
 
-class RenameDomain(ddl.SchemaObjectOperation):
-    def __init__(self, name, new_name):
-        super().__init__(name)
+class RenameDomain(base.CommandGroup):
+    def __init__(self, name, new_name, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+
+        if name[0] != new_name[0]:
+            cmd = AlterDomainSetSchema(name, new_name[0])
+            self.add_command(cmd)
+            name = (new_name[0], name[1])
+
+        if name[1] != new_name[1]:
+            cmd = AlterDomainRenameTo(name, new_name[1])
+            self.add_command(cmd)
+
+
+class AlterDomainSetSchema(ddl.DDLOperation):
+    def __init__(self, name, new_schema, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+        self.name = name
+        self.new_schema = new_schema
+
+    def code(self, context):
+        code = 'ALTER DOMAIN {} SET SCHEMA {}'.format(common.qname(*self.name),
+                                                      common.quote_ident(self.new_schema))
+        return code
+
+
+class AlterDomainRenameTo(ddl.DDLOperation):
+    def __init__(self, name, new_name, *, conditions=None, neg_conditions=None, priority=0):
+        super().__init__(conditions=conditions, neg_conditions=neg_conditions, priority=priority)
+        self.name = name
         self.new_name = new_name
 
     def code(self, context):
-        return '''UPDATE
-                        pg_catalog.pg_type AS t
-                    SET
-                        typname = $1,
-                        typnamespace = (SELECT oid FROM pg_namespace WHERE nspname = $2)
-                    FROM
-                        pg_catalog.pg_namespace ns
-                    WHERE
-                        t.typname = $3
-                        AND t.typnamespace = ns.oid
-                        AND ns.nspname = $4
-                        AND t.typtype = 'd'
-               ''', [self.new_name[1], self.new_name[0], self.name[1], self.name[0]]
+        code = 'ALTER DOMAIN {} RENAME TO {}'.format(common.qname(*self.name),
+                                                     common.quote_ident(self.new_name))
+        return code
 
 
 class AlterDomain(ddl.DDLOperation):
