@@ -554,7 +554,7 @@ class ProtoSchema:
             self.modules[name] = proto_module
         else:
             name = proto_module.__name__
-            self.foreign_modules[name] = module_types.ModuleInfo(proto_module)
+            self.foreign_modules[name] = module_types.AutoloadingLightProxyModule(name, proto_module)
 
         if alias is not Void:
             self.set_module_alias(name, alias)
