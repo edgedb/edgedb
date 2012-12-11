@@ -575,7 +575,7 @@ class ProtoSchema:
         if isinstance(proto_module, str):
             module_name = proto_module
         else:
-            module_name = proto_module
+            module_name = proto_module.name
 
         del self.modules[module_name]
 
