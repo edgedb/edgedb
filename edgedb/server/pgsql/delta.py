@@ -33,7 +33,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 13
+BACKEND_FORMAT_VERSION = 14
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -3374,6 +3374,176 @@ class UpgradeBackend(MetaCommand):
         alter_column = dbops.AlterTableAlterColumnNull(column_name=colname, null=False)
         alter_table.add_operation(alter_column)
         cmdgroup.add_command(alter_table)
+
+        cmdgroup.execute(context)
+
+    def update_to_version_14(self, context):
+        """
+        Backend format 14: semantix became metamagic
+        """
+
+        cmdgroup = dbops.CommandGroup()
+
+        ftab = deltadbops.FeatureTable()
+        rec = ftab.record()
+        rec.class_name = dbops.Query(text="(replace(class_name, 'semantix', 'metamagic'))")
+
+        cmdgroup.add_command(dbops.Update(ftab, rec, condition=[]))
+
+        for atab in (deltadbops.AtomTable(), deltadbops.LinkTable(), deltadbops.LinkPropertyTable()):
+            rec = atab.record()
+
+            rec.constraints = dbops.Query(text="""
+                (SELECT
+                    caos.hstore(array_agg(q.a))
+                 FROM
+                    (SELECT
+                        replace(a, 'semantix', 'metamagic') AS a
+                     FROM
+                        unnest(caos.hstore_to_array(constraints)) AS p(a)
+                    ) AS q
+                )
+            """)
+
+            if hasattr(rec, 'abstract_constraints'):
+                rec.abstract_constraints = dbops.Query(text="""
+                    (SELECT
+                        caos.hstore(array_agg(q.a))
+                     FROM
+                        (SELECT
+                            replace(a, 'semantix', 'metamagic') AS a
+                         FROM
+                            unnest(caos.hstore_to_array(abstract_constraints)) AS p(a)
+                        ) AS q
+                    )
+                """)
+
+            cmdgroup.add_command(dbops.Update(atab, rec, condition=[]))
+
+
+        ds = datasources.introspection.tables.TableConstraints(context.db)
+        constraints = ds.fetch(schema_pattern='caos%', table_pattern='%_data')
+
+
+        cmttab = dbops.Table(name=('pg_catalog', 'pg_description'))
+        cmttab.add_columns((dbops.Column(name='description', type='text'),
+                            dbops.Column(name='objoid', type='oid')))
+
+        contab = dbops.Table(name=('pg_catalog', 'pg_constraint'))
+        contab.add_columns((dbops.Column(name='conname', type='text'),
+                            dbops.Column(name='contypid', type='oid'),
+                            dbops.Column(name='oid', type='oid')))
+
+        for row in constraints:
+            for id, name, comment in zip(row['constraint_ids'], row['constraint_names'],
+                                         row['constraint_descriptions']):
+                if comment and '::semantix' in comment:
+
+                    new_fname = comment.replace('::semantix', '::metamagic')
+                    new_name = common.caos_name_to_pg_name(new_fname)
+
+                    rec = cmttab.record()
+                    rec.description = new_fname
+                    condition = 'objoid', id
+                    cmdgroup.add_command(dbops.Update(cmttab, rec, condition=[condition]))
+
+                    rec = contab.record()
+                    rec.conname = new_name
+
+                    condition = 'oid', id
+                    cmdgroup.add_command(dbops.Update(contab, rec, condition=[condition]))
+
+        constr_mech = schemamech.ConstraintMech()
+        ptr_constr = constr_mech.get_table_ptr_constraints(context.db)
+
+        cconv = constr_mech._schema_constraint_to_backend_constraint
+        crename = constr_mech.rename_unique_constraint_trigger
+
+        concept_list = datasources.meta.concepts.ConceptList(context.db).fetch()
+        concept_list = collections.OrderedDict((caos.Name(row['name']), row) for row in concept_list)
+
+        tables = {common.concept_name_to_table_name(n, catenate=False): c \
+                                                                for n, c in concept_list.items()}
+
+        for src_tab, tab_constraints in ptr_constr.items():
+            for ptr_name, ptr_constraints in tab_constraints.items():
+                for ptr_constraint in ptr_constraints:
+                    src_name = caos.name.Name(tables[src_tab]['name'])
+                    orig_constr = cconv(ptr_constraint, src_name, src_tab, ptr_name)
+                    new_constr = orig_constr.copy()
+
+                    oldconstrcls = orig_constr.constrobj.__class__.get_canonical_class()
+                    oldconstrclsname = '{}.{}'.format(oldconstrcls.__module__, oldconstrcls.__name__)
+                    newconstrcls = get_object(oldconstrclsname.replace('semantix', 'metamagic'))
+                    new_constr.constrobj = new_constr.constrobj.copy(cls=newconstrcls)
+
+                    rename = crename(src_name, src_name, ptr_name, ptr_name, orig_constr,
+                                                                             new_constr)
+
+                    cmdgroup.add_command(rename)
+
+        rec = contab.record()
+        rec.conname = dbops.Query(text="(replace(conname, 'semantix', 'metamagic'))")
+        condition = 'contypid', 'IN', dbops.Query(text="""
+            (SELECT
+                oid
+            FROM
+                pg_type
+            WHERE
+                typname LIKE '%_domain'
+            )
+        """)
+
+        cmdgroup.add_command(dbops.Update(contab, rec, condition=[condition]))
+
+        ds = datasources.introspection.tables.TableList(context.db)
+        ctables = ds.fetch(schema_name='caos%', table_pattern='%_data')
+
+        for ctable in ctables:
+            ctabname = (ctable['schema'], ctable['name'])
+
+            inheritance = datasources.introspection.tables.TableInheritance(context.db)
+            inheritance = inheritance.fetch(table_name=ctable['name'],
+                                            schema_name=ctable['schema'], max_depth=1)
+
+            bases = tuple(i[:2] for i in inheritance[1:])
+
+            for bt_schema, bt_name in bases:
+                if bt_name.startswith('Virtual_'):
+                    cmd = dbops.AlterTable(ctabname)
+                    cmd.add_command(dbops.AlterTableDropParent((bt_schema, bt_name)))
+                    cmdgroup.add_command(cmd)
+
+        ltab = common.link_name_to_table_name(caos.Name('semantix.caos.builtins.link'),
+                                              catenate=False)
+        colname = common.caos_name_to_pg_name(caos.Name('semantix.caos.builtins.source'))
+        new_colname = common.caos_name_to_pg_name(caos.Name('metamagic.caos.builtins.source'))
+        rename_column = dbops.AlterTableRenameColumn(ltab, colname, new_colname)
+        cmdgroup.add_command(rename_column)
+
+        tabcol = dbops.TableColumn(table_name=ltab, column=dbops.Column(name=new_colname,
+                                                                        type='text'))
+        cmdgroup.add_command(dbops.Comment(tabcol, 'metamagic.caos.builtins.source'))
+
+        colname = common.caos_name_to_pg_name(caos.Name('semantix.caos.builtins.target'))
+        new_colname = common.caos_name_to_pg_name(caos.Name('metamagic.caos.builtins.target'))
+        rename_column = dbops.AlterTableRenameColumn(ltab, colname, new_colname)
+        cmdgroup.add_command(rename_column)
+
+        tabcol = dbops.TableColumn(table_name=ltab, column=dbops.Column(name=new_colname,
+                                                                        type='text'))
+        cmdgroup.add_command(dbops.Comment(tabcol, 'metamagic.caos.builtins.target'))
+
+        type = deltadbops.EntityModStatType()
+        altertype = dbops.AlterCompositeTypeRenameAttribute(type.name,
+                                                            'semantix.caos.builtins.id',
+                                                            'metamagic.caos.builtins.id')
+        cmdgroup.add_command(altertype)
+        altertype = dbops.AlterCompositeTypeRenameAttribute(type.name,
+                                                            'semantix.caos.builtins.mtime',
+                                                            'metamagic.caos.builtins.mtime')
+        cmdgroup.add_command(altertype)
+
 
         cmdgroup.execute(context)
 
