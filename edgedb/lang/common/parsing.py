@@ -9,7 +9,7 @@
 import os
 import sys
 
-import Parsing
+import parsing
 import pyggy
 import pyggy.lexer
 
@@ -58,7 +58,7 @@ class TokenMeta(type):
         return mcls.token_map[mcls, token]
 
 
-class Token(Parsing.Token, metaclass=TokenMeta):
+class Token(parsing.Token, metaclass=TokenMeta):
     def __init__(self, parser, val, context=None):
         super().__init__(parser)
         self.val = val
@@ -80,7 +80,7 @@ class NontermMeta(type):
         return result
 
 
-class Nonterm(Parsing.Nonterm, metaclass=NontermMeta):
+class Nonterm(parsing.Nonterm, metaclass=NontermMeta):
     pass
 
 
@@ -126,7 +126,7 @@ class PrecedenceMeta(type):
         return mcls.token_prec_map.get((mcls, token_name))
 
 
-class Precedence(Parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
+class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
     pass
 
 
@@ -236,7 +236,7 @@ class Parser:
 
     def get_specs(self):
         mod = self.get_parser_spec_module()
-        self.__class__.parser_spec = Parsing.Spec(
+        self.__class__.parser_spec = parsing.Spec(
                                                 mod,
                                                 pickleFile=self.localpath(mod, "pickle"),
                                                 skinny=not self.get_debug(),
@@ -256,7 +256,7 @@ class Parser:
 
         if not self.parser:
             self.lexer = Lexer(self.__class__.lexer_spec)
-            self.parser = Parsing.Lr(self.__class__.parser_spec)
+            self.parser = parsing.Lr(self.__class__.parser_spec)
             self.parser.parser_data = self.parser_data
             self.parser.verbose = self.get_debug()
 
@@ -279,7 +279,7 @@ class Parser:
 
             self.parser.eoi()
 
-        except Parsing.SyntaxError as e:
+        except parsing.SyntaxError as e:
             raise self.get_exception(e, context=self.lexer.context()) from e
 
         return self.parser.start[0].val
