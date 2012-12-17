@@ -58,5 +58,5 @@ def update_finders():
     loader_details.extend(LanguageMeta.get_loaders())
 
     for path, finder in list(sys.path_importer_cache.items()):
-        if isinstance(finder, FileFinder) or rpath(path) == rpath(metamagic.__path__[0]):
+        if isinstance(finder, FileFinder) or any(rpath(path) == rpath(nspath) for nspath in list(metamagic.__path__)):
             FileFinder.update_loaders(finder, loader_details, isinstance(finder, FileFinder))

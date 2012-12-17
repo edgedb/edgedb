@@ -6,8 +6,7 @@
 ##
 
 
-from metamagic import MetamagicError
-
+from metamagic.exceptions import MetamagicError
 from metamagic.utils import parsing
 
 class PgSQLParserError(parsing.ParserError):

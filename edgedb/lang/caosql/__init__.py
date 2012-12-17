@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic import MetamagicError
+from metamagic.exceptions import MetamagicError
 
 from . import ast
 from .errors import CaosQLError, CaosQLQueryError

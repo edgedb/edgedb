@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic import MetamagicError
+from metamagic.exceptions import MetamagicError
 
 
 class SchemaError(MetamagicError):

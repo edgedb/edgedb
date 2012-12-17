@@ -6,7 +6,8 @@
 ##
 
 
-from metamagic import app, MetamagicError
+from metamagic import app
+from metamagic.exceptions import MetamagicError
 
 
 class UnsatisfiedRequirementError(MetamagicError):

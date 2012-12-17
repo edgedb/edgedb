@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic import MetamagicError
+from metamagic.exceptions import MetamagicError
 from metamagic.utils.ast import codegen
 
 from . import ast as caosql_ast

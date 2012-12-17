@@ -15,7 +15,7 @@ import re
 import sys
 import types
 
-from metamagic import MetamagicError
+from metamagic.exceptions import MetamagicError
 from metamagic.utils import lang
 from metamagic.utils.datastructures import OrderedSet, ExtendedSet
 from metamagic.utils import abc

@@ -10,7 +10,7 @@ import argparse
 import os
 import sys
 
-from metamagic import MetamagicError
+from metamagic.exceptions import MetamagicError
 from metamagic import bootstrap
 
 from metamagic.utils import datastructures
