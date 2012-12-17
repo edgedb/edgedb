@@ -159,13 +159,27 @@ def modules_from_import_statements(package, imports):
                 path = [os.path.dirname(modfile)]
         else:
             if fromlist and not isinstance(fromlist, str):
+                # Try to obtain package loader path and do it with care
+                # as NamespaceLoader/NamespacePath have slightly different
+                # semantics.
+                try:
+                    loader_path = loader.path
+                except AttributeError:
+                    try:
+                        loader_path = loader._path
+                    except AttributeError:
+                        loader_path = []
+
+                if loader_path:
+                    loader_path = list(loader_path)
+
                 add_package = False
 
                 for entry in fromlist:
                     modname = '{}.{}'.format(fq_name, entry)
                     entry_loader = importlib.find_loader(modname, path=path)
 
-                    if entry_loader is not None and entry_loader.path != loader.path:
+                    if entry_loader is not None and list(entry_loader.path) != loader_path:
                         modules.append(modname)
                     else:
                         add_package = True
