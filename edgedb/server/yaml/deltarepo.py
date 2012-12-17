@@ -63,6 +63,9 @@ class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
 
         return id
 
+    def write_snapshot_at(self, id):
+        delta = self.cumulative_delta(None, id)
+
     def update_delta_ref(self, ref, id):
         refpath = self.get_ref_file_path(ref)
         with open(refpath, 'w') as f:

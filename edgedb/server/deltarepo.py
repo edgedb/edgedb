@@ -40,13 +40,15 @@ class MetaDeltaRepository:
         else:
             return None
 
-    def get_deltas(self, start_rev, end_rev=None):
+    def get_deltas(self, start_rev, end_rev=None, take_closest_snapshot=False):
         start_rev = start_rev
         end_rev = end_rev or self.resolve_delta_ref('HEAD')
 
-        return delta.DeltaSet(self.walk_deltas(end_rev, start_rev, reverse=True))
+        deltas = self.walk_deltas(end_rev, start_rev, reverse=True,
+                                  take_closest_snapshot=take_closest_snapshot)
+        return delta.DeltaSet(deltas)
 
-    def walk_deltas(self, end_rev, start_rev, reverse=False):
+    def walk_deltas(self, end_rev, start_rev, reverse=False, take_closest_snapshot=False):
         current_rev = end_rev
 
         if not reverse:
@@ -60,6 +62,8 @@ class MetaDeltaRepository:
             while current_rev and current_rev != start_rev:
                 delta = self.load_delta(current_rev)
                 deltas.append(delta)
+                if delta.snapshot is not None and take_closest_snapshot:
+                    break
                 current_rev = delta.parent_id
 
             for delta in reversed(deltas):
@@ -90,7 +94,7 @@ class MetaDeltaRepository:
             self.write_delta(d)
 
     def get_meta(self, delta_obj):
-        deltas = self.get_deltas(None, delta_obj.id)
+        deltas = self.get_deltas(None, delta_obj.id, take_closest_snapshot=True)
         meta = proto.ProtoSchema()
         deltas.apply(meta)
         return meta
@@ -98,6 +102,15 @@ class MetaDeltaRepository:
     def get_meta_at(self, ref):
         delta = self.load_delta(ref)
         return self.get_meta(delta)
+
+    def get_snapshot_at(self, ref):
+        org_delta = self.get_delta(ref)
+        full_delta = self.cumulative_delta(None, org_delta.id)
+        snapshot = delta.Delta(parent_id=org_delta.parent_id, checksum=org_delta.checksum,
+                               deltas=org_delta.deltas,
+                               formatver=delta.Delta.CURRENT_FORMAT_VERSION,
+                               comment=org_delta.comment, snapshot=full_delta)
+        return snapshot
 
     def _cumulative_delta(self, ref1, ref2):
         delta = None
