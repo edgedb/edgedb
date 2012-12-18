@@ -319,7 +319,7 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
 
         return res
 
-    def __sx_serialize__(self):
+    def __mm_serialize__(self):
         return str(self)
 
 

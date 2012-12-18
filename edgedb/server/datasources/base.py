@@ -181,5 +181,5 @@ class Result:
     def get_total(self):
         return self.total_records
 
-    def __sx_serialize__(self):
+    def __mm_serialize__(self):
         return list(self.result)

@@ -74,7 +74,7 @@ class RecordInfo:
                                                 self.proto_name, self.is_xvalue,
                                                 self.recursive_link))
 
-    def __sx_serialize__(self):
+    def __mm_serialize__(self):
         return dict(
             attribute_map=self.attribute_map,
             proto_class=self.proto_class,

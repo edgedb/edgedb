@@ -51,7 +51,7 @@ def resolve(typid):
 
 
 class Array(pg_types.Array, collections.Container):
-    def __sx_serialize__(self):
+    def __mm_serialize__(self):
         return tuple(self)
 
     def __contains__(self, element):
@@ -71,7 +71,7 @@ class Json(bytes):
         result._fmt = format_info
         return result
 
-    def __sx_json__(self):
+    def __mm_json__(self):
         fmt = '["{}",{}]'.format(*self._fmt).encode('ascii')
         return b'{"$sxjson$":{"format":' + fmt  + b',"data":[' + self + b']}}'
 
