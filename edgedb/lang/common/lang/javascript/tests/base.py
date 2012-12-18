@@ -13,7 +13,8 @@ import py.test
 import importlib
 
 from metamagic.utils.datastructures import OrderedSet
-from metamagic.utils import debug, functional, config, markup, resource, json
+from metamagic.utils import debug, functional, config, markup, resource
+from metamagic import json
 import metamagic.utils.lang.javascript.parser.jsparser as jsp
 from metamagic.utils.lang.javascript.codegen import JavascriptSourceGenerator
 from metamagic.utils.lang.javascript import Loader as JSLoader, BaseJavaScriptModule, \
