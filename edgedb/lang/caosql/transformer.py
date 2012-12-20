@@ -139,12 +139,18 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
         if isinstance(expr, tree.ast.GraphExpr):
             result = qlast.SelectQueryNode()
 
-            result.where = self._process_expr(expr.generator) if expr.generator else None
+            if expr.generator and not isinstance(expr.generator, tree.ast.Path):
+                result.where = self._process_expr(expr.generator)
+            else:
+                result.where = None
             result.groupby = [self._process_expr(e) for e in expr.grouper]
             result.orderby = [self._process_expr(e) for e in expr.sorter]
             result.targets = [self._process_expr(e) for e in expr.selector]
 
         elif isinstance(expr, tree.ast.InlineFilter):
+            result = self._process_expr(expr.expr)
+
+        elif isinstance(expr, tree.ast.InlinePropFilter):
             result = self._process_expr(expr.expr)
 
         elif isinstance(expr, tree.ast.Constant):
@@ -153,12 +159,24 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
         elif isinstance(expr, tree.ast.SelectorExpr):
             result = qlast.SelectExprNode(expr=self._process_expr(expr.expr), alias=expr.name)
 
+        elif isinstance(expr, tree.ast.SortExpr):
+            result = qlast.SortExprNode(path=self._process_expr(expr.expr),
+                                        direction=expr.direction,
+                                        nones_order=expr.nones_order)
+
         elif isinstance(expr, tree.ast.FunctionCall):
             args = [self._process_expr(arg) for arg in expr.args]
             result = qlast.FunctionCallNode(func=expr.name, args=args)
 
         elif isinstance(expr, tree.ast.Record):
-            result = self._process_expr(expr.elements[0].ref)
+            if expr.rlink:
+                result = self._process_expr(expr.rlink)
+            else:
+                path = qlast.PathNode()
+                step = qlast.PathStepNode(expr=expr.concept.name.name,
+                                          namespace=expr.concept.name.module)
+                path.steps.append(step)
+                result = path
 
         elif isinstance(expr, tree.ast.UnaryOp):
             operand = self._process_expr(expr.expr)
@@ -168,6 +186,9 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
             left = self._process_expr(expr.left)
             right = self._process_expr(expr.right)
             result = qlast.BinOpNode(left=left, op=expr.op, right=right)
+
+        elif isinstance(expr, tree.ast.ExistPred):
+            result = qlast.ExistsPredicateNode(expr=self._process_expr(expr.expr))
 
         elif isinstance(expr, tree.ast.AtomicRefSimple):
             path = self._process_expr(expr.ref)
@@ -185,9 +206,12 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
             while expr.rlink:
                 linknode = expr.rlink
                 linkproto = linknode.link_proto
+                lname = linkproto.normal_name()
 
-                link = qlast.LinkNode(name=linkproto.name.name, namespace=linkproto.name.module,
-                                      direction=linknode.direction)
+                target = linknode.target.concept.name
+                target = qlast.PrototypeRefNode(name=target.name, module=target.module)
+                link = qlast.LinkNode(name=lname.name, namespace=lname.module,
+                                      direction=linknode.direction, target=target)
                 link = qlast.LinkExprNode(expr=link)
                 links.append(link)
 
@@ -208,11 +232,17 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
             else:
                 assert False, "path combinations are not supported yet"
 
+        elif isinstance(expr, tree.ast.SubgraphRef):
+            result = self._process_expr(expr.ref)
+
         elif isinstance(expr, tree.ast.LinkPropRefSimple):
             path = self._process_expr(expr.ref)
-            link = qlast.LinkNode(name=expr.name.name, namespace=expr.name.module)
-            link = qlast.LinkPropExprNode(expr=link)
-            path.steps.append(link)
+            if expr.name != 'metamagic.caos.builtins.target':
+                # Make sure its not a multiatom
+                link = qlast.LinkNode(name=expr.name.name, namespace=expr.name.module)
+                link = qlast.LinkPropExprNode(expr=link)
+                path.steps.append(link)
+
             result = path
 
         elif isinstance(expr, tree.ast.LinkPropRefExpr):
@@ -225,12 +255,19 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
                 path = qlast.PathNode()
 
             linkproto = expr.link_proto
+            lname = linkproto.normal_name()
+
+            if expr.target:
+                target = expr.target.concept.name
+                target = qlast.PrototypeRefNode(name=target.name, module=target.module)
+            else:
+                target = None
 
             if path.steps:
-                link = qlast.LinkNode(name=linkproto.name.name, namespace=linkproto.name.module)
+                link = qlast.LinkNode(name=lname.name, namespace=lname.module, target=target)
                 link = qlast.LinkExprNode(expr=link)
             else:
-                link = qlast.PathStepNode(expr=linkproto.name.name, namespace=linkproto.name.module)
+                link = qlast.LinkNode(name=lname.name, namespace=lname.module, target=target)
 
             path.steps.append(link)
             result = path

@@ -48,6 +48,20 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
             self.write(' AS ')
             self.write(node.alias)
 
+    def visit_SortExprNode(self, node):
+        self.visit(node.path)
+        if node.direction:
+            self.write(' ')
+            self.write(node.direction)
+        if node.nones_order:
+            self.write(' NONES ')
+            self.write(node.nones_order)
+
+    def visit_ExistsPredicateNode(self, node):
+        self.write('EXISTS (')
+        self.visit(node.expr)
+        self.write(')')
+
     def visit_UnaryOpNode(self, node):
         self.write(node.op)
         self.visit(node.operand)
@@ -92,7 +106,10 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_LinkNode(self, node):
         if node.namespace:
-            self.write('[%s.%s]' % (node.namespace, node.name))
+            self.write('[%s.%s' % (node.namespace, node.name))
+            if node.target:
+                self.write('({}.{})'.format(node.target.module, node.target.name))
+            self.write(']')
         else:
             self.write(node.name)
 
