@@ -96,10 +96,6 @@ class Language(meta.Language):
                         imports[imp] = imp
 
         if caching_schemas:
-            # To obtain caches produced by schemas, the stream has to be replayed
-            rldr = loader.ReplayLoader(yaml_code, context)
-            data = list(rldr.get_dict())
-
             getmods = import_utils.modules_from_import_statements
 
             if hasattr(context.module, '__path__'):
@@ -109,6 +105,14 @@ class Language(meta.Language):
 
             all_imports = getmods(pkg, list(imports.items()))
             all_imports.sort()
+
+            # To obtain caches produced by schemas, the stream has to be replayed
+            rldr = loader.ReplayLoader(yaml_code, context)
+            data = []
+            for d in rldr.get_dict():
+                context.namespace.update((d,))
+                data.append(d)
+
             return YAMLCodeObject(data, all_imports, yaml_event_stream=ldr.get_code(),
                                   schemas=schemas, module_schema=module_schema)
 

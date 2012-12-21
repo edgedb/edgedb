@@ -65,4 +65,4 @@ class DocumentContext(object):
             if not attrname.startswith('_'):
                 _globals[attrname] = getattr(mymod, attrname)
 
-        return _globals
+        return self.namespace
