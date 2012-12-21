@@ -90,6 +90,11 @@ class Language(meta.Language):
 
                 imports.update(document.imports)
 
+                implicit = schema.get_implicit_imports()
+                for imp in implicit:
+                    if imp != context.module.__name__:
+                        imports[imp] = imp
+
         if caching_schemas:
             # To obtain caches produced by schemas, the stream has to be replayed
             rldr = loader.ReplayLoader(yaml_code, context)
@@ -119,23 +124,14 @@ class Language(meta.Language):
                 imports.add(importlib.import_module(imp))
 
             if code.module_schema is not None:
-                implicit_imports = code.module_schema.get_implicit_imports()
-                for imp in implicit_imports:
-                    if imp != context.module.__name__:
-                        imports.add(importlib.import_module(imp))
-
                 code.module_schema.normalize_code(code.code, imports)
 
                 for d in code.code:
                     yield d
             else:
                 for i, d in enumerate(code.code):
-                    implicit_imports = code.module_schema.get_implicit_imports()
-                    for imp in implicit_imports:
-                        if imp != context.module.__name__:
-                            imports.add(importlib.import_module(imp))
-
-                    code.schemas[i].normalize_code(d[1], imports)
+                    schema = code.schemas[i]
+                    schema.normalize_code(d[1], imports)
                     yield d
 
             yield ('__sx_imports__', tuple(i.__name__ for i in imports))
