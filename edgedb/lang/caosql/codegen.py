@@ -168,6 +168,11 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
 
         self.write(')')
 
+    def visit_TypeRefNode(self, node):
+        self.write('type(')
+        self.visit(node.expr)
+        self.write(')')
+
     def visit_TypeCastNode(self, node):
         self.write('CAST (')
         self.visit(node.expr)

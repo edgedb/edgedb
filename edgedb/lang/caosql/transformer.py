@@ -309,6 +309,11 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
         elif isinstance(expr, tree.ast.ExistPred):
             result = qlast.ExistsPredicateNode(expr=self._process_expr(expr.expr))
 
+        elif isinstance(expr, tree.ast.MetaRef):
+            typstep = qlast.TypeRefNode(expr=self._process_expr(expr.ref))
+            refstep = qlast.LinkExprNode(expr=qlast.LinkNode(name=expr.name))
+            result = qlast.PathNode(steps=[typstep, refstep])
+
         elif isinstance(expr, tree.ast.AtomicRefSimple):
             path = self._process_expr(expr.ref)
             link = qlast.LinkNode(name=expr.name.name, namespace=expr.name.module)
