@@ -21,8 +21,6 @@ class Base(validator.Schema):
     def get_module_class(cls):
         raise NotImplementedError
 
-
-class ModuleSchemaBase(Base):
     @classmethod
     def get_implicit_imports(cls):
         return ()
@@ -30,6 +28,10 @@ class ModuleSchemaBase(Base):
     @classmethod
     def normalize_code(cls, module_data, imports):
         pass
+
+
+class ModuleSchemaBase(Base):
+    pass
 
 
 class Schema(Base):
