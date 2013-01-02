@@ -863,7 +863,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         true
         '''
 
-    def test_utils_lang_jp_builtins_1(self):
+    def test_utils_lang_jp_tr_name_resolution_1(self):
         '''JS+
 
         print(isinstance(1, BaseObject) && 1 instanceof BaseObject);
@@ -873,7 +873,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         true
         '''
 
-    def test_utils_lang_jp_builtins_2(self):
+    def test_utils_lang_jp_tr_name_resolution_2(self):
         '''JS+
 
         print(1 instanceof BaseObject);
@@ -883,7 +883,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         true
         '''
 
-    def test_utils_lang_jp_builtins_3(self):
+    def test_utils_lang_jp_tr_name_resolution_3(self):
         '''JS+
 
         print(object.$name);
@@ -892,7 +892,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         object
         '''
 
-    def test_utils_lang_jp_builtins_4(self):
+    def test_utils_lang_jp_tr_name_resolution_4(self):
         '''JS+
 
         print(object + type);
@@ -901,7 +901,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         <class object><class type>
         '''
 
-    def test_utils_lang_jp_builtins_5(self):
+    def test_utils_lang_jp_tr_name_resolution_5(self):
         '''JS+
 
         object
@@ -909,7 +909,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         '''
 
-    def test_utils_lang_jp_builtins_6(self):
+    def test_utils_lang_jp_tr_name_resolution_6(self):
         '''JS+
 
         print([1, object, type][0])
@@ -918,7 +918,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         1
         '''
 
-    def test_utils_lang_jp_builtins_7(self):
+    def test_utils_lang_jp_tr_name_resolution_7(self):
         '''JS+
 
         print({'a': 'b', 'c': object}['a']);
@@ -927,7 +927,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         b
         '''
 
-    def test_utils_lang_jp_builtins_8(self):
+    def test_utils_lang_jp_tr_name_resolution_8(self):
         '''JS+
 
         a = {'b' : {'c': function() { print('aaaa')}}};
@@ -938,7 +938,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         aaaa
         '''
 
-    def test_utils_lang_jp_builtins_9(self):
+    def test_utils_lang_jp_tr_name_resolution_9(self):
         '''JS+
 
         new object()
@@ -946,7 +946,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         %%
         '''
 
-    def test_utils_lang_jp_builtins_10(self):
+    def test_utils_lang_jp_tr_name_resolution_10(self):
         '''JS+
 
         print(typeof object)
@@ -955,7 +955,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         function
         '''
 
-    def test_utils_lang_jp_builtins_11(self):
+    def test_utils_lang_jp_tr_name_resolution_11(self):
         '''JS+
 
         print(object['$name'])
@@ -964,7 +964,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         object
         '''
 
-    def test_utils_lang_jp_builtins_12(self):
+    def test_utils_lang_jp_tr_name_resolution_12(self):
         '''JS+
 
         print(void object)
@@ -973,7 +973,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         undefined
         '''
 
-    def test_utils_lang_jp_builtins_13(self):
+    def test_utils_lang_jp_tr_name_resolution_13(self):
         '''JS+
 
         print('abc' in object)
@@ -982,7 +982,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         false
         '''
 
-    def test_utils_lang_jp_builtins_14(self):
+    def test_utils_lang_jp_tr_name_resolution_14(self):
         '''JS+
 
         print(object instanceof Object)
@@ -991,7 +991,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         false
         '''
 
-    def test_utils_lang_jp_builtins_15(self):
+    def test_utils_lang_jp_tr_name_resolution_15(self):
         '''JS+
 
         print(isinstance((1, object), type))
@@ -1000,7 +1000,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         true
         '''
 
-    def test_utils_lang_jp_builtins_16(self):
+    def test_utils_lang_jp_tr_name_resolution_16(self):
         '''JS+
 
         print((--object) + (type++))
@@ -1009,7 +1009,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         NaN
         '''
 
-    def test_utils_lang_jp_builtins_17(self):
+    def test_utils_lang_jp_tr_name_resolution_17(self):
         '''JS+
 
         print((object ? '1' : '2') + (1 ? type : '3') + (0 ? 1 : BaseObject))
@@ -1018,7 +1018,7 @@ class TestTranslation(base_test.BaseJPlusTest):
         1<class type><class BaseObject>
         '''
 
-    def test_utils_lang_jp_builtins_18(self):
+    def test_utils_lang_jp_tr_name_resolution_18(self):
         '''JS+
 
         function a(a=object) {
@@ -1029,116 +1029,4 @@ class TestTranslation(base_test.BaseJPlusTest):
 
         %%
         <class object>
-        '''
-
-    def test_utils_lang_jp_builtins_len_1(self):
-        '''JS+
-
-        print(len({'a':'b'}) + '-' + len([1, 2, 3, 4]) + '-' + len('123'))
-
-        try {
-            len(null)
-        } except (TypeError) {
-            print('ok')
-        } else {
-            print('fail')
-        }
-
-        %%
-        1-4-3\nok
-        '''
-
-    def test_utils_lang_jp_builtins_abs_1(self):
-        '''JS+
-
-        print(abs(-1) + abs(2.2))
-
-        try {
-            abs('foo')
-        } except (TypeError) {
-            print('ok')
-        } else {
-            print('fail') // Math.abs would return NaN
-        }
-
-        %%
-        3.2\nok
-        '''
-
-    def test_utils_lang_jp_builtins_isnumber_1(self):
-        '''JS+
-
-        print(isnumber(1) + '|' + isnumber('aa') + '|' + isnumber(' ') +
-              '|' + isnumber(Infinity) + '|' + isnumber(1.2) + '|' + isnumber('\t') +
-              '|' + isnumber(NaN) + '|' + isnumber('1') + '|' + isnumber(new Number(1)))
-
-        %%
-        true|false|false|false|true|false|false|false|true
-        '''
-
-    def test_utils_lang_jp_builtins_isarray_1(self):
-        '''JS+
-
-        print(isarray(1) + '|' + isarray('aa') + '|' + isarray({}) +
-              '|' + isarray([]))
-
-        %%
-        false|false|false|true
-        '''
-
-    def test_utils_lang_jp_builtins_isobject_1(self):
-        '''JS+
-
-        print(isobject(1) + '|' + isobject('aa') + '|' + isobject({}) +
-              '|' + isobject([]) + '|' + isobject(new (function() {})))
-
-        %%
-        false|false|true|false|true
-        '''
-
-    def test_utils_lang_jp_builtins_isstring_1(self):
-        '''JS+
-
-        print(isstring(1) + '|' + isstring('aa') + '|' + isstring({}) +
-              '|' + isstring([]) + '|' + isstring(String('sdf')))
-
-        %%
-        false|true|false|false|true
-        '''
-
-    def test_utils_lang_jp_builtins_callable_1(self):
-        '''JS+
-
-        print(callable(1) + '|' + callable(function(){}) + '|' +
-              callable({}) + '|' + callable(len) + '|' +
-              callable(new function() {}) + '|' + callable(Object) + '|' +
-              callable(type))
-
-        %%
-        false|true|false|true|false|true|true
-        '''
-
-    def test_utils_lang_jp_builtins_pow_1(self):
-        '''JS+
-
-        print(pow(5.0, 2))
-
-        try {
-            pow('1 ', 2)
-        } except (TypeError) {
-            print('ok')
-        } else {
-            print('fail')
-        }
-
-        try {
-            pow(1, '2 ')
-        } except (TypeError) {
-            print('ok')
-        } else {
-            print('fail')
-        }
-
-        %%
-        25\nok\nok
         '''
