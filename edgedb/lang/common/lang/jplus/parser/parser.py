@@ -89,19 +89,34 @@ class Parser(JSParser):
     @stamp_state('class')
     def parse_class_guts(self):
         name = self.parse_ID().name
-        self.must_match('(', regexp=False)
-        bases = self.parse_expression_list()
-        self.must_match(')', regexp=False)
+
+        bases = []
+        if self.tentative_match('(', regexp=False):
+            bases = self.parse_expression_list()
+            self.must_match(')', regexp=False)
 
         self.must_match('{', regexp=False)
 
         body = []
         while not self.tentative_match('}', consume=True):
-            if self.tentative_match('@', 'var', 'function', 'static', consume=False):
+            if self.tentative_match('@', 'function', 'static', consume=False):
                 statement = self.parse_statement()
 
                 if statement:
                     body.append(statement)
+
+                continue
+
+            if self.token.type == 'ID':
+                id = self.parse_ID()
+                self.must_match('=')
+                right = self.parse_assignment_expression()
+                self.tentative_match(';', consume=True)
+
+                body.append(js_ast.AssignmentExpressionNode(
+                                left=id,
+                                op='=',
+                                right=right))
 
                 continue
 
@@ -154,8 +169,10 @@ class Parser(JSParser):
         self.get_next_token(False)
 
         self.must_match('(', regexp=False)
-        arguments = self.parse_expression_list()
-        self.must_match(')', regexp=False)
+        arguments = []
+        if not self.tentative_match(')', regexp=False):
+            arguments = self.parse_expression_list()
+            self.must_match(')', regexp=False)
 
         return ast.SuperCallNode(cls=cls, instance=instance,
                                  arguments=arguments, method=method)

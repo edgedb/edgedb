@@ -9,8 +9,15 @@
 from metamagic.utils.lang.javascript import ast as js_ast
 from metamagic.exceptions import SemantixError
 
-from semantix.utils.ast.transformer import NodeTransformer
+from metamagic.utils.ast.transformer import NodeTransformer
 from . import ast
+
+from semantix.utils.lang.jplus.support import base as base_js
+from semantix.utils.lang.javascript import sx as sx_js
+
+import semantix.utils.lang.javascript
+__import__('semantix.utils.lang.javascript.class')
+class_js = getattr(semantix.utils.lang.javascript, 'class')
 
 
 class ScopeHead:
@@ -19,9 +26,11 @@ class ScopeHead:
 
 
 class Variable:
-    def __init__(self, name, *, needs_decl=False):
+    def __init__(self, name, *, needs_decl=False, sys=False, value=None):
         self.name = name
         self.needs_decl = needs_decl
+        self.sys = sys
+        self.value = value
 
     def __repr__(self):
         return '<Variable {}>'.format(self.name)
@@ -78,8 +87,22 @@ class Scope:
     def __repr__(self):
         return '<{} {!r} 0x{:x}>'.format(type(self).__name__, self.vars, id(self))
 
+    def use(self, what):
+        parent = self
+        while not isinstance(parent, ModuleScope):
+            parent = parent.parent
+        return parent.use(what)
+
 
 class ModuleScope(Scope):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.sys_deps = {
+            'class': ('__SXJSP_define_class', class_js, 'sx.define'),
+            'super': ('__SXJSP_super', class_js, 'sx.parent')
+        }
+        self.deps = set()
+
     def list_load_global_vars(self):
         result = set()
 
@@ -92,6 +115,10 @@ class ModuleScope(Scope):
 
         _list(self)
         return result
+
+    def use(self, what):
+        self.deps.add(what)
+        return self.sys_deps[what][0]
 
 
 class FunctionScope(Scope):
@@ -125,10 +152,13 @@ class Transpiler(NodeTransformer):
     def scope(self):
         return self.scope_head.head
 
-    def transpile(self, node):
+    def transpile(self, node, *, module='__main__'):
         scope = BuiltinsScope(self)
+        scope.add(Variable('~module_name', sys=True, value=module))
+        scope.add(Variable('~deps', sys=True, value=set()))
         with scope:
-            return self.visit(node)
+            js = self.visit(node)
+        return js, (scope['~deps'].value | {base_js})
 
     def visit(self, node):
         name = node.__class__.__name__
@@ -155,7 +185,8 @@ class Transpiler(NodeTransformer):
         if scope.vars:
             vars = [js_ast.VarInitNode(
                         name=js_ast.IDNode(
-                                name=v.name)) for v in scope.vars.values() if v.needs_decl]
+                                name=v.name)) for v in scope.vars.values()
+                                                        if v.needs_decl and not v.sys]
             if vars:
                 return js_ast.StatementNode(
                            statement=js_ast.VarDeclarationNode(
@@ -176,12 +207,44 @@ class Transpiler(NodeTransformer):
         if var:
             processed.insert(1, var) # respect 'use strict';
 
+        if scope.deps:
+            mod_deps = set()
+            for dep in scope.deps:
+                dep_desc = scope.sys_deps[dep]
+                processed.insert(1, js_ast.StatementNode(
+                                        statement=js_ast.VarDeclarationNode(
+                                            vars=[js_ast.VarInitNode(
+                                                name=js_ast.IDNode(name=dep_desc[0]),
+                                                value=js_ast.IDNode(name=dep_desc[2]))])))
+                mod_deps.add(dep_desc[1])
+            scope['~deps'].value = mod_deps
+
+
+        name = self.scope['~module_name'].value
+
+        mod_properties = []
+        if scope.vars:
+            names = [v.name for v in scope.vars.values() if not v.sys]
+            mod_properties = [js_ast.SimplePropertyNode(
+                                name=js_ast.StringLiteralNode(value=n),
+                                value=js_ast.IDNode(name=n)) for n in names]
+
+        processed.append(js_ast.ReturnNode(
+                            expression=js_ast.ObjectLiteralNode(
+                                properties=mod_properties)))
+
         return js_ast.SourceElementsNode(
-                    code=[js_ast.StatementNode(
-                        statement=js_ast.CallNode(
-                            call=js_ast.FunctionNode(
-                                body=js_ast.StatementBlockNode(
-                                    statements=processed))))])
+                   code=[js_ast.StatementNode(
+                       statement=js_ast.CallNode(
+                        call=js_ast.DotExpressionNode(
+                            left=js_ast.IDNode(name='$SXJSP'),
+                            right=js_ast.IDNode(name='module')),
+                        arguments=[
+                            js_ast.StringLiteralNode(value=name),
+                            js_ast.CallNode(
+                                call=js_ast.FunctionNode(
+                                    body=js_ast.StatementBlockNode(
+                                        statements=processed)))]))])
 
     def visit_js_AssignmentExpressionNode(self, node):
         assert isinstance(node.left, js_ast.IDNode)
@@ -216,9 +279,64 @@ class Transpiler(NodeTransformer):
                 raise NameError(name)
             self.scope.add(Variable(name))
 
-    def visit_js_IDNode(self, node):
-        if node.name not in self.scope:
-            raise NameError(node.name)
-        return node
+    def visit_jp_ClassNode(self, node):
+        modulename = self.scope['~module_name'].value
+        name = node.name
+        qualname = '{}.{}'.format(modulename, name)
 
+        js_classdef = self.scope.use('class')
+
+        self.scope.add(Variable(name, needs_decl=True))
+
+        scope = ClassScope(self)
+        scope.add(Variable('~class_name', value=name, sys=True))
+
+        dct_items = []
+        with scope:
+            for child in node.body:
+                if isinstance(child, js_ast.FunctionNode):
+                    child = self.visit(child)
+                    dct_items.append(js_ast.SimplePropertyNode(
+                                        name=js_ast.StringLiteralNode(value=child.name),
+                                        value=child))
+                elif isinstance(child, js_ast.AssignmentExpressionNode):
+                    child = self.visit(child)
+                    dct_items.append(js_ast.SimplePropertyNode(
+                                        name=js_ast.StringLiteralNode(value=child.left.name),
+                                        value=child.right))
+                else:
+                    raise TranspilerError('unsupported AST node in class body: {}'.
+                                          format(child))
+
+        return js_ast.StatementNode(
+                   statement=js_ast.AssignmentExpressionNode(
+                       left=js_ast.IDNode(name=name),
+                       op='=',
+                       right=js_ast.CallNode(
+                           call=js_ast.IDNode(name=js_classdef),
+                           arguments=[
+                               js_ast.StringLiteralNode(value=qualname),
+                               js_ast.ArrayLiteralNode(array=node.bases),
+                               js_ast.ObjectLiteralNode(
+                                   properties=dct_items)
+                           ])))
+
+
+    def visit_jp_SuperCallNode(self, node):
+        super_name  = self.scope.use('super')
+
+        clsname = self.scope['~class_name'].value
+
+        args = [
+            js_ast.IDNode(name=clsname),
+            js_ast.ThisNode(),
+            js_ast.StringLiteralNode(value=node.method),
+        ]
+
+        if node.arguments:
+            args.append(js_ast.ArrayLiteralNode(array=node.arguments))
+
+        return js_ast.CallNode(
+                   call=js_ast.IDNode(name=super_name),
+                   arguments=args)
 
