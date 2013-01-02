@@ -605,7 +605,7 @@ class JSParser:
 
     def led_FatArrow(self, left, token):
         if not self.arrowfuncsupport:
-            raise UnexpectedToken(token)
+            raise UnexpectedToken(token, parser=self)
 
         params = []
         if left is not None:
@@ -633,7 +633,7 @@ class JSParser:
                                                 position=sub.left.position))
                             continue
 
-                    raise UnexpectedToken(token)
+                    raise UnexpectedToken(token, parser=self)
 
         if self.tentative_match('{'):
             body = self.parse_block_guts()
@@ -717,7 +717,7 @@ class JSParser:
             if self.tentative_match('=>', regexp=False):
                 # We've got an arrow function, and 'expr' is its parameters list
                 if not isinstance(expr, jsast.ExpressionListNode):
-                    raise UnexpectedToken(self.prevtoken)
+                    raise UnexpectedToken(self.prevtoken, parser=self)
                 return self.led_FatArrow(expr.expressions, self.prevtoken)
 
             return expr
@@ -1721,7 +1721,7 @@ class JSParser:
                 for_type = 'of'
 
         if for_type not in fors_allowed:
-            raise UnexpectedToken(self.prevtoken)
+            raise UnexpectedToken(self.prevtoken, parser=self)
 
         if for_type in ('in', 'of'):
             # for-of or for-in

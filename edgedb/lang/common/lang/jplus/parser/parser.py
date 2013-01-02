@@ -348,6 +348,8 @@ class Parser(JSParser):
                 else:
                     raise UnexpectedToken(self.token, parser=self)
         else:
+            if level == 0:
+                raise UnexpectedToken(self.token, parser=self)
             self.must_match('import')
 
         names = []
@@ -389,9 +391,9 @@ class Parser(JSParser):
                                     type=ast.VAR_POSITIONAL))
 
                         elif not self.tentative_match(',', consume=False, regexp=False):
-                            raise UnexpectedToken(self.token)
+                            raise UnexpectedToken(self.token, parser=self)
                     else:
-                        raise UnexpectedToken(started_at_tok)
+                        raise UnexpectedToken(started_at_tok, parser=self)
 
                 else:
                     if state == ast.POSITIONAL_ONLY:
@@ -431,7 +433,7 @@ class Parser(JSParser):
                                     type=ast.KEYWORD_ONLY))
 
                     else:
-                        raise UnexpectedToken(started_at_tok)
+                        raise UnexpectedToken(started_at_tok, parser=self)
 
                 if not self.tentative_match(',', regexp=False):
                     self.must_match(')', regexp=False)
@@ -464,7 +466,7 @@ class Parser(JSParser):
                                         name=self.parse_ID(),
                                         type=ast.VAR_POSITIONAL))
                     else:
-                        raise UnexpectedToken(started_at_tok)
+                        raise UnexpectedToken(started_at_tok, parser=self)
 
                 else:
                     if state == ast.POSITIONAL_ONLY:
@@ -472,7 +474,7 @@ class Parser(JSParser):
                         arg = self.parse_assignment_expression()
                         if not was_bracket and isinstance(arg, js_ast.AssignmentExpressionNode):
                             if not isinstance(arg.left, js_ast.IDNode):
-                                raise UnexpectedToken(started_at_tok)
+                                raise UnexpectedToken(started_at_tok, parser=self)
 
                             state = ast.KEYWORD_ONLY
                             args.append(ast.CallArgument(
@@ -489,7 +491,7 @@ class Parser(JSParser):
                         arg = self.parse_assignment_expression()
                         if (not isinstance(arg, js_ast.AssignmentExpressionNode) or
                                 not isinstance(arg.left, js_ast.IDNode)):
-                            raise UnexpectedToken(self.token)
+                            raise UnexpectedToken(self.token, parser=self)
 
                         args.append(ast.CallArgument(
                                             name=arg.left.name,
@@ -497,7 +499,7 @@ class Parser(JSParser):
                                             type=state))
 
                     else:
-                        raise UnexpectedToken(started_at_tok)
+                        raise UnexpectedToken(started_at_tok, parser=self)
 
                 if not self.tentative_match(',', regexp=False):
                     self.must_match(')', regexp=False)

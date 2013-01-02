@@ -9,7 +9,7 @@
 import py.test
 
 from .base import BaseJPlusTest, expected_fail
-from semantix.utils.lang.javascript.parser.jsparser import UnexpectedToken, UnknownToken
+from metamagic.utils.lang.javascript.parser.jsparser import UnexpectedToken, UnknownToken
 
 
 class TestTranslation(BaseJPlusTest):
@@ -113,4 +113,41 @@ class TestTranslation(BaseJPlusTest):
     def test_utils_lang_jp_parser_call_6(self):
         '''JS+
         foo(a, *foo, *foo)
+        '''
+
+    @expected_fail(UnexpectedToken, attrs={'line': 2, 'col': 9})
+    def test_utils_lang_jp_parser_import_1(self):
+        '''JS+
+        import
+        '''
+
+    @expected_fail(UnexpectedToken, attrs={'line': 2, 'col': 23})
+    def test_utils_lang_jp_parser_import_2(self):
+        '''JS+
+        import
+            foo, bar, *
+        '''
+
+    @expected_fail(UnexpectedToken, attrs={'line': 1, 'col': 23})
+    def test_utils_lang_jp_parser_import_3(self):
+        '''JS+
+        from . import *
+        '''
+
+    @expected_fail(UnexpectedToken, attrs={'line': 1, 'col': 14})
+    def test_utils_lang_jp_parser_import_4(self):
+        '''JS+
+        from from import *
+        '''
+
+    @expected_fail(UnexpectedToken, attrs={'line': 1, 'col': 16})
+    def test_utils_lang_jp_parser_import_5(self):
+        '''JS+
+        import import
+        '''
+
+    @expected_fail(UnexpectedToken, attrs={'line': 1, 'col': 16})
+    def test_utils_lang_jp_parser_import_6(self):
+        '''JS+
+        import (a)
         '''
