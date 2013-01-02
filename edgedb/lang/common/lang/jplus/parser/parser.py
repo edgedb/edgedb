@@ -23,6 +23,11 @@ class Parser(JSParser):
     def __init__(self):
         super().__init__()
 
+    def parse(self, *args, **kwargs):
+        node = super().parse(*args, **kwargs)
+        assert isinstance(node, js_ast.SourceElementsNode)
+        return ast.ModuleNode(body=node.code)
+
     def _get_operators_table(self):
         table = super()._get_operators_table()
         # (<bp>, <special type>, <token vals>, <active>)
@@ -156,8 +161,11 @@ class Parser(JSParser):
                                  arguments=arguments, method=method)
 
     def parse_nonlocal_guts(self):
-        var_list = self.parse_declaration_helper(statement=True)
-        return js_ast.StatementNode(statement=ast.NonlocalNode(vars=var_list))
+        ids = []
+        ids.append(self.parse_ID())
+        while self.tentative_match(','):
+            ids.append(self.parse_ID())
+        return ast.NonlocalNode(ids=ids)
 
     def parse_static_guts(self):
         if not self.enclosing_state('class'):

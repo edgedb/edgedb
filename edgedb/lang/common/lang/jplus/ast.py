@@ -9,6 +9,8 @@
 from metamagic.utils.lang.javascript import ast
 
 
+class ModuleNode(ast.Base): __fields = [('body', list)]
+
 class ImportAliasNode(ast.Base): __fields = ['name', 'asname']
 class ImportNode(ast.Base): __fields = [('names', list)]
 class ImportFromNode(ast.Base): __fields = [('level', int, 0), ('names', list), ('module', str, None)]
@@ -22,4 +24,4 @@ class SuperCallNode(ast.Expression): __fields = ['cls', 'instance', 'method', ('
 
 class ForOfNode(ast.Base): __fields = ['init', 'container', 'statement']
 
-class NonlocalNode(ast.Base): __fields = [('vars', list)]
+class NonlocalNode(ast.Base): __fields = [('ids', list)]
