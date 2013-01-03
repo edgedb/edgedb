@@ -13,11 +13,13 @@ import pyggy
 import os
 
 from .. import ast as jsast
-from metamagic.utils.lang.preprocessor import ast as ppast
-from . import keywords
+from . import keywords as keywords_module
 
 from metamagic.exceptions import MetamagicError, _add_context
 from metamagic.utils import markup
+
+
+__all__ = ('JSParser', 'stamp_state', 'UnexpectedToken', 'SyntaxError')
 
 
 class ExceptionContext(markup.MarkupExceptionContext):
@@ -197,7 +199,9 @@ class Start_Token(Token):
         tok.rbp = tok.lbp = 0
         return tok
 
-class JSParser():
+class JSParser:
+    keywords = keywords_module
+
     SPECIAL_NAMES = {
         '('     : 'LPAREN',
         '['     : 'LSBRACKET',
@@ -427,7 +431,7 @@ class JSParser():
 
             # could be a keyword
             #
-            if val in keywords.js_keywords:
+            if val in self.keywords.js_keywords:
                 token = 'KEYWORD'
 
                 # some keywords are operators
@@ -503,8 +507,6 @@ class JSParser():
                 self.get_next_token(regexp)
             return t
 
-        else:
-            return
 
 
     #
@@ -716,7 +718,7 @@ class JSParser():
             return jsast.RegExpNode(regexp=token.value)
 
         elif tok_type == 'KEYWORD':
-            nud = getattr(self, 'nud_' + keywords.js_keywords[token.value][0], None)
+            nud = getattr(self, 'nud_' + self.keywords.js_keywords[token.value][0], None)
             return nud(token)
 
         else:
@@ -809,7 +811,7 @@ class JSParser():
         tok = self.token
 
         if (not (tok.type == 'ID' or
-                 allowkeyword and tok.value in keywords.js_keywords)):
+                 allowkeyword and tok.value in self.keywords.js_keywords)):
             raise UnexpectedToken(self.token, parser=self)
 
         self.get_next_token(regexp=False)
