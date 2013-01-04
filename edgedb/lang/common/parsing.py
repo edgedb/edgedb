@@ -234,7 +234,7 @@ class Parser:
     def get_exception(self, native_err, context):
         return ParserError(native_err.args[0], context=context)
 
-    def get_specs(self):
+    def get_parser_spec(self):
         mod = self.get_parser_spec_module()
         self.__class__.parser_spec = parsing.Spec(
                                                 mod,
@@ -244,8 +244,14 @@ class Parser:
                                                 #graphFile=self.localpath(mod, "dot"),
                                                 verbose=self.get_debug())
 
+    def get_lexer_spec(self):
+        mod = self.get_parser_spec_module()
         _, lexer_spec = pyggy.getlexer(self.localpath(mod, "pyl"))
         self.__class__.lexer_spec = lexer_spec.lexspec
+
+    def get_specs(self):
+        self.get_parser_spec()
+        self.get_lexer_spec()
 
     def localpath(self, mod, type):
         return os.path.join(os.path.dirname(mod.__file__), mod.__name__.rpartition('.')[2] + '.' + type)
