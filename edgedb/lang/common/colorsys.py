@@ -164,12 +164,14 @@ class Color:
         'yellowgreen': '#9acd32'
         }
 
-    def __init__(self, r, g, b, a=1.):
-        r, g, b = (int(c) for c in (r, g, b))
+    def __init__(self, r, g, b, a=1.0):
+        r = int(r)
+        g = int(g)
+        b = int(b)
         a = float(a)
-        if not all(0 <= c <= 255 for c in (r, g, b)):
+        if r > 255 or r < 0 or g < 0 or g > 255 or b < 0 or b > 255:
             raise ValueError('color component should belong to [0, 255]')
-        if not 0 <= a <= 1:
+        if a < 0 or a > 1:
             raise ValueError('alpha component should belong to [0, 1]')
         self.r, self.g, self.b, self.a = r, g, b, a
 
