@@ -58,8 +58,10 @@ class BaseJSFunctionalTestMeta(type, metaclass=config.ConfigurableMeta):
 
 
 class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
+    doc_prefix = 'JS'
+
     TEST_TPL_START = '''
-    ;(function() {
+    ;(function($$$global) {
         'use strict';
 
         function dump(obj) {
@@ -67,17 +69,41 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
         }
 
         // %from metamagic.utils.lang.javascript.tests import assert
+
+        var $$$ = {};
+        for (var i in $$$global) {
+            $$$[i] = true;
+        }
     '''
 
     TEST_TPL_END = '''
+        for (var i in $$$global) {
+            if (!$$$[i]) {
+                delete $$$global[i];
+            }
+        }
+
         print('OK');
-    })();
+    })(this);
+    ''';
+
+    TEST_HTML = '''<!DOCTYPE html>
+    <html>
+        <body>
+            <script type="text/javascript"><!--
+            {source}
+            //-->
+            </script>
+        </body>
+    </html>
     ''';
 
     @classmethod
-    def do_test(mcls, source, name=None, data=None):
-        source = source[3:]
-        source = mcls.TEST_TPL_START + source + mcls.TEST_TPL_END
+    def parse_test(mcls, source, base_deps=None, name=None, pre='', post=''):
+        if source.startswith(mcls.doc_prefix):
+            source = source[len(mcls.doc_prefix)+1:]
+
+        source = mcls.TEST_TPL_START + pre + source + post + mcls.TEST_TPL_END
 
         # XXX heads up, ugly hacks ahead
         module = VirtualJavaScriptResource(None, 'tmp_mod_' + (name or 'test_js'))
@@ -87,17 +113,19 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
         with debug.debug_logger_off():
             imports = loader.code_from_source(module.__name__, source.encode('utf-8'), log=False)
             if imports:
-                deps = loader._process_imports(imports, module)
-            else:
-                deps = []
+                loader._process_imports(imports, module)
 
-        all_deps = OrderedSet()
-        for dep, weak in module.__sx_resource_deps__.items():
-            all_deps.update(resource.Resource._list_resources(dep))
+        deps = tuple(module.__sx_resource_deps__.keys())
+        if base_deps:
+            deps = tuple(base_deps) + deps
 
+        return source, deps
+
+    @classmethod
+    def compile_boostrap(mcls, deps):
         imports = []
         bootstrap = []
-        for dep in all_deps:
+        for dep in deps:
             if isinstance(dep, JavaScriptModule):
                 imports.append(dep.__name__)
                 with open(dep.__file__, 'rt') as dep_f:
@@ -106,10 +134,63 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
                                         isinstance(dep, BaseJavaScriptModule)):
                 bootstrap.append(dep.__sx_resource_get_source__().decode('utf-8'))
 
+        return imports, bootstrap
+
+    @classmethod
+    def do_test(mcls, source, name=None, data=None):
+        source, deps = mcls.parse_test(source, name=name)
+
+        all_deps = OrderedSet()
+        for dep in deps:
+            all_deps.update(resource.Resource._list_resources(dep))
+
+        imports, bootstrap = mcls.compile_boostrap(all_deps)
+
         if data is not None:
             bootstrap.append('var $ = ' + json.dumps(data) + ';');
 
         mcls.run_v8(imports, '\n;\n'.join(bootstrap), source)
+
+    @classmethod
+    def _gen_html(mcls, cls, dct):
+        all_sources = []
+        all_deps = OrderedSet()
+
+        for meth_name, meth in dct.items():
+            if not meth_name.startswith('test_'):
+                continue
+
+            doc = getattr(meth, '__doc__', '')
+            if not doc or not doc.startswith('{}\n'.format(mcls.doc_prefix)):
+                continue
+
+            source, deps = mcls.parse_test(doc, pre='''
+                document.write('<div style="color:green;margin-top: 20px">{}</div>');
+            '''.format(meth_name))
+            all_sources.append(source)
+            for dep in deps:
+                all_deps.update(resource.Resource._list_resources(dep))
+
+        if not all_sources:
+            return
+
+        all_sources.insert(0, '''
+            (function() {
+                window.print = function() {
+                    var args = Array.prototype.slice.call(arguments);
+                    document.write(args.join(' '));
+                    document.write('<br/>');
+                }
+                assert.fail = window.print;
+            })();
+        ''');
+
+        imports, boostrap = mcls.compile_boostrap(all_deps)
+
+        source = '\n;\n'.join(boostrap) + '\n//TESTS\n' + '\n\n'.join(all_sources)
+
+        with open(cls.__name__ + '.html', 'wt') as f:
+            f.write(mcls.TEST_HTML.format(source=source))
 
     def __new__(mcls, name, bases, dct):
         for meth_name, meth in dct.items():
@@ -117,12 +198,18 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
                 continue
 
             doc = getattr(meth, '__doc__', '')
-            if not doc or not doc.startswith('JS\n'):
+            if not doc or not doc.startswith('{}\n'.format(mcls.doc_prefix)):
                 continue
 
             dct[meth_name] = py.test.mark.skipif(str(mcls.skipif))(mcls.make_test(meth, doc))
 
-        return super().__new__(mcls, name, bases, dct)
+        cls = super().__new__(mcls, name, bases, dct)
+
+        gen_html = 'js.tests.genhtml' in debug.channels
+        if gen_html:
+            mcls._gen_html(cls, dct)
+
+        return cls
 
     @classmethod
     def run_v8(mcls, imports, bootstrap, source):
@@ -165,7 +252,7 @@ class MetaJSParserTest_Base(type, metaclass=config.ConfigurableMeta):
         jsparser = jsp.JSParser(**flags)
 
         """LOG [js.extra.parse] Test Source
-        print(highlight(src, 'javascript'))
+        markup.dump_code(src, lexer='javascript')
         """
 
         tree = jsparser.parse(src)
@@ -175,7 +262,7 @@ class MetaJSParserTest_Base(type, metaclass=config.ConfigurableMeta):
 
         processed_src = JavascriptSourceGenerator.to_source(tree)
         """LOG [js.extra.parse] Test Processed Source
-        print(highlight(processed_src, 'javascript'))
+        markup.dump_code(processed_src, lexer='javascript')
         """
 
         assert filter.sub('', src) == filter.sub('', processed_src)
