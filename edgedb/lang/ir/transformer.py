@@ -1494,9 +1494,6 @@ class TreeTransformer:
                     left.concept = right.concept
 
                 if merge_filters:
-                    left.conceptfilter.update(right.conceptfilter)
-
-                if merge_filters:
                     left.conjunction = self.intersect_paths(left.conjunction,
                                                             right.conjunction, merge_filters)
 
@@ -1656,7 +1653,6 @@ class TreeTransformer:
                 left_set.users.update(right_set.users)
                 left_set.joins.update(right_set.joins)
                 left_set.joins.discard(left_set)
-                left_set.conceptfilter.update(right_set.conceptfilter)
 
                 if left_set.origin is None and right_set.origin is not None:
                     left_set.origin = right_set.origin
@@ -1864,7 +1860,6 @@ class TreeTransformer:
                  and our_node.anchor == other_node.anchor
                  and (ignore_filters or (not our_node.filter and not other_node.filter
                                          and not our_node.conjunction.paths
-                                         and our_node.conceptfilter == other_node.conceptfilter
                                          and not other_node.conjunction.paths))))
               and (not link or (link.link_proto == other_link.link_proto
                                 and link.direction == other_link.direction)))

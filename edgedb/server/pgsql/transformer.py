@@ -248,46 +248,71 @@ class PgSQLExprTransformer(ast.visitor.NodeVisitor):
 class CaosExprTransformer(tree.transformer.TreeTransformer):
     def _table_from_concept(self, context, concept, node):
         if concept.is_virtual:
-            data_backend = context.current.session.backend
-            proto_schema = context.current.proto_schema
-            data_backend.provide_virtual_concept_table(concept, proto_schema, context.current.session)
+            # Virtual concepts are represented as a UNION of selects from their children,
+            # which is, for most purposes, equivalent to SELECTing from a parent table.
+            #
+            atomrefs = {'metamagic.caos.builtins.id'} | {f.name for f in node.atomrefs}
+            cols = [(aref, common.caos_name_to_pg_name(aref)) for aref in atomrefs]
 
-        table_schema_name, table_name = common.concept_name_to_table_name(concept.name, catenate=False)
-        concept_table = pgsql.ast.TableNode(name=table_name,
-                                            schema=table_schema_name,
-                                            concepts=frozenset({node.concept}),
-                                            alias=context.current.genalias(hint=table_name),
-                                            caosnode=node)
-        return concept_table
-
-    def _relation_from_concepts(self, context, node):
-        if node.conceptfilter:
-            tabname = common.concept_name_to_table_name(node.concept.name, catenate=False)
             union_list = []
-            for concept, only in node.conceptfilter.items():
-                table = self._table_from_concept(context, concept, node)
+            children = frozenset(concept.children(context.current.proto_schema))
+
+            inhmap = caos_utils.get_full_inheritance_map(context.current.proto_schema, children)
+
+            for c, cc in inhmap.items():
+                table = self._table_from_concept(context, c, node)
                 qry = pgsql.ast.SelectQueryNode()
                 qry.fromlist.append(table)
-                qry.from_only = only
-                qry.targets.append(pgsql.ast.StarIndirectionNode())
+
+                for aname, colname in cols:
+                    if aname in c.pointers:
+                        selexpr = pgsql.ast.FieldRefNode(table=table, field=colname,
+                                                         origin=table, origin_field=colname)
+                    else:
+                        selexpr = pgsql.ast.ConstantNode(value=None)
+
+                    qry.targets.append(pgsql.ast.SelectExprNode(expr=selexpr, alias=colname))
+
+                selexpr = pgsql.ast.FieldRefNode(table=table, field='concept_id',
+                                                 origin=table, origin_field='concept_id')
+
+                qry.targets.append(pgsql.ast.SelectExprNode(expr=selexpr, alias='concept_id'))
+
+                if cc:
+                    # Make sure that all sets produced by each UNION member are disjoint so
+                    # that there are no duplicates, and, most importantly, the shape of each row
+                    # corresponds to the class.
+                    get_concept_id = context.current.session.backend.get_concept_id
+                    session = context.current.session
+                    cc_ids = {get_concept_id(cls, session, cache='always') for cls in cc}
+                    cc_ids = [pgsql.ast.ConstantNode(value=cc_id) for cc_id in cc_ids]
+                    cc_ids = pgsql.ast.SequenceNode(elements=cc_ids)
+
+                    qry.where = pgsql.ast.BinOpNode(left=selexpr, right=cc_ids, op=ast.ops.NOT_IN)
 
                 union_list.append(qry)
 
-            if len(union_list) == 1:
-                relation = union_list[0]
-                relation.alias = context.current.genalias(hint=tabname[1])
-            else:
-                relation = pgsql.ast.SelectQueryNode(caosnode=node,
-                                                  concepts=frozenset(node.conceptfilter),
-                                                  op=pgsql.ast.UNION)
-                relation.alias = context.current.genalias(hint=tabname[1])
+            if len(union_list) > 1:
+                relation = pgsql.ast.SelectQueryNode(caosnode=node, concepts=children,
+                                                     op=pgsql.ast.UNION)
                 self._setop_from_list(relation, union_list, pgsql.ast.UNION)
-        else:
-            concept = node.concept
-            concept_table = self._table_from_concept(context, concept, node)
-            relation = concept_table
+            else:
+                relation = union_list[0]
 
+            relation.alias = context.current.genalias(hint=concept.name.name)
+
+        else:
+            table_schema_name, table_name = common.concept_name_to_table_name(concept.name,
+                                                                              catenate=False)
+            relation = pgsql.ast.TableNode(name=table_name,
+                                           schema=table_schema_name,
+                                           concepts=frozenset({node.concept}),
+                                           alias=context.current.genalias(hint=table_name),
+                                           caosnode=node)
         return relation
+
+    def _relation_from_concepts(self, context, node):
+        return self._table_from_concept(context, node.concept, node)
 
     def _relation_from_link(self, context, node):
         table_schema_name, table_name = common.get_table_name(node.link_proto, catenate=False)
@@ -2452,33 +2477,30 @@ class CaosTreeTransformer(CaosExprTransformer):
                     sources, _, _ = concept.resolve_pointer(proto_schema, field,
                                                             look_in_children=True,
                                                             strict_ancestry=True)
-
                     assert sources
-
                     if concept.is_virtual:
+                        # Atom refs to columns present in direct children of a virtual concept
+                        # are guaranteed to be included in the relation representing the virtual
+                        # concept.
+                        #
                         proto_schema = context.current.proto_schema
-                        common_ptrs = concept.get_children_common_pointers(proto_schema)
-                        common_ptrs = {ptr.normal_name() for ptr in common_ptrs}
-
-                        if field in common_ptrs:
+                        chain = itertools.chain.from_iterable
+                        child_ptrs = set(chain(c.pointers for c in concept.children(proto_schema)))
+                        if field in child_ptrs:
                             descendants = set(concept.descendants(proto_schema))
                             sources -= descendants
                             sources.add(concept)
-
                     for source in sources:
                         if source not in joined_atomref_sources:
                             atomref_table = self._table_from_concept(context, source, caos_path_tip)
                             joined_atomref_sources[source] = atomref_table
-
                             left = pgsql.ast.FieldRefNode(table=concept_table, field=id_field)
                             right = pgsql.ast.FieldRefNode(table=atomref_table, field=id_field)
                             joincond = pgsql.ast.BinOpNode(op='=', left=left, right=right)
-
                             fromnode.expr = self._simple_join(context, fromnode.expr,
                                                               atomref_table,
                                                               key=None, type='left',
                                                               condition=joincond)
-
                     ref_map[field] = atomref_tables = [joined_atomref_sources[c] for c in sources]
 
                 colname = common.caos_name_to_pg_name(field)

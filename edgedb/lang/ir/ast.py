@@ -271,7 +271,6 @@ class AtomicRefSet(typed.TypedSet, type=AtomicRef):
 
 class EntitySet(Path):
     __fields = ['id', 'anchor', ('concept', caos_types.ProtoNode), 'atom',
-                ('conceptfilter', dict),
                 'filter',
                 ('conjunction', Conjunction),
                 ('disjunction', Disjunction),

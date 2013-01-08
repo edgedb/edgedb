@@ -33,7 +33,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 14
+BACKEND_FORMAT_VERSION = 15
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -1234,44 +1234,49 @@ class ConceptMetaCommand(CompositePrototypeMetaCommand):
 
 class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
     def apply(self, meta, context=None):
-        new_table_name = common.concept_name_to_table_name(self.prototype_name, catenate=False)
-        self.table_name = new_table_name
-        concept_table = dbops.Table(name=new_table_name)
-        self.pgops.add(dbops.CreateTable(table=concept_table))
+        concept_props = self.get_struct_properties(include_old_value=False)
+        is_virtual = concept_props['is_virtual']
 
-        alter_table = self.get_alter_table(context)
+        if not is_virtual:
+            new_table_name = common.concept_name_to_table_name(self.prototype_name, catenate=False)
+            self.table_name = new_table_name
+            concept_table = dbops.Table(name=new_table_name)
+            self.pgops.add(dbops.CreateTable(table=concept_table))
+
+            alter_table = self.get_alter_table(context)
 
         concept = delta_cmds.CreateConcept.apply(self, meta, context)
         ConceptMetaCommand.apply(self, meta, context)
 
         fields = self.create_object(meta, concept)
 
-        cid_col = dbops.Column(name='concept_id', type='integer', required=True)
+        if not is_virtual:
+            cid_col = dbops.Column(name='concept_id', type='integer', required=True)
 
-        if concept.name == 'metamagic.caos.builtins.BaseObject' or concept.is_virtual:
-            alter_table.add_operation(dbops.AlterTableAddColumn(cid_col))
+            if concept.name == 'metamagic.caos.builtins.BaseObject':
+                alter_table.add_operation(dbops.AlterTableAddColumn(cid_col))
 
-        if not concept.is_virtual:
-            constraint = dbops.PrimaryKey(table_name=alter_table.name,
-                                          columns=['metamagic.caos.builtins.id'])
-            alter_table.add_operation(dbops.AlterTableAddConstraint(constraint))
+            if not concept.is_virtual:
+                constraint = dbops.PrimaryKey(table_name=alter_table.name,
+                                              columns=['metamagic.caos.builtins.id'])
+                alter_table.add_operation(dbops.AlterTableAddConstraint(constraint))
 
-        bases = (common.concept_name_to_table_name(caos.Name(p), catenate=False)
-                 for p in fields['base'][1] if proto.Concept.is_prototype(meta, p))
-        concept_table.bases = list(bases)
+            bases = (common.concept_name_to_table_name(caos.Name(p), catenate=False)
+                     for p in fields['base'][1] if proto.Concept.is_prototype(meta, p))
+            concept_table.bases = list(bases)
 
-        self.apply_inherited_deltas(concept, meta, context)
-        self.create_pointer_constraints(concept, meta, context)
+            self.apply_inherited_deltas(concept, meta, context)
+            self.create_pointer_constraints(concept, meta, context)
 
-        self.affirm_pointer_defaults(concept, meta, context)
+            self.affirm_pointer_defaults(concept, meta, context)
 
-        self.attach_alter_table(context)
+            self.attach_alter_table(context)
 
-        if self.update_search_indexes:
-            self.update_search_indexes.apply(meta, context)
-            self.pgops.add(self.update_search_indexes)
+            if self.update_search_indexes:
+                self.update_search_indexes.apply(meta, context)
+                self.pgops.add(self.update_search_indexes)
 
-        self.pgops.add(dbops.Comment(object=concept_table, text=self.prototype_name))
+            self.pgops.add(dbops.Comment(object=concept_table, text=self.prototype_name))
 
         return concept
 
@@ -3544,6 +3549,41 @@ class UpgradeBackend(MetaCommand):
                                                             'metamagic.caos.builtins.mtime')
         cmdgroup.add_command(altertype)
 
+
+        cmdgroup.execute(context)
+
+    def update_to_version_15(self, context):
+        """
+        Backend format 15: drop virtual tables
+        """
+
+        cmdgroup = dbops.CommandGroup()
+
+        ds = datasources.introspection.tables.TableList(context.db)
+        ctables = ds.fetch(schema_name='caos%', table_pattern='%_data')
+
+        for ctable in ctables:
+            ctabname = (ctable['schema'], ctable['name'])
+
+            inheritance = datasources.introspection.tables.TableInheritance(context.db)
+            inheritance = inheritance.fetch(table_name=ctable['name'],
+                                            schema_name=ctable['schema'], max_depth=1)
+
+            bases = tuple(i[:2] for i in inheritance[1:])
+
+            for bt_schema, bt_name in bases:
+                if bt_name.startswith('Virtual_'):
+                    cmd = dbops.AlterTable(ctabname)
+                    cmd.add_command(dbops.AlterTableDropParent((bt_schema, bt_name)))
+                    cmdgroup.add_command(cmd)
+
+        for ctable in ctables:
+            ctabname = (ctable['schema'], ctable['name'])
+
+            if ctabname[1].startswith('Virtual_'):
+                table_exists = dbops.TableExists(ctabname)
+                drop = dbops.DropTable(ctabname, conditions=[table_exists])
+                cmdgroup.add_command(drop)
 
         cmdgroup.execute(context)
 

@@ -472,6 +472,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         concept_list = collections.OrderedDict((caos.Name(row['name']), row) for row in concept_list)
 
         for name, row in concept_list.items():
+            if row['is_virtual']:
+                # Virtual concepts do not have tables
+                continue
+
             table_name = common.concept_name_to_table_name(name, catenate=False)
             table = tables.get(table_name)
 
@@ -2065,195 +2069,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def order_pointer_cascade_policies(self, meta):
         pass
 
-
-    def virtual_concept_from_table(self, session, meta, table_name):
-        """Interpret concept relying exclusively on the specified table without supporting metadata."""
-        ds = introspection.tables.TableList(session.get_connection())
-        tables = ds.fetch(schema_name=table_name[0], table_pattern=table_name[1])
-
-        if not tables:
-            return None
-
-        if not tables[0]['comment']:
-            msg = 'could not determine concept name: table comment is missing'
-            raise caos.MetaError(msg)
-
-        name = caos.Name(tables[0]['comment'])
-
-        ds = datasources.meta.concepts.ConceptList(session.get_connection())
-        concept_meta = ds.fetch(name=name)
-
-        concept = proto.Concept(name=name, is_virtual=True, is_abstract=True,
-                                automatic=concept_meta[0]['automatic'])
-
-        concept.materialize(meta)
-
-        columns = self._type_mech.get_table_columns(table_name,
-                                                    connection=session.get_connection())
-        atom_constraints = self._constr_mech.get_table_atom_constraints(session.get_connection())
-        atom_constraints = atom_constraints.get(table_name)
-
-        ptr_constraints = self._constr_mech.get_table_ptr_constraints(session.get_connection())
-        ptr_constraints = ptr_constraints.get(table_name)
-
-        for col in columns.values():
-            if not col['column_is_local'] or col['column_name'] == 'concept_id':
-                continue
-
-            pointer_name = col['column_comment']
-
-            if not pointer_name:
-                msg = 'could not determine link name: column comment is missing'
-                raise caos.MetaError(msg)
-
-            pointer_name = caos.Name(pointer_name)
-
-            target, required = self._get_pointer_column_target(meta, concept, pointer_name,
-                                                               col, atom_constraints)
-
-            ptr = meta.get(pointer_name)
-            link = ptr.derive(meta, concept, target)
-            link.required = required
-            link.is_atom = True
-            link.readonly = False
-
-            src_pname = 'metamagic.caos.builtins.source'
-            src_pbase = meta.get('metamagic.caos.builtins.source')
-            src_pname_s = proto.LinkProperty.generate_specialized_name(link.name, concept.name,
-                                                                       src_pname)
-
-            src_pname_s = caos.Name(name=src_pname_s, module=link.name.module)
-            src_p = caos.proto.LinkProperty(name=src_pname_s, bases=[src_pbase],
-                                            source=link, target=concept,
-                                            loading=caos.types.EagerLoading)
-            src_p.acquire_parent_data(meta)
-            src_p.title = None
-
-            link.add_pointer(src_p)
-
-            tgt_pname = 'metamagic.caos.builtins.target'
-            tgt_pbase = meta.get('metamagic.caos.builtins.target')
-            tgt_pname_s = proto.LinkProperty.generate_specialized_name(link.name, target.name,
-                                                                       tgt_pname)
-            tgt_pname_s = caos.Name(name=tgt_pname_s, module=link.name.module)
-            tgt_p = caos.proto.LinkProperty(name=tgt_pname_s, bases=[tgt_pbase],
-                                            source=link, target=target,
-                                            loading=caos.types.EagerLoading)
-            tgt_p.acquire_parent_data(meta)
-            tgt_p.title = None
-
-            link.add_pointer(tgt_p)
-
-            if ptr_constraints:
-                constraints = ptr_constraints.get(pointer_name)
-                if constraints:
-                    for constraint in constraints:
-                        link.add_constraint(constraint)
-
-            concept.add_pointer(link)
-
-        return concept
-
-
-    def provide_virtual_concept_table(self, concept, schema, session):
-        table_name = common.concept_name_to_table_name(concept.name, catenate=False)
-
-        my_schema = self.getmeta()
-        stored_concept = self.virtual_concept_from_table(session, my_schema, table_name)
-
-        updated_concept = concept.copy()
-        updated_concept.automatic = True
-
-        ptrs = updated_concept.get_children_common_pointers(schema)
-
-        for ptr in ptrs:
-            ptr_stor_info = types.get_pointer_storage_info(schema, ptr)
-
-            if ptr_stor_info.table_type[0] == 'source' or ptr_stor_info.in_record:
-                if ptr.target.automatic:
-                    target = ptr.target.bases[0]
-                else:
-                    target = ptr.target
-                ptr = ptr.derive(schema, updated_concept, target)
-
-                for prop in ptr.own_pointers.values():
-                    prop.required = False
-                    prop.readonly = False
-                    prop.search = None
-                    prop.title = None
-                    prop.description = None
-
-                # Drop all constraints on virtual concept links --- they are needless and
-                # potentially harmful.
-                for constr_cls in ptr.constraints.copy():
-                    ptr.del_constraint(constr_cls)
-
-                ptr.required = False
-                ptr.readonly = False
-                ptr.search = None
-                ptr.title = None
-                ptr.description = None
-
-                updated_concept.add_pointer(ptr)
-
-        delta = base_delta.AlterRealm()
-
-        diff = updated_concept.compare(stored_concept)
-
-        if diff != 1.0:
-            concept_delta = updated_concept.delta(stored_concept)
-            delta.add(concept_delta)
-            if isinstance(concept_delta, base_delta.CreateConcept):
-                schema.delete(updated_concept)
-
-        for c in updated_concept.children(schema):
-            c_table_name = common.concept_name_to_table_name(c.name, catenate=False)
-
-            bases = self.pg_table_inheritance(c_table_name[1], c_table_name[0])
-            if table_name not in bases:
-                alter = base_delta.AlterConcept(prototype_name=c.name,
-                                                prototype_class=c.__class__.get_canonical_class())
-                old_bases = [caos.proto.PrototypeRef(prototype_name=b.name) for b in c.bases]
-                new_bases = old_bases + [caos.proto.PrototypeRef(prototype_name=updated_concept.name)]
-
-                prop = base_delta.AlterPrototypeProperty(property='bases',
-                                                         old_value=old_bases,
-                                                         new_value=new_bases)
-
-                new_base_names = tuple(p.prototype_name for p in new_bases)
-                rebase = base_delta.RebaseConcept(prototype_name=c.name,
-                                                  prototype_class=c.__class__.get_canonical_class(),
-                                                  new_base=new_base_names)
-                alter.add(prop)
-                alter.add(rebase)
-                delta.add(alter)
-
-        delta = self.process_delta(delta, my_schema, session)
-
-        self.execute_delta_plan(delta, session)
-
-        # Update oid to proto name mapping cache
-        ds = introspection.tables.TableList(session.get_connection())
-        table_name = common.concept_name_to_table_name(updated_concept.name, catenate=False)
-        tables = ds.fetch(schema_name=table_name[0], table_pattern=table_name[1])
-
-        if not tables:
-            msg = 'internal metadata incosistency'
-            details = 'Record for concept "%s" exists but the table is missing' % updated_concept.name
-            raise caos.MetaError(msg, details=details)
-
-        table = next(iter(tables))
-
-        self.table_id_to_proto_name_cache[table['oid']] = updated_concept.name
-        self.table_id_to_proto_name_cache[table['typoid']] = updated_concept.name
-        self.proto_name_to_table_id_cache[updated_concept.name] = table['typoid']
-
-        ds = introspection.types.TypesList(session.get_connection())
-
-        # Update virtual concept table column cache
-        self._type_mech.get_table_columns(table_name, connection=session.get_connection(),
-                                          cache=None)
-
     def get_type_attributes(self, type_name, connection=None, cache='auto'):
         return self._type_mech.get_type_attributes(type_name, connection, cache)
 
@@ -2285,7 +2100,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             table_name = common.concept_name_to_table_name(name, catenate=False)
             table = tables.get(table_name)
 
-            if not table:
+            if not table and not concept['is_virtual']:
                 msg = 'internal metadata incosistency'
                 details = 'Record for concept "%s" exists but the table is missing' % name
                 raise caos.MetaError(msg, details=details)
@@ -2295,10 +2110,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if concept['automatic']:
                 continue
 
-            bases = self.pg_table_inheritance_to_bases(table['name'], table['schema'],
-                                                                      table_to_concept_map)
+            if not concept['is_virtual']:
+                bases = self.pg_table_inheritance_to_bases(table['name'], table['schema'],
+                                                                          table_to_concept_map)
 
-            basemap[name] = bases
+                basemap[name] = bases
 
             custombases = [proto.NativeClassRef(class_name=b) for b in concept['custombases']]
 
