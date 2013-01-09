@@ -33,7 +33,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 15
+BACKEND_FORMAT_VERSION = 16
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -1251,6 +1251,12 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
         fields = self.create_object(meta, concept)
 
         if not is_virtual:
+            constr_expr = dbops.Query("""
+                SELECT 'concept_id = ' || id FROM caos.concept WHERE name = $1
+            """, [concept.name], type='text')
+            cid_constraint = dbops.CheckConstraint(self.table_name, constr_expr, inherit=False)
+            alter_table.add_operation(dbops.AlterTableAddConstraint(cid_constraint))
+
             cid_col = dbops.Column(name='concept_id', type='integer', required=True)
 
             if concept.name == 'metamagic.caos.builtins.BaseObject':
@@ -3584,6 +3590,32 @@ class UpgradeBackend(MetaCommand):
                 table_exists = dbops.TableExists(ctabname)
                 drop = dbops.DropTable(ctabname, conditions=[table_exists])
                 cmdgroup.add_command(drop)
+
+        cmdgroup.execute(context)
+
+    def update_to_version_16(self, context):
+        """
+        Backend format 16: add concept_id CHECK constraint
+        """
+
+        cmdgroup = dbops.CommandGroup()
+
+        concept_list = datasources.meta.concepts.ConceptList(context.db).fetch()
+
+        for concept in concept_list:
+            if concept['is_virtual']:
+                continue
+
+            cname = caos.name.Name(concept['name'])
+            ctabname = common.concept_name_to_table_name(cname, catenate=False)
+            table_exists = dbops.TableExists(ctabname)
+            alter_table = dbops.AlterTable(ctabname, conditions=[table_exists])
+
+            constr_expr = 'concept_id = {}'.format(concept['id'])
+            cid_constraint = dbops.CheckConstraint(ctabname, constr_expr, inherit=False)
+            alter_table.add_operation(dbops.AlterTableAddConstraint(cid_constraint))
+
+            cmdgroup.add_command(alter_table)
 
         cmdgroup.execute(context)
 

@@ -144,6 +144,24 @@ class UniqueConstraint(TableConstraint):
         return code
 
 
+class CheckConstraint(TableConstraint):
+    def __init__(self, table_name, expr, inherit=True):
+        super().__init__(table_name)
+        self.expr = expr
+        self.inherit = inherit
+
+    def code(self, context):
+        if isinstance(self.expr, base.Query):
+            expr = context.db.prepare(self.expr.text).first(*self.expr.params)
+        else:
+            expr = self.expr
+
+        code = 'CHECK ({})'.format(expr)
+        if not self.inherit:
+            code += ' NO INHERIT'
+        return code
+
+
 class TableExists(base.Condition):
     def __init__(self, name):
         self.name = name
