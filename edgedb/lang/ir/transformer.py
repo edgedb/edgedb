@@ -3039,6 +3039,22 @@ class PathResolver(TreeTransformer):
             for path in path.paths:
                 result.update(self._resolve_path(path, class_factory))
 
+        elif isinstance(path, caos_ast.MetaRef):
+            import metamagic.caos.expr as caos_expr
+            expr = self._resolve_path(path.ref, class_factory)
+
+            if path.name == 'id':
+                atom_name = 'metamagic.caos.builtins.int'
+            else:
+                atom_name = 'metamagic.caos.builtins.str'
+
+            result = []
+
+            for e in expr:
+                metadata = dict(source_expr=getattr(caos_expr.type(e), path.name))
+                atom = class_factory.get_class(atom_name)
+                result.append(atom._copy_(metadata=metadata))
+
         elif isinstance(path, caos_ast.AtomicRefSimple):
             expr = self._resolve_path(path.ref, class_factory)
             result = (getattr(e, path.name) for e in expr)
