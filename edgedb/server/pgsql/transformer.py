@@ -1049,6 +1049,24 @@ class CaosTreeTransformer(CaosExprTransformer):
 
             outer_ref = pgsql.ast.FieldRefNode(table=ref_table, field=idcol,
                                                origin=ref_table, origin_field=idcol)
+
+            if isinstance(field_ref.table, pgsql.ast.SelectQueryNode):
+                # Push the filter into the actual relation representing the EntitySet, not just
+                # its parent query.
+                origin = field_ref.origin
+                if isinstance(origin, list):
+                    assert len(origin) == 1
+                    origin = origin[0]
+
+                inner_rel = field_ref.table
+                inner_ref = pgsql.ast.FieldRefNode(table=origin,
+                                                   field=field_ref.origin_field,
+                                                   origin=field_ref.origin,
+                                                   origin_field=field_ref.origin_field)
+
+                comparison = pgsql.ast.BinOpNode(left=outer_ref, op=ast.ops.EQ, right=inner_ref)
+                inner_rel.where = self.extend_binop(inner_rel.where, comparison,
+                                                    cls=pgsql.ast.BinOpNode)
         else:
             outer_ref = outer_ref[idcol].expr
 
