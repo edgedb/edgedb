@@ -1754,13 +1754,15 @@ class TreeTransformer:
             # Degenerate case
             if not left.paths:
                 paths = right.paths
+                fixed = right.fixed
             elif not right.paths:
                 paths = left.paths
+                fixed = left.fixed
 
-            if len(paths) <= 1:
+            if len(paths) <= 1 and not fixed:
                 return caos_ast.Conjunction(paths=frozenset(paths))
             else:
-                return caos_ast.Disjunction(paths=frozenset(paths))
+                return caos_ast.Disjunction(paths=frozenset(paths), fixed=fixed)
 
     def intersect_disjunction_with_conjunction(self, disjunction, conjunction):
         if disjunction.paths and conjunction.paths:
