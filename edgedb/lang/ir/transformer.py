@@ -468,8 +468,8 @@ class TreeTransformer:
                 path = None
         return path
 
-    def entityref_to_record(self, expr, schema, *, pathspec=None, _visited_records=None,
-                                                                  _recurse=True):
+    def entityref_to_record(self, expr, schema, *, pathspec=None, prefixes=None,
+                                                   _visited_records=None, _recurse=True):
         """Convert an EntitySet node into an Record referencing eager-pointers of EntitySet concept
         """
 
@@ -565,17 +565,22 @@ class TreeTransformer:
                 if recurse_link is not None:
                     lref.rlink = None
 
-                targetstep = caos_ast.EntitySet(conjunction=caos_ast.Conjunction(),
-                                                disjunction=caos_ast.Disjunction(),
-                                                users={self.context.current.location},
-                                                concept=target_proto, id=full_path_id)
+                if prefixes and full_path_id in prefixes and lref is ref:
+                    targetstep = prefixes[full_path_id]
+                    targetstep = next(iter(targetstep))
+                    link_node = targetstep.rlink
+                else:
+                    targetstep = caos_ast.EntitySet(conjunction=caos_ast.Conjunction(),
+                                                    disjunction=caos_ast.Disjunction(),
+                                                    users={self.context.current.location},
+                                                    concept=target_proto, id=full_path_id)
 
-                link_node = caos_ast.EntityLink(source=lref, target=targetstep,
-                                                link_proto=link_proto,
-                                                direction=link_direction,
-                                                users={'selector'})
+                    link_node = caos_ast.EntityLink(source=lref, target=targetstep,
+                                                    link_proto=link_proto,
+                                                    direction=link_direction,
+                                                    users={'selector'})
 
-                targetstep.rlink = link_node
+                    targetstep.rlink = link_node
 
                 if not link.atomic():
                     lref.conjunction.update(link_node)
