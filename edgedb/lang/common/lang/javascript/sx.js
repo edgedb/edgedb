@@ -643,49 +643,75 @@ this.sx = (function(global) {
 
         date: {
             parse_iso: (function() {
-                var parse_re = /^(\d+)-(\d+)-(\d+)(?:T|\s+)(\d+):(\d+):(\d+)(?:\.(\d+))?(\+|-)(\d{2})(?::(\d{2}))?$/;
+                var parse_re = new RegExp(
+                        /* date: {YYYY|(+|-YYYYY)}[-MM[-DD]] */
+                        '^(\\d{4}|[\\+\\-]\d{5})(?:\\-(\\d{2})(?:\\-(\\d{2})'
+                        /* time: HH[:MM[:SS.sfraction]] | HH[MM[SS.sfraction]] */
+                        + '(?:(?:T|\\s+)?(\\d{2})(?::?(\\d{2})(?::?(\\d{2})(?:\\.(\\d+))?)?)?'
+                        /* time offset: 'Z' | {+|-}HH[MM] | {+|-}HH[:MM] */
+                        + '(Z|(?:([\\-\\+])(\\d{2})(?::?(\\d{2}))?))?)?)?)?$'),
+                    month_offsets = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365];
+
+                var _is_leap = function(year) {
+                    return year % 400 === 0 || (year % 4 === 0 && year % 100 !== 0);
+                };
+
+                var _unix_day = function(year, month) {
+                    var ytd_days = month_offsets[month] + ((month > 1 && _is_leap(year)) ? 1 : 0),
+                        leap_years_since_epoch = Math.floor((year - 1970) / 4);
+
+                    return (year - 1970) * 365 + leap_years_since_epoch + ytd_days;
+                };
 
                 return function(value) {
                     var match = parse_re.exec(value);
 
-                    if (match) {
-                        var year = Number(match[1]),
-                            month = Number(match[2]) - 1,
-                            day = Number(match[3]),
-                            hour = Number(match[4]),
-                            minute = Number(match[5]),
-                            second = Number(match[6]),
-                            microsecond = Number(match[7] || '0'),
-                            tzoffsetsign = match[8] || '+',
-                            tzoffsethour = Number(match[9] || '0'),
-                            tzoffsetminute = Number(match[10] || '0'),
-                            millisecond;
-
-                        if (microsecond) {
-                            millisecond = Math.floor(microsecond / 1000);
-                        } else {
-                            millisecond = 0;
-                        }
-
-                        var utc = new Date(),
-                            offset = (tzoffsethour * 3600 + tzoffsetminute * 60) * 1000;
-
-                        utc.setUTCFullYear(year);
-                        utc.setUTCMonth(month);
-                        utc.setUTCDate(day);
-                        utc.setUTCHours(hour);
-                        utc.setUTCMinutes(minute);
-                        utc.setUTCSeconds(second);
-
-                        if (millisecond) {
-                            utc.setUTCMilliseconds(millisecond);
-                        }
-
-                        utc = (+utc) + (offset * (tzoffsetsign == '-' ? 1 : -1));
-                        return new Date(utc);
-                    } else {
+                    if (!match) {
                         throw new sx.Error('sx.date.parse_iso: invalid date: "' + value + '"');
                     }
+
+                    var year = Number(match[1]),
+                        month = Number(match[2] || 1) - 1,
+                        day = Number(match[3] || 1) - 1,
+                        hour = Number(match[4] || 0),
+                        minute = Number(match[5] || 0),
+                        second = Number(match[6] || 0),
+                        msecond = Number(match[7] || 0),
+                        offset = !match[4] || match[8] ? 0 : Number(new Date(1970, 0)),
+                        tzoffsetsign = (match[9] || '+') == '-' ? 1 : -1,
+                        tzoffsethour = Number(match[10] || 0),
+                        tzoffsetminute = Number(match[11] || 0),
+                        valid,
+                        unix_day;
+
+                    // Reduce accuracy to milliseconds
+                    if (msecond.toString().length > 3) {
+                        msecond = Math.floor(msecond / 1000);
+                    }
+
+                    if (month > 11) {
+                        throw new sx.Error('sx.date.parse_iso: invalid date: "' + value + '"');
+                    }
+
+                    unix_day = _unix_day(year, month);
+
+                    valid = day >= 0 && day < (_unix_day(year, month + 1) - unix_day)
+                            && hour < (((minute + second + msecond) > 0) ? 24 : 25)
+                            && minute < 60
+                            && second < 60
+                            && tzoffsethour < 24
+                            && tzoffsetminute < 60;
+
+                    if (!valid) {
+                        throw new sx.Error('sx.date.parse_iso: invalid date: "' + value + '"');
+                    }
+
+                    var hours = ((unix_day + day) * 24 + hour + tzoffsethour * tzoffsetsign),
+                        minutes = hours * 60 + minute + tzoffsetminute * tzoffsetsign,
+                        seconds = minutes * 60 + second,
+                        milliseconds = seconds * 1000 + msecond + offset;
+
+                    return new Date(milliseconds);
                 };
             })()
         },

@@ -26,6 +26,38 @@ class TestJSsx(JSFunctionalTest):
 
         d = sx.date.parse_iso('2012-09-15 15:38:52.9147-04');
         assert.equal(d.toUTCString(), 'Sat, 15 Sep 2012 19:38:52 GMT');
+
+        // Zulu, a.k.a. UTC
+        d = sx.date.parse_iso('2012-09-15 15:38:52.9147Z');
+        assert.equal(d.toUTCString(), 'Sat, 15 Sep 2012 15:38:52 GMT');
+
+        // Basic date format
+        d = sx.date.parse_iso('2012-09-15 155000.914113+0400');
+        assert.equal(d.toUTCString(), 'Sat, 15 Sep 2012 11:50:00 GMT');
+
+        // Truncated
+        d = sx.date.parse_iso('2012-09-15 15:20+0400');
+        assert.equal(d.toUTCString(), 'Sat, 15 Sep 2012 11:20:00 GMT');
+
+        // Even more truncated
+        d = sx.date.parse_iso('2012-09-15T15+0400');
+        assert.equal(d.toUTCString(), 'Sat, 15 Sep 2012 11:00:00 GMT');
+
+        d = sx.date.parse_iso('2012-09-15T15Z');
+        assert.equal(d.toUTCString(), 'Sat, 15 Sep 2012 15:00:00 GMT');
+
+        d = sx.date.parse_iso('2012-09-15');
+        assert.equal(d.toUTCString(), 'Sat, 15 Sep 2012 00:00:00 GMT');
+
+        d = sx.date.parse_iso('2012-09');
+        assert.equal(d.toUTCString(), 'Sat, 01 Sep 2012 00:00:00 GMT');
+
+        d = sx.date.parse_iso('2012');
+        assert.equal(d.toUTCString(), 'Sun, 01 Jan 2012 00:00:00 GMT');
+
+        // Before epoch
+        d = sx.date.parse_iso('1904-02-29 15:00-04:00');
+        assert.equal(d.toUTCString(), 'Mon, 29 Feb 1904 19:00:00 GMT');
         '''
 
     def test_utils_lang_js_sx_ns(self):
