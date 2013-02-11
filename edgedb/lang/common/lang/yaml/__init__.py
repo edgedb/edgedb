@@ -145,6 +145,7 @@ class Language(meta.Language):
 
             ldr = loader.ReplayLoader(code, context)
             for d in ldr.get_dict():
+                context.namespace.update((d,))
                 yield d
 
     @classmethod
