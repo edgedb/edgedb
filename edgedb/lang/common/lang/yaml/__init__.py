@@ -85,7 +85,8 @@ class Language(meta.Language):
                 else:
                     schemas.append(schema)
 
-                if not caching_schemas and issubclass(schema, yaml_schema.CachingSchema):
+                if (not caching_schemas and issubclass(schema, yaml_schema.CachingSchema)
+                                        and schema.enable_cache):
                     caching_schemas = True
 
                 imports.update(document.imports)

@@ -52,4 +52,4 @@ class ModuleSchema(Schema):
 
 
 class CachingSchema:
-    pass
+    enable_cache = True
