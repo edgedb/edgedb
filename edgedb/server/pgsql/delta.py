@@ -911,7 +911,10 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             constr = self.get_pointer_constraint(meta, context, constraint,
                                                  source=source, pointer_name=pointer_name)
             op = dbops.AlterTableAddConstraint(constraint=constr)
-            alter_table.add_operation(op)
+            table_name = common.get_table_name(source, catenate=False)
+            constr_name = constr.constraint_name(quote=False)
+            cond = dbops.TableConstraintExists(table_name=table_name, constraint_name=constr_name)
+            alter_table.add_operation((op, None, [cond]))
 
             constraint_origins = source.get_constraint_origins(pointer_name, constraint)
             assert constraint_origins
