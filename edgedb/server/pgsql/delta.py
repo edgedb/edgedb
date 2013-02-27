@@ -1071,7 +1071,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         orig_source.bases = [realm.op._renames.get(b, b) for b in orig_source.bases]
 
         dropped_bases = {b.name for b in orig_source.bases} - {b.name for b in source.bases}
-        added_bases = {b.name for b in source.bases} - {b.name for b in orig_source.bases}
 
         if isinstance(source, caos.types.ProtoConcept):
             nameconv = common.concept_name_to_table_name
@@ -1152,13 +1151,33 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                             op = dbops.AlterTableDropColumn(col)
                             alter_table_drop_ptr.add_command((op, (cond,), ()))
 
-            alter_table_add_parent = source_ctx.op.get_alter_table(context, force_new=True)
-            for added_base in added_bases:
-                parent_table_name = nameconv(caos.name.Name(added_base), catenate=False)
+            current_bases = list(datastructures.OrderedSet(b.name for b in orig_source.bases)
+                                                                             - dropped_bases)
+            new_bases = [b.name for b in source.bases]
+            for i, bn in enumerate(new_bases):
+                if i >= len(current_bases) or bn != current_bases[i]:
+                    break
+
+            old_base_order = current_bases[i:]
+            new_base_order = new_bases[i:]
+
+
+            if new_base_order:
                 table_name = nameconv(source.name, catenate=False)
-                cond = dbops.TableInherits(table_name, parent_table_name)
-                op = dbops.AlterTableAddParent(parent_name=parent_table_name)
-                alter_table_add_parent.add_operation((op, None, [cond]))
+                alter_table_drop_parent = source_ctx.op.get_alter_table(context, force_new=True)
+                alter_table_add_parent = source_ctx.op.get_alter_table(context, force_new=True)
+
+                for base in old_base_order:
+                    parent_table_name = nameconv(caos.name.Name(base), catenate=False)
+                    cond = dbops.TableInherits(table_name, parent_table_name)
+                    op = dbops.AlterTableDropParent(parent_name=parent_table_name)
+                    alter_table_drop_parent.add_operation((op, [cond], None))
+
+                for added_base in new_base_order:
+                    parent_table_name = nameconv(caos.name.Name(added_base), catenate=False)
+                    cond = dbops.TableInherits(table_name, parent_table_name)
+                    op = dbops.AlterTableAddParent(parent_name=parent_table_name)
+                    alter_table_add_parent.add_operation((op, None, [cond]))
 
 
 class SourceIndexCommand(PrototypeMetaCommand):
