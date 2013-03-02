@@ -16,6 +16,19 @@ this.sx = (function(global) {
         sx = function(selector) { return new sx._fn.init(selector); },
         _is_id = /^#([\w\-]*)$/,
         _id_counter = 0,
+        _unescape_entities = {
+            '&amp;': '&',
+            '&gt;': '>',
+            '&lt;': '<',
+            '&quot;': '"',
+            '&#39;': "'",
+            '&#x2F;': '/'
+        },
+        _unescape_fn = function(match, entity) {
+            console.log(entity);
+            return entity in _unescape_entities ? _unescape_entities[entity]
+                                                : String.fromCharCode(parseInt(entity.substr(2)));
+        },
         has_own_property = Object.prototype.hasOwnProperty,
         NodeList = (typeof window != 'undefined' && window.NodeList) ? window.NodeList : null;
 
@@ -505,6 +518,21 @@ this.sx = (function(global) {
         escape: function(str) {
             return String(str).replace(/\&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
         },
+
+        unescape: (function() {
+            var entities = [];
+            for (var entity in _unescape_entities) {
+                if (_unescape_entities.hasOwnProperty(entity)) {
+                    entities.push(entity);
+                }
+            }
+
+            var _re = new RegExp('(' + entities.join('|') + '|' + '&#[0-9]{1,5};' + ')', 'g');
+
+            return function(str) {
+                return str ? String(str).replace(_re, _unescape_fn) : str;
+            }
+        })(),
 
         uuid4: function() {
             function s(num) {
