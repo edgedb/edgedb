@@ -891,6 +891,18 @@ this.sx = (function(global) {
                     element.innerHTML = '';
                     element.appendChild(sx.dom._builder(null, spec));
                 }
+            },
+
+            insert_before: function(element, spec) {
+                var el = sx.dom._builder(null, spec);
+                element.parentNode.insertBefore(el, element);
+                return el;
+            },
+
+            append: function(element, spec) {
+                var el = sx.dom._builder(null, spec);
+                element.appendChild(el);
+                return el;
             }
         }
     });
