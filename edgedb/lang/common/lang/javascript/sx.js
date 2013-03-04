@@ -671,6 +671,17 @@ this.sx = (function(global) {
 
         date: {
             parse_iso: (function() {
+                /**
+                 * Parse string representation of date according to ISO 8601.
+                 *
+                 * Unlike Date.parse(), this function correctly assumes time representations
+                 * lacking explicit timezone information as local time (ISO 8601:2004(E) §4.2.2).
+                 * See also https://bugs.ecmascript.org/show_bug.cgi?id=112.
+                 *
+                 * @param String value  String representaton of date in one of ISO 8601 formats.
+                 *
+                 * @return Date object
+                 */
                 var parse_re = new RegExp(
                         /* date: {YYYY|(+|-YYYYY)}[-MM[-DD]] */
                         '^(\\d{4}|[\\+\\-]\d{5})(?:\\-(\\d{2})(?:\\-(\\d{2})'
@@ -678,20 +689,21 @@ this.sx = (function(global) {
                         + '(?:(?:T|\\s+)?(\\d{2})(?::?(\\d{2})(?::?(\\d{2})(?:\\.(\\d+))?)?)?'
                         /* time offset: 'Z' | {+|-}HH[MM] | {+|-}HH[:MM] */
                         + '(Z|(?:([\\-\\+])(\\d{2})(?::?(\\d{2}))?))?)?)?)?$'),
-                    month_offsets = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334, 365];
+                    month_offsets = [0, 31, 59, 90, 120, 151, 181, 212, 243, 273, 304, 334];
 
                 var _is_leap = function(year) {
                     return year % 400 === 0 || (year % 4 === 0 && year % 100 !== 0);
                 };
 
                 var _unix_day = function(year, month) {
-                    var ytd_days = month_offsets[month] + ((month > 1 && _is_leap(year)) ? 1 : 0),
-                        leap_years_since_epoch = Math.floor((year - 1970) / 4);
+                    var isleap = _is_leap(year),
+                        ytd_days = month_offsets[month] + ((month > 1 && isleap) ? 1 : 0),
+                        leap_years_since_epoch = Math.floor((year - 1972) / 4) + (isleap ? 0 : 1);
 
                     return (year - 1970) * 365 + leap_years_since_epoch + ytd_days;
                 };
 
-                return function(value) {
+                return function _sx_date_parse_iso(value) {
                     var match = parse_re.exec(value);
 
                     if (!match) {
@@ -704,18 +716,22 @@ this.sx = (function(global) {
                         hour = Number(match[4] || 0),
                         minute = Number(match[5] || 0),
                         second = Number(match[6] || 0),
-                        msecond = Number(match[7] || 0),
-                        offset = !match[4] || match[8] ? 0 : Number(new Date(1970, 0)),
-                        tzoffsetsign = (match[9] || '+') == '-' ? 1 : -1,
-                        tzoffsethour = Number(match[10] || 0),
-                        tzoffsetminute = Number(match[11] || 0),
-                        valid,
-                        unix_day;
+                        msecond = Number(match[7] || 0);
 
                     // Reduce accuracy to milliseconds
                     if (msecond.toString().length > 3) {
                         msecond = Math.floor(msecond / 1000);
                     }
+
+                    if (match[4] == null) {
+                        return new Date(year, month, day + 1, hour, minute, second, msecond);
+                    }
+
+                    var tzoffsetsign = (match[9] || '+') == '-' ? 1 : -1,
+                        tzoffsethour = Number(match[10] || 0),
+                        tzoffsetminute = Number(match[11] || 0),
+                        valid,
+                        unix_day;
 
                     if (month > 11) {
                         throw new sx.Error('sx.date.parse_iso: invalid date: "' + value + '"');
@@ -737,7 +753,7 @@ this.sx = (function(global) {
                     var hours = ((unix_day + day) * 24 + hour + tzoffsethour * tzoffsetsign),
                         minutes = hours * 60 + minute + tzoffsetminute * tzoffsetsign,
                         seconds = minutes * 60 + second,
-                        milliseconds = seconds * 1000 + msecond + offset;
+                        milliseconds = seconds * 1000 + msecond;
 
                     return new Date(milliseconds);
                 };

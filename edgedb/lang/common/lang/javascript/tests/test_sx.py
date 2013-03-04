@@ -46,14 +46,32 @@ class TestJSsx(JSFunctionalTest):
         d = sx.date.parse_iso('2012-09-15T15Z');
         assert.equal(d.toUTCString(), 'Sat, 15 Sep 2012 15:00:00 GMT');
 
+        d = sx.date.parse_iso('1968-02-29T12:00Z');
+        assert.equal(d.toUTCString(), 'Thu, 29 Feb 1968 12:00:00 GMT');
+
+        d = sx.date.parse_iso('1972-02-29');
+        var td = new Date(1972, 1, 29);
+        assert.equal(d.toUTCString(), td.toUTCString());
+
+        d = sx.date.parse_iso('1972-03-01');
+        var td = new Date(1972, 2, 1);
+        assert.equal(d.toUTCString(), td.toUTCString());
+
         d = sx.date.parse_iso('2012-09-15');
-        assert.equal(d.toUTCString(), 'Sat, 15 Sep 2012 00:00:00 GMT');
+        var td = new Date(2012, 8, 15);
+        assert.equal(d.toUTCString(), td.toUTCString());
+
+        var d = sx.date.parse_iso('2013-04-01');
+        td = new Date(2013, 3, 1);
+        assert.equal(d.toUTCString(), td.toUTCString());
 
         d = sx.date.parse_iso('2012-09');
-        assert.equal(d.toUTCString(), 'Sat, 01 Sep 2012 00:00:00 GMT');
+        td = new Date(2012, 8, 1);
+        assert.equal(d.toUTCString(), td.toUTCString());
 
         d = sx.date.parse_iso('2012');
-        assert.equal(d.toUTCString(), 'Sun, 01 Jan 2012 00:00:00 GMT');
+        td = new Date(2012, 0, 1);
+        assert.equal(d.toUTCString(), td.toUTCString());
 
         // Before epoch
         d = sx.date.parse_iso('1904-02-29 15:00-04:00');
