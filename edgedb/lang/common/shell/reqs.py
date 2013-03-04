@@ -19,6 +19,6 @@ class CommandRequirement:
 
 
 class ValidApplication(CommandRequirement):
-    def __init__(self):
+    def __init__(self, args):
         if not app.Application.active:
             raise UnsatisfiedRequirementError('need active Application')

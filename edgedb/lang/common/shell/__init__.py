@@ -52,14 +52,14 @@ class CommandMeta(config.ConfigurableMeta):
 
 
 class CommandBase(metaclass=CommandMeta, name=None):
-    def check_requirements(self):
+    def check_requirements(self, args):
         if self.__class__._command_requirements:
             try:
                 for requirement in self.__class__._command_requirements:
-                    requirement()
+                    requirement(args)
             except reqs.UnsatisfiedRequirementError as e:
                 err = '{}: {}'.format(self.__class__._command_name, e)
-                raise reqs.UnsatisfiedRequirementError(err) from e
+                raise reqs.UnsatisfiedRequirementError(err) from None
 
     def __init__(self, subparsers):
         self.parser = self.get_parser(subparsers)
@@ -84,12 +84,13 @@ class CommandGroup(CommandBase, name=None):
 
     def get_parser(self, subparsers):
         parser = self.create_parser(subparsers)
-        action = parser.add_subparsers(dest=self.__class__._command_name + '_subcommand')
+        action = parser.add_subparsers(dest=self.__class__._command_name + '_subcommand',
+                                       title='{} subcommands'.format(self.__class__._command_name))
         action.required = True
         return action
 
     def __call__(self, args, unknown_args):
-        self.check_requirements()
+        self.check_requirements(args)
         command = getattr(args, self.__class__._command_name + '_subcommand')
         next_command = self._command_submap[command]
 
