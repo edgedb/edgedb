@@ -27,6 +27,9 @@ class TestJSsx(JSFunctionalTest):
         d = sx.date.parse_iso('2012-09-15 15:38:52.9147-04');
         assert.equal(d.toUTCString(), 'Sat, 15 Sep 2012 19:38:52 GMT');
 
+        d = sx.date.parse_iso('2012-12-28 11:59:13.572009-05');
+        assert.equal(d.toUTCString(), 'Fri, 28 Dec 2012 16:59:13 GMT');
+
         // Zulu, a.k.a. UTC
         d = sx.date.parse_iso('2012-09-15 15:38:52.9147Z');
         assert.equal(d.toUTCString(), 'Sat, 15 Sep 2012 15:38:52 GMT');
