@@ -652,14 +652,20 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 commands = sorted(commands, key=lambda i: i.priority)
                 self.pgops.update(commands)
 
-    def get_alter_table(self, context, priority=0, force_new=False, contained=False, manual=False):
-        if not self.table_name:
+    def get_alter_table(self, context, priority=0, force_new=False, contained=False, manual=False,
+                                       table_name=None):
+
+        tabname = table_name if table_name else self.table_name
+
+        if not tabname:
             assert self.__class__.context_class
             ctx = context.get(self.__class__.context_class)
             assert ctx
-            self.table_name = common.get_table_name(ctx.proto, catenate=False)
+            tabname = common.get_table_name(ctx.proto, catenate=False)
+            if table_name is None:
+                self.table_name = tabname
 
-        return self._get_multicommand(context, dbops.AlterTable, self.table_name,
+        return self._get_multicommand(context, dbops.AlterTable, tabname,
                                       priority=priority,
                                       force_new=force_new, manual=manual,
                                       cmdkwargs={'contained': contained})
@@ -1013,9 +1019,10 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 # The attribute is being moved from one table to another
                 opg = dbops.CommandGroup(priority=1)
                 at = source_op.get_alter_table(context, manual=True)
-                pat = self.get_alter_table(context, manual=True)
 
                 if old_ptr_stor_info.table_type[0] == 'source':
+                    pat = self.get_alter_table(context, manual=True)
+
                     # Moved from concept table to link table
                     col = dbops.Column(name=old_ptr_stor_info.column_name,
                                        type=old_ptr_stor_info.column_type)
@@ -1029,6 +1036,9 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
                     pat.add_command((dbops.AlterTableAddColumn(newcol), None, (cond,)))
                 else:
+                    otabname = common.get_table_name(orig_pointer, catenate=False)
+                    pat = self.get_alter_table(context, manual=True, table_name=otabname)
+
                     oldcol = dbops.Column(name=old_ptr_stor_info.column_name,
                                           type=old_ptr_stor_info.column_type)
 
