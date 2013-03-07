@@ -141,6 +141,11 @@ class Date(datetime.date):
 
         return super().__new__(cls, *args)
 
+    @classmethod
+    def now(cls, tz=None):
+        now = DateTime.now(tz=tz)
+        return cls(datetime.date(year=now.year, month=now.month, day=now.day))
+
     def truncate(self, field):
         # XXX
         raise NotImplementedError
