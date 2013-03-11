@@ -2577,6 +2577,11 @@ class TreeTransformer:
                     elif len(refdict) == 1:
                         # Left operand references a single entity
                         _binop = newbinop(left, right)
+
+                        aexprs = ast.find_children(_binop, lambda i: isinstance(i, exprnode_type))
+                        for aexpr in aexprs:
+                            aexpr.inline = False
+
                         _binop = self.merge_paths(_binop)
                         result = exprnode_type(expr=_binop)
                     else:
