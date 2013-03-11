@@ -2895,6 +2895,10 @@ class PathResolver(TreeTransformer):
             if len(path.paths) > 1:
                 result = [('set',) + tuple(result)]
 
+        elif isinstance(path, caos_ast.MetaRef):
+            source = self._serialize_path(path.ref)
+            result = [('getclassattr', source, path.name)]
+
         elif isinstance(path, caos_ast.AtomicRefSimple):
             source = self._serialize_path(path.ref)
             result = [('getattr', source, path.name)]
@@ -2972,6 +2976,12 @@ class PathResolver(TreeTransformer):
                 sources.extend(self._exec_cmd(a, class_factory))
             result = [getattr(src, args[1]) for src in sources]
 
+        elif cmd == 'getclassattr':
+            sources = []
+            for a in args[0]:
+                sources.extend(self._exec_cmd(a, class_factory))
+            result = [getattr(src.__sx_prototype__, args[1]) for src in sources]
+
         elif cmd == 'step':
             sources = []
             for a in args[0]:
@@ -3019,6 +3029,12 @@ class PathResolver(TreeTransformer):
             for a in args[0]:
                 sources.extend(self._convert_to_entity_path(a))
             result = [('follow', sources, args[1], caos_types.OutboundDirection)]
+
+        elif cmd == 'getclassattr':
+            sources = []
+            for a in args[0]:
+                sources.extend(self._convert_to_entity_path(a))
+            result = [('getclassattr', sources, args[1])]
 
         elif cmd == 'step':
             sources = []
