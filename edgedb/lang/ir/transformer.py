@@ -482,6 +482,7 @@ class TreeTransformer:
         p = next(iter(expr.paths))
 
         recurse_links = None
+        recurse_metarefs = ['id', 'name']
 
         if isinstance(p, caos_ast.EntitySet):
             concepts = {c.concept for c in expr.paths}
@@ -519,6 +520,10 @@ class TreeTransformer:
                 for ps in pathspec:
                     if isinstance(ps.ptr_proto, caos_types.ProtoLink):
                         recurse_links[ps.ptr_proto.normal_name()] = ps
+
+                    elif isinstance(ps.ptr_proto, str):
+                        # metaref
+                        recurse_metarefs.append(ps.ptr_proto)
 
             if recurse_links is None:
                 recurse_links = {pn: caos_ast.PtrPathSpec(ptr_proto=p)
@@ -735,16 +740,16 @@ class TreeTransformer:
                 if el is not None:
                     elements.append(el)
 
-            metaref_id = caos_ast.MetaRef(name='id', ref=ref)
-            metaref_name = caos_ast.MetaRef(name='name', ref=ref)
+            metarefs = []
+
+            for metaref in recurse_metarefs:
+                metarefs.append(caos_ast.MetaRef(name=metaref, ref=ref))
 
             for p in expr.paths:
                 p.atomrefs.update(atomrefs)
-                p.metarefs.add(metaref_id)
-                p.metarefs.add(metaref_name)
+                p.metarefs.update(metarefs)
 
-            elements.append(metaref_id)
-            elements.append(metaref_name)
+            elements.extend(metarefs)
             expr = rec
 
         return expr
