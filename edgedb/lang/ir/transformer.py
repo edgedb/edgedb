@@ -606,20 +606,27 @@ class TreeTransformer:
 
                     for sortexpr in recurse_spec.sorter:
                         sortpath = sortexpr.expr
-                        sortpath_link = sortpath.rlink
 
                         sort_target = self.copy_path(sortpath)
 
-                        sort_target.ref = sort_source
+                        if isinstance(sortpath, caos_ast.LinkPropRef):
+                            if sortpath.ref.link_proto == link_node.link_proto:
+                                sort_target.ref = link_node
+                                link_node.proprefs.add(sort_target)
+                            else:
+                                raise ValueError('Cannot sort by property ref of link other than self')
+                        else:
+                            sortpath_link = sortpath.rlink
+                            sort_target.ref = sort_source
 
-                        sort_link = caos_ast.EntityLink(source=sort_source,
-                                                        target=sort_target,
-                                                        link_proto=sortpath_link.link_proto,
-                                                        direction=sortpath_link.direction,
-                                                        users=sortpath_link.users)
-                        sort_target.rlink = sort_link
+                            sort_link = caos_ast.EntityLink(source=sort_source,
+                                                            target=sort_target,
+                                                            link_proto=sortpath_link.link_proto,
+                                                            direction=sortpath_link.direction,
+                                                            users=sortpath_link.users)
 
-                        sort_source.atomrefs.add(sort_target)
+                            sort_target.rlink = sort_link
+                            sort_source.atomrefs.add(sort_target)
 
                         sorter.append(caos_ast.SortExpr(expr=sort_target,
                                                         direction=sortexpr.direction,
