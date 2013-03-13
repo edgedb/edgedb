@@ -857,3 +857,24 @@ class TestJSClass(JSFunctionalTest):
         assert.equal(com.acme.Bar.foo.call(scope), 42);
         assert.equal(com.acme.Bar.foo(), 100);
         '''
+
+    def test_utils_lang_js_sx_class_null_attr(self):
+        '''JS
+        // %from metamagic.utils.lang.javascript import class
+
+        var Foo = sx.define('Foo', [], {
+            foo: null,
+            bar: void 0,
+
+            statics: {
+                foo: null,
+                bar: void 0
+            }
+        });
+
+        assert.equal(Foo.foo, null);
+        assert.equal(Foo.bar, void 0);
+        assert.ok(Foo.hasOwnProperty('bar'));
+        assert.equal(Foo().foo, null);
+        assert.equal(Foo().bar, void 0);
+        '''

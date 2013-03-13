@@ -388,7 +388,7 @@ sx.$bootstrap_class_system = function(opts) {
         for (i in dct) {
             if (hop.call(dct, i) && i != 'metaclass' && i != 'statics') {
                 attr = dct[i];
-                if (!hop.call(attr, CLS_ATTR) && is_method(attr)) {
+                if (attr != null && !hop.call(attr, CLS_ATTR) && is_method(attr)) {
                     attr[CLS_ATTR] = cls;
                     attr[NAME_ATTR] = i;
                 }
