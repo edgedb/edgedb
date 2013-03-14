@@ -63,6 +63,8 @@ class RunCommand(shell.Command, name='run', expose=True):
         for arg in sig.kwonlyargs:
             kwargs = {}
             name = '--{}'.format(arg.name)
+            type_ = None
+            default = None
 
             try:
                 type_ = arg.annotation
@@ -77,6 +79,10 @@ class RunCommand(shell.Command, name='run', expose=True):
                 pass
             else:
                 kwargs['default'] = default
+
+            if type_ is bool and default is False:
+                kwargs['action'] = 'store_true'
+                kwargs.pop('type')
 
             parser.add_argument(name, **kwargs)
 
