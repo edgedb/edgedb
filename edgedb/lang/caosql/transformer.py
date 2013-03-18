@@ -147,6 +147,12 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
             result.orderby = [self._process_expr(e) for e in expr.sorter]
             result.targets = [self._process_expr(e) for e in expr.selector]
 
+            if expr.limit is not None:
+                result.limit = self._process_expr(expr.limit)
+
+            if expr.offset is not None:
+                result.offset = self._process_expr(expr.offset)
+
         elif isinstance(expr, tree.ast.InlineFilter):
             result = self._process_expr(expr.expr)
 

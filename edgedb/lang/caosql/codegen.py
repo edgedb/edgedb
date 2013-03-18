@@ -41,6 +41,12 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
                 if i > 0:
                     self.write(', ')
                 self.visit(e)
+        if node.offset is not None:
+            self.write(' OFFSET ')
+            self.visit(node.offset)
+        if node.limit is not None:
+            self.write(' LIMIT ')
+            self.visit(node.limit)
 
     def visit_SelectExprNode(self, node):
         self.visit(node.expr)
