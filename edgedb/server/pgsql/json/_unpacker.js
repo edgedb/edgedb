@@ -17,6 +17,7 @@ sx.types.register('pgjson.', function(format, data, metadata) {
     var FREEFORM_RECORD_ID = '6e51108d-7440-47f7-8c65-dc4d43fd90d2';
     var supported_formats = ['pgjson.caos.selector', 'pgjson.caos.queryselector',
                              'pgjson.caos.entity'];
+    var hop = {}.constructor.prototype.hasOwnProperty;
 
     var _throw = function(msg) {
         throw new sx.Error('malformed "' + format_string + '" data: ' + msg);
@@ -102,10 +103,10 @@ sx.types.register('pgjson.', function(format, data, metadata) {
         }
 
         for (var src_id in updates) {
-            if (updates.hasOwnProperty(src_id)) {
+            if (hop.call(updates, src_id)) {
                 var src = items[src_id][ca.name];
                 if (!src) {
-                    throw new sx.Error('unexpected error in recursion tree unpack: source is empty');
+                    _throw('unexpected error in recursion tree unpack: source is empty');
                 }
 
                 var src_updates = updates[src_id];
@@ -131,65 +132,79 @@ sx.types.register('pgjson.', function(format, data, metadata) {
         return toplevel_entities;
     };
 
+    var _decode_sequence = function(seq) {
+        var i, len, v, result = [];
+
+        for (i = 0, len = seq.length; i < len; i++) {
+            v = seq[i];
+
+            if (v && hop.call(v, 'f1')) {
+                v = _decode_record(v);
+            }
+
+            if (v != null) {
+                result.push(v);
+            }
+        }
+
+        return result;
+    }
+
     var _decode_record = function(record) {
         var result = {};
         var rec_id = record.f1;
         var rec_info = record_info[rec_id];
+        var k, v, reclen, i, item_val, item_key, _rec;
 
         if (rec_id == FREEFORM_RECORD_ID) {
             result = [];
 
-            var reclen = sx.len(record);
-            for (var i = 1; i < reclen; i++) {
-                var k = 'f' + (i + 1).toString();
-                var item_val = record[k];
+            reclen = sx.len(record);
+            for (i = 1; i < reclen; i++) {
+                k = 'f' + (i + 1).toString();
+                item_val = record[k];
 
-                if (sx.is_object(item_val) && sx.contains(item_val, 'f1')) {
+                if (item_val && hop.call(item_val, 'f1')) {
                     item_val = _decode_record(item_val);
+                } else if (sx.is_array(item_val)) {
+                    item_val = _decode_sequence(item_val);
                 }
 
                 result.push(item_val);
             }
         } else if (!rec_info) {
-            sx.each(record, function(v) {
-                var item_key = v.f1;
+            for (k in record) {
+                if (!hop.call(record, k)) {
+                    continue;
+                }
+                v = record[k];
+
+                item_key = v.f1;
 
                 if (!item_key) {
                     _throw('missing record item name');
                 }
 
-                var item_val = v.f2;
+                item_val = v.f2;
 
-                if (sx.is_object(item_val) && sx.contains(item_val, 'f1')) {
+                if (item_val && hop.call(item_val, 'f1')) {
                     item_val = _decode_record(item_val);
                 } else if (sx.is_array(item_val)) {
-                    var res = [];
-
-                    sx.each(item_val, function(iv) {
-                        if (sx.is_object(iv) && sx.contains(iv, 'f1')) {
-                            iv = _decode_record(iv);
-                        }
-
-                        if (iv != null) {
-                            res.push(iv);
-                        }
-                    });
-
-                    item_val = res;
+                    item_val = _decode_sequence(item_val);
                 }
 
                 result[item_key] = item_val;
-            });
+            }
         } else {
             if (rec_info.recursive_link) {
-                var reclen = sx.len(record);
-                var _rec = {};
+                _rec = {};
 
-                for (var i = 1; i < reclen; i++) {
-                    var k = 'f' + (i + 1).toString();
-                    var item_key = rec_info.attribute_map[i - 1];
+                reclen = sx.len(record);
+                for (i = 1; i < reclen; i++) {
+                    k = 'f' + (i + 1).toString();
+                    item_key = rec_info.attribute_map[i - 1];
 
-                    var item_val = record[k];
+                    item_val = record[k];
 
                     _rec[item_key] = item_val;
                 }
@@ -199,34 +214,21 @@ sx.types.register('pgjson.', function(format, data, metadata) {
                 }
             }
 
-            var reclen = sx.len(record);
-
-            for (var i = 1; i < reclen; i++) {
-                var k = 'f' + (i + 1).toString();
-                var item_key = rec_info.attribute_map[i - 1];
+            reclen = sx.len(record);
+            for (i = 1; i < reclen; i++) {
+                k = 'f' + (i + 1).toString();
+                item_key = rec_info.attribute_map[i - 1];
 
                 if (!item_key) {
                     _throw('missing record item name');
                 }
 
-                var item_val = record[k];
+                item_val = record[k];
 
-                if (sx.is_object(item_val) && sx.contains(item_val, 'f1')) {
+                if (item_val && hop.call(item_val, 'f1')) {
                     item_val = _decode_record(item_val);
                 } else if (sx.is_array(item_val)) {
-                    var res = [];
-
-                    sx.each(item_val, function(iv) {
-                        if (sx.is_object(iv) && sx.contains(iv, 'f1')) {
-                            iv = _decode_record(iv);
-                        }
-
-                        if (iv != null) {
-                            res.push(iv);
-                        }
-                    });
-
-                    item_val = res;
+                    item_val = _decode_sequence(item_val);
                 }
 
                 if (sx.is_object(item_key)) {
@@ -243,12 +245,12 @@ sx.types.register('pgjson.', function(format, data, metadata) {
         }
 
         if (result['$sxclsid$']) {
-            delete result['$sxclsid$'];
+            result['$sxclsid$'] = null;
         }
 
         if (result['$sxclsname$']) {
             var clsname = result['$sxclsname$'];
-            delete result['$sxclsname$'];
+            result['$sxclsname$'] = null;
             var cls = sx.caos.schema.get(clsname);
 
             // Filter out pointers that do not belong to this class.
