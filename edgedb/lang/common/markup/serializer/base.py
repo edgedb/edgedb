@@ -199,9 +199,10 @@ def serialize_exception(obj, *, ctx):
         else:
             contexts.append(serialize(ex_context, ctx=ctx))
 
-    if obj.__traceback__:
+    obj_traceback = getattr(obj, '__mm_traceback__', obj.__traceback__)
+    if obj_traceback:
         traceback = elements.lang.ExceptionContext(title='Traceback',
-                                                   body=[serialize(obj.__traceback__, ctx=ctx)])
+                                                   body=[serialize(obj_traceback, ctx=ctx)])
         contexts.append(traceback)
 
     if details_context is not None:
