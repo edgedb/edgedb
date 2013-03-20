@@ -404,10 +404,13 @@ class LangRenderer(BaseRenderer):
         with self.buffer.indent(False):
             self.buffer.new_line()
 
-            self.buffer.write('File ')
             self.buffer.write(element.filename, style=self.styles.tb_filename)
-            self.buffer.write(', line ')
-            self.buffer.write(element.lineno, style=self.styles.tb_lineno)
+            if element.lineno:
+                self.buffer.write(', line ')
+                self.buffer.write(element.lineno, style=self.styles.tb_lineno)
+            if element.address:
+                self.buffer.write(', at ')
+                self.buffer.write(element.address, style=self.styles.tb_lineno)
             self.buffer.write(', in ')
             self.buffer.write(element.name, style=self.styles.tb_name)
 

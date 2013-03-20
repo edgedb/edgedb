@@ -88,8 +88,9 @@ class Constants:
 class TracebackPoint(BaseObject):
     name = Field(str)
     filename = Field(str)
-    lineno = Field(int)
+    lineno = Field(int, default=None)
     colno = Field(int, default=None)
+    address = Field(str, default=None)
 
     lines = Field(typed.StrList, default=None, coerce=True)
     line_numbers = Field(typed.IntList, default=None, coerce=True)

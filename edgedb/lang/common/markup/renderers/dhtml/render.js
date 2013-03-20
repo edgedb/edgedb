@@ -451,13 +451,20 @@ sx.Markup.Renderer.prototype = {
                      {text: 'File '},
                      {tag: 'span', cls: 'tb-line-fn', text: o.filename},
 
+                 ].concat((o.lineno != null) ? [
                      {text: ', line '},
                      {tag: 'span', cls: 'tb-line-line',
-                      text: o.lineno + (o.colno == null ? '' : ':' + (o.colno))},
-
+                      text: o.lineno + (o.colno == null ? '' : ':' + (o.colno))}
+                 ] : [])
+                 .concat((o.address != null) ? [
+                     {text: ', at '},
+                     {tag: 'span', cls: 'tb-line-line',
+                      text: o.address}
+                 ] : [])
+                 .concat([
                      {text: ', in '},
                      {tag: 'span', cls: 'tb-line-location', text: o.name}
-                 ]},
+                 ])},
 
                 {cls: 'tb-line-source collapsed',
                  attrs: {id: id},
