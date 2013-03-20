@@ -252,6 +252,9 @@ class DocRenderer(BaseRenderer):
     def _render_doc_Text(self, element):
         self.buffer.write(element.text)
 
+    def _render_doc_SourceCode(self, element):
+        self.buffer.write(element.text)
+
     def _render_doc_Section(self, element):
         self.buffer.write(self._render_header(element.title), style=self.styles.header1)
         self.buffer.new_line(2)

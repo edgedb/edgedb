@@ -155,6 +155,10 @@ body, html:
         &.doc-level-4>.doc-section-title, &.doc-level-5>.doc-section-title:
             font-size: 12px
 
+    .doc-source-code:
+        white-space: pre
+        white-space: pre-wrap
+
     .lng-list:
         padding-left: 60px
 

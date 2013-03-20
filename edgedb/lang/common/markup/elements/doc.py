@@ -25,6 +25,10 @@ class Text(DocMarkup):
     text = Field(str)
 
 
+class SourceCode(DocMarkup):
+    text = Field(str)
+
+
 class Diff(DocMarkup):
     lines = Field(typed.StrList, coerce=True)
 

@@ -65,6 +65,14 @@ sx.Markup.Renderer.prototype = {
         };
     },
 
+    'doc.SourceCode': function(o) {
+        return {
+            tag: 'div',
+            cls: 'doc-source-code',
+            text: o.text
+        };
+    },
+
     'doc.Section': function(o) {
         this.section_depth++;
 
