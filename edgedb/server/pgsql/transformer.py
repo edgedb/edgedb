@@ -933,6 +933,10 @@ class CaosTreeTransformer(CaosExprTransformer):
             if subquery.outerbonds:
                 outer_refs.update(b[0] for b in subquery.outerbonds)
 
+            if subquery.proxyouterbonds:
+                for bonds in subquery.proxyouterbonds.values():
+                    outer_refs.update(b[0] for b in bonds)
+
         if context.current.subquery_map:
             for subgraph, subquery in context.current.subquery_map.items():
                 # Put all explicit references to attributes of joined subqueries into the
@@ -958,6 +962,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         # Pull up CTEs
         context.current.ctemap[wrapper] = context.current.ctemap[query]
         wrapper.ctes = query.ctes
+        wrapper.proxyouterbonds = {query: query.outerbonds[:]}
         query.ctes = OrderedSet()
 
         for outer_ref in outer_refs:
@@ -969,7 +974,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
             # Join references to CTEs
             #
-            outerbonds = self._pull_outerbonds(context, outer_ref, query, subquery)
+            outerbonds = self._pull_outerbonds(context, outer_ref, query)
             self._connect_subquery_outerbonds(context, outerbonds, wrapper)
 
             callback = functools.partial(self._inject_relation_from_caosnode, context, wrapper)
@@ -987,7 +992,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         return wrapper
 
-    def _pull_outerbonds(self, context, outer_ref, target_rel, source_rel):
+    def _pull_outerbonds(self, context, outer_ref, target_rel):
         pulled_bonds = []
 
         oref = context.current.concept_node_map[outer_ref]['metamagic.caos.builtins.id']
