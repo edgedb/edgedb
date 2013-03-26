@@ -102,6 +102,13 @@ class AtomConstraintExpr(AtomConstraint, adapts=proto.AtomConstraintExpr):
         raise NotImplementedError
 
 
+class AtomConstraintEnum(AtomConstraint, adapts=proto.AtomConstraintEnum):
+    def get_backend_constraint_check_code(self, value_holder='VALUE'):
+        value_holder = pg_quote_if_needed(value_holder)
+        values = ', '.join(pg_ql(str(v)) for v in self.values)
+        return 'CHECK ({} IN ({}))'.format(value_holder, values)
+
+
 class AtomConstraintRegExp(AtomConstraint, adapts=proto.AtomConstraintRegExp):
     def get_backend_constraint_check_code(self, value_holder='VALUE'):
         value_holder = pg_quote_if_needed(value_holder)

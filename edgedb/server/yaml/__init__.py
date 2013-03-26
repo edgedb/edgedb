@@ -342,6 +342,15 @@ class AtomConstraintExpr(AtomConstraint, adapts=proto.AtomConstraintExpr):
         return {'expr': next(iter(data.values))}
 
 
+class AtomConstraintEnum(AtomConstraint, adapts=proto.AtomConstraintEnum):
+    def __sx_setstate__(self, data):
+        proto.AtomConstraintEnum.__init__(self, data['enum'])
+
+    @classmethod
+    def __sx_getstate__(cls, data):
+        return {'enum': list(data.values)}
+
+
 class AtomConstraintRegExp(AtomConstraint, adapts=proto.AtomConstraintRegExp):
     def __sx_setstate__(self, data):
         proto.AtomConstraintRegExp.__init__(self, [data['regexp']])

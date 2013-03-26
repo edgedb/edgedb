@@ -151,6 +151,15 @@ mapping:
                                     "expr":
                                         type: str
                                 - type: map
+                                  object: metamagic.caos.backends.yaml.AtomConstraintEnum
+                                  max-length: 1
+                                  min-length: 1
+                                  mapping:
+                                    "enum":
+                                        type: seq
+                                        sequence:
+                                            - type: scalar
+                                - type: map
                                   object: metamagic.caos.backends.yaml.AtomConstraintPrecision
                                   max-length: 1
                                   min-length: 1
