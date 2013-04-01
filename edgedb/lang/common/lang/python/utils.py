@@ -10,9 +10,12 @@ import ast
 
 import linecache
 import inspect
+import types
 
 from metamagic.utils.lang.context import SourcePoint, SourceContext
 from metamagic.utils import markup
+
+from .code import Code, opcodes
 
 
 def source_context_from_frame(frame):
@@ -58,6 +61,35 @@ class SourceErrorContext(markup.MarkupExceptionContext):
             tbp = me.doc.Text(text='Unknown source context')
 
         return me.lang.ExceptionContext(title=self.title, body=[tbp])
+
+
+def get_top_level_imports(code):
+    assert isinstance(code, types.CodeType)
+
+    imports = []
+
+    ops = iter(Code.from_code(code).ops)
+
+    try:
+        c1 = next(ops)
+        c2 = next(ops)
+    except StopIteration:
+        return imports
+
+    while True:
+        try:
+            c3 = next(ops)
+        except StopIteration:
+            return imports
+
+        if isinstance(c3, opcodes.IMPORT_NAME):
+            assert isinstance(c1, opcodes.LOAD_CONST)
+            assert isinstance(c2, opcodes.LOAD_CONST)
+
+            imports.append((c1.const * '.' + c3.name, c2.const))
+
+        c1 = c2
+        c2 = c3
 
 
 def resolve(expr, globals):
