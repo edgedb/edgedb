@@ -201,6 +201,12 @@ class TestLangPythonCode(BaseTestLangPythonCode):
             yield from abc
         self.check_on(foo.__code__)
 
+    def test_utils_lang_python_code_inner_func(self):
+        def foo():
+            def _key(prefix:str, hash:int) -> bytes:
+                return ('{}:{}'.format(prefix, hash)).encode('latin-1')
+        self.check_on(foo.__code__)
+
     def test_utils_lang_python_code_super_1(self):
         '''Tests that super() works fine with one more freevar defined
         (besides just __class__)'''

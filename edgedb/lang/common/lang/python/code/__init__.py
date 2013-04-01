@@ -355,7 +355,6 @@ class Code:
 
         for op in self.ops:
             addr = len(code)
-            code.append(op.code)
             addrs[op] = addr
 
             # Update 'co_lnotab' if we have a new line
@@ -425,8 +424,11 @@ class Code:
                     code.append(OP_EXTENDED_ARG.code)
                     code.append((arg >> 16) & 0xFF)
                     code.append((arg >> 24) & 0xFF)
+                code.append(op.code)
                 code.append(arg & 0xFF)
                 code.append((arg >> 8) & 0xFF)
+            else:
+                code.append(op.code)
 
         # 'co_lnotab' is ready to go.
         #
@@ -509,6 +511,7 @@ class Code:
 
             if op.has_arg:
                 arg = op.arg = co_code[i] + co_code[i + 1] * 256 + extended_arg
+                extended_arg = 0
                 i += 2
 
                 if op_cls is OP_EXTENDED_ARG:
