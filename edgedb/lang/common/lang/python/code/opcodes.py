@@ -450,6 +450,12 @@ class LOAD_BUILD_CLASS(OpCode):
     stack_effect    = 1
 
 
+class YIELD_FROM(OpCode):
+    __slots__       = ()
+    code            = 72
+    stack_effect    = -1
+
+
 class INPLACE_LSHIFT(OpCode):
     __slots__       = ()
     code            = 75

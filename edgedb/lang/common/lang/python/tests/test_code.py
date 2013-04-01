@@ -195,6 +195,12 @@ class TestLangPythonCode(BaseTestLangPythonCode):
         def test10(*, foo, **args): pass
         self.check_on(test10.__code__)
 
+    def test_utils_lang_python_code_yield_from(self):
+        def foo():
+            yield abc
+            yield from abc
+        self.check_on(foo.__code__)
+
     def test_utils_lang_python_code_super_1(self):
         '''Tests that super() works fine with one more freevar defined
         (besides just __class__)'''
