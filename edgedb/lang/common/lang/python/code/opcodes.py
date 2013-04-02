@@ -450,10 +450,11 @@ class LOAD_BUILD_CLASS(OpCode):
     stack_effect    = 1
 
 
-class YIELD_FROM(OpCode):
-    __slots__       = ()
-    code            = 72
-    stack_effect    = -1
+if sys.version_info[:2] >= (3, 3):
+    class YIELD_FROM(OpCode):
+        __slots__       = ()
+        code            = 72
+        stack_effect    = -1
 
 
 class INPLACE_LSHIFT(OpCode):
