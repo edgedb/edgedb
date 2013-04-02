@@ -130,26 +130,47 @@ def resolve_module_name(name, package):
     return fq_name
 
 
-def modules_from_import_statements(package, imports):
+def modules_from_import_statements(package, imports, ignore_missing=False):
     modules = []
 
     for name, fromlist in imports:
         path = None
         fq_name = resolve_module_name(name, package)
+
+        if fq_name == 'builtins':
+            continue
+
         steps = fq_name.split('.')
 
         add_package = True
+        loader = None
 
         for i in range(len(steps)):
+            loader = None
+
             modname = '.'.join(steps[:i + 1])
 
-            loader = importlib.find_loader(modname, path=path)
+            # Some modules (mostly builtin and frozen) may not have the __loader__ attribute)
+            try:
+                mod = sys.modules[modname]
+            except KeyError:
+                has_loader = True
+            else:
+                has_loader = hasattr(mod, '__loader__')
+
+            if has_loader:
+                loader = importlib.find_loader(modname, path=path)
 
             if loader is None:
-                raise ValueError('could not find loader for module {}'.format(modname))
+                if ignore_missing:
+                    add_package = False
+                    break
+                else:
+                    raise ValueError('could not find loader for module {}'.format(modname))
 
-            if not isinstance(loader, importlib._bootstrap.NamespaceLoader) and not loader.is_package(modname):
-                break
+            if not isinstance(loader, importlib._bootstrap.NamespaceLoader):
+                if not loader.is_package(modname):
+                    break
 
             if isinstance(loader, importlib._bootstrap.NamespaceLoader):
                 path = loader._path._path
