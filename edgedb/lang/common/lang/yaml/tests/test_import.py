@@ -45,3 +45,9 @@ class TestLangImport(object):
     def test_utils_lang_yaml_module_import_import(self):
         modname = 'metamagic.utils.lang.yaml.tests.testdata.test_module_import_import'
         importlib.import_module(modname)
+
+    def test_utils_lang_yaml_moduleclass_tag(self):
+        modname = 'metamagic.utils.lang.yaml.tests.testdata.test_modclass_tag'
+        mod = importlib.import_module(modname)
+        from .testdata import modclass
+        assert isinstance(mod, modclass.CustomModuleClass)

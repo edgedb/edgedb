@@ -1,0 +1,15 @@
+##
+# Copyright (c) 2013 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+!module metamagic.utils.lang.yaml.tests.testdata.modclass.CustomModuleClass
+...
+
+
+%name Object1
+---
+attr1: test

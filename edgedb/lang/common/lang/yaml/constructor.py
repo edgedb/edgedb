@@ -19,6 +19,10 @@ from metamagic.utils.lang import context as lang_context
 from metamagic.utils.lang.import_ import module as module_types, utils as module_utils
 
 
+class ModuleTag(str):
+    pass
+
+
 class Composer(yaml.composer.Composer):
     def compose_document(self):
         start_document = self.get_event()
@@ -264,6 +268,14 @@ class Constructor(yaml.constructor.Constructor):
             result.source = node.value
             return result
 
+    def construct_moduleclass_tag(self, node):
+        if not isinstance(node.value, str):
+            raise yaml.constructor.ConstructorError("while constructing module tag",
+                                                    node.start_mark,
+                                                    "found a non-string node", node.start_mark)
+
+        return ModuleTag(node.value)
+
 
 Constructor.add_multi_constructor(
     'tag:metamagic.sprymix.com,2009/metamagic/class/derive:',
@@ -293,4 +305,9 @@ Constructor.add_constructor(
 Constructor.add_constructor(
     '!python',
     Constructor.construct_python_expression
+)
+
+Constructor.add_constructor(
+    '!module',
+    Constructor.construct_moduleclass_tag
 )

@@ -37,9 +37,9 @@ class Scanner(yaml.scanner.Scanner):
         }
 
         for directive, handler in directives.items():
-            if self.prefix(len(directive)) == directive:
+            if self.prefix(len(directive)).upper() == directive:
                 self.forward()
-                name = self.scan_directive_name(start_mark)
+                name = self.scan_directive_name(start_mark).upper()
                 value = handler(start_mark)
                 end_mark = self.get_mark()
                 self.scan_directive_ignored_line(start_mark)
@@ -97,6 +97,10 @@ class Parser(yaml.parser.Parser):
     def __init__(self):
         super().__init__()
 
+        self.schema = None
+        self.document_name = None
+        self.imports = collections.OrderedDict()
+
     def process_directives(self):
         self.schema = None
         self.document_name = None
@@ -133,6 +137,15 @@ class Parser(yaml.parser.Parser):
 
     def parse_document_start(self):
         event = super().parse_document_start()
+        if isinstance(event, yaml.events.DocumentStartEvent):
+            event.schema = self.schema
+            event.document_name = self.document_name
+            event.imports = self.imports
+
+        return event
+
+    def parse_implicit_document_start(self):
+        event = super().parse_implicit_document_start()
         if isinstance(event, yaml.events.DocumentStartEvent):
             event.schema = self.schema
             event.document_name = self.document_name

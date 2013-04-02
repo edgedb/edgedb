@@ -8,6 +8,7 @@
 
 import yaml
 
+from metamagic.utils.lang.import_ import get_object, ObjectImportError
 from metamagic.utils.lang import context as lang_context
 from metamagic.utils.lang.yaml import constructor, parser
 from metamagic.utils.lang.yaml import exceptions as yaml_errors
@@ -66,6 +67,17 @@ class Loader(yaml.reader.Reader, parser.Scanner, parser.Parser, constructor.Comp
                     raise yaml_errors.YAMLCompositionError(msg, details=details, hint=hint,
                                                            context=context)
 
+                if document_no == 0:
+                    # First document, check for module-level attributes
+                    if isinstance(data, constructor.ModuleTag):
+                        try:
+                            modclass = get_object(str(data))
+                        except ObjectImportError as e:
+                            msg = 'could not find module class: {}'.format(data)
+                            context = lang_context.SourceContext.from_object(node)
+                            raise yaml_errors.YAMLCompositionError(msg, context=context) from e
+                        else:
+                            yield ('__sx_moduleclass__', modclass)
 
                 yield (node.document_name, data)
 
