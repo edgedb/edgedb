@@ -353,7 +353,8 @@ class ModuleCache:
         return self._metainfo.marshal()
 
     def dumpb_code(self):
-        return self.marshal_code(self._code)
+        if self._code is not None:
+            return self.marshal_code(self._code)
 
     def dump(self):
         metainfo_path = self.metainfo_path
@@ -365,8 +366,11 @@ class ModuleCache:
         if metainfo_path == code_path:
             self._loader.set_data(code_path, metainfo_bytes + code_bytes)
         else:
-            self._loader.set_data(metainfo_path, metainfo_bytes)
-            self._loader.set_data(code_path, code_bytes)
+            if metainfo_bytes:
+                self._loader.set_data(metainfo_path, metainfo_bytes)
+
+            if code_bytes:
+                self._loader.set_data(code_path, code_bytes)
 
     def validate(self):
         metainfo = self.metainfo
