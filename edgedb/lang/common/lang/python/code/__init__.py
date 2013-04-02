@@ -257,8 +257,6 @@ class Code:
 
                 continue
 
-            seen.discard(idx)
-
             # advance
             idx += 1
             if idx >= ops_len or op_cls == OP_RETURN_VALUE:
