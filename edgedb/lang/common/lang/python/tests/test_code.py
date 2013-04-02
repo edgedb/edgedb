@@ -94,6 +94,8 @@ class BaseTestLangPythonCode:
 
             assert attr1 == attr2, field
 
+        assert code1.co_stacksize >= code2.co_stacksize
+
         dis_code1 = self.disassemble(code1, skip_lines=skip_lines)
         dis_code2 = self.disassemble(code2, skip_lines=skip_lines)
         assert dis_code1 == dis_code2
@@ -194,6 +196,13 @@ class TestLangPythonCode(BaseTestLangPythonCode):
 
         def test10(*, foo, **args): pass
         self.check_on(test10.__code__)
+
+    def test_utils_lang_python_code_big_code(self):
+       a = ''
+       for _ in range(5000):
+           a += 'if 1: print(2*3)\n'
+       code = compile(a, '', 'exec')
+       self.check_on(code)
 
     def test_utils_lang_python_code_yield_from(self):
         def foo():
@@ -319,9 +328,9 @@ class TestLangPythonCode(BaseTestLangPythonCode):
         module's functions and methods, and compares the new code objects
         to the old ones'''
 
-        import decimal
+        import difflib
 
-        mod = decimal
+        mod = difflib
 
         for attr_name in dir(mod):
             attr = getattr(mod, attr_name)

@@ -16,6 +16,7 @@ documentation in the standard library."""
 
 import dis
 import types
+import copy
 
 from metamagic.utils.datastructures import OrderedSet
 from . import opcodes
@@ -34,6 +35,7 @@ OP_FOR_ITER         = opcodes.FOR_ITER
 OP_EXTENDED_ARG     = opcodes.EXTENDED_ARG
 OP_YIELD_VALUE      = opcodes.YIELD_VALUE
 OP_EXTENDED_ARG     = opcodes.EXTENDED_ARG
+OP_RETURN_VALUE     = opcodes.RETURN_VALUE
 
 #: If we have any of the following opcodes is in the code object -
 #: its CO_OPTIMIZED flag should be off.
@@ -198,50 +200,74 @@ class Code:
         ops = self.ops
         ops_len = len(ops)
 
-        def walk(idx, depth, maxdepth):
-            if idx >= ops_len:
-                return maxdepth
+        idx = 0
+        depth = 0
+        maxdepth = 0
+        idx_stack = []
 
+        if ops_len <= 0:
+            return 0
+
+        while True:
             op = ops[idx]
 
-            if op in seen or startdepths.get(op, -100000) >= depth:
-                return maxdepth
+            # we've come back in a loop OR we've already examined this path at a greater depth
+            if idx in seen or startdepths.get(op, -100000) >= depth:
+                # go back to the last idx jump
+                try:
+                    idx, depth, seen = idx_stack.pop()
+                    continue
+                except IndexError:
+                    break
 
-            seen.add(op)
+            seen.add(idx)
             startdepths[op] = depth
-            try:
-                depth += op.stack_effect
-                if depth > maxdepth:
-                    maxdepth = depth
-                assert depth >= 0
 
-                jump = None
-                if op.has_jrel:
-                    jump = op.jrel
-                elif op.has_jabs:
-                    jump = op.jabs
+            # adjust stack depth based on the current op
+            depth += op.stack_effect
+            if depth > maxdepth:
+                maxdepth = depth
+            assert depth >= 0
 
-                if jump is not None:
-                    op_cls = op.__class__
-                    target_depth = depth
+            jump = None
+            op_cls = op.__class__
+            if op.has_jrel:
+                jump = op.jrel
+            elif op.has_jabs:
+                jump = op.jabs
 
-                    if op_cls in (OP_SETUP_EXCEPT, OP_SETUP_FINALLY):
-                        target_depth += 3
-                        if target_depth > maxdepth:
-                            maxdepth = target_depth
-                    elif op_cls is OP_FOR_ITER:
-                        target_depth -= 2
+            # if we have an op that makes a jump, we need special processing
+            if jump is not None:
+                # we're going to jump, so remember the index of the next op and current depth
+                idx_stack.append((idx + 1, depth, copy.copy(seen)))
 
-                    maxdepth = walk(ops.index(jump), target_depth, maxdepth)
+                if op_cls in (OP_SETUP_EXCEPT, OP_SETUP_FINALLY):
+                    depth += 3
+                    if depth > maxdepth:
+                        maxdepth = depth
+                elif op_cls is OP_FOR_ITER:
+                    depth -= 2
 
-                    if op_cls in (OP_JUMP_ABSOLUTE, OP_JUMP_FORWARD):
-                        return maxdepth
+                idx = ops.index(jump)
 
-                return walk(idx + 1, depth, maxdepth)
-            finally:
-                seen.discard(op)
+                # if we're jumping completely outside of the current code, the next op is
+                # likely dead code, so we don't want our index stack to point back to it
+                if op_cls in (OP_JUMP_ABSOLUTE, OP_JUMP_FORWARD):
+                    idx_stack.pop()
 
-        return walk(0, 0, 0)
+                continue
+
+            seen.discard(idx)
+
+            # advance
+            idx += 1
+            if idx >= ops_len or op_cls == OP_RETURN_VALUE:
+                try:
+                    idx, depth, seen = idx_stack.pop()
+                except IndexError:
+                    break
+
+        return maxdepth
 
     def _calc_flags(self):
         ops_set = {op.__class__ for op in self.ops}
