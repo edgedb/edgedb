@@ -124,6 +124,9 @@ class LoaderCommon:
 
         module.__loaded__ = True
 
+        if isinstance(module, module_types.DependencyTrackedModule):
+            caches.deptracked_modules.add(module.__name__)
+
         result_mod = module
         if proxy_cls:
             assert issubclass(proxy_cls, module_types.BaseProxyModule)
@@ -180,6 +183,13 @@ class SourceLoader:
             modver = caches.modver_cache[modname] = self._get_module_version(modname, imports)
 
         return modver
+
+    def is_deptracked(self, modname):
+        steps = modname.split('.')
+        for i in range(len(steps), 0, -1):
+            prefix = '.'.join(steps[:i])
+            if prefix in caches.deptracked_modules:
+                return True
 
 
 class ModuleCacheMetaInfo:

@@ -752,19 +752,23 @@ class ProtoSchema:
 
 
 def populate_proto_modules(schema, module):
+    process_subimports = True
+
     if not schema.has_module(module.__name__):
         try:
             proto_module = module.__sx_prototypes__
         except AttributeError:
             schema.add_module(module)
+            process_subimports = False
         else:
             schema.add_module(proto_module)
 
-    try:
-        subimports = module.__sx_imports__
-    except AttributeError:
-        pass
-    else:
-        for subimport in subimports:
-            submodule = sys.modules[subimport]
-            populate_proto_modules(schema, submodule)
+    if process_subimports:
+        try:
+            subimports = module.__sx_imports__
+        except AttributeError:
+            pass
+        else:
+            for subimport in subimports:
+                submodule = sys.modules[subimport]
+                populate_proto_modules(schema, submodule)

@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2012 Sprymix Inc.
+# Copyright (c) 2012-2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -13,3 +13,6 @@ def invalidate_modver_cache(modname=None):
         modver_cache.clear()
     else:
         modver_cache.pop(modname, None)
+
+
+deptracked_modules = set()
