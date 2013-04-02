@@ -798,7 +798,7 @@ class MAKE_FUNCTION(ArgOpCode):
 
     @property
     def stack_effect(self):
-        return -(self._nargs(self.arg)) - ((self.arg >> 16) & 0xFFFF)
+        return -1 - (self._nargs(self.arg)) - ((self.arg >> 16) & 0xFFFF)
 
 
 class BUILD_SLICE(ArgOpCode):
@@ -820,7 +820,7 @@ class MAKE_CLOSURE(ArgOpCode):
 
     @property
     def stack_effect(self):
-        return -1 - self._nargs(self.arg) - ((self.arg >> 16) & 0xFFFF)
+        return -2 - self._nargs(self.arg) - ((self.arg >> 16) & 0xFFFF)
 
 
 class LOAD_CLOSURE(FreeNameOpCode):
