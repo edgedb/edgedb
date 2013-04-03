@@ -656,6 +656,8 @@ class TreeTransformer:
                         if recurse_spec is not None and recurse_spec.recurse is not None:
                             _memo = {}
                             new_recurse = True
+                        elif isinstance(recurse_spec.trigger, caos_ast.ExplicitPathSpecTrigger):
+                            new_recurse = True
                         elif newstep.concept not in _visited_records:
                             new_recurse = True
                         else:
