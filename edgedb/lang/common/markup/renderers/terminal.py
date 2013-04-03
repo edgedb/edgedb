@@ -469,7 +469,11 @@ class LangRenderer(BaseRenderer):
                 self.buffer.new_line(2)
 
 
-            base_excline = '{}.{}: {}'.format(element.class_module, element.class_name, element.msg)
+            if element.class_module == 'builtins':
+                excclass = element.class_name
+            else:
+                excclass = '{}.{}'.format(element.class_module, element.class_name)
+            base_excline = '{}: {}'.format(excclass, element.msg)
             self.buffer.write('{}. {}'.format(self.ex_depth, base_excline),
                               style=self.styles.exc_title)
 
