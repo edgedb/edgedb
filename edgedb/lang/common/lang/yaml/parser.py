@@ -76,7 +76,7 @@ class Parser(yaml.parser.Parser):
     import_re = re.compile(r"""^(?P<import>(?P<module>\w+(?:\.\w+)*)(?:\s+AS\s+(?P<alias>\w+))?)
                                (?P<tail>(?:\s*,\s*
                                   (?:(?:\w+(?:\.\w+)*)(?:\s+AS\s+(?:\w+))?)
-                               )*)$""", re.X)
+                               )*)$""", re.X | re.I)
 
     importlist_re = re.compile(r"""^
                                     (?P<module>[\.\w]+)
@@ -85,14 +85,14 @@ class Parser(yaml.parser.Parser):
                                        (?P<tail>(?:\s*,\s*
                                           (?:(?:\w+)(?:\s+AS\s+(?:\w+))?)
                                        )*)
-                               $""", re.X)
+                               $""", re.X | re.I)
 
     name_alias_re = re.compile(r"""^
                                        (?P<name>\w+)(?:\s+AS\s+(?P<alias>\w+))?
                                        (?P<tail>(?:\s*,\s*
                                           (?:(?:\w+)(?:\s+AS\s+(?:\w+))?)
                                        )*)
-                               $""", re.X)
+                               $""", re.X | re.I)
 
     def __init__(self):
         super().__init__()
