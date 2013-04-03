@@ -215,7 +215,7 @@ class LinkPropRefExpr(LinkPropRef, BaseRefExpr):
 
 class EntityLink(Base):
     __fields = ['propfilter', 'source', 'target', 'link_proto', ('proprefs', set),
-                ('metarefs', set), ('users', set), 'anchor', 'direction']
+                ('metarefs', set), ('users', set), 'anchor', 'direction', 'pathspec_trigger']
 
     def replace_refs(self, old, new, deep=False, _memo=None):
         # Since EntityLink can be a member of PathCombination set
@@ -289,7 +289,15 @@ class EntitySet(Path):
 
 class PtrPathSpec(Base):
     __fields = ['ptr_proto', 'ptr_direction', 'pathspec', 'recurse', 'target_proto', 'sorter',
-                'generator']
+                'generator', 'trigger']
+
+
+class ExplicitPathSpecTrigger(Base):
+    pass
+
+
+class PointerIteratorPathSpecTrigger(Base):
+    __fields = ['filters']
 
 
 class Constant(Base):

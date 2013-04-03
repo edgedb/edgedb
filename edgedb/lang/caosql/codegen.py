@@ -98,6 +98,23 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
                     self.write('.')
             self.visit(e)
 
+        if node.pathspec:
+            self._visit_pathspec(node.pathspec)
+
+    def _visit_pathspec(self, pathspec):
+        if pathspec:
+            self.write('[')
+            self.indentation += 1
+            self.new_lines = 1
+            for i, spec in enumerate(pathspec):
+                if i > 0:
+                    self.write(', ')
+                    self.new_lines = 1
+                self.visit(spec)
+            self.indentation -= 1
+            self.new_lines = 1
+            self.write(']')
+
     def visit_PathStepNode(self, node):
         if node.namespace:
             self.write('[%s.%s]' % (node.namespace, node.expr))
@@ -118,6 +135,12 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
             self.write(']')
         else:
             self.write(node.name)
+
+    def visit_SelectPathSpecNode(self, node):
+        self.visit(node.expr)
+
+        if node.pathspec:
+            self._visit_pathspec(node.pathspec)
 
     def visit_ConstantNode(self, node):
         if node.value is not None:

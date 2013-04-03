@@ -135,6 +135,118 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
     def transform(self, caos_tree):
         return self._process_expr(caos_tree)
 
+    def _pathspec_from_record(self, expr):
+        pathspec = []
+
+        if expr.linkprop_xvalue:
+            if isinstance(expr.elements[0], tree.ast.Record):
+                pathspec = self._pathspec_from_record(expr.elements[0])
+            else:
+                noderef = self._process_expr(expr.elements[0])
+                pathspec = [qlast.SelectPathSpecNode(expr=noderef.steps[-1])]
+
+            for propref in expr.elements[1].elements:
+                if propref.ptr_proto.get_loading_behaviour() == caos_types.EagerLoading:
+                    continue
+
+                propref = self._process_expr(propref)
+                pathspec.append(qlast.SelectPathSpecNode(expr=propref))
+
+        else:
+            ptr_iters = set()
+
+            for el in expr.elements:
+                if isinstance(el, tree.ast.MetaRef):
+                    continue
+
+                elif isinstance(el, (tree.ast.AtomicRefSimple, tree.ast.LinkPropRefSimple)):
+                    rlink = el.rlink if isinstance(el, tree.ast.AtomicRefSimple) else el.ref
+
+                    trigger = rlink.pathspec_trigger
+                    if trigger is None:
+                        continue
+
+                    if isinstance(trigger, tree.ast.PointerIteratorPathSpecTrigger):
+                        ptr_iters.add(frozenset(trigger.filters.items()))
+                    elif isinstance(trigger, tree.ast.ExplicitPathSpecTrigger):
+                        refpath = self._process_expr(el)
+                        sitem = qlast.SelectPathSpecNode(expr=refpath.steps[-1])
+                    else:
+                        msg = 'unexpected pathspec trigger in record ref: {!r}'.format(trigger)
+                        raise ValueError(msg)
+
+                elif isinstance(el, tree.ast.SubgraphRef):
+                    rlink = el.rlink
+
+                    trigger = rlink.pathspec_trigger
+                    if trigger is None:
+                        continue
+                    elif isinstance(trigger, tree.ast.PointerIteratorPathSpecTrigger):
+                        ptr_iters.add(frozenset(trigger.filters.items()))
+                        continue
+                    elif not isinstance(trigger, tree.ast.ExplicitPathSpecTrigger):
+                        msg = 'unexpected pathspec trigger in record ref: {!r}'.format(trigger)
+                        raise ValueError(msg)
+
+                    target = el.rlink.target.concept.name
+                    target = qlast.PrototypeRefNode(name=target.name, module=target.module)
+
+                    refpath = qlast.LinkNode(name=el.rlink.link_proto.normal_name().name,
+                                             namespace=el.rlink.link_proto.normal_name().module,
+                                             target=target)
+                    refpath = qlast.LinkExprNode(expr=refpath)
+                    sitem = qlast.SelectPathSpecNode(expr=refpath)
+                    rec = el.ref.selector[0].expr
+
+                    if isinstance(rec, tree.ast.Record):
+                        sitem.pathspec = self._pathspec_from_record(rec)
+
+                    elif isinstance(rec, tree.ast.LinkPropRefSimple):
+                        proprefpath = self._process_expr(rec)
+                        sitem = qlast.SelectPathSpecNode(expr=proprefpath.steps[-1])
+
+                    else:
+                        raise ValueError('unexpected node in subgraph ref: {!r}'.format(rec))
+
+                elif isinstance(el, tree.ast.Record):
+                    rlink = el.rlink
+
+                    trigger = rlink.pathspec_trigger
+
+                    if trigger is None:
+                        continue
+                    elif isinstance(trigger, tree.ast.PointerIteratorPathSpecTrigger):
+                        ptr_iters.add(frozenset(trigger.filters.items()))
+                        continue
+                    elif not isinstance(trigger, tree.ast.ExplicitPathSpecTrigger):
+                        msg = 'unexpected pathspec trigger in record ref: {!r}'.format(trigger)
+                        raise ValueError(msg)
+
+                    target = el.concept.name
+                    target = qlast.PrototypeRefNode(name=target.name, module=target.module)
+
+                    refpath = qlast.LinkNode(name=el.rlink.link_proto.normal_name().name,
+                                             namespace=el.rlink.link_proto.normal_name().module,
+                                             target=target)
+                    refpath = qlast.LinkExprNode(expr=refpath)
+                    sitem = qlast.SelectPathSpecNode(expr=refpath)
+                    sitem.pathspec = self._pathspec_from_record(el)
+
+                else:
+                    raise ValueError('unexpected node in record: {!r}'.format(el))
+
+                pathspec.append(sitem)
+
+            for ptr_iter in ptr_iters:
+                filters = []
+                for prop, val in ptr_iter:
+                    flt = qlast.PointerGlobFilter(property=prop, value=val, any=val is None)
+                    filters.append(flt)
+
+                pathspec.append(qlast.PointerGlobNode(filters=filters))
+
+        return pathspec
+
     def _process_expr(self, expr):
         if isinstance(expr, tree.ast.GraphExpr):
             result = qlast.SelectQueryNode()
@@ -182,6 +294,7 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
                 step = qlast.PathStepNode(expr=expr.concept.name.name,
                                           namespace=expr.concept.name.module)
                 path.steps.append(step)
+                path.pathspec = self._pathspec_from_record(expr)
                 result = path
 
         elif isinstance(expr, tree.ast.UnaryOp):
@@ -245,7 +358,8 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
             path = self._process_expr(expr.ref)
             if expr.name != 'metamagic.caos.builtins.target':
                 # Make sure its not a multiatom
-                link = qlast.LinkNode(name=expr.name.name, namespace=expr.name.module)
+                link = qlast.LinkNode(name=expr.name.name, namespace=expr.name.module,
+                                      type='property')
                 link = qlast.LinkPropExprNode(expr=link)
                 path.steps.append(link)
 

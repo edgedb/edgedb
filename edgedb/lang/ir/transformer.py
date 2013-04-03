@@ -587,6 +587,9 @@ class TreeTransformer:
 
                     targetstep.rlink = link_node
 
+                if recurse_spec.trigger is not None:
+                    link_node.pathspec_trigger = recurse_spec.trigger
+
                 if not link.atomic():
                     lref.conjunction.update(link_node)
 
@@ -635,7 +638,7 @@ class TreeTransformer:
                 if isinstance(target_proto, caos_types.ProtoAtom):
                     if link_singular:
                         newstep = caos_ast.AtomicRefSimple(ref=lref, name=link_name, id=full_path_id,
-                                                           ptr_proto=link_proto)
+                                                           ptr_proto=link_proto, rlink=link_node)
                         atomrefs.append(newstep)
                     else:
                         ptr_name = caos_name.Name('metamagic.caos.builtins.target')
@@ -2181,7 +2184,8 @@ class TreeTransformer:
                                        propfilter=rlink.propfilter,
                                        users=rlink.users.copy(),
                                        anchor=rlink.anchor,
-                                       rewrite_flags=rlink.rewrite_flags.copy())
+                                       rewrite_flags=rlink.rewrite_flags.copy(),
+                                       pathspec_trigger=rlink.pathspec_trigger)
 
             if not result:
                 result = link
