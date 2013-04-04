@@ -2980,6 +2980,8 @@ class PathResolver(TreeTransformer):
         return result
 
     def _exec_cmd(self, cmd, class_factory):
+        from metamagic.caos import expr as caos_expr
+
         cmd, *args = cmd
 
         if cmd == 'set':
@@ -2995,10 +2997,18 @@ class PathResolver(TreeTransformer):
             result = [getattr(src, args[1]) for src in sources]
 
         elif cmd == 'getclassattr':
-            sources = []
+            result = []
+
+            if args[1] == 'id':
+                atom_name = 'metamagic.caos.builtins.int'
+            else:
+                atom_name = 'metamagic.caos.builtins.str'
+
             for a in args[0]:
-                sources.extend(self._exec_cmd(a, class_factory))
-            result = [getattr(src.__sx_prototype__, args[1]) for src in sources]
+                source = self._exec_cmd(a, class_factory)
+                metadata = dict(source_expr=getattr(caos_expr.type(source), args[1]))
+                atom = class_factory.get_class(atom_name)
+                result.append(atom._copy_(metadata=metadata))
 
         elif cmd == 'step':
             sources = []
