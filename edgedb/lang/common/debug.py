@@ -342,6 +342,9 @@ def assert_raises(exception_cls, *, cause=Void, context=Void, error_re=None, att
             msg = ex.args[0]
         except (AttributeError, IndexError):
             msg = str(ex)
+        else:
+            if not isinstance(msg, str):
+                msg = str(ex)
 
         if error_re is not None:
             err_re = re.compile(str(error_re))
