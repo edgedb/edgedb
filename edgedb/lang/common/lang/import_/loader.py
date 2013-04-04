@@ -14,6 +14,8 @@ import pickle
 import struct
 import sys
 
+from metamagic.utils.debug import debug
+
 from . import cache as caches
 from . import module as module_types
 from . import utils as imp_utils
@@ -43,7 +45,39 @@ class LoaderIface:
 
 
 class LoaderCommon:
+    @debug
     def _load_module(self, fullname):
+        """LOG [lang.import.trace]
+        import time
+
+        try:
+            tdata = LoaderCommon.__mm_trace_data__
+        except AttributeError:
+            tdata = LoaderCommon.__mm_trace_data__ = dict(indent=0, timings=[])
+
+        start = time.monotonic()
+        #print('import: {}+{}'.format('  ' * tdata['indent'], fullname))
+        tdata['indent'] += 1
+        timing_idx = len(tdata['timings'])
+        """
+
+        module = self._load_module_impl(fullname)
+
+        """LOG [lang.import.trace]
+        tdata['indent'] -= 1
+        end = time.monotonic()
+        full_time = end - start
+        self_time = full_time - sum(t[2] for t in tdata['timings'][timing_idx:])
+        tdata['timings'].append((fullname, full_time, self_time))
+
+        msg = 'import: {}*{} ({:.3f}ms, {:.3f}ms)'
+        if self_time > 0.1:
+            print(msg.format('  ' * tdata['indent'], fullname, full_time * 1000, self_time * 1000))
+        """
+
+        return module
+
+    def _load_module_impl(self, fullname):
         try:
             module = sys.modules[fullname]
             is_reload = True
@@ -53,11 +87,13 @@ class LoaderCommon:
             is_reload = False
 
         try:
-            return self._init_module(module)
+            module = self._init_module(module)
         except:
             if not is_reload:
                 del sys.modules[fullname]
             raise
+
+        return module
 
     def _init_module(self, module):
         orig_mod = module
@@ -316,18 +352,35 @@ class ModuleCache:
         self._code = self.unmarshal_code(self._code_bytes)
         return self._code
 
+    @debug
     def marshal_code(self, code):
+        """LOG [lang.import.cache.marshal]
         from pickle import _Pickler
         import io
 
         f = io.BytesIO()
         _Pickler(f).dump(code)
-        res = f.getvalue()
-        return res
+        return f.getvalue()
+        """
 
         return pickle.dumps(code)
 
+    @debug
     def unmarshal_code(self, bytedata):
+        """LOG [lang.import.cache.unmarshal]
+        from pickle import _Unpickler
+        import io
+
+        f = io.BytesIO(bytedata)
+
+        try:
+            return _Unpickler(f).load()
+        except Exception as e:
+            import metamagic.utils.markup
+            metamagic.utils.markup.dump(e, trim=False)
+            raise ImportError('could not unpack cached module code') from e
+        """
+
         try:
             return pickle.loads(bytedata)
         except Exception as e:
