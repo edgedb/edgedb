@@ -17,6 +17,7 @@ from metamagic.caos import name as caos_name
 from metamagic.caos import utils as caos_utils
 from metamagic.caos.backends import pgsql
 from metamagic.caos.backends.pgsql import common, session as pg_session, driver as pg_driver
+from metamagic.caos.backends.pgsql import types as pg_types
 from metamagic.utils.debug import debug
 from metamagic.utils.datastructures import OrderedSet
 from metamagic import exceptions as base_err
@@ -254,10 +255,14 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
             atomrefs = {'metamagic.caos.builtins.id'} | {f.name for f in node.atomrefs}
             cols = [(aref, common.caos_name_to_pg_name(aref)) for aref in atomrefs]
 
-            union_list = []
-            children = frozenset(concept.children(context.current.proto_schema))
+            schema = context.current.proto_schema
 
-            inhmap = caos_utils.get_full_inheritance_map(context.current.proto_schema, children)
+            union_list = []
+            children = frozenset(concept.children(schema))
+
+            inhmap = caos_utils.get_full_inheritance_map(schema, children)
+
+            coltypes = {}
 
             for c, cc in inhmap.items():
                 table = self._table_from_concept(context, c, node)
@@ -269,7 +274,17 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                         selexpr = pgsql.ast.FieldRefNode(table=table, field=colname,
                                                          origin=table, origin_field=colname)
                     else:
+                        try:
+                            coltype = coltypes[aname]
+                        except KeyError:
+                            result = concept.resolve_pointer(schema, aname, look_in_children=True)
+                            target_ptr = next(iter(result[1]))
+                            coltype = pg_types.pg_type_from_atom(schema, target_ptr.target)
+                            coltypes[aname] = coltype
+
                         selexpr = pgsql.ast.ConstantNode(value=None)
+                        pgtype = pgsql.ast.TypeNode(name=coltype)
+                        selexpr = pgsql.ast.TypeCastNode(expr=selexpr, type=pgtype)
 
                     qry.targets.append(pgsql.ast.SelectExprNode(expr=selexpr, alias=colname))
 
