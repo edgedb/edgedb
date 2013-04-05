@@ -2927,8 +2927,7 @@ class PathResolver(TreeTransformer):
 
         elif isinstance(path, caos_ast.LinkPropRefSimple):
             if path.name == 'metamagic.caos.builtins.target':
-                source = self._serialize_path(path.ref.source)
-                result = [('getattr', source, path.ref.link_proto.normal_name())]
+                result = self._serialize_link(path.ref)
             else:
                 source = self._serialize_path(path.ref)
                 result = [('getattr', source, path.name)]
@@ -2946,11 +2945,8 @@ class PathResolver(TreeTransformer):
                 result = target
 
         elif isinstance(path, caos_ast.EntityLink):
-            link = path
-            link_proto = link.link_proto
-            source = self._serialize_path(link.source)
-
-            result = [('as_link', [('getattr', source, link_proto.normal_name())])]
+            link = self._serialize_link(path)
+            result = [('as_link', link)]
 
         elif isinstance(path, caos_ast.TypeCast):
             result = self._serialize_path(path.expr)
@@ -2968,6 +2964,16 @@ class PathResolver(TreeTransformer):
 
         else:
             raise TreeError('unexpected node: "%r"' % path)
+
+        return result
+
+    def _serialize_link(self, link):
+        source = self._serialize_path(link.source)
+        if link.direction == caos_types.OutboundDirection:
+            result = [('getattr', source, link.link_proto.normal_name())]
+        else:
+            target = self._serialize_path(link.target)
+            result = [('step', source, target, link.link_proto.normal_name(), link.direction)]
 
         return result
 
@@ -3135,7 +3141,12 @@ class PathResolver(TreeTransformer):
             link = path
             link_proto = link.link_proto
             source = self._resolve_path(link.source, class_factory)
-            result = (getattr(e, link_proto.normal_name()).as_link() for e in source)
+            target = next(iter(self._resolve_path(link.target, class_factory)))
+            result = []
+
+            for e in source:
+                target = e.follow(link_proto.normal_name(), link.direction, targets=target)
+                result.append(target.as_link())
 
         elif isinstance(path, caos_ast.TypeCast):
             result = self._resolve_path(path.expr, class_factory)
