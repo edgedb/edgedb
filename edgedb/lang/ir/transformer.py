@@ -378,7 +378,12 @@ class TreeTransformer:
                     expr.rewrite_flags.add('lang_rewrite')
 
             if ('access_rewrite' not in expr.rewrite_flags and expr.source is not None
-                    and expr.source.reference is None
+                    # An optimization to avoid applying filtering rewrite unnecessarily,
+                    # but transformation (i. e. computable) rewrites need to be applied
+                    # consistently all the time.  There is no way to distinguish between
+                    # the two currently, so simply disable the check.
+                    #
+                    #and expr.source.reference is None
                     and expr.source.origin is None
                     and getattr(self.context.current, 'apply_access_control_rewrite', False)):
                 self._check_access_control(expr)
