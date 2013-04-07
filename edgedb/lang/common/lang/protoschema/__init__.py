@@ -701,11 +701,11 @@ class ProtoSchema:
                     proto_module = self.foreign_modules[module]
                 except KeyError as e:
                     module_err = e
-
-                try:
-                    proto_module = sys.modules[proto_module.__name__]
-                except KeyError as e:
-                    module_err = e
+                else:
+                    try:
+                        proto_module = sys.modules[proto_module.__name__]
+                    except KeyError as e:
+                        module_err = e
 
             if proto_module is None:
                 if default_raise:

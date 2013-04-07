@@ -107,10 +107,12 @@ class Constructor(yaml.constructor.Constructor):
 
                 if tail and isinstance(tail, dict):
                     fromlist = tuple(tail)
+                    fromdict = tail
                     alias = None
                 else:
                     alias = tail
                     fromlist = ()
+                    fromdict = {}
 
                 try:
                     mod = __import__(module_name, fromlist=fromlist)
@@ -118,8 +120,8 @@ class Constructor(yaml.constructor.Constructor):
                     raise yaml.constructor.ConstructorError(None, None, '%r' % e,
                                                             node.start_mark) from e
 
-                if fromlist:
-                    for name in fromlist:
+                if fromdict:
+                    for name, alias in fromdict.items():
                         try:
                             modattr = getattr(mod, name)
                         except AttributeError:
@@ -129,7 +131,8 @@ class Constructor(yaml.constructor.Constructor):
                         else:
                             if isinstance(modattr, types.ModuleType):
                                 modattr = Proxy(modattr.__name__, modattr)
-                            namespace[name] = modattr
+                                imports[alias or name] = modattr
+                            namespace[alias or name] = modattr
                 else:
                     namespace[mod.__name__] = Proxy(mod.__name__, mod)
 
@@ -147,6 +150,9 @@ class Constructor(yaml.constructor.Constructor):
 
             self.document_context.imports.update(imports)
             self.document_context.namespace.update(namespace)
+
+        context = self._get_source_context(node, self.document_context)
+        lang_context.SourceContext.register_object(node, context)
 
         return super().construct_document(node)
 

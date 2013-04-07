@@ -50,8 +50,10 @@ class Loader(yaml.reader.Reader, parser.Scanner, parser.Parser, constructor.Comp
                 if module_class is not None:
                     yield ('__sx_moduleclass__', module_class)
 
+                context = lang_context.SourceContext.from_object(node)
+
                 yield ('__sx_yamlschema__', node.schema)
-                yield ('__sx_imports__', list(node.imports))
+                yield ('__sx_imports__', [m.__name__ for m in context.document.imports.values()])
 
                 for d in data.items():
                     yield d
