@@ -440,9 +440,9 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
     @classmethod
     def alter_atom(cls, op, meta, context, old_atom, new_atom, in_place=True, updates=None):
 
-        old_base, old_constraints_encoded, old_constraints, _ = \
+        old_base, old_constraints_encoded, old_constraints, old_extraconstraints = \
                                                 types.get_atom_base_and_constraints(meta, old_atom)
-        base, constraints_encoded, new_constraints, _ = \
+        base, constraints_encoded, new_constraints, new_extraconstraints = \
                                                 types.get_atom_base_and_constraints(meta, new_atom)
 
         domain_name = common.atom_name_to_domain_name(new_atom.name, catenate=False)
@@ -529,6 +529,19 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
                                                           constraint_name=constraint_name,
                                                           constraint_code=constraint_code)
                     op.pgops.add(adac)
+
+                if new_extraconstraints:
+                    values = {}
+
+                    for constraint in new_extraconstraints:
+                        cls = constraint.__class__.get_canonical_class()
+                        key = '%s.%s' % (cls.__module__, cls.__name__)
+                        values[key] = yaml.Language.dump(constraint.get_value())
+
+                    rec = op.table.record()
+                    rec.constraints = values
+                    condition = [('name', str(new_atom.name))]
+                    op.pgops.add(dbops.Update(table=op.table, record=rec, condition=condition))
         else:
             # We need to drop orphan constraints
             if old_atom.automatic:
