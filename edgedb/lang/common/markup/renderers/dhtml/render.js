@@ -430,19 +430,34 @@ sx.Markup.Renderer.prototype = {
         if (o.lines) {
             for (var i = 0; i < o.lines.length; i++) {
                 var lineno = o.line_numbers[i], line = o.lines[i], current = lineno == o.lineno,
-                    cls = 'tb-line-line';
+                    cls = 'tb-line-line',
+                    children = [];
 
                 if (current) {
                     cls += ' tb-current';
                 }
 
-                source.push({
-                    cls: cls,
-                    children: [
-                        {tag: 'span', cls: 'tb-lineno', text: lineno},
-                        {tag: 'span', cls: 'tb-code', text: line}
-                    ]
-                });
+                children.push({tag: 'span', cls: 'tb-lineno', text: lineno});
+                children.push({tag: 'span', cls: 'tb-code', text: line});
+
+                if (current && o.colno != null) {
+                    var _indent = '';
+                    for (var col = 1; col < o.colno; col += 1) {
+                        _indent += ' ';
+                    }
+
+                    children.push({tag: 'span', cls: 'tb-lineno sx-invisible', text: lineno});
+                    children.push({
+                        tag: 'div',
+                        cls: 'tb-source-caret-line',
+                        children: [
+                            {tag: 'span', cls: 'tb-lineno sx-invisible', text: lineno},
+                            {tag: 'span', cls: 'tb-source-caret', text: _indent + '^'}
+                        ]
+                    });
+                }
+
+                source.push({cls: cls, children: children});
             }
         }
 

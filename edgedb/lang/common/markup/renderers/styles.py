@@ -31,6 +31,7 @@ class Dark16(StylesTable):
     tb_lineno = Style()
     tb_current_line = Style()
     tb_code = Style()
+    tb_pos_caret = Style(color='white', bold=True)
 
     attribute = Style(color='black', bold=True)
     key = Style(color='yellow')
@@ -61,6 +62,7 @@ class Dark256(StylesTable):
     tb_lineno = Style()
     tb_current_line = Style(color='#333', bold=True)
     tb_code = Style()
+    tb_pos_caret = Style(color='white', bold=True)
 
     attribute = Style(color='#565656', bold=True)
     key = Style(color='#5f875f', bold=True)

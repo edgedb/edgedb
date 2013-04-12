@@ -422,6 +422,14 @@ class LangRenderer(BaseRenderer):
                         if lineno == element.lineno:
                             self.buffer.write('> ', style=self.styles.tb_current_line)
                             self.buffer.write(line.strip() or '???', style=self.styles.tb_code)
+
+                            if element.colno:
+                                # Render column caret
+                                stripped_spaces = len(line) - len(line.lstrip())
+                                _caret_indent = ' ' * (element.colno + 1 - stripped_spaces)
+                                self.buffer.new_line()
+                                self.buffer.write(_caret_indent + '^',
+                                                  style=self.styles.tb_pos_caret)
                             break
                     else:
                         self.buffer.write('???', style=self.styles.tb_code)
