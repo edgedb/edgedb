@@ -84,14 +84,15 @@ sx.Markup.Renderer.prototype = {
             body.push(this._render(o.body[i]));
         }
 
-        var obj = {
+        var obj = this._render_collapsible({
             cls: 'doc-section doc-level-' + this.section_depth,
 
-            children: [
-                {tag: 'div', cls: 'doc-section-title', text: o.title},
-                {tag: 'div', cls: 'doc-section-body', children: body}
-            ]
-        };
+            label: o.title,
+            label_cls: 'doc-section-title',
+            collapsed: o.collapsed || this.section_depth > 2,
+
+            body: {tag: 'div', cls: 'doc-section-body', children: body}
+        });
 
         this.section_depth--;
         return obj;
