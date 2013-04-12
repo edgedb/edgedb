@@ -66,3 +66,10 @@ class DocumentContext(object):
                 _globals[attrname] = getattr(mymod, attrname)
 
         return self.namespace
+
+
+def line_col_from_char_offset(source, position):
+    line = source[:position].count('\n') + 1
+    col = source.rfind('\n', 0, position)
+    col = position if col == -1 else position - col
+    return line, col

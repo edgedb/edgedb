@@ -26,7 +26,9 @@ from metamagic.caos import CaosError
 from metamagic.utils import datetime as sx_datetime
 from metamagic.utils.datastructures import Void, xvalue
 
+from metamagic.caos.backends.pgsql import exceptions as backend_exc
 from metamagic.caos.backends.pgsql.driver import io as pg_types_io
+
 
 _GREEN_SOCKET = False
 try:
@@ -209,12 +211,26 @@ class Connection(pq3.Connection, caos_pool.Connection):
         try:
             statement = self._prepared_statements[query, raw]
         except KeyError:
-            if raw:
-                stmt_id = 'sx_{:x}'.format(hash(query)).replace('-', '_')
-                self.execute('PREPARE {} AS {}'.format(stmt_id, query))
-                statement = self._prepared_statements[query, raw] = self.statement_from_id(stmt_id)
+            try:
+                if raw:
+                    stmt_id = 'sx_{:x}'.format(hash(query)).replace('-', '_')
+                    prefix = 'PREPARE {} AS '.format(stmt_id)
+                    self.execute('{}{}'.format(prefix, query))
+                    statement = self.statement_from_id(stmt_id)
+                else:
+                    prefix = ''
+                    statement = self.prepare(query)
+
+            except postgresql.exceptions.Error as e:
+                e.__suppress_context__ = True
+                raise backend_exc.QueryError(driver_err=e, query_text=query,
+                                             query_offset=len(prefix)) from e
+
+            except Exception as e:
+                raise e from None
+
             else:
-                statement = self._prepared_statements[query, raw] = self.prepare(query)
+                self._prepared_statements[query, raw] = statement
 
         return statement
 
