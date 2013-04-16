@@ -9,6 +9,8 @@
 // %from . import sx
 
 
+(function(global) {'use strict'; if (!sx.$bootstrap_class_system) {
+
 sx.$bootstrap_class_system = function(opts) {
     'use strict';
 
@@ -778,3 +780,5 @@ sx.$bootstrap_class_system = function(opts) {
 
 
 sx.apply(sx, sx.$bootstrap_class_system());
+
+}})(this);
