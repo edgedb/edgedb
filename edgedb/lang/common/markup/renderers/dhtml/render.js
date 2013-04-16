@@ -9,6 +9,8 @@
 // %import metamagic.utils.lang.javascript.sx
 
 
+(function(global) { 'use strict'; if (!sx.Markup) {
+
 sx.Markup = sx.Markup || {};
 
 sx.Markup.Renderer = function(markup) {
@@ -796,3 +798,6 @@ sx.Markup.Renderer.unpack_markup = function(packed) {
 
     return _transform(markup);
 };
+
+
+}})(this);
