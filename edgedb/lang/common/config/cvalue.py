@@ -51,6 +51,7 @@ class cvalue(ChecktypeExempt, metaclass=SlotsMeta):
         else:
             self._validator = None
 
+    type = property(lambda self: self._type)
     doc = property(lambda self: self._doc)
     default = property(lambda self: self._default)
     required = property(lambda self: self._default is _no_default)
