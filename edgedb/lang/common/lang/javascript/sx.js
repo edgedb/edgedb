@@ -976,6 +976,9 @@
 
     function _build_selector_dom_method(meth) {
         return function(a1, a2, a3, a4) {
+            if (this.length == 0) {
+                throw new Error('sx().' + meth + ': unable to execute on zero-length collection');
+            }
             for (var i = 0; i < this.length; i++) {
                 sx.dom[meth].call(sx.dom, this[i], a1, a2, a3, a4);
             }
@@ -1132,6 +1135,20 @@
             }
 
             return this;
+        },
+
+        dom: function() {
+            if (this.length == 1) {
+                return this[0];
+            }
+
+            if (!this.length) {
+                throw new Error('sx.dom() on empty selector');
+            }
+
+            if (this.length) {
+                throw new Error('sx.dom() on many elements');
+            }
         }
     };
 
