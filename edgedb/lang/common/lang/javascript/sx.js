@@ -9,7 +9,7 @@
 // %from . import json
 
 
-this.sx = (function(global) {
+(function(global) {
     'use strict';
 
     var undefined = void(0),
@@ -30,7 +30,8 @@ this.sx = (function(global) {
                                                 : String.fromCharCode(parseInt(entity.substr(2)));
         },
         has_own_property = Object.prototype.hasOwnProperty,
-        NodeList = (typeof window != 'undefined' && window.NodeList) ? window.NodeList : null;
+        NodeList = (typeof window != 'undefined' && window.NodeList) ? window.NodeList : null,
+        namespace_id = '5a697742-a5e9-11e2-ad56-58b035786373';
 
     function _apply(obj /*, ... */) {
         var i = 1,
@@ -1000,8 +1001,8 @@ this.sx = (function(global) {
                 return this;
             }
 
-            if (selector.nodeType) {
-                // ``selector`` is a DOM element
+            if (sx.is_node(selector) || selector === global) {
+                // ``selector`` is a DOM element or global (window?)
                 //
                 this[0] = selector;
                 this.length = 1;
@@ -1013,7 +1014,7 @@ this.sx = (function(global) {
                     // Assume we're dealing with an array of DOM elements
                     //
                     for (var i = 0; i < selector.length; i++) {
-                        if (selector[i].nodeType) {
+                        if (sx.is_node(selector[i])) {
                             this[i] = selector[i];
                         } else {
                             throw new Error("non-DOM element passed in array to sx() function: " +
@@ -1135,6 +1136,9 @@ this.sx = (function(global) {
     };
 
     sx._fn.init.prototype = sx._fn;
+    sx.$sx_namespace_id$ = namespace_id;
 
-    return sx;
+    if (!global.sx || global.sx.$sx_namespace_id$ != namespace_id) {
+        global.sx = sx;
+    }
 })(this);
