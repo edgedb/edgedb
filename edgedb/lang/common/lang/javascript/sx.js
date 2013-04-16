@@ -1111,9 +1111,9 @@
             if (sx.is_string(p)) {
                 styles[_camelCaseify(p)] = v;
             } else {
-                for (i in dct) {
-                    if (has_own_property.call(dct, i)) {
-                        styles[_camelCaseify(i)] = dct[i];
+                for (i in p) {
+                    if (has_own_property.call(p, i)) {
+                        styles[_camelCaseify(i)] = p[i];
                     }
                 }
             }
