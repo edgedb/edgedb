@@ -126,11 +126,9 @@ class VirtualFile(AbstractFileResource):
     def __sx_resource_get_source__(self):
         src = self.__sx_resource_source_value__
         if not src:
-            raise ResourceError('no source for VirtualFile resource {}'.
-                                format(self.__sx_resource_public_path__))
+            raise ResourceError('no source for {} resource {}'.
+                                format(type(self).__name__, self.__sx_resource_public_path__))
         return src
-
-    __sx_resource_source__ = property(__sx_resource_get_source__, __sx_resource_set_source__)
 
 
 class AbstractFileSystemResource(AbstractFileResource):
