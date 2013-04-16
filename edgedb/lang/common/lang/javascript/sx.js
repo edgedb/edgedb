@@ -87,6 +87,16 @@ this.sx = (function(global) {
             return Object.prototype.toString.call(obj) === '[object String]';
         },
 
+        is_node: function(obj) {
+            return (
+                typeof Node === "object"
+                    ? obj instanceof Node
+                    : (obj && typeof obj == "object" &&
+                        typeof obj.nodeType == "number" &&
+                        typeof obj.nodeName == "string")
+            );
+        },
+
         _validate_sx_object: function(obj) {
             return Object.prototype.hasOwnProperty.call(obj, '_secret_')
                                                     && obj._secret_ === sx._secret_;
@@ -896,8 +906,12 @@ this.sx = (function(global) {
             },
 
             replace: function(element, spec) {
-                var child = sx.dom._builder(null, spec);
-                element.parentNode.replaceChild(child, element);
+                var el = spec;
+                if (!sx.is_node(spec)) {
+                    el = sx.dom._builder(null, spec);
+                }
+
+                element.parentNode.replaceChild(el, element);
             },
 
             update: function(element, spec) {
@@ -905,20 +919,56 @@ this.sx = (function(global) {
                     element.innerHTML = spec;
                 } else {
                     element.innerHTML = '';
-                    element.appendChild(sx.dom._builder(null, spec));
+                    if (!sx.is_node(spec)) {
+                        spec = sx.dom._builder(null, spec);
+                    }
+                    element.appendChild(spec);
                 }
             },
 
             insert_before: function(element, spec) {
-                var el = sx.dom._builder(null, spec);
+                var el = spec;
+                if (!sx.is_node(spec)) {
+                    el = sx.dom._builder(null, spec);
+                }
+
                 element.parentNode.insertBefore(el, element);
                 return el;
             },
 
             append: function(element, spec) {
-                var el = sx.dom._builder(null, spec);
+                var el = spec;
+                if (!sx.is_node(spec)) {
+                    el = sx.dom._builder(null, spec);
+                }
+
                 element.appendChild(el);
                 return el;
+            },
+
+            _set_css: function(elem, styles) {
+                var style;
+                for (style in styles) {
+                    if (has_own_property.call(styles, style)) {
+                        elem.style[style] = styles[style];
+                    }
+                }
+            },
+
+            set_attr: function(elem, attr, value) {
+                elem.setAttribute(attr, value);
+            },
+
+            set_prop: function(elem, prop, value) {
+                elem[prop] = value;
+            },
+
+            get_attr: function(elem, attr) {
+                return elem.getAttribute(attr);
+            },
+
+            get_prop: function(elem, prop) {
+                return elem[prop];
             }
         }
     });
@@ -930,6 +980,12 @@ this.sx = (function(global) {
             }
             return this;
         }
+    }
+
+    function _camelCaseify(str) {
+        return str.replace(/-([a-z])/g, function (match) {
+            return match[1].toUpperCase();
+        });
     }
 
     sx._fn = sx.prototype = {
@@ -1026,6 +1082,44 @@ this.sx = (function(global) {
         toggle_class: _build_selector_dom_method('toggle_class'),
         update: _build_selector_dom_method('update'),
         append: _build_selector_dom_method('append'),
+        set_attr: _build_selector_dom_method('set_attr'),
+        set_prop: _build_selector_dom_method('set_prop'),
+
+        get_attr: function(attr) {
+            if (this.length != 1) {
+                throw new Error('unable to get attribute ' + attr);
+            }
+
+            return sx.dom.get_attr(this[0], attr);
+        },
+
+        get_prop: function(prop) {
+            if (this.length != 1) {
+                throw new Error('unable to get property ' + prop);
+            }
+
+            return sx.dom.get_prop(this[0], prop);
+        },
+
+        set_css: function(p, v) {
+            var i, styles = {};
+
+            if (sx.is_string(p)) {
+                styles[_camelCaseify(p)] = v;
+            } else {
+                for (i in dct) {
+                    if (has_own_property.call(dct, i)) {
+                        styles[_camelCaseify(i)] = dct[i];
+                    }
+                }
+            }
+
+            for (i = 0; i < this.length; i++) {
+                sx.dom._set_css(this[i], styles);
+            }
+
+            return this;
+        },
 
         on: function(event, callback, scope/*, arg0, arg2*/) {
             var args = Array.prototype.slice.call(arguments, 0);
@@ -1035,6 +1129,7 @@ this.sx = (function(global) {
                 args.splice(0, 1, this[i]);
                 sx.dom.on.apply(this, args);
             }
+
             return this;
         }
     };
