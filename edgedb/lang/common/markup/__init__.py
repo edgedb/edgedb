@@ -48,9 +48,12 @@ def dump_header(header, file=None):
     renderers.terminal.render(markup, file=file)
 
 
-def dump(obj, *, header=None, file=None, trim=True):
-    markup = _serialize(obj, trim=trim)
-    _dump(markup, header, file)
+def dump(*objs, header=None, file=None, trim=True):
+    if header:
+        dump_header(header, file)
+    for obj in objs:
+        markup = _serialize(obj, trim=trim)
+        _dump(markup, None, file)
 
 
 def dump_code(code:str, *, lexer='python', header=None, file=None):
