@@ -41,7 +41,7 @@ Copyright (c) 2011 Sprymix Inc.
 All rights reserved.
 -->
 
-<html>
+<html class="mm-exception">
     <head>
         <link rel="shortcut icon" href="''' + _FAVICON + '''" >
 
