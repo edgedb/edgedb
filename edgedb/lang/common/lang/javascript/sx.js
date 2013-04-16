@@ -923,6 +923,15 @@ this.sx = (function(global) {
         }
     });
 
+    function _build_selector_dom_method(meth) {
+        return function(a1, a2, a3, a4) {
+            for (var i = 0; i < this.length; i++) {
+                sx.dom[meth].call(sx.dom, this[i], a1, a2, a3, a4);
+            }
+            return this;
+        }
+    }
+
     sx._fn = sx.prototype = {
         constructor: sx,
 
@@ -1012,33 +1021,11 @@ this.sx = (function(global) {
             return true;
         },
 
-        add_class: function(class_name) {
-            for (var i = 0; i < this.length; i++) {
-                sx.dom.add_class(this[i], class_name);
-            }
-            return this;
-        },
-
-        remove_class: function(class_name) {
-            for (var i = 0; i < this.length; i++) {
-                sx.dom.remove_class(this[i], class_name);
-            }
-            return this;
-        },
-
-        toggle_class: function(class_name) {
-            for (var i = 0; i < this.length; i++) {
-                sx.dom.toggle_class(this[i], class_name);
-            }
-            return this;
-        },
-
-        update: function(spec) {
-            for (var i = 0; i < this.length; i++) {
-                sx.dom.update(this[i], spec);
-            }
-            return this;
-        },
+        add_class: _build_selector_dom_method('add_class'),
+        remove_class: _build_selector_dom_method('remove_class'),
+        toggle_class: _build_selector_dom_method('toggle_class'),
+        update: _build_selector_dom_method('update'),
+        append: _build_selector_dom_method('append'),
 
         on: function(event, callback, scope/*, arg0, arg2*/) {
             var args = Array.prototype.slice.call(arguments, 0);
