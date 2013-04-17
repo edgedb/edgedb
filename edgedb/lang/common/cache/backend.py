@@ -10,7 +10,8 @@ import collections
 import time
 
 from metamagic.utils import config, abc, debug
-from . import exceptions, abstract
+from metamagic.utils import buckets as abstract
+from . import exceptions
 
 
 class CacheBackendError(exceptions.CacheError):

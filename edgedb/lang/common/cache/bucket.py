@@ -13,8 +13,8 @@ from datetime import timedelta
 from metamagic.utils.algos import persistent_hash
 from metamagic.utils.functional import hybridmethod
 from metamagic.utils.debug import debug
+from metamagic.utils import buckets as abstract
 from . import implementation
-from . import abstract
 
 
 def _key(prefix:str, hash:int) -> bytes:

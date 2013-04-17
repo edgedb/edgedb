@@ -11,7 +11,7 @@ import weakref
 from metamagic.utils import abc, config
 
 
-class BucketMeta(abc.AbstractMeta):
+class BucketMeta(abc.AbstractMeta, config.ConfigurableMeta):
     def __new__(mcls, name, bases, dct):
         cls = super().__new__(mcls, name, bases, dct)
         if len([base for base in bases if isinstance(base, mcls)]) > 1:

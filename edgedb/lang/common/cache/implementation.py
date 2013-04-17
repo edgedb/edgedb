@@ -11,7 +11,8 @@ from datetime import timedelta
 
 from metamagic.utils import abc
 from metamagic.utils.algos.persistent_hash import persistent_hash
-from . import backend, exceptions, abstract
+from metamagic.utils import buckets as abstract
+from . import backend, exceptions
 
 
 class AbstractImplementation(abstract.Implementation):
