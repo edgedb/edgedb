@@ -656,6 +656,7 @@ class TreeTransformer:
                     if link_singular:
                         newstep = caos_ast.AtomicRefSimple(ref=lref, name=link_name, id=full_path_id,
                                                            ptr_proto=link_proto, rlink=link_node)
+                        link_node.target = newstep
                         atomrefs.append(newstep)
                     else:
                         ptr_name = caos_name.Name('metamagic.caos.builtins.target')
@@ -725,8 +726,13 @@ class TreeTransformer:
 
                     if prop_elements:
                         xvalue_elements = [el, proprec]
+                        if isinstance(link_node.target, caos_ast.AtomicRefSimple):
+                            ln = link_node.link_proto.normal_name()
+                            concept = link_node.source.concept.pointers[ln]
+                        else:
+                            concept = link_node.target.concept
                         el = caos_ast.Record(elements=xvalue_elements,
-                                             concept=link_node.target.concept,
+                                             concept=concept,
                                              rlink=link_node, linkprop_xvalue=True)
 
                 if not link.atomic() or prop_elements:

@@ -81,7 +81,7 @@ class Base(ast.AST):
                 if value in old:
                     setattr(self, name, new)
 
-            elif isinstance(value, list):
+            elif isinstance(value, (list, typed.TypedList)):
                 for i, item in enumerate(value):
                     if isinstance(item, Base):
                         if deep and self._can_replace_refs(field):
@@ -89,7 +89,7 @@ class Base(ast.AST):
                         if item in old:
                             value[i] = new
 
-            elif isinstance(value, (set, weakref.WeakSet)):
+            elif isinstance(value, (set, weakref.WeakSet, typed.TypedSet)):
                 for item in value.copy():
                     if isinstance(item, Base):
                         if deep and self._can_replace_refs(field):
@@ -132,13 +132,13 @@ class Path(Base):
 
 
 class SubgraphRef(Path):
-    __fields = [('name', str, None), ('ref', Base, None, False),
+    __fields = [('name', str, None), ('ref', Base, None, False, True),
                 ('rlink', Base, None, False, False, True), ('force_inline', bool)]
 
 
 class BaseRef(Path):
     __fields = ['id', ('ref', Base, None, False), ('rlink', Base, None, (False, True), False, True),
-                'ptr_proto']
+                'ptr_proto', ('users', set)]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -277,7 +277,7 @@ class EntitySet(Path):
                 ('reference', Path, None, False),
                 ('origin', Path, None, False),
                 ('rlink', EntityLink, None, False),
-                ('atomrefs', AtomicRefSet), ('metarefs', set), ('users', set),
+                ('atomrefs', set), ('metarefs', set), ('users', set),
                 ('joins', set, set, False)]
 
     def __setattr__(self, name, value):
