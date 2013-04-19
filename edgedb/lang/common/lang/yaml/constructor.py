@@ -30,12 +30,23 @@ class Composer(yaml.composer.Composer):
         node = self.compose_node(None, None)
 
         schema = getattr(start_document, 'schema', None)
+
+        doc_imports = getattr(start_document, 'imports', None)
+
         if schema:
             module, obj = schema.rsplit('.', 1)
             module = importlib.import_module(module)
             schema = getattr(module, obj)
-            node = schema().check(node)
-            node.import_context = schema().get_import_context_class()
+
+            if doc_imports:
+                imports, namespace = self._process_imports(node, doc_imports)
+            else:
+                imports = namespace = {}
+
+            schema_instance = schema(namespace=namespace)
+
+            node = schema_instance.check(node)
+            node.import_context = schema_instance.get_import_context_class()
 
             if node.import_context and \
                     not isinstance(self.document_context.import_context, node.import_context):
@@ -45,13 +56,80 @@ class Composer(yaml.composer.Composer):
 
         node.schema = schema
         node.document_name = getattr(start_document, 'document_name', None)
-        node.imports = getattr(start_document, 'imports', None)
+        node.imports = doc_imports
+
         if self.document_context is not None:
             self.document_context.document_name = node.document_name
 
         self.get_event()
         self.anchors = {}
         return node
+
+    def _process_imports(self, node, node_imports):
+        namespace = {}
+        imports = {}
+        Proxy = module_types.AutoloadingLightProxyModule
+
+        for module_name, tail in node_imports.items():
+            try:
+                pkg = self.document_context.module.__package__
+            except AttributeError:
+                pkg = self.document_context.module.__name__
+
+            module_name = module_utils.resolve_module_name(module_name, pkg)
+
+            if getattr(node, 'import_context', None):
+                parent_context = self.document_context.import_context
+                module_name = node.import_context.from_parent(module_name,
+                                                              parent=parent_context)
+
+            if tail and isinstance(tail, dict):
+                fromlist = tuple(tail)
+                fromdict = tail
+                alias = None
+            else:
+                alias = tail
+                fromlist = ()
+                fromdict = {}
+
+            try:
+                mod = __import__(module_name, fromlist=fromlist)
+            except ImportError as e:
+                raise yaml.constructor.ConstructorError(None, None, '%r' % e,
+                                                        node.start_mark) from e
+
+            if fromdict:
+                for name, alias in fromdict.items():
+                    try:
+                        modattr = getattr(mod, name)
+                    except AttributeError:
+                        msg = 'cannot import name {!r}'.format(name)
+                        raise yaml.constructor.ConstructorError(None, None, msg,
+                                                                node.start_mark) from None
+                    else:
+                        if isinstance(modattr, types.ModuleType):
+                            modattr = Proxy(modattr.__name__, modattr)
+                            imports[alias or name] = modattr
+                        namespace[alias or name] = modattr
+            else:
+                namespace[mod.__name__] = Proxy(mod.__name__, mod)
+
+                if module_name != mod.__name__:
+                    endmod = importlib.import_module(module_name)
+                else:
+                    endmod = mod
+
+                if alias is None:
+                    # XXX: should avoid doing this
+                    imports[module_name] = module_types.ModuleInfo(endmod)
+                else:
+                    namespace[alias] = Proxy(endmod.__name__, endmod)
+                    imports[alias] = module_types.ModuleInfo(endmod)
+
+        self.document_context.imports.update(imports)
+        self.document_context.namespace.update(namespace)
+
+        return imports, namespace
 
 
 class Constructor(yaml.constructor.Constructor):
@@ -86,71 +164,11 @@ class Constructor(yaml.constructor.Constructor):
                                                    start, end, document_context)
         return context
 
+    def _is_object_or_class(self, node):
+        return node.tag.startswith('tag:metamagic.sprymix.com,2009/metamagic/class/derive:') or \
+               node.tag.startswith('tag:metamagic.sprymix.com,2009/metamagic/object/create:')
+
     def construct_document(self, node):
-        if node.imports:
-            namespace = {}
-            imports = {}
-            Proxy = module_types.AutoloadingLightProxyModule
-
-            for module_name, tail in node.imports.items():
-                try:
-                    pkg = self.document_context.module.__package__
-                except AttributeError:
-                    pkg = self.document_context.module.__name__
-
-                module_name = module_utils.resolve_module_name(module_name, pkg)
-
-                if getattr(node, 'import_context', None):
-                    parent_context = self.document_context.import_context
-                    module_name = node.import_context.from_parent(module_name,
-                                                                  parent=parent_context)
-
-                if tail and isinstance(tail, dict):
-                    fromlist = tuple(tail)
-                    fromdict = tail
-                    alias = None
-                else:
-                    alias = tail
-                    fromlist = ()
-                    fromdict = {}
-
-                try:
-                    mod = __import__(module_name, fromlist=fromlist)
-                except ImportError as e:
-                    raise yaml.constructor.ConstructorError(None, None, '%r' % e,
-                                                            node.start_mark) from e
-
-                if fromdict:
-                    for name, alias in fromdict.items():
-                        try:
-                            modattr = getattr(mod, name)
-                        except AttributeError:
-                            msg = 'cannot import name {!r}'.format(name)
-                            raise yaml.constructor.ConstructorError(None, None, msg,
-                                                                    node.start_mark) from None
-                        else:
-                            if isinstance(modattr, types.ModuleType):
-                                modattr = Proxy(modattr.__name__, modattr)
-                                imports[alias or name] = modattr
-                            namespace[alias or name] = modattr
-                else:
-                    namespace[mod.__name__] = Proxy(mod.__name__, mod)
-
-                    if module_name != mod.__name__:
-                        endmod = importlib.import_module(module_name)
-                    else:
-                        endmod = mod
-
-                    if alias is None:
-                        # XXX: should avoid doing this
-                        imports[module_name] = module_types.ModuleInfo(endmod)
-                    else:
-                        namespace[alias] = Proxy(endmod.__name__, endmod)
-                        imports[alias] = module_types.ModuleInfo(endmod)
-
-            self.document_context.imports.update(imports)
-            self.document_context.namespace.update(namespace)
-
         context = self._get_source_context(node, self.document_context)
         lang_context.SourceContext.register_object(node, context)
 
@@ -181,7 +199,10 @@ class Constructor(yaml.constructor.Constructor):
 
         data = self.construct_object(nodecopy)
 
-        context = self._get_source_context(node, self.document_context)
+        context = lang_context.SourceContext.from_object(node)
+        if context is None:
+            context = self._get_source_context(node, self.document_context)
+
         result.prepare_class(context, data)
 
         yield result
@@ -193,7 +214,9 @@ class Constructor(yaml.constructor.Constructor):
                     "while constructing a Python object", node.start_mark,
                     "expected %s to be a subclass of metamagic.utils.lang.meta.Object" % classname, node.start_mark)
 
-        context = self._get_source_context(node, self.document_context)
+        context = lang_context.SourceContext.from_object(node)
+        if context is None:
+            context = self._get_source_context(node, self.document_context)
 
         nodecopy = copy.copy(node)
         nodecopy.tags = copy.copy(nodecopy.tags)
@@ -225,7 +248,7 @@ class Constructor(yaml.constructor.Constructor):
         else:
             constructor(result, data)
 
-    def construct_ordered_mapping(self, node, deep=False):
+    def construct_ordered_mapping(self, node, deep=False, populate_namespace=False):
         if isinstance(node, yaml.nodes.MappingNode):
             self.flatten_mapping(node)
 
@@ -241,8 +264,17 @@ class Constructor(yaml.constructor.Constructor):
                 raise yaml.constructor.ConstructorError("while constructing a mapping",
                                                         node.start_mark,
                                                         "found unhashable key", key_node.start_mark)
+
+            if self._is_object_or_class(value_node):
+                value_context = self._get_source_context(value_node, self.document_context)
+                lang_context.SourceContext.register_object(value_node, value_context)
+                value_context.mapping_key = key
+
             value = self.construct_object(value_node, deep=deep)
             mapping.append((key, value))
+
+            if populate_namespace:
+                self.document_context.namespace[key] = value
 
         return mapping
 
@@ -257,6 +289,11 @@ class Constructor(yaml.constructor.Constructor):
         yield data
         value = self.construct_ordered_mapping(node)
         data.extend(value)
+
+    def construct_namespace_map(self, node):
+        data = collections.OrderedDict()
+        yield data
+        return self.construct_ordered_mapping(node, populate_namespace=True)
 
     def construct_python_expression(self, node):
         if not isinstance(node.value, str):
@@ -301,6 +338,11 @@ Constructor.add_constructor(
 Constructor.add_constructor(
     'tag:metamagic.sprymix.com,2009/metamagic/mapseq',
     Constructor.construct_mapseq
+)
+
+Constructor.add_constructor(
+    'tag:metamagic.sprymix.com,2009/metamagic/schema/namespace',
+    Constructor.construct_namespace_map
 )
 
 Constructor.add_constructor(

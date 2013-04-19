@@ -6,6 +6,7 @@
 ##
 
 
+from metamagic.bootstrap.yaml.validator import types as v_types
 from . import validator
 
 
@@ -34,6 +35,13 @@ class ModuleSchemaBase(Base):
     pass
 
 
+class NamespaceModuleSchemaBase(ModuleSchemaBase):
+    def check(self, node):
+        node = super().check(node)
+        node.tag = 'tag:metamagic.sprymix.com,2009/metamagic/schema/namespace'
+        return node
+
+
 class Schema(Base):
     _schema_base_cls = Base
 
@@ -49,6 +57,10 @@ class Schema(Base):
 
 class ModuleSchema(Schema):
     _schema_base_cls = ModuleSchemaBase
+
+
+class NamespaceModuleSchema(ModuleSchema):
+    _schema_base_cls = NamespaceModuleSchemaBase
 
 
 class CachingSchema:

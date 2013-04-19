@@ -55,8 +55,12 @@ class Loader(yaml.reader.Reader, parser.Scanner, parser.Parser, constructor.Comp
                 yield ('__sx_yamlschema__', node.schema)
                 yield ('__sx_imports__', [m.__name__ for m in context.document.imports.values()])
 
-                for d in data.items():
-                    yield d
+                if issubclass(node.schema, yaml_schema.NamespaceModuleSchemaBase):
+                    for d in context.document.namespace.items():
+                        yield d
+                else:
+                    for d in data.items():
+                        yield d
 
                 seen_module_schema = True
             else:
