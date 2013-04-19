@@ -299,21 +299,33 @@ class TreeTransformer:
         else:
             assert False, 'unexpected node: "%r"' % expr
 
-    def _check_access_control(self, expr):
-        if isinstance(expr, caos_ast.EntitySet):
-            proto_name = expr.concept.name
-        elif isinstance(expr, caos_ast.EntityLink):
-            proto_name = (expr.source.concept.name, expr.link_proto.normal_name())
-        else:
-            raise TypeError('unexpected node to check_access_control: {!r}'.format(expr))
+    def _apply_rewrite_hooks(self, expr, type):
+        keys = []
 
-        try:
-            hooks = caos_types._access_control_hooks[proto_name, 'read']
-        except KeyError:
-            pass
+        if isinstance(expr, caos_ast.EntitySet):
+            keys = [expr.concept.name]
+        elif isinstance(expr, caos_ast.EntityLink):
+            ln = expr.link_proto.normal_name()
+
+            if expr.source.concept.is_virtual:
+                schema = self.context.current.proto_schema
+                for c in expr.source.concept.children(schema):
+                    if ln in c.pointers:
+                        keys.append((c.name, ln))
+            else:
+                keys = [(expr.source.concept.name, ln)]
         else:
-            for hook in hooks:
-                hook(self.context.current.graph, expr, self.context.current.context_vars)
+            raise TypeError('unexpected node to _apply_rewrite_hooks: {!r}'.format(expr))
+
+        for key in keys:
+            try:
+                hooks = caos_types._rewrite_hooks[key, 'read', type]
+            except KeyError:
+                pass
+            else:
+                for hook in hooks:
+                    hook(self.context.current.graph, expr, self.context.current.context_vars)
+                break
 
     def apply_rewrites(self, expr):
         """Apply rewrites from policies
@@ -335,7 +347,7 @@ class TreeTransformer:
             if ('access_rewrite' not in expr.rewrite_flags and expr.reference is None
                     and expr.origin is None
                     and getattr(self.context.current, 'apply_access_control_rewrite', False)):
-                self._check_access_control(expr)
+                self._apply_rewrite_hooks(expr, 'filter')
                 expr.rewrite_flags.add('access_rewrite')
 
         elif isinstance(expr, caos_ast.EntityLink):
@@ -378,16 +390,16 @@ class TreeTransformer:
                     expr.rewrite_flags.add('lang_rewrite')
 
             if ('access_rewrite' not in expr.rewrite_flags and expr.source is not None
-                    # An optimization to avoid applying filtering rewrite unnecessarily,
-                    # but transformation (i. e. computable) rewrites need to be applied
-                    # consistently all the time.  There is no way to distinguish between
-                    # the two currently, so simply disable the check.
-                    #
-                    #and expr.source.reference is None
+                    # An optimization to avoid applying filtering rewrite unnecessarily.
+                    and expr.source.reference is None
                     and expr.source.origin is None
                     and getattr(self.context.current, 'apply_access_control_rewrite', False)):
-                self._check_access_control(expr)
+                self._apply_rewrite_hooks(expr, 'filter')
                 expr.rewrite_flags.add('access_rewrite')
+
+            if 'computable_rewrite' not in expr.rewrite_flags and expr.source is not None:
+                self._apply_rewrite_hooks(expr, 'computable')
+                expr.rewrite_flags.add('computable_rewrite')
 
         elif isinstance(expr, caos_ast.LinkPropRefSimple):
             self.apply_rewrites(expr.ref)
