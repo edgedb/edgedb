@@ -1,0 +1,21 @@
+##
+# Copyright (c) 2013 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+%schema metamagic.node.schema.Node
+%from metamagic.utils.cache.schema import cache
+%from metamagic.utils.cache import Bucket, MemoryBackend
+---
+
+!cache Cache:
+    Bucket:
+        backends:
+            - MemoryBackend
+
+
+DefaultNode:
+    systems:
+        - Cache

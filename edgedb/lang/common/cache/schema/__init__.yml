@@ -1,0 +1,24 @@
+##
+# Copyright (c) 2013 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%schema metamagic.utils.lang.yaml.schema.Schema
+%name cache
+---
+
+type: map
+object: metamagic.utils.cache.schema._objects.Cache
+mapping:
+    =:
+        type: map
+        mapping:
+            backends:
+                type: seq
+                required: yes
+                sequence:
+                    - metamagic.node.schema._constructor
+...
