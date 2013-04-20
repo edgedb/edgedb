@@ -25,6 +25,7 @@ class TestJSds(JSFunctionalTest):
         assert.equal(m.get(k), 'foobar');
         assert.equal(m.size, 1);
         assert.ok(m.has(k));
+        assert.not(sx.len(k));
 
         assert.equal(m.get({}), undefined);
         assert.not(m.has({}));
@@ -33,10 +34,11 @@ class TestJSds(JSFunctionalTest):
         assert.equal(m.get('123'), 123);
         assert.equal(m.size, 2);
 
-        m.set(456, '456');
-        assert.equal(m.get(456), '456');
+        m.set(123, '456');
+        assert.equal(m.get(123), '456');
+        assert.equal(m.get('123'), 123);
         assert.equal(m.size, 3);
-        assert.ok(m.has(456));
+        assert.ok(m.has(123));
         assert.not(m.has(111111));
 
         m.set(null, 'null');
@@ -45,6 +47,7 @@ class TestJSds(JSFunctionalTest):
 
         m.set(undefined, 'undef');
         assert.equal(m.get(undefined), 'undef');
+        assert.equal(m.get(null), 'null');
         assert.equal(m.size, 5);
 
         var f = function() {};
@@ -104,6 +107,7 @@ class TestJSds(JSFunctionalTest):
         assert.ok(m.has(k));
         assert.equal(m.size, 1);
         assert.not(m.has({}));
+        assert.not(sx.len(k));
 
         assert.not(m.has('123'));
         m.add('123', 123);
