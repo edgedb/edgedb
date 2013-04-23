@@ -7,6 +7,7 @@
 
 
 import os
+import types
 
 from metamagic.utils.config import ConfigurableMeta, cvalue, inline
 from metamagic.utils.config import base as config_base
@@ -51,6 +52,32 @@ class TestConfig:
         with inline({'metamagic.utils.config.tests.test_conf.Inh_1.attr': '10'}):
             with assert_raises(TypeError, error_re='Invalid value'):
                 Inh_1.attr
+
+    def test_utils_config_lazy_default(self):
+        class LD(metaclass=ConfigurableMeta):
+            attr = cvalue(type=int, default=(lambda: 43))
+            attr2 = cvalue(default=(lambda: 44))
+            attr3 = cvalue(type=str, default=(lambda: 44))
+            attr4 = cvalue(default=(lambda:45))
+            attr5 = cvalue(type=types.FunctionType, default=(lambda:45))
+
+        class LDD(LD):
+            pass
+
+        assert LD.attr == 43
+        assert LD.attr == 43 # cache
+        assert LD.attr2 == 44
+        assert LDD.attr == 43
+
+        with assert_raises(TypeError, error_re='lazy default evaluation'):
+            LDD.attr3
+
+        with inline({'metamagic.utils.config.tests.test_conf.LDD.attr': 10}):
+            assert LD.attr == 43
+            assert LDD.attr == 10
+
+        assert LD.attr4 == 45
+        assert isinstance(LD.attr5, types.LambdaType)
 
     def test_utils_config_basic_import(self):
         from metamagic.utils.config.tests.testdata.test1 import config

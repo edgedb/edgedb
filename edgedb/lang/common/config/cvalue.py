@@ -6,6 +6,7 @@
 ##
 
 
+import types
 from string import Template
 
 from metamagic.utils.slots import SlotsMeta
@@ -28,11 +29,21 @@ class _no_default(_Marker):
 
 
 class cvalue(ChecktypeExempt, metaclass=SlotsMeta):
-    __slots__ = ('_name', '_default', '_doc', '_validator', '_type', '_owner')
+    __slots__ = ('_name', '_default', '_doc', '_validator', '_type', '_owner', '_lazy_default')
 
     def __init__(self, default=_no_default, *, doc=None, validator=None, type=None):
         self._name = None
+
+        if (isinstance(default, types.FunctionType) and
+                    (type is None or not isinstance(type, _std_type)
+                                or not issubclass(type, types.FunctionType))):
+            self._lazy_default = default
+            default = _no_default
+        else:
+            self._lazy_default = None
+
         self._default = default
+
         self._doc = doc
         self._type = type
 
@@ -116,6 +127,12 @@ class cvalue(ChecktypeExempt, metaclass=SlotsMeta):
             if result is not _no_default:
                 top_conf_link.cache_set((cls, self), result)
                 return result
+
+        if self._lazy_default is not None:
+            value = self._lazy_default()
+            self._validate(value, self.fullname, 'lazy default evaluation')
+            top_conf_link.cache_set((cls, self), value)
+            return value
 
         if self._default is _no_default:
             raise ValueError('{!r} is a required config value'.format(self.fullname))
