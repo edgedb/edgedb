@@ -137,6 +137,15 @@ class Query(backend_query.Query):
         self.record_info = record_info
         self.output_format = output_format
 
+    def __getstate__(self):
+        state = self.__dict__.copy()
+        state.pop('text')
+        return state
+
+    def __setstate__(self, state):
+        self.__dict__.update(state)
+        self.text = ''.join(self.chunks)
+
     def prepare(self, session):
         return PreparedQuery(self, session)
 
