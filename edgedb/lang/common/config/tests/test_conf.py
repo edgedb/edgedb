@@ -79,6 +79,28 @@ class TestConfig:
         assert LD.attr4 == 45
         assert isinstance(LD.attr5, types.LambdaType)
 
+    def test_utils_config_writeable_cvalue(self):
+        class WC(metaclass=ConfigurableMeta):
+            attr = cvalue(20, type=int)
+
+        class WCD(WC):
+            pass
+
+        class WCDD(WCD):
+            pass
+
+        assert WC.attr == WCD.attr == WCDD.attr == 20
+
+        wcd = WCD()
+        wcd.attr = 42
+        assert wcd.attr == 42
+        assert WC.attr == WCD.attr == WCDD.attr == 20
+        assert WC().attr == WCD().attr == WCDD().attr == 20
+
+        WCD.attr = 50
+        assert WC.attr == WC().attr == 20
+        assert WCD.attr == WCD().attr == WCDD.attr == WCDD().attr == 50
+
     def test_utils_config_basic_import(self):
         from metamagic.utils.config.tests.testdata.test1 import config
 

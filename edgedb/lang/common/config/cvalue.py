@@ -158,12 +158,6 @@ class cvalue(ChecktypeExempt, metaclass=SlotsMeta):
             cls = type(instance)
         return self._get_value(cls)
 
-    def __set__(self, instance, value):
-        raise TypeError('{} is a read-only value'.format(self._name))
-
-    def __delete__(self, instance):
-        raise TypeError('{} is a read-only value'.format(self._name))
-
     def __repr__(self):
         return "<{} at 0x{:x} ({!r})>".format(type(self).__name__, id(self), self._default)
 
