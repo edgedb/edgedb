@@ -6,7 +6,7 @@
 ##
 
 %schema metamagic.node.schema.Node
-%from metamagic.utils.cache.schema import cache
+%from metamagic.utils.cache.nodesystem.schema import cache
 %from metamagic.utils.cache import Bucket, MemoryBackend
 ---
 

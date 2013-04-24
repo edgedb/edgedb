@@ -7,10 +7,10 @@
 
 
 from metamagic.node.schema._objects import ClassObject, resolve_name
-from metamagic.utils.cache import node
+from metamagic.utils.cache import nodesystem
 
 
-class Cache(metaclass=ClassObject, baseclass=node.CacheSystem):
+class Cache(metaclass=ClassObject, baseclass=nodesystem.CacheSystem):
     @classmethod
     def _apply_data(cls, dct, *, data, context):
         buckets = {}

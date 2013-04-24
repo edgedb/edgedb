@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils.cache.node import CacheSystem
+from metamagic.utils.cache.nodesystem import CacheSystem
 
 
 class TestNodeCacheSystem:
@@ -18,6 +18,5 @@ class TestNodeCacheSystem:
         assert node.Cache.class_buckets[Bucket][0].cls == MemoryBackend
 
         c = node.Cache()
-        c.start()
+        c.configure()
         assert len(Bucket.get_backends()) == 1
-        c.stop()

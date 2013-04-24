@@ -11,7 +11,7 @@
 ---
 
 type: map
-object: metamagic.utils.cache.schema._objects.Cache
+object: metamagic.utils.cache.nodesystem.schema._objects.Cache
 mapping:
     =:
         type: map

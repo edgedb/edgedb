@@ -12,7 +12,7 @@ from metamagic import node
 class CacheSystem(node.System):
     class_buckets = None
 
-    def start(self):
+    def configure(self):
         assert self.class_buckets
 
         for bucket_cls, backend_classes in self.class_buckets.items():
