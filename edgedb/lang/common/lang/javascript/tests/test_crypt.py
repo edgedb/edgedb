@@ -20,23 +20,51 @@ class TestJSsxCrypt(JSFunctionalTest):
         return ''.join(random.choice(spec) for i in range(len))
 
 
-    hashes = {}
+    sha1 = {}
+    md5 = {}
     for v in ('', 'abc', '123', random_text(3), random_text(5), random_text(10),
               random_text(20), random_text(50), random_text(100),
               random_text(200), random_text(1000), random_text(9999),
               random_text(100000), '©', random_text(random.randrange(100, 100000))):
-        hashes[v] = hashlib.sha1(v.encode('utf-8')).hexdigest()
-    hashes = json.dumps(hashes)
+        sha1[v] = hashlib.sha1(v.encode('utf-8')).hexdigest()
+        md5[v] = hashlib.md5(v.encode('utf-8')).hexdigest()
+    sha1 = json.dumps(sha1)
+    md5 = json.dumps(md5)
 
+    tobytes = '''
+    function tobytes(msg) {
+        var r = [], msg = unescape(encodeURIComponent(String(msg)));
 
-    def test_utils_lang_js_sx_crypt_1(self):
+        for (var i = 0; i < msg.length; i++) {
+            r.push(msg.charCodeAt(i));
+        }
+
+        return r;
+    };
+    '''
+
+    def test_utils_lang_js_sx_crypt_sha1(self):
         pass
-    test_utils_lang_js_sx_crypt_1.__doc__ = '''JS
+    test_utils_lang_js_sx_crypt_sha1.__doc__ = '''JS
     // %from metamagic.utils.lang.javascript import crypt
 
-    var hashes = ''' + hashes + ''';
+    var hashes = ''' + sha1 + ''';''' + tobytes + '''
 
     sx.each(hashes, function(hash, key) {
         assert.equal(hash, sx.crypt.sha1(key));
+        assert.equal(hash, sx.crypt.sha1(tobytes(key)));
+    });
+    '''
+
+    def test_utils_lang_js_sx_crypt_md5(self):
+        pass
+    test_utils_lang_js_sx_crypt_md5.__doc__ = '''JS
+    // %from metamagic.utils.lang.javascript import crypt
+
+    var hashes = ''' + md5 + ''';''' + tobytes + '''
+
+    sx.each(hashes, function(hash, key) {
+        assert.equal(hash, sx.crypt.md5(key));
+        assert.equal(hash, sx.crypt.md5(tobytes(key)));
     });
     '''
