@@ -1,0 +1,68 @@
+##
+# Copyright (c) 2011-2012 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%SCHEMA metamagic.caos.backends.yaml.schemas.Semantics
+%IMPORT metamagic.caos.extras AS extras
+%IMPORT metamagic.utils.fs._file AS _file
+---
+
+concepts:
+    Bucket:
+        extends: extras.Dictionary
+
+    File:
+        title: "File"
+        extends: [_file.File, extras.NamedObject]
+
+        links:
+            mimetype:
+                str:
+                    title: "Type"
+
+            content:
+                bytes:
+                    title: "File Content"
+                    loading: lazy
+
+            hash:
+                str:
+                    title: "File Content Hash"
+
+            bucket:
+                Bucket:
+                    loading: eager
+                    mapping: "*1"
+
+
+    SingleFileContainer:
+        abstract: True
+
+        links:
+            file:
+                File:
+                    mapping: "*1"
+
+
+    StrictSingleFileContainer:
+        abstract: True
+        extends: SingleFileContainer
+
+        links:
+            file:
+                File:
+                    mapping: "*1"
+                    required: True
+
+
+    FileContainer:
+        abstract: True
+
+        links:
+            files:
+                File:
+                    mapping: "**"
