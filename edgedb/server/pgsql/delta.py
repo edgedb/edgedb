@@ -2728,7 +2728,7 @@ class DeleteModule(CompositePrototypeMetaCommand, adapts=delta_cmds.DeleteModule
         condition = dbops.SchemaExists(name=schema_name)
 
         cmd = dbops.CommandGroup()
-        cmd.add_command(dbops.DropSchema(name=schema_name, neg_conditions={condition}))
+        cmd.add_command(dbops.DropSchema(name=schema_name, conditions={condition}, priority=4))
         cmd.add_command(dbops.Delete(table=deltadbops.ModuleTable(),
                                      condition=[('name', str(module.name))]))
 
