@@ -1,0 +1,24 @@
+##
+# Copyright (c) 2013 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+%schema metamagic.node.schema.Node
+%from metamagic.utils.fs.nodesystem.schema import fs
+%from metamagic.utils.fs import Bucket, FSBackend
+---
+
+!fs FS:
+    Bucket:
+        backends:
+            - FSBackend:
+                args:
+                    pub_path: '/a'
+                    path: !tpl "${__realdir__}/foo"
+
+
+DefaultNode:
+    systems:
+        - FS

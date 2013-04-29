@@ -8,3 +8,5 @@
 
 from . import storage
 
+from .storage import Bucket
+from .storage.backend import FSBackend
