@@ -12,24 +12,6 @@
 sx.crypt = (function() {
     'use strict';
 
-    function utf8_encode(str) {
-        if (!str) {
-            return '';
-        }
-        return unescape(encodeURIComponent(String(str)));
-    }
-
-    function to_bytes(str) {
-        var str = utf8_encode(str),
-            len = str.length,
-            i,
-            res = new Array(len);
-        for (i = 0; i < len; i++) {
-            res[i] = str.charCodeAt(i);
-        }
-        return res;
-    }
-
     function hex(n) {
         return (n >> 28 & 0xF).toString(16) +
                (n >> 24 & 0xF).toString(16) +
@@ -58,7 +40,7 @@ sx.crypt = (function() {
             }
 
             if (sx.is_string(msg)) {
-                msg = to_bytes(msg);
+                msg = sx.str.to_bytes(msg);
             }
 
             var h0 = 0x67452301,
@@ -180,7 +162,7 @@ sx.crypt = (function() {
             }
 
             if (sx.is_string(msg)) {
-                msg = to_bytes(msg);
+                msg = sx.str.to_bytes(msg);
             }
 
             var a0 = 0x67452301,

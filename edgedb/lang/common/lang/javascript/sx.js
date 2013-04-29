@@ -50,6 +50,13 @@
         return obj;
     };
 
+    function _utf8_encode(str) {
+        if (!str) {
+            return '';
+        }
+        return unescape(encodeURIComponent(String(str)));
+    };
+
     var Error = function(msg) {
         this.message = msg;
     };
@@ -635,6 +642,17 @@
         },
 
         str: {
+            to_bytes: function(str) {
+                var str = _utf8_encode(str),
+                    len = str.length,
+                    i,
+                    res = new Array(len);
+                for (i = 0; i < len; i++) {
+                    res[i] = str.charCodeAt(i);
+                }
+                return res;
+            },
+
             shorten: function(str, max) {
                 if (str.length >= max) {
                     str = str.substring(0, max) + '...';

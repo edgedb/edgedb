@@ -10,6 +10,7 @@ import json
 import hashlib
 import random
 import string
+import base64
 
 from .base import JSFunctionalTest
 
@@ -22,14 +23,17 @@ class TestJSsxCrypt(JSFunctionalTest):
 
     sha1 = {}
     md5 = {}
+    b32 = {}
     for v in ('', 'abc', '123', random_text(3), random_text(5), random_text(10),
               random_text(20), random_text(50), random_text(100),
               random_text(200), random_text(1000), random_text(9999),
               random_text(100000), '©', random_text(random.randrange(100, 100000))):
         sha1[v] = hashlib.sha1(v.encode('utf-8')).hexdigest()
         md5[v] = hashlib.md5(v.encode('utf-8')).hexdigest()
+        b32[v] = base64.b32encode(v.encode('utf-8')).decode('ascii')
     sha1 = json.dumps(sha1)
     md5 = json.dumps(md5)
+    b32 = json.dumps(b32)
 
     tobytes = '''
     function tobytes(msg) {
@@ -66,5 +70,18 @@ class TestJSsxCrypt(JSFunctionalTest):
     sx.each(hashes, function(hash, key) {
         assert.equal(hash, sx.crypt.md5(key));
         assert.equal(hash, sx.crypt.md5(tobytes(key)));
+    });
+    '''
+
+    def test_utils_lang_js_sx_base64_b32(self):
+        pass
+    test_utils_lang_js_sx_base64_b32.__doc__ = '''JS
+    // %from metamagic.utils.lang.javascript import base64
+
+    var hashes = ''' + b32 + ''';''' + tobytes + '''
+
+    sx.each(hashes, function(hash, key) {
+        assert.equal(hash, sx.base64.b32encode(key));
+        assert.equal(hash, sx.base64.b32encode(tobytes(key)));
     });
     '''
