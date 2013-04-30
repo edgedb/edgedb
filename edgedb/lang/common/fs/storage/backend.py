@@ -82,7 +82,7 @@ class BaseFSBackend(Backend):
         path = os.path.join(self.path, base)
 
         if os.path.exists(path):
-            raise BackendError('file names collision')
+            raise BackendError('file names collision: {} already exists'.format(path))
 
         dir = os.path.dirname(path)
         os.makedirs(dir, exist_ok=True, mode=(0o777 - self.umask))
@@ -102,7 +102,7 @@ class BaseFSBackend(Backend):
         path = os.path.join(self.path, base)
 
         if os.path.exists(path):
-            raise BackendError('file names collision')
+            raise BackendError('file names collision: {} already exists'.format(path))
 
         dir = os.path.dirname(path)
         os.makedirs(dir, exist_ok=True, mode=(0o777 - self.umask))
