@@ -9,7 +9,7 @@
 import os
 import types
 
-from metamagic.utils.config import ConfigurableMeta, cvalue, inline
+from metamagic.utils.config import ConfigurableMeta, cvalue, inline, Configurable
 from metamagic.utils.config import base as config_base
 from metamagic.utils.debug import assert_raises
 from metamagic.utils.config.exceptions import ConfigError
@@ -188,3 +188,16 @@ class TestConfig:
                 TestTpl.tpl4
 
             assert TestTpl.tpl5 == 'tpl5'
+
+    def test_utils_config_configurable_init(self):
+        class TCI(Configurable):
+            foo = cvalue(1)
+
+        assert TCI().foo == 1
+        assert TCI(foo=2).foo == 2
+
+        with inline({TCI.__module__ + '.' + TCI.__name__ + '.foo': 3}):
+            assert TCI().foo == 3
+            assert TCI(foo=2).foo == 2
+            assert TCI.foo == 3
+            assert TCI().foo == 3

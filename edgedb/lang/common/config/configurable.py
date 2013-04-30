@@ -34,3 +34,28 @@ class Configurable(metaclass=ConfigurableMeta):
     # on normal objects with __dict__.
     #
     __slots__ = ()
+
+    def __init__(self, *args, **kwargs):
+        if kwargs:
+            # Automatically process kwargs and init corresponding configurable
+            # attributes on the object.  However, if the object has __slots__
+            # defined, you'll need to manually list there which of specified
+            # cvalues are configurable this way.
+
+            dct = self.__class__.__dict__
+            to_pop = []
+
+            for name, value in kwargs.items():
+                try:
+                    dct_val = dct[name]
+                except KeyError:
+                    continue
+                else:
+                    if isinstance(dct_val, cvalue):
+                        setattr(self, name, value)
+                        to_pop.append(name)
+
+            for name in to_pop:
+                kwargs.pop(name)
+
+        super().__init__(*args, **kwargs)
