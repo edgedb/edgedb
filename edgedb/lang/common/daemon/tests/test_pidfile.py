@@ -80,8 +80,13 @@ class TestUtilsDaemonPidfile(base.BaseDaemonTestCase):
     def test_utils_daemon_pidfile_exists_nonrunning_pid(self, pid):
         path = pid
 
-        pid = 65000
-        while lib.is_process_running(pid):
+        pid = 60000
+        while True:
+            try:
+                if not lib.is_process_running(pid):
+                    break
+            except PermissionError:
+                pass
             pid += 1
             if pid > 65535:
                 raise RuntimeError('unable to find a non-existent pid')
