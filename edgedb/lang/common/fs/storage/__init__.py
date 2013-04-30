@@ -22,10 +22,6 @@ from .implementation import DefaultImplementation
 from .exceptions import StorageError
 
 
-class DefaultFormsBucket(Bucket):
-    id = '8d5c0108-e7e7-11e1-85a4-3c075450f961'
-
-
 class files(public):
     pass
 
