@@ -38,7 +38,7 @@ class Backend(abstract.Backend):
 
 
 class BaseFSBackend(Backend):
-    umask = config.cvalue(0o022, type='int', doc='umask with wich files will be stored')
+    umask = config.cvalue(0o002, type='int', doc='umask with wich files will be stored')
 
     def __init__(self, path, *, auto_create_path=True):
         """
