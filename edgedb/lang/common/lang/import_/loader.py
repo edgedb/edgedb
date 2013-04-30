@@ -56,7 +56,7 @@ class LoaderCommon:
             tdata = LoaderCommon.__mm_trace_data__ = dict(indent=0, timings=[])
 
         start = time.monotonic()
-        #print('import: {}+{}'.format('  ' * tdata['indent'], fullname))
+        print('import: {}+{}'.format('  ' * tdata['indent'], fullname))
         tdata['indent'] += 1
         timing_idx = len(tdata['timings'])
         """
