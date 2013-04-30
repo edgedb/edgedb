@@ -53,7 +53,7 @@ class BaseFSBackend(Backend):
 
         if not os.path.exists(self.path):
             if self.auto_create_path:
-                os.mkdir(self.path)
+                os.mkdir(self.path, 0o777 - self.umask)
 
             if not os.path.exists(self.path):
                 raise BackendError('unable to create directory {!r}'.format(self.path))
