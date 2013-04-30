@@ -94,7 +94,7 @@ def download(context, id):
     File = session.schema.metamagic.utils.fs.file.File
 
     file = File.get(File.id == id)
-    bucket_cls = BucketMeta.get_bucket_class(file.bucket.name)
+    bucket_cls = BucketMeta.get_bucket_class(file.bucket.id)
 
     url = bucket_cls.get_file_pub_url(file.id, file.name)
 
