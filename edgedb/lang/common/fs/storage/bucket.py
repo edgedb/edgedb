@@ -57,7 +57,7 @@ class BucketMeta(abstract.BucketMeta):
 
 
 class Bucket(abstract.Bucket, metaclass=BucketMeta):
-    _re_escape = re.compile(r'[^\w\-\. _]')
+    _re_escape = re.compile(r'[^\w\-\._]')
 
     def __init__(self, *args, **kwargs):
         raise TypeError('storage Buckets are not meant to be instantiated')
@@ -96,4 +96,4 @@ class Bucket(abstract.Bucket, metaclass=BucketMeta):
 
     @classmethod
     def escape_filename(cls, filename):
-        return cls._re_escape.sub('_', filename)
+        return cls._re_escape.sub('_', filename).strip('-')

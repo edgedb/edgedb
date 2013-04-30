@@ -1,11 +1,12 @@
 ##
-# Copyright (c) 2012 Sprymix Inc.
+# Copyright (c) 2012, 2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
 
+import base64
 import errno
 import os
 import itertools
@@ -66,12 +67,9 @@ class BaseFSBackend(Backend):
             base = '{bucket_module}.{bucket_name}'.format(bucket_module=bucket.__module__,
                                                           bucket_name=bucket.__name__)
 
-        new_id = hashlib.md5(id.bytes).hexdigest()
+        new_id = base64.b32encode(hashlib.md5(id.bytes).digest()).decode('ascii')
 
-        i = iter(new_id)
-        fn = os.sep.join(''.join(sub) for sub in itertools.zip_longest(i, i, fillvalue=''))
-
-        return base + os.sep + fn + os.sep + filename
+        return os.path.join(base, new_id[:2], new_id[2:4], id.hex + '_' + filename)
 
     @_coroutine
     def store_http_file(self, bucket, id, file):
