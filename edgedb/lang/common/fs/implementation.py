@@ -13,8 +13,8 @@ from metamagic.utils import abc
 from metamagic.utils import buckets as abstract
 from metamagic.spin.core.commands.greenlet import yield_
 
-from . import backend
-from .exceptions import StorageError
+from . import bucket
+from .exceptions import FSError
 
 
 class ImplementationMeta(abstract.ImplementationMeta):
@@ -40,13 +40,13 @@ class BaseImplementation(abstract.Implementation, metaclass=ImplementationMeta):
 
 
 class DefaultImplementation(BaseImplementation):
-    compatible_backend_classes = backend.Backend
+    compatible_backend_classes = bucket.Backend
 
     @classmethod
     def _ensure_backends(cls, bucket):
         backends = bucket.get_backends()
         if not backends:
-            raise StorageError('no backends found for bucket {!r}'.format(bucket))
+            raise FSError('no backends found for bucket {!r}'.format(bucket))
         return backends
 
     @classmethod

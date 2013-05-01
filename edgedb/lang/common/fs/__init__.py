@@ -6,7 +6,7 @@
 ##
 
 
-from . import storage
+from .bucket import Bucket
 
-from .storage import Bucket
-from .storage.backend import FSBackend
+from .implementation import DefaultImplementation
+Bucket.set_implementation(DefaultImplementation)

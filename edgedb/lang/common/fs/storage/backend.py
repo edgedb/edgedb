@@ -11,6 +11,7 @@ import errno
 import os
 import itertools
 import hashlib
+import re
 import shutil
 import uuid
 
@@ -20,24 +21,17 @@ from metamagic.spin.protocols.http import types as http_types
 from metamagic.spin.core import _coroutine
 from metamagic.spin import abstractcoroutine
 
-from .exceptions import StorageError
+from ..bucket import Backend
+from ..exceptions import FSError
 
 
-class BackendError(StorageError):
+class BackendError(FSError):
     pass
 
 
-class Backend(abstract.Backend):
-    @abstractcoroutine
-    def store_file(self, bucket, id, file):
-        pass
-
-    @abc.abstractmethod
-    def get_file_pub_url(bucket, id, filename):
-        pass
-
-
 class BaseFSBackend(Backend):
+    _re_escape = re.compile(r'[^\w\-\._]')
+
     umask = config.cvalue(0o002, type='int', doc='umask with wich files will be stored')
 
     def __init__(self, path, *, auto_create_path=True):
@@ -57,6 +51,9 @@ class BaseFSBackend(Backend):
 
             if not os.path.exists(self.path):
                 raise BackendError('unable to create directory {!r}'.format(self.path))
+
+    def escape_filename(self, filename):
+        return self._re_escape.sub('_', filename).strip('-')
 
     def _get_base_name(self, bucket, id, filename):
         assert isinstance(id, uuid.UUID)
@@ -78,7 +75,7 @@ class BaseFSBackend(Backend):
                                'spin.http.types.File, got {!r}'.format(file))
 
         base = self._get_base_name(bucket, id,
-                                   bucket.escape_filename(file.filename))
+                                   self.escape_filename(file.filename))
         path = os.path.join(self.path, base)
 
         if os.path.exists(path):
@@ -98,7 +95,7 @@ class BaseFSBackend(Backend):
         if name is None:
             name = os.path.basename(filename)
 
-        base = self._get_base_name(bucket, id, bucket.escape_filename(name))
+        base = self._get_base_name(bucket, id, self.escape_filename(name))
         path = os.path.join(self.path, base)
 
         if os.path.exists(path):
@@ -124,9 +121,9 @@ class FSBackend(BaseFSBackend):
         self.pub_path = pub_path
 
     def get_file_path(self, bucket, id, filename):
-        filename = bucket.escape_filename(filename)
+        filename = self.escape_filename(filename)
         return os.path.join(self.path, self._get_base_name(bucket, id, filename))
 
     def get_file_pub_url(self, bucket, id, filename):
-        filename = bucket.escape_filename(filename)
+        filename = self.escape_filename(filename)
         return os.path.join(self.pub_path, self._get_base_name(bucket, id, filename))

@@ -12,14 +12,11 @@ from metamagic.spin.node.dispatch.bus import public
 from metamagic.spin.node.dispatch.http import http as http_base
 from metamagic.spin.protocols.http import headers as http_headers, statuses as http_statuses
 from metamagic.spin.node.extras.middleware import CaosSessionMiddleware
-from metamagic import caos
 
 from metamagic.utils.lang.import_ import get_object
 
-from .bucket import Bucket, BucketMeta
+from ..bucket import BucketMeta, Bucket
 from .backend import FSBackend
-from .implementation import DefaultImplementation
-from .exceptions import StorageError
 
 
 class files(public):
@@ -57,12 +54,11 @@ def upload(context, bucket:str, concept:str=None, fieldcls=None, config=None):
     with session.transaction():
         file_entities = []
         for file in files:
-            filename = bucket_cls.escape_filename(file.filename)
-            file_entities.append((file, Concept(name=filename,
+            file_entities.append((file, Concept(name=file.filename,
                                                 hash=file.md5,
                                                 mimetype=str(file.content_type),
                                                 bucket=bucket_entity),
-                                  filename))
+                                  file.filename))
         session.sync()
 
         file_ids = {}
@@ -98,6 +94,3 @@ def download(context, id):
     context.response.headers.add(http_headers.Location(url))
 
     return ''
-
-
-Bucket.set_implementation(DefaultImplementation)
