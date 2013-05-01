@@ -9,9 +9,6 @@
 from .meta import LanguageMeta
 from .import_ import ImportContext
 
-# Import languages to register them
-from metamagic.utils.lang import yaml, python, javascript
-
 
 class MetamagicLangLoaderError(Exception):
     pass
