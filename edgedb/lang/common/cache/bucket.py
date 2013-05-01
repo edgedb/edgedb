@@ -40,66 +40,6 @@ class BucketMeta(abstract.BucketMeta):
         cls.hash_function = mcls.hash_function
         return cls
 
-    def _cls_get_version(cls):
-        if cls._cls_version is None:
-            cls._cls_init_version()
-        return cls._cls_version
-
-    def _cls_init_version(cls, bump_version=False):
-        if cls._cls_version is None or bump_version:
-            backends = cls.get_backends()
-            if not backends:
-                '''non-initialized cache - no work'''
-                return
-
-            base_versions = ['class version']
-            for base in cls.__mro__[1:]:
-                if isinstance(base, BucketMeta):
-                    base_versions.append(base._cls_get_version())
-
-            cls_versioned_hash = cls.hash_function((tuple(base_versions), cls._cls_base_hash))
-            cls_versioned_key = _key('bucket_cls_version', cls_versioned_hash)
-
-            impl = cls.get_implementation()(backends)
-
-            try:
-                current_version = impl.getitem(cls_versioned_key)
-            except KeyError:
-                cls_version = int(time.time())
-                impl.setitem(cls_versioned_key, cls_version)
-            else:
-                if bump_version:
-                    cls_version = int(time.time())
-
-                    if current_version >= cls_version:
-                        cls_version = current_version + 1
-
-                    impl.setitem(cls_versioned_key, cls_version)
-                else:
-                    cls_version = current_version
-
-            cls._cls_version = cls_version
-            cls._cls_versioned_hash = cls.hash_function(('bucket class versioned hash',
-                                                         cls_versioned_hash, cls_version))
-
-        return cls._cls_version
-
-    def _reset_bucket_class(cls):
-        cls._cls_init_version(bump_version=True)
-
-        def walker(cls):
-            if isinstance(cls, BucketMeta):
-                cls._cls_init_version()
-
-                for bucket in cls._instances:
-                    bucket._init_version()
-
-                for subcls in cls.__subclasses__():
-                    if isinstance(subcls, BucketMeta):
-                        walker(subcls)
-
-        walker(cls)
-
 
 class Bucket(abstract.Bucket, metaclass=BucketMeta):
     def __init__(self, bucket_id='<default>', *, parent=None):
@@ -251,6 +191,69 @@ class Bucket(abstract.Bucket, metaclass=BucketMeta):
             return self[key]
         except KeyError:
             return default
+
+    @classmethod
+    def _cls_get_version(cls):
+        if cls._cls_version is None:
+            cls._cls_init_version()
+        return cls._cls_version
+
+    @classmethod
+    def _cls_init_version(cls, bump_version=False):
+        if cls._cls_version is None or bump_version:
+            backends = cls.get_backends()
+            if not backends:
+                '''non-initialized cache - no work'''
+                return
+
+            base_versions = ['class version']
+            for base in cls.__mro__[1:]:
+                if isinstance(base, BucketMeta):
+                    base_versions.append(base._cls_get_version())
+
+            cls_versioned_hash = cls.hash_function((tuple(base_versions), cls._cls_base_hash))
+            cls_versioned_key = _key('bucket_cls_version', cls_versioned_hash)
+
+            impl = cls.get_implementation()(backends)
+
+            try:
+                current_version = impl.getitem(cls_versioned_key)
+            except KeyError:
+                cls_version = int(time.time())
+                impl.setitem(cls_versioned_key, cls_version)
+            else:
+                if bump_version:
+                    cls_version = int(time.time())
+
+                    if current_version >= cls_version:
+                        cls_version = current_version + 1
+
+                    impl.setitem(cls_versioned_key, cls_version)
+                else:
+                    cls_version = current_version
+
+            cls._cls_version = cls_version
+            cls._cls_versioned_hash = cls.hash_function(('bucket class versioned hash',
+                                                         cls_versioned_hash, cls_version))
+
+        return cls._cls_version
+
+    @classmethod
+    def _reset_bucket_class(cls):
+        cls._cls_init_version(bump_version=True)
+
+        def walker(cls):
+            if isinstance(cls, BucketMeta):
+                cls._cls_init_version()
+
+                for bucket in cls._instances:
+                    bucket._init_version()
+
+                for subcls in cls.__subclasses__():
+                    if isinstance(subcls, BucketMeta):
+                        walker(subcls)
+
+        walker(cls)
 
 
 Bucket.set_implementation(implementation.BaseImplementation)

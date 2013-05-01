@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2012 Sprymix Inc.
+# Copyright (c) 2012, 2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -18,41 +18,6 @@ class BucketMeta(abc.AbstractMeta, config.ConfigurableMeta):
             raise TypeError('Bucket classes can have only one base Bucket class')
         cls._instances = weakref.WeakSet()
         return cls
-
-    def _register_instance(cls, instance):
-        cls._instances.add(instance)
-
-    def set_backends(cls, *backends):
-        impl = cls.get_implementation()
-        for p in backends:
-            if not isinstance(p, impl.compatible_backend_classes):
-                raise TypeError('backend {!r} is not compatible with installed implementation '
-                                '{!r}, must be an instance of {!r}'.
-                                format(p, impl, impl.compatible_backend_classes))
-
-        cls._backends = backends
-
-    def get_backends(cls):
-        return getattr(cls, '_backends', None)
-
-    def set_implementation(cls, implementation):
-        if not issubclass(implementation, Implementation):
-            raise ValueError('a subclass of Implementation was expected')
-
-        if hasattr(cls, '_implementation') and '_implementation' not in cls.__dict__:
-            holder = None
-            for sub in cls.__mro__[1:-1]:
-                if '_implementation' in sub.__dict__:
-                    holder = sub
-                    break
-
-            raise ValueError('implementation was already defined in one of '
-                             'the parent buckets: {!r}'.format(holder))
-
-        cls._implementation = implementation
-
-    def get_implementation(cls):
-        return cls._implementation
 
 
 class Bucket(metaclass=BucketMeta):
@@ -97,6 +62,44 @@ class Bucket(metaclass=BucketMeta):
         if not impl:
             raise KeyError('non-initialized bucket: no backends/implementation set')
         return impl
+
+    @classmethod
+    def _register_instance(cls, instance):
+        cls._instances.add(instance)
+
+    @classmethod
+    def set_backends(cls, *backends):
+        impl = cls.get_implementation()
+        for p in backends:
+            if not isinstance(p, impl.compatible_backend_classes):
+                raise TypeError('backend {!r} is not compatible with installed implementation '
+                                '{!r}, must be an instance of {!r}'.
+                                format(p, impl, impl.compatible_backend_classes))
+
+    @classmethod
+    def get_backends(cls):
+        return getattr(cls, '_backends', None)
+
+    @classmethod
+    def set_implementation(cls, implementation):
+        if not issubclass(implementation, Implementation):
+            raise ValueError('a subclass of Implementation was expected')
+
+        if hasattr(cls, '_implementation') and '_implementation' not in cls.__dict__:
+            holder = None
+            for sub in cls.__mro__[1:-1]:
+                if '_implementation' in sub.__dict__:
+                    holder = sub
+                    break
+
+            raise ValueError('implementation was already defined in one of '
+                             'the parent buckets: {!r}'.format(holder))
+
+        cls._implementation = implementation
+
+    @classmethod
+    def get_implementation(cls):
+        return cls._implementation
 
 
 class ImplementationMeta(abc.AbstractMeta):
