@@ -42,8 +42,11 @@ class Configurable(metaclass=ConfigurableMeta):
             # defined, you'll need to manually list there which of specified
             # cvalues are configurable this way.
 
-            dct = self.__class__.__dict__
+            cls = self.__class__
+            dct = cls.__dict__
             to_pop = []
+
+            base_name = '{}.{}'.format(cls.__module__, cls.__name__)
 
             for name, value in kwargs.items():
                 try:
@@ -52,6 +55,8 @@ class Configurable(metaclass=ConfigurableMeta):
                     continue
                 else:
                     if isinstance(dct_val, cvalue):
+                        fullname = '{}.{}'.format(base_name, name)
+                        dct_val._validate(value, fullname)
                         setattr(self, name, value)
                         to_pop.append(name)
 

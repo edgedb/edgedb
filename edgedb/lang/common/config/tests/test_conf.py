@@ -201,3 +201,17 @@ class TestConfig:
             assert TCI(foo=2).foo == 2
             assert TCI.foo == 3
             assert TCI().foo == 3
+
+        with inline({TCI.__module__ + '.' + TCI.__name__ + '.foo': '3'}):
+            assert TCI().foo == '3'
+
+        ####### And with type validation:
+
+        class TCI2(Configurable):
+            bar = cvalue('1', type=str)
+
+        assert TCI2().bar == '1'
+        assert TCI2(bar='2').bar == '2'
+
+        with assert_raises(TypeError, error_re='value 42'):
+            TCI2(bar=42)
