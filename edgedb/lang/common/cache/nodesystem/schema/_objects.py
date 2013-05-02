@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.node.schema._objects import ClassObject, resolve_name
+from metamagic.node.schema._objects import ClassObject
 from metamagic.utils.cache import nodesystem
 
 
@@ -16,7 +16,7 @@ class Cache(metaclass=ClassObject, baseclass=nodesystem.CacheSystem):
         buckets = {}
 
         for bucket, spec in data.items():
-            bucket_cls = resolve_name(context, bucket)
+            bucket_cls = context.resolve_name(bucket)
             buckets[bucket_cls] = spec['backends']
 
         dct['class_buckets'] = buckets
