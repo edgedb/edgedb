@@ -95,6 +95,10 @@ class Loader(_SourceFileLoader, imploader.SourceLoader, imploader.LoaderCommon):
         except AttributeError:
             pass
 
+        modtags = self.get_modtags(fullname)
+        if modtags:
+            mod.__mm_module_tags__ = modtags
+
         return mod
 
 

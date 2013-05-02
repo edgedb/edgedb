@@ -1,0 +1,26 @@
+##
+# Copyright (c) 2013 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%schema metamagic.utils.lang.yaml.schema.ModuleSchema
+%name Package
+---
+type: map
+object: metamagic.utils.lang.package._objects.Package
+mapping:
+    "tags":
+        type: map
+        default: {}
+        ordered: True
+        mapping:
+            =: # module pattern
+                type: choice
+                choice:
+                    - type: str
+                    - type: seq
+                      sequence:
+                        - type: str

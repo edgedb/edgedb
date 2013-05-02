@@ -15,4 +15,7 @@ def invalidate_modver_cache(modname=None):
         modver_cache.pop(modname, None)
 
 
-deptracked_modules = set()
+deptracked_modules = {}
+
+
+package_tag_maps = {}

@@ -366,7 +366,3 @@ class ModuleInfo:
             self.__package__ = package
             self.__path__ = path
             self.__file__ = file
-
-
-class DependencyTrackedModule(types.ModuleType):
-    pass

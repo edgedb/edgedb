@@ -117,6 +117,10 @@ class LoaderCommon:
 
         module.__package__ = module.__name__
 
+        modtags = self.get_modtags(module.__name__)
+        if modtags:
+            module.__mm_module_tags__ = modtags
+
         if self.is_package(module.__name__):
             module.__path__ = [os.path.dirname(module.__file__)]
         else:
@@ -136,6 +140,13 @@ class LoaderCommon:
                 module.__dict__.update(orig_dict)
 
             raise
+
+        try:
+            package_tagmap = module.__mm_package_tagmap__
+        except AttributeError:
+            pass
+        else:
+            caches.package_tag_maps[module.__name__] = package_tagmap
 
         try:
             module_class = module.__sx_moduleclass__
@@ -159,8 +170,12 @@ class LoaderCommon:
 
         module.__loaded__ = True
 
-        if isinstance(module, module_types.DependencyTrackedModule):
-            caches.deptracked_modules.add(module.__name__)
+        try:
+            track_policy = module.__mm_track_dependencies__
+        except AttributeError:
+            pass
+        else:
+            caches.deptracked_modules[module.__name__] = track_policy
 
         result_mod = module
         if proxy_cls:
@@ -174,6 +189,20 @@ class LoaderCommon:
 
         sys.modules[module.__name__] = result_mod
         return result_mod
+
+    def get_modtags(self, modname):
+        steps = modname.split('.')
+
+        for i in range(len(steps), 0, -1):
+            prefix = '.'.join(steps[:i])
+            try:
+                tagmap = caches.package_tag_maps[prefix]
+            except KeyError:
+                pass
+            else:
+                for pattern, tags in tagmap.items():
+                    if pattern.match('.'.join(steps[i:])):
+                        return tags
 
 
 class SourceLoader:
@@ -221,11 +250,15 @@ class SourceLoader:
 
     def is_deptracked(self, modname):
         steps = modname.split('.')
+
         for i in range(len(steps), 0, -1):
             prefix = '.'.join(steps[:i])
-            if prefix in caches.deptracked_modules:
-                return True
-
+            try:
+                deptracking_policy = caches.deptracked_modules[prefix]
+            except KeyError:
+                pass
+            else:
+                return deptracking_policy
 
 class ModuleCacheMetaInfo:
     _cache_struct = struct.Struct('!QII')
