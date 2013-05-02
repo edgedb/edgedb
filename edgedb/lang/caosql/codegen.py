@@ -127,17 +127,24 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
     def visit_LinkPropExprNode(self, node):
         self.visit(node.expr)
 
-    def visit_LinkNode(self, node):
-        if node.namespace:
-            self.write('[%s.%s' % (node.namespace, node.name))
+    def visit_LinkNode(self, node, quote=True):
+        if node.namespace or node.target or node.direction:
+            if quote:
+                self.write('[')
+            if node.direction:
+                self.write(node.direction)
+            self.write('%s.%s' % (node.namespace, node.name))
             if node.target:
                 self.write('({}.{})'.format(node.target.module, node.target.name))
-            self.write(']')
+            if quote:
+                self.write(']')
         else:
             self.write(node.name)
 
     def visit_SelectPathSpecNode(self, node):
-        self.visit(node.expr)
+        # PathSpecNode can only contain LinkExpr or LinkPropExpr,
+        # and must not be quoted.
+        self.visit_LinkNode(node.expr.expr, quote=False)
 
         if node.pathspec:
             self._visit_pathspec(node.pathspec)
