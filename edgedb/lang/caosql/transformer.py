@@ -139,7 +139,9 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
         pathspec = []
 
         if expr.linkprop_xvalue:
-            if isinstance(expr.elements[0], tree.ast.Record):
+            if isinstance(expr.elements[0], tree.ast.LinkPropRefSimple):
+                return []
+            elif isinstance(expr.elements[0], tree.ast.Record):
                 pathspec = self._pathspec_from_record(expr.elements[0])
             else:
                 noderef = self._process_expr(expr.elements[0])
