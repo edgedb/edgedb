@@ -131,7 +131,8 @@ class cvalue(ChecktypeExempt, metaclass=SlotsMeta):
         if self._lazy_default is not None:
             value = self._lazy_default()
             self._validate(value, self.fullname, 'lazy default evaluation')
-            top_conf_link.cache_set((cls, self), value)
+            if top_conf_link is not None:
+                top_conf_link.cache_set((cls, self), value)
             return value
 
         if self._default is _no_default:
