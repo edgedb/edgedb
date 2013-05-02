@@ -394,10 +394,12 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
                 target = None
 
             if path.steps:
-                link = qlast.LinkNode(name=lname.name, namespace=lname.module, target=target)
+                link = qlast.LinkNode(name=lname.name, namespace=lname.module, target=target,
+                                      direction=expr.direction)
                 link = qlast.LinkExprNode(expr=link)
             else:
-                link = qlast.LinkNode(name=lname.name, namespace=lname.module, target=target)
+                link = qlast.LinkNode(name=lname.name, namespace=lname.module, target=target,
+                                      direction=expr.direction)
 
             path.steps.append(link)
             result = path
