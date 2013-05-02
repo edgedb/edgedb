@@ -3035,7 +3035,7 @@ class PathResolver(TreeTransformer):
 
             for a in args[0]:
                 source = self._exec_cmd(a, class_factory)
-                metadata = dict(source_expr=getattr(caos_expr.type(source), args[1]))
+                metadata = dict(source_expr=getattr(caos_expr.type(source[0]), args[1]))
                 atom = class_factory.get_class(atom_name)
                 result.append(atom._copy_(metadata=metadata))
 
