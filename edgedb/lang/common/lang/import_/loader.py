@@ -71,8 +71,7 @@ class LoaderCommon:
         tdata['timings'].append((fullname, full_time, self_time))
 
         msg = 'import: {}*{} ({:.3f}ms, {:.3f}ms)'
-        if self_time > 0.1:
-            print(msg.format('  ' * tdata['indent'], fullname, full_time * 1000, self_time * 1000))
+        print(msg.format('  ' * tdata['indent'], fullname, full_time * 1000, self_time * 1000))
         """
 
         return module
