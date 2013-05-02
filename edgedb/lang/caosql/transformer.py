@@ -274,7 +274,10 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
             result = self._process_expr(expr.expr)
 
         elif isinstance(expr, tree.ast.Constant):
-            result = qlast.ConstantNode(value=expr.value, index=expr.index)
+            if expr.expr is not None:
+                result = self._process_expr(expr.expr)
+            else:
+                result = qlast.ConstantNode(value=expr.value, index=expr.index)
 
         elif isinstance(expr, tree.ast.SelectorExpr):
             result = qlast.SelectExprNode(expr=self._process_expr(expr.expr), alias=expr.name)
