@@ -69,12 +69,20 @@ class Bucket(metaclass=BucketMeta):
 
     @classmethod
     def set_backends(cls, *backends):
+        # First validate backends against the current Implementation
         impl = cls.get_implementation()
         for p in backends:
             if not isinstance(p, impl.compatible_backend_classes):
                 raise TypeError('backend {!r} is not compatible with installed implementation '
                                 '{!r}, must be an instance of {!r}'.
                                 format(p, impl, impl.compatible_backend_classes))
+
+        # Secondly, validate backends against each child bucket class and self
+        for child in cls._iter_children(include_self=True):
+            for backend in backends:
+                child.validate_backend(backend)
+
+        cls._backends = backends
 
     @classmethod
     def get_backends(cls):
@@ -101,6 +109,28 @@ class Bucket(metaclass=BucketMeta):
     def get_implementation(cls):
         return cls._implementation
 
+    @classmethod
+    def validate_backend(cls, backend):
+        """Called recursively for all derived buckets of a bucket on which
+        "set_backends" is called"""
+
+    @classmethod
+    def _iter_children(cls, include_self=False):
+        seen = set()
+
+        def children(cls):
+            if cls in seen:
+                return
+            seen.add(cls)
+
+            for child in cls.__subclasses__():
+                yield child
+                yield from children(child)
+
+        if include_self:
+            yield cls
+        yield from children(cls)
+
 
 class ImplementationMeta(abc.AbstractMeta):
     pass
@@ -117,5 +147,5 @@ class BackendMeta(abc.AbstractMeta, config.ConfigurableMeta):
     pass
 
 
-class Backend(metaclass=BackendMeta):
+class Backend(config.Configurable, metaclass=BackendMeta):
     pass
