@@ -7,13 +7,13 @@
 
 %schema metamagic.node.schema.Node
 %from metamagic.utils.fs.nodesystem.schema import fs
-%from metamagic.utils.fs import Bucket, FSBackend
+%from metamagic.utils.fs import Bucket, backends
 ---
 
 !fs FS:
     Bucket:
         backends:
-            - FSBackend:
+            - backends.FSBackend:
                 args:
                     pub_path: '/a'
                     path: !tpl "${__realdir__}/foo"

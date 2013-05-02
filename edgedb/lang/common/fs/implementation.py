@@ -13,7 +13,7 @@ from metamagic.utils import abc
 from metamagic.utils import buckets as abstract
 from metamagic.spin.core.commands.greenlet import yield_
 
-from . import bucket
+from . import backends
 from .exceptions import FSError
 
 
@@ -40,7 +40,7 @@ class BaseImplementation(abstract.Implementation, metaclass=ImplementationMeta):
 
 
 class DefaultImplementation(BaseImplementation):
-    compatible_backend_classes = bucket.Backend
+    compatible_backend_classes = backends.Backend
 
     @classmethod
     def _ensure_backends(cls, bucket):

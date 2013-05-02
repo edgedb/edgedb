@@ -6,7 +6,13 @@
 ##
 
 
-from .bucket import Bucket
+from .bucket import BaseBucket, Bucket, BucketMeta
+from .exceptions import FSError
+from . import backends
+
+
+__all__ = 'Bucket', 'backends', 'FSError'
+
 
 from .implementation import DefaultImplementation
-Bucket.set_implementation(DefaultImplementation)
+BaseBucket.set_implementation(DefaultImplementation)

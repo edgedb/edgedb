@@ -15,8 +15,8 @@ from metamagic.spin.node.extras.middleware import CaosSessionMiddleware
 
 from metamagic.utils.lang.import_ import get_object
 
-from ..bucket import BucketMeta, Bucket
-from .backend import FSBackend
+from .bucket import BucketMeta, Bucket
+from .backends import FSBackend
 
 
 class files(public):

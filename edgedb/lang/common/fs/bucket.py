@@ -87,6 +87,14 @@ class BaseBucket(base_buckets.Bucket, metaclass=BucketMeta, abstract=True):
                 except caos.session.EntityNotFoundError:
                     return schema.Bucket(name=cls.name)
 
+    @classmethod
+    def configure(cls):
+        """This hook is called during "Node.configure" phase"""
+
+    @classmethod
+    def build(cls):
+        """This hook is called during "Node.build" phase"""
+
 
 class Bucket(BaseBucket, abstract=True):
     @classmethod
@@ -108,7 +116,3 @@ class Bucket(BaseBucket, abstract=True):
     def get_file_path(cls, id, filename):
         cls._error_if_abstract()
         return cls.get_implementation().get_file_path(cls, id, filename)
-
-
-class Backend(base_buckets.Backend):
-    pass

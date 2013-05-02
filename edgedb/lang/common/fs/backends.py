@@ -8,42 +8,47 @@
 
 import base64
 import errno
-import os
-import itertools
 import hashlib
+import itertools
+import os
 import re
 import shutil
 import uuid
 
-from metamagic.utils import config, abc
-from metamagic.utils import buckets as abstract
+from metamagic.utils import buckets as base_buckets, config, abc
+
 from metamagic.spin.protocols.http import types as http_types
 from metamagic.spin.core import _coroutine
 from metamagic.spin import abstractcoroutine
 
-from ..bucket import Backend
-from ..exceptions import FSError
+from .exceptions import FSError
 
 
 class BackendError(FSError):
     pass
 
 
+class Backend(base_buckets.Backend):
+    pass
+
+
 class BaseFSBackend(Backend):
-    _re_escape = re.compile(r'[^\w\-\._]')
+    auto_create_path = config.cvalue(True, type=bool,
+                                     doc='whether to create the "path" directory '
+                                         'if it missing or not')
 
     umask = config.cvalue(0o002, type='int', doc='umask with wich files will be stored')
 
-    def __init__(self, path, *, auto_create_path=True):
+    def __init__(self, *, path, **kwargs):
         """
         Parameters:
 
         path             - fs path to where the files can be stored
-        auto_create_path - whether to create the "path" directory if it missing or not
         """
 
+        super().__init__(**kwargs)
+
         self.path = os.path.abspath(path)
-        self.auto_create_path = auto_create_path
 
         if not os.path.exists(self.path):
             if self.auto_create_path:
@@ -51,6 +56,14 @@ class BaseFSBackend(Backend):
 
             if not os.path.exists(self.path):
                 raise BackendError('unable to create directory {!r}'.format(self.path))
+
+
+class FSBackend(BaseFSBackend):
+    _re_escape = re.compile(r'[^\w\-\._]')
+
+    def __init__(self, *args, pub_path, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.pub_path = pub_path
 
     def escape_filename(self, filename):
         return self._re_escape.sub('_', filename).strip('-')
@@ -113,12 +126,6 @@ class BaseFSBackend(Backend):
                 raise
 
         os.chmod(path, 0o666 - self.umask)
-
-
-class FSBackend(BaseFSBackend):
-    def __init__(self, *args, pub_path, **kwargs):
-        super().__init__(*args, **kwargs)
-        self.pub_path = pub_path
 
     def get_file_path(self, bucket, id, filename):
         filename = self.escape_filename(filename)

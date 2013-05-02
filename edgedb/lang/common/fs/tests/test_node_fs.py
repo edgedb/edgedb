@@ -14,10 +14,10 @@ from metamagic.utils.fs.nodesystem import FSSystem
 class TestNodeFSSystem:
     def test_utils_fs_node_1(self):
         from . import node
-        from metamagic.utils.fs import Bucket, FSBackend
+        from metamagic.utils.fs import Bucket, backends
 
         assert issubclass(node.FS, FSSystem)
-        assert node.FS.class_buckets[Bucket][0].cls == FSBackend
+        assert node.FS.class_buckets[Bucket][0].cls is backends.FSBackend
 
         c = node.FS()
         c.configure()
