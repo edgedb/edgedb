@@ -13,7 +13,7 @@ import inspect
 import types
 
 from metamagic.utils.lang.context import SourcePoint, SourceContext
-from metamagic.utils import markup
+from metamagic.utils.lang.exceptions import SourceErrorContext
 
 from .code import Code, opcodes
 
@@ -41,26 +41,12 @@ def source_context_from_frame(frame):
     return context
 
 
-class SourceErrorContext(markup.MarkupExceptionContext):
+class SourceErrorContext(SourceErrorContext):
     def __init__(self, source_context):
         if inspect.isframe(source_context):
             self.source_context = source_context_from_frame(source_context)
         else:
             self.source_context = source_context
-
-    @classmethod
-    def as_markup(cls, self, *, ctx):
-        me = markup.elements
-
-        if self.source_context:
-            tbp = me.lang.TracebackPoint(name=self.source_context.name,
-                                         lineno=self.source_context.start.line,
-                                         filename=self.source_context.filename or '<unknown>')
-            tbp.load_source(lines=self.source_context.buffer)
-        else:
-            tbp = me.doc.Text(text='Unknown source context')
-
-        return me.lang.ExceptionContext(title=self.title, body=[tbp])
 
 
 def get_top_level_imports(code):

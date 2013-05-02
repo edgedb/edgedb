@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2012 Sprymix Inc.
+# Copyright (c) 2008-2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -7,7 +7,10 @@
 
 
 import sys
+
 from metamagic.utils.datastructures import registry
+
+from .exceptions import UnresolvedError
 
 
 class SourcePoint(object):
@@ -30,6 +33,27 @@ class SourceContext(object):
 
     def __str__(self):
         return '%s line:%d col:%d' % (self.name, self.start.line, self.start.column)
+
+    def resolve_name(self, name):
+        namespace = self.document.namespace
+
+        parts = name.split('.')
+        part = parts[0]
+
+        try:
+            obj = namespace[part]
+        except KeyError:
+            raise UnresolvedError('unable to resolve {!r} name'.format(name),
+                                  context=self) from None
+
+        for part in parts[1:]:
+            try:
+                obj = getattr(obj, part)
+            except KeyError:
+                raise UnresolvedError('unable to resolve {!r} name'.format(name),
+                                      context=self) from None
+
+        return obj
 
     @classmethod
     def register_object(cls, object, context):

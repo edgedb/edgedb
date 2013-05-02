@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2012 Sprymix Inc.
+# Copyright (c) 2008-2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -9,7 +9,7 @@
 import functools
 import os
 
-from metamagic import exceptions as sx_errors
+from .exceptions import LanguageError
 from .loader import LanguageSourceFileLoader
 from .import_ import finder
 
@@ -102,7 +102,3 @@ class ObjectError(Exception):
 class Object:
     def __sx_setstate__(self, data):
         pass
-
-
-class LanguageError(sx_errors.MetamagicError):
-    pass
