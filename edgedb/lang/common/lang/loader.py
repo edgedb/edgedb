@@ -171,18 +171,10 @@ class LanguageLoader:
         return dep_loader
 
     def _execute(self, module, data, method):
-        try:
-            modinfo = module_types.ModuleInfo(module)
-            context = DocumentContext(module=modinfo, import_context=self._context)
-            attributes = getattr(self._language, method)(data, context=context)
-            self.set_module_attributes(module, attributes)
-
-        except ImportError:
-            raise
-
-        except Exception as error:
-            raise ImportError('unable to import "%s" (%s: %s)' \
-                              % (module.__name__, type(error).__name__, error)) from error
+        modinfo = module_types.ModuleInfo(module)
+        context = DocumentContext(module=modinfo, import_context=self._context)
+        attributes = getattr(self._language, method)(data, context=context)
+        self.set_module_attributes(module, attributes)
 
     def set_module_attributes(self, module, attributes):
         module.__odict__ = collections.OrderedDict()
