@@ -156,7 +156,12 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
             else:
                 self.write("%s" % node.value)
         elif node.index is not None:
-            self.write('$%s' % node.index)
+            self.write('$')
+            if '.' in node.index:
+                self.write('[')
+            self.write(node.index)
+            if '.' in node.index:
+                self.write(']')
         else:
             self.write('None')
 
