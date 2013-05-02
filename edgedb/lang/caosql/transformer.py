@@ -158,6 +158,9 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
             ptr_iters = set()
 
             for el in expr.elements:
+                if el.rewrite_original:
+                    el = el.rewrite_original
+
                 if isinstance(el, tree.ast.MetaRef):
                     continue
 
@@ -249,12 +252,53 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
 
         return pathspec
 
+    def _process_path_combination_as_filter(self, expr):
+        if isinstance(expr, tree.ast.Disjunction):
+            op = ast.ops.OR
+        else:
+            op = ast.ops.AND
+
+        operands = []
+
+        for elem in expr.paths:
+            if isinstance(elem, tree.ast.PathCombination):
+                elem = self._process_path_combination_as_filter(elem)
+            elif not isinstance(elem, tree.ast.Path):
+                elem = self._process_expr(elem)
+            else:
+                elem = None
+
+            if elem is not None:
+                operands.append(elem)
+
+        if len(operands) == 0:
+            return None
+        elif len(operands) == 1:
+            return operands[0]
+        else:
+            result = qlast.BinOpNode(left=operands[0], right=operands[1], op=op)
+
+            for operand in operands[2:]:
+                result = qlast.BinOpNode(left=result, right=operand, op=op)
+
+            return result
+
     def _process_expr(self, expr):
+        if expr.rewrite_original:
+            # Process original node instead of a rewrite
+            return self._process_expr(expr.rewrite_original)
+        elif expr.is_rewrite_product:
+            # Skip all rewrite products
+            return None
+
         if isinstance(expr, tree.ast.GraphExpr):
             result = qlast.SelectQueryNode()
 
-            if expr.generator and not isinstance(expr.generator, tree.ast.Path):
-                result.where = self._process_expr(expr.generator)
+            if expr.generator:
+                if not isinstance(expr.generator, tree.ast.Path):
+                    result.where = self._process_expr(expr.generator)
+                elif isinstance(expr.generator, tree.ast.PathCombination):
+                    result.where = self._process_path_combination_as_filter(expr.generator)
             else:
                 result.where = None
             result.groupby = [self._process_expr(e) for e in expr.grouper]
@@ -309,7 +353,11 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
         elif isinstance(expr, tree.ast.BinOp):
             left = self._process_expr(expr.left)
             right = self._process_expr(expr.right)
-            result = qlast.BinOpNode(left=left, op=expr.op, right=right)
+
+            if left is not None and right is not None:
+                result = qlast.BinOpNode(left=left, op=expr.op, right=right)
+            else:
+                result = left or right
 
         elif isinstance(expr, tree.ast.ExistPred):
             result = qlast.ExistsPredicateNode(expr=self._process_expr(expr.expr))

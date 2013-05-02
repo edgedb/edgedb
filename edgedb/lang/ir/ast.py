@@ -23,6 +23,10 @@ class ASTError(MetamagicError):
 class Base(ast.AST):
     __fields = [('refs', weakref.WeakSet, weakref.WeakSet, False),
                 ('backrefs', weakref.WeakSet, weakref.WeakSet, False),
+                # Pointer to an original node replaced by this node during rewrites
+                ('rewrite_original', object, None, False, False),
+                # Whether or not the node is a product of a rewrite
+                ('is_rewrite_product', bool, False),
                 ('rewrite_flags', set)]
 
     def __init__(self, **kwargs):
