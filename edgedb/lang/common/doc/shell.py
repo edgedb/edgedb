@@ -42,7 +42,7 @@ Indices and tables
 
 class BaseSphinxCommand:
     def get_root(self):
-        return os.path.dirname(sys.argv[0])
+        return os.getcwd()
 
     def get_doc_root(self):
         return os.path.join(self.get_root(), DOC_DIR)
