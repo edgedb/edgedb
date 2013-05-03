@@ -1,5 +1,5 @@
 /*
-* Copyright (c) 2011-2012 Sprymix Inc.
+* Copyright (c) 2011-2013 Sprymix Inc.
 * All rights reserved.
 *
 * See LICENSE for details.
@@ -7,9 +7,12 @@
 
 
 // %import metamagic.utils.lang.javascript.sx
+// %import metamagic.utils.lang.javascript.ds
 
 
 (function(global) { 'use strict'; if (!sx.Markup) {
+
+var hop = Object.prototype.hasOwnProperty;
 
 sx.Markup = sx.Markup || {};
 
@@ -752,6 +755,145 @@ sx.Markup.Renderer.prototype = {
 
     destroy: function(re) {
         this._render_ctx = this.handlers = this.objects = this.markup = null;
+    }
+};
+
+
+// Handle conversion from JSON to Markup
+var js_id = 0,
+    gen_js_id = function() {
+        return ++js_id;
+    },
+    seen_markup = function(obj, seen, refname) {
+        // check if we already have this object
+        var existing_id = seen.get(obj);
+
+        if (existing_id) {
+            return {
+                type: 'lang.Ref',
+                fields: {
+                    ref: existing_id,
+                    refname: refname
+                },
+                mro: ['lang.LangMarkup']
+            };
+        }
+    },
+    tos = function(obj) {
+        if (obj.toString && sx.is_function(obj.toString)) {
+            return obj.toString();
+        }
+        return Object.prototype.toString.call(obj);
+    },
+    public_attrs = {
+        '$name':1,
+        '$cls':1,
+        '$mro':1,
+        '$module':1
+    },
+    private_attrs = {
+        'toString':1,
+        'constructor':1
+    },
+    public_attr = function(sx_obj_attr) {
+        return (sx_obj_attr[0] == '$') ? hop.call(public_attrs, sx_obj_attr) :
+                                                    !hop.call(private_attrs, sx_obj_attr);
+    };
+
+sx.Markup.Renderer.to_markup = function(obj, seen) {
+    // initialize the seen map is needed
+    seen = seen || new sx.ds.Map();
+
+    var id = gen_js_id();
+
+    if (sx.is_string(obj)) {
+        return {
+            type: 'lang.String',
+            fields: {str: obj}
+        };
+    } else if (typeof obj == 'boolean') {
+        return {
+            type: obj ? 'lang.TrueConstantType' : 'lang.FalseConstantType',
+            fields: {}
+        };
+    } else if (obj == null) {
+        return {
+            type: 'lang.NoneConstantType',
+            fields: {}
+        };
+    } else if(!isNaN(obj)) {
+        return {
+            type: 'lang.Number',
+            fields: {num: obj}
+        };
+    } else if (sx.is_function(obj) && !sx.isinstance(obj, sx.type)) {
+        return {
+            type: 'code.FunctionName',
+            fields: {val: '[Function]'}
+        };
+    }
+
+    // check if we've seen the obj before, and remember seeing it now
+    var prev = seen_markup(obj, seen, tos(obj));
+    if (prev) {
+        return prev;
+    }
+    seen.set(obj, id);
+
+    if (sx.is_array(obj)) {
+        var items = [];
+        for (var i = 0; i < obj.length; i++) {
+            items.push(sx.Markup.Renderer.to_markup(obj[i], seen));
+        }
+
+        return {
+            type: 'lang.List',
+            fields: {
+                id: id,
+                items: items
+            }
+        };
+    } else if (sx.isinstance(obj, [sx.type, sx.object])) {
+        var children = [];
+
+        for (var key in obj) {
+            if (hop.call(obj, key) && public_attr(key)) {
+                children.push({
+                    type: 'lang.TreeNodeChild',
+                    fields: {
+                        id: gen_js_id(),
+                        label: key,
+                        node: sx.Markup.Renderer.to_markup(obj[key], seen)
+                    }
+                });
+            }
+        }
+
+        return {
+            type: 'lang.TreeNode',
+            fields: {
+                id: id,
+                name: tos(obj),
+                children: children
+            }
+        };
+    } else if (sx.is_object(obj)) {
+        var items = {};
+        for (var key in obj) {
+            if (hop.call(obj, key)) {
+                items[key] = sx.Markup.Renderer.to_markup(obj[key], seen);
+            }
+        }
+
+        return {
+            type: 'lang.Dict',
+            fields: {
+                id: id,
+                items: items
+            }
+        };
+    } else {
+        throw 'unable to transform to markup: ' + typeof obj
     }
 };
 
