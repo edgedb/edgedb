@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2012 Sprymix Inc.
+# Copyright (c) 2012, 2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -167,16 +167,20 @@ class _MetamagicImportsHook:
         imports.extend(self.parse(source))
 
 
-class ModuleCache(loader.ModuleCache):
+class ModuleCache(lang_loader.LangModuleCache):
     def get_magic(self):
         return self._loader.__class__._cache_magic
+
+
+class JavascriptCodeObject(lang_loader.LanguageCodeObject):
+    pass
 
 
 class Loader(lang_loader.LanguageSourceFileLoader):
     logger = logging.getLogger('metamagic')
 
     #: version of cache format
-    CACHE_MAGIC_BASE = 2
+    CACHE_MAGIC_BASE = 3
 
     # That's the attribute where the actual magic number will be stored.
     # The magic number depends on the 'CACHE_MAGIC_BASE' constant +
@@ -236,7 +240,22 @@ class Loader(lang_loader.LanguageSourceFileLoader):
         return '{}.{}'.format(hook.__class__.__module__, hook.__class__.__name__)
 
     @classmethod
-    def run_hooks(cls, mod, parent_resource=None, parent_weak=False):
+    def _add_dep(cls, deps, mod, weak):
+        try:
+            cur = deps[mod]
+        except KeyError:
+            deps[mod] = weak
+        else:
+            if cur and not weak:
+                deps[mod] = False
+
+    @classmethod
+    def run_hooks(cls, mod, parent_resource, parent_weak=False):
+        return cls._run_hooks(mod, parent_resource.__sx_resource_deps__,
+                              parent_weak=parent_weak)
+
+    @classmethod
+    def _run_hooks(cls, mod, resource_deps, parent_weak=False):
         module_key = mod.__name__
 
         try:
@@ -274,10 +293,32 @@ class Loader(lang_loader.LanguageSourceFileLoader):
         if not res.__sx_resource_source_value__:
             return
 
-        if parent_resource is not None:
-            parent_resource.__sx_add_required_resource__(res, parent_weak)
-
+        cls._add_dep(resource_deps, res, parent_weak)
         return res
+
+    @classmethod
+    def _process_imports(cls, module, imports):
+        resource_deps = collections.OrderedDict()
+
+        for imp_name, weak in imports:
+            try:
+                mod = sys.modules[imp_name]
+            except KeyError:
+                # Module was not imported before; import it
+                #
+                mod = importlib.import_module(imp_name)
+
+            if isinstance(mod, resource.Resource):
+                # We're interested in tracking only resources
+                #
+                cls._add_dep(resource_deps, mod, weak)
+            elif cls._module_hooks:
+                # Python module?  YAML module?  Let's try to get some
+                # Resources out of it, if any module hooks registered.
+                #
+                cls._run_hooks(mod, resource_deps, weak)
+
+        return resource_deps
 
     def new_cache(self, modname):
         return ModuleCache(modname, self)
@@ -285,30 +326,46 @@ class Loader(lang_loader.LanguageSourceFileLoader):
     def cache_path_from_source_path(self, source_path):
         return imp_utils.cache_from_source(source_path, cache_ext='.js')
 
-    def code_from_source(self, modname, source_bytes, *, cache=None, log=True):
-        if not len(self._import_detect_hooks):
+    def new_module(self, fullname):
+        return JavaScriptModule(self.path, fullname)
+
+
+# XXX Do this implicitly?
+Loader.add_import_detect_hook(_MetamagicImportsHook())
+
+
+class Language(lang_meta.Language):
+    file_extensions = ('js',)
+    loader = Loader
+
+    @classmethod
+    def load_code(cls, stream, context):
+        modname = context.module.__name__
+        loader = sys.modules[modname].__loader__
+
+        if not len(loader._import_detect_hooks):
             # No import hooks?  We can't find any imports then.
             #
-            return ()
+            return JavascriptCodeObject((), ())
 
-        source = source_bytes.decode()
+        source = stream.read().decode()
 
         # If any imports detect hooks are registered - process the source.
         #
         raw_imports = []
 
-        if log and len(self._import_detect_hooks):
-            self.logger.debug('parsing javascript module: {!r}'.format(modname))
+        if len(loader._import_detect_hooks):
+            loader.logger.debug('parsing javascript module: {!r}'.format(modname))
 
-        for hook in self._import_detect_hooks.values():
-            hook(self, modname, raw_imports, source)
+        for hook in loader._import_detect_hooks.values():
+            hook(loader, modname, raw_imports, source)
 
         if not len(raw_imports):
             # Source was analyzed and no imports found.
             #
-            return ()
+            return JavascriptCodeObject((), ())
 
-        is_package = self.is_package(modname)
+        is_package = loader.is_package(modname)
 
         imports = OrderedSet()
         for imp in raw_imports:
@@ -341,57 +398,26 @@ class Loader(lang_loader.LanguageSourceFileLoader):
 
             imports.add((name, imp.weak))
 
-        return tuple(imports)
+        return JavascriptCodeObject(tuple(imports), tuple(i for i, weak in imports if not weak))
 
-    def _process_imports(self, imports, module):
-        for imp_name, weak in imports:
-            try:
-                mod = sys.modules[imp_name]
-            except KeyError:
-                # Module was not imported before; import it
-                #
-                mod = importlib.import_module(imp_name)
+    @classmethod
+    def execute_code(cls, code, context):
+        code, imports = code.code, code.imports
 
-            if not weak:
-                module.__sx_imports__.append(imp_name)
+        modname = context.module.__name__
+        loader = sys.modules[modname].__loader__
 
-            if isinstance(mod, resource.Resource):
-                # We're interested in tracking only resources
-                #
-                module.__sx_add_required_resource__(mod, weak)
-            elif self._module_hooks:
-                # Python module?  YAML module?  Let's try to get some
-                # Resources out of it, if any module hooks registered.
-                #
-                self.run_hooks(mod, module, weak)
+        resource_deps = loader._process_imports(context.module, code)
 
-    def new_module(self, fullname):
-        return JavaScriptModule(self.path, fullname)
+        attrs = [('__sx_imports__', imports), ('__sx_resource_deps__', resource_deps)]
 
-    def execute_module_code(self, module, code):
-        if code:
-            self._process_imports(code, module)
-
-        if '.' in module.__name__:
+        if '.' in modname:
             # Link parent package
             #
-            parent_name = module.__name__.rpartition('.')[0]
+            parent_name = modname.rpartition('.')[0]
             parent = sys.modules[parent_name]
 
             if isinstance(parent, resource.Resource):
-                module.__sx_resource_parent__ = parent
+                attrs.append(('__sx_resource_parent__', parent))
 
-    def execute_module(self, module):
-        source_bytes = self.get_source_bytes(module.__name__)
-        code = self.code_from_source(module.__name__, source_bytes)
-        self.execute_module_code(module, code)
-
-
-# XXX Do this implicitly?
-Loader.add_import_detect_hook(_MetamagicImportsHook())
-
-
-class Language(lang_meta.Language):
-    file_extensions = ('js',)
-    loader = Loader
-
+        return attrs
