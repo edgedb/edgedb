@@ -360,9 +360,17 @@ class ModuleInfo:
     def __init__(self, module=None, *, name=None, package=None, path=None, file=None):
         if module is not None:
             for attr in ('__name__', '__package__', '__path__', '__file__'):
-                setattr(self, attr, getattr(module, attr, None))
+                try:
+                    v = getattr(module, attr)
+                except AttributeError:
+                    pass
+                else:
+                    setattr(self, attr, v)
         else:
             self.__name__ = name
-            self.__package__ = package
-            self.__path__ = path
-            self.__file__ = file
+            if package is not None:
+                self.__package__ = package
+            if path is not None:
+                self.__path__ = path
+            if file is not None:
+                self.__file__ = file
