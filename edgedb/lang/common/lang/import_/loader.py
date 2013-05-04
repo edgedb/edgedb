@@ -484,14 +484,27 @@ class ModuleCache:
         if cur_modver != metainfo.modver:
             raise ImportError('"{}" cache is stale'.format(self._modname))
 
+    def update_module_attributes_early(self, module):
+        pass
+
+    def update_module_attributes(self, module):
+        module.__sx_modversion__ = self.metainfo.modver
+        module.__cached__ = self.path
+
 
 class CachingLoader:
     def get_code(self, modname):
         cache = self.create_cache(modname)
-
         code = None
 
+        module = sys.modules[modname]
+
         if cache is not None:
+            try:
+                cache.update_module_attributes_early(module)
+            except ImportError:
+                pass
+
             try:
                 cache.validate()
             except ImportError:
@@ -511,22 +524,18 @@ class CachingLoader:
             source_bytes = self.get_source_bytes(modname)
             code = self.code_from_source(modname, source_bytes, cache=cache)
 
+            if cache is not None:
+                cache.update_module_attributes_early(module)
+
             if not sys.dont_write_bytecode and cache is not None:
                 cache.code = code
-
                 try:
                     cache.dump()
                 except NotImplementedError:
                     pass
 
-        return code, cache
-
-    def _get_code(self, module):
-        code, cache = self.get_code(module.__name__)
-
         if cache is not None:
-            module.__sx_modversion__ = cache.metainfo.modver
-            module.__cached__ = cache.path
+            cache.update_module_attributes(module)
 
         return code
 

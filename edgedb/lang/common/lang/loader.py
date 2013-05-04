@@ -67,6 +67,10 @@ class LangModuleCache(loader.ModuleCache):
     def get_magic(self):
         return self._loader._language.get_language_version()
 
+    def update_module_attributes_early(self, module):
+        super().update_module_attributes_early(module)
+        module.__sx_imports__ = self.metainfo.dependencies or ()
+
 
 class LanguageLoader:
     def __init__(self, fullname, filename, language):
