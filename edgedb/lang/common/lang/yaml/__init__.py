@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010, 2012 Sprymix Inc.
+# Copyright (c) 2008-2010, 2012, 2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -10,6 +10,7 @@ import collections
 import importlib
 import itertools
 import os
+import sys
 import yaml
 
 from metamagic.utils.lang import meta, context as lang_context, loader as lang_loader
@@ -96,33 +97,34 @@ class Language(meta.Language):
                     if imp != context.module.__name__:
                         imports[imp] = imp
 
+        getmods = import_utils.modules_from_import_statements
+
+        modloader = sys.modules[context.module.__name__].__loader__
+
+        if modloader.is_package(context.module.__name__):
+            pkg = context.module.__name__
+        else:
+            pkg = context.module.__package__
+
+        all_imports = getmods(pkg, list(imports.items()))
+        all_imports.sort()
+
         if caching_schemas:
-            getmods = import_utils.modules_from_import_statements
-
-            if hasattr(context.module, '__path__'):
-                pkg = context.module.__name__
-            else:
-                pkg = context.module.__package__
-
-            all_imports = getmods(pkg, list(imports.items()))
-            all_imports.sort()
-
             # To obtain caches produced by schemas, the stream has to be replayed
             rldr = loader.ReplayLoader(yaml_code, context)
-            data = []
+            code = []
             for d in rldr.get_dict():
                 context.namespace.update((d,))
-                data.append(d)
-
-            return YAMLCodeObject(data, all_imports, yaml_event_stream=ldr.get_code(),
-                                  schemas=schemas, module_schema=module_schema)
-
+                code.append(d)
         else:
-            return ldr.get_code()
+            code = None
+
+        return YAMLCodeObject(code, imports=all_imports, yaml_event_stream=ldr.get_code(),
+                              schemas=schemas, module_schema=module_schema)
 
     @classmethod
     def execute_code(cls, code, context=None):
-        if isinstance(code, YAMLCodeObject):
+        if isinstance(code, YAMLCodeObject) and code.code is not None:
             imports = set()
 
             for imp in code.imports:
@@ -138,13 +140,16 @@ class Language(meta.Language):
                     schema = code.schemas[i]
                     schema.normalize_code(d[1], imports)
                     yield d
-
-            yield ('__sx_imports__', tuple(i.__name__ for i in imports))
         else:
+            if isinstance(code, YAMLCodeObject):
+                event_stream = code.yaml_event_stream
+            else:
+                event_stream = code
+
             if not context:
                 context = lang_context.DocumentContext()
 
-            ldr = loader.ReplayLoader(code, context)
+            ldr = loader.ReplayLoader(event_stream, context)
             for d in ldr.get_dict():
                 context.namespace.update((d,))
                 yield d
