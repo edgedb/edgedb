@@ -47,19 +47,26 @@ class Resource:
         """Builds the full list of resources that current resource depends on.
         The list includes the resource itself."""
 
-        def _collect_deps(resource, collected, visited, to_import):
+        def _collect_deps(resource, collected, visited, to_import, *, level, child=None):
             visited.add(resource)
 
             parent = resource.__sx_resource_parent__
             if parent is not None and parent not in visited:
-                _collect_deps(parent, collected, visited, to_import)
+                _collect_deps(parent, collected, visited, to_import, level=level+1, child=resource)
 
             for mod, weak in resource.__sx_resource_deps__.items():
                 if weak:
                     to_import.add(mod)
                 else:
                     if mod not in visited:
-                        _collect_deps(mod, collected, visited, to_import)
+                        _collect_deps(mod, collected, visited, to_import, level=level+1)
+                    else:
+                        if child is not None and mod is child:
+                            # If we were called from _collect_deps for a child's
+                            # __sx_resource_parent__, and the parent module imports that child,
+                            # then we add child to the "collected" list, to preserve the order
+                            # of imports in __init__.js files
+                            collected.add(mod)
 
             collected.add(resource)
 
@@ -69,7 +76,7 @@ class Resource:
         to_import = OrderedSet((resource,))
         while to_import:
             mod = to_import.pop()
-            _collect_deps(mod, collected, visited, to_import)
+            _collect_deps(mod, collected, visited, to_import, level=0)
             to_import -= collected
 
         return tuple(collected)
