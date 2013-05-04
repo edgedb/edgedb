@@ -14,6 +14,6 @@ such as defining them, managing, publishing etc.
 from .resource import Resource, AbstractFileResource, VirtualFile, AbstractFileSystemResource, \
                       ResourceContainer, File, Directory
 
-from .publishers import Publisher, StaticPublisher
+from .publish import ResourceBucket
 
-from .exceptions import ResourceError, ResourcePublisherError
+from .exceptions import ResourceError
