@@ -14,10 +14,11 @@ import importlib
 
 from metamagic.utils.datastructures import OrderedSet
 from metamagic.utils import debug, functional, config, markup, resource
+from metamagic.utils.lang import loader as lang_loader
 from metamagic import json
 import metamagic.utils.lang.javascript.parser.jsparser as jsp
 from metamagic.utils.lang.javascript.codegen import JavascriptSourceGenerator
-from metamagic.utils.lang.javascript import Loader as JSLoader, BaseJavaScriptModule, \
+from metamagic.utils.lang.javascript import BufferLoader as JSBufferLoader, BaseJavaScriptModule, \
                                            Language as JSLanguage, JavaScriptModule, \
                                            VirtualJavaScriptResource
 
@@ -33,6 +34,7 @@ def flags(**args):
         setattr(func, 'flags', args)
         return func
     return wrap
+
 
 # useful for filtering output
 #
@@ -105,15 +107,12 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
 
         source = mcls.TEST_TPL_START + pre + source + post + mcls.TEST_TPL_END
 
-        # XXX heads up, ugly hacks ahead
-        module = VirtualJavaScriptResource(None, 'tmp_mod_' + (name or 'test_js'))
-        module.__file__ = '<tmp>'
+        modname = 'tmp_mod_' + (name or 'test_js')
 
-        loader = JSLoader(module.__name__, '', JSLanguage)
+        loader = JSBufferLoader(modname, source.encode('utf-8'), JSLanguage)
+
         with debug.debug_logger_off():
-            imports = loader.code_from_source(module.__name__, source.encode('utf-8'), log=False)
-            if imports:
-                loader._process_imports(imports, module)
+            module = loader.load_module(modname)
 
         deps = tuple(module.__sx_resource_deps__.keys())
         if base_deps:

@@ -176,7 +176,7 @@ class JavascriptCodeObject(lang_loader.LanguageCodeObject):
     pass
 
 
-class Loader(lang_loader.LanguageSourceFileLoader):
+class JavascriptLoader:
     logger = logging.getLogger('metamagic')
 
     #: version of cache format
@@ -326,8 +326,15 @@ class Loader(lang_loader.LanguageSourceFileLoader):
     def cache_path_from_source_path(self, source_path):
         return imp_utils.cache_from_source(source_path, cache_ext='.js')
 
+
+class Loader(JavascriptLoader, lang_loader.LanguageSourceFileLoader):
     def new_module(self, fullname):
         return JavaScriptModule(self.path, fullname)
+
+
+class BufferLoader(JavascriptLoader, lang_loader.LanguageSourceBufferLoader):
+    def new_module(self, fullname):
+        return VirtualJavaScriptResource(None, fullname)
 
 
 # XXX Do this implicitly?

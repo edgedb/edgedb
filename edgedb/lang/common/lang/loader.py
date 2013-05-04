@@ -217,3 +217,7 @@ class LanguageLoader:
 
 class LanguageSourceFileLoader(LanguageLoader, loader.SourceFileLoader):
     pass
+
+
+class LanguageSourceBufferLoader(LanguageLoader, loader.SourceBufferLoader):
+    pass

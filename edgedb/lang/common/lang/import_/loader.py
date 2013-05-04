@@ -549,6 +549,8 @@ class CachingLoader:
 
 
 class FileLoader:
+    """Loader protocols for filesystem-based modules"""
+
     def __init__(self, modname, path):
         self.name = modname
         self.path = path
@@ -597,5 +599,37 @@ class FileLoader:
                 raise
 
 
+class BufferLoader:
+    """Loader protocols for buffer-based modules"""
+
+    def __init__(self, modname, buffer, is_package=False, buffer_name='<buffer>'):
+        self.name = modname
+        self.path = buffer_name
+        self.buffer = buffer
+        self._is_package = is_package
+
+    def is_package(self, fullname):
+        if fullname != self.name:
+            raise ValueError('this loader cannot handle {}'.format(fullname))
+
+        return self._is_package
+
+    def get_filename(self, modname):
+        return self.path
+
+    def get_data(self, path):
+        if path != self.path:
+            raise ValueError('this loader cannot handle {}'.format(path))
+
+        return self.buffer
+
+    def set_data(self, path, data):
+        raise NotImplementedError
+
+
 class SourceFileLoader(LoaderCommon, FileLoader, CachingLoader, SourceLoader, LoaderIface):
+    pass
+
+
+class SourceBufferLoader(LoaderCommon, BufferLoader, SourceLoader, LoaderIface):
     pass
