@@ -26,19 +26,32 @@ class BaseJavaScriptModule(module.Module):
     pass
 
 
+class CompiledJavascriptModule(BaseJavaScriptModule, resource.VirtualFile):
+    '''A minimized JS sources, usually contains many compressed and/or
+    optimized JS modules and their hooks products.
+
+    Used in 'metamagic.utils.resource.publish'
+    '''
+
+    def __init__(self, source, name, pubname):
+        BaseJavaScriptModule.__init__(self, name)
+        resource.VirtualFile.__init__(self, source, pubname)
+
+
 class JavaScriptModule(BaseJavaScriptModule, resource.File):
     """Whenever you import a javascript file, the resulting module
     will be a subclass of this class"""
 
     def __init__(self, path, name):
         BaseJavaScriptModule.__init__(self, name)
-
+        self.__sx_imports__ = []
         public_path = name + '.js'
         resource.File.__init__(self, path, public_path=public_path)
 
 
 class BaseVirtualJavaScriptResource(BaseJavaScriptModule, resource.VirtualFile):
     def __init__(self, source, name):
+        self.__sx_imports__ = []
         BaseJavaScriptModule.__init__(self, name)
         resource.VirtualFile.__init__(self, source, name + '.js')
 
@@ -330,7 +343,7 @@ class Loader(lang_loader.LanguageSourceFileLoader):
 
         return tuple(imports)
 
-    def _process_imports(self, imports, parent=None):
+    def _process_imports(self, imports, module):
         for imp_name, weak in imports:
             try:
                 mod = sys.modules[imp_name]
@@ -339,15 +352,18 @@ class Loader(lang_loader.LanguageSourceFileLoader):
                 #
                 mod = importlib.import_module(imp_name)
 
+            if not weak:
+                module.__sx_imports__.append(imp_name)
+
             if isinstance(mod, resource.Resource):
                 # We're interested in tracking only resources
                 #
-                parent.__sx_add_required_resource__(mod, weak)
+                module.__sx_add_required_resource__(mod, weak)
             elif self._module_hooks:
                 # Python module?  YAML module?  Let's try to get some
                 # Resources out of it, if any module hooks registered.
                 #
-                self.run_hooks(mod, parent, weak)
+                self.run_hooks(mod, module, weak)
 
     def new_module(self, fullname):
         return JavaScriptModule(self.path, fullname)
