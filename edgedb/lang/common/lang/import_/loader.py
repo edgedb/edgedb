@@ -46,7 +46,7 @@ class LoaderIface:
 
 class LoaderCommon:
     @debug
-    def _load_module(self, fullname):
+    def load_module(self, fullname):
         """LOG [lang.import.trace]
         import time
 
@@ -91,6 +91,8 @@ class LoaderCommon:
             if not is_reload:
                 del sys.modules[fullname]
             raise
+        else:
+            sys.modules[module.__name__] = module
 
         return module
 
@@ -187,7 +189,6 @@ class LoaderCommon:
             else:
                 result_mod = proxy_cls(module.__name__, module)
 
-        sys.modules[module.__name__] = result_mod
         return result_mod
 
     def get_modtags(self, modname):
@@ -203,6 +204,9 @@ class LoaderCommon:
                 for pattern, tags in tagmap.items():
                     if pattern.match('.'.join(steps[i:])):
                         return tags
+
+    def update_module_attributes_from_code(self, module, code):
+        pass
 
 
 class SourceLoader:
@@ -259,6 +263,7 @@ class SourceLoader:
                 pass
             else:
                 return deptracking_policy
+
 
 class ModuleCacheMetaInfo:
     _cache_struct = struct.Struct('!QII')
@@ -524,8 +529,7 @@ class CachingLoader:
             source_bytes = self.get_source_bytes(modname)
             code = self.code_from_source(modname, source_bytes, cache=cache)
 
-            if cache is not None:
-                cache.update_module_attributes_early(module)
+            self.update_module_attributes_from_code(module, code)
 
             if not sys.dont_write_bytecode and cache is not None:
                 cache.code = code

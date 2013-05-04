@@ -70,6 +70,7 @@ class LangModuleCache(loader.ModuleCache):
     def update_module_attributes_early(self, module):
         super().update_module_attributes_early(module)
         module.__sx_imports__ = self.metainfo.dependencies or ()
+        module.__language__ = self._loader._language
 
 
 class LanguageLoader:
@@ -110,6 +111,11 @@ class LanguageLoader:
             cache.metainfo.dependencies = code.imports
 
         return code
+
+    def update_module_attributes_from_code(self, module, code):
+        super().update_module_attributes_from_code(module, code)
+        module.__sx_imports__ = code.imports or ()
+        module.__language__ = self._language
 
     def _get_module_version(self, modname, imports):
         my_modver = super()._get_module_version(modname, imports)
@@ -210,7 +216,4 @@ class LanguageLoader:
 
 
 class LanguageSourceFileLoader(LanguageLoader, loader.SourceFileLoader):
-    def load_module(self, fullname):
-        module = self._load_module(fullname)
-        module.__language__ = self._language
-        return module
+    pass
