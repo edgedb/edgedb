@@ -869,8 +869,8 @@
             _builder: function(root, spec) {
                 var tag = spec['tag'] || null,
                     cls = spec['cls'] || null,
-                    html = spec['html'] || null,
-                    text = spec['text'] || null,
+                    html = sx.getattr(spec, 'html', null),
+                    text = sx.getattr(spec, 'text', null),
                     id = spec['id'] || null,
                     children = spec['children'] || null,
                     attrs = spec['attrs'] || null,
@@ -897,9 +897,9 @@
                         for (i = 0; i < children.length; i++) {
                             sx.dom._builder(new_el, children[i]);
                         }
-                    } else if (text) {
+                    } else if (text != null) {
                         new_el.innerHTML = sx.escape(text);
-                    } else if (html) {
+                    } else if (html != null) {
                         new_el.innerHTML = html;
                     }
 
