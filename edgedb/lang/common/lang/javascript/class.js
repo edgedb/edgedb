@@ -327,7 +327,6 @@ sx.$bootstrap_class_system = function(opts) {
     function fix_static_method(attr, static_name, cls) {
         if (!hop.call(attr, NAME_ATTR)) {
             attr[NAME_ATTR] = static_name;
-            attr[CLS_ATTR] = cls;
         }
 
         if (hop.call(attr, WRAPPED_ATTR)) {
@@ -336,7 +335,6 @@ sx.$bootstrap_class_system = function(opts) {
             attr = boundmethod(attr, cls);
         }
 
-        attr[CLS_ATTR] = cls;
         attr[NAME_ATTR] = static_name;
 
         return attr;
@@ -390,8 +388,7 @@ sx.$bootstrap_class_system = function(opts) {
         for (i in dct) {
             if (hop.call(dct, i) && i != 'metaclass' && i != 'statics') {
                 attr = dct[i];
-                if (attr != null && !hop.call(attr, CLS_ATTR) && is_method(attr)) {
-                    attr[CLS_ATTR] = cls;
+                if (attr != null && !hop.call(attr, NAME_ATTR) && is_method(attr)) {
                     attr[NAME_ATTR] = i;
                 }
                 proto[i] = attr;
