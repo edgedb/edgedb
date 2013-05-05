@@ -806,7 +806,7 @@ sx.Markup.Renderer.to_markup = function(obj, seen) {
 
     var id = gen_js_id();
 
-    if (sx.is_string(obj)) {
+    if (sx.is_string(obj) || obj instanceof Date) {
         return {
             type: 'lang.String',
             fields: {str: obj}
