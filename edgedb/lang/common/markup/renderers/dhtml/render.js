@@ -821,7 +821,7 @@ sx.Markup.Renderer.to_markup = function(obj, seen) {
             type: 'lang.NoneConstantType',
             fields: {}
         };
-    } else if(!isNaN(obj)) {
+    } else if (typeof obj == 'number' || obj instanceof Number) {
         return {
             type: 'lang.Number',
             fields: {num: obj}
