@@ -15,7 +15,7 @@ import sys
 import re
 
 from metamagic.node import Node
-from metamagic.utils import config, fs
+from metamagic.utils import config, fs, debug
 from metamagic.utils.datastructures import OrderedSet
 
 from .resource import Resource, VirtualFile, AbstractFileSystemResource
@@ -58,17 +58,8 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
 
         cls._error_if_abstract()
         if cls.resources is None:
-            cls.resources = []
+            cls.resources = OrderedSet()
         cls.resources.append(resource)
-
-    @classmethod
-    def _collect_deps(cls):
-        collected = OrderedSet()
-
-        for resource in cls.resources:
-            collected.update(Resource._list_resources(resource))
-
-        return tuple(collected)
 
     @classmethod
     def set_backends(cls, *backends):
@@ -86,24 +77,20 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
                                       format(backend, cls))
 
     @classmethod
-    def _build_dep_list(cls, name):
-        visited = set()
-        lst = []
-
-        def collect(name):
+    def _iter_dep_list(cls, name):
+        def collect(name, visited):
             if name in visited:
                 return
             visited.add(name)
 
             mod = sys.modules[name]
-            lst.append(mod)
+            yield mod
 
             if hasattr(mod, '__sx_imports__') and mod.__sx_imports__:
                 for sub in mod.__sx_imports__:
-                    collect(sub)
+                    yield from collect(sub, visited)
 
-        collect(name)
-        return lst
+        yield from collect(name, set())
 
     @classmethod
     def build(cls):
@@ -111,23 +98,46 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
 
         node = Node.active
         if not node.packages:
-            cls.logger.info('node {} does not have any "packages" defined, this may manifest '
+            cls.logger.info('node {} does not have any "packages" defined, this may result '
                             'in no resources being published'.format(node))
 
-        for mod in node.packages:
-            deps = cls._build_dep_list(mod.__name__)
+        for root in node.packages:
+            buckets = {}
 
-            for mod in deps:
+            for mod in cls._iter_dep_list(root.__name__):
                 if hasattr(mod, '__mm_module_tags__') and mod.__mm_module_tags__:
                     for tag in mod.__mm_module_tags__:
-                        if hasattr(tag, 'resource_bucket') \
-                                    and isinstance(mod, tag.resource_bucket.can_contain):
-                            tag.resource_bucket.add(mod)
+                        if not hasattr(tag, 'resource_bucket'):
+                            continue
+
+                        bucket = tag.resource_bucket
+                        if not isinstance(mod, bucket.can_contain):
+                            continue
+
+                        try:
+                            buckets[bucket].append(mod)
+                        except KeyError:
+                            buckets[bucket] = [mod]
+
+            for bucket, mods in buckets.items():
+                collected = OrderedSet()
+                for mod in mods:
+                    collected.update(Resource._list_resources(mod))
+                for mod in collected:
+                    if isinstance(mod, bucket.can_contain):
+                        bucket.add(mod)
 
         for bucket in cls._iter_children(include_self=True):
             if bucket.resources:
                 for backend in bucket.get_backends():
                     backend.publish_bucket(bucket)
+
+    @classmethod
+    def sync(cls, modified):
+        for bucket in cls._iter_children(include_self=True):
+            if bucket.resources:
+                for backend in bucket.get_backends():
+                    backend.sync_bucket(bucket, modified)
 
 
 class BaseResourceBackend(fs.backends.BaseFSBackend):
@@ -140,19 +150,28 @@ class ResourceFSBackend(BaseResourceBackend):
         super().__init__(path=path, **kwargs)
         self.pub_path = pub_path
 
+    def sync_bucket(self, bucket, modified):
+        resources = OrderedSet()
+        for mod in modified:
+            if mod in bucket.resources:
+                resources.add(mod)
+
+        bucket_id, bucket_path, bucket_pub_path = self._bucket_conf(bucket)
+        self._publish_bucket(bucket, resources, bucket_id, bucket_path, bucket_pub_path)
+
     def publish_bucket(self, bucket):
         bucket.published = OrderedSet()
+        bucket_id, bucket_path, bucket_pub_path = self._bucket_conf(bucket)
+        self._publish_bucket(bucket, bucket.resources, bucket_id, bucket_path, bucket_pub_path)
 
-        resources = self._collect_resources(bucket)
-        assert resources
-
+    def _bucket_conf(self, bucket):
         bucket_id = bucket.id.hex
         bucket_path = os.path.join(self.path, bucket_id)
         os.makedirs(bucket_path, exist_ok=True, mode=(0o777 - self.umask))
         bucket_pub_path = os.path.join(self.pub_path, bucket_id)
+        return bucket_id, bucket_path, bucket_pub_path
 
-        self._publish_bucket(bucket, resources, bucket_id, bucket_path, bucket_pub_path)
-
+    @debug.debug
     def _publish_bucket(self, bucket, resources, bucket_id, bucket_path, bucket_pub_path):
         for resource in resources:
             if isinstance(resource, AbstractFileSystemResource):
@@ -161,6 +180,10 @@ class ResourceFSBackend(BaseResourceBackend):
                 self._publish_virtual_resource(bucket_path, bucket_pub_path, resource)
             else:
                 continue
+
+            """LINE [resources.publish] Published
+            bucket.__name__, resource
+            """
 
             # XXX
             # We assign here a pub-url for the current bucket to later be able
@@ -195,12 +218,6 @@ class ResourceFSBackend(BaseResourceBackend):
         def cb(m):
             return os.path.join(bucket_path, m.group(1))
         return rx.sub(cb, source)
-
-    def _collect_resources(self, bucket):
-        collected = OrderedSet()
-        for resource in bucket.resources:
-            collected.update(Resource._list_resources(resource))
-        return tuple(collected)
 
     def _publish_fs_resource(self, bucket_path, bucket_pub_path, resource):
         src_path = resource.__sx_resource_path__
@@ -272,6 +289,9 @@ class OptimizedFSBackend(ResourceFSBackend):
                 md5.update(data)
 
         return md5.hexdigest()
+
+    def sync_bucket(self, bucket, modified):
+        self._publish_bucket(bucket)
 
     def _publish_bucket(self, bucket, resources, bucket_id, bucket_path, bucket_pub_path):
         from metamagic.utils.lang.javascript import BaseJavaScriptModule, CompiledJavascriptModule
