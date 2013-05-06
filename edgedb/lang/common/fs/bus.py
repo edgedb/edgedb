@@ -11,7 +11,7 @@ import types
 from metamagic.spin.node.dispatch.bus import public
 from metamagic.spin.node.dispatch.http import http as http_base
 from metamagic.spin.protocols.http import headers as http_headers, statuses as http_statuses
-from metamagic.spin.node.extras.middleware import CaosSessionMiddleware
+from metamagic.caos.nodesystem.middleware import CaosSessionMiddleware
 
 from metamagic.utils.lang.import_ import get_object
 
