@@ -44,7 +44,7 @@ class TestUtilsMarkup:
     def test_utils_markup_renderers_dhtml(self):
         from metamagic.utils.markup.renderers import dhtml
 
-        html = dhtml.render(self._get_test_markup())
+        html = dhtml.render_html(self._get_test_markup())
 
         assert 'foobar: spam ham!' in html
         assert 'ValueError' in html

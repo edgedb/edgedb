@@ -106,4 +106,4 @@ class Renderer:
 
 Renderer._init()
 
-render = Renderer.render
+render_html = Renderer.render
