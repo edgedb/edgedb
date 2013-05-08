@@ -6,7 +6,6 @@
 ##
 
 
-from metamagic import app
 from metamagic.exceptions import MetamagicError
 
 
@@ -16,9 +15,3 @@ class UnsatisfiedRequirementError(MetamagicError):
 
 class CommandRequirement:
     pass
-
-
-class ValidApplication(CommandRequirement):
-    def __init__(self, args):
-        if not app.Application.active:
-            raise UnsatisfiedRequirementError('need active Application')
