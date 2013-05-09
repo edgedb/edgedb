@@ -81,41 +81,45 @@ class FSBackend(BaseFSBackend):
 
         return os.path.join(base, new_id[:2], new_id[2:4], id.hex + '_' + filename)
 
+    def _get_path(self, bucket, id, filename, allow_rewrite):
+        base = self._get_base_name(bucket, id, self.escape_filename(filename))
+        path = os.path.join(self.path, base)
+
+        if os.path.exists(path):
+            if allow_rewrite:
+                if os.path.islink(path):
+                    os.unlink(path)
+                else:
+                    os.remove(path)
+            else:
+                raise BackendError('file names collision: {} already exists'.format(path))
+
+        dir = os.path.dirname(path)
+        os.makedirs(dir, exist_ok=True, mode=(0o777 - self.umask))
+        return path
+
+    def _after_save(self, path):
+        os.chmod(path, 0o666 - self.umask)
+
     @_coroutine
-    def store_http_file(self, bucket, id, file):
+    def store_http_file(self, bucket, id, file, *, allow_rewrite=False):
         if not isinstance(file, http_types.File):
             raise BackendError('unsupported file object: expected instance of'
                                'spin.http.types.File, got {!r}'.format(file))
 
-        base = self._get_base_name(bucket, id,
-                                   self.escape_filename(file.filename))
-        path = os.path.join(self.path, base)
-
-        if os.path.exists(path):
-            raise BackendError('file names collision: {} already exists'.format(path))
-
-        dir = os.path.dirname(path)
-        os.makedirs(dir, exist_ok=True, mode=(0o777 - self.umask))
-
+        path = self._get_path(bucket, id, file.filename, allow_rewrite)
         yield file.save_to(path)
-        os.chmod(path, 0o666 - self.umask)
+        self._after_save(path)
 
     @_coroutine
-    def store_file(self, bucket, id, filename, name=None):
+    def store_file(self, bucket, id, filename, *, name=None, allow_rewrite=False):
         if not os.path.isfile(filename):
             raise BackendError('unable to locate file {!r}'.format(filename))
 
         if name is None:
             name = os.path.basename(filename)
 
-        base = self._get_base_name(bucket, id, self.escape_filename(name))
-        path = os.path.join(self.path, base)
-
-        if os.path.exists(path):
-            raise BackendError('file names collision: {} already exists'.format(path))
-
-        dir = os.path.dirname(path)
-        os.makedirs(dir, exist_ok=True, mode=(0o777 - self.umask))
+        path = self._get_path(bucket, id, name, allow_rewrite)
 
         try:
             os.link(filename, path)
@@ -125,7 +129,7 @@ class FSBackend(BaseFSBackend):
             else:
                 raise
 
-        os.chmod(path, 0o666 - self.umask)
+        self._after_save(path)
 
     def get_file_path(self, bucket, id, filename):
         filename = self.escape_filename(filename)

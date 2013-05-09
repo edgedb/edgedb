@@ -50,23 +50,24 @@ class DefaultImplementation(BaseImplementation):
         return backends
 
     @classmethod
-    def store_http_file(cls, bucket, id, file):
+    def store_http_file(cls, bucket, id, file, *, allow_rewrite=False):
         assert id and isinstance(id, uuid.UUID)
 
         backends = cls._ensure_backends(bucket)
 
         for backend in backends:
-            yield_ (backend.store_http_file(bucket, id, file))
+            yield_ (backend.store_http_file(bucket, id, file, allow_rewrite=allow_rewrite))
 
     @classmethod
-    def store_file(cls, bucket, id, filename, name=None):
+    def store_file(cls, bucket, id, filename, *, name=None, allow_rewrite=False):
         assert id and isinstance(id, uuid.UUID)
         assert filename and isinstance(filename, str)
 
         backends = cls._ensure_backends(bucket)
 
         for backend in backends:
-            yield_ (backend.store_file(bucket, id, filename, name=name))
+            yield_ (backend.store_file(bucket, id, filename,
+                                       name=name, allow_rewrite=allow_rewrite))
 
     @classmethod
     def get_file_pub_url(cls, bucket, id, filename):

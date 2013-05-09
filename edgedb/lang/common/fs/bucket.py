@@ -92,14 +92,15 @@ class BaseBucket(base_buckets.Bucket, metaclass=BucketMeta, abstract=True):
 
 class Bucket(BaseBucket, abstract=True):
     @classmethod
-    def store_http_file(cls, id, file):
+    def store_http_file(cls, id, file, *, allow_rewrite=False):
         cls._error_if_abstract()
-        return cls.get_implementation().store_http_file(cls, id, file)
+        return cls.get_implementation().store_http_file(cls, id, file, allow_rewrite=allow_rewrite)
 
     @classmethod
-    def store_file(cls, id, filename, name=None):
+    def store_file(cls, id, filename, *, name=None, allow_rewrite=False):
         cls._error_if_abstract()
-        return cls.get_implementation().store_file(cls, id, filename, name=name)
+        return cls.get_implementation().store_file(cls, id, filename,
+                                                   name=name, allow_rewrite=allow_rewrite)
 
     @classmethod
     def get_file_pub_url(cls, id, filename):
