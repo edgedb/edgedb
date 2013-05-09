@@ -122,12 +122,14 @@ class Parser(yaml.parser.Parser):
                 self.imports.update(self.parse_imports(token))
             elif token.name == 'FROM':
                 implist = self.parse_import_list(token)
-                try:
-                    existing = self.imports[next(iter(implist))]
-                except KeyError:
-                    existing = self.imports[next(iter(implist))] = collections.OrderedDict()
+                modname, impdict = next(iter(implist.items()))
 
-                existing.update(next(iter(implist.values())))
+                try:
+                    existing = self.imports[modname]
+                except KeyError:
+                    existing = self.imports[modname] = collections.OrderedDict()
+
+                existing.update(impdict)
             else:
                 rejected_tokens.append(token)
 
@@ -163,7 +165,10 @@ class Parser(yaml.parser.Parser):
             raise yaml.parser.ParserError(None, None, "invalid IMPORT directive syntax", token.start_mark)
 
         while match:
-            imports[match.group('module')] = match.group('alias')
+            alias = match.group('alias')
+            if alias:
+                alias = collections.OrderedDict([(None, alias)])
+            imports[match.group('module')] = alias
             value = match.group('tail').strip(' ,')
             match = self.import_re.match(value)
 
