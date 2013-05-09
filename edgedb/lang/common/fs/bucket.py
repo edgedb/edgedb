@@ -53,16 +53,6 @@ class BucketMeta(base_buckets.BucketMeta):
         except KeyError:
             raise LookupError('unable to find bucket by id {!r}'.format(bucket_id))
 
-    @classmethod
-    def _get_bucket_class_by_name(mcls, bucket_name):
-        """
-        XXX Deprecated! Use "get_bucket_class"
-        """
-        try:
-            return mcls.name_registry[bucket_name]
-        except KeyError:
-            raise LookupError('unable to find bucket by name {!r}'.format(bucket_name))
-
 
 class BaseBucket(base_buckets.Bucket, metaclass=BucketMeta, abstract=True):
     def __init__(self, *args, **kwargs):
