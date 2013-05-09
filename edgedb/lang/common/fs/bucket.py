@@ -33,7 +33,7 @@ class BucketMeta(base_buckets.BucketMeta):
             except TypeError:
                 raise TypeError('invalid bucket UUID {!r}'.format(id)) from None
 
-            mcls.id_registry[id] = cls
+            mcls.id_registry[cls.id] = cls
 
         cls.name = cls.__module__ + '.' + cls.__name__
         mcls.name_registry[cls.name] = cls
@@ -44,20 +44,24 @@ class BucketMeta(base_buckets.BucketMeta):
         return super().__init__(name, bases, dct)
 
     @classmethod
-    def get_bucket_class(mcls, bucket:str):
-        if isinstance(bucket, uuid.UUID) or '-' in str(bucket):
-            # 'bucket' is a UUID of a Bucket class
-            bucket = str(bucket)
-            try:
-                return mcls.id_registry[bucket]
-            except KeyError:
-                raise LookupError('unable to find bucket by id {!r}'.format(bucket))
-        else:
-            # class name?
-            try:
-                return mcls.name_registry[bucket]
-            except KeyError:
-                raise LookupError('unable to find bucket by name {!r}'.format(bucket))
+    def get_bucket_class(mcls, bucket_id):
+        if not isinstance(bucket_id, uuid.UUID):
+            bucket_id = uuid.UUID(bucket_id)
+
+        try:
+            return mcls.id_registry[bucket_id]
+        except KeyError:
+            raise LookupError('unable to find bucket by id {!r}'.format(bucket_id))
+
+    @classmethod
+    def _get_bucket_class_by_name(mcls, bucket_name):
+        """
+        XXX Deprecated! Use "get_bucket_class"
+        """
+        try:
+            return mcls.name_registry[bucket_name]
+        except KeyError:
+            raise LookupError('unable to find bucket by name {!r}'.format(bucket_name))
 
 
 class BaseBucket(base_buckets.Bucket, metaclass=BucketMeta, abstract=True):
