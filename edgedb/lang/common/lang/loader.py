@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2011-2012 Sprymix Inc.
+# Copyright (c) 2011-2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -19,15 +19,21 @@ from .context import DocumentContext
 
 
 class LanguageCodeObject:
-    def __init__(self, code, imports=()):
+    def __init__(self, code, imports=(), runtime_imports=()):
         self.code = code
         self.imports = imports
+        self.runtime_imports = runtime_imports
 
 
 class LangModuleCacheMetaInfo(loader.ModuleCacheMetaInfo):
     def __init__(self, modname, *, magic=None, modver=None, code_offset=None):
         super().__init__(modname, magic=magic, modver=modver, code_offset=code_offset)
         self.dependencies = None
+        self.runtime_dependencies = None
+
+    def update_from_code(self, code):
+        self.dependencies = code.imports
+        self.runtime_dependencies = code.runtime_imports
 
     def marshal_extras(self):
         extras = self.get_extras()
@@ -37,10 +43,15 @@ class LangModuleCacheMetaInfo(loader.ModuleCacheMetaInfo):
             return None
 
     def get_extras(self):
+        result = {}
+
         if self.dependencies:
-            return {'deps': self.dependencies}
-        else:
-            return None
+            result['deps'] = self.dependencies
+
+        if self.runtime_dependencies:
+            result['runtime_deps'] = self.runtime_dependencies
+
+        return result or None
 
     def unmarshal_extras(self, data):
         try:
@@ -52,9 +63,15 @@ class LangModuleCacheMetaInfo(loader.ModuleCacheMetaInfo):
 
     def set_extras(self, data):
         deps = data.get('deps')
-
         if deps:
             self.dependencies = deps
+
+        runtime_deps = data.get('runtime_deps')
+        if runtime_deps:
+            self.runtime_dependencies = runtime_deps
+
+    def get_dependencies(self):
+        return self.dependencies
 
 
 class LangModuleCache(loader.ModuleCache):
@@ -70,6 +87,7 @@ class LangModuleCache(loader.ModuleCache):
     def update_module_attributes_early(self, module):
         super().update_module_attributes_early(module)
         module.__sx_imports__ = self.metainfo.dependencies or ()
+        module.__mm_runtime_imports__ = self.metainfo.runtime_dependencies or ()
         module.__language__ = self._loader._language
 
 
@@ -115,6 +133,7 @@ class LanguageLoader:
     def update_module_attributes_from_code(self, module, code):
         super().update_module_attributes_from_code(module, code)
         module.__sx_imports__ = code.imports or ()
+        module.__mm_runtime_imports__ = code.runtime_imports or ()
         module.__language__ = self._language
 
     def _get_module_version(self, modname, imports):
