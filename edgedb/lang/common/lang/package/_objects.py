@@ -34,4 +34,4 @@ class Package(yaml.Object):
         yield ('__mm_package_tagmap__', self.tags)
 
         context = lang_context.SourceContext.from_object(self)
-        yield from context.document.namespace.items()
+        yield ('__mm_module_source_context__', context)
