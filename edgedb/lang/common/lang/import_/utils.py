@@ -197,9 +197,6 @@ def modules_from_import_statements(package, imports, ignore_missing=False):
                 add_package = False
 
                 for entry in fromlist:
-                    if entry is None:
-                        continue
-
                     modname = '{}.{}'.format(fq_name, entry)
                     entry_loader = importlib.find_loader(modname, path=path)
 

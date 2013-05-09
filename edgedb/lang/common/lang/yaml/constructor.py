@@ -84,9 +84,9 @@ class Composer(yaml.composer.Composer):
                                                               parent=parent_context)
 
             if tail and isinstance(tail, dict):
-                fromlist = tuple(filter(None, tail))
-                fromdict = collections.OrderedDict((k, v) for k, v in tail.items() if k)
-                alias = tail.get(None)
+                fromlist = tuple(tail)
+                fromdict = tail
+                alias = None
             else:
                 alias = tail
                 fromlist = ()
@@ -99,7 +99,7 @@ class Composer(yaml.composer.Composer):
                                                         node.start_mark) from e
 
             if fromdict:
-                for name, attr_alias in fromdict.items():
+                for name, alias in fromdict.items():
                     try:
                         modattr = getattr(mod, name)
                     except AttributeError:
@@ -109,10 +109,9 @@ class Composer(yaml.composer.Composer):
                     else:
                         if isinstance(modattr, types.ModuleType):
                             modattr = Proxy(modattr.__name__, modattr)
-                            imports[attr_alias or name] = modattr
-                        namespace[attr_alias or name] = modattr
-
-            if not fromdict or alias:
+                            imports[alias or name] = modattr
+                        namespace[alias or name] = modattr
+            else:
                 namespace[mod.__name__] = Proxy(mod.__name__, mod)
 
                 if module_name != mod.__name__:
