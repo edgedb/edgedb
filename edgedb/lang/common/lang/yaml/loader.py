@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2012 Sprymix Inc.
+# Copyright (c) 2008-2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -17,7 +17,7 @@ from metamagic.utils.lang.yaml import schema as yaml_schema
 
 class Loader(yaml.reader.Reader, parser.Scanner, parser.Parser, constructor.Composer,
              constructor.Constructor, yaml.resolver.Resolver):
-    def __init__(self, stream, context=None):
+    def __init__(self, stream, context):
         yaml.reader.Reader.__init__(self, stream)
         parser.Scanner.__init__(self)
         parser.Parser.__init__(self)
@@ -25,12 +25,47 @@ class Loader(yaml.reader.Reader, parser.Scanner, parser.Parser, constructor.Comp
         constructor.Constructor.__init__(self, context)
         yaml.resolver.Resolver.__init__(self)
 
+        self.module_name = context.module.__name__
+
+        # That's needed for 'yaml.Reader' class to raise exceptions with
+        # correct filename
+        self.name = context.module.__file__
+
+    def _wrap_yaml_error(self, ex):
+        if isinstance(ex, yaml.MarkedYAMLError):
+            ctx = None
+            if ex.context_mark:
+                ctx = ex.context_mark
+            elif ex.problem_mark:
+                ctx = ex.problem_mark
+
+            if not ctx:
+                return ex
+
+            ex_ctx = lang_context.SourceContext(name=self.module_name,
+                                                filename=ctx.name,
+                                                start=lang_context.SourcePoint(line=ctx.line,
+                                                                               column=ctx.column,
+                                                                               pointer=None),
+                                                end=None,
+                                                buffer=None)
+
+            new_ex = yaml_errors.YAMLError(str(ex), context=ex_ctx)
+            new_ex.__suppress_context__ = True
+            return new_ex
+
+        return ex
+
     def get_dict(self):
         document_no = 0
         seen_module_schema = False
 
         while self.check_node():
-            node = self.get_node()
+            try:
+                node = self.get_node()
+            except yaml.YAMLError as ex:
+                raise self._wrap_yaml_error(ex)
+
             data = self.construct_document(node)
 
             if node.schema is not None and issubclass(node.schema, yaml_schema.ModuleSchemaBase):
@@ -103,7 +138,7 @@ class RecordingLoader(Loader):
 
     current_event = property(_get_current_event, _set_current_event)
 
-    def __init__(self, stream, context=None):
+    def __init__(self, stream, context):
         super().__init__(stream, context)
         self._current_event = None
         self._eventlog = []
@@ -118,7 +153,10 @@ class RecordingLoader(Loader):
 
     def get_code(self):
         if not self._loaded:
-            self._load()
+            try:
+                self._load()
+            except yaml.YAMLError as ex:
+                raise self._wrap_yaml_error(ex)
 
         return self._eventlog
 
@@ -130,9 +168,8 @@ class RecordingLoader(Loader):
 
 
 class ReplayLoader(Loader):
-    def __init__(self, eventlog, context=None):
+    def __init__(self, eventlog, context):
         super().__init__('', context)
-
         self.state = self._next_event
         self.event_iterator = iter(eventlog)
 
