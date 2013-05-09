@@ -14,6 +14,7 @@ import logging
 
 from metamagic.utils.lang import javascript
 from metamagic.utils.debug import debug_logger_off
+from metamagic.utils import resource
 
 
 def no_jsc_cache(func):
@@ -41,7 +42,7 @@ def clean_sys_modules(func):
     return wrapper
 
 
-_deps = lambda res: list(res.__sx_resource_deps__.items())
+_deps = lambda res: [sys.modules[im] for im in res.__sx_imports__]
 
 
 class TestUtilsLangJSImport:
@@ -53,19 +54,19 @@ class TestUtilsLangJSImport:
 
         d = _deps(foo)
         assert len(d) == 3
-        assert d[0][0].__name__.endswith('bar')
-        assert d[1][0].__name__.endswith('inner')
-        assert d[2][0].__name__.endswith('spam')
+        assert d[0].__name__.endswith('bar')
+        assert d[1].__name__.endswith('inner')
+        assert d[2].__name__.endswith('spam')
 
         m = sys.modules['metamagic.utils.lang.javascript.tests.testimport.inner.ham']
         d = _deps(m)
         assert len(d)  == 1
-        assert d[0][0].__name__.endswith('outer')
+        assert d[0].__name__.endswith('outer')
 
         m = sys.modules['metamagic.utils.lang.javascript.tests.testimport']
         d = _deps(m)
         assert len(d)  == 1
-        assert d[0][0].__name__.endswith('outer')
+        assert d[0].__name__.endswith('outer')
 
         assert isinstance(foo, javascript.JavaScriptModule)
 
@@ -75,9 +76,8 @@ class TestUtilsLangJSImport:
         with debug_logger_off():
             from metamagic.utils.lang.javascript.tests.testimport import foo
 
-        mods = []
-        for mod in type(foo)._list_resources(foo):
-            mods.append(mod.__name__)
+        mods = resource.ResourceBucket.get_import_list((foo,))
+        mods = [m.__name__ for m in mods]
 
         assert mods == ['metamagic.utils.lang.javascript.tests.testimport.outer',
                         'metamagic.utils.lang.javascript.tests.testimport',

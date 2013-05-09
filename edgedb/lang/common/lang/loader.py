@@ -116,17 +116,10 @@ class LanguageLoader:
         context = DocumentContext(module=modinfo, import_context=modname)
 
         stream = io.BytesIO(source_bytes)
+        code = self._language.load_code(stream, context=context)
 
-        try:
-            code = self._language.load_code(stream, context=context)
-        except (NotImplementedError, ImportError):
-            raise
-        except Exception as error:
-            raise ImportError('unable to import "%s" (%s: %s)' \
-                              % (modname, type(error).__name__, error)) from error
-
-        if isinstance(code, LanguageCodeObject) and code.imports and cache is not None:
-            cache.metainfo.dependencies = code.imports
+        if isinstance(code, LanguageCodeObject) and cache is not None:
+            cache.metainfo.update_from_code(code)
 
         return code
 

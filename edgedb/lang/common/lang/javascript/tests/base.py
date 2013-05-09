@@ -114,10 +114,8 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
         with debug.debug_logger_off():
             module = loader.load_module(modname)
 
-        deps = tuple(module.__sx_resource_deps__.keys())
-        if base_deps:
-            deps = tuple(base_deps) + deps
-
+        deps = resource.ResourceBucket.get_import_list((module,))
+        deps.discard(module)
         return source, deps
 
     @classmethod
@@ -138,12 +136,7 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
     @classmethod
     def do_test(mcls, source, name=None, data=None):
         source, deps = mcls.parse_test(source, name=name)
-
-        all_deps = OrderedSet()
-        for dep in deps:
-            all_deps.update(resource.Resource._list_resources(dep))
-
-        imports, bootstrap = mcls.compile_boostrap(all_deps)
+        imports, bootstrap = mcls.compile_boostrap(deps)
 
         if data is not None:
             bootstrap.append('var $ = ' + json.dumps(data) + ';');
@@ -167,8 +160,7 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
                 document.write('<div style="color:green;margin-top: 20px">{}</div>');
             '''.format(meth_name))
             all_sources.append(source)
-            for dep in deps:
-                all_deps.update(resource.Resource._list_resources(dep))
+            all_deps.update(deps)
 
         if not all_sources:
             return
