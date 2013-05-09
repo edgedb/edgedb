@@ -25,11 +25,11 @@ class Loader(yaml.reader.Reader, parser.Scanner, parser.Parser, constructor.Comp
         constructor.Constructor.__init__(self, context)
         yaml.resolver.Resolver.__init__(self)
 
-        self.module_name = context.module.__name__
-
-        # That's needed for 'yaml.Reader' class to raise exceptions with
-        # correct filename
-        self.name = context.module.__file__
+        if context and context.module:
+            # That's needed for 'yaml.Reader' class to raise exceptions with
+            # correct filename
+            self.name = context.module.__file__
+            self.module_name = context.module.__name__
 
     def _wrap_yaml_error(self, ex):
         if isinstance(ex, yaml.MarkedYAMLError):

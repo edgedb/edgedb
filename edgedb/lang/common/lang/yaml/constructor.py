@@ -160,8 +160,10 @@ class Constructor(yaml.constructor.Constructor):
         end = lang_context.SourcePoint(node.end_mark.line, node.end_mark.column,
                                                node.end_mark.pointer)
 
-        context = lang_context.SourceContext(node.start_mark.name, node.start_mark.buffer,
-                                                   start, end, document_context)
+        context = lang_context.SourceContext(getattr(self, 'module_name', '<unknown>'),
+                                             node.start_mark.buffer,
+                                             start, end, document_context,
+                                             filename=node.start_mark.name)
         return context
 
     def _is_object_or_class(self, node):
