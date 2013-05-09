@@ -203,7 +203,7 @@ class LoaderCommon:
             else:
                 for pattern, tags in tagmap.items():
                     if pattern.match('.'.join(steps[i:])):
-                        return tags
+                        return frozenset(tags)
 
     def update_module_attributes_from_code(self, module, code):
         pass
