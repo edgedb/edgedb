@@ -11,6 +11,7 @@ import importlib
 import itertools
 import os
 import sys
+import types
 import yaml
 
 from metamagic.utils.lang import meta, context as lang_context, loader as lang_loader
@@ -18,18 +19,61 @@ from metamagic.utils.lang.import_ import utils as import_utils
 from metamagic.utils.lang.yaml import loader, dumper
 from metamagic.utils.lang.yaml import schema as yaml_schema
 from metamagic.utils.functional import Adapter
+from metamagic.utils.datastructures import OrderedSet
+
+
+
+class YAMLModuleCacheMetaInfo(lang_loader.LangModuleCacheMetaInfo):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.lazy_dependencies = None
+
+    def update_from_code(self, code):
+        super().update_from_code(code)
+        self.lazy_dependencies = code.lazy_imports
+
+    def get_extras(self):
+        result = super().get_extras()
+        if self.lazy_dependencies:
+            result['lazy_deps'] = self.lazy_dependencies
+
+        return result or None
+
+    def set_extras(self, data):
+        super().set_extras(data)
+
+        lazy_deps = data.get('lazy_deps')
+        if lazy_deps:
+            self.lazy_dependencies = lazy_deps
+
+    def get_dependencies(self):
+        if self.dependencies and self.lazy_dependencies:
+            return OrderedSet(self.dependencies) - self.lazy_dependencies
+        else:
+            return self.dependencies
+
+
+class YAMLModuleCache(lang_loader.LangModuleCache):
+    metainfo_class = YAMLModuleCacheMetaInfo
 
 
 class YAMLCodeObject(lang_loader.LanguageCodeObject):
-    def __init__(self, code, imports, yaml_event_stream, schemas, module_schema):
+    def __init__(self, code, imports, yaml_event_stream, schemas, module_schema, lazy_imports):
         super().__init__(code, imports)
         self.yaml_event_stream = yaml_event_stream
         self.schemas = schemas
         self.module_schema = module_schema
+        self.lazy_imports = lazy_imports
+
+
+class Loader(lang_loader.LanguageSourceFileLoader):
+    def create_cache(self, modname):
+        return YAMLModuleCache(modname, self)
 
 
 class Language(meta.Language):
     file_extensions = ('yml',)
+    loader = Loader
 
     @classmethod
     def load(cls, stream, context=None):
@@ -63,6 +107,7 @@ class Language(meta.Language):
         yaml_code = ldr.get_code()
         documents = ldr.get_documents()
         caching_schemas = False
+        lazy_import_schemas = False
         schemas = []
         module_schema = None
         imports = {}
@@ -90,6 +135,9 @@ class Language(meta.Language):
                                         and schema.enable_cache):
                     caching_schemas = True
 
+                if getattr(schema, 'lazy_imports', False):
+                    lazy_import_schemas = True
+
                 imports.update(document.imports)
 
                 implicit = schema.get_implicit_imports()
@@ -108,19 +156,40 @@ class Language(meta.Language):
 
         all_imports = getmods(pkg, list(imports.items()))
         all_imports.sort()
+        lazy_imports = set()
 
-        if caching_schemas:
+        if caching_schemas or lazy_import_schemas:
             # To obtain caches produced by schemas, the stream has to be replayed
             rldr = loader.ReplayLoader(yaml_code, context)
             code = []
+            lazy_import_refs = set()
+
             for d in rldr.get_dict():
                 context.namespace.update((d,))
                 code.append(d)
+
+            if lazy_import_schemas:
+                lazy_import_refs = getattr(context, 'lazy_import_refs', set())
+
+                for k, v in context.namespace.items():
+                    if isinstance(v, lang_context.LazyImportAttribute):
+                        modname = v.module
+                        if modname not in lazy_import_refs:
+                            lazy_imports.add(modname)
+
+                        if v.attribute:
+                            modname = modname + '.' + v.attribute
+                            if modname not in lazy_import_refs:
+                                lazy_imports.add(modname)
+
+            if not caching_schemas:
+                code = None
         else:
             code = None
 
         return YAMLCodeObject(code, imports=all_imports, yaml_event_stream=ldr.get_code(),
-                              schemas=schemas, module_schema=module_schema)
+                              schemas=schemas, module_schema=module_schema,
+                              lazy_imports=frozenset(lazy_imports))
 
     @classmethod
     def execute_code(cls, code, context=None):

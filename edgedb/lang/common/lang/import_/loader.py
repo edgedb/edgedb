@@ -441,7 +441,14 @@ class ModuleCache:
             magic = 0
 
         self._metainfo.magic = magic
-        imports = getattr(self.metainfo, 'dependencies', None)
+
+        try:
+            get_deps = self.metainfo.get_dependencies
+        except AttributeError:
+            imports = None
+        else:
+            imports = get_deps()
+
         caches.invalidate_modver_cache(self._modname)
         self._metainfo.modver = self._loader.get_module_version(self._modname, imports)
 
@@ -483,7 +490,13 @@ class ModuleCache:
             if metainfo.magic != expected_magic:
                 raise ImportError('bad magic number in "{}" cache'.format(self._modname))
 
-        imports = getattr(self.metainfo, 'dependencies', None)
+        try:
+            get_deps = self.metainfo.get_dependencies
+        except AttributeError:
+            imports = None
+        else:
+            imports = get_deps()
+
         cur_modver = self._loader._get_module_version(self._modname, imports)
 
         if cur_modver != metainfo.modver:

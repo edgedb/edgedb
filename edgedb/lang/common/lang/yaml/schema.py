@@ -65,3 +65,7 @@ class NamespaceModuleSchema(ModuleSchema):
 
 class CachingSchema:
     enable_cache = True
+
+
+class LazyImportsSchema:
+    lazy_imports = True

@@ -39,9 +39,10 @@ class Composer(yaml.composer.Composer):
             schema = getattr(module, obj)
 
             if doc_imports:
-                imports, namespace = self._process_imports(node, doc_imports)
+                lazy_imports = getattr(schema, 'lazy_imports', False)
+                namespace = self._process_imports(node, doc_imports, lazy_imports)
             else:
-                imports = namespace = {}
+                namespace = {}
 
             schema_instance = schema(namespace=namespace)
 
@@ -65,7 +66,7 @@ class Composer(yaml.composer.Composer):
         self.anchors = {}
         return node
 
-    def _process_imports(self, node, node_imports):
+    def _process_imports(self, node, node_imports, lazy_imports=False):
         namespace = {}
         imports = {}
         Proxy = module_types.AutoloadingLightProxyModule
@@ -92,44 +93,58 @@ class Composer(yaml.composer.Composer):
                 fromlist = ()
                 fromdict = {}
 
-            try:
-                mod = __import__(module_name, fromlist=fromlist)
-            except ImportError as e:
-                raise yaml.constructor.ConstructorError(None, None, '%r' % e,
-                                                        node.start_mark) from e
+            if lazy_imports:
+                mod = None
+            else:
+                try:
+                    mod = __import__(module_name, fromlist=fromlist)
+                except ImportError as e:
+                    raise yaml.constructor.ConstructorError(None, None, '%r' % e,
+                                                            node.start_mark) from e
 
             if fromdict:
                 for name, alias in fromdict.items():
-                    try:
-                        modattr = getattr(mod, name)
-                    except AttributeError:
-                        msg = 'cannot import name {!r}'.format(name)
-                        raise yaml.constructor.ConstructorError(None, None, msg,
-                                                                node.start_mark) from None
+                    if not alias:
+                        alias = name
+
+                    if lazy_imports:
+                        namespace[alias] = lang_context.LazyImportAttribute(module=module_name,
+                                                                            attribute=name)
                     else:
-                        if isinstance(modattr, types.ModuleType):
-                            modattr = Proxy(modattr.__name__, modattr)
-                            imports[alias or name] = modattr
-                        namespace[alias or name] = modattr
+                        try:
+                            modattr = getattr(mod, name)
+                        except AttributeError:
+                            msg = 'cannot import name {!r}'.format(name)
+                            raise yaml.constructor.ConstructorError(None, None, msg,
+                                                                    node.start_mark) from None
+                        else:
+                            if isinstance(modattr, types.ModuleType):
+                                modattr = Proxy(modattr.__name__, modattr)
+                                imports[alias or name] = modattr
+                            namespace[alias or name] = modattr
             else:
-                namespace[mod.__name__] = Proxy(mod.__name__, mod)
-
-                if module_name != mod.__name__:
-                    endmod = importlib.import_module(module_name)
+                if lazy_imports:
+                    topmod = module_name.partition('.')[0]
+                    namespace[topmod] = lang_context.LazyImportAttribute(module=module_name)
                 else:
-                    endmod = mod
+                    namespace[mod.__name__] = Proxy(mod.__name__, mod)
 
-                if alias is None:
-                    # XXX: should avoid doing this
-                    imports[module_name] = module_types.ModuleInfo(endmod)
-                else:
-                    namespace[alias] = Proxy(endmod.__name__, endmod)
-                    imports[alias] = module_types.ModuleInfo(endmod)
+                    if module_name != mod.__name__:
+                        endmod = importlib.import_module(module_name)
+                    else:
+                        endmod = mod
+
+                    if alias is None:
+                        # XXX: should avoid doing this
+                        imports[module_name] = module_types.ModuleInfo(endmod)
+                    else:
+                        namespace[alias] = Proxy(endmod.__name__, endmod)
+                        imports[alias] = module_types.ModuleInfo(endmod)
 
         self.document_context.imports.update(imports)
         self.document_context.namespace.update(namespace)
 
-        return imports, namespace
+        return namespace
 
 
 class Constructor(yaml.constructor.Constructor):

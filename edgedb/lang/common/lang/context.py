@@ -6,11 +6,25 @@
 ##
 
 
+import importlib
 import sys
+import types
 
 from metamagic.utils.datastructures import registry
 
 from .exceptions import UnresolvedError
+
+
+class LazyImportsModule(types.ModuleType):
+    def __sx_finalize_load__(self):
+        ctx = self.__mm_module_source_context__
+
+        for k, v in ctx.document.namespace.items():
+            if isinstance(v, LazyImportAttribute):
+                v = v.get()
+            setattr(self, k, v)
+
+        del self.__mm_module_source_context__
 
 
 class SourcePoint(object):
@@ -18,6 +32,27 @@ class SourcePoint(object):
         self.line = line
         self.column = column
         self.pointer = pointer
+
+
+class LazyImportAttribute:
+    def __init__(self, module, attribute=None):
+        self.module = module
+        self.attribute = attribute
+
+    def get(self):
+        if self.attribute:
+            fromlist = (self.attribute,)
+        else:
+            fromlist = ()
+
+        mod = __import__(self.module, fromlist=fromlist)
+
+        if self.attribute:
+            result = getattr(mod, self.attribute)
+        else:
+            result = mod
+
+        return result
 
 
 class SourceContext(object):
@@ -45,6 +80,14 @@ class SourceContext(object):
         except KeyError:
             raise UnresolvedError('unable to resolve {!r} name'.format(name),
                                   context=self) from None
+
+        if isinstance(obj, LazyImportAttribute):
+            try:
+                self.document.lazy_import_refs.add(obj.module)
+            except AttributeError:
+                self.document.lazy_import_refs = {obj.module}
+
+            obj = obj.get()
 
         for part in parts[1:]:
             try:
