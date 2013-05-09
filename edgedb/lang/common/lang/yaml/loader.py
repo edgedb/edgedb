@@ -17,7 +17,7 @@ from metamagic.utils.lang.yaml import schema as yaml_schema
 
 class Loader(yaml.reader.Reader, parser.Scanner, parser.Parser, constructor.Composer,
              constructor.Constructor, yaml.resolver.Resolver):
-    def __init__(self, stream, context):
+    def __init__(self, stream, context=None):
         yaml.reader.Reader.__init__(self, stream)
         parser.Scanner.__init__(self)
         parser.Parser.__init__(self)

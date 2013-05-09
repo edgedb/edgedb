@@ -19,7 +19,6 @@ class Resource:
 
     def __init__(self):
         self.__sx_resource_deps__ = collections.OrderedDict()
-        self.__sx_resource_parent__ = None
 
     def __sx_add_required_resource__(self, dependency, weak=False):
         """Make ``resource`` dependent on ``dependency``.  ``weak`` means that the
@@ -47,26 +46,17 @@ class Resource:
         """Builds the full list of resources that current resource depends on.
         The list includes the resource itself."""
 
-        def _collect_deps(resource, collected, visited, to_import, *, level, child=None):
-            visited.add(resource)
+        def _collect_deps(resource, collected, visited, to_import, *, level):
+            if resource in visited:
+                return
 
-            parent = resource.__sx_resource_parent__
-            if parent is not None and parent not in visited:
-                _collect_deps(parent, collected, visited, to_import, level=level+1, child=resource)
+            visited.add(resource)
 
             for mod, weak in resource.__sx_resource_deps__.items():
                 if weak:
                     to_import.add(mod)
                 else:
-                    if mod not in visited:
-                        _collect_deps(mod, collected, visited, to_import, level=level+1)
-                    else:
-                        if child is not None and mod is child:
-                            # If we were called from _collect_deps for a child's
-                            # __sx_resource_parent__, and the parent module imports that child,
-                            # then we add child to the "collected" list, to preserve the order
-                            # of imports in __init__.js files
-                            collected.add(mod)
+                    _collect_deps(mod, collected, visited, to_import, level=level+1)
 
             collected.add(resource)
 

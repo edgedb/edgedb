@@ -32,7 +32,8 @@ class LangModuleCache(lang_loader.LangModuleCache):
         return marshal.loads(code_bytes[12:])
 
 
-class Loader(imploader.LoaderCommon, _SourceFileLoader, imploader.SourceLoader):
+class Loader(imploader.LoaderCommon, _SourceFileLoader, imploader.SourceLoader,
+                                                        lang_loader.LanguageLoaderBase):
     def __init__(self, fullname, filename, language):
         super().__init__(fullname, filename)
         self._language = language

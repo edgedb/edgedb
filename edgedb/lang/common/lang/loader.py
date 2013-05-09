@@ -11,6 +11,7 @@ import io
 import importlib
 import marshal
 import os
+import sys
 
 from metamagic.utils.lang.import_ import loader
 from metamagic.utils.lang.import_ import module as module_types
@@ -91,7 +92,22 @@ class LangModuleCache(loader.ModuleCache):
         module.__language__ = self._loader._language
 
 
-class LanguageLoader:
+class LanguageLoaderBase:
+    def load_module_for_runtimes(self, modname, runtimes):
+        # Make sure the module is imported regularly first
+        try:
+            mod = sys.modules[modname]
+        except KeyError:
+            mod = importlib.import_module(modname)
+
+        for runtime in runtimes:
+            runtime.load_module(mod, loader=self)
+
+        for dep in getattr(mod, '__sx_imports__', ()):
+            self.load_module_for_runtimes(dep, runtimes)
+
+
+class LanguageLoader(LanguageLoaderBase):
     def __init__(self, fullname, filename, language):
         super().__init__(fullname, filename)
         self._language = language

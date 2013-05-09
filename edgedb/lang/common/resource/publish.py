@@ -7,6 +7,7 @@
 
 
 import hashlib
+import itertools
 import gzip
 import os
 import logging
@@ -77,55 +78,244 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
                                       format(backend, cls))
 
     @classmethod
-    def _iter_dep_list(cls, name):
-        def collect(name, visited):
-            if name in visited:
+    @debug.debug
+    def get_import_list(cls, roots, tag=None):
+        """Returns a topologically sorted set of modules imported by the specified list of
+           root/runtimes pairs.  For each root, the entire import tree is guaranteed to
+           be compatible with the associated set of runtimes.
+        """
+
+        import_list = OrderedSet(roots)
+
+        def collect(mod, runtimes, *, visited, level, from_import_of=None):
+            mod_name = mod.__name__
+
+            visited_previously = mod_name in visited
+            if not visited_previously:
+                visited.add(mod_name)
+
+            """LOG [resource.collect.tree]
+            print('  ' * level, mod_name, 'VISITED' if visited_previously else '')
+            """
+
+            package = mod_name.rpartition('.')[0]
+            if package:
+                # Emulate the implicit import of __init__: the content of __init__
+                # must always be evaluated before the content of any of the modules in
+                # the corresponding package, but only if the package is in the same runtime
+                # class.
+                #
+                package = sys.modules[package]
+
+                if package.__name__ not in visited:
+                    package_runtimes = cls._get_compatible_runtimes(package, (tag,) if tag else ())
+
+                    if runtimes == package_runtimes:
+                        """LOG [resource.collect.tree]
+                        print('  ' * (level + 1), '--- __init__ ---')
+                        """
+                        yield from collect(package, runtimes, visited=visited, from_import_of=mod,
+                                                                               level=level+1)
+
+            # Put hard dependencies first
+            imports = getattr(mod, '__sx_imports__', None)
+
+            if imports:
+                """LOG [resource.collect.tree]
+                print('  ' * (level + 1), '--- imports ---')
+                """
+                for impmodname in imports:
+                    impmod = sys.modules[impmodname]
+
+                    if impmodname not in visited:
+                        yield from collect(impmod, runtimes, visited=visited, level=level+1)
+                    elif impmod is from_import_of:
+                        # This module has triggered the processing of package
+                        yield from_import_of
+                        yield from _collect_soft_deps(from_import_of, runtimes, visited, level)
+
+            if visited_previously:
                 return
-            visited.add(name)
 
-            mod = sys.modules[name]
+            # Then the module itself and its soft dependencies
             yield mod
+            yield from _collect_soft_deps(mod, runtimes, visited, level)
 
-            if hasattr(mod, '__sx_imports__') and mod.__sx_imports__:
-                for sub in mod.__sx_imports__:
-                    yield from collect(sub, visited)
+        def _collect_soft_deps(mod, runtimes, visited, level):
+            # Then push soft dependencies into the import list
+            runtime_imports = getattr(mod, '__mm_runtime_imports__', None)
+            if runtime_imports:
+                for imname in runtime_imports:
+                    ri = sys.modules[imname]
+                    import_list.add(ri)
 
-        yield from collect(name, set())
+            # Then module derivatives
+            derivatives = getattr(mod, '__mm_runtime_derivatives__', None)
+            if derivatives:
+                """LOG [resource.collect.tree]
+                print('  ' * (level + 1), '--- derivatives ---')
+                """
+
+                for runtime, derivative in derivatives.items():
+                    if runtime in runtimes:
+                        yield from collect(derivative, runtimes, visited=visited, level=level+1)
+
+        collected = OrderedSet()
+        visited = set()
+
+        while import_list:
+            mod = import_list.pop()
+            runtimes = cls._get_compatible_runtimes(mod, (tag,) if tag else ())
+            collected.update(collect(mod, runtimes, visited=visited, level=0))
+            import_list -= collected
+
+        return collected
 
     @classmethod
+    def _get_compatible_runtimes(cls, mod, tags):
+        try:
+            lang = mod.__language__
+        except AttributeError:
+            runtimes = None
+        else:
+            runtimes = lang.get_compatible_runtimes(mod, tags)
+
+        return runtimes
+
+    @classmethod
+    @debug.debug
+    def _collect_tagged_roots(cls, roots, tags):
+        """Returns modules with runtime different from Python from a specified import tree and
+           tagged with specified tags.  The modules are grouped by tag.
+        """
+
+        tags = frozenset(tags)
+
+        def collect(mod, visited, *, level, consider_imports=True):
+            mod_name = mod.__name__
+
+            if mod_name in visited:
+                return
+
+            visited.add(mod_name)
+
+            mod_tags = getattr(mod, '__mm_module_tags__', frozenset())
+            actual_tags = mod_tags & tags
+            runtimes = cls._get_compatible_runtimes(mod, actual_tags)
+
+            imports = getattr(mod, '__sx_imports__', None)
+            """LOG [resource.collect.roots]
+            print('  ' * level, mod.__name__, tuple(actual_tags), runtimes)
+            """
+
+            if runtimes:
+                package = mod_name.rpartition('.')[0]
+                if package:
+                    # The content of __init__ must always be put topologically before the content
+                    # of any of the modules in the package.
+                    #
+                    package = sys.modules[package]
+
+                    if package.__name__ not in visited:
+                        yield from collect(package, visited=visited, consider_imports=False,
+                                                                     level=level+1)
+
+                if not actual_tags:
+                    # There are tags, but none from the requested set
+                    """LOG [resource.collect.roots]
+                    print('  ' * level, mod.__name__, 'SKIP: NO MATCHING TAGS')
+                    """
+                    return
+
+                # Found a compatible root
+                yield mod, actual_tags
+            else:
+                # Dig deeper
+                if consider_imports:
+                    imports = getattr(mod, '__sx_imports__', None)
+                    if imports:
+                        """LOG [resource.collect.roots]
+                        print('  ' * (level + 1), '--- imports ---')
+                        """
+                        for impmodname in imports:
+                            impmod = sys.modules[impmodname]
+                            yield from collect(impmod, visited, level=level+1)
+
+                # XXX: consider active derivatives
+
+        collected = OrderedSet()
+        visited = set()
+
+        for root in roots:
+            collected.update(collect(root, visited, level=0))
+
+        result = {}
+
+        for mod, tags in collected:
+            for tag in tags:
+                try:
+                    result[tag].append(mod)
+                except KeyError:
+                    result[tag] = [mod]
+
+        return result
+
+    @classmethod
+    @debug.debug
     def build(cls):
         """Called during Node.build phase"""
 
         node = Node.active
         if not node.packages:
-            cls.logger.info('node {} does not have any "packages" defined, this may result '
-                            'in no resources being published'.format(node))
+            cls.logger.warning('node {} does not have any "packages" defined, this may result '
+                               'in no resources being published'.format(node))
 
-        for root in node.packages:
-            buckets = {}
+        if not node.tags:
+            cls.logger.warning('node {} does not have any tags defined, this may result '
+                               'in no resources being published'.format(node))
 
-            for mod in cls._iter_dep_list(root.__name__):
-                if hasattr(mod, '__mm_module_tags__') and mod.__mm_module_tags__:
-                    for tag in mod.__mm_module_tags__:
-                        if not hasattr(tag, 'resource_bucket'):
-                            continue
+        buckets = {}
 
-                        bucket = tag.resource_bucket
-                        if not isinstance(mod, bucket.can_contain):
-                            continue
+        roots = cls._collect_tagged_roots(node.packages, node.tags)
 
-                        try:
-                            buckets[bucket].append(mod)
-                        except KeyError:
-                            buckets[bucket] = [mod]
+        """LOG [resource.collect.roots]
+        print('RUNTIME ROOTS BY TAG ============================')
+        """
 
-            for bucket, mods in buckets.items():
-                collected = OrderedSet()
-                for mod in mods:
-                    collected.update(Resource._list_resources(mod))
-                for mod in collected:
-                    if isinstance(mod, bucket.can_contain):
-                        bucket.add(mod)
+        for tag, tag_mods in roots.items():
+            """LOG [resource.collect.roots]
+            print('{} --------------------'.format(tag))
+            import metamagic.utils.markup
+            metamagic.utils.markup.dump(tag_mods, trim=False)
+            print('-----------------------------------')
+            """
+
+            bucket = getattr(tag, 'resource_bucket', None)
+            if bucket is None:
+                continue
+
+            # Go through the topologically sorted list of imports from this root
+            # at segregate the modules into buckets.
+            #
+            mod_list = cls.get_import_list(tag_mods, tag)
+
+            for mod in mod_list:
+                if not isinstance(mod, Resource):
+                    continue
+
+                resources = Resource._list_resources(mod)
+
+                try:
+                    bucket_mods = buckets[bucket]
+                except KeyError:
+                    buckets[bucket] = OrderedSet(resources)
+                else:
+                    bucket_mods.update(resources)
+
+        for bucket, mods in buckets.items():
+            for mod in mods:
+                if isinstance(mod, bucket.can_contain):
+                    bucket.add(mod)
 
         for bucket in cls._iter_children(include_self=True):
             if bucket.resources:
@@ -181,7 +371,7 @@ class ResourceFSBackend(BaseResourceBackend):
             else:
                 continue
 
-            """LINE [resources.publish] Published
+            """LINE [resource.publish] Published
             bucket.__name__, resource
             """
 

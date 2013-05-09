@@ -83,11 +83,16 @@ class Renderer:
     @classmethod
     def _init(cls):
         from metamagic.utils.lang import javascript
-        with open(os.path.join(os.path.dirname(javascript.__file__), 'sx.js')) as f:
-            scripts = f.read()
+        from metamagic.utils import resource
+        from . import render
 
-        with open(os.path.join(os.path.dirname(__file__), 'render.js')) as f:
-            scripts += ';\n' + f.read()
+        scripts = []
+
+        for res in resource.ResourceBucket.get_import_list((render,)):
+            with open(res.__sx_resource_path__, 'rt') as f:
+                scripts.append(f.read())
+
+        scripts = ';\n'.join(scripts)
 
         import metamagic.rendering.css
         from . import styles

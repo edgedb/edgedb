@@ -66,59 +66,10 @@ class VirtualJavaScriptResource(BaseVirtualJavaScriptResource):
         return source
 
 
-_SX_MODULE_ = '''
-_sx_module = (function(global) {
-    var cbs = {}, loaded = {};
-
-    var module = function(name, code) {
-        var mod = code.call(global, name);
-        if (cbs[name]) {
-            for (var i = 0, c = cbs[name], len = c.length; i < len; i++) {
-                c[i][0].call(c[i][1], name, mod);
-            }
-
-            delete cbs[name];
-        }
-        loaded[name] = mod;
-    };
-
-    module.onload = function(name, cb, scope) {
-        if (loaded.hasOwnProperty(name)) {
-            cb.call(scope || global, name, loaded[name]);
-            return;
-        }
-        if (!cbs[name]) {
-            cbs[name] = [];
-        }
-        cbs[name].push([cb, scope || global]);
-    };
-
-    module.is_loaded = function(name) {
-        return loaded.hasOwnProperty(name);
-    };
-
-    return module;
-})(this);
-''';
-
-_sx_module = BaseVirtualJavaScriptResource(_SX_MODULE_.encode('utf-8'),
-                                           'metamagic.utils.lang.javascript.module')
-
-
-class BaseModuleHook(metaclass=abc.AbstractMeta):
-    pass
-
-
-class ModuleHook(BaseModuleHook):
-    @abc.abstractmethod
-    def __call__(self, module, resource):
-        pass
-
-
-class ModuleAttributeHook(BaseModuleHook):
-    @abc.abstractmethod
-    def __call__(self, module, resource, name, obj):
-        pass
+class JavaScriptRuntimeDerivative(VirtualJavaScriptResource, lang_meta.RuntimeDerivative):
+    def __init__(self, source, name):
+        VirtualJavaScriptResource.__init__(self, source, name)
+        lang_meta.RuntimeDerivative.__init__(self)
 
 
 ParsedImport = collections.namedtuple('ParsedImport', 'name, frm, weak')
@@ -188,12 +139,8 @@ class JavascriptLoader:
     # See "add_import_detect_hook" method for details.
     #
     _cache_magic = CACHE_MAGIC_BASE
-
     _import_detect_hooks = {}
-    _module_hooks = {}
 
-    _module_hooks_cache = set()
-    _module_cache = {}
 
     @classmethod
     def _recalc_magic(cls):
@@ -201,31 +148,14 @@ class JavascriptLoader:
         # which incorporates the CACHE_MAGIC_BASE constant + names of all registered
         # hooks
         #
-        hooks_hames = ', '.join(sorted(itertools.chain(cls._import_detect_hooks.keys(),
-                                                      cls._module_hooks.keys())))
+        hooks_hames = ', '.join(sorted(itertools.chain(cls._import_detect_hooks.keys())))
 
         hash_key = '{};{}'.format(cls.CACHE_MAGIC_BASE, hooks_hames).encode('latin-1')
         cls._cache_magic = zlib.crc32(hash_key)
 
     @classmethod
-    def add_module_hook(cls, hook):
-        if not isinstance(hook, (ModuleHook, ModuleAttributeHook)):
-            raise TypeError('invalid javascript loader hook, instance of ModuleHook '
-                            'or ModuleAttributeHook expected: {}'.format(hook))
-
-        hook_name = cls._get_hook_key(hook)
-
-        if hook_name in cls._module_hooks:
-            # Already registered
-            #
-            return
-
-        cls._module_hooks[hook_name] = hook
-        cls._recalc_magic()
-
-    @classmethod
     def add_import_detect_hook(cls, hook):
-        hook_name = cls._get_hook_key(hook)
+        hook_name = '{}.{}'.format(hook.__class__.__module__, hook.__class__.__name__)
 
         if hook_name in cls._import_detect_hooks:
             # Already registered
@@ -234,91 +164,6 @@ class JavascriptLoader:
 
         cls._import_detect_hooks[hook_name] = hook
         cls._recalc_magic()
-
-    @classmethod
-    def _get_hook_key(cls, hook):
-        return '{}.{}'.format(hook.__class__.__module__, hook.__class__.__name__)
-
-    @classmethod
-    def _add_dep(cls, deps, mod, weak):
-        try:
-            cur = deps[mod]
-        except KeyError:
-            deps[mod] = weak
-        else:
-            if cur and not weak:
-                deps[mod] = False
-
-    @classmethod
-    def run_hooks(cls, mod, parent_resource, parent_weak=False):
-        return cls._run_hooks(mod, parent_resource.__sx_resource_deps__,
-                              parent_weak=parent_weak)
-
-    @classmethod
-    def _run_hooks(cls, mod, resource_deps, parent_weak=False):
-        module_key = mod.__name__
-
-        try:
-            res = cls._module_cache[module_key]
-        except KeyError:
-            res = cls._module_cache[module_key] = VirtualJavaScriptResource(None, mod.__name__)
-            res.__sx_add_required_resource__(_sx_module)
-
-        if hasattr(mod, '__sx_moduleclass__'):
-            for hook in cls._module_hooks.values():
-                if isinstance(hook, ModuleHook):
-                    key = cls._get_hook_key(hook) + module_key
-                    if key not in cls._module_hooks_cache:
-                        cls._module_hooks_cache.add(key)
-                        source = hook(mod, res)
-                        if source:
-                            res.__sx_resource_append_source__(source.encode('utf-8'))
-        else:
-            for attr_name in dir(mod):
-                attr = getattr(mod, attr_name)
-                for hook in cls._module_hooks.values():
-                    if isinstance(hook, ModuleAttributeHook):
-                        if isinstance(attr, type):
-                            if attr.__module__ != module_key:
-                                continue
-                            key = cls._get_hook_key(hook) + module_key + attr.__name__
-                        else:
-                            key = cls._get_hook_key(hook) + module_key + attr_name
-                        if key not in cls._module_hooks_cache:
-                            cls._module_hooks_cache.add(key)
-                            source = hook(mod, res, attr_name, attr)
-                            if source:
-                                res.__sx_resource_append_source__(source.encode('utf-8'))
-
-        if not res.__sx_resource_source_value__:
-            return
-
-        cls._add_dep(resource_deps, res, parent_weak)
-        return res
-
-    @classmethod
-    def _process_imports(cls, module, imports):
-        resource_deps = collections.OrderedDict()
-
-        for imp_name, weak in imports:
-            try:
-                mod = sys.modules[imp_name]
-            except KeyError:
-                # Module was not imported before; import it
-                #
-                mod = importlib.import_module(imp_name)
-
-            if isinstance(mod, resource.Resource):
-                # We're interested in tracking only resources
-                #
-                cls._add_dep(resource_deps, mod, weak)
-            elif cls._module_hooks:
-                # Python module?  YAML module?  Let's try to get some
-                # Resources out of it, if any module hooks registered.
-                #
-                cls._run_hooks(mod, resource_deps, weak)
-
-        return resource_deps
 
     def new_cache(self, modname):
         return ModuleCache(modname, self)
@@ -361,8 +206,8 @@ class Language(lang_meta.Language):
         #
         raw_imports = []
 
-        if len(loader._import_detect_hooks):
-            loader.logger.debug('parsing javascript module: {!r}'.format(modname))
+        #if len(loader._import_detect_hooks):
+        #    loader.logger.debug('import: {}: parsing javascript'.format(modname))
 
         for hook in loader._import_detect_hooks.values():
             hook(loader, modname, raw_imports, source)
@@ -375,6 +220,8 @@ class Language(lang_meta.Language):
         is_package = loader.is_package(modname)
 
         imports = OrderedSet()
+        runtime_imports = OrderedSet()
+
         for imp in raw_imports:
             if imp.frm is None:
                 name = imp.name
@@ -403,28 +250,59 @@ class Language(lang_meta.Language):
 
                 name = imp_package + '.' + imp.frm
 
-            imports.add((name, imp.weak))
+            if imp.weak:
+                runtime_imports.add(name)
+            else:
+                imports.add(name)
 
-        return JavascriptCodeObject(tuple(imports), tuple(i for i, weak in imports if not weak))
+        return JavascriptCodeObject(None, imports=tuple(imports),
+                                          runtime_imports=tuple(runtime_imports))
 
     @classmethod
     def execute_code(cls, code, context):
-        code, imports = code.code, code.imports
-
         modname = context.module.__name__
-        loader = sys.modules[modname].__loader__
+        module = sys.modules[modname]
 
-        resource_deps = loader._process_imports(context.module, code)
+        target_runtimes = cls.get_compatible_runtimes(module)
 
-        attrs = [('__sx_imports__', imports), ('__sx_resource_deps__', resource_deps)]
+        for imp_name in itertools.chain(code.imports, code.runtime_imports):
+            mod = importlib.import_module(imp_name)
+            mod.__loader__.load_module_for_runtimes(imp_name, target_runtimes)
 
-        if '.' in modname:
-            # Link parent package
-            #
-            parent_name = modname.rpartition('.')[0]
-            parent = sys.modules[parent_name]
+        return []
 
-            if isinstance(parent, resource.Resource):
-                attrs.append(('__sx_resource_parent__', parent))
 
-        return attrs
+class JavaScriptRuntime(lang_meta.LanguageRuntime, language=Language, default=True):
+    @classmethod
+    def new_derivative(cls, mod):
+        _sx_module = importlib.import_module('metamagic.utils.lang.javascript.module')
+        res = JavaScriptRuntimeDerivative(None, cls.get_derivative_mod_name(mod))
+        res.__sx_imports__ += (_sx_module.__name__,)
+        return res
+
+    @classmethod
+    def get_adapters(cls, value):
+        for runtime in [r for r in cls.__mro__ if issubclass(r, JavaScriptRuntime)]:
+            adapters = lang_meta.LanguageRuntimeAdapterMeta.get_adapter(value, runtime=runtime)
+            if adapters:
+                return adapters
+
+
+class JavaScriptRuntimeAdapterMeta(lang_meta.LanguageRuntimeAdapterMeta):
+    def __new__(mcls, name, bases, clsdict, *, runtime=JavaScriptRuntime, adapts=None, pure=True,
+                                                                                       **kwargs):
+        return super().__new__(mcls, name, bases, clsdict, runtime=runtime, adapts=adapts,
+                                                                            pure=pure, **kwargs)
+
+    def __init__(cls, name, bases, clsdict, *, runtime=JavaScriptRuntime, adapts=None, pure=True,
+                                                                                       **kwargs):
+        return super().__init__(name, bases, clsdict, runtime=runtime, adapts=adapts, pure=pure,
+                                                                                      **kwargs)
+
+
+class JavaScriptRuntimeAdapter(metaclass=JavaScriptRuntimeAdapterMeta):
+    def __init__(self, module, derivative, attr_name=None, attr_value=None):
+        self.module = module
+        self.derivative = derivative
+        self.attr_name = attr_name
+        self.attr_value = attr_value
