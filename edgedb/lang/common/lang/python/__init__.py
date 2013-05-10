@@ -87,11 +87,8 @@ class Loader(imploader.LoaderCommon, _SourceFileLoader, imploader.SourceLoader,
         mod = sys.modules[fullname]
 
         imports = self._imports.get(fullname, ())
-
-        try:
-            mod.__sx_imports__ = imports
-        except AttributeError:
-            pass
+        mod.__sx_imports__ = imports
+        mod.__language__ = self._language
 
         modtags = self.get_modtags(fullname)
         if modtags:
