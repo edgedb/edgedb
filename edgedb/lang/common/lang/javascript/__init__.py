@@ -254,6 +254,7 @@ class Language(lang_meta.Language):
                 runtime_imports.add(name)
             else:
                 imports.add(name)
+                mm = importlib.import_module(name)
 
         return JavascriptCodeObject(None, imports=tuple(imports),
                                           runtime_imports=tuple(runtime_imports))
@@ -265,7 +266,7 @@ class Language(lang_meta.Language):
 
         target_runtimes = cls.get_compatible_runtimes(module)
 
-        for imp_name in itertools.chain(code.imports, code.runtime_imports):
+        for imp_name in code.imports:
             mod = importlib.import_module(imp_name)
             mod.__loader__.load_module_for_runtimes(imp_name, target_runtimes)
 

@@ -8,6 +8,7 @@
 
 import hashlib
 import itertools
+import importlib
 import gzip
 import os
 import logging
@@ -137,16 +138,17 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
             if visited_previously:
                 return
 
-            # Then the module itself and its soft dependencies
-            yield mod
-            yield from _collect_soft_deps(mod, runtimes, visited, level)
+            if not only_self:
+                # Then the module itself and its soft dependencies
+                yield mod
+                yield from _collect_soft_deps(mod, runtimes, visited, level)
 
         def _collect_soft_deps(mod, runtimes, visited, level):
             # Then push soft dependencies into the import list
             runtime_imports = getattr(mod, '__mm_runtime_imports__', None)
             if runtime_imports:
                 for imname in runtime_imports:
-                    ri = sys.modules[imname]
+                    ri = importlib.import_module(imname)
                     import_list.add(ri)
 
             # Then module derivatives
