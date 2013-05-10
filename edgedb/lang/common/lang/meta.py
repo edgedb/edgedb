@@ -112,7 +112,7 @@ class Language(metaclass=LanguageMeta, register=False):
         return runtimes
 
     @classmethod
-    def get_compatible_runtimes(cls, module, tags=None):
+    def get_compatible_runtimes(cls, module, tags=None, consider_derivatives=False):
         if module.__language__ is not cls:
             raise ValueError('{} language is not {}'.format(module, cls))
 
@@ -131,6 +131,10 @@ class Language(metaclass=LanguageMeta, register=False):
             default_runtime = LanguageRuntimeMeta.get_default_runtime(cls)
             if default_runtime:
                 runtimes.add(default_runtime)
+
+        if consider_derivatives:
+            derivatives = getattr(module, '__mm_runtime_derivatives__', {})
+            runtimes.update(derivatives.keys())
 
         return runtimes
 

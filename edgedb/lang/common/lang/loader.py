@@ -17,6 +17,7 @@ from metamagic.utils.lang.import_ import loader
 from metamagic.utils.lang.import_ import module as module_types
 
 from .context import DocumentContext
+from . import exceptions as lang_errors
 
 
 class LanguageCodeObject:
@@ -119,6 +120,30 @@ class LanguageLoader(LanguageLoaderBase):
     def get_proxy_module_class(self):
         return self._language.proxy_module_cls
 
+    def check_runtime_compatibility(cls, module1, module2):
+        lang1 = getattr(module1, '__language__', None)
+
+        if lang1:
+            runtimes1 = lang1.get_compatible_runtimes(module1, consider_derivatives=True)
+        else:
+            runtimes1 = set()
+
+        lang2 = getattr(module2, '__language__', None)
+        if lang2:
+            runtimes2 = lang2.get_compatible_runtimes(module2, consider_derivatives=True)
+        else:
+            runtimes2 = set()
+
+        if not runtimes1:
+            return True
+
+        runtimes2 = {c for r2 in runtimes2 for c in r2.__mro__ if not getattr(c, 'abstract', False)}
+
+        # For each runtime of module1 there exists at least one subclass in runtimes of module2,
+        # or vice-versa
+        return all({c for c in r1.__mro__ if not getattr(c, 'abstract', False)} & runtimes2
+                                                                                for r1 in runtimes1)
+
     def code_from_source(self, modname, source_bytes, *, cache=None):
         filename = self.get_filename(modname)
         if self.is_package(modname):
@@ -131,8 +156,42 @@ class LanguageLoader(LanguageLoaderBase):
         modinfo = module_types.ModuleInfo(name=modname, package=package, path=path, file=filename)
         context = DocumentContext(module=modinfo, import_context=modname)
 
+        module = sys.modules[modname]
+
         stream = io.BytesIO(source_bytes)
         code = self._language.load_code(stream, context=context)
+        self.update_module_attributes_from_code(module, code)
+
+        runtimes = module.__language__.get_compatible_runtimes(module, consider_derivatives=True)
+
+        if runtimes:
+            for impmodname in code.imports:
+                try:
+                    impmod = sys.modules[impmodname]
+                except KeyError:
+                    # Lazy import
+                    continue
+
+                impmod.__loader__.load_module_for_runtimes(impmodname, runtimes)
+
+                if not self.check_runtime_compatibility(module, impmod):
+                    msg = '{} cannot import {}: they are not runtime compatible' \
+                                        .format(module.__name__, impmod.__name__)
+
+                    impruntimes = impmod.__language__.get_compatible_runtimes(impmod,
+                                                                        consider_derivatives=True)
+
+                    details = 'Module {} runtimes: {}\nModule {} runtimes: {}'.\
+                                format(modname,
+                                       ', '.join(str(r) for r in runtimes) or '<none>',
+                                       impmodname,
+                                       ', '.join(str(r) for r in impruntimes) or '<none>')
+
+                    hint = ('Ensure that the importing module is tagged properly and that the '
+                            'imported module is capable of being executed in every runtime '
+                            'of the importing module; add runtime adapters where necessary.')
+
+                    raise lang_errors.LanguageError(msg, details=details, hint=hint)
 
         if isinstance(code, LanguageCodeObject) and cache is not None:
             cache.metainfo.update_from_code(code)
