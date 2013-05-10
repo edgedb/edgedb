@@ -92,7 +92,7 @@ class SourceContext(object):
         for part in parts[1:]:
             try:
                 obj = getattr(obj, part)
-            except KeyError:
+            except AttributeError:
                 raise UnresolvedError('unable to resolve {!r} name'.format(name),
                                       context=self) from None
 
