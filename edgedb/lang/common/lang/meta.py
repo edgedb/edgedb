@@ -60,7 +60,6 @@ class Language(metaclass=LanguageMeta, register=False):
     loader = LanguageSourceFileLoader
     file_extensions = ()
     proxy_module_cls = None
-    default_runtime = None
 
     @classmethod
     def recognize_file(cls, filename, try_append_extension=False, is_package=False):
@@ -173,34 +172,41 @@ class LanguageRuntimeMeta(type):
     runtimes = {}
     default_runtimes = {}
 
-    def __new__(mcls, name, bases, dct, *, language=None, register=True, default=False):
+    def __new__(mcls, name, bases, dct, *, languages=None, abstract=False, default=False):
         runtime = super().__new__(mcls, name, bases, dct)
         runtime._name_suffix = mcls._get_runtime_name_suffix(runtime)
         runtime._modcache = set()
 
-        if register and language is not None:
-            try:
-                runtimes_for_lang = mcls.runtimes[language]
-            except KeyError:
-                runtimes_for_lang = mcls.runtimes[language] = []
+        if languages is not None and not isinstance(languages, (tuple, list, set)):
+            languages = [languages]
+
+        if not abstract and languages:
+            for language in languages:
+                try:
+                    runtimes_for_lang = mcls.runtimes[language]
+                except KeyError:
+                    runtimes_for_lang = mcls.runtimes[language] = []
 
             runtimes_for_lang.append(runtime)
 
-        if default and language is not None:
-            try:
-                ex_def_runtime = mcls.default_runtimes[language]
-            except KeyError:
-                mcls.default_runtimes[language] = runtime
-            else:
-                ex_runtime_name = '{}.{}'.format(ex_def_runtime.__module__,
-                                                 ex_default_runtime.__name__)
-                lang_name = '{}.{}'.format(language.__module__, language.__name__)
-                msg = '"{}" has already been registered as a default runtime for "{}"'
-                raise RuntimeError(msg.format(ex_runtime_name, lang_name))
+        runtime.abstract = abstract
+
+        if default and languages:
+            for language in languages:
+                try:
+                    ex_def_runtime = mcls.default_runtimes[language]
+                except KeyError:
+                    mcls.default_runtimes[language] = runtime
+                else:
+                    ex_runtime_name = '{}.{}'.format(ex_def_runtime.__module__,
+                                                     ex_default_runtime.__name__)
+                    lang_name = '{}.{}'.format(language.__module__, language.__name__)
+                    msg = '"{}" has already been registered as a default runtime for "{}"'
+                    raise RuntimeError(msg.format(ex_runtime_name, lang_name))
 
         return runtime
 
-    def __init__(cls, name, bases, dct, *, language=None, register=True, default=False):
+    def __init__(cls, name, bases, dct, *, languages=None, abstract=False, default=False):
         super().__init__(name, bases, dct)
 
     @classmethod
@@ -215,11 +221,12 @@ class LanguageRuntimeMeta(type):
         return '{}_{}'.format(name_hash, cls.__name__)
 
 
-class LanguageRuntime(metaclass=LanguageRuntimeMeta, register=False):
+class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
     logger = logging.getLogger('metamagic.lang.runtime')
+    registered = False
 
     @classmethod
-    def load_module(cls, module, loader):
+    def new_derivative(cls, mod):
         raise NotImplementedError
 
     @classmethod
@@ -236,15 +243,18 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, register=False):
         try:
             derivative = derivatives[cls]
         except KeyError:
-            derivative = cls.new_derivative(module)
-
-            # Copy over parent's module tags and resource parent link so that the
-            # derivative is published properly.
-            #
             try:
-                derivative.__mm_module_tags__ = frozenset(module.__mm_module_tags__)
-            except AttributeError:
-                pass
+                derivative = cls.new_derivative(module)
+            except NotImplementedError:
+                derivative = None
+            else:
+                # Copy over parent's module tags and resource parent link so that the
+                # derivative is published properly.
+                #
+                try:
+                    derivative.__mm_module_tags__ = frozenset(module.__mm_module_tags__)
+                except AttributeError:
+                    pass
 
         return derivative
 
@@ -286,6 +296,9 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, register=False):
 
         derivative = cls.obtain_derivative(module)
 
+        if derivative is None:
+            return
+
         new_code_counter = 0
 
         mod_adapters = cls.get_adapters(module)
@@ -305,6 +318,7 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, register=False):
                     continue
 
                 adapters = cls.get_adapters(attr)
+
                 if adapters:
                     for adapter in adapters:
                         if attr.__module__ != module.__name__:

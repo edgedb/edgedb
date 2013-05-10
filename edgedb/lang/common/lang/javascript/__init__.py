@@ -272,7 +272,7 @@ class Language(lang_meta.Language):
         return []
 
 
-class JavaScriptRuntime(lang_meta.LanguageRuntime, language=Language, default=True):
+class JavaScriptRuntime(lang_meta.LanguageRuntime, languages=Language, default=True):
     @classmethod
     def new_derivative(cls, mod):
         _sx_module = importlib.import_module('metamagic.utils.lang.javascript.module')
