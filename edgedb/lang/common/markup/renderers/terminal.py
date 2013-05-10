@@ -256,8 +256,9 @@ class DocRenderer(BaseRenderer):
         self.buffer.write(element.text)
 
     def _render_doc_Section(self, element):
-        self.buffer.write(self._render_header(element.title), style=self.styles.header1)
-        self.buffer.new_line(2)
+        if element.title:
+            self.buffer.write(self._render_header(element.title), style=self.styles.header1)
+            self.buffer.new_line(2)
 
         for el in element.body:
             self._render(el)

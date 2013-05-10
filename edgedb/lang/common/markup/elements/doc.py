@@ -17,7 +17,7 @@ class DocMarkup(base.Markup, ns='doc'):
 
 
 class Section(DocMarkup):
-    title = Field(str, coerce=True)
+    title = Field(str, coerce=True, default=None)
     body = Field(base.MarkupList, coerce=True)
     collapsed = Field(bool, coerce=True, default=False)
 

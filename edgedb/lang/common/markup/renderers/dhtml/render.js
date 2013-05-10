@@ -81,21 +81,28 @@ sx.Markup.Renderer.prototype = {
     'doc.Section': function(o) {
         this.section_depth++;
 
-        var body = [], i;
+        var body = [], i, obj;
 
         for (i = 0; i < o.body.length; i++) {
             body.push(this._render(o.body[i]));
         }
 
-        var obj = this._render_collapsible({
-            cls: 'doc-section doc-level-' + this.section_depth,
+        if (o.title) {
+            obj = this._render_collapsible({
+                cls: 'doc-section doc-level-' + this.section_depth,
 
-            label: o.title,
-            label_cls: 'doc-section-title',
-            collapsed: o.collapsed || this.section_depth > 2,
+                label: o.title,
+                label_cls: 'doc-section-title',
+                collapsed: o.collapsed || this.section_depth > 2,
 
-            body: {tag: 'div', cls: 'doc-section-body', children: body}
-        });
+                body: {tag: 'div', cls: 'doc-section-body', children: body}
+            });
+        } else {
+            obj = {
+                cls: 'doc-section doc-level-' + this.section_depth,
+                children: [{tag: 'div', cls: 'doc-section-body', children: body}]
+            };
+        }
 
         this.section_depth--;
         return obj;

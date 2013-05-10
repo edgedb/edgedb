@@ -232,10 +232,12 @@ def serialize_default_exception_context(obj, *, ctx):
     body = []
 
     if obj.details:
-        body.append(elements.doc.Text(text='Details: {}'.format(obj.details)))
+        txt = elements.doc.Text(text='Details: {}'.format(obj.details))
+        body.append(elements.doc.Section(body=[txt]))
 
     if obj.hint:
-        body.append(elements.doc.Text(text='Hint: {}'.format(obj.hint)))
+        txt = elements.doc.Text(text='Hint: {}'.format(obj.hint))
+        body.append(elements.doc.Section(body=[txt]))
 
     return elements.lang.ExceptionContext(title=obj.title, body=body)
 
