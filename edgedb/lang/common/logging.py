@@ -17,34 +17,61 @@ from metamagic.bootstrap import MetamagicLogHandler as BootstrapLogHandler
 from metamagic.utils import config, term
 
 
+class Dark16:
+    error = term.Style16(color='white', bgcolor='red')
+    default = term.Style16(color='white', bgcolor='blue')
+    pid = date = term.Style16(color='black', bold=True)
+    message = term.Style16()
+
+
+class Dark256:
+    error = term.Style256(color='#c6c6c6', bgcolor='#870000')
+    warning = term.Style256(color='#c6c6c6', bgcolor='#5f00d7')
+    info = term.Style256(color='#c6c6c6', bgcolor='#005f00')
+    default = term.Style256(color='#c6c6c6', bgcolor='#000087')
+    pid = date = term.Style256(color='#626262', bold=True)
+    message = term.Style16()
+
+
 class MetamagicLogHandler(BootstrapLogHandler, metaclass=config.ConfigurableMeta):
     _enabled = config.cvalue(True, type=bool)
 
-    _style_error = term.Style16(color='white', bgcolor='red')
-    _style_warning = term.Style256(color='white', bgcolor='#d84903')
-    _style_other = term.Style16(color='white', bgcolor='blue')
-
     dump_exceptions = config.cvalue(True, type=bool)
 
-    def emit(self, record):
-        dt = datetime.datetime.fromtimestamp(record.created)
-        str_dt = '@{}@'.format(dt)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.__styles = None
 
-        if self._enabled:
+    def _init_styles(self):
+        if not self.__styles:
             if term.use_colors():
-                style = self._style_other
-                level = record.levelname
-                if level == 'ERROR':
-                    style = self._style_error
-                elif level == 'WARNING' and term.max_colors() >= 255:
-                    style = self._style_warning
-
-                print(style.apply(level), os.getpid(), str_dt, record.getMessage())
+                if term.max_colors() >= 255:
+                    self.__styles = Dark256()
+                else:
+                    self.__styles = Dark16()
             else:
-                print(record.levelname, os.getpid(), str_dt, record.getMessage())
+                self.__styles = NoStyle()
 
-            if record.exc_info and self.dump_exceptions:
-                sys.excepthook(*record.exc_info)
+    def emit(self, record):
+        if not self._enabled:
+            return
+
+        self._init_styles()
+
+        dt = datetime.datetime.fromtimestamp(record.created)
+        str_dt = dt.strftime('%Y-%m-%d %H:%M:%S')
+
+        if term.use_colors():
+            level = record.levelname
+            print(getattr(self.__styles, level.lower(), self.__styles.default).apply(level),
+                  self.__styles.pid.apply(str(os.getpid())),
+                  self.__styles.date.apply(str_dt),
+                  self.__styles.message.apply(record.getMessage()))
+        else:
+            print(record.levelname, os.getpid(), str_dt, record.getMessage())
+
+        if record.exc_info and self.dump_exceptions:
+            sys.excepthook(*record.exc_info)
 
 
 if BootstrapLogHandler._installed:
