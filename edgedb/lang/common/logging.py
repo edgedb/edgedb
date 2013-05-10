@@ -21,6 +21,7 @@ class MetamagicLogHandler(BootstrapLogHandler, metaclass=config.ConfigurableMeta
     _enabled = config.cvalue(True, type=bool)
 
     _style_error = term.Style16(color='white', bgcolor='red')
+    _style_warning = term.Style256(color='white', bgcolor='#d84903')
     _style_other = term.Style16(color='white', bgcolor='blue')
 
     dump_exceptions = config.cvalue(True, type=bool)
@@ -35,6 +36,8 @@ class MetamagicLogHandler(BootstrapLogHandler, metaclass=config.ConfigurableMeta
                 level = record.levelname
                 if level == 'ERROR':
                     style = self._style_error
+                elif level == 'WARNING' and term.max_colors() >= 255:
+                    style = self._style_warning
 
                 print(style.apply(level), os.getpid(), str_dt, record.getMessage())
             else:
