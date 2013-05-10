@@ -19,7 +19,7 @@ from metamagic.node import Node
 from metamagic.utils import config, fs, debug
 from metamagic.utils.datastructures import OrderedSet
 
-from .resource import Resource, VirtualFile, AbstractFileSystemResource
+from .resource import Resource, VirtualFile, AbstractFileSystemResource, AbstractFileResource
 from .exceptions import ResourceError
 
 
@@ -385,11 +385,17 @@ class ResourceFSBackend(BaseResourceBackend):
             # buckets, and hence published many times.
             #
             pub_path = os.path.join(bucket_pub_path, resource.__sx_resource_get_public_path__())
+
+            if isinstance(resource, AbstractFileResource):
+                cache = resource.__sx_resource_get_cache_tag__()
+                if cache:
+                    pub_path += '?_cache={}'.format(cache)
+
             setattr(resource, bucket_id, pub_path)
 
             bucket.published.add(resource)
 
-    def _fix_css_links(self, source, bucket_path, *, rx=re.compile('///([^/]+)///')):
+    def _fix_css_links(self, source, bucket_pub_path, *, rx=re.compile('///([^/]+)///')):
         # XXX
         #
         # This method patches links to media resources.
@@ -406,7 +412,7 @@ class ResourceFSBackend(BaseResourceBackend):
         # NOTE: In case of refactoring, please update links to this comment
         # in "rendering.media" and this module.
         def cb(m):
-            return os.path.join(bucket_path, m.group(1))
+            return os.path.join(bucket_pub_path, m.group(1))
         return rx.sub(cb, source)
 
     def _publish_fs_resource(self, bucket_path, bucket_pub_path, resource):

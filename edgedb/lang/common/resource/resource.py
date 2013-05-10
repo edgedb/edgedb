@@ -84,7 +84,8 @@ class AbstractFileResource(Resource):
     def __sx_resource_get_public_path__(self):
         return self.__sx_resource_public_path_value__
 
-    __sx_resource_public_path__ = property(__sx_resource_get_public_path__)
+    def __sx_resource_get_cache_tag__(self):
+        return
 
 
 class VirtualFile(AbstractFileResource):
