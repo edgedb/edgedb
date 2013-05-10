@@ -108,7 +108,7 @@ class VirtualFile(AbstractFileResource):
         src = self.__sx_resource_source_value__
         if not src:
             raise ResourceError('no source for {} resource {}'.
-                                format(type(self).__name__, self.__sx_resource_public_path__))
+                                format(type(self).__name__, self.__sx_resource_get_public_path__()))
         return src
 
 

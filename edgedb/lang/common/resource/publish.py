@@ -384,7 +384,7 @@ class ResourceFSBackend(BaseResourceBackend):
             # hence, be published only once.  But resources may belong to many
             # buckets, and hence published many times.
             #
-            pub_path = os.path.join(bucket_pub_path, resource.__sx_resource_public_path__)
+            pub_path = os.path.join(bucket_pub_path, resource.__sx_resource_get_public_path__())
             setattr(resource, bucket_id, pub_path)
 
             bucket.published.add(resource)
@@ -411,7 +411,7 @@ class ResourceFSBackend(BaseResourceBackend):
 
     def _publish_fs_resource(self, bucket_path, bucket_pub_path, resource):
         src_path = resource.__sx_resource_path__
-        dest_path = os.path.join(bucket_path, resource.__sx_resource_public_path__)
+        dest_path = os.path.join(bucket_path, resource.__sx_resource_get_public_path__())
 
         if os.path.exists(dest_path):
             if os.path.islink(dest_path):
@@ -435,7 +435,7 @@ class ResourceFSBackend(BaseResourceBackend):
         os.symlink(src_path, dest_path)
 
     def _publish_virtual_resource(self, bucket_path, bucket_pub_path, resource):
-        dest_path = os.path.join(bucket_path, resource.__sx_resource_public_path__)
+        dest_path = os.path.join(bucket_path, resource.__sx_resource_get_public_path__())
 
         if os.path.exists(dest_path):
             os.remove(dest_path)
@@ -516,7 +516,7 @@ class OptimizedFSBackend(ResourceFSBackend):
                     continue
 
                 # Read XXX comment in "ResourceFSBackend._publish_bucket"
-                pub_path = os.path.join(bucket_pub_path, res.__sx_resource_public_path__)
+                pub_path = os.path.join(bucket_pub_path, res.__sx_resource_get_public_path__())
                 setattr(res, bucket_id, pub_path)
                 bucket.published.append(res)
 
@@ -575,7 +575,7 @@ class OptimizedFSBackend(ResourceFSBackend):
 
             result = mod_cls(output.encode('utf-8'), compiled_name,
                              '{}.{}?_cache={}'.format(compiled_name, type, hash))
-            pub_path = os.path.join(bucket_pub_path, result.__sx_resource_public_path__)
+            pub_path = os.path.join(bucket_pub_path, result.__sx_resource_get_public_path__())
             setattr(result, bucket_id, pub_path)
             bucket.published.append(result)
 
