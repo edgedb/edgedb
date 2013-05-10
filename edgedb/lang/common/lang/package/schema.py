@@ -16,7 +16,11 @@ from . import _schema
 __all__ = ('Package',)
 
 
+class PackageModule(LazyImportsModule):
+    pass
+
+
 class Package(_schema.Package, LazyImportsSchema):
     @classmethod
     def get_module_class(cls):
-        return LazyImportsModule
+        return PackageModule

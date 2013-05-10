@@ -7,3 +7,4 @@
 
 
 from .tag import ModuleTag
+from .schema import PackageModule
