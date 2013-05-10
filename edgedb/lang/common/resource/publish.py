@@ -19,6 +19,7 @@ import re
 from metamagic.node import Node
 from metamagic.utils import config, fs, debug
 from metamagic.utils.datastructures import OrderedSet
+from metamagic.utils.lang import package as lang_package
 
 from .resource import Resource, VirtualFile, AbstractFileSystemResource, AbstractFileResource
 from .exceptions import ResourceError
@@ -88,7 +89,7 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
 
         import_list = OrderedSet(roots)
 
-        def collect(mod, runtimes, *, visited, level, from_import_of=None):
+        def collect(mod, runtimes, *, visited, level, from_import_of=None, only_self=False):
             mod_name = mod.__name__
 
             visited_previously = mod_name in visited
@@ -117,11 +118,17 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
                         """
                         yield from collect(package, runtimes, visited=visited, from_import_of=mod,
                                                                                level=level+1)
+                    elif isinstance(package, lang_package.PackageModule):
+                        """LOG [resource.collect.tree]
+                        print('  ' * (level + 1), '--- __init__ (pkg) ---')
+                        """
+                        yield from collect(package, runtimes, visited=visited, from_import_of=mod,
+                                                              level=level+1, only_self=True)
 
             # Put hard dependencies first
             imports = getattr(mod, '__sx_imports__', None)
 
-            if imports:
+            if imports and not only_self:
                 """LOG [resource.collect.tree]
                 print('  ' * (level + 1), '--- imports ---')
                 """
@@ -300,6 +307,13 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
             # at segregate the modules into buckets.
             #
             mod_list = cls.get_import_list(tag_mods, tag)
+
+            """LOG [resource.collect.tree]
+            print('{} --------------------'.format(tag))
+            import metamagic.utils.markup
+            metamagic.utils.markup.dump(mod_list, trim=False)
+            print('-----------------------------------')
+            """
 
             for mod in mod_list:
                 if not isinstance(mod, Resource):
