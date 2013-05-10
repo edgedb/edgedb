@@ -30,8 +30,10 @@ class SourceErrorContext(markup.MarkupExceptionContext):
 
 
 class LanguageError(exceptions.MetamagicError):
-    def __init__(self, msg, *, context=None, **kwargs):
-        super().__init__(msg, **kwargs)
+    def __init__(self, msg, *, context=None, hint=None, **kwargs):
+        if not hint and context:
+            hint = 'Fix the {!r} module (line: ~{})'.format(context.name, context.start.line)
+        super().__init__(msg, hint=hint, **kwargs)
         exceptions._add_context(self, SourceErrorContext(source_context=context))
 
 
