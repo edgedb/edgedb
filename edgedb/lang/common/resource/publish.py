@@ -47,7 +47,7 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
     def url(cls, resource):
         try:
             return getattr(resource, cls.id.hex)
-        except KeyError:
+        except AttributeError:
             raise ResourceBucketError('unable to provide a url for an unpublished resource {!r}'.
                                       format(resource)) from None
 
