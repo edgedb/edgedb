@@ -206,8 +206,7 @@ class Language(lang_meta.Language):
         #
         raw_imports = []
 
-        #if len(loader._import_detect_hooks):
-        #    loader.logger.debug('import: {}: parsing javascript'.format(modname))
+        loader.logger.debug('import: {}: parsing javascript'.format(modname))
 
         for hook in loader._import_detect_hooks.values():
             hook(loader, modname, raw_imports, source)
