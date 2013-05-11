@@ -274,6 +274,9 @@ def assert_logs(message_re, *, logger_re=None):
     '''
 
     logger = logging.getLogger()
+    logger_level = logger.level
+    logger.setLevel(logging.DEBUG)
+
     handler = _LoggingAssertHandler(level=logging.DEBUG)
     logger.addHandler(handler)
 
@@ -287,6 +290,7 @@ def assert_logs(message_re, *, logger_re=None):
             yield
     finally:
         logger.removeHandler(handler)
+        logger.setLevel(logger_level)
 
         for record in handler.buffer:
             if msg_re.search(record.msg):
