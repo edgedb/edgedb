@@ -6,10 +6,12 @@
 ##
 
 
+import contextlib
 import datetime
 import logging
 import os
 import sys
+import time
 
 from logging import *
 
@@ -72,6 +74,23 @@ class MetamagicLogHandler(BootstrapLogHandler, metaclass=config.ConfigurableMeta
 
         if record.exc_info and self.dump_exceptions:
             sys.excepthook(*record.exc_info)
+
+
+@contextlib.contextmanager
+def log_time(logger, msg, *, level=logging.DEBUG, **kwargs):
+    """
+    Use 'log_time' to time and log about some process:
+
+    .. code-block:: python
+
+        with log_time(my_logger, 'took {time.3f} seconds', level=logging.INFO):
+            ...
+    """
+    started = time.time()
+    try:
+        yield
+    finally:
+        logger.log(level, msg.format(time=time.time() - started), **kwargs)
 
 
 if BootstrapLogHandler._installed:
