@@ -227,7 +227,7 @@ class LanguageRuntimeMeta(type):
 
 class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
     logger = logging.getLogger('metamagic.lang.runtime')
-    registered = False
+    compatible_runtimes = ()
 
     @classmethod
     def new_derivative(cls, mod):

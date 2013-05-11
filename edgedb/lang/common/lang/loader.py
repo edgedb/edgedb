@@ -139,6 +139,10 @@ class LanguageLoader(LanguageLoaderBase):
 
         runtimes2 = {c for r2 in runtimes2 for c in r2.__mro__ if not getattr(c, 'abstract', False)}
 
+        if not runtimes2 and all(None in r1.compatible_runtimes for r1 in runtimes1):
+            # All runtimes of module1 are explicitly compatible with default runtime
+            return True
+
         # For each runtime of module1 there exists at least one subclass in runtimes of module2,
         # or vice-versa
         return all({c for c in r1.__mro__ if not getattr(c, 'abstract', False)} & runtimes2
