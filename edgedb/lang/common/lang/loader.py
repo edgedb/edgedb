@@ -101,11 +101,20 @@ class LanguageLoaderBase:
         except KeyError:
             mod = importlib.import_module(modname)
 
-        for runtime in runtimes:
-            runtime.load_module(mod, loader=self)
+        try:
+            loaded_runtimes = mod.__mm_loaded_runtimes__
+        except AttributeError:
+            loaded_runtimes = mod.__mm_loaded_runtimes__ = set()
 
-        for dep in getattr(mod, '__sx_imports__', ()):
-            self.load_module_for_runtimes(dep, runtimes)
+        runtimes_to_load = set(runtimes) - loaded_runtimes
+
+        if runtimes_to_load:
+            for runtime in runtimes:
+                runtime.load_module(mod, loader=self)
+                loaded_runtimes.add(runtime)
+
+            for dep in getattr(mod, '__sx_imports__', ()):
+                self.load_module_for_runtimes(dep, runtimes)
 
 
 class LanguageLoader(LanguageLoaderBase):
