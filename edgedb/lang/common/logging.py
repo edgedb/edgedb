@@ -46,24 +46,21 @@ class MetamagicLogHandler(BootstrapLogHandler, metaclass=config.ConfigurableMeta
 
     def _init_styles(self):
         if not self.__styles:
-            if term.use_colors():
-                if term.max_colors() >= 255:
-                    self.__styles = Dark256()
-                else:
-                    self.__styles = Dark16()
+            if term.max_colors() >= 255:
+                self.__styles = Dark256()
             else:
-                self.__styles = NoStyle()
+                self.__styles = Dark16()
 
     def emit(self, record):
         if not self._enabled:
             return
 
-        self._init_styles()
-
         dt = datetime.datetime.fromtimestamp(record.created)
         str_dt = dt.strftime('%Y-%m-%d %H:%M:%S')
 
         if term.use_colors():
+            self._init_styles()
+
             level = record.levelname
             print(getattr(self.__styles, level.lower(), self.__styles.default).apply(level),
                   self.__styles.pid.apply(str(os.getpid())),
