@@ -6,6 +6,8 @@
 ##
 
 
+import inspect
+
 from .cvalue import cvalue, _no_default
 
 
@@ -43,22 +45,17 @@ class Configurable(metaclass=ConfigurableMeta):
             # cvalues are configurable this way.
 
             cls = self.__class__
-            dct = cls.__dict__
             to_pop = []
 
             base_name = '{}.{}'.format(cls.__module__, cls.__name__)
 
             for name, value in kwargs.items():
-                try:
-                    dct_val = dct[name]
-                except KeyError:
-                    continue
-                else:
-                    if isinstance(dct_val, cvalue):
-                        fullname = '{}.{}'.format(base_name, name)
-                        dct_val._validate(value, fullname)
-                        setattr(self, name, value)
-                        to_pop.append(name)
+                cval = inspect.getattr_static(cls, name, None)
+                if isinstance(cval, cvalue):
+                    fullname = '{}.{}'.format(base_name, name)
+                    cval._validate(value, fullname)
+                    setattr(self, name, value)
+                    to_pop.append(name)
 
             for name in to_pop:
                 kwargs.pop(name)
