@@ -230,9 +230,7 @@ class SourceLoader:
         return self.code_from_source(modname, source_bytes)
 
     def _get_code(self, module):
-        code = self.get_code(module.__name__)
-        self.update_module_attributes_from_code(module, code)
-        return code
+        return self.get_code(module.__name__)
 
     def modver_from_path_stats(self, path_stats):
         return int(path_stats['mtime'])
