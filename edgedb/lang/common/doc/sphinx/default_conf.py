@@ -24,5 +24,5 @@ pygments_style = 'sphinx'
 html_theme = 'default'
 
 html_static_path = ['_static']
-intersphinx_mapping = {'python': ('http://docs.python.org/3.2', None)}
+intersphinx_mapping = {'python': ('http://docs.python.org/3.3', None)}
 autoclass_content = 'both'
