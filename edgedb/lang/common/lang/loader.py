@@ -127,7 +127,7 @@ class LanguageLoader(LanguageLoaderBase):
         return LangModuleCache(modname, self)
 
     def get_proxy_module_class(self):
-        return self._language.proxy_module_cls
+        return self._language.get_proxy_module_cls()
 
     def check_runtime_compatibility(cls, module1, module2):
         lang1 = getattr(module1, '__language__', None)

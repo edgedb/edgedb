@@ -59,7 +59,10 @@ class LanguageMeta(type):
 class Language(metaclass=LanguageMeta, register=False):
     loader = LanguageSourceFileLoader
     file_extensions = ()
-    proxy_module_cls = None
+
+    @classmethod
+    def get_proxy_module_cls(cls):
+        return None
 
     @classmethod
     def recognize_file(cls, filename, try_append_extension=False, is_package=False):
