@@ -8,7 +8,7 @@
 
 import argparse
 import os
-import imp
+import importlib
 import inspect
 
 from metamagic.utils import shell
@@ -36,7 +36,7 @@ class RunCommand(shell.Command, name='run', expose=True):
             raise ValueError('path not found: %r' % path)
 
         mod_name = os.path.splitext(os.path.split(path)[-1])[0]
-        mod = imp.load_source(mod_name, path)
+        mod = importlib.machinery.SourceFileLoader(mod_name, path).load_module()
 
         try:
             callable = getattr(mod, args.callable)
