@@ -14,11 +14,10 @@ from types import MethodType as _method
 from functools import partial
 
 from metamagic.exceptions import MetamagicError
-from .signature import signature as _signature
 
 
 __all__ = ('get_argsspec', 'apply_decorator', 'decorate', 'isdecorated',
-           'Decorator', 'BaseDecorator', 'NonDecoratable', 'get_signature',
+           'Decorator', 'BaseDecorator', 'NonDecoratable', 'render_signature_args',
            'unwrap', 'hybridmethod', 'cachedproperty', 'in_class', 'get_safe_attrname')
 
 
@@ -41,25 +40,6 @@ def in_class():
         del frame
 
     return False
-
-
-def get_signature(func):
-    try:
-        return func.__signature__
-    except AttributeError:
-        pass
-
-    try:
-        while func.__wrapped__:
-            func = func.__wrapped__
-            try:
-                return func.__signature__
-            except AttributeError:
-                pass
-    except AttributeError:
-        pass
-
-    return _signature(func)
 
 
 WRAPPER_ASSIGNMENTS = {'__module__', '__name__', '__doc__', '__annotations__'}
@@ -315,3 +295,38 @@ def get_safe_attrname(name, reserved):
     while name in reserved:
         name += '_'
     return name
+
+
+def render_signature_args(signature, *, for_apply=False):
+    result = []
+
+    def render_arg(arg):
+        if for_apply:
+            return '{}={}'.format(arg.name, arg.name)
+
+        if arg.default is not arg.empty:
+            return '{}={!r}'.format(arg.name, arg.default)
+
+        return arg.name
+
+    render_kw_sep = not for_apply
+    for arg in signature.parameters.values():
+        if arg.kind == arg.POSITIONAL_OR_KEYWORD:
+            result.append(render_arg(arg))
+
+        elif arg.kind == arg.VAR_POSITIONAL:
+            result.append('*{}'.format(arg.name))
+            render_kw_sep = False
+
+        elif arg.kind == arg.KEYWORD_ONLY:
+            if render_kw_sep:
+                result.append('*')
+                render_kw_sep = False
+
+            result.append(render_arg(arg))
+
+        elif arg.kind == arg.VAR_KEYWORD:
+            result.append('**{}'.format(arg.name))
+
+    return ', '.join(result)
+

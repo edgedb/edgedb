@@ -9,8 +9,8 @@
 import argparse
 import os
 import imp
+import inspect
 
-from metamagic.utils.functional import get_signature
 from metamagic.utils import shell
 
 
@@ -56,28 +56,25 @@ class RunCommand(shell.Command, name='run', expose=True):
         self.app_kwargs = args
 
     def _build_callable_args_subparser(self, callable):
-        sig = get_signature(callable)
+        sig = inspect.signature(callable)
 
         parser = argparse.ArgumentParser(usage='{!r} callable accepts following arguments: {}'.\
-                                               format(callable.__name__, sig.render_args()))
-        for arg in sig.kwonlyargs:
+                                               format(callable.__name__, sig))
+
+        kwonly = [param for param in sig.parameters.values() if param.kind == param.KEYWORD_ONLY]
+
+        for param in kwonly:
             kwargs = {}
-            name = '--{}'.format(arg.name)
+            name = '--{}'.format(param.name)
             type_ = None
             default = None
 
-            try:
-                type_ = arg.annotation
-            except AttributeError:
-                pass
-            else:
+            type_ = param.annotation
+            if type_ is not param.empty:
                 kwargs['type'] = type_
 
-            try:
-                default = arg.default
-            except AttributeError:
-                pass
-            else:
+            default = param.default
+            if default is not param.empty:
                 kwargs['default'] = default
 
             if type_ is bool and default is False:
