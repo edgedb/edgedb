@@ -6,6 +6,8 @@
 ##
 
 
+__mm_track_dependencies__ = True
+
 import uuid
 
 from metamagic.utils import buckets as base_buckets

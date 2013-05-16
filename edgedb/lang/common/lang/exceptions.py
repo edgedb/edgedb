@@ -39,3 +39,7 @@ class LanguageError(exceptions.MetamagicError):
 
 class UnresolvedError(LanguageError):
     pass
+
+
+class DefinitionError(LanguageError):
+    pass

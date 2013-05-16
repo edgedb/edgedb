@@ -38,18 +38,12 @@ class FileFinder(machinery.FileFinder):
 
     @classmethod
     def update_loaders(cls, finder, loader_details, replace=False):
-        if replace:
-            loaders = []
+        loaders = []
 
-            for loader, suffixes in loader_details:
-                loaders.extend((s, loader) for s in suffixes)
+        for loader, suffixes in loader_details:
+            loaders.extend((s, loader) for s in suffixes)
 
-            finder._loaders[:] = loaders
-        else:
-            for loader, suffixes in loader_details:
-                for suffix in suffixes:
-                    if (suffix, loader) not in finder._loaders:
-                        finder._loaders.append((suffix, loader))
+        finder._loaders[:] = loaders
 
         finder.invalidate_caches()
 

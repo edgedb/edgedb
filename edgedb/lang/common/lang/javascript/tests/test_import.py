@@ -14,7 +14,7 @@ import logging
 
 from metamagic.utils.lang import javascript
 from metamagic.utils.debug import debug_logger_off
-from metamagic.utils import resource
+from metamagic.node.targets import Target
 
 
 def no_jsc_cache(func):
@@ -76,7 +76,7 @@ class TestUtilsLangJSImport:
         with debug_logger_off():
             from metamagic.utils.lang.javascript.tests.testimport import foo
 
-        mods = resource.ResourceBucket.get_import_list((foo,))
+        mods = Target.get_import_list((foo,))
         mods = [m.__name__ for m in mods]
 
         assert mods == ['metamagic.utils.lang.javascript.tests.testimport.outer',

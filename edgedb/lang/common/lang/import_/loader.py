@@ -252,7 +252,8 @@ class SourceLoader:
 
         return modver
 
-    def is_deptracked(self, modname):
+    @classmethod
+    def is_deptracked(cls, modname):
         steps = modname.split('.')
 
         for i in range(len(steps), 0, -1):

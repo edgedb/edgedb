@@ -19,6 +19,7 @@ import zlib
 from metamagic.utils.datastructures import OrderedSet
 from metamagic.utils import resource, abc
 from metamagic.utils.lang import meta as lang_meta, loader as lang_loader
+from metamagic.utils.lang import runtimes as lang_runtimes
 from metamagic.utils.lang.import_ import module, loader, utils as imp_utils
 
 
@@ -66,10 +67,15 @@ class VirtualJavaScriptResource(BaseVirtualJavaScriptResource):
         return source
 
 
-class JavaScriptRuntimeDerivative(VirtualJavaScriptResource, lang_meta.RuntimeDerivative):
+class JavaScriptRuntimeDerivative(VirtualJavaScriptResource, lang_runtimes.RuntimeDerivative):
     def __init__(self, source, name):
         VirtualJavaScriptResource.__init__(self, source, name)
-        lang_meta.RuntimeDerivative.__init__(self)
+        lang_runtimes.RuntimeDerivative.__init__(self, name)
+
+
+class JavaScriptDynamicRuntimeDerivative(JavaScriptRuntimeDerivative,
+                                         lang_runtimes.DynamicallyGeneratedDerivative):
+    pass
 
 
 ParsedImport = collections.namedtuple('ParsedImport', 'name, frm, weak')
@@ -260,35 +266,22 @@ class Language(lang_meta.Language):
 
     @classmethod
     def execute_code(cls, code, context):
-        modname = context.module.__name__
-        module = sys.modules[modname]
-
-        target_runtimes = cls.get_compatible_runtimes(module)
-
-        for imp_name in code.imports:
-            mod = importlib.import_module(imp_name)
-            mod.__loader__.load_module_for_runtimes(imp_name, target_runtimes)
-
         return []
 
 
-class JavaScriptRuntime(lang_meta.LanguageRuntime, languages=Language, default=True):
+class JavaScriptRuntime(lang_runtimes.LanguageRuntime, languages=Language, default=True):
     @classmethod
     def new_derivative(cls, mod):
-        _sx_module = importlib.import_module('metamagic.utils.lang.javascript.module')
         res = JavaScriptRuntimeDerivative(None, cls.get_derivative_mod_name(mod))
-        res.__sx_imports__ += (_sx_module.__name__,)
+        res.__language__ = Language
         return res
 
-    @classmethod
-    def get_adapters(cls, value):
-        for runtime in [r for r in cls.__mro__ if issubclass(r, JavaScriptRuntime)]:
-            adapters = lang_meta.LanguageRuntimeAdapterMeta.get_adapter(value, runtime=runtime)
-            if adapters:
-                return adapters
+
+class JavaScriptWebRuntime(JavaScriptRuntime, lang_runtimes.WebRuntime):
+    pass
 
 
-class JavaScriptRuntimeAdapterMeta(lang_meta.LanguageRuntimeAdapterMeta):
+class JavaScriptRuntimeAdapterMeta(lang_runtimes.LanguageRuntimeAdapterMeta):
     def __new__(mcls, name, bases, clsdict, *, runtime=JavaScriptRuntime, adapts=None, pure=True,
                                                                                        **kwargs):
         return super().__new__(mcls, name, bases, clsdict, runtime=runtime, adapts=adapts,
@@ -300,9 +293,10 @@ class JavaScriptRuntimeAdapterMeta(lang_meta.LanguageRuntimeAdapterMeta):
                                                                                       **kwargs)
 
 
-class JavaScriptRuntimeAdapter(metaclass=JavaScriptRuntimeAdapterMeta):
-    def __init__(self, module, derivative, attr_name=None, attr_value=None):
-        self.module = module
-        self.derivative = derivative
-        self.attr_name = attr_name
-        self.attr_value = attr_value
+class JavaScriptRuntimeAdapter(lang_runtimes.LanguageRuntimeAdapter,
+                               metaclass=JavaScriptRuntimeAdapterMeta):
+    def get_dependencies(self):
+        deps = super().get_dependencies()
+        deps.add(importlib.import_module('metamagic.utils.lang.javascript.module'))
+        return deps
+

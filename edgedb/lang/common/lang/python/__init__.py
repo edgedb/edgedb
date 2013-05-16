@@ -15,10 +15,12 @@ except ImportError:
     from importlib._bootstrap import SourceFileLoader as _SourceFileLoader
 
 from metamagic.utils.lang import meta as lang_meta, loader as lang_loader
+from metamagic.utils.lang import runtimes as lang_runtimes
 from metamagic.utils.lang.import_ import utils as imputils
 from metamagic.utils.lang.import_ import loader as imploader
 from . import ast
 from . import utils as pyutils
+from ..import_ import cache as caches
 
 
 class LangModuleCache(lang_loader.LangModuleCache):
@@ -86,9 +88,27 @@ class Loader(imploader.LoaderCommon, _SourceFileLoader, imploader.SourceLoader,
         _SourceFileLoader.load_module(self, fullname)
         mod = sys.modules[fullname]
 
-        imports = self._imports.get(fullname, ())
-        mod.__sx_imports__ = imports
-        mod.__language__ = self._language
+        try:
+            track_policy = mod.__mm_track_dependencies__
+        except AttributeError:
+            tracked = self.is_deptracked(fullname)
+        else:
+            caches.deptracked_modules[mod.__name__] = track_policy
+            tracked = track_policy
+
+        try:
+            module_class = mod.__sx_moduleclass__
+        except AttributeError:
+            pass
+        else:
+            _module = module_class(mod.__name__)
+            _module.__dict__.update(mod.__dict__)
+            mod = _module
+            sys.modules[fullname] = mod
+
+        if tracked:
+            mod.__sx_imports__ = self._imports.get(fullname) or ()
+            mod.__language__ = self._language
 
         modtags = self.get_modtags(fullname)
         if modtags:
@@ -100,3 +120,7 @@ class Loader(imploader.LoaderCommon, _SourceFileLoader, imploader.SourceLoader,
 class Language(lang_meta.Language):
     file_extensions = ('py',)
     loader = Loader
+
+
+class PythonRuntime(lang_runtimes.LanguageRuntime, languages=Language, default=True):
+    pass

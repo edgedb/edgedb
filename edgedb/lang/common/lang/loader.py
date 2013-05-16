@@ -18,6 +18,7 @@ from metamagic.utils.lang.import_ import module as module_types
 
 from .context import DocumentContext
 from . import exceptions as lang_errors
+from . import runtimes as lang_runtimes
 
 
 class LanguageCodeObject:
@@ -94,27 +95,7 @@ class LangModuleCache(loader.ModuleCache):
 
 
 class LanguageLoaderBase:
-    def load_module_for_runtimes(self, modname, runtimes):
-        # Make sure the module is imported regularly first
-        try:
-            mod = sys.modules[modname]
-        except KeyError:
-            mod = importlib.import_module(modname)
-
-        try:
-            loaded_runtimes = mod.__mm_loaded_runtimes__
-        except AttributeError:
-            loaded_runtimes = mod.__mm_loaded_runtimes__ = set()
-
-        runtimes_to_load = set(runtimes) - loaded_runtimes
-
-        if runtimes_to_load:
-            for runtime in runtimes:
-                runtime.load_module(mod, loader=self)
-                loaded_runtimes.add(runtime)
-
-            for dep in getattr(mod, '__sx_imports__', ()):
-                self.load_module_for_runtimes(dep, runtimes)
+    pass
 
 
 class LanguageLoader(LanguageLoaderBase):
@@ -130,32 +111,9 @@ class LanguageLoader(LanguageLoaderBase):
         return self._language.get_proxy_module_cls()
 
     def check_runtime_compatibility(cls, module1, module2):
-        lang1 = getattr(module1, '__language__', None)
-
-        if lang1:
-            runtimes1 = lang1.get_compatible_runtimes(module1, consider_derivatives=True)
-        else:
-            runtimes1 = set()
-
-        lang2 = getattr(module2, '__language__', None)
-        if lang2:
-            runtimes2 = lang2.get_compatible_runtimes(module2, consider_derivatives=True)
-        else:
-            runtimes2 = set()
-
-        if not runtimes1:
-            return True
-
-        runtimes2 = {c for r2 in runtimes2 for c in r2.__mro__ if not getattr(c, 'abstract', False)}
-
-        if not runtimes2 and all(None in r1.compatible_runtimes for r1 in runtimes1):
-            # All runtimes of module1 are explicitly compatible with default runtime
-            return True
-
-        # For each runtime of module1 there exists at least one subclass in runtimes of module2,
-        # or vice-versa
-        return all({c for c in r1.__mro__ if not getattr(c, 'abstract', False)} & runtimes2
-                                                                                for r1 in runtimes1)
+        runtimes1 = lang_runtimes.get_compatible_runtimes(module1, consider_derivatives=True)
+        runtimes2 = lang_runtimes.get_compatible_runtimes(module2, consider_derivatives=True)
+        return lang_runtimes.runtimes_compatible(runtimes1, runtimes2)
 
     def code_from_source(self, modname, source_bytes, *, cache=None):
         filename = self.get_filename(modname)
@@ -175,7 +133,7 @@ class LanguageLoader(LanguageLoaderBase):
         code = self._language.load_code(stream, context=context)
         self.update_module_attributes_from_code(module, code)
 
-        runtimes = module.__language__.get_compatible_runtimes(module, consider_derivatives=True)
+        runtimes = lang_runtimes.get_compatible_runtimes(module, consider_derivatives=True)
 
         if runtimes:
             for impmodname in code.imports:
@@ -185,13 +143,13 @@ class LanguageLoader(LanguageLoaderBase):
                     # Lazy import
                     continue
 
-                impmod.__loader__.load_module_for_runtimes(impmodname, runtimes)
+                lang_runtimes.load_module_for_runtimes(impmodname, runtimes)
 
                 if not self.check_runtime_compatibility(module, impmod):
                     msg = '{} cannot import {}: they are not runtime compatible' \
                                         .format(module.__name__, impmod.__name__)
 
-                    impruntimes = impmod.__language__.get_compatible_runtimes(impmod,
+                    impruntimes = lang_runtimes.get_compatible_runtimes(impmod,
                                                                         consider_derivatives=True)
 
                     details = 'Module {} runtimes: {}\nModule {} runtimes: {}'.\
@@ -295,6 +253,14 @@ class LanguageLoader(LanguageLoaderBase):
             setattr(module, attribute_name, attribute_value)
 
     def execute_module_code(self, module, code):
+        imports = getattr(code, 'imports', None)
+        if imports:
+            runtimes = lang_runtimes.get_compatible_runtimes(module)
+
+            if runtimes:
+                for impname in imports:
+                    lang_runtimes.load_module_for_runtimes(impname, runtimes)
+
         self._execute(module, code, 'execute_code')
 
     def execute_module(self, module):

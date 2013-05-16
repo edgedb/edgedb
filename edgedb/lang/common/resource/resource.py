@@ -76,6 +76,10 @@ class ResourceContainer(Resource):
     pass
 
 
+class EmptyResource(Resource):
+    pass
+
+
 class AbstractFileResource(Resource):
     def __init__(self, public_path):
         super().__init__()

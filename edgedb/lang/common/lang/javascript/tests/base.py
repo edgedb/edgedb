@@ -14,6 +14,7 @@ import importlib
 
 from metamagic.utils.datastructures import OrderedSet
 from metamagic.utils import debug, functional, config, markup, resource
+from metamagic.node.targets import Target
 from metamagic.utils.lang import loader as lang_loader
 from metamagic import json
 import metamagic.utils.lang.javascript.parser.jsparser as jsp
@@ -114,7 +115,7 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
         with debug.debug_logger_off():
             module = loader.load_module(modname)
 
-        deps = resource.ResourceBucket.get_import_list((module,))
+        deps = Target.get_import_list((module,))
         deps.discard(module)
         return source, deps
 
