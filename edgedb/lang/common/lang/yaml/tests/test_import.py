@@ -7,7 +7,7 @@
 
 
 import importlib
-import py.test
+import pytest
 
 from metamagic.utils.debug import assert_raises
 from metamagic.utils.lang import context as lang_context
@@ -37,7 +37,7 @@ class TestLangImport(object):
         with assert_raises(yaml_errors.YAMLCompositionError, error_re=err):
             importlib.import_module(modname)
 
-    @py.test.mark.xfail
+    @pytest.mark.xfail
     def test_utils_lang_yaml_ambiguous_import(self):
         with assert_raises(ImportError):
             from metamagic.utils.lang.yaml.tests.testdata.ambig import test

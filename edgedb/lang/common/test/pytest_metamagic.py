@@ -6,7 +6,7 @@
 ##
 
 
-import py
+import pytest
 import re
 
 from metamagic.utils.debug import highlight
@@ -237,7 +237,7 @@ def pytest_pycollect_makeitem(__multicall__, collector, name, obj):
     if isinstance(item, list):
         item = item[0]
 
-    if isinstance(item, py.test.collect.Function):
+    if isinstance(item, pytest.collect.Function):
         func = item.obj
         name = func.__name__
 
@@ -253,7 +253,7 @@ def pytest_pycollect_makeitem(__multicall__, collector, name, obj):
 
                 if p.match(name):
                     func = getattr(func, '__func__', func)
-                    setattr(func, 'testmask', py.test.mark.Marker('testmask'))
+                    setattr(func, 'testmask', pytest.mark.Marker('testmask'))
                     if hasattr(item, 'keywords'):
                         item.keywords['testmask'] = True
                     break

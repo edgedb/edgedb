@@ -7,7 +7,7 @@
 
 
 import os
-import py.test
+import pytest
 
 from metamagic.utils.debug import assert_raises
 
@@ -20,7 +20,7 @@ else:
 
 
 class TestUtilsFileMagic:
-    @py.test.mark.skipif(_SKIP_MAGIC)
+    @pytest.mark.skipif(_SKIP_MAGIC)
     def test_utils_filemagic_mime(self):
         items = {
             'pdf_test': 'application/pdf',

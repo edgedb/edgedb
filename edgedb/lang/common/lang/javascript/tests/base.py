@@ -9,7 +9,7 @@
 import re
 import subprocess
 import tempfile
-import py.test
+import pytest
 import importlib
 
 from metamagic.utils.datastructures import OrderedSet
@@ -192,7 +192,7 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
             if not doc or not doc.startswith('{}\n'.format(mcls.doc_prefix)):
                 continue
 
-            dct[meth_name] = py.test.mark.skipif(str(mcls.skipif))(mcls.make_test(meth, doc))
+            dct[meth_name] = pytest.mark.skipif(str(mcls.skipif))(mcls.make_test(meth, doc))
 
         cls = super().__new__(mcls, name, bases, dct)
 
@@ -231,7 +231,7 @@ class JSFunctionalTest(metaclass=JSFunctionalTestMeta):
     def run_js_test(self, source, data=None):
         mcls = type(type(self))
         if getattr(mcls, 'skipif', False):
-            py.test.skip("no js backend")
+            pytest.skip("no js backend")
         mcls.do_test(source, data=data)
 
 
@@ -272,7 +272,7 @@ class MetaJSParserTest_Base(type, metaclass=config.ConfigurableMeta):
                 else:
                     dct[testname] = lambda self, src=testfunc.__doc__, flags=flags: \
                                                                     cls.do_test(src, flags)
-                    dct[testname] = py.test.mark.skipif('%s' % cls.skipif)(dct[testname])
+                    dct[testname] = pytest.mark.skipif('%s' % cls.skipif)(dct[testname])
 
                 dct[testname].__name__ = testname
 

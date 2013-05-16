@@ -9,6 +9,7 @@
 import sys
 
 import py
+import pytest
 from metamagic.utils import shell, term
 from metamagic.utils.test import Exceptions as ExceptionConfig
 
@@ -83,4 +84,4 @@ class TestCommand(shell.Command, name='test', expose=True):
 
         test_args.append('--traceback-style=%s' % args.traceback_style)
 
-        return py.test.cmdline.main(test_args)
+        return pytest.cmdline.main(test_args)

@@ -6,7 +6,7 @@
 ##
 
 
-import py
+import pytest
 from metamagic.utils.lang.yaml import validator
 from metamagic.utils.lang.yaml.validator.tests.base import SchemaTest, raises, result
 

@@ -6,7 +6,7 @@
 ##
 
 
-import py
+import pytest
 from metamagic.utils.debug import assert_raises
 
 from metamagic.utils.algos.packing.rectangles import *
