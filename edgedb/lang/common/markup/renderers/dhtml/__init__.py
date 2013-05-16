@@ -96,7 +96,7 @@ class Renderer:
 
         import metamagic.rendering.css
         from . import styles
-        rendered_styles = styles.__sx_resource_get_source__().decode('utf-8')
+        rendered_styles = styles.__sx_css_source__
 
         cls.TPL_START = _HTML_TPL_START.format(styles=rendered_styles, scripts=scripts)
 
