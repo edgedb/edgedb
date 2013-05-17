@@ -20,6 +20,7 @@ from metamagic.utils import buckets as base_buckets, config, abc
 from metamagic.spin.protocols.http import types as http_types
 from metamagic.spin.core import _coroutine
 from metamagic.spin import abstractcoroutine
+from metamagic import node
 
 from .exceptions import FSError
 
@@ -37,7 +38,9 @@ class BaseFSBackend(Backend):
                                      doc='whether to create the "path" directory '
                                          'if it missing or not')
 
-    umask = config.cvalue(0o002, type='int', doc='umask with wich files will be stored')
+    umask = config.cvalue(None, type=int,
+                          doc='umask with wich files will be stored. If unset then umask config '
+                              'from default node or metamagic.node.Node will be used')
 
     def __init__(self, *, path, **kwargs):
         """
@@ -47,6 +50,10 @@ class BaseFSBackend(Backend):
         """
 
         super().__init__(**kwargs)
+
+        if self.umask is None:
+            node_cls = node.Node.default_cls or node.Node
+            self.umask = node_cls.umask
 
         self.path = os.path.abspath(path)
 
