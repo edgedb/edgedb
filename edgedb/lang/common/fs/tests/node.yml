@@ -8,10 +8,11 @@
 %schema metamagic.node.schema.Node
 %from metamagic.utils.fs.nodesystem.schema import fs
 %from metamagic.utils.fs import Bucket, backends
+%from .bucket import TestBucket
 ---
 
 !fs FS:
-    Bucket:
+    TestBucket:
         backends:
             - backends.FSBackend:
                 args:

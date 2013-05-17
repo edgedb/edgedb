@@ -61,6 +61,10 @@ class BaseFSBackend(Backend):
 class FSBackend(BaseFSBackend):
     _re_escape = re.compile(r'[^\w\-\._]')
 
+    # Don't change this constant, as FS in all existing project will need to be
+    # converted
+    _FN_LEN_LIMIT = 75
+
     def __init__(self, *args, pub_path, **kwargs):
         super().__init__(*args, **kwargs)
         self.pub_path = pub_path
@@ -71,15 +75,25 @@ class FSBackend(BaseFSBackend):
     def _get_base_name(self, bucket, id, filename):
         assert isinstance(id, uuid.UUID)
 
-        if bucket.id:
-            base = str(bucket.id)
-        else:
-            base = '{bucket_module}.{bucket_name}'.format(bucket_module=bucket.__module__,
-                                                          bucket_name=bucket.__name__)
+        base = str(bucket.id)
 
         new_id = base64.b32encode(hashlib.md5(id.bytes).digest()).decode('ascii')
 
-        return os.path.join(base, new_id[:2], new_id[2:4], id.hex + '_' + filename)
+        base_filename = id.hex + '_'
+        filename = base_filename + filename
+
+        if len(filename) > self._FN_LEN_LIMIT:
+            if '.' in filename:
+                extension = filename.rpartition('.')[2]
+                limit = self._FN_LEN_LIMIT - len(extension) - 1
+                if limit <= 0:
+                    filename = filename[:self._FN_LEN_LIMIT]
+                else:
+                    filename = filename[:limit] + '.' + extension
+            else:
+                filename = filename[:self._FN_LEN_LIMIT]
+
+        return os.path.join(base, new_id[:2], new_id[2:4], filename)
 
     def _get_path(self, bucket, id, filename, allow_rewrite):
         base = self._get_base_name(bucket, id, self.escape_filename(filename))
