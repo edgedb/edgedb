@@ -132,15 +132,8 @@ class Session(session.Session):
             if not concept_name:
                 return None
             concept = self.schema.get(concept_name)
-        else:
-            concept_name = concept.__sx_prototype__.name
 
-        links = self.backend.load_entity(concept_name, id, session=self)
-
-        if not links:
-            return None
-
-        return self._load(id, concept, links)
+        return concept.get(concept.id == id)
 
     def sequence_next(self, seqcls):
         return self.backend.sequence_next(seqcls)
