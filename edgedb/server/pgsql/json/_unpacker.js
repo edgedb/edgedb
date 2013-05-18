@@ -16,7 +16,7 @@ sx.types.register('pgjson.', function(format, data, metadata) {
     var format_string = format[0], format_version = format[1];
     var FREEFORM_RECORD_ID = '6e51108d-7440-47f7-8c65-dc4d43fd90d2';
     var supported_formats = ['pgjson.caos.selector', 'pgjson.caos.queryselector',
-                             'pgjson.caos.entity'];
+                             'pgjson.caos.entity', 'pgjson.caos'];
     var hop = {}.constructor.prototype.hasOwnProperty;
 
     var _throw = function(msg) {
@@ -38,9 +38,11 @@ sx.types.register('pgjson.', function(format, data, metadata) {
     var result = [];
     var record_info = {};
 
-    for (var i = 0; i < metadata.record_info.length; i++) {
-        var ri = metadata.record_info[i];
-        record_info[ri.id] = ri;
+    if (metadata) {
+        for (var i = 0; i < metadata.record_info.length; i++) {
+            var ri = metadata.record_info[i];
+            record_info[ri.id] = ri;
+        }
     }
 
     var _decode_record_tree = function(tree, connecting_attribute) {
@@ -173,27 +175,32 @@ sx.types.register('pgjson.', function(format, data, metadata) {
                 result.push(item_val);
             }
         } else if (!rec_info) {
-            for (k in record) {
-                if (!hop.call(record, k)) {
-                    continue;
+            if (format_string == 'pgjson.caos') {
+                // Raw SQL result
+                result = record;
+            } else {
+                for (k in record) {
+                    if (!hop.call(record, k)) {
+                        continue;
+                    }
+                    v = record[k];
+
+                    item_key = v.f1;
+
+                    if (!item_key) {
+                        _throw('missing record item name');
+                    }
+
+                    item_val = v.f2;
+
+                    if (item_val && hop.call(item_val, 'f1')) {
+                        item_val = _decode_record(item_val);
+                    } else if (sx.is_array(item_val)) {
+                        item_val = _decode_sequence(item_val);
+                    }
+
+                    result[item_key] = item_val;
                 }
-                v = record[k];
-
-                item_key = v.f1;
-
-                if (!item_key) {
-                    _throw('missing record item name');
-                }
-
-                item_val = v.f2;
-
-                if (item_val && hop.call(item_val, 'f1')) {
-                    item_val = _decode_record(item_val);
-                } else if (sx.is_array(item_val)) {
-                    item_val = _decode_sequence(item_val);
-                }
-
-                result[item_key] = item_val;
             }
         } else {
             if (rec_info.recursive_link) {
