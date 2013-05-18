@@ -306,7 +306,7 @@ class OptimizedFSBackend(ResourceFSBackend):
 
     def _publish_bucket(self, bucket, resources, bucket_id, bucket_path, bucket_pub_path):
         from metamagic.utils.lang.javascript import BaseJavaScriptModule, CompiledJavascriptModule
-        from metamagic.rendering.css import BaseCSSModule, CompiledCSSModule
+        from metamagic.rendering.css import BaseCSSModule, CompiledCSSModule, CSSMixinDerivative
 
         compressor_path = self.yui_compressor_path
         if compressor_path is None or self.yui_compressor_jar is not None:
@@ -325,7 +325,8 @@ class OptimizedFSBackend(ResourceFSBackend):
                 js_deps.add(res)
 
             elif isinstance(res, BaseCSSModule):
-                css_deps.add(res)
+                if not isinstance(res, CSSMixinDerivative):
+                    css_deps.add(res)
 
             else:
                 if isinstance(res, AbstractFileSystemResource):
