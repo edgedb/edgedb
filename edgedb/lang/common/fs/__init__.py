@@ -16,3 +16,6 @@ __all__ = 'Bucket', 'backends', 'FSError'
 
 from .implementation import DefaultImplementation
 BaseBucket.set_implementation(DefaultImplementation)
+
+# Register JS hook
+from .frontends import javascript
