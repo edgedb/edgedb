@@ -6,24 +6,23 @@
 ##
 
 
+import collections
+
 from metamagic import node
 
 
 class FSSystem(node.System):
-    class_buckets = None
+    def __init__(self):
+        self.buckets = collections.OrderedDict()
+
+    def add_bucket(self, bucket_cls, backends):
+        self.buckets[bucket_cls] = backends
 
     def configure(self):
-        assert self.class_buckets
-
-        for bucket_cls, backend_classes in self.class_buckets.items():
-            #backends = [ctr.cls(**(ctr.args or {})) for ctr in backend_classes]
-            backends = []
-            for ctr in backend_classes:
-                backends.append(ctr.cls(**(ctr.args or {})))
-
+        for bucket_cls, backends in self.buckets.items():
             bucket_cls.set_backends(*backends)
             bucket_cls.configure()
 
     def build(self):
-        for bucket_cls in self.class_buckets.keys():
+        for bucket_cls in self.buckets.keys():
             bucket_cls.build()
