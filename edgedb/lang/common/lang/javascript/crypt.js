@@ -6,7 +6,7 @@
 **/
 
 
-// %from . import sx
+// %from . import sx, byteutils
 
 
 sx.crypt = (function() {
@@ -40,7 +40,7 @@ sx.crypt = (function() {
             }
 
             if (sx.is_string(msg)) {
-                msg = sx.str.to_bytes(msg);
+                msg = sx.byteutils.to_bytes(msg);
             }
 
             var h0 = 0x67452301,
@@ -162,7 +162,7 @@ sx.crypt = (function() {
             }
 
             if (sx.is_string(msg)) {
-                msg = sx.str.to_bytes(msg);
+                msg = sx.byteutils.to_bytes(msg);
             }
 
             var a0 = 0x67452301,

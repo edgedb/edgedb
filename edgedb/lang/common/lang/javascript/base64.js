@@ -6,7 +6,7 @@
 **/
 
 
-// %from . import sx
+// %from . import sx, byteutils
 
 
 sx.base64 = (function() {
@@ -23,7 +23,7 @@ sx.base64 = (function() {
 
         return function b32encode(msg) {
             if (sx.is_string(msg)) {
-                msg = sx.str.to_bytes(msg);
+                msg = sx.byteutils.to_bytes(msg);
             }
 
             var len = msg.length,

@@ -532,17 +532,3 @@ class TestJSsx(JSFunctionalTest):
         a2.sort();
         assert.equal(a1, a2);
         '''
-
-    def test_utils_lang_js_sx_str_to_bytes(self):
-        '''JS
-        // %from metamagic.utils.lang.javascript import sx
-
-        var str = 'Δ, Й, ק, م, ๗, あ, 叶, 葉, and 말';
-        assert.equal(sx.str.to_bytes(str), [206, 148, 44, 32, 208, 153, 44, 32, 215, 167, 44,
-                                            32, 217, 133, 44, 32, 224, 185, 151, 44, 32, 227,
-                                            129, 130, 44, 32, 229, 143, 182, 44, 32, 232, 145,
-                                            137, 44, 32, 97, 110, 100, 32, 235, 167, 144]);
-
-        str = 'abcd';
-        assert.equal(sx.str.to_bytes(str), [97, 98, 99, 100]);
-        '''
