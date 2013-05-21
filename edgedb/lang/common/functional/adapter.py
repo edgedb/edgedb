@@ -12,6 +12,7 @@ class AdapterError(Exception):
 
 class Adapter(type):
     adapters = {}
+    instance_adapters = {}
 
     def __new__(mcls, name, bases, clsdict, *, adapts=None, adapts_instances_of=None, pure=False,
                                                             adapterargs=None, **kwargs):
@@ -20,12 +21,17 @@ class Adapter(type):
             msg = 'adapter class: adapts and adapts_instances_of args are mutually exclusive'
             raise AdapterError(msg)
 
-        if adapts_instances_of is not None:
-            pure = True
-            adapts = adapts_instances_of
+        collection = None
 
         if adapts is not None and not pure:
             bases = bases + (adapts,)
+
+        if adapts_instances_of is not None:
+            pure = True
+            adapts = adapts_instances_of
+            collection = Adapter.instance_adapters
+        else:
+            collection = Adapter.adapters
 
         result = super().__new__(mcls, name, bases, clsdict, **kwargs)
         if adapts is not None:
@@ -34,14 +40,13 @@ class Adapter(type):
             registry_key = mcls.get_registry_key(adapterargs)
 
             try:
-                adapters = Adapter.adapters[registry_key]
+                adapters = collection[registry_key]
             except KeyError:
-                adapters = Adapter.adapters[registry_key] = {}
+                adapters = collection[registry_key] = {}
 
-            mcls.register_adapter(adapters, adapts, adapts_instances_of is not None, result)
+            mcls.register_adapter(adapters, adapts, result)
 
         result.__sx_adaptee__ = adapts
-
         return result
 
     def __init__(cls, name, bases, clsdict, *, adapts=None, adapts_instances_of=None, pure=False,
@@ -49,45 +54,57 @@ class Adapter(type):
         super().__init__(name, bases, clsdict, **kwargs)
 
     @classmethod
-    def register_adapter(mcls, registry, adaptee, adapting_instances, adapter):
-        assert (adaptee, adapting_instances) not in registry
-        registry[(adaptee, adapting_instances)] = adapter
+    def register_adapter(mcls, registry, adaptee, adapter):
+        assert adaptee not in registry
+        registry[adaptee] = adapter
 
     @classmethod
-    def match_adapter(mcls, obj, adaptee, adapting_instances, adapter):
-        if adapting_instances:
-            if isinstance(obj, adaptee):
-                return adapter
-        elif isinstance(obj, type):
-            if issubclass(obj, adapter) and obj is not adapter:
-                return obj
-            elif issubclass(obj, adaptee):
-                return adapter
+    def match_adapter(mcls, obj, adaptee, adapter):
+        if issubclass(obj, adapter) and obj is not adapter:
+            return obj
+        elif issubclass(obj, adaptee):
+            return adapter
 
     @classmethod
-    def get_adapter(mcls, cls, **kwargs):
-        for mc in [mcls] + mcls.__subclasses__(mcls):
-            registry_key = mc.get_registry_key(kwargs)
-            adapters = Adapter.adapters.get(registry_key)
+    def _get_adapter(mcls, obj, reversed_mro, collection, kwargs):
+        registry_key = mcls.get_registry_key(kwargs)
 
-            if adapters is not None:
-                for (adaptee, adapting_instances), adapter in adapters.items():
-                    if adapting_instances:
-                        result = mcls.match_adapter(cls, adaptee, adapting_instances, adapter)
-                        if result is not None:
-                            return result
-                    else:
-                        mro = getattr(cls, '__mro__', (cls,))
+        adapters = collection.get(registry_key)
+        if adapters is None:
+            return
 
-                        for c in mro:
-                            result = mcls.match_adapter(c, adaptee, adapting_instances, adapter)
-                            if result is not None:
-                                return result
+        result = None
+        seen = set()
+        for base in reversed_mro:
+            for adaptee, adapter in adapters.items():
+                found = mcls.match_adapter(base, adaptee, adapter)
 
-            elif mc is not mcls:
-                adapter = mc.get_adapter(cls, **kwargs)
-                if adapter:
-                    return adapter
+                if found and found not in seen:
+                    result = found
+                    seen.add(found)
+
+        if result is not None:
+            return result
+
+    @classmethod
+    def get_adapter(mcls, obj, **kwargs):
+        if isinstance(obj, type):
+            collection = Adapter.adapters
+            mro = obj.__mro__
+        else:
+            collection = Adapter.instance_adapters
+            mro = type(obj).__mro__
+
+        reversed_mro = tuple(reversed(mro))
+
+        result = mcls._get_adapter(obj, reversed_mro, collection, kwargs)
+        if result is not None:
+            return result
+
+        for mc in mcls.__subclasses__(mcls):
+            result = mc._get_adapter(obj, reversed_mro, collection, kwargs)
+            if result is not None:
+                return result
 
     @classmethod
     def adapt(mcls, obj):
@@ -113,19 +130,15 @@ class Adapter(type):
 
 class MultiAdapter(Adapter):
     @classmethod
-    def register_adapter(mcls, registry, adaptee, adapting_instances, adapter):
+    def register_adapter(mcls, registry, adaptee, adapter):
         try:
-            registry[adaptee, adapting_instances] += (adapter,)
+            registry[adaptee] += (adapter,)
         except KeyError:
-            registry[adaptee, adapting_instances] = (adapter,)
+            registry[adaptee] = (adapter,)
 
     @classmethod
-    def match_adapter(mcls, obj, adaptee, adapting_instances, adapter):
-        if adapting_instances:
-            if isinstance(obj, adaptee):
-                return adapter
-        elif isinstance(obj, type):
-            if issubclass(obj, adapter) and obj not in adapter:
-                return (obj,)
-            elif issubclass(obj, adaptee):
-                return adapter
+    def match_adapter(mcls, obj, adaptee, adapter):
+        if issubclass(obj, adapter) and obj not in adapter:
+            return (obj,)
+        elif issubclass(obj, adaptee):
+            return adapter
