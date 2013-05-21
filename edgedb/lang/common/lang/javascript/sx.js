@@ -545,15 +545,6 @@
             }
         })(),
 
-        uuid4: function() {
-            function s(num) {
-                return (((1 + Math.random()) * num) | 0).toString(16);
-            }
-
-            return s(0x10000000) + '-' + s(0x1000) + '-4' + s(0x100) + '-a' +
-                                                s(0x100) + '-' + s(0x1000) + s(0x1000) + s(0x1000);
-        },
-
         json: {
             parse: (function() {
                 if (typeof JSON != 'undefined') {

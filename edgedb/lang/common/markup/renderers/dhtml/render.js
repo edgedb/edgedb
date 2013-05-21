@@ -6,8 +6,7 @@
 **/
 
 
-// %import metamagic.utils.lang.javascript.sx
-// %import metamagic.utils.lang.javascript.ds
+// %from metamagic.utils.lang.javascript import sx, ds, uuid
 
 
 (function(global) { 'use strict'; if (!sx.Markup) {
@@ -25,7 +24,7 @@ sx.Markup.Renderer = function(markup) {
 
     this.handlers = {};
 
-    this._id_base = sx.uuid4();
+    this._id_base = sx.UUID.uuid4();
     this._id = 0;
 
     this.markup = markup;
