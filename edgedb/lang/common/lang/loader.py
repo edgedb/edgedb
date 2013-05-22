@@ -253,15 +253,30 @@ class LanguageLoader(LanguageLoaderBase):
             setattr(module, attribute_name, attribute_value)
 
     def execute_module_code(self, module, code):
+        runtimes = lang_runtimes.get_compatible_runtimes(module)
+
         imports = getattr(code, 'imports', None)
         if imports:
-            runtimes = lang_runtimes.get_compatible_runtimes(module)
-
             if runtimes:
                 for impname in imports:
                     lang_runtimes.load_module_for_runtimes(impname, runtimes)
 
         self._execute(module, code, 'execute_code')
+
+        # Support reload
+        all_runtimes = lang_runtimes.get_compatible_runtimes(module, consider_derivatives=True)
+        if all_runtimes != runtimes:
+            try:
+                module.__mm_loaded_runtimes__.clear()
+            except AttributeError:
+                pass
+
+            try:
+                module.__mm_runtime_derivatives__.clear()
+            except AttributeError:
+                pass
+
+            lang_runtimes.load_module_for_runtimes(module.__name__, all_runtimes)
 
     def execute_module(self, module):
         source = self.get_source_bytes(module.__name__)
@@ -276,8 +291,8 @@ class LanguageLoader(LanguageLoaderBase):
         else:
             for k in odict.keys():
                 try:
-                    del module.__dict__[k]
-                except KeyError:
+                    delattr(module, k)
+                except AttributeError:
                     pass
 
 

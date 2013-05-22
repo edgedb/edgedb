@@ -203,11 +203,6 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
 
     @classmethod
     def load_module(cls, module):
-        if module.__name__ in cls._modcache:
-            return
-
-        cls._modcache.add(module.__name__)
-
         actual_runtime = cls.get_actual_runtime(module)
 
         if actual_runtime is not None:

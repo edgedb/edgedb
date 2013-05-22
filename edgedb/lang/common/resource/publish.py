@@ -36,7 +36,7 @@ class ResourcePublisherError(ResourceError, fs.FSError):
 class ResourceBucketMeta(fs.BucketMeta):
     def __new__(mcls, name, bases, dct, **kwargs):
         dct['resources'] = None
-        dct['published'] = []
+        dct['published'] = OrderedSet()
         return super().__new__(mcls, name, bases, dct, **kwargs)
 
 
@@ -79,10 +79,9 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
                                       'an instance of BaseResourceBackend is expected'.
                                       format(backend, cls))
 
-
     @classmethod
     @debug.debug
-    def build(cls):
+    def build(cls, modules=None, recursive=True):
         """Called during Node.build phase"""
 
         node = Node.active
@@ -97,7 +96,11 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
         buckets = {}
 
         for target in node.targets:
-            target_buckets = target.collect_modules(node.packages)
+            if modules is None:
+                target_buckets = target.collect_modules(node.packages, recursive=recursive)
+            else:
+                target_buckets = target.collect_modules(modules, recursive=recursive,
+                                                                 all_derivatives=True)
 
             repacked = {}
 
@@ -121,22 +124,26 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
                 except KeyError:
                     buckets[bucket] = modules
 
+        filtered = {}
+
         for bucket, mods in buckets.items():
             for mod in mods:
                 if isinstance(mod, bucket.can_contain):
+                    try:
+                        filtered[bucket].add(mod)
+                    except KeyError:
+                        filtered[bucket] = OrderedSet([mod])
+
                     bucket.add(mod)
 
         for bucket in cls._iter_children(include_self=True):
-            if bucket.resources:
+            try:
+                resources = filtered[bucket]
+            except KeyError:
+                pass
+            else:
                 for backend in bucket.get_backends():
-                    backend.publish_bucket(bucket)
-
-    @classmethod
-    def sync(cls, modified):
-        for bucket in cls._iter_children(include_self=True):
-            if bucket.resources:
-                for backend in bucket.get_backends():
-                    backend.sync_bucket(bucket, modified)
+                    backend.publish_bucket(bucket, resources)
 
 
 class BaseResourceBackend(fs.backends.BaseFSBackend):
@@ -149,19 +156,18 @@ class ResourceFSBackend(BaseResourceBackend):
         super().__init__(path=path, **kwargs)
         self.pub_path = pub_path
 
-    def sync_bucket(self, bucket, modified):
-        resources = OrderedSet()
-        for mod in modified:
-            if mod in bucket.resources:
-                resources.add(mod)
+    def publish_bucket(self, bucket, resources=None):
+        if resources is None:
+            resources = bucket.resources
+        else:
+            if bucket.resources:
+                resources = resources & bucket.resources
+            else:
+                resources = OrderedSet()
 
-        bucket_id, bucket_path, bucket_pub_path = self._bucket_conf(bucket)
-        self._publish_bucket(bucket, resources, bucket_id, bucket_path, bucket_pub_path)
-
-    def publish_bucket(self, bucket):
-        bucket.published = OrderedSet()
-        bucket_id, bucket_path, bucket_pub_path = self._bucket_conf(bucket)
-        self._publish_bucket(bucket, bucket.resources, bucket_id, bucket_path, bucket_pub_path)
+        if resources:
+            bucket_id, bucket_path, bucket_pub_path = self._bucket_conf(bucket)
+            self._publish_bucket(bucket, resources, bucket_id, bucket_path, bucket_pub_path)
 
     def _bucket_conf(self, bucket):
         bucket_id = bucket.id.hex

@@ -30,7 +30,7 @@ class BaseClassAdapter(JavaScriptRuntimeAdapter):
         deps = OrderedSet()
 
         for base in cls.__bases__:
-            if issubclass(base, self.base_class):
+            if issubclass(base, self.base_class) and base.__module__ != self.module.__name__:
                 basemod = lang_runtimes.load_module_for_runtime(base.__module__, self.runtime)
                 deps.add(basemod)
 
