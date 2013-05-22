@@ -133,7 +133,7 @@ class LanguageLoader(LanguageLoaderBase):
         code = self._language.load_code(stream, context=context)
         self.update_module_attributes_from_code(module, code)
 
-        runtimes = lang_runtimes.get_compatible_runtimes(module, consider_derivatives=True)
+        runtimes = lang_runtimes.get_compatible_runtimes(module)
 
         if runtimes:
             for impmodname in code.imports:
