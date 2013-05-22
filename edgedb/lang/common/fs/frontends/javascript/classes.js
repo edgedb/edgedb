@@ -9,7 +9,35 @@
 // %from metamagic.utils.lang.javascript import sx, class, base64, crypt, uuid, byteutils
 
 
+(function() {
+    'use strict';
+
+var _bucket_ids = {};
+
+var BucketMeta = sx.define('metamagic.utils.fs.frontends.javascript.BucketMeta', [sx.type], {
+    constructor: function(name, bases, dct) {
+        if (this.id) {
+            _bucket_ids[this.id.toHex()] = this;
+        }
+        return sx.parent(BucketMeta, this, 'constructor', arguments);
+    },
+
+    statics: {
+        get_bucket_class: function(id) {
+            id = new sx.UUID(id);
+            var bucket = _bucket_ids[id.toHex()];
+            if (!bucket) {
+                throw new Error('unable to find bucket by id: ' + id);
+            }
+            return bucket;
+        }
+    }
+});
+
+
 sx.define('metamagic.utils.fs.frontends.javascript.BaseBucket', [], {
+    metaclass: BucketMeta,
+
     statics: {
         set_backends: function(backends) {
             this.backends = backends;
@@ -77,3 +105,5 @@ sx.define('metamagic.utils.fs.frontends.javascript.BaseFSSystem', [], {
         self.buckets.push(bucket_cls);
     }
 });
+
+})();
