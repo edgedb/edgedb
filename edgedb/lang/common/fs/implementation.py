@@ -38,6 +38,10 @@ class BaseImplementation(abstract.Implementation, metaclass=ImplementationMeta):
     def get_file_pub_url(cls, bucket, id, filename):
         pass
 
+    @abc.abstractclassmethod
+    def delete_file(cls, bucket, id, *, name):
+        pass
+
 
 class DefaultImplementation(BaseImplementation):
     compatible_backend_classes = backends.Backend
@@ -68,6 +72,15 @@ class DefaultImplementation(BaseImplementation):
         for backend in backends:
             yield_ (backend.store_file(bucket, id, filename,
                                        name=name, allow_rewrite=allow_rewrite))
+
+    @classmethod
+    def delete_file(cls, bucket, id, *, name):
+        assert id and isinstance(id, uuid.UUID)
+
+        backends = cls._ensure_backends(bucket)
+
+        for backend in backends:
+            yield_ (backend.delete_file(bucket, id, name=name))
 
     @classmethod
     def get_file_pub_url(cls, bucket, id, filename):

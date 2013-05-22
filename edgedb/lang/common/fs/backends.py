@@ -152,6 +152,16 @@ class FSBackend(BaseFSBackend):
 
         self._after_save(path)
 
+    @_coroutine
+    def delete_file(self, bucket, id, *, name=None):
+        base = self._get_base_name(bucket, id, self.escape_filename(name))
+        path = os.path.join(self.path, base)
+
+        if not os.path.exists(path):
+            return
+
+        os.remove(path)
+
     def get_file_path(self, bucket, id, filename):
         filename = self.escape_filename(filename)
         return os.path.join(self.path, self._get_base_name(bucket, id, filename))

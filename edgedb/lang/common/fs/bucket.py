@@ -105,6 +105,14 @@ class Bucket(BaseBucket, abstract=True):
                                                    name=name, allow_rewrite=allow_rewrite)
 
     @classmethod
+    def delete_file(cls, id, *, name=None):
+        cls._error_if_abstract()
+
+        print('bucket delete file', id, name)
+
+        return cls.get_implementation().delete_file(cls, id, name=name)
+
+    @classmethod
     def get_file_pub_url(cls, id, filename):
         cls._error_if_abstract()
         return cls.get_implementation().get_file_pub_url(cls, id, filename)
