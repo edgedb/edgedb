@@ -81,7 +81,7 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
 
     @classmethod
     @debug.debug
-    def build(cls, modules=None, recursive=True):
+    def build(cls, increment_set=None):
         """Called during Node.build phase"""
 
         node = Node.active
@@ -94,13 +94,14 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
                                'in no resources being published'.format(node))
 
         buckets = {}
+        recursive = increment_set is None
 
         for target in node.targets:
-            if modules is None:
+            if increment_set is None:
                 target_buckets = target.collect_modules(node.packages, recursive=recursive)
             else:
-                target_buckets = target.collect_modules(modules, recursive=recursive,
-                                                                 all_derivatives=True)
+                target_buckets = target.collect_modules(increment_set, recursive=recursive,
+                                                                       all_derivatives=True)
 
             repacked = {}
 
@@ -143,7 +144,7 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
                 pass
             else:
                 for backend in bucket.get_backends():
-                    backend.publish_bucket(bucket, resources)
+                    backend.publish_bucket(bucket, resources if increment_set else bucket.resources)
 
 
 class BaseResourceBackend(fs.backends.BaseFSBackend):
