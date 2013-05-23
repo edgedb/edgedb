@@ -20,10 +20,10 @@ from metamagic.utils.datastructures import OrderedSet
 from metamagic.utils import resource, abc
 from metamagic.utils.lang import meta as lang_meta, loader as lang_loader
 from metamagic.utils.lang import runtimes as lang_runtimes
-from metamagic.utils.lang.import_ import module, loader, utils as imp_utils
+from metamagic.utils.lang.import_ import module as module_types, loader, utils as imp_utils
 
 
-class BaseJavaScriptModule(module.Module):
+class BaseJavaScriptModule(module_types.Module):
     pass
 
 
@@ -296,7 +296,8 @@ class JavaScriptRuntimeAdapterMeta(lang_runtimes.LanguageRuntimeAdapterMeta):
 class JavaScriptRuntimeAdapter(lang_runtimes.LanguageRuntimeAdapter,
                                metaclass=JavaScriptRuntimeAdapterMeta):
     def get_dependencies(self):
-        deps = super().get_dependencies()
-        deps.add(importlib.import_module('metamagic.utils.lang.javascript.module'))
-        return deps
+        from . import module as js_module_support
 
+        deps = super().get_dependencies()
+        deps.add(js_module_support)
+        return deps

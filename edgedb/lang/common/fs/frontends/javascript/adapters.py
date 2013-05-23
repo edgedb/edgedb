@@ -63,6 +63,7 @@ class BackendClassAdapter(jsadapters.BaseClassAdapter, adapts=backends.Backend):
         deps = super().get_dependencies()
         if cls is self.base_class:
             deps.add(classes)
+
         return deps
 
     def _get_class_bases(self):
@@ -108,9 +109,12 @@ class FSSystemClassAdapter(node_adapters.NodeSystemClassAdapter, adapts=nodesyst
 class FSBackendInstanceAdapter(javascript.JavaScriptRuntimeAdapter,
                                adapts_instances_of=backends.FSBackend):
 
+    def collect_candidate_imports(self):
+        return ()
+
     def get_dependencies(self):
         obj = self.attr_value
-        deps = OrderedSet()
+        deps = super().get_dependencies()
         basemod = lang_runtimes.load_module_for_runtime(obj.__class__.__module__,
                                                         self.runtime)
         assert basemod
@@ -130,9 +134,12 @@ class FSBackendInstanceAdapter(javascript.JavaScriptRuntimeAdapter,
 class FSSystemInstanceAdapter(javascript.JavaScriptRuntimeAdapter,
                               adapts_instances_of=nodesystem.FSSystem):
 
+    def collect_candidate_imports(self):
+        return ()
+
     def get_dependencies(self):
         obj = self.attr_value
-        deps = OrderedSet()
+        deps = super().get_dependencies()
 
         for bucket in obj.buckets:
             backends = bucket.get_backends()

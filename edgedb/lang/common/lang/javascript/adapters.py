@@ -22,12 +22,13 @@ class BaseClassAdapter(JavaScriptRuntimeAdapter):
     # but then it's hard to derive adapters
     base_class = None
 
+    def collect_candidate_imports(self):
+        return ()
+
     def get_dependencies(self):
         cls = self.attr_value
 
-        # We don't call `super().get_dependencies()` here, as we want strict
-        # control over what we depend on
-        deps = OrderedSet()
+        deps = super().get_dependencies()
 
         for base in cls.__bases__:
             if issubclass(base, self.base_class) and base.__module__ != self.module.__name__:

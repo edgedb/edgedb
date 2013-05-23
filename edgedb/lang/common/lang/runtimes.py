@@ -157,36 +157,18 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
                 pass
 
     @classmethod
-    def get_actual_runtime(cls, module):
-        mod_adapters, mod_runtime = cls._get_adapters(module)
-
-        if mod_adapters:
-            return mod_runtime
-
-        runtime = None
-
-        for attr_name, attr in module.__dict__.items():
-            attr_adapters, attr_runtime = cls._get_adapters(attr)
-
-            if attr_adapters:
-                if runtime is None or issubclass(attr_runtime, runtime):
-                    runtime = attr_runtime
-
-        return runtime
-
-    @classmethod
-    def get_derivative_constructor(cls, module, mod_adapters):
+    def get_derivative_constructor(cls, module, adapters):
         constructors = set()
 
-        if mod_adapters:
-            for mod_adapter in mod_adapters:
+        if adapters:
+            for adapter in adapters:
                 try:
-                    constructor = mod_adapter.new_derivative
+                    constructor = adapter.new_derivative
                 except AttributeError:
                     pass
                 else:
                     if callable(constructor):
-                        constructors.add(mod_adapter)
+                        constructors.add(adapter)
 
         if len(constructors) == 0:
             # No custom constructor
@@ -203,49 +185,53 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
 
     @classmethod
     def load_module(cls, module):
-        actual_runtime = cls.get_actual_runtime(module)
+        derivatives = {}
+        code_counter = {}
 
-        if actual_runtime is not None:
-            return actual_runtime._load_module(module)
-
-    @classmethod
-    def _load_module(cls, module):
         mod_adapters = cls.get_adapters(module)
-        constructor = cls.get_derivative_constructor(module, mod_adapters)
-        derivative = cls.obtain_derivative(module, constructor=constructor)
-
-        if derivative is None:
-            # The constructor has refused to create a derivative for this module
-            return
-
-        new_code_counter = 0
-
-        dependencies = OrderedSet()
-        runtime_dependencies = OrderedSet()
-        sources = b''
-
         if mod_adapters:
+            constructor = cls.get_derivative_constructor(module, mod_adapters)
+
             for mod_adapter_cls in mod_adapters:
-                derivative_tag = cls.get_adapter_tag(mod_adapter_cls)
+                runtime = mod_adapter_cls.runtime
+
+                derivative_tag = runtime.get_adapter_tag(mod_adapter_cls)
+
+                try:
+                    derivative = derivatives[runtime]
+                except KeyError:
+                    derivative = runtime.obtain_derivative(module, constructor=constructor)
+                    derivatives[runtime] = derivative
 
                 if not derivative.has_derivative_tag(derivative_tag):
                     mod_adapter = mod_adapter_cls(module)
 
                     source = mod_adapter.get_source()
                     if source:
-                        sources += source.encode('utf-8')
+                        source = source.encode('utf-8')
+
+                    if source:
+                        try:
+                            derivative.__sx_resource_source_value__ += source
+                        except AttributeError:
+                            derivative.__sx_resource_source_value__ = source
 
                     deps = mod_adapter.get_dependencies()
                     if deps:
-                        dependencies.update(deps)
+                        derivative.__mm_imported_modules__.update(deps)
 
                     runtime_deps = mod_adapter.get_runtime_dependencies()
                     if runtime_deps:
-                        runtime_dependencies.update(runtime_deps)
+                        derivative.__mm_runtime_dependencies__.update(runtime_deps)
 
                     derivative.add_derivative_tag(derivative_tag)
-                    new_code_counter += 1
+
+                    try:
+                        code_counter[runtime].append(source or b'')
+                    except KeyError:
+                        code_counter[runtime] = [source or b'']
         else:
+            attr_derivatives = {}
             classes = {}
             rest = {}
 
@@ -267,55 +253,84 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
             sorted_classes = list(topological.sort(class_g))
 
             dct = itertools.chain([(c.__name__, c) for c in sorted_classes], rest.items())
+
             for attr_name, attr in dct:
+                if isinstance(attr, types.ModuleType):
+                    continue
+
+                if isinstance(attr, type) and attr.__module__ != module.__name__:
+                    continue
+
                 adapters = cls.get_adapters(attr)
+                if not adapters:
+                    continue
 
-                if adapters:
-                    if attr.__module__ != module.__name__:
-                        continue
+                constructor = cls.get_derivative_constructor(module, adapters)
 
-                    for adapter_cls in adapters:
-                        derivative_tag = cls.get_adapter_tag(adapter_cls) + '__attr__' + attr_name
+                for adapter_cls in adapters:
+                    runtime = adapter_cls.runtime
 
-                        if not derivative.has_derivative_tag(derivative_tag):
-                            adapter = adapter_cls(module, attr_name, attr)
+                    try:
+                        derivative = attr_derivatives[runtime]
+                    except KeyError:
+                        derivative = runtime.obtain_derivative(module, constructor=constructor)
+                        attr_derivatives[runtime] = derivative
 
-                            source = adapter.get_source()
-                            if source:
-                                sources += source.encode('utf-8')
+                    derivative_tag = runtime.get_adapter_tag(adapter_cls) + '__attr__' + attr_name
 
-                            deps = adapter.get_dependencies()
-                            if deps:
-                                dependencies.update(deps)
+                    if not derivative.has_derivative_tag(derivative_tag):
+                        adapter = adapter_cls(module, attr_name, attr)
 
-                            runtime_deps = adapter.get_runtime_dependencies()
-                            if runtime_deps:
-                                runtime_dependencies.update(runtime_deps)
+                        source = adapter.get_source()
+                        if source:
+                            source = source.encode('utf-8')
 
-                            derivative.add_derivative_tag(derivative_tag)
-                            new_code_counter += 1
+                        if source:
+                            try:
+                                derivative.__sx_resource_source_value__ += source
+                            except AttributeError:
+                                derivative.__sx_resource_source_value__ = source
 
-        try:
-            derivative.__mm_imported_modules__ += tuple(dependencies)
-        except AttributeError:
-            derivative.__mm_imported_modules__ = tuple(dependencies)
+                        deps = adapter.get_dependencies()
+                        if deps:
+                            derivative.__mm_imported_modules__.update(deps)
 
-        try:
-            derivative.__mm_runtime_dependencies__ += tuple(runtime_dependencies)
-        except AttributeError:
-            derivative.__mm_runtime_dependencies__ = tuple(runtime_dependencies)
+                        runtime_deps = adapter.get_runtime_dependencies()
+                        if runtime_deps:
+                            derivative.__mm_runtime_dependencies__.update(runtime_deps)
 
-        if new_code_counter:
-            cls.logger.debug('import: {}: generated {} derivative bit{} ({} bytes) for {}'
-                             .format(module.__name__, new_code_counter,
-                                     's' if new_code_counter > 1 else '',
-                                     len(sources), cls.__name__))
+                        derivative.add_derivative_tag(derivative_tag)
 
-        if sources:
-            derivative.__sx_resource_source_value__ = sources
+                        try:
+                            code_counter[runtime].append(source or b'')
+                        except KeyError:
+                            code_counter[runtime] = [source or b'']
 
-        if sources or isinstance(derivative, EmptyDerivative):
-            cls.add_derivative(module, derivative)
+            # Put implicit dependencies between attribute derivatives based on runtime hierarchy
+            attr_runtimes = set(attr_derivatives)
+            for runtime, derivative in attr_derivatives.items():
+                for parent in set(runtime.__mro__[1:]) & attr_runtimes:
+                    derivative.__mm_imported_modules__.add(attr_derivatives[parent])
+
+            derivatives.update(attr_derivatives)
+
+        if code_counter:
+            bits = []
+
+            for runtime, sources in code_counter.items():
+                bits.append('{} derivative bit{} ({} bytes) for {}'.format(
+                    len(sources), 's' if len(sources) > 1 else '',
+                    sum(len(s) for s in sources), runtime.__name__
+                ))
+
+            cls.logger.debug('import: {}: generated {}'.format(
+                module.__name__, ', '.join(bits)
+            ))
+
+        for runtime, derivative in derivatives.items():
+            sources = getattr(derivative, '__sx_resource_source_value__', None)
+            if sources or isinstance(derivative, EmptyDerivative):
+                runtime.add_derivative(module, derivative)
 
         return module
 
@@ -355,17 +370,19 @@ class LanguageRuntimeAdapter(metaclass=LanguageRuntimeAdapterMeta, runtime=None)
         self.attr_name = attr_name
         self.attr_value = attr_value
 
-    def collect_compatible_imports(self):
+    def collect_candidate_imports(self):
         try:
-            imports = self.module.__sx_imports__
+            imports = [sys.modules[m] for m in self.module.__sx_imports__]
         except AttributeError:
             imports = ()
 
+        return imports
+
+    def collect_compatible_imports(self):
         new_imports = OrderedSet()
 
-        for impmodname in imports:
-            impmod = sys.modules[impmodname]
-
+        imports = self.collect_candidate_imports()
+        for impmod in imports:
             deriv = load_module_for_runtime(impmod.__name__, self.runtime)
             if deriv is not None:
                 new_imports.add(deriv)
@@ -386,6 +403,8 @@ class RuntimeDerivative(types.ModuleType):
     def __init__(self, name):
         super().__init__(name)
         self._derivative_tags = set()
+        self.__mm_imported_modules__ = set()
+        self.__mm_runtime_dependencies__ = set()
 
     def add_derivative_tag(self, tag):
         self._derivative_tags.add(tag)
