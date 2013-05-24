@@ -526,8 +526,16 @@
             }
         })(),
 
-        escape: function(str) {
-            return String(str).replace(/\&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        escape: function(str, escape_quotes) {
+            var res = String(str).replace(/\&/g, '&amp;')
+                                 .replace(/</g, '&lt;')
+                                 .replace(/>/g, '&gt;');
+
+            if (escape_quotes) {
+                res = res.replace(/'/g, '&#39;').replace(/"/g, '&quot;');
+            }
+
+            return res;
         },
 
         unescape: (function() {
