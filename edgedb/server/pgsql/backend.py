@@ -880,10 +880,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         if pointers:
             protopointers = [caos.types.prototype(p) for p in pointers]
-            pointers = {p.normal_name(): p for p in protopointers if not p.is_special_pointer()}
+            pointers = {p.normal_name(): p for p in protopointers if not p.is_endpoint_pointer()}
         else:
             pointers = {n: p for n, p in proto_link.pointers.items()
-                             if p.loading != caos.types.LazyLoading and not p.is_special_pointer()}
+                             if p.loading != caos.types.LazyLoading and not p.is_endpoint_pointer()}
 
         targets = []
 
