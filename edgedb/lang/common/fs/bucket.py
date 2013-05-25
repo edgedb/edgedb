@@ -107,9 +107,6 @@ class Bucket(BaseBucket, abstract=True):
     @classmethod
     def delete_file(cls, id, *, name=None):
         cls._error_if_abstract()
-
-        print('bucket delete file', id, name)
-
         return cls.get_implementation().delete_file(cls, id, name=name)
 
     @classmethod
