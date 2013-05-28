@@ -18,7 +18,7 @@ import re
 
 from metamagic.node import Node
 from metamagic.utils import config, fs, debug
-from metamagic.utils.datastructures import OrderedSet
+from metamagic.utils.datastructures import OrderedSet, OrderedIndex
 
 from .resource import Resource, VirtualFile, AbstractFileSystemResource, AbstractFileResource
 from .resource import EmptyResource
@@ -36,7 +36,15 @@ class ResourcePublisherError(ResourceError, fs.FSError):
 class ResourceBucketMeta(fs.BucketMeta):
     def __new__(mcls, name, bases, dct, **kwargs):
         dct['resources'] = None
-        dct['published'] = OrderedSet()
+        def _published_key(res):
+            try:
+                gpp = res.__sx_resource_get_public_path__
+            except AttributeError:
+                result = res
+            else:
+                result = gpp()
+            return result
+        dct['published'] = OrderedIndex(key=_published_key)
         return super().__new__(mcls, name, bases, dct, **kwargs)
 
 
@@ -206,7 +214,8 @@ class ResourceFSBackend(BaseResourceBackend):
             # hence, be published only once.  But resources may belong to many
             # buckets, and hence published many times.
             #
-            pub_path = os.path.join(bucket_pub_path, resource.__sx_resource_get_public_path__())
+            pub_name = resource.__sx_resource_get_public_path__()
+            pub_path = os.path.join(bucket_pub_path, pub_name)
 
             if isinstance(resource, AbstractFileResource):
                 cache = resource.__sx_resource_get_cache_tag__()
