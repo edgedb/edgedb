@@ -217,8 +217,7 @@ class BaseOrderedSet(collections.MutableSet):
 
     def add(self, key):
         k = self.key(key)
-        if k not in self.map:
-            self.map[k] = key
+        self.map[k] = key
 
     def discard(self, key):
         key = self.key(key)
