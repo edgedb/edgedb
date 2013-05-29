@@ -343,3 +343,17 @@ class Style256(AbstractStyle):
         c = Color.from_string(color).rgb_channels(as_floats=True)
         return min(Style256._rgb_color_table.items(),
                    key=lambda item: color_distance(item[0][0], item[0][1], item[0][2], *c))[1]
+
+
+class StylesTable:
+    '''Base class for simple style tables.'''
+
+    def __getattr__(self, key):
+        # If we're querying some non-existing style, pretend it's empty
+        #
+        return Style16()
+
+    def dump(self):
+        for name, style in self.__class__.__dict__.items():
+            if isinstance(style, AbstractStyle):
+                print(style.apply(name))

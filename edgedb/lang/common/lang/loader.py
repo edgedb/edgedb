@@ -209,15 +209,10 @@ class LanguageLoader(LanguageLoaderBase):
             if dep_modver is None:
                 # Module not handled by any of our loaders, fallback to native loader check
                 dep_loader = self._get_loader(dep)
-                try:
-                    getfn = dep_loader.get_filename
-                    pstats = dep_loader.path_stats
-                except AttributeError:
-                    # pytest's AssertionRewritingHook does not implement the above
-                    dep_modver = 0
-                else:
-                    dep_modpath = getfn(dep)
-                    dep_modver = self.modver_from_path_stats(pstats(dep_modpath))
+                getfn = dep_loader.get_filename
+                pstats = dep_loader.path_stats
+                dep_modpath = getfn(dep)
+                dep_modver = self.modver_from_path_stats(pstats(dep_modpath))
 
             if dep_modver > max_modver:
                 max_modver = dep_modver

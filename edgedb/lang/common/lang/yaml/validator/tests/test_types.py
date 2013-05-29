@@ -13,9 +13,8 @@ from metamagic.utils.lang.yaml.validator.tests.base import SchemaTest, raises, r
 
 
 class TestTypes(SchemaTest):
-    @staticmethod
-    def setup_class(cls):
-        cls.schema = cls.get_schema('types.Schema')
+    def __init__(self):
+        self.schema = self.get_schema('types.Schema')
 
     @raises(validator.SchemaValidationError, 'expected none')
     def test_validator_types_none_fail1(self):

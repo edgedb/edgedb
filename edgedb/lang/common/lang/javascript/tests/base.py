@@ -6,17 +6,17 @@
 ##
 
 
+import functools
 import re
 import subprocess
 import tempfile
-import pytest
 import importlib
 
 from metamagic.utils.datastructures import OrderedSet
 from metamagic.utils import debug, functional, config, markup, resource
 from metamagic.node.targets import Target
 from metamagic.utils.lang import loader as lang_loader
-from metamagic import json
+from metamagic import json, test
 import metamagic.utils.lang.javascript.parser.jsparser as jsp
 from metamagic.utils.lang.javascript.codegen import JavascriptSourceGenerator
 from metamagic.utils.lang.javascript import BufferLoader as JSBufferLoader, BaseJavaScriptModule, \
@@ -193,7 +193,7 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
             if not doc or not doc.startswith('{}\n'.format(mcls.doc_prefix)):
                 continue
 
-            dct[meth_name] = pytest.mark.skipif(str(mcls.skipif))(mcls.make_test(meth, doc))
+            dct[meth_name] = test.skipif(mcls.skipif)(mcls.make_test(meth, doc))
 
         cls = super().__new__(mcls, name, bases, dct)
 
@@ -224,7 +224,7 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
     def make_test(mcls, meth, doc):
         def do_test(self, name=meth.__name__, source=doc, mcls=mcls):
             mcls.do_test(source, name=meth.__name__)
-        functional.decorate(do_test, meth)
+        functools.update_wrapper(do_test, meth)
         return do_test
 
 
@@ -232,7 +232,7 @@ class JSFunctionalTest(metaclass=JSFunctionalTestMeta):
     def run_js_test(self, source, data=None):
         mcls = type(type(self))
         if getattr(mcls, 'skipif', False):
-            pytest.skip("no js backend")
+            test.skip("no js backend")
         mcls.do_test(source, data=data)
 
 
@@ -268,12 +268,15 @@ class MetaJSParserTest_Base(type, metaclass=config.ConfigurableMeta):
                     def do_test(self, func=testfunc, flags=flags):
                         with debug.assert_raises(*func.xfail[0], **func.xfail[1]):
                             cls.do_test(func.__doc__, flags)
+                    functools.update_wrapper(do_test, dct[testname])
                     dct[testname] = do_test
 
                 else:
                     dct[testname] = lambda self, src=testfunc.__doc__, flags=flags: \
                                                                     cls.do_test(src, flags)
-                    dct[testname] = pytest.mark.skipif('%s' % cls.skipif)(dct[testname])
+                    functools.update_wrapper(dct[testname], testfunc)
+
+                    dct[testname] = test.skipif(cls.skipif)(dct[testname])
 
                 dct[testname].__name__ = testname
 

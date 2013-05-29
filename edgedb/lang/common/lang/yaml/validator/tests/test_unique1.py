@@ -10,9 +10,8 @@ from metamagic.utils.lang.yaml.validator.tests.base import SchemaTest, raises
 
 
 class TestUnique(SchemaTest):
-    @staticmethod
-    def setup_class(cls):
-        cls.schema = cls.get_schema('unique1.Schema')
+    def __init__(self):
+        self.schema = self.get_schema('unique1.Schema')
 
     @raises(Exception, 'unique value "test" is already used')
     def test_validator_unique_map_key(self):

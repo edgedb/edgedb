@@ -8,7 +8,8 @@
 
 import imp
 import importlib
-import os.path
+import os
+import re
 import sys
 import types
 
@@ -58,6 +59,57 @@ def import_module(full_module_name, *, loader=None):
         full_module_name = context
 
     return importlib.import_module(full_module_name)
+
+
+class _NotFoundModuleError(Exception): pass
+_init_re = re.compile(r'^(.*)\{sep}__init__\.(\w+)$'.format(sep=os.sep))
+def import_path(path):
+    def _import_module(name):
+        try:
+            return importlib.import_module(name)
+        except ImportError as ex:
+            if ex.args[0].startswith('No module named'):
+                raise _NotFoundModuleError from ex
+            raise
+
+    cwd = os.path.abspath(os.path.realpath(os.getcwd()))
+    path = os.path.abspath(os.path.realpath(path))
+
+    paths = []
+    for p in sys.path:
+        p = os.path.abspath(os.path.realpath(p))
+        if path.startswith(p):
+            paths.append(p)
+    if not paths:
+        raise ImportError('unable to find module with path {!r}: not in a sys.path'.format(path))
+
+    paths.sort(key=lambda x: len(x), reverse=True)
+
+    init_match = _init_re.match(path)
+    if init_match:
+        path = init_match.group(1)
+    else:
+        path = path.rpartition('.')[0]
+
+    was_in_cwd = False
+    for syspath in paths:
+        if syspath == cwd:
+            was_in_cwd = True
+            continue
+        modname = path[len(syspath):].strip(os.sep).replace(os.sep, '.')
+        try:
+            return _import_module(modname)
+        except _NotFoundModuleError:
+            pass
+
+    if was_in_cwd:
+        modname = path[len(cwd):].strip(os.sep).replace(os.sep, '.')
+        try:
+            return _import_module(modname)
+        except _NotFoundModuleError:
+            pass
+
+    raise ImportError('unable to find module with path {!r}'.format(path))
 
 
 _RELOADING = {}

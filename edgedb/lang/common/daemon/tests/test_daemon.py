@@ -66,7 +66,7 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
                 raise AssertionError('expected to see {!r} in {!r}, file: {!r}'.
                                      format(sub, text, fn))
 
-    def test_utils_daemon_functional_basic(self, pid, stderr):
+    def test_utils_daemon_functional_basic(self, pid:base.Pid, stderr:base.Stderr):
         def prog():
             time.sleep(0.3)
 
@@ -85,7 +85,7 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
             os.kill(pidnum, 0)
         self.wait_pid(pid)
 
-    def test_utils_daemon_functional_conflict_pidfile(self, pid, stderr):
+    def test_utils_daemon_functional_conflict_pidfile(self, pid:base.Pid, stderr:base.Stderr):
         def prog():
             time.sleep(0.2)
 
@@ -95,7 +95,8 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
         self.assert_file_contains(stderr, 'exists and belongs to a running process')
         self.wait_pid(pid, maxtime=0.2)
 
-    def test_utils_daemon_functional_with_fork(self, pid, stderr, fn1, fn2):
+    def test_utils_daemon_functional_with_fork(self, pid:base.Pid, stderr:base.Stderr,
+                                               fn1:base.Fn1, fn2:base.Fn2):
         def prog():
             if os.fork() == 0:
                 with open(fn2, 'wt') as f:
@@ -117,7 +118,7 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
         assert not daemon_lib.is_process_running(pid2)
         self.wait_pid(pid)
 
-    def test_utils_daemon_functional_working_dir(self, pid, stderr):
+    def test_utils_daemon_functional_working_dir(self, pid:base.Pid, stderr:base.Stderr):
         def prog():
             assert os.getcwd() == '/'
 
@@ -125,7 +126,8 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
         self.assert_empty_files(stderr)
         self.wait_pid(pid)
 
-    def test_utils_daemon_functional_file_std_err_out(self, pid, stderr, stdout):
+    def test_utils_daemon_functional_file_std_err_out(self, pid:base.Pid, stderr:base.Stderr,
+                                                      stdout:base.Stdout):
         '''Tests open files for stderr & stdout'''
 
         def prog():
@@ -140,7 +142,8 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
 
         self.wait_pid(pid)
 
-    def test_utils_daemon_functional_filename_std_err_out(self, pid, stderr, stdout):
+    def test_utils_daemon_functional_filename_std_err_out(self, pid:base.Pid, stderr:base.Stderr,
+                                                          stdout:base.Stdout):
         '''Tests filenames for stderr & stdout'''
 
         def prog():
@@ -155,7 +158,8 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
 
         self.wait_pid(pid)
 
-    def test_utils_daemon_functional_singals(self, pid, stderr, stdout, fn1, fn2):
+    def test_utils_daemon_functional_singals(self, pid:base.Pid, stderr:base.Stderr,
+                                             stdout:base.Stdout, fn1:base.Fn1, fn2:base.Fn2):
         def SIGUSR1(*args, fn1=fn1):
             with open(fn1, 'wt') as f:
                 f.write('SIGUSR1')
@@ -191,7 +195,8 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
 
         self.wait_pid(pid)
 
-    def test_utils_daemon_functional_term_singal(self, pid, stderr, stdout, fn1, fn2):
+    def test_utils_daemon_functional_term_singal(self, pid:base.Pid, stderr:base.Stderr,
+                                                 stdout:base.Stdout, fn1:base.Fn1, fn2:base.Fn2):
         def prog():
             time.sleep(0.2)
 
@@ -207,7 +212,9 @@ class TestUtilsDaemon(base.BaseDaemonTestCase):
         self.assert_empty_files(stdout)
         self.assert_file_contains(stderr, 'Termination on signal')
 
-    def test_utils_daemon_functional_custom_pid_object(self, pid, stderr, stdout, fn1, fn2):
+    def test_utils_daemon_functional_custom_pid_object(self, pid:base.Pid, stderr:base.Stderr,
+                                                       stdout:base.Stdout, fn1:base.Fn1,
+                                                       fn2:base.Fn2):
         def prog():
             time.sleep(0.2)
 

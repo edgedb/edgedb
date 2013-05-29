@@ -63,6 +63,5 @@ class SchemaTest(object):
     def load(self, str):
         return yaml_loader.Loader(str).get_single_node()
 
-    @staticmethod
-    def get_schema(clsname):
+    def get_schema(self, clsname):
         return get_object('metamagic.utils.lang.yaml.validator.tests.ymls.' + clsname)()

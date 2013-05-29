@@ -24,9 +24,8 @@ class A(Object):
 
 
 class TestInheritance(SchemaTest):
-    @staticmethod
-    def setup_class(cls):
-        cls.schema = cls.get_schema('inheritance.Schema')
+    def __init__(self):
+        self.schema = self.get_schema('inheritance.Schema')
 
     @result(expected_result=A(test1=1, test2='str2'))
     def test_validator_inheritance1(self):

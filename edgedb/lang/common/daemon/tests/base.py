@@ -14,44 +14,55 @@ import random
 import tempfile
 import time
 
-
-def _finalize_funcarg(request, fn):
-    i = 0
-    while True:
-        i += 1
-        try:
-            os.unlink(fn)
-        except (OSError, IOError) as ex:
-            if ex.errno == errno.ENOENT:
-                return
-            else:
-                if i < 10:
-                    time.sleep(0.5)
-                    continue
-            raise
-        else:
-            return
+from metamagic.test import FunctionArgument
 
 
-def _gen_base_fn_funcarg(sn):
-    def funcarg(self, request, sn=sn):
-        path = self.gen_tmp_filename(sn, randomize=True)
+class BaseFNArg(FunctionArgument):
+    scope = 'call'
+    name = None
+
+    def setup(self):
+        sn = str(random.randint(0, 10**5)) + '.' + self.name
+        path = os.path.join(tempfile.gettempdir(), sn)
         if os.path.exists(path):
             os.unlink(path)
-        request.addfinalizer(functools.partial(_finalize_funcarg, request, path))
-        return path
-    return funcarg
+        self.value = path
+
+    def teardown(self):
+        i = 0
+        while True:
+            i += 1
+            try:
+                os.unlink(self.value)
+            except (OSError, IOError) as ex:
+                if ex.errno == errno.ENOENT:
+                    return
+                else:
+                    if i < 10:
+                        time.sleep(0.5)
+                        continue
+                raise
+            else:
+                return
+
+class Pid(BaseFNArg):
+    name = 'metamagic.test.pid'
+
+class Stdin(BaseFNArg):
+    name = 'metamagic.test.stdin'
+
+class Stdout(BaseFNArg):
+    name = 'metamagic.test.stdout'
+
+class Stderr(BaseFNArg):
+    name = 'metamagic.test.stderr'
+
+class Fn1(BaseFNArg):
+    name = 'metamagic.test.fn1'
+
+class Fn2(BaseFNArg):
+    name = 'metamagic.test.fn2'
 
 
 class BaseDaemonTestCase:
-    def gen_tmp_filename(self, sn, randomize=False):
-        if randomize:
-            sn = str(random.randint(0, 10**5)) + '.' + sn
-        return os.path.join(tempfile.gettempdir(), sn)
-
-    pytest_funcarg__pid    = _gen_base_fn_funcarg('metamagic.test.pid')
-    pytest_funcarg__stdin  = _gen_base_fn_funcarg('metamagic.test.stdin')
-    pytest_funcarg__stdout = _gen_base_fn_funcarg('metamagic.test.stdout')
-    pytest_funcarg__stderr = _gen_base_fn_funcarg('metamagic.test.stderr')
-    pytest_funcarg__fn1    = _gen_base_fn_funcarg('metamagic.test.fn1')
-    pytest_funcarg__fn2    = _gen_base_fn_funcarg('metamagic.test.fn2')
+    pass

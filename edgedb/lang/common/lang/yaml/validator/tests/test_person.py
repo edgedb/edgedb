@@ -11,9 +11,8 @@ from metamagic.utils.lang.yaml.validator.tests.base import SchemaTest, raises, r
 
 
 class TestPerson(SchemaTest):
-    @staticmethod
-    def setup_class(cls):
-        cls.schema = cls.get_schema('person.Schema')
+    def __init__(self):
+        self.schema = self.get_schema('person.Schema')
 
     @raises(validator.SchemaValidationError, 'list expected')
     def test_validator_root_sequence(self):

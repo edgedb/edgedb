@@ -7,20 +7,20 @@
 
 
 import os
-import pytest
 
+from metamagic import test
 from metamagic.utils.debug import assert_raises
 
 try:
     from metamagic.utils import filemagic
 except ImportError:
-    _SKIP_MAGIC = "True"
+    _SKIP_MAGIC = True
 else:
-    _SKIP_MAGIC = "False"
+    _SKIP_MAGIC = False
 
 
 class TestUtilsFileMagic:
-    @pytest.mark.skipif(_SKIP_MAGIC)
+    @test.skipif(_SKIP_MAGIC)
     def test_utils_filemagic_mime(self):
         items = {
             'pdf_test': 'application/pdf',

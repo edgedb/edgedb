@@ -16,7 +16,7 @@ from . import base
 
 
 class TestUtilsDaemonLib(base.BaseDaemonTestCase):
-    def test_utils_daemon_lib_make_readonly(self, pid):
+    def test_utils_daemon_lib_make_readonly(self, pid:base.Pid):
         with open(pid, 'a+t') as f:
             f.write('foo')
             f.flush()
@@ -28,7 +28,7 @@ class TestUtilsDaemonLib(base.BaseDaemonTestCase):
 
         os.unlink(pid)
 
-    def test_utils_daemon_lib_lock_file(self, pid):
+    def test_utils_daemon_lib_lock_file(self, pid:base.Pid):
         def locker(v, pid=pid):
             with open(pid, 'rb') as f:
                 v.value = int(lib.lock_file(f.fileno()))
@@ -47,7 +47,7 @@ class TestUtilsDaemonLib(base.BaseDaemonTestCase):
 
         os.unlink(pid)
 
-    def test_utils_daemon_lib_dry_test(self, pid):
+    def test_utils_daemon_lib_dry_test(self, pid:base.Pid):
         assert not lib.is_process_started_by_superserver()
         assert not lib.is_process_started_by_init()
         assert lib.get_max_fileno()
