@@ -124,7 +124,8 @@ class GraphExpr(Base):
     __fields = ['generator', ('selector', list), ('grouper', list), ('sorter', list),
                 'offset', 'limit', ('opselector', list), 'optarget', 'opvalues', 'op',
                 ('subgraphs', set), ('referrers', list), ('attrrefs', set),
-                ('cges', list), 'recurse_link', 'recurse_depth', 'aggregate_result']
+                ('cges', list), 'recurse_link', 'recurse_depth', 'aggregate_result',
+                'backend_text_override']
 
 
 class CommonGraphExpr(Base):

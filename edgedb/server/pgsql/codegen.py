@@ -93,111 +93,115 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.new_lines = 1
 
         self.write('(')
-        if node.ctes:
-            self.gen_ctes(node.ctes)
 
-        if node.op:
-            # Upper level set operation node (UNION/INTERSECT)
-            self.visit(node.larg)
-            self.write(' ' + node.op + ' ')
-            if not node.distinct:
-                self.write('ALL ')
-            self.visit(node.rarg)
+        if node.text_override:
+            self.write(node.text_override)
         else:
-            self.write('SELECT')
-            if node.distinct is not None:
-                self.write(' DISTINCT')
+            if node.ctes:
+                self.gen_ctes(node.ctes)
 
-            self.new_lines = 1
-            self.indentation += 2
+            if node.op:
+                # Upper level set operation node (UNION/INTERSECT)
+                self.visit(node.larg)
+                self.write(' ' + node.op + ' ')
+                if not node.distinct:
+                    self.write('ALL ')
+                self.visit(node.rarg)
+            else:
+                self.write('SELECT')
+                if node.distinct is not None:
+                    self.write(' DISTINCT')
 
-        if node.targets:
-            count = len(node.targets)
-            for i, target in enumerate(node.targets):
                 self.new_lines = 1
-                self.visit(target)
-                if i != count -1:
-                    self.write(',')
+                self.indentation += 2
 
-        if not node.op:
-            self.indentation -= 2
+            if node.targets:
+                count = len(node.targets)
+                for i, target in enumerate(node.targets):
+                    self.new_lines = 1
+                    self.visit(target)
+                    if i != count -1:
+                        self.write(',')
 
-        if node.fromlist:
-            self.indentation += 1
-            self.new_lines = 1
-            self.write('FROM')
-            if node.from_only:
-                self.write(' ONLY')
-            self.new_lines = 1
-            self.indentation += 1
-            count = len(node.fromlist)
-            for i, source in enumerate(node.fromlist):
+            if not node.op:
+                self.indentation -= 2
+
+            if node.fromlist:
+                self.indentation += 1
                 self.new_lines = 1
-                self.visit(source)
-                if i != count - 1:
-                    self.write(',')
-
-            self.indentation -= 2
-
-        if node.where:
-            self.indentation += 1
-            self.new_lines = 1
-            self.write('WHERE')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit(node.where)
-            self.indentation -= 2
-
-        if node.groupby:
-            self.indentation += 1
-            self.new_lines = 1
-            self.write('GROUP BY')
-            self.new_lines = 1
-            self.indentation += 1
-            count = len(node.groupby)
-            for i, groupexpr in enumerate(node.groupby):
+                self.write('FROM')
+                if node.from_only:
+                    self.write(' ONLY')
                 self.new_lines = 1
-                self.visit(groupexpr)
-                if i != count - 1:
-                    self.write(',')
-            self.indentation -= 2
+                self.indentation += 1
+                count = len(node.fromlist)
+                for i, source in enumerate(node.fromlist):
+                    self.new_lines = 1
+                    self.visit(source)
+                    if i != count - 1:
+                        self.write(',')
 
-        if node.having:
-            self.indentation += 1
-            self.new_lines = 1
-            self.write('HAVING')
-            self.new_lines = 1
-            self.indentation += 1
-            self.visit(node.having)
-            self.indentation -= 2
+                self.indentation -= 2
 
-        if node.orderby:
-            self.indentation += 1
-            self.new_lines = 1
-            self.write('ORDER BY')
-            self.new_lines = 1
-            self.indentation += 1
-            count = len(node.orderby)
-            for i, sortexpr in enumerate(node.orderby):
+            if node.where:
+                self.indentation += 1
                 self.new_lines = 1
-                self.visit(sortexpr)
-                if i != count - 1:
-                    self.write(',')
-            self.indentation -= 2
+                self.write('WHERE')
+                self.new_lines = 1
+                self.indentation += 1
+                self.visit(node.where)
+                self.indentation -= 2
 
-        if node.offset:
-            self.indentation += 1
-            self.new_lines = 1
-            self.write('OFFSET ')
-            self.visit(node.offset)
-            self.indentation -= 1
+            if node.groupby:
+                self.indentation += 1
+                self.new_lines = 1
+                self.write('GROUP BY')
+                self.new_lines = 1
+                self.indentation += 1
+                count = len(node.groupby)
+                for i, groupexpr in enumerate(node.groupby):
+                    self.new_lines = 1
+                    self.visit(groupexpr)
+                    if i != count - 1:
+                        self.write(',')
+                self.indentation -= 2
 
-        if node.limit:
-            self.indentation += 1
-            self.new_lines = 1
-            self.write('LIMIT ')
-            self.visit(node.limit)
-            self.indentation -= 1
+            if node.having:
+                self.indentation += 1
+                self.new_lines = 1
+                self.write('HAVING')
+                self.new_lines = 1
+                self.indentation += 1
+                self.visit(node.having)
+                self.indentation -= 2
+
+            if node.orderby:
+                self.indentation += 1
+                self.new_lines = 1
+                self.write('ORDER BY')
+                self.new_lines = 1
+                self.indentation += 1
+                count = len(node.orderby)
+                for i, sortexpr in enumerate(node.orderby):
+                    self.new_lines = 1
+                    self.visit(sortexpr)
+                    if i != count - 1:
+                        self.write(',')
+                self.indentation -= 2
+
+            if node.offset:
+                self.indentation += 1
+                self.new_lines = 1
+                self.write('OFFSET ')
+                self.visit(node.offset)
+                self.indentation -= 1
+
+            if node.limit:
+                self.indentation += 1
+                self.new_lines = 1
+                self.write('LIMIT ')
+                self.visit(node.limit)
+                self.indentation -= 1
 
         self.new_lines = 1
         self.write(')')

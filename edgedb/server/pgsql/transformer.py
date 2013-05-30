@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -9,6 +9,7 @@
 import collections
 import itertools
 import functools
+import re
 
 from metamagic.utils import ast, markup
 from metamagic.caos import caosql, tree
@@ -545,19 +546,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             """
 
             # Generate query text
-            codegen = pgsql.codegen.SQLSourceGenerator()
-            try:
-                codegen.visit(qtree)
-            except pgsql.codegen.SQLSourceGeneratorError as e:
-                ctx = pgsql.codegen.SQLSourceGeneratorContext(qtree, codegen.result)
-                base_err._add_context(e, ctx)
-                raise
-            except Exception as e:
-                ctx = pgsql.codegen.SQLSourceGeneratorContext(qtree, codegen.result)
-                err = pgsql.codegen.SQLSourceGeneratorError('error while generating SQL source')
-                base_err._add_context(err, ctx)
-                raise err from e
-
+            codegen = self._run_codegen(qtree)
             qchunks = codegen.result
             arg_index = codegen.param_index
 
@@ -578,6 +567,22 @@ class CaosTreeTransformer(CaosExprTransformer):
             raise err from e
 
         return qchunks, argmap, arg_index, type(qtree), tuple(context.current.record_info.values())
+
+    def _run_codegen(self, qtree):
+        codegen = pgsql.codegen.SQLSourceGenerator()
+        try:
+            codegen.visit(qtree)
+        except pgsql.codegen.SQLSourceGeneratorError as e:
+            ctx = pgsql.codegen.SQLSourceGeneratorContext(qtree, codegen.result)
+            base_err._add_context(e, ctx)
+            raise
+        except Exception as e:
+            ctx = pgsql.codegen.SQLSourceGeneratorContext(qtree, codegen.result)
+            err = pgsql.codegen.SQLSourceGeneratorError('error while generating SQL source')
+            base_err._add_context(err, ctx)
+            raise err from e
+
+        return codegen
 
     def _dump(self, tree):
         markup.dump(tree)
@@ -830,6 +835,15 @@ class CaosTreeTransformer(CaosExprTransformer):
             query.orderby = []
             query.targets = [pgsql.ast.SelectExprNode(expr=subexpr,
                                                       alias=query.targets[0].alias)]
+
+        if graph.backend_text_override:
+            argmap = context.current.argmap
+
+            text_override = graph.backend_text_override
+            text_override = re.sub(r'\$(\w+)', lambda m: '$' + str(argmap.index(m.group(1)) + 1),
+                                   text_override)
+
+            query.text_override = text_override
 
         return query
 
@@ -2169,16 +2183,17 @@ class CaosTreeTransformer(CaosExprTransformer):
                 name = 'stddev_pop'
             elif expr.name == ('agg', 'stddev_samp'):
                 name = 'stddev_samp'
-            elif expr.name == ('window', 'lag'):
-                name = 'lag'
+            elif expr.name == ('window', 'lag') or expr.name == ('window', 'lead'):
+                schema = context.current.proto_schema
+                name = expr.name[1]
                 if len(args) > 1:
                     args[1] = pgsql.ast.TypeCastNode(expr=args[1],
                                                      type=pgsql.ast.TypeNode(name='int'))
-            elif expr.name == ('window', 'lead'):
-                name = 'lead'
-                if len(args) > 1:
-                    args[1] = pgsql.ast.TypeCastNode(expr=args[1],
-                                                     type=pgsql.ast.TypeNode(name='int'))
+                if len(args) > 2:
+                    arg0_type = self.get_expr_type(expr.args[0], schema)
+                    arg0_type = pg_types.pg_type_from_atom(schema, arg0_type)
+                    args[2] = pgsql.ast.TypeCastNode(expr=args[2],
+                                                     type=pgsql.ast.TypeNode(name=arg0_type))
             elif expr.name == ('math', 'abs'):
                 name = 'abs'
             elif expr.name == ('math', 'round'):

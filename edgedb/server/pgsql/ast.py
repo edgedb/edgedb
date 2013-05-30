@@ -99,7 +99,7 @@ class SelectQueryNode(RelationNode):
                 ('ctes', datastructures.OrderedSet),
                 ('concept_node_map', dict), ('link_node_map', dict), ('linkmap', dict),
                 ('subquery_referrers', list),
-                'op', 'larg', 'rarg', 'recursive']
+                'op', 'larg', 'rarg', 'recursive', 'text_override']
 
 class UpdateQueryNode(Base):
     __fields = ['fromexpr', ('values', list), 'where', ('targets', list),
