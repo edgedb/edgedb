@@ -355,7 +355,7 @@ class OptimizedFSBackend(ResourceFSBackend):
                 # Read XXX comment in "ResourceFSBackend._publish_bucket"
                 pub_path = os.path.join(bucket_pub_path, res.__sx_resource_get_public_path__())
                 setattr(res, bucket_id, pub_path)
-                bucket.published.append(res)
+                bucket.published.add(res)
 
         compiled_name = self.compiled_module_name
         compiled_name += (bucket.__module__ + '.' + bucket.__name__).replace('.', '_')
@@ -414,7 +414,7 @@ class OptimizedFSBackend(ResourceFSBackend):
                              '{}.{}?_cache={}'.format(compiled_name, type, hash))
             pub_path = os.path.join(bucket_pub_path, result.__sx_resource_get_public_path__())
             setattr(result, bucket_id, pub_path)
-            bucket.published.append(result)
+            bucket.published.add(result)
 
 
 def _collect_published_resources(bucket, types):
