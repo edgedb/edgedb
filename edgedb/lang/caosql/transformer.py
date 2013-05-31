@@ -705,6 +705,9 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             if context.current.groupprefixes and context.current.location in ('sorter', 'selector')\
                                              and not context.current.in_aggregate:
                 for p in node.paths:
+                    if isinstance(p, tree.ast.MetaRef):
+                        p = p.ref
+
                     if p.id not in context.current.groupprefixes:
                         err = ('node reference "%s" must appear in the GROUP BY expression or '
                                'used in an aggregate function ') % p.id
