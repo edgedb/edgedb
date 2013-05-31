@@ -2157,8 +2157,12 @@ class TreeTransformer:
 
                 if isinstance(filter.left, caos_ast.AtomicRefExpr):
                     filters.append(filter.left.expr)
+                elif isinstance(filter.left, caos_ast.BinOp):
+                    filters.append(filter.left)
 
                 if isinstance(filter.right, caos_ast.AtomicRefExpr):
+                    filters.append(filter.right.expr)
+                elif isinstance(filter.left, caos_ast.BinOp):
                     filters.append(filter.right)
 
             for filter in filters:
@@ -2606,12 +2610,12 @@ class TreeTransformer:
                         # expressions
                         #
                         for ref in left_exprs.paths:
-                            if isinstance(ref, exprnode_type) \
-                                                and isinstance(op, ast.ops.BooleanOperator):
-                                # We must not inline boolean expressions beyond the original bin-op
-                                result = newbinop(left, right, uninline=True)
-                                break
-                            paths.add(exprnode_type(expr=newbinop(ref, right)))
+                            if isinstance(ref, exprnode_type):
+                                _leftref = ref.expr
+                            else:
+                                _leftref = ref
+
+                            paths.add(exprnode_type(expr=newbinop(_leftref, right)))
                         else:
                             result = self.path_from_set(paths)
 
@@ -2645,7 +2649,6 @@ class TreeTransformer:
                             exprtype = caos_ast.AtomicRefExpr
                             leftdict = pathdict
 
-
                         # If both operands are atom references, then we check if the referenced
                         # atom parent concepts intersect, and if they do we fold the expression
                         # into the atom ref for those common concepts only.  If there are no common
@@ -2666,7 +2669,19 @@ class TreeTransformer:
 
                                 if right_expr:
                                     right_expr.replace_refs([right_expr.ref], ref.ref, deep=True)
-                                    filterop = newbinop(ref, right_expr)
+
+                                    # Simplify RefExprs
+                                    if isinstance(ref, exprtype):
+                                        _leftref = ref.expr
+                                    else:
+                                        _leftref = ref
+
+                                    if isinstance(right_expr, exprtype):
+                                        _rightref = right_expr.expr
+                                    else:
+                                        _rightref = right_expr
+
+                                    filterop = newbinop(_leftref, _rightref)
                                     paths.add(exprtype(expr=filterop))
 
                             if paths:
