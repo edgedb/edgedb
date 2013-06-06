@@ -449,7 +449,7 @@ def timeit(target):
 
     .. code-block:: python
 
-        from metamagic.util.debug import timeit
+        from metamagic.utils.debug import timeit
 
     1) in a "with" statement:
         >>> with timeit('long list'):
