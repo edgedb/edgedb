@@ -261,12 +261,19 @@ class BasePythonSourceGenerator(SourceGenerator):
     def visit_PyWith(self, node):
         self.newline(node)
         self.write('with ')
+        for i, item in enumerate(node.items):
+            self.visit(item)
+            if i < len(node.items) - 1:
+                self.write(', ')
+
+        self.write(':')
+        self._body(node.body)
+
+    def visit_Pywithitem(self, node):
         self.visit(node.context_expr)
         if node.optional_vars is not None:
             self.write(' as ')
             self.visit(node.optional_vars)
-        self.write(':')
-        self._body(node.body)
 
     def visit_PyPass(self, node):
         self.newline(node)

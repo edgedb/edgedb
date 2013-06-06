@@ -58,12 +58,12 @@ class PyAugAssign(PyAST): __fields = ['target', 'op', 'value']
 #          | For(expr target, expr iter, stmt* body, stmt* orelse)
 #          | While(expr test, stmt* body, stmt* orelse)
 #          | If(expr test, stmt* body, stmt* orelse)
-#          | With(expr context_expr, expr? optional_vars, stmt* body)
+#          | With(withitem* items, stmt* body)
 
 class PyFor(PyAST, ASTBlockNode): __fields = ['target', 'iter', ('body', list), ('orelse', list)]
 class PyWhile(PyAST): __fields = ['test', ('body', list), ('orelse', list)]
 class PyIf(PyAST, ASTBlockNode): __fields = ['test', ('body', list), ('orelse', list)]
-class PyWith(PyAST): __fields = ['context_expr', 'optional_vars', ('body', list)]
+class PyWith(PyAST): __fields = ['items', ('body', list)]
 
 #          | Raise(expr? exc, expr? cause)
 #          | TryExcept(stmt* body, excepthandler* handlers, stmt* orelse)
@@ -249,6 +249,9 @@ class Pyarg(PyAST): __fields = ['arg', 'annotation']
 
 class Pykeyword(PyAST): __fields = ['arg', 'value']
 class Pyalias(PyAST): __fields = ['name', 'asname']
+
+#        withitem = (expr context_expr, expr? optional_vars)
+class Pywithitem(PyAST): __fields = ['context_expr', 'optional_vars']
 
 
 class PyLoad(PyAST): pass
