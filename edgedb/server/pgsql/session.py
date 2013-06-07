@@ -126,12 +126,15 @@ class Session(session.Session):
         return self.backend.load_link(link._instancedata.source, link._instancedata.target, link,
                                       pointers, self)
 
-    def load(self, id, concept=None):
+    def load(self, id, concept=None, access_control=True):
         if concept is None:
             concept_name = self.backend.concept_name_from_id(id, session=self)
             if not concept_name:
                 return None
             concept = self.schema.get(concept_name)
+
+        if not access_control:
+            concept = concept.mark(access_control=False)
 
         return concept.get(concept.id == id)
 

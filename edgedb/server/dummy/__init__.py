@@ -32,7 +32,7 @@ class Session(session.Session):
     def _transaction(self, parent):
         return Transaction(self, parent)
 
-    def load(self, id, concept=None):
+    def load(self, id, concept=None, access_control=True):
         raise NotImplementedError
 
     def sequence_next(self, seqcls):
