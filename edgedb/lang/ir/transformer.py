@@ -324,7 +324,10 @@ class TreeTransformer:
                 pass
             else:
                 for hook in hooks:
-                    hook(self.context.current.graph, expr, self.context.current.context_vars)
+                    result = hook(self.context.current.graph, expr,
+                                  self.context.current.context_vars)
+                    if result:
+                        self.apply_rewrites(result)
                 break
 
     def apply_rewrites(self, expr):
