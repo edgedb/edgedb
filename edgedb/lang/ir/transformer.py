@@ -2806,6 +2806,8 @@ class TreeTransformer:
             c = caos_ast.Conjunction(paths=frozenset((expr.expr,)))
             aref = self.entityref_to_idref(c, schema)
             expr = caos_ast.AtomicRefExpr(expr=caos_ast.NoneTest(expr=aref))
+        elif isinstance(expr.expr, caos_ast.Constant):
+            expr = caos_ast.Constant(expr=expr)
 
         return expr
 
