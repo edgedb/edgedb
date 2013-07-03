@@ -25,7 +25,6 @@
             '&#x2F;': '/'
         },
         _unescape_fn = function(match, entity) {
-            console.log(entity);
             return entity in _unescape_entities ? _unescape_entities[entity]
                                                 : String.fromCharCode(parseInt(entity.substr(2)));
         },
