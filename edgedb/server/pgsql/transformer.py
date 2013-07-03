@@ -2231,7 +2231,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                     args=[pgsql.ast.ConstantNode(value='month'),
                                                           args[0]])
                 result = pgsql.ast.BinOpNode(left=years, op=ast.ops.ADD, right=months)
-
+            elif expr.name == ('datetime', 'extract'):
+                name = 'date_part'
             elif expr.name == ('datetime', 'truncate'):
                 name = 'date_trunc'
             elif expr.name == ('datetime', 'current_time'):
