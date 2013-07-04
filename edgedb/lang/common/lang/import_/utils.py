@@ -96,7 +96,12 @@ def import_path(path):
         if syspath == cwd:
             was_in_cwd = True
             continue
-        modname = path[len(syspath):].strip(os.sep).replace(os.sep, '.')
+
+        tail = path[len(syspath.rstrip(os.sep)):]
+        if tail[-1] != os.sep:
+            tail = path
+
+        modname = tail.strip(os.sep).replace(os.sep, '.')
         try:
             return _import_module(modname)
         except _NotFoundModuleError:
