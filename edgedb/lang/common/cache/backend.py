@@ -19,7 +19,11 @@ class CacheBackendError(exceptions.CacheError):
 
 
 class Backend(abstract.Backend):
-    pass
+    def freeze(self):
+        pass
+
+    def thaw(self):
+        pass
 
 
 class BlockingBackend(Backend):

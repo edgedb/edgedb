@@ -17,12 +17,25 @@ class CacheSystem(node.System):
     class_buckets = None
     node_buckets_cache = weakref.WeakKeyDictionary()
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._backends = []
+
     def configure(self):
         assert self.class_buckets
 
         for bucket_cls, backend_classes in self.class_buckets.items():
             backends = [ctr.cls(**(ctr.args or {})) for ctr in backend_classes]
             bucket_cls.set_backends(*backends)
+            self._backends.extend(backends)
+
+    def freeze(self):
+        for backend in self._backends:
+            backend.freeze()
+
+    def thaw(self):
+        for backend in self._backends:
+            backend.thaw()
 
     @classmethod
     def get_bucket(cls, bucket_cls=None):
