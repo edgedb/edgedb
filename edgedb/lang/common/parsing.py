@@ -176,7 +176,8 @@ class ParserError(MetamagicError):
         self.token = token
         self.lineno = lineno
         self.expr = expr
-        _add_context(self, context)
+        if context:
+            _add_context(self, context)
 
 
 class Lexer(pyggy.lexer.lexer):
