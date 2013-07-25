@@ -12,6 +12,7 @@
 import contextlib
 import decimal
 from hashlib import md5
+from uuid import UUID
 
 
 class persistent_hash(int):
@@ -43,6 +44,8 @@ class persistent_hash(int):
             hash = cls.tuple_hash(value)
         elif isinstance(value, frozenset):
             hash = cls.frozenset_hash(value)
+        elif isinstance(value, UUID):
+            hash = cls.tuple_hash(('__stdlib_UUID__', value.hex))
         else:
             for bucket in reversed(cls._hash_memory):
                 hash = bucket.get(id(value))
