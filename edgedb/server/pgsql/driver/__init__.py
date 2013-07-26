@@ -12,7 +12,6 @@ import uuid
 from functools import partial
 
 import postgresql
-from postgresql.python import socket as pg_socket
 from postgresql.python.functools import process_tuple
 from postgresql.driver import pq3
 from postgresql import types as pg_types
@@ -29,14 +28,7 @@ from metamagic.utils.datastructures import Void, xvalue
 from metamagic.caos.backends.pgsql import exceptions as backend_exc
 from metamagic.caos.backends.pgsql.driver import io as pg_types_io
 
-
-_GREEN_SOCKET = False
-try:
-    from metamagic.spin.green import socket as green_socket
-    _GREEN_SOCKET = True
-except ImportError:
-    pass
-
+from metamagic.spin.green import postgres as green_postgres
 
 from .. import session as pg_caos_session
 
@@ -258,94 +250,13 @@ class Connection(pq3.Connection, caos_pool.Connection):
         super().close()
 
 
-class SocketConnector:
-    @staticmethod
-    def msghook(msg):
-        if msg.message == '=> is deprecated as an operator name':
-            return True
-
-    def create_socket_factory(self, **params):
-        params['socket_extra'] = {'async': self.async}
-        return SocketFactory(**params)
-
-    def __init__(self, async=False):
-        self.async = async
-
-
-class IPConnector(pq3.IPConnector, SocketConnector):
-    def __init__(self, host, port, ipv, async=False, **kw):
-        pq3.IPConnector.__init__(self, host, port, ipv, **kw)
-        SocketConnector.__init__(self, async=async)
-
-
-class IP4(IPConnector, pq3.IP4):
-    pass
-
-
-class IP6(IPConnector, pq3.IP6):
-    pass
-
-
-class Host(SocketConnector, pq3.Host):
-    def __init__(self, host=None, port=None, ipv=None, address_family=None, async=False, **kw):
-        pq3.Host.__init__(self, host=host, port=port, ipv=ipv, address_family=address_family, **kw)
-        SocketConnector.__init__(self, async=async)
-
-
-class Unix(SocketConnector, pq3.Unix):
-    def __init__(self, unix=None, async=False, **kw):
-        pq3.Unix.__init__(self, unix=unix, **kw)
-        SocketConnector.__init__(self, async=async)
-
-
-class SocketFactory(pg_socket.SocketFactory):
-    def __init__(self, socket_create, socket_connect, socket_secure=None, socket_extra=None):
-        super().__init__(socket_create, socket_connect, socket_secure)
-        self.async = socket_extra.get('async', False) if socket_extra else False
-
-    def __call__(self, timeout = None):
-        if self.async:
-            if not _GREEN_SOCKET:
-                raise CaosError('missing green socket implementation, '
-                                'unable to start async session')
-
-            s = green_socket.Socket(*self.socket_create)
-
-            timeout = float(timeout) if timeout is not None else None
-            if timeout != 0:
-                s.settimeout(timeout)
-
-            s.connect(self.socket_connect)
-            s.settimeout(None)
-            return s
-
-        else:
-            return super().__call__(timeout)
-
-
-class Driver(pq3.Driver):
+class Driver(green_postgres.Driver):
     def __init__(self):
         super().__init__(typio=TypeIO, connection=Connection)
-
-    def ip4(self, **kw):
-        return IP4(driver = self, **kw)
-
-    def ip6(self, **kw):
-        return IP6(driver = self, **kw)
-
-    def host(self, **kw):
-        return Host(driver = self, **kw)
-
-    def unix(self, **kw):
-        return Unix(driver = self, **kw)
 
 
 driver = Driver()
 
 
 def connector(iri, async=False):
-    params = postgresql.iri.parse(iri)
-    settings = params.setdefault('settings', {})
-    settings['standard_conforming_strings'] = 'on'
-    params['async'] = async
-    return driver.fit(**params)
+    return green_postgres.connector(iri, async=async, driver=driver)
