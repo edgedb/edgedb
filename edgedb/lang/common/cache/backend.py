@@ -70,6 +70,11 @@ class MemoryBackend(NonBlockingBackend):
         self._data = collections.OrderedDict()
         self._size = 0
 
+    def _clear(self):
+        # Remove everything unconditionally.  Used primarily in cache writethrough tests
+        self._data.clear()
+        self._size = 0
+
     @property
     def size(self):
         return self._size
