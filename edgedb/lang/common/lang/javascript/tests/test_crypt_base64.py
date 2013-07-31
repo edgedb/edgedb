@@ -27,7 +27,8 @@ class TestJSsxCrypt(JSFunctionalTest):
     for v in ('', 'abc', '123', random_text(3), random_text(5), random_text(10),
               random_text(20), random_text(50), random_text(100),
               random_text(200), random_text(1000), random_text(9999),
-              random_text(100000), '©', random_text(random.randrange(100, 100000))):
+              random_text(100000), '©', random_text(random.randrange(100, 100000)),
+              'd18651b4f95a11e2b0161b391a0272b6'):
         sha1[v] = hashlib.sha1(v.encode('utf-8')).hexdigest()
         md5[v] = hashlib.md5(v.encode('utf-8')).hexdigest()
         b32[v] = base64.b32encode(v.encode('utf-8')).decode('ascii')
@@ -73,9 +74,9 @@ class TestJSsxCrypt(JSFunctionalTest):
     });
     '''
 
-    def test_utils_lang_js_sx_base64_b32(self):
+    def test_utils_lang_js_sx_base64_b32_1(self):
         pass
-    test_utils_lang_js_sx_base64_b32.__doc__ = '''JS
+    test_utils_lang_js_sx_base64_b32_1.__doc__ = '''JS
     // %from metamagic.utils.lang.javascript import base64
 
     var hashes = ''' + b32 + ''';''' + tobytes + '''
@@ -85,3 +86,12 @@ class TestJSsxCrypt(JSFunctionalTest):
         assert.equal(hash, sx.base64.b32encode(tobytes(key)));
     });
     '''
+
+    def test_utils_lang_js_sx_base64_b32_2(self):
+        '''JS
+        // %from metamagic.utils.lang.javascript import base64, uuid
+
+        var uid = new sx.UUID('d18651b4f95a11e2b0161b391a0272b6');
+        var enc = sx.base64.b32encode(uid.toBytes());
+        assert.equal(enc, '2GDFDNHZLII6FMAWDM4RUATSWY======');
+        '''
