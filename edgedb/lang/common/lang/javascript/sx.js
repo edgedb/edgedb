@@ -353,20 +353,48 @@
             return result;
         },
 
-        keys: function sx_keys(obj) {
-            if (sx.is_object(obj)) {
-                var result = []
-                for (var k in obj) {
-                    if (has_own_property.call(obj, k)) {
-                        result.push(k);
+        keys: (function() {
+            if (Object.keys) {
+                return Object.keys;
+            }
+
+            // copied from
+            // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/keys
+            var hasDontEnumBug = !({toString: null}).propertyIsEnumerable('toString'),
+                dontEnums = [
+                    'toString',
+                    'toLocaleString',
+                    'valueOf',
+                    'hasOwnProperty',
+                    'isPrototypeOf',
+                    'propertyIsEnumerable',
+                    'constructor'
+                ],
+                dontEnumsLength = dontEnums.length;
+
+            return function sx_keys(obj) {
+                if (typeof obj !== 'object' && (typeof obj !== 'function' || obj === null)) {
+                    throw new TypeError('Object.keys called on non-object');
+                }
+
+                var result = [], prop, i;
+
+                for (prop in obj) {
+                    if (has_own_property.call(obj, prop)) {
+                        result.push(prop);
                     }
                 }
 
+                if (hasDontEnumBug) {
+                    for (i = 0; i < dontEnumsLength; i++) {
+                        if (has_own_property.call(obj, dontEnums[i])) {
+                            result.push(dontEnums[i]);
+                        }
+                    }
+                }
                 return result;
-            } else {
-                throw new Error('sx.keys function only supports objects, got ' + (typeof obj));
             }
-        },
+        })(),
 
         len: function sx_len(obj) {
             if (sx.is_array(obj) || obj instanceof sx) {
