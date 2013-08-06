@@ -70,29 +70,7 @@ sx.$bootstrap_class_system = function(opts) {
         AUTO_REGISTER_NS = opts.auto_register_ns,
         LAST_INST_ATTR = opts.last_instance_attr,
         ARGS_MARKER = {},
-        CACHED_CONSTR = opts.cached_constructor,
-
-        dont_enums = [
-            'toString',
-            'toLocaleString',
-            'valueOf',
-            'hasOwnProperty',
-            'isPrototypeOf',
-            'propertyIsEnumerable',
-            'constructor'
-        ],
-        dont_enums_len = dont_enums.length,
-        has_dont_enum_bug = !{toString:null}.propertyIsEnumerable("toString");
-
-    function copy_dont_enums(to, from) {
-        var i, e;
-        for (i = 0; i < dont_enums_len; i++) {
-            e = dont_enums[i];
-            if (hop.call(from, e)) {
-                to[e] = from[e];
-            }
-        }
-    }
+        CACHED_CONSTR = opts.cached_constructor;
 
     if (AUTO_REGISTER_NS) {
         var sx_ns_resolve = sx.ns.resolve;
@@ -344,7 +322,8 @@ sx.$bootstrap_class_system = function(opts) {
         var i, j, cls, parent, proto, attr,
             mro, attrs_flag = 0, parent_proto, mro_len, mro_len_1,
             static_attrs_cache = {}, static_attrs = [],
-            statics, static_name, own = [], parent_own, parent_mro;
+            statics, static_name, own = [], parent_own, parent_mro,
+            keys, key, len;
 
         cls = make_universal_constructor();
 
@@ -385,19 +364,17 @@ sx.$bootstrap_class_system = function(opts) {
 
         proto[CACHED_CONSTR] = constr; // false is OK too
 
-        for (i in dct) {
-            if (hop.call(dct, i) && i != 'metaclass' && i != 'statics') {
-                attr = dct[i];
+        keys = sx.keys(dct);
+        for (i = 0, len = keys.length; i < len; i++) {
+            key = keys[i];
+            if (attr != 'metaclass' && attr != 'statics') {
+                attr = dct[key];
                 if (attr != null && !hop.call(attr, NAME_ATTR) && is_method(attr)) {
-                    attr[NAME_ATTR] = i;
+                    attr[NAME_ATTR] = key;
                 }
-                proto[i] = attr;
-                own.push(i);
+                proto[key] = attr;
+                own.push(key);
             }
-        }
-
-        if (has_dont_enum_bug) {
-            copy_dont_enums(proto, dct);
         }
 
         cls[OWN_ATTR] = (attrs_flag = own.length) ? own : false;
@@ -427,25 +404,21 @@ sx.$bootstrap_class_system = function(opts) {
         constr = false;
         if (hop.call(dct, 'statics')) {
             statics = dct.statics;
+            keys = sx.keys(statics);
 
             constr = hop.call(statics, CONSTRUCTOR) && statics[CONSTRUCTOR];
 
-            for (static_name in statics) {
-                if (hop.call(statics, static_name)) {
-                    static_attrs_cache[static_name] = true;
-                    static_attrs.push(static_name);
-                    attr = statics[static_name];
+            for (i = 0, len = keys.length; i < len; i++) {
+                static_name = keys[i];
+                static_attrs_cache[static_name] = true;
+                static_attrs.push(static_name);
+                attr = statics[static_name];
 
-                    if (is_method(attr)) {
-                        fix_static_method(attr, static_name, cls);
-                    }
-
-                    cls[static_name] = attr;
+                if (is_method(attr)) {
+                    fix_static_method(attr, static_name, cls);
                 }
-            }
 
-            if (has_dont_enum_bug) {
-                copy_dont_enums(cls, statics);
+                cls[static_name] = attr;
             }
         }
 
