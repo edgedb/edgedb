@@ -40,6 +40,10 @@ sx.Markup.Renderer.prototype = {
     },
 
     on_collapsible_click: function(collapsible_id, event) {
+        if (event.stopPropagation) {
+            event.stopPropagation();
+        }
+
         if (event.metaKey || event.ctrlKey) {
             var parent = sx('#' + collapsible_id);
             parent.toggle_class('collapsed');
