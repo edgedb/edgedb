@@ -1084,11 +1084,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                                                 types.pg_type_from_object(meta, new_target))
                         alter_table.add_operation(alter_type)
 
-        old_ptr_stor_info = types.get_pointer_storage_info(meta, orig_pointer,
-                                                           record_mode=True)
-        new_ptr_stor_info = types.get_pointer_storage_info(meta, pointer,
-                                                           record_mode=True)
-
     def apply_base_delta(self, orig_source, source, meta, context):
         realm = context.get(delta_cmds.RealmCommandContext)
         orig_source.bases = [realm.op._renames.get(b, b) for b in orig_source.bases]
@@ -1714,8 +1709,8 @@ class PointerMetaCommand(MetaCommand):
                 alter_table.add_operation(dbops.AlterTableAlterColumnDefault(column_name=column_name,
                                                                              default=new_default))
 
-    def get_columns(self, pointer, meta, default=None, record_mode=False):
-        ptr_stor_info = types.get_pointer_storage_info(meta, pointer, record_mode=record_mode)
+    def get_columns(self, pointer, meta, default=None):
+        ptr_stor_info = types.get_pointer_storage_info(meta, pointer)
         return [dbops.Column(name=ptr_stor_info.column_name,
                              type=ptr_stor_info.column_type,
                              required=pointer.required,

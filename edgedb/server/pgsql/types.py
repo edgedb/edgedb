@@ -127,26 +127,20 @@ def pg_type_from_object(schema, obj, topbase=False):
     if isinstance(obj, caos.types.ProtoAtom):
         return pg_type_from_atom(schema, obj, topbase=topbase)
     else:
-        return common.get_record_name(obj, catenate=True)
+        return common.get_table_name(obj, catenate=True)
 
 
 class PointerStorageInfo:
-    def __init__(self, proto_schema, pointer, resolve_type=True, record_mode=False):
+    def __init__(self, proto_schema, pointer, resolve_type=True):
         is_prop = isinstance(pointer, caos.types.ProtoLinkProperty)
-
-        if is_prop and pointer.is_special_pointer():
-            record_mode = False
 
         if not is_prop and (not pointer.atomic() or not pointer.singular()):
             table = common.get_table_name(pointer, catenate=False)
             ptr_type = 'generic'
-            if not record_mode:
-                col_name = 'metamagic.caos.builtins.target'
-                if pointer.atomic():
-                    col_name += '@atom'
-                    ptr_type = 'specialized'
-            else:
-                col_name = pointer.normal_name()
+            col_name = 'metamagic.caos.builtins.target'
+            if pointer.atomic():
+                col_name += '@atom'
+                ptr_type = 'specialized'
 
             table_type = ('pointer', ptr_type)
             col_name = common.caos_name_to_pg_name(col_name)
@@ -163,16 +157,15 @@ class PointerStorageInfo:
         self.table_name = table
         self.table_type = table_type
         self.column_name = col_name
-        self.in_record = pointer.get_loading_behaviour() == caos.types.EagerLoading
         self.column_type = None
 
         if resolve_type:
             if pointer.target is not None:
-                if isinstance(pointer.target, caos.types.ProtoConcept) and not record_mode:
+                if isinstance(pointer.target, caos.types.ProtoConcept):
                     self.column_type = 'uuid'
                 else:
                     self.column_type = pg_type_from_object(proto_schema, pointer.target)
-            elif not record_mode:
+            else:
                 # The target may not be known in circular concept-to-concept linking scenarios
                 self.column_type = 'uuid'
 
@@ -180,11 +173,7 @@ class PointerStorageInfo:
                 msg = '{}: cannot determine pointer storage coltype: target is None'
                 raise ValueError(msg.format(pointer.name))
 
-            if not pointer.singular() and record_mode:
-                self.column_type += '[]'
 
-
-def get_pointer_storage_info(proto_schema, pointer, resolve_type=True, record_mode=False):
+def get_pointer_storage_info(proto_schema, pointer, resolve_type=True):
     assert not pointer.generic(), "only specialized pointers can be stored"
-    return PointerStorageInfo(proto_schema, pointer, resolve_type=resolve_type,
-                                                     record_mode=record_mode)
+    return PointerStorageInfo(proto_schema, pointer, resolve_type=resolve_type)

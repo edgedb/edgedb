@@ -87,10 +87,6 @@ def link_name_to_table_name(name, catenate=True):
     return convert_name(name, 'link', catenate)
 
 
-def link_name_to_record_name(name, catenate=False, prefix='caos_'):
-    return convert_name(name, 'link_record', catenate)
-
-
 def get_table_name(obj, catenate=True):
     if isinstance(obj, proto.Concept):
         return concept_name_to_table_name(obj.name, catenate)
@@ -102,20 +98,6 @@ def get_table_name(obj, catenate=True):
         return link_name_to_table_name(link_name, catenate)
     else:
         assert False
-
-
-def get_record_name(obj, catenate=True):
-    if isinstance(obj, proto.Concept):
-        return concept_name_to_record_name(obj.name, catenate)
-    elif isinstance(obj, proto.Link):
-        if obj.generic() or (obj.atomic() and (obj.has_user_defined_properties() or not obj.singular())):
-            link_name = obj.name
-        else:
-            link_name = obj.normal_name()
-        return link_name_to_record_name(link_name, catenate)
-    else:
-        assert False
-
 
 _type_index = None
 
