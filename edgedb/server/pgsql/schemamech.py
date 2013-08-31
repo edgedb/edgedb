@@ -370,7 +370,7 @@ class TypeMech:
 
     def invalidate_meta_cache(self):
         self._column_cache = None
-        self._column_cache = None
+        self._table_cache = None
 
     def init_cache(self, connection):
         self._load_table_columns(('caos_%', None), connection)
