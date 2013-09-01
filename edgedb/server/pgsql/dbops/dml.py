@@ -59,9 +59,9 @@ class Insert(DMLOperation):
 
             values_expr = 'VALUES {}'.format(','.join(placeholders))
 
-        code = 'INSERT INTO %s (%s) %s' % \
+        code = 'INSERT INTO %s %s %s' % \
                 (common.qname(*self.table.name),
-                 ','.join(common.quote_ident(c[0]) for c in cols),
+                 '(' + ','.join(common.quote_ident(c[0]) for c in cols) + ')' if cols else '',
                  values_expr)
 
         if self.returning:

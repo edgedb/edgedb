@@ -91,11 +91,7 @@ def get_table_name(obj, catenate=True):
     if isinstance(obj, proto.Concept):
         return concept_name_to_table_name(obj.name, catenate)
     elif isinstance(obj, proto.Link):
-        if obj.generic() or (obj.atomic() and (obj.has_user_defined_properties() or not obj.singular())):
-            link_name = obj.name
-        else:
-            link_name = obj.normal_name()
-        return link_name_to_table_name(link_name, catenate)
+        return link_name_to_table_name(obj.name, catenate)
     else:
         assert False
 

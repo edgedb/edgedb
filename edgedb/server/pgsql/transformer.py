@@ -376,13 +376,103 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
     def _relation_from_concepts(self, context, node, parent_cte):
         return self._table_from_concept(context, node.concept, node, parent_cte)
 
-    def _relation_from_link(self, context, node):
-        table_schema_name, table_name = common.get_table_name(node.link_proto, catenate=False)
-        table = pgsql.ast.TableNode(name=table_name,
-                                    schema=table_schema_name,
-                                    alias=context.current.genalias(hint=table_name),
-                                    caosnode=node)
-        return table
+    def _table_from_link_proto(self, context, link_proto):
+        """Return a TableNode corresponding to a given link prototype"""
+        table_schema_name, table_name = common.get_table_name(link_proto, catenate=False)
+        return pgsql.ast.TableNode(name=table_name,
+                                   schema=table_schema_name,
+                                   alias=context.current.genalias(hint=table_name))
+
+    def _relation_from_link_proto(self, context, link_proto, direction, proprefs):
+        """"Return a Relation subclass corresponding to a given link prototype and direction.
+
+        If `link_proto` is a generic link, then a simple TableNode is returned, otherwise
+        the return value may potentially be a UNION of all tables corresponding to
+        a set of specialized links computed from the given `link_proto` taking
+        source inheritance into account.
+        """
+        linkname = link_proto.normal_name()
+        endpoint = link_proto.get_near_endpoint(direction)
+
+        if link_proto.generic():
+            # Generic links would capture the necessary set via inheritance.
+            #
+            relation = self._table_from_link_proto(context, link_proto)
+
+        else:
+            if proprefs:
+                cols = [(pref, common.caos_name_to_pg_name(pref)) for pref in proprefs]
+            else:
+                cols = []
+
+            schema = context.current.proto_schema
+
+            union_list = []
+
+            for source in {endpoint} | set(endpoint.descendants(schema)):
+                # Sift through the descendants to see who defines this link
+                try:
+                    src_link_proto = source.own_pointers[linkname]
+                except KeyError:
+                    # This source has no such link, skip it
+                    continue
+
+                table = self._table_from_link_proto(context, src_link_proto)
+
+                qry = pgsql.ast.SelectQueryNode()
+                qry.fromlist.append(table)
+
+                # Make sure all property references are pulled up properly
+                for propname, colname in cols:
+                    propref = proprefs[propname]
+
+                    selexpr = pgsql.ast.FieldRefNode(table=table, field=colname,
+                                                     origin=table, origin_field=colname)
+                    qry.targets.append(pgsql.ast.SelectExprNode(expr=selexpr, alias=colname))
+
+                union_list.append(qry)
+
+            if len(union_list) == 0:
+                # We've been given a generic link that none of the potential sources
+                # contain directly, so fall back to general parent table.
+                #
+                relation = self._table_from_link_proto(context, link_proto.bases[0])
+
+            elif len(union_list) > 1:
+                # More than one link table, generate a UNION clause.
+                #
+                relation = pgsql.ast.SelectQueryNode(op=pgsql.ast.UNION)
+                self._setop_from_list(relation, union_list, pgsql.ast.UNION)
+
+            else:
+                # Just one link table, so returin it directly
+                #
+                relation = union_list[0].fromlist[0]
+
+            relation.alias = context.current.genalias(hint=link_proto.normal_name().name)
+
+        return relation
+
+    def _relation_from_link(self, context, link_node):
+        proprefs = {}
+
+        link_proto = link_node.link_proto
+        if link_proto is None:
+            link_proto = context.current.proto_schema.get('metamagic.caos.builtins.link')
+
+        for ptr in link_proto.get_special_pointers():
+            proprefs[ptr] = tree.ast.LinkPropRefSimple(ref=link_node, name=ptr)
+
+        if not link_proto.generic() and link_proto.atomic():
+            atom_target = caos_name.Name("metamagic.caos.builtins.target@atom")
+            proprefs[atom_target] = tree.ast.LinkPropRefSimple(ref=link_node, name=atom_target)
+
+        proprefs.update({f.name: f for f in link_node.proprefs})
+
+        relation = self._relation_from_link_proto(context, link_proto, link_node.direction,
+                                                                       proprefs)
+        relation.caosnode = link_node
+        return relation
 
     def _process_record(self, context, expr, cte):
         my_elements = []
@@ -2494,15 +2584,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 map = existing_link[link_proto]
                 link_ref_map[link_proto] = map
             else:
-                if link_proto is None:
-                    link_name = caos_name.Name('link', 'metamagic.caos.builtins')
-                    table_schema, table_name = common.link_name_to_table_name(link_name, catenate=False)
-                else:
-                    table_schema, table_name = common.get_table_name(link_proto, catenate=False)
-
-                map = pgsql.ast.TableNode(name=table_name, schema=table_schema,
-                                          concepts=tip_concepts,
-                                          alias=context.current.genalias(hint='map'))
+                map = self._relation_from_link(context, link)
+                map.concepts = tip_concepts
                 link_ref_map[link_proto] = map
 
             source_ref = pgsql.ast.FieldRefNode(table=map, field='metamagic.caos.builtins.source',

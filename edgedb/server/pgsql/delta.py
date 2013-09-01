@@ -33,7 +33,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 16
+BACKEND_FORMAT_VERSION = 17
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -1757,11 +1757,7 @@ class PointerMetaCommand(MetaCommand):
 
                 return False
         else:
-            if link.atomic() and link.has_user_defined_properties():
-                return True
-            else:
-                ptr_stor_info = types.get_pointer_storage_info(meta, link, resolve_type=False)
-                return ptr_stor_info.table_type == ('pointer', 'specialized')
+            return not link.atomic() or not link.singular() or link.has_user_defined_properties()
 
 
 class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
@@ -1818,11 +1814,14 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         c.add_command(ct)
         c.add_command(ci)
 
+        c.add_command(dbops.Comment(table, link.name))
+
         self.pgops.add(c)
 
     def provide_table(self, link, meta, context):
         if not link.generic():
             gen_link = link.bases[0]
+
             if self.has_table(gen_link, meta):
                 self.create_table(gen_link, meta, context, conditional=True)
 
@@ -1830,19 +1829,17 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
             self.create_table(link, meta, context, conditional=True)
 
     def schedule_mapping_update(self, link, meta, context):
-        if not link.atomic() or link.has_user_defined_properties():
+        if self.has_table(link, meta):
             mapping_indexes = context.get(delta_cmds.RealmCommandContext).op.update_mapping_indexes
-            link_name = link.normal_name()
-            ops = mapping_indexes.links.get(link_name)
+            ops = mapping_indexes.links.get(link.name)
             if not ops:
-                mapping_indexes.links[link_name] = ops = []
+                mapping_indexes.links[link.name] = ops = []
             ops.append((self, link))
             self.pgops.add(ScheduleLinkMappingUpdate())
 
     def cancel_mapping_update(self, link, meta, context):
-        name = link.normal_name()
         mapping_indexes = context.get(delta_cmds.RealmCommandContext).op.update_mapping_indexes
-        mapping_indexes.links.pop(name, None)
+        mapping_indexes.links.pop(link.name, None)
         self.pgops.add(CancelLinkMappingUpdate())
 
 
@@ -2186,11 +2183,7 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
         else:
             generic_link = None
 
-        if link and (link.proto.generic() or \
-                        (property.normal_name() in
-                         {'metamagic.caos.builtins.source', 'metamagic.caos.builtins.target'}
-                         and self.has_table(generic_link, meta))):
-
+        if link and self.has_table(link.proto, meta):
             link.op.provide_table(link.proto, meta, context)
             alter_table = link.op.get_alter_table(context)
 
@@ -3656,6 +3649,91 @@ class UpgradeBackend(MetaCommand):
             alter_table.add_operation(dbops.AlterTableAddConstraint(cid_constraint))
 
             cmdgroup.add_command(alter_table)
+
+        cmdgroup.execute(context)
+
+    def update_to_version_17(self, context):
+        """
+        Backend format 17: all non-trivial specialized links are given their own tables
+        """
+
+        links_list = datasources.meta.links.ConceptLinks(context.db).fetch()
+        links_list = collections.OrderedDict((caos.Name(r['name']), r) for r in links_list)
+
+        index_ds = datasources.introspection.tables.TableIndexes(context.db)
+        indexes = {}
+        for row in index_ds.fetch(schema_pattern='caos%', index_pattern='%_link_mapping_idx'):
+            indexes[tuple(row['table_name'])] = row['index_names']
+
+        update_mi = UpdateMappingIndexes()
+
+        print('    Converting link tables')
+        for link_name, r in links_list.items():
+            lgroup = dbops.CommandGroup()
+
+            if not r['source'] or r['is_atom']:
+                continue
+
+            base_name = caos.Name(r['base'][0])
+            base_r = links_list[base_name]
+
+            print('        {} ---{}--> {}'.format(r['source'], base_name, r['target']))
+
+            parent_table_name = common.link_name_to_table_name(base_name, catenate=False)
+            my_table = common.link_name_to_table_name(link_name, catenate=False)
+
+            parent_table = dbops.Table(name=parent_table_name)
+            table = dbops.Table(name=my_table)
+            table.bases = [parent_table_name]
+            ct = dbops.CreateTable(table=table)
+
+            tgt_col = common.caos_name_to_pg_name('metamagic.caos.builtins.target')
+            index_name = common.caos_name_to_pg_name(str(link_name)  + 'target_id_default_idx')
+            index = dbops.Index(index_name, my_table, unique=False)
+            index.add_columns([tgt_col])
+            ci = dbops.CreateIndex(index)
+
+            lgroup.add_command(ct)
+            lgroup.add_command(ci)
+            lgroup.add_command(dbops.Comment(table, link_name))
+
+            ins = dbops.Insert(table=table, records=dbops.Query(text="""
+                SELECT * FROM ONLY {} WHERE link_type_id = $1
+            """.format(common.qname(*parent_table_name)), params=(r['id'],)))
+
+            delete = dbops.Delete(table=parent_table, condition=[('link_type_id', r['id'])],
+                                  include_children=False)
+
+            lgroup.add_command(ins)
+            lgroup.add_command(delete)
+
+            mapping = caos.types.LinkMapping(r['mapping'])
+            base_mapping = caos.types.LinkMapping(base_r['mapping'])
+
+            cmi = CreateMappingIndexes(my_table, mapping, (link_name,))
+            lgroup.add_commands(cmi.pgops)
+
+            lgroup.execute(context)
+
+        print("    Dropping mapping indexes from generic tables")
+        cmdgroup = dbops.CommandGroup()
+        for link_name, r in links_list.items():
+            lgroup = dbops.CommandGroup()
+
+            if r['source'] or r['is_atom']:
+                continue
+
+            my_table = common.link_name_to_table_name(link_name, catenate=False)
+
+            try:
+                mapping_indexes = indexes[my_table]
+            except KeyError:
+                continue
+
+            if mapping_indexes:
+                mapping = caos.types.LinkMapping(r['mapping'])
+                dmi = DropMappingIndexes(mapping_indexes, my_table, mapping)
+                cmdgroup.add_commands(dmi.pgops)
 
         cmdgroup.execute(context)
 

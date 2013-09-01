@@ -1190,6 +1190,10 @@ class TreeTransformer:
 
         elif isinstance(expr, caos_ast.LinkPropRefExpr):
             if self.context.current.location == 'generator' and expr.inline:
+                prefs = ast.find_children(expr.expr, lambda i:
+                                            (isinstance(i, caos_ast.LinkPropRefSimple)
+                                             and i.ref == expr.ref))
+                expr.ref.proprefs.update(prefs)
                 expr.ref.propfilter = self.extend_binop(expr.ref.propfilter, expr.expr)
                 if expr.ref.target:
                     self.merge_paths(expr.ref.target)
