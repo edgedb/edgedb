@@ -68,7 +68,9 @@ class NamespaceModuleSchema(ModuleSchema):
 
 
 class CachingSchema:
-    enable_cache = True
+    @classmethod
+    def cacheable(cls):
+        return True
 
 
 class LazyImportsSchema:

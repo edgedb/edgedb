@@ -181,7 +181,7 @@ class Language(meta.Language):
                     schemas.append(schema)
 
                 if (not caching_schemas and issubclass(schema, yaml_schema.CachingSchema)
-                                        and schema.enable_cache):
+                                        and schema.cacheable()):
                     caching_schemas = True
 
                 if getattr(schema, 'lazy_imports', False):
