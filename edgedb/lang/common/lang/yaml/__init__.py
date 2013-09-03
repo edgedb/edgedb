@@ -26,16 +26,25 @@ from metamagic.utils.datastructures import OrderedSet
 class YAMLModuleCacheMetaInfo(lang_loader.LangModuleCacheMetaInfo):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.lazy_dependencies = None
+        self.lazy_dependencies = []
+        self.schemas = []
 
     def update_from_code(self, code):
         super().update_from_code(code)
         self.lazy_dependencies = code.lazy_imports
+        self.schemas = ['{}.{}'.format(s.__module__, s.__name__) for s in code.schemas]
+        self.schemas.sort()
 
     def get_extras(self):
         result = super().get_extras()
+
+        if result is None:
+            result = {}
+
         if self.lazy_dependencies:
             result['lazy_deps'] = self.lazy_dependencies
+
+        result['schemas'] = self.schemas
 
         return result or None
 
@@ -45,6 +54,10 @@ class YAMLModuleCacheMetaInfo(lang_loader.LangModuleCacheMetaInfo):
         lazy_deps = data.get('lazy_deps')
         if lazy_deps:
             self.lazy_dependencies = lazy_deps
+
+        schemas = data.get('schemas')
+        if schemas:
+            self.schemas = schemas
 
     def get_dependencies(self):
         if self.dependencies and self.lazy_dependencies:
@@ -74,6 +87,39 @@ class Loader(lang_loader.LanguageSourceFileLoader):
 class Language(meta.Language):
     file_extensions = ('yml',)
     loader = Loader
+    LANG_VERSION = 5
+
+    @classmethod
+    def get_language_version(cls, metadata):
+        schemas = getattr(metadata, 'schemas', None)
+
+        if not schemas:
+            schemas_magic = 0
+        else:
+            schemas_magic = []
+
+            for schema in schemas:
+                schema_magic = -1
+
+                schema_modname, _, schema_attrname = schema.rpartition('.')
+
+                try:
+                    schema_mod = importlib.import_module(schema_modname)
+                except ImportError as e:
+                    pass
+                else:
+                    try:
+                        schema = getattr(schema_mod, schema_attrname)
+                    except AttributeError as e:
+                        pass
+                    else:
+                        schema_magic = schema.get_schema_magic()
+
+                schemas_magic.append(schema_magic)
+
+            schemas_magic = hash(tuple(schemas_magic))
+
+        return cls.LANG_VERSION << 64 | schemas_magic & 0xFFFFFFFFFFFFFFFF
 
     @classmethod
     def load(cls, stream, context=None):
@@ -109,6 +155,7 @@ class Language(meta.Language):
         caching_schemas = False
         lazy_import_schemas = False
         schemas = []
+        schema_mods = []
         module_schema = None
         imports = {}
 
@@ -121,6 +168,8 @@ class Language(meta.Language):
                 except ImportError as e:
                     raise ValueError('could not import YAML document schema') from e
                 else:
+                    schema_mods.append(schema_modname)
+
                     try:
                         schema = getattr(schema_mod, schema_attrname)
                     except AttributeError as e:
@@ -155,6 +204,8 @@ class Language(meta.Language):
             pkg = context.module.__package__
 
         all_imports = getmods(pkg, list(imports.items()))
+        # Add schemas as imports
+        all_imports.extend(schema_mods)
         all_imports.sort()
         lazy_imports = set()
 

@@ -99,7 +99,7 @@ class Language(metaclass=LanguageMeta, register=False):
         pass
 
     @classmethod
-    def get_language_version(cls):
+    def get_language_version(cls, metadata):
         return 0
 
 

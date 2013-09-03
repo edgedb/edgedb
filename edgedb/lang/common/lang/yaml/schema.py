@@ -30,6 +30,10 @@ class Base(validator.Schema):
     def normalize_code(cls, module_data, imports):
         pass
 
+    @classmethod
+    def get_schema_magic(cls):
+        return 0
+
 
 class ModuleSchemaBase(Base):
     pass

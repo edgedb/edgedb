@@ -235,7 +235,7 @@ class SourceLoader:
     def modver_from_path_stats(self, path_stats):
         return int(path_stats['mtime'])
 
-    def _get_module_version(self, modname, imports):
+    def _get_module_version(self, modname, metadata):
         source_path = self.get_filename(modname)
         try:
             source_stats = self.path_stats(source_path)
@@ -244,11 +244,11 @@ class SourceLoader:
         else:
             return self.modver_from_path_stats(source_stats)
 
-    def get_module_version(self, modname, imports):
+    def get_module_version(self, modname, metadata):
         try:
             modver = caches.modver_cache[modname]
         except KeyError:
-            modver = caches.modver_cache[modname] = self._get_module_version(modname, imports)
+            modver = caches.modver_cache[modname] = self._get_module_version(modname, metadata)
 
         return modver
 
@@ -266,8 +266,14 @@ class SourceLoader:
                 return deptracking_policy
 
 
+# Global module cache signature.  Bump the lower part on globally affecting.
+# import system changes, such as changes to the cache structure.
+#
+GENERAL_MAGIC = (0x4D4D << 16) | 1
+
+
 class ModuleCacheMetaInfo:
-    _cache_struct = struct.Struct('!QII')
+    _cache_struct = struct.Struct('!IQQQI')
 
     def __init__(self, modname, *, magic=None, modver=None, code_offset=None):
         self.modname = modname
@@ -276,22 +282,33 @@ class ModuleCacheMetaInfo:
         self.code_offset = code_offset
 
     def marshal(self):
+        assert self.magic < 2 ** 128
+
         extras = self.marshal_extras()
+        magic_hi, magic_lo = self.magic >> 64, self.magic & 0xFFFFFFFFFFFFFFFF
+
+                 #      I           Q         Q           Q                     I             #
+        header = [GENERAL_MAGIC, magic_hi, magic_lo, self.modver, len(extras) if extras else 0]
+        result = bytearray(self._cache_struct.pack(*header))
 
         if extras:
-            result = bytearray(self._cache_struct.pack(self.magic, self.modver, len(extras)))
             result.extend(extras)
-        else:
-            result = bytearray(self._cache_struct.pack(self.magic, self.modver, 0))
 
         return result
 
     @classmethod
     def unmarshal(cls, modname, data):
         try:
-            magic, modver, extra_metainfo_size = cls._cache_struct.unpack_from(data)
+            header = cls._cache_struct.unpack_from(data)
         except struct.error as e:
             raise ImportError('could not unpack cached module metainformation') from e
+
+        genmagic, magic_hi, magic_lo, modver, extra_metainfo_size = header
+
+        if genmagic != GENERAL_MAGIC:
+            raise ImportError('incompatible cache signature')
+
+        magic = magic_hi << 64 | magic_lo
 
         code_offset = cls._cache_struct.size
 
@@ -313,8 +330,6 @@ class ModuleCacheMetaInfo:
         pass
 
 
-GENERAL_MAGIC = 1
-
 class ModuleCache:
     metainfo_class = ModuleCacheMetaInfo
 
@@ -327,8 +342,8 @@ class ModuleCache:
         self._metainfo = None
         self._metainfo_bytes = None
 
-    def get_magic(self):
-        return GENERAL_MAGIC
+    def get_magic(self, metadata):
+        return 0
 
     @property
     def modname(self):
@@ -437,21 +452,13 @@ class ModuleCache:
 
     def update_metainfo(self):
         try:
-            magic = self.get_magic()
+            magic = self.get_magic(self._metainfo)
         except NotImplementedError:
             magic = 0
 
         self._metainfo.magic = magic
-
-        try:
-            get_deps = self.metainfo.get_dependencies
-        except AttributeError:
-            imports = None
-        else:
-            imports = get_deps()
-
         caches.invalidate_modver_cache(self._modname)
-        self._metainfo.modver = self._loader.get_module_version(self._modname, imports)
+        self._metainfo.modver = self._loader.get_module_version(self._modname, self._metainfo)
 
     def dumpb_metainfo(self):
         if self._metainfo is None:
@@ -484,7 +491,7 @@ class ModuleCache:
         metainfo = self.metainfo
 
         try:
-            expected_magic = self.get_magic()
+            expected_magic = self.get_magic(metainfo)
         except NotImplementedError:
             pass
         else:
@@ -498,7 +505,7 @@ class ModuleCache:
         else:
             imports = get_deps()
 
-        cur_modver = self._loader._get_module_version(self._modname, imports)
+        cur_modver = self._loader._get_module_version(self._modname, metainfo)
 
         if cur_modver != metainfo.modver:
             raise ImportError('"{}" cache is stale'.format(self._modname))
@@ -507,8 +514,8 @@ class ModuleCache:
         pass
 
     def update_module_attributes(self, module):
-        module.__sx_modversion__ = self.metainfo.modver
         module.__cached__ = self.path
+        module.__mm_metadata__ = self.metainfo
 
 
 class CachingLoader:

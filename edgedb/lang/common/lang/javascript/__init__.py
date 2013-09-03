@@ -125,7 +125,7 @@ class _MetamagicImportsHook:
 
 
 class ModuleCache(lang_loader.LangModuleCache):
-    def get_magic(self):
+    def get_magic(self, metadata):
         return self._loader.__class__._cache_magic
 
 

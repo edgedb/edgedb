@@ -15,6 +15,7 @@ import types
 
 
 from metamagic.utils.algos import topological
+from metamagic.utils.debug import debug
 
 from .context import ImportContext
 from . import cache as caches
@@ -268,6 +269,15 @@ def modules_from_import_statements(package, imports, ignore_missing=False):
     return modules
 
 
+def get_module_version(module):
+    try:
+        metadata = module.__mm_metadata__
+    except AttributeError:
+        return None
+    else:
+        return getattr(metadata, 'modver', None)
+
+
 def modified_modules():
     caches.invalidate_modver_cache()
 
@@ -279,22 +289,18 @@ def modified_modules():
             continue
 
         try:
-            loaded_modver = module.__sx_modversion__
+            loaded_metainfo = module.__mm_metadata__
         except AttributeError:
             # Unmanaged module
             continue
 
-        try:
-            imports = module.__sx_imports__
-        except AttributeError:
-            imports = ()
+        current_modver = loader.get_module_version(module.__name__, loaded_metainfo)
 
-        current_modver = loader.get_module_version(module.__name__, imports)
-
-        if loaded_modver != current_modver:
+        if loaded_metainfo.modver != current_modver:
             yield module
 
 
+@debug
 def reload_modified(modified=None):
     if modified is None:
         modified = modified_modules()
@@ -319,6 +325,9 @@ def reload_modified(modified=None):
             else:
                 raise
         else:
+            """LINE [lang.import.reload] RELOADED MODULE
+            module.__name__
+            """
             reloaded.append(module)
 
     return reloaded

@@ -84,8 +84,8 @@ class LangModuleCache(loader.ModuleCache):
         super().validate()
         self._loader._language.validate_code(self.code)
 
-    def get_magic(self):
-        return self._loader._language.get_language_version()
+    def get_magic(self, metadata):
+        return self._loader._language.get_language_version(metadata)
 
     def update_module_attributes_early(self, module):
         super().update_module_attributes_early(module)
@@ -175,8 +175,15 @@ class LanguageLoader(LanguageLoaderBase):
         module.__mm_runtime_imports__ = code.runtime_imports or ()
         module.__language__ = self._language
 
-    def _get_module_version(self, modname, imports):
-        my_modver = super()._get_module_version(modname, imports)
+    def _get_module_version(self, modname, metadata):
+        my_modver = super()._get_module_version(modname, metadata)
+
+        try:
+            get_deps = metadata.get_dependencies
+        except AttributeError:
+            imports = None
+        else:
+            imports = get_deps()
 
         if imports:
             deps_modver = self._get_deps_modver(imports)
@@ -204,7 +211,12 @@ class LanguageLoader(LanguageLoaderBase):
                 except AttributeError:
                     pass
                 else:
-                    dep_modver = getmodver(dep, getattr(impmod, '__sx_imports__', ()))
+                    try:
+                        dep_metadata = impmod.__mm_metadata__
+                    except AttributeError:
+                        pass
+                    else:
+                        dep_modver = getmodver(dep, dep_metadata)
 
             if dep_modver is None:
                 # Module not handled by any of our loaders, fallback to native loader check
