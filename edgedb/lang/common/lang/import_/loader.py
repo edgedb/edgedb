@@ -370,15 +370,6 @@ class ModuleCache:
         self._metainfo = self.__class__.metainfo_class.unmarshal(self._modname,
                                                                  self._metainfo_bytes)
 
-    def fix(self):
-        """Fixup any inconsistencies in the cache object
-
-        Must only be called after the cache object was attempted to be loaded.
-        """
-
-        if self._metainfo is None:
-            self._metainfo = self.__class__.metainfo_class(self._modname)
-
     @property
     def metainfo(self):
         """Return cached module metainformation.
@@ -386,7 +377,10 @@ class ModuleCache:
         Raises: ImportError if information could not be loaded.
         """
         if self._metainfo is None:
-            self.load_metainfo()
+            try:
+                self.load_metainfo()
+            except ImportError:
+                self._metainfo = self.__class__.metainfo_class(self._modname)
 
         return self._metainfo
 
@@ -523,6 +517,7 @@ class ModuleCache:
     def update_module_attributes(self, module):
         module.__cached__ = self.path
 
+
 class CachingLoader:
     def get_code(self, modname):
         cache = self.create_cache(modname)
@@ -531,10 +526,7 @@ class CachingLoader:
         module = sys.modules[modname]
 
         if cache is not None:
-            try:
-                cache.update_module_attributes_early(module)
-            except ImportError:
-                pass
+            cache.update_module_attributes_early(module)
 
             try:
                 cache.validate()
@@ -547,11 +539,6 @@ class CachingLoader:
                     pass
 
         if code is None:
-            if cache is not None:
-                # Fix any inconsistencies in cache object before re-compiling,
-                # so that code_from_source can safely work with it.
-                cache.fix()
-
             source_bytes = self.get_source_bytes(modname)
             code = self.code_from_source(modname, source_bytes, cache=cache)
 

@@ -68,10 +68,6 @@ class Loader(imploader.LoaderCommon, _SourceFileLoader, imploader.SourceLoader,
             try:
                 cache.validate()
             except ImportError:
-                # Fix any inconsistencies in cache object before re-compiling,
-                # so that code_from_source can safely work with it.
-                cache.fix()
-
                 self.process_code(fullname, code, cache)
 
                 if not sys.dont_write_bytecode:
