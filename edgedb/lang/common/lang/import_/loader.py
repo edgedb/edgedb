@@ -487,6 +487,7 @@ class ModuleCache:
             if code_bytes:
                 self._loader.set_data(code_path, code_bytes)
 
+    @debug
     def validate(self):
         metainfo = self.metainfo
 
@@ -496,6 +497,9 @@ class ModuleCache:
             pass
         else:
             if metainfo.magic != expected_magic:
+                """LOG [lang.import.cache]
+                print('import: cache: bad magic number in "{}" cache'.format(self._modname))
+                """
                 raise ImportError('bad magic number in "{}" cache'.format(self._modname))
 
         try:
@@ -508,15 +512,16 @@ class ModuleCache:
         cur_modver = self._loader._get_module_version(self._modname, metainfo)
 
         if cur_modver != metainfo.modver:
+            """LOG [lang.import.cache]
+            print('import: cache: modver mismatch in "{}" cache'.format(self._modname))
+            """
             raise ImportError('"{}" cache is stale'.format(self._modname))
 
     def update_module_attributes_early(self, module):
-        pass
+        module.__mm_metadata__ = self.metainfo
 
     def update_module_attributes(self, module):
         module.__cached__ = self.path
-        module.__mm_metadata__ = self.metainfo
-
 
 class CachingLoader:
     def get_code(self, modname):

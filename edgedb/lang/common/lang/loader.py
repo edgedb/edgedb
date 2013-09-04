@@ -186,14 +186,14 @@ class LanguageLoader(LanguageLoaderBase):
             imports = get_deps()
 
         if imports:
-            deps_modver = self._get_deps_modver(imports)
+            deps_modver = self._get_deps_modver(modname, imports)
 
             if deps_modver > my_modver:
                 my_modver = deps_modver
 
         return my_modver
 
-    def _get_deps_modver(self, deps):
+    def _get_deps_modver(self, modname, deps):
         max_modver = 0
 
         for dep in deps:
