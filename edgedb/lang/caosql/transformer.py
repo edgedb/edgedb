@@ -198,7 +198,7 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
 
                     refpath = qlast.LinkNode(name=el.rlink.link_proto.normal_name().name,
                                              namespace=el.rlink.link_proto.normal_name().module,
-                                             target=target)
+                                             target=target, direction=el.rlink.direction)
                     refpath = qlast.LinkExprNode(expr=refpath)
                     sitem = qlast.SelectPathSpecNode(expr=refpath)
                     rec = el.ref.selector[0].expr
@@ -232,7 +232,7 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
 
                     refpath = qlast.LinkNode(name=el.rlink.link_proto.normal_name().name,
                                              namespace=el.rlink.link_proto.normal_name().module,
-                                             target=target)
+                                             target=target, direction=el.rlink.direction)
                     refpath = qlast.LinkExprNode(expr=refpath)
                     sitem = qlast.SelectPathSpecNode(expr=refpath)
                     sitem.pathspec = self._pathspec_from_record(el)
