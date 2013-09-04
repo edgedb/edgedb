@@ -3685,9 +3685,16 @@ class UpgradeBackend(MetaCommand):
             parent_table = dbops.Table(name=parent_table_name)
             table = dbops.Table(name=my_table)
             table.bases = [parent_table_name]
+
+            src_col = common.caos_name_to_pg_name('metamagic.caos.builtins.source')
+            tgt_col = common.caos_name_to_pg_name('metamagic.caos.builtins.target')
+
+            constraint = dbops.UniqueConstraint(table_name=my_table,
+                                                columns=[src_col, tgt_col, 'link_type_id'])
+            table.constraints = [constraint]
+
             ct = dbops.CreateTable(table=table)
 
-            tgt_col = common.caos_name_to_pg_name('metamagic.caos.builtins.target')
             index_name = common.caos_name_to_pg_name(str(link_name)  + 'target_id_default_idx')
             index = dbops.Index(index_name, my_table, unique=False)
             index.add_columns([tgt_col])
