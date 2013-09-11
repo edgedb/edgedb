@@ -738,7 +738,10 @@ class CaosTreeTransformer(CaosExprTransformer):
             if isinstance(graph.optarget, tree.ast.LinkPropRefSimple):
                 prop = graph.optarget
 
-                query.fromexpr = self._relation_from_link(context, prop.ref)
+                # Cannot call _relation_from_link here as DELETE/UPDATE only work on
+                # single tables and _relation_from_link can produce any relation.
+                #
+                query.fromexpr = self._table_from_link_proto(context, prop.ref.link_proto)
 
                 ref_map = {prop.ref.link_proto: query.fromexpr}
                 context.current.link_node_map[prop.ref] = {'local_ref_map': ref_map}
