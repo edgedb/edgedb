@@ -99,7 +99,7 @@ def import_path(path):
             continue
 
         tail = path[len(syspath.rstrip(os.sep)):]
-        if tail[-1] != os.sep:
+        if tail[0] != os.sep:
             tail = path
 
         modname = tail.strip(os.sep).replace(os.sep, '.')
