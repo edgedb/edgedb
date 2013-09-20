@@ -98,6 +98,9 @@ def import_path(path):
             was_in_cwd = True
             continue
 
+        # Check that syspath is a proper directory prefix,
+        # i.e. tail starts with os.sep.
+        #
         tail = path[len(syspath.rstrip(os.sep)):]
         if tail[0] != os.sep:
             tail = path
