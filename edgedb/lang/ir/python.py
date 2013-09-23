@@ -245,10 +245,28 @@ class CaosToPythonTransformer(TreeTransformer):
             result = py_ast.PyCall(func=func, args=args)
 
         elif isinstance(expr, caos_ast.TypeCast):
-            # XXX: should add proper schema type constructor call
-            result = self._process_expr(expr.expr, context)
+            expr_type = self.get_expr_type(expr.expr, context.proto_schema)
+            result = self._cast(self._process_expr(expr.expr, context), expr_type, expr.type)
 
         else:
             assert False, "unexpected expression: %r" % expr
+
+        return result
+
+    def _cast(self, expr, from_type, to_type):
+        result = None
+
+        if (isinstance(from_type, caos_types.ProtoNode)
+                    and from_type.name == "metamagic.caos.builtins.str"):
+            if to_type.name == "metamagic.caos.builtins.bytes":
+                result = py_ast.PyCall(func=py_ast.PyAttribute(value=expr, attr="encode"),
+                                       args=[py_ast.PyStr(s="utf8")])
+        elif (isinstance(to_type, caos_types.ProtoNode)
+                    and to_type.name == "metamagic.caos.builtins.str"):
+            result = py_ast.PyCall(func=py_ast.PyName(id="str"), args=[expr])
+
+        if result is None:
+            # XXX: this should really be an error
+            result = expr
 
         return result

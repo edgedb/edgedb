@@ -2375,6 +2375,22 @@ class CaosTreeTransformer(CaosExprTransformer):
                 replace_2 = pgsql.ast.FunctionCallNode(name='regexp_replace',
                                                        args=[replace_1, re_2, replacement, flags])
                 result = pgsql.ast.FunctionCallNode(name='lower', args=[replace_2])
+
+            elif expr.name == ('str', 'b64encode'):
+                enc_format = pgsql.ast.ConstantNode(value='base64')
+                b64_encode = pgsql.ast.FunctionCallNode(name='encode', args=[args[0], enc_format])
+                result = b64_encode
+
+            elif expr.name == ('str', 'urlsafe_b64encode'):
+                enc_format = pgsql.ast.ConstantNode(value='base64')
+                b64_encode = pgsql.ast.FunctionCallNode(name='encode', args=[args[0], enc_format])
+                unsafe_chars = pgsql.ast.ConstantNode(value='+/')
+                safe_chars = pgsql.ast.ConstantNode(value='-_')
+                pad_char = pgsql.ast.ConstantNode(value='=')
+                safe_encode = pgsql.ast.FunctionCallNode(name='translate',
+                                            args=[b64_encode, unsafe_chars, safe_chars])
+                result = safe_encode
+
             elif expr.name == 'getitem':
                 index = self._process_expr(context, expr.args[1], cte)
                 upper = pgsql.ast.BinOpNode(left=index, op=ast.ops.ADD,
