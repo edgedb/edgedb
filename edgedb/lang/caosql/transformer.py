@@ -1055,7 +1055,17 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                         modaliases = context.current.namespaces
 
                         if not linkname[0]:
-                            lname = (concept.name.module, linkname[1])
+                            if direction == caos_types.OutboundDirection:
+                                lname = (concept.name.module, linkname[1])
+                            else:
+                                if link_target:
+                                    lname = (link_target.name.module, linkname[1])
+                                else:
+                                    default_mod = modaliases.get("")
+                                    if default_mod:
+                                        lname = (default_mod, linkname[1])
+                                    else:
+                                        lname = (linkname[1],)
                         else:
                             lname = linkname
 
