@@ -1061,11 +1061,11 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                 if link_target:
                                     lname = (link_target.name.module, linkname[1])
                                 else:
-                                    default_mod = modaliases.get("")
+                                    default_mod = modaliases.get(None)
                                     if default_mod:
                                         lname = (default_mod, linkname[1])
                                     else:
-                                        lname = (linkname[1],)
+                                        lname = (None, linkname[1],)
                         else:
                             lname = linkname
 
@@ -1076,8 +1076,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                                           module_aliases=modaliases)
 
                         targets = {l.get_far_endpoint(direction) for l in links}
-                        link_target = link_item.create_common_target(self.proto_schema, targets,
-                                                                     minimize_by='most_generic')
+
+                        if link_target is None:
+                            link_target = link_item.create_common_target(self.proto_schema, targets,
+                                                                         minimize_by='most_generic')
 
                     else:
                         try:
