@@ -1412,10 +1412,24 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             info = datasources.meta.backend_info.BackendInfo(self.connection).fetch()[0]
             info['initialized'] = True
             return info
-        except postgresql.exceptions.SchemaNameError:
-            return {'format_version': delta_cmds.BACKEND_FORMAT_VERSION, 'initialized': False}
-        except postgresql.exceptions.UndefinedTableError:
-            return {'format_version': 0, 'initialized': True}
+        except (postgresql.exceptions.SchemaNameError, postgresql.exceptions.UndefinedTableError):
+            # Two possibilities: either this is a fresh empty db, or it's ancient
+            # enough not to have backend metainformation.
+            #
+            schemas_ds = datasources.introspection.schemas.SchemasList(self.connection)
+            caos_schema = schemas_ds.fetch(schema_name='caos')
+            if caos_schema:
+                # Ancient db
+                return {
+                    'format_version': 0,
+                    'initialized': True,
+                }
+            else:
+                # Empty db
+                return {
+                    'format_version': delta_cmds.BACKEND_FORMAT_VERSION,
+                    'initialized': False,
+                }
 
 
     def read_atoms(self, meta):
