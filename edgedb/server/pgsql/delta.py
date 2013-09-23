@@ -33,7 +33,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 17
+BACKEND_FORMAT_VERSION = 18
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -2751,6 +2751,10 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
                                                 neg_conditions=[dbops.TypeExists(('caos', 'hstore'))],
                                                 priority=-2))
 
+        self.pgops.add(deltadbops.EnableFeature(feature=features.CryptoFeature(),
+                                                neg_conditions=[dbops.FunctionExists(('caos', 'gen_random_bytes'))],
+                                                priority=-2))
+
         self.pgops.add(deltadbops.EnableFeature(feature=features.FuzzystrmatchFeature(),
                                                 neg_conditions=[dbops.FunctionExists(('caos', 'levenshtein'))],
                                                 priority=-2))
@@ -3743,6 +3747,14 @@ class UpgradeBackend(MetaCommand):
                 cmdgroup.add_commands(dmi.pgops)
 
         cmdgroup.execute(context)
+
+    def update_to_version_18(self, context):
+        """
+        Backend format 18: enable Crypto feature
+        """
+        cond = dbops.FunctionExists(('caos', 'gen_random_bytes'))
+        op = deltadbops.EnableFeature(feature=features.CryptoFeature(), neg_conditions=[cond])
+        op.execute(context)
 
     @classmethod
     def update_backend_info(cls):

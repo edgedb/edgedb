@@ -37,6 +37,13 @@ class HstoreFeature(deltadbops.Feature):
             pass
 
 
+class CryptoFeature(deltadbops.Feature):
+    source = '%(pgpath)s/contrib/pgcrypto.sql'
+
+    def __init__(self, schema='caos'):
+        super().__init__(name='pgcrypto', schema=schema)
+
+
 class FuzzystrmatchFeature(deltadbops.Feature):
     source = '%(pgpath)s/contrib/fuzzystrmatch.sql'
 

@@ -2391,6 +2391,10 @@ class CaosTreeTransformer(CaosExprTransformer):
                                             args=[b64_encode, unsafe_chars, safe_chars])
                 result = safe_encode
 
+            elif expr.name == ('rand', 'bytes'):
+                args[0] = pgsql.ast.TypeCastNode(expr=args[0], type=pgsql.ast.TypeNode(name='int'))
+                name = common.qname('caos', 'gen_random_bytes')
+
             elif expr.name == 'getitem':
                 index = self._process_expr(context, expr.args[1], cte)
                 upper = pgsql.ast.BinOpNode(left=index, op=ast.ops.ADD,
