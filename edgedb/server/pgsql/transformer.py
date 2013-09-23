@@ -57,6 +57,7 @@ class TransformerContextLevel(object):
             self.output_format = prevlevel.output_format
             self.in_subquery = prevlevel.in_subquery
             self.global_ctes = prevlevel.global_ctes
+            self.local_atom_expr_source = prevlevel.local_atom_expr_source
 
             if mode == TransformerContext.NEW_TRANSPARENT:
                 self.location = prevlevel.location
@@ -128,6 +129,7 @@ class TransformerContextLevel(object):
             self.record_info = {}
             self.output_format = None
             self.in_subquery = False
+            self.local_atom_expr_source = None
 
     def genalias(self, alias=None, hint=None):
         if alias is None:
@@ -812,7 +814,11 @@ class CaosTreeTransformer(CaosExprTransformer):
                 if op_is_update:
                     for expr in opvalues:
                         field = self._process_expr(context, expr.expr)
-                        value = self._process_expr(context, expr.value)
+
+                        with context(TransformerContext.NEW_TRANSPARENT):
+                            context.current.local_atom_expr_source = graph.optarget
+                            value = self._process_expr(context, expr.value)
+
                         query.values.append(pgsql.ast.UpdateExprNode(expr=field, value=value))
         else:
             query = context.current.query
@@ -2080,6 +2086,11 @@ class CaosTreeTransformer(CaosExprTransformer):
         elif isinstance(expr, (tree.ast.AtomicRefSimple, tree.ast.MetaRef)):
             self._process_expr(context, expr.ref, cte)
 
+            if context.current.local_atom_expr_source is not None:
+                if context.current.local_atom_expr_source != expr.ref:
+                    msg = "invalid reference to non-local atom in local expression context"
+                    raise ValueError(msg)
+
             ref = expr.ref
             if isinstance(ref, tree.ast.Disjunction):
                 datarefs = ref.paths
@@ -2106,6 +2117,9 @@ class CaosTreeTransformer(CaosExprTransformer):
                 # Ensure that the result is always a FieldRefNode
                 #
                 result = result.expr
+
+            if context.current.local_atom_expr_source is not None:
+                result.table = None
 
         elif isinstance(expr, tree.ast.LinkPropRefSimple):
             self._process_expr(context, expr.ref, cte)
