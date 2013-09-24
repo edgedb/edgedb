@@ -1621,6 +1621,11 @@ class PointerMetaCommand(MetaCommand):
                 rec = self.table.record()
 
             rec.constraints = self.pack_constraints(pointer, pointer.constraints.values())
+
+        if not old_pointer or old_pointer.abstract_constraints != pointer.abstract_constraints:
+            if not rec:
+                rec = self.table.record()
+
             rec.abstract_constraints = self.pack_constraints(pointer,
                                                              pointer.abstract_constraints.values(),
                                                              True)
