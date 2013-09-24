@@ -12,7 +12,12 @@
 'use strict';
 
 sx.UUID = function(hex) {
-    this.hex = hex.replace(/[\-\s]/g, '');
+    if (sx.is_string(hex)) {
+        this.hex = hex.replace(/[\-\s]/g, '');
+    } else {
+        this._bytes = hex;
+        this.hex = sx.byteutils.hexlify(hex);
+    }
 };
 
 sx.UUID.prototype.toHex = function() {

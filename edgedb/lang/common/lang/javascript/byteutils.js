@@ -9,11 +9,20 @@
 sx.byteutils = (function() {
     'use strict';
 
+    var hex = '0123456789abcdef';
+
     function _utf8_encode(str) {
         if (!str) {
             return '';
         }
         return unescape(encodeURIComponent(String(str)));
+    };
+
+    function _utf8_decode(str) {
+        if (!str) {
+            return '';
+        }
+        return decodeURIComponent(escape(String(str)));
     };
 
     return {
@@ -36,6 +45,21 @@ sx.byteutils = (function() {
             return bytes;
         },
 
+        hexlify: function(bytes) {
+            var i, len = bytes.length, res = '', c1, c2;
+
+            for (i = 0; i < len; i++) {
+                c1 = bytes[i];
+
+                c2 = (c1 & 0xf0) >> 4;
+                c1 = c1 & 0xf;
+
+                res += hex[c2] + hex[c1];
+            }
+
+            return res;
+        },
+
         to_bytes: function(str) {
             // encodes JS unicode string to utf8, and returns
             // array of bytes
@@ -50,6 +74,16 @@ sx.byteutils = (function() {
             }
 
             return res;
+        },
+
+        from_bytes: function(msg) {
+            var str = '', i, len;
+
+            for (i = 0, len = msg.length; i < len; i++) {
+                str += String.fromCharCode(msg[i]);
+            }
+
+            return _utf8_decode(str);
         }
     }
 })();
