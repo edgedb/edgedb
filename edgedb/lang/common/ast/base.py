@@ -150,16 +150,6 @@ class AST(object, metaclass=MetaAST):
             setattr(copied, field, value)
         return copied
 
-    def __deepcopy__(self, memo):
-        copied = self.__class__()
-        for field, value in iter_fields(self):
-            if isinstance(value, list):
-                new_value = [copy.deepcopy(subval, memo) for subval in value]
-                setattr(copied, field, new_value)
-            else:
-                setattr(copied, field, copy.deepcopy(value, memo))
-        return copied
-
 
 @markup.serializer.serializer(handles=AST)
 def _serialize_to_markup(ast, *, ctx):
