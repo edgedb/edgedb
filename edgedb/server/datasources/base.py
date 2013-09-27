@@ -1,15 +1,17 @@
 ##
-# Copyright (c) 2008-2012 Sprymix Inc.
+# Copyright (c) 2008-2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
 
+import copyreg
 import uuid
 
 
 from metamagic.caos import types as caos_types
+from metamagic.utils.lang import meta as lang_meta
 
 
 def check_type(variable, type):
@@ -47,7 +49,11 @@ class DatasourceError(Exception):
     pass
 
 
-class Datasource(object):
+class DatasourceMeta(type):
+    pass
+
+
+class Datasource(metaclass=DatasourceMeta):
     @classmethod
     def prepare_class(cls, context, descriptor):
         cls.descriptor = descriptor
@@ -108,6 +114,28 @@ class Datasource(object):
 
     def coerce_default_value(self, name, value, type):
         return value
+
+
+def _restore_datasource(metacls, name, module, bases, proto):
+    bases = tuple(get_object(b) for b in bases)
+    dct = metacls.__prepare__(name, bases)
+    dct['__module__'] = module
+    result = metacls(name, bases, dct)
+    result.descriptor = proto
+    return result
+
+
+def reduce_datasource(cls, restore=_restore_datasource):
+    bases = tuple('{}.{}'.format(b.__module__, b.__name__) for b in cls.__bases__)
+    mro = type(cls).__mro__
+    for metacls in mro:
+        if not issubclass(metacls, lang_meta.Object):
+            break
+    else:
+        raise TypeError('{!r} is not a field component class')
+    return restore, (metacls, cls.__name__, cls.__module__, bases, cls.descriptor)
+
+copyreg.pickle(DatasourceMeta, reduce_datasource)
 
 
 class CaosDatasource(Datasource):
