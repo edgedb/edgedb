@@ -229,7 +229,8 @@ class InstructionProxy(ProxyBase):
 
     def __next__(self):
         tinfo = 'query-fetch-chunk: {}'.format(self.statement.statement_id)
-        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo):
+        with tracepoints.if_tracing(pgsql_trace.Query,
+                                    info=tinfo, id=self.statement.statement_id):
             return self.__wrapped__.__next__()
 
     def __iter__(self):
@@ -245,12 +246,14 @@ class CursorProxy(ProxyBase):
 
     def _fetch(self, *args, **kwargs):
         tinfo = 'query-cursor-fetch: {}'.format(self.statement.statement_id)
-        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo):
+        with tracepoints.if_tracing(pgsql_trace.Query,
+                                    info=tinfo, id=self.statement.statement_id):
             return self.__wrapped__._fetch(*args, **kwargs)
 
     def seek(self, *args, **kwargs):
         tinfo = 'query-cursor-seek: {}'.format(self.statement.statement_id)
-        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo):
+        with tracepoints.if_tracing(pgsql_trace.Query,
+                                    info=tinfo, id=self.statement.statement_id):
             return self.__wrapped__.seek(*args, **kwargs)
 
 
@@ -273,7 +276,7 @@ class StatementProxy(ProxyBase):
 
     def chunks(self, *args, **kwargs):
         tinfo = 'query-fetch-chunk-init: {}'.format(self.statement_id)
-        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo):
+        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo, id=self.statement_id):
             result = self.__wrapped__.__class__.chunks(self, *args, **kwargs)
             return InstructionProxy(result)
 
@@ -282,17 +285,17 @@ class StatementProxy(ProxyBase):
 
     def first(self, *args, **kwargs):
         tinfo = 'query-fetch-first: {}'.format(self.statement_id)
-        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo):
+        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo, id=self.statement_id):
             return self.__wrapped__.__class__.first(self, *args, **kwargs)
 
     def __call__(self, *args, **kwargs):
         tinfo = 'query-fetch-all: {}'.format(self.statement_id)
-        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo):
+        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo, id=self.statement_id):
             return self.__wrapped__.__class__.__call__(self, *args, **kwargs)
 
     def _fini(self, *args, **kwargs):
         tinfo = 'query-fetch-chunk-fini: {}'.format(self.statement_id)
-        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo):
+        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo, id=self.statement_id):
             return self.__wrapped__._fini(*args, **kwargs)
 
 
