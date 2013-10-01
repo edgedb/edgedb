@@ -13,8 +13,8 @@ from datetime import timedelta
 from metamagic.utils.algos import persistent_hash
 from metamagic.utils.functional import hybridmethod
 from metamagic.utils.debug import debug
-from metamagic.utils import buckets as abstract
-from . import implementation
+from metamagic.utils import buckets as abstract, tracepoints
+from . import implementation, tracepoints as cache_trace
 
 
 def _key(prefix:str, hash:int) -> bytes:
@@ -128,7 +128,12 @@ class Bucket(abstract.Bucket, metaclass=BucketMeta):
 
         hashed_key = self._get_inst_key(key)
         try:
-            value = impl.getitem(hashed_key)
+            with tracepoints.if_tracing(cache_trace.CacheTracepoint,
+                                        info='get; bucket: {}.{}'
+                                             .format(self.__class__.__module__,
+                                                     self.__class__.__name__)):
+
+                value = impl.getitem(hashed_key)
             '''LINE [cache] CACHE HIT
             self, '{!r:.40}'.format(key)
             '''
@@ -165,7 +170,12 @@ class Bucket(abstract.Bucket, metaclass=BucketMeta):
         expiry = self._cast_expiry_to_seconds(expiry)
         hashed_key = self._get_inst_key(key)
 
-        impl.setitem(hashed_key, value, expiry=expiry)
+        with tracepoints.if_tracing(cache_trace.CacheTracepoint,
+                                    info='set; bucket: {}.{}'
+                                         .format(self.__class__.__module__,
+                                                 self.__class__.__name__)):
+
+            impl.setitem(hashed_key, value, expiry=expiry)
 
     def __setitem__(self, key, value):
         self.set(key, value)
@@ -176,7 +186,12 @@ class Bucket(abstract.Bucket, metaclass=BucketMeta):
             return
 
         hashed_key = self._get_inst_key(key)
-        impl.delitem(hashed_key)
+
+        with tracepoints.if_tracing(cache_trace.CacheTracepoint,
+                                    info='delete; bucket: {}.{}'
+                                         .format(self.__class__.__module__,
+                                                 self.__class__.__name__)):
+            impl.delitem(hashed_key)
 
     def __contains__(self, key):
         impl = self._get_implementation()

@@ -37,6 +37,9 @@ class Trace:
     def parent(self):
         return self._parent
 
+    def set_info(self, val):
+        self._info = val
+
     def __enter__(self):
         path = '{}.{}.{}'.format(_root.__module__, _root.__name__, '_pointer')
 
@@ -48,6 +51,8 @@ class Trace:
         self._cfg.__enter__()
 
         self._entered_at = time.perf_counter()
+
+        return self
 
     def __exit__(self, *exc):
         self._exited_at = time.perf_counter()
@@ -68,9 +73,12 @@ class Trace:
 
 class TraceNop:
     def __enter__(self):
-        pass
+        return self
 
     def __exit__(self, *exc):
+        pass
+
+    def set_info(self, val):
         pass
 
 
@@ -85,8 +93,8 @@ def if_tracing(trace_cls, **kwargs):
     else:
         trace = TraceNop()
 
-    with trace:
-        yield
+    with trace as ctx:
+        yield ctx
 
 
 @markup.serializer.serializer(handles=Trace)
