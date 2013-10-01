@@ -32,6 +32,10 @@ from metamagic.spin.green import postgres as green_postgres
 
 from .. import session as pg_caos_session
 
+from metamagic.utils import tracepoints
+from .. import tracepoints as pgsql_trace
+
+
 
 oid_to_type = {
     postgresql.types.UUIDOID: uuid.UUID,
@@ -204,14 +208,15 @@ class Connection(pq3.Connection, caos_pool.Connection):
             statement = self._prepared_statements[query, raw]
         except KeyError:
             try:
-                if raw:
-                    stmt_id = 'sx_{:x}'.format(hash(query)).replace('-', '_')
-                    prefix = 'PREPARE {} AS '.format(stmt_id)
-                    self.execute('{}{}'.format(prefix, query))
-                    statement = self.statement_from_id(stmt_id)
-                else:
-                    prefix = ''
-                    statement = self.prepare(query)
+                with tracepoints.if_tracing(pgsql_trace.QueryPrepareTracepoint):
+                    if raw:
+                        stmt_id = 'sx_{:x}'.format(hash(query)).replace('-', '_')
+                        prefix = 'PREPARE {} AS '.format(stmt_id)
+                        self.execute('{}{}'.format(prefix, query))
+                        statement = self.statement_from_id(stmt_id)
+                    else:
+                        prefix = ''
+                        statement = self.prepare(query)
 
             except postgresql.exceptions.Error as e:
                 e.__suppress_context__ = True
