@@ -125,7 +125,11 @@ class ConfigRootNode(ConfigNode, TreeRootNode):
         self.__class__.link_cls(self).__enter__()
 
     def __exit__(self, exc_type, exc_value, exc_tb):
-        return HEAD.get().__exit__(exc_type, exc_value, exc_tb)
+        head = HEAD.get()
+        if head is not None:
+            # XXX This case is rather strange, but nevertheless, it
+            # happens sometimes. To investigate this in the future.
+            return head.__exit__(exc_type, exc_value, exc_tb)
 
 
 def inline(values:dict):

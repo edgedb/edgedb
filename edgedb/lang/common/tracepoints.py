@@ -74,11 +74,13 @@ class Trace:
                 traces[-1]._merge_traces()
             else:
                 traces.append(trace)
+
         self._traces = traces
 
     def __exit__(self, *exc):
         self._exited_at = time.perf_counter()
         self._cfg.__exit__(*exc)
+        self._cfg = None
 
         if self._traces:
             self._merge_traces()
@@ -94,8 +96,6 @@ class Trace:
                 traces = []
 
             self._traces = traces
-
-        self._cfg = None
 
     def __mm_serialize__(self):
         return {
