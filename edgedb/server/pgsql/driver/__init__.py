@@ -149,39 +149,43 @@ class TypeIO(pq3.TypeIO):
         def _unpack_record(data, unpack = pg_types_io_lib.record_unpack,
                                  process_tuple = process_tuple,
                                  _Row=pg_types.Row.from_sequence):
-            record = list(unpack(data))
-            coloids = tuple(x[0] for x in record)
 
-            record_info = None
+            tinfo = 'query-unpack-record'
+            with tracepoints.if_tracing(pgsql_trace.ResultUnpack, info=tinfo):
 
-            try:
-                marker_oid = self.database._sx_known_record_marker_oid_
-            except AttributeError:
-                pass
-            else:
-                if record and record[0][0] == marker_oid:
-                    session = self.get_session()
-                    if session is not None:
-                        recid = record[0][1].decode('ascii')
-                        record_info = session.backend._get_record_info_by_id(recid)
+                record = list(unpack(data))
+                coloids = tuple(x[0] for x in record)
 
-            colio = map(self.resolve, coloids)
-            column_unpack = tuple(c[1] or self.decode for c in colio)
+                record_info = None
 
-            data = tuple(x[1] for x in record)
-            data = process_tuple(column_unpack, data, raise_unpack_tuple_error)
+                try:
+                    marker_oid = self.database._sx_known_record_marker_oid_
+                except AttributeError:
+                    pass
+                else:
+                    if record and record[0][0] == marker_oid:
+                        session = self.get_session()
+                        if session is not None:
+                            recid = record[0][1].decode('ascii')
+                            record_info = session.backend._get_record_info_by_id(recid)
 
-            if record_info is not None:
-                data = dict(zip(record_info.attribute_map, data[1:]))
+                colio = map(self.resolve, coloids)
+                column_unpack = tuple(c[1] or self.decode for c in colio)
 
-                if record_info.is_xvalue:
-                    assert data['value'] is not None
-                    data = xvalue(data['value'], **data['attrs'])
+                data = tuple(x[1] for x in record)
+                data = process_tuple(column_unpack, data, raise_unpack_tuple_error)
 
-                elif record_info.proto_class == 'metamagic.caos.proto.Concept':
-                    data = session.backend.entity_from_row(session, record_info, data)
+                if record_info is not None:
+                    data = dict(zip(record_info.attribute_map, data[1:]))
 
-            return data
+                    if record_info.is_xvalue:
+                        assert data['value'] is not None
+                        data = xvalue(data['value'], **data['attrs'])
+
+                    elif record_info.proto_class == 'metamagic.caos.proto.Concept':
+                        data = session.backend.entity_from_row(session, record_info, data)
+
+                return data
 
         return (None, _unpack_record)
 
@@ -196,6 +200,102 @@ class TypeIO(pq3.TypeIO):
         return partial(_Row, attribute_map)
 
 
+class ProxyBase:
+    _intercepted_attrs = ('__repr__', '__wrapped__')
+
+    def __init__(self, obj):
+        self.__wrapped__ = obj
+
+    def __getattribute__(self, name):
+        if name in object.__getattribute__(self, '_intercepted_attrs'):
+            return object.__getattribute__(self, name)
+
+        wrapped = object.__getattribute__(self, '__wrapped__')
+        return getattr(wrapped, name)
+
+    def __setattr__(self, name, value):
+        if name == '__wrapped__':
+            return object.__setattr__(self, name, value)
+
+        wrapped = object.__getattribute__(self, '__wrapped__')
+        return setattr(wrapped, name, value)
+
+    def __call__(self, *args, **kwargs):
+        return self.__wrapped__(*args, **kwargs)
+
+
+class InstructionProxy(ProxyBase):
+    _intercepted_attrs = ProxyBase._intercepted_attrs + ('__next__',)
+
+    def __next__(self):
+        tinfo = 'query-fetch-chunk: {}'.format(self.statement.statement_id)
+        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo):
+            return self.__wrapped__.__next__()
+
+    def __iter__(self):
+        return self
+
+
+class CursorProxy(ProxyBase):
+    _intercepted_attrs = ProxyBase._intercepted_attrs + ('_fetch', 'seek', 'clone')
+
+    def clone(self, *args, **kwargs):
+        result = self.__wrapped__.clone(*args, **kwargs)
+        return CursorProxy(result)
+
+    def _fetch(self, *args, **kwargs):
+        tinfo = 'query-cursor-fetch: {}'.format(self.statement.statement_id)
+        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo):
+            return self.__wrapped__._fetch(*args, **kwargs)
+
+    def seek(self, *args, **kwargs):
+        tinfo = 'query-cursor-seek: {}'.format(self.statement.statement_id)
+        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo):
+            return self.__wrapped__.seek(*args, **kwargs)
+
+
+class StatementProxy(ProxyBase):
+    _intercepted_attrs = ProxyBase._intercepted_attrs + \
+        ('declare', 'rows', '__iter__', 'chunks', 'column', 'first', '__call__', 'clone', '_fini')
+
+    def clone(self, *args, **kwargs):
+        return StatementProxy(self.__wrapped__.clone(*args, **kwargs))
+
+    def declare(self, *args, **kwargs):
+        cursor = self.__wrapped__.declare(*args, **kwargs)
+        return CursorProxy(cursor)
+
+    def rows(self, *args, **kwargs):
+        return self.__wrapped__.__class__.rows(self, *args, **kwargs)
+
+    def __iter__(self, *args, **kwargs):
+        return self.__wrapped__.__class__.__iter__(self, *args, **kwargs)
+
+    def chunks(self, *args, **kwargs):
+        tinfo = 'query-fetch-chunk-init: {}'.format(self.statement_id)
+        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo):
+            result = self.__wrapped__.__class__.chunks(self, *args, **kwargs)
+            return InstructionProxy(result)
+
+    def column(self, *args, **kwargs):
+        return self.__wrapped__.__class__.column(self, *args, **kwargs)
+
+    def first(self, *args, **kwargs):
+        tinfo = 'query-fetch-first: {}'.format(self.statement_id)
+        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo):
+            return self.__wrapped__.__class__.first(self, *args, **kwargs)
+
+    def __call__(self, *args, **kwargs):
+        tinfo = 'query-fetch-all: {}'.format(self.statement_id)
+        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo):
+            return self.__wrapped__.__class__.__call__(self, *args, **kwargs)
+
+    def _fini(self, *args, **kwargs):
+        tinfo = 'query-fetch-chunk-fini: {}'.format(self.statement_id)
+        with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo):
+            return self.__wrapped__._fini(*args, **kwargs)
+
+
 class Connection(pq3.Connection, caos_pool.Connection):
     def __init__(self, connector, pool=None):
         caos_pool.Connection.__init__(self, pool)
@@ -208,7 +308,7 @@ class Connection(pq3.Connection, caos_pool.Connection):
             statement = self._prepared_statements[query, raw]
         except KeyError:
             try:
-                with tracepoints.if_tracing(pgsql_trace.QueryPrepareTracepoint):
+                with tracepoints.if_tracing(pgsql_trace.Query, info='query-prepare'):
                     if raw:
                         stmt_id = 'sx_{:x}'.format(hash(query)).replace('-', '_')
                         prefix = 'PREPARE {} AS '.format(stmt_id)
@@ -217,6 +317,8 @@ class Connection(pq3.Connection, caos_pool.Connection):
                     else:
                         prefix = ''
                         statement = self.prepare(query)
+
+                    statement = StatementProxy(statement)
 
             except postgresql.exceptions.Error as e:
                 e.__suppress_context__ = True

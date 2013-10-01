@@ -9,5 +9,9 @@
 from metamagic.utils.tracepoints import Trace
 
 
-class QueryPrepareTracepoint(Trace):
-    caption = 'caos.pgsql.prepare'
+class Query(Trace):
+    caption = 'caos.pgsql.query'
+
+
+class ResultUnpack(Trace):
+    caption = 'caos.pgsql.unpack'
