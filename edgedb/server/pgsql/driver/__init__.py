@@ -256,6 +256,12 @@ class CursorProxy(ProxyBase):
                                     info=tinfo, id=self.statement.statement_id):
             return self.__wrapped__.seek(*args, **kwargs)
 
+    def __iter__(self):
+        return self.__wrapped__.__class__.__iter__(self)
+
+    def __next__(self):
+        return self.__wrapped__.__class__.__next__(self)
+
 
 class StatementProxy(ProxyBase):
     _intercepted_attrs = ProxyBase._intercepted_attrs + \
@@ -321,8 +327,6 @@ class Connection(pq3.Connection, caos_pool.Connection):
                         prefix = ''
                         statement = self.prepare(query)
 
-                    statement = StatementProxy(statement)
-
             except postgresql.exceptions.Error as e:
                 e.__suppress_context__ = True
                 raise backend_exc.QueryError(driver_err=e, query_text=query,
@@ -335,6 +339,14 @@ class Connection(pq3.Connection, caos_pool.Connection):
                 self._prepared_statements[query, raw] = statement
 
         return statement
+
+    def prepare(self, *args, **kwargs):
+        stmt = super().prepare(*args, **kwargs)
+        return StatementProxy(stmt)
+
+    def statement_from_id(self, *args, **kwargs):
+        stmt = super().statement_from_id(*args, **kwargs)
+        return StatementProxy(stmt)
 
     def connect(self):
         super().connect()
