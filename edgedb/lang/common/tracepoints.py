@@ -62,19 +62,29 @@ class Trace:
         if not self._traces:
             return
 
+        merged_traces = set()
+
         traces = [self._traces[0]]
         for trace in self._traces[1:]:
-            if trace.merge_descendants and (type(trace) is type(traces[-1])) and \
-                    (not trace.merge_same_id_only or
-                            (trace._id == traces[-1]._id and (trace._id is not None))):
+            prev_trace = traces[-1]
+            if (trace.merge_descendants
+                    and type(trace) is type(prev_trace)
+                    and (not trace.merge_same_id_only
+                            or (trace._id == prev_trace._id and trace._id is not None))):
 
-                traces[-1]._exited_at += (trace._exited_at - trace._entered_at)
-                traces[-1]._num += trace._num
-                traces[-1]._traces.extend(trace._traces)
+                duration = ((prev_trace._exited_at - prev_trace._entered_at) +
+                            (trace._exited_at - trace._entered_at))
+
+                prev_trace._exited_at = trace._exited_at
+                prev_trace._entered_at = trace._exited_at - duration
+                prev_trace._num += trace._num
+                prev_trace._traces.extend(trace._traces)
+
+                merged_traces.add(prev_trace)
             else:
                 traces.append(trace)
 
-        for trace in traces:
+        for trace in merged_traces:
             trace._merge_traces()
 
         self._traces = traces
@@ -89,10 +99,11 @@ class Trace:
 
             while True:
                 traces = self._traces
-                if len(traces) == 1 and self.merge_descendants and \
-                            (type(self) is type(traces[0])) and \
-                            (not self.merge_same_id_only or
-                                    (self._id == traces[0]._id and (self._id is not None))):
+                if (len(traces) == 1
+                        and self.merge_descendants
+                        and type(self) is type(traces[0])
+                        and (not self.merge_same_id_only
+                                or (self._id == traces[0]._id and self._id is not None))):
 
                     self._num += traces[0]._num
                     self._traces = traces[0]._traces
