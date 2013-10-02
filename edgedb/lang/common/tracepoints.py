@@ -64,16 +64,18 @@ class Trace:
 
         traces = [self._traces[0]]
         for trace in self._traces[1:]:
-            if trace.merge_descendants and type(trace) is type(traces[-1]) and \
+            if trace.merge_descendants and (type(trace) is type(traces[-1])) and \
                     (not trace.merge_same_id_only or
-                            (trace._id == traces[-1]._id and trace._id is not None)):
+                            (trace._id == traces[-1]._id and (trace._id is not None))):
 
-                traces[-1]._exited_at = trace._exited_at
+                traces[-1]._exited_at += (trace._exited_at - trace._entered_at)
                 traces[-1]._num += trace._num
                 traces[-1]._traces.extend(trace._traces)
-                traces[-1]._merge_traces()
             else:
                 traces.append(trace)
+
+        for trace in traces:
+            trace._merge_traces()
 
         self._traces = traces
 
@@ -85,17 +87,17 @@ class Trace:
         if self._traces:
             self._merge_traces()
 
-            traces = self._traces
-            if len(traces) == 1 and self.merge_descendants and type(self) is type(traces[0]) and \
-                        (not self.merge_same_id_only or
-                                (self._id == traces[0]._id and self._id is not None)):
+            while True:
+                traces = self._traces
+                if len(traces) == 1 and self.merge_descendants and \
+                            (type(self) is type(traces[0])) and \
+                            (not self.merge_same_id_only or
+                                    (self._id == traces[0]._id and (self._id is not None))):
 
-                self._num += traces[0]._num
-                self._traces.extend(traces[0]._traces)
-                self._merge_traces()
-                traces = []
-
-            self._traces = traces
+                    self._num += traces[0]._num
+                    self._traces = traces[0]._traces
+                else:
+                    break
 
     def __mm_serialize__(self):
         return {
