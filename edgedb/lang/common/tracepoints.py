@@ -195,7 +195,7 @@ class Trace(metaclass=TraceMeta):
         return dct
 
 
-class _TraceNop:
+class TraceNop:
     def __enter__(self):
         return self
 
@@ -205,7 +205,7 @@ class _TraceNop:
     def set_info(self, val):
         pass
 
-TraceNop = _TraceNop()
+_nop = TraceNop()
 
 
 def is_tracing():
@@ -219,7 +219,7 @@ def if_tracing(trace_cls, **kwargs):
     if trace is not None:
         trace = trace_cls(__parent__=trace, **kwargs)
     else:
-        trace = TraceNop
+        trace = _nop
 
     with trace as ctx:
         yield ctx

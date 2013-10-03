@@ -47,7 +47,7 @@ def test_utils_tracepoints_2():
 
     with tracepoints.if_tracing(Foo) as f:
         assert not tracepoints.is_tracing()
-        assert f is tracepoints.TraceNop
+        assert isinstance(f, tracepoints.TraceNop)
 
     root = Foo()
     with root:
