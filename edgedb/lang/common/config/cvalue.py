@@ -14,7 +14,7 @@ from metamagic.utils.datastructures.all import _Marker
 from metamagic.utils.functional.types import Checker, FunctionValidator, \
                                             ChecktypeExempt, TypeChecker, CombinedChecker
 
-from .base import HEAD, ConfigRootNode
+from .base import ConfigRootNode, _get_head
 from .tree import *
 from .exceptions import ConfigError
 
@@ -88,7 +88,7 @@ class cvalue(ChecktypeExempt, metaclass=SlotsMeta):
                               hint='Perhaps, class that hosts the cvalue is not configurable; ' \
                                    'check its metaclass to be a subclass of ConfigurableMeta')
 
-        top_conf_link = HEAD.get()
+        top_conf_link = _get_head()
         if top_conf_link is not None:
             try:
                 # Can cache here, as configs chain is immutable, and we're working

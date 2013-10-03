@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2011 Sprymix Inc.
+# Copyright (c) 2011-2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -12,80 +12,35 @@ import threading
 from .tree import *
 from metamagic.utils.functional import decorate
 from metamagic.utils import slots
+from metamagic.utils.localcontext import HEAD as _HEAD
 
 
 __all__ = 'inline',
 
 
-class _BaseHeadPointer(metaclass=slots.SlotsMeta):
-    __slots__ = ()
+def _set_head(val):
+    _HEAD.set('__mm_config_head__', val)
 
-
-class _HeadPointer(_BaseHeadPointer):
-    __slots__ = ('head',)
-
-    def __init__(self):
-        super().__init__()
-        self.head = None
-
-    def set(self, head):
-        self.head = head
-
-    def get(self):
-        return self.head
-
-
-class _HeadManager:
-    def __init__(self):
-        self.local = threading.local()
-
-    @property
-    def head_pointers(self):
-        try:
-            return self.local._head_pointers
-        except AttributeError:
-            self.local._head_pointers = storage = [_HeadPointer()]
-            return storage
-
-    def add_head_pointer(self, pointer):
-        self.head_pointers.append(pointer)
-
-    def drop_head_pointer(self, pointer):
-        self.head_pointers.remove(pointer)
-
-    def set(self, head):
-        self.head_pointers[-1].set(head)
-
-    def get(self):
-        for storage in reversed(self.head_pointers):
-            head = storage.get()
-
-            if head is not None:
-                return head
-
-
-HEAD = _HeadManager()
+def _get_head():
+    return _HEAD.get('__mm_config_head__')
 
 
 class ConfigRootLink(metaclass=slots.SlotsMeta):
-    __slots__ = '_node', '_parent', '_thread_ident', '_cache'
+    __slots__ = '_node', '_parent', '_cache'
 
     def __init__(self, node):
         self._node = node
         self._parent = None
-        if __debug__:
-            self._thread_ident = _thread.get_ident()
 
     parent = property(lambda self: self._parent)
     node = property(lambda self: self._node)
 
     def __enter__(self):
-        self._parent = HEAD.get()
-        HEAD.set(self)
+        self._parent = _get_head()
+        _set_head(self)
 
     def __exit__(self, exc_type, exc_value, exc_tb):
-        assert _thread.get_ident() == self._thread_ident
-        HEAD.set(self._parent)
+        _set_head(self._parent)
         self._parent = None
 
     def cache_get(self, key):
@@ -125,7 +80,7 @@ class ConfigRootNode(ConfigNode, TreeRootNode):
         self.__class__.link_cls(self).__enter__()
 
     def __exit__(self, exc_type, exc_value, exc_tb):
-        head = HEAD.get()
+        head = _get_head()
         if head is not None:
             # XXX This case is rather strange, but nevertheless, it
             # happens sometimes. To investigate this in the future.
@@ -150,10 +105,10 @@ def _patch_threading():
     _patched = True
 
     def start_new_thread(function, *args, **kwargs):
-        current_head = HEAD.get()
+        current_head = _get_head()
 
         def wrapper(*args, **kwargs):
-            HEAD.set(current_head)
+            _set_head(current_head)
             return function(*args, **kwargs)
 
         decorate(wrapper, function)
@@ -164,11 +119,11 @@ def _patch_threading():
 
     class Thread(_old_thread):
         def start(self):
-            self.__config_head__ = HEAD.get()
+            self.__config_head__ = _get_head()
             return super().start()
 
         def run(self):
-            HEAD.set(self.__config_head__)
+            _set_head(self.__config_head__)
             return super().run()
 
     threading.Thread = Thread
