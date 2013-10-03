@@ -9,14 +9,15 @@
 import contextlib
 from time import perf_counter
 
-from metamagic.utils import markup
-from metamagic.utils import config
+from metamagic.utils import markup, config
+from metamagic.utils.localcontext import HEAD as _HEAD
 
 
-class _root(config.Configurable):
-    _pointer = config.cvalue(None)
+def _get_local_trace():
+    return _HEAD.get('__mm_tracepoints__')
 
-_ROOT_NAME = '{}.{}.{}'.format(_root.__module__, _root.__name__, '_pointer')
+def _set_local_trace(trace):
+    return _HEAD.set('__mm_tracepoints__', trace)
 
 
 class TraceMeta(config.ConfigurableMeta):
@@ -32,9 +33,9 @@ class TraceMeta(config.ConfigurableMeta):
 
 
 class Trace(metaclass=TraceMeta):
-    __slots__ = ('_traces', '_cfg', '_info', '_entered_at',
+    __slots__ = ('_traces', '_info', '_entered_at',
                  '_exited_at', '_num', '_id', '_root', '_extras',
-                 '_parent')
+                 '_parent', '_prev_trace')
 
     caption = None
     merge_descendants = False
@@ -67,7 +68,7 @@ class Trace(metaclass=TraceMeta):
             parent = self._parent
             self._parent = None
         else:
-            parent = _root._pointer
+            parent = _get_local_trace()
 
         if parent:
             if parent._traces is None:
@@ -86,8 +87,8 @@ class Trace(metaclass=TraceMeta):
             }
             root = None
 
-        cfg = self._cfg = config.inline({_ROOT_NAME: self})
-        cfg.__enter__()
+        self._prev_trace = _get_local_trace()
+        _set_local_trace(self)
 
         self._entered_at = _start
 
@@ -102,13 +103,13 @@ class Trace(metaclass=TraceMeta):
         if not self._traces:
             return
 
-        merged_traces = set()
+        merged_traces = None
 
         traces = [self._traces[0]]
         for trace in self._traces[1:]:
             prev_trace = traces[-1]
             if (trace.merge_descendants
-                    and type(trace) is type(prev_trace)
+                    and trace.__class__ is prev_trace.__class__
                     and (not trace.merge_same_id_only
                             or (trace._id == prev_trace._id and trace._id is not None))):
 
@@ -125,37 +126,51 @@ class Trace(metaclass=TraceMeta):
                     else:
                         prev_trace._traces.extend(trace._traces)
 
+                if merged_traces is None:
+                    merged_traces = set()
+
                 merged_traces.add(prev_trace)
+
             else:
                 traces.append(trace)
 
-        for trace in merged_traces:
-            trace._merge_traces()
+        if merged_traces is not None:
+            for trace in merged_traces:
+                trace._merge_traces()
 
         self._traces = traces
 
     def __exit__(self, *exc):
         _start = self._exited_at = perf_counter()
-        self._cfg.__exit__(*exc)
-        self._cfg = None
 
-        if self._traces:
+        _set_local_trace(self._prev_trace)
+        self._prev_trace = None
+
+        cls = self.__class__
+        id = self._id
+
+        if self._traces is not None:
             self._merge_traces()
 
-            while True:
-                traces = self._traces
-                if (traces is not None and len(traces) == 1
-                        and self.merge_descendants
-                        and type(self) is type(traces[0])
-                        and (not self.merge_same_id_only
-                                or (self._id == traces[0]._id and self._id is not None))):
+            if self.merge_descendants:
+                while True:
+                    traces = self._traces
+                    if traces is not None and len(traces) == 1:
+                        trace = traces[0]
+                        if (cls is trace.__class__
+                                and (not self.merge_same_id_only
+                                        or (id == trace._id and id is not None))):
 
-                    self._num += traces[0]._num
-                    self._traces = traces[0]._traces
-                    if not self._traces:
-                        self._traces = None
-                else:
-                    break
+                            self._num += trace._num
+                            self._traces = trace._traces
+
+                            if not self._traces:
+                                self._traces = None
+                                break
+                        else:
+                            break
+                    else:
+                        break
 
         _root = self._root
         if _root is not None and _root._extras['measure_overhead']:
@@ -192,12 +207,12 @@ class TraceNop:
 
 
 def is_tracing():
-    return _root._pointer is not None
+    return _get_local_trace() is not None
 
 
 @contextlib.contextmanager
 def if_tracing(trace_cls, **kwargs):
-    trace = _root._pointer
+    trace = _get_local_trace()
 
     if trace is not None:
         trace = trace_cls(__parent__=trace, **kwargs)
