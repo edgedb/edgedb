@@ -17,14 +17,29 @@ class _root(config.Configurable):
     _pointer = config.cvalue(None)
 
 
-class Trace:
+class TraceMeta(type):
+    def __new__(mcls, name, bases, dct):
+        if '__slots__' not in dct:
+            dct['__slots__'] = ()
+
+        # To avoid possible slots-layout conflicts (and there is no real need
+        # to have multiple inheritance for traces anyways)
+        assert len(bases) <= 1, 'multiple inheritance is not supported for traces'
+
+        return super().__new__(mcls, name, bases, dct)
+
+
+class Trace(metaclass=TraceMeta):
+    __slots__ = ('_parent', '_traces', '_cfg', '_info', '_entered_at',
+                 '_exited_at', '_num', '_id')
+
     caption = None
     merge_descendants = False
     merge_same_id_only = False
 
     def __init__(self, *, info=None, id=None):
         self._parent = None
-        self._traces = []
+        self._traces = None
         self._cfg = None
         self._info = info
         self._entered_at = self._exited_at = None
@@ -49,6 +64,8 @@ class Trace:
 
         self._parent = _root._pointer
         if self._parent:
+            if self._parent._traces is None:
+                self._parent._traces = []
             self._parent._traces.append(self)
 
         self._cfg = config.inline({path: self})
@@ -78,7 +95,12 @@ class Trace:
                 prev_trace._exited_at = trace._exited_at
                 prev_trace._entered_at = trace._exited_at - duration
                 prev_trace._num += trace._num
-                prev_trace._traces.extend(trace._traces)
+
+                if trace._traces is not None:
+                    if prev_trace._traces is None:
+                        prev_trace._traces = trace._traces
+                    else:
+                        prev_trace._traces.extend(trace._traces)
 
                 merged_traces.add(prev_trace)
             else:
@@ -99,7 +121,7 @@ class Trace:
 
             while True:
                 traces = self._traces
-                if (len(traces) == 1
+                if (traces is not None and len(traces) == 1
                         and self.merge_descendants
                         and type(self) is type(traces[0])
                         and (not self.merge_same_id_only
@@ -107,6 +129,8 @@ class Trace:
 
                     self._num += traces[0]._num
                     self._traces = traces[0]._traces
+                    if not self._traces:
+                        self._traces = None
                 else:
                     break
 
