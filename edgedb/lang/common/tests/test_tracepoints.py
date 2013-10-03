@@ -35,3 +35,23 @@ def test_utils_tracepoints_1():
     assert root._traces[0]._entered_at > root._entered_at
     assert root._traces[0]._entered_at < root._exited_at
     assert root._traces[0]._exited_at < root._exited_at
+
+
+def test_utils_tracepoints_2():
+    assert not tracepoints.is_tracing()
+
+    class Foo(tracepoints.Trace):
+        pass
+    class Bar(tracepoints.Trace):
+        pass
+
+    with tracepoints.if_tracing(Foo) as f:
+        assert not tracepoints.is_tracing()
+        assert f is tracepoints.TraceNop
+
+    root = Foo()
+    with root:
+        assert tracepoints.is_tracing()
+        with tracepoints.if_tracing(Bar) as f:
+            assert isinstance(f, Bar)
+            assert tracepoints.is_tracing()
