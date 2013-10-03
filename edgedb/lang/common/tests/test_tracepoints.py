@@ -32,7 +32,6 @@ def test_utils_tracepoints_1():
     assert root._entered_at < root._exited_at
     assert len(root._traces) == 1
     assert isinstance(root._traces[0], Bar)
-    assert root._traces[0]._parent is root
     assert root._traces[0]._entered_at > root._entered_at
     assert root._traces[0]._entered_at < root._exited_at
     assert root._traces[0]._exited_at < root._exited_at

@@ -7,7 +7,7 @@
 
 
 import contextlib
-import time
+from time import perf_counter
 
 from metamagic.utils import markup
 from metamagic.utils import config
@@ -16,8 +16,10 @@ from metamagic.utils import config
 class _root(config.Configurable):
     _pointer = config.cvalue(None)
 
+_ROOT_NAME = '{}.{}.{}'.format(_root.__module__, _root.__name__, '_pointer')
 
-class TraceMeta(type):
+
+class TraceMeta(config.ConfigurableMeta):
     def __new__(mcls, name, bases, dct):
         if '__slots__' not in dct:
             dct['__slots__'] = ()
@@ -30,21 +32,24 @@ class TraceMeta(type):
 
 
 class Trace(metaclass=TraceMeta):
-    __slots__ = ('_parent', '_traces', '_cfg', '_info', '_entered_at',
-                 '_exited_at', '_num', '_id')
+    __slots__ = ('_traces', '_cfg', '_info', '_entered_at',
+                 '_exited_at', '_num', '_id', '_root', '_extras',
+                 '_parent')
 
     caption = None
     merge_descendants = False
     merge_same_id_only = False
 
-    def __init__(self, *, info=None, id=None):
-        self._parent = None
+    measure_overhead = config.cvalue(False, type=bool)
+
+    def __init__(self, *, info=None, id=None, __parent__=None):
+        self._root = None
         self._traces = None
-        self._cfg = None
         self._info = info
         self._entered_at = self._exited_at = None
         self._num = 1
         self._id = id
+        self._parent = __parent__
 
     def _get_caption(self):
         if self.caption is not None:
@@ -52,26 +57,44 @@ class Trace(metaclass=TraceMeta):
         return '{}.{}'.format(self.__class__.__module__,
                               self.__class__.__name__)
 
-    @property
-    def parent(self):
-        return self._parent
-
     def set_info(self, val):
         self._info = val
 
     def __enter__(self):
-        path = '{}.{}.{}'.format(_root.__module__, _root.__name__, '_pointer')
+        _start = perf_counter()
 
-        self._parent = _root._pointer
         if self._parent:
-            if self._parent._traces is None:
-                self._parent._traces = []
-            self._parent._traces.append(self)
+            parent = self._parent
+            self._parent = None
+        else:
+            parent = _root._pointer
 
-        self._cfg = config.inline({path: self})
-        self._cfg.__enter__()
+        if parent:
+            if parent._traces is None:
+                parent._traces = []
+            parent._traces.append(self)
+            if parent._root is not None:
+                root = self._root = parent._root
+            else:
+                root = self._root = parent
+        else:
+            # root tracepoint
+            self._extras = {
+                'measure_overhead': self.measure_overhead,
+                'overhead': 0.0,
+                'count': 0
+            }
+            root = None
 
-        self._entered_at = time.perf_counter()
+        cfg = self._cfg = config.inline({_ROOT_NAME: self})
+        cfg.__enter__()
+
+        self._entered_at = _start
+
+        if root is not None and root._extras['measure_overhead']:
+            _extras = root._extras
+            _extras['overhead'] += perf_counter() - _start
+            _extras['count'] += 1
 
         return self
 
@@ -112,7 +135,7 @@ class Trace(metaclass=TraceMeta):
         self._traces = traces
 
     def __exit__(self, *exc):
-        self._exited_at = time.perf_counter()
+        _start = self._exited_at = perf_counter()
         self._cfg.__exit__(*exc)
         self._cfg = None
 
@@ -134,9 +157,12 @@ class Trace(metaclass=TraceMeta):
                 else:
                     break
 
+        _root = self._root
+        if _root is not None and _root._extras['measure_overhead']:
+            _root._extras['overhead'] += perf_counter() - _start
+
     def __mm_serialize__(self):
-        return {
-            'class': '{}.{}'.format(self.__class__.__module__, self.__class__.__name__),
+        dct = {
             'caption': self._get_caption(),
             'id': id(self),
             'info': self._info,
@@ -145,6 +171,13 @@ class Trace(metaclass=TraceMeta):
             'exited_at': self._exited_at,
             'traces': self._traces
         }
+
+        try:
+            dct['extras'] = self._extras
+        except AttributeError:
+            pass
+
+        return dct
 
 
 class TraceNop:
@@ -164,8 +197,10 @@ def is_tracing():
 
 @contextlib.contextmanager
 def if_tracing(trace_cls, **kwargs):
-    if is_tracing():
-        trace = trace_cls(**kwargs)
+    trace = _root._pointer
+
+    if trace is not None:
+        trace = trace_cls(__parent__=trace, **kwargs)
     else:
         trace = TraceNop()
 
