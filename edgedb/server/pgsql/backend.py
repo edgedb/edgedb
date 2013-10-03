@@ -742,10 +742,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                        INNER JOIN caos.concept AS c ON c.id = e.concept_id
                    WHERE e."metamagic.caos.builtins.id" = $1
                 ''' % (common.concept_name_to_table_name(concept))
-        ps = session.get_connection().prepare(query)
+        ps = session.get_prepared_statement(query)
         concept_name = ps.first(id)
         if concept_name:
-            concept_name = caos.Name(ps.first(id))
+            concept_name = caos.Name(concept_name)
         return concept_name
 
 
