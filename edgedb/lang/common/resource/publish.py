@@ -6,6 +6,7 @@
 ##
 
 
+import csscompressor
 import hashlib
 import itertools
 import importlib
@@ -13,6 +14,7 @@ import gzip
 import os
 import logging
 import subprocess
+import tempfile
 import sys
 import re
 
@@ -36,6 +38,11 @@ class ResourcePublisherError(ResourceError, fs.FSError):
 class ResourceBucketMeta(fs.BucketMeta):
     def __new__(mcls, name, bases, dct, **kwargs):
         dct['resources'] = None
+        cls = super().__new__(mcls, name, bases, dct, **kwargs)
+        cls._init_published_list()
+        return cls
+
+    def _init_published_list(cls):
         def _published_key(res):
             try:
                 gpp = res.__sx_resource_get_public_path__
@@ -44,8 +51,7 @@ class ResourceBucketMeta(fs.BucketMeta):
             else:
                 result = gpp()
             return result
-        dct['published'] = OrderedIndex(key=_published_key)
-        return super().__new__(mcls, name, bases, dct, **kwargs)
+        cls.published = OrderedIndex(key=_published_key)
 
 
 class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True):
@@ -291,19 +297,10 @@ class OptimizedFSBackend(ResourceFSBackend):
     '''Compresses javascript and css files using YUI Compressor.
     Use it for production purposes.'''
 
-    yui_compressor_path = config.cvalue('/usr/bin/yuicompressor', type=str,
-                                        doc='Path to YUI Compressor executable')
-
-    yui_compressor_jar = config.cvalue(None, type=str,
-                                       doc='Path to YUI Compressor jar file, if no run '
-                                           'script (yui_compressor_path) is available')
-
-    java_path = config.cvalue('/usr/bin/java', type=str,
-                              doc='Path to java executable, used in conjunction with '
-                                  'yui_compressor_jar config option')
-
-    gzip_output = config.cvalue(False, type=bool)
+    gzip_output = config.cvalue(True, type=bool)
+    js_sourcemaps = config.cvalue(True, type=bool)
     compiled_module_name = config.cvalue('__compiled__', type=str)
+    closure_compiler_executable = config.cvalue('closure-compiler', type=str)
 
     def _get_file_hash(self, filename):
         md5 = hashlib.md5()
@@ -317,22 +314,113 @@ class OptimizedFSBackend(ResourceFSBackend):
 
         return md5.hexdigest()
 
-    def sync_bucket(self, bucket, modified):
-        self._publish_bucket(bucket)
+    def _compiled_name(self, bucket, ext:str):
+        base_compiled_name = self.compiled_module_name
+        base_compiled_name += (bucket.__module__ + '.' + bucket.__name__).replace('.', '_')
+        return base_compiled_name + '.' + ext
+
+    def _gzip_file(self, name):
+        output_gz = name + '.gz'
+
+        with open(name, 'rb') as f_in:
+            with gzip.open(output_gz, 'wb', compresslevel=9) as f_out:
+                f_out.writelines(f_in)
+
+        stats = os.stat(name)
+        os.utime(output_gz, (stats.st_atime, stats.st_mtime))
+
+    def _optimize_js(self, mods, bucket, bucket_id, bucket_path, bucket_pub_path):
+        from metamagic.utils.lang.javascript import CompiledJavascriptModule
+
+        out_short_name = self._compiled_name(bucket, 'js')
+        out_name = os.path.abspath(os.path.join(bucket_path, out_short_name))
+
+        command = []
+
+        command.append('cd "{}";'.format(bucket_path))
+        command.append(self.closure_compiler_executable)
+
+        command.append('--compilation_level SIMPLE_OPTIMIZATIONS')
+        command.append('--warning_level QUIET')
+        command.append('--language_in ECMASCRIPT5')
+        command.append('--third_party')
+
+        if self.js_sourcemaps:
+            command.append('--source_map_format V3')
+            command.append('--create_source_map "{}.map"'.format(out_short_name))
+
+        for mod in mods:
+            command.append('--js "{}"'.format(mod.__sx_resource_get_public_path__()))
+
+        command.append('--js_output_file "{}"'.format(out_short_name))
+
+        command = ' '.join(command)
+
+        status, result = subprocess.getstatusoutput(command)
+        if status:
+            raise ResourcePublisherError('{}\n\nFILE: {}'.format(result, out_name))
+
+        if self.js_sourcemaps:
+            with open(out_name, 'at') as f:
+                f.write('\n\n//# sourceMappingURL={}.map\n'.format(out_short_name))
+
+        if self.gzip_output:
+            self._gzip_file(out_name)
+
+        hash = self._get_file_hash(out_name)
+
+        result = CompiledJavascriptModule(b'', out_short_name,
+                                          '{}?_cache={}'.format(out_short_name, hash))
+        pub_path = os.path.join(bucket_pub_path, result.__sx_resource_get_public_path__())
+        setattr(result, bucket_id, pub_path)
+        bucket.published.add(result)
+
+    def _optimize_css(self, mods, bucket, bucket_id, bucket_path, bucket_pub_path):
+        from metamagic.rendering.css import CompiledCSSModule
+
+        out_short_name = self._compiled_name(bucket, 'css')
+        out_name = os.path.abspath(os.path.join(bucket_path, out_short_name))
+
+        buf = []
+        for mod in mods:
+            if isinstance(mod, VirtualFile):
+                source = mod.__sx_resource_get_source__()
+                #: Read the comment in "_fix_css_links"
+                source = self._fix_css_links(source.decode('utf-8'), bucket_pub_path)
+
+            else:
+                with open(mod.__sx_resource_path__, 'rt') as i:
+                    source = i.read()
+
+            buf.append(source)
+
+        compressed = csscompressor.compress('\n'.join(buf))
+        with open(out_name, 'wt') as f:
+            f.write(compressed)
+
+        if self.gzip_output:
+            self._gzip_file(out_name)
+
+        hash = self._get_file_hash(out_name)
+
+        result = CompiledCSSModule(b'', out_short_name,
+                                   '{}?_cache={}'.format(out_short_name, hash))
+        pub_path = os.path.join(bucket_pub_path, result.__sx_resource_get_public_path__())
+        setattr(result, bucket_id, pub_path)
+        bucket.published.add(result)
 
     def _publish_bucket(self, bucket, resources, bucket_id, bucket_path, bucket_pub_path):
-        from metamagic.utils.lang.javascript import BaseJavaScriptModule, CompiledJavascriptModule
-        from metamagic.rendering.css import BaseCSSModule, CompiledCSSModule, CSSMixinDerivative
+        from metamagic.utils.lang.javascript import BaseJavaScriptModule
+        from metamagic.rendering.css import BaseCSSModule, CSSMixinDerivative
 
-        compressor_path = self.yui_compressor_path
-        if compressor_path is None or self.yui_compressor_jar is not None:
-            if self.yui_compressor_jar is None:
-                raise ResourcePublisherError('Please configure {}.{}.yui_compressor_path '
-                                             'config option'.
-                                             format(self.__class__.__module__,
-                                                    self.__class__.__name__))
-            compressor_path = self.java_path + ' -jar ' + self.yui_compressor_jar
+        # Publish everything.
+        # We'll also publish the optimized versions, but having non-optimized
+        # resources published is required for JS Source Maps to function correctly.
+        #
+        super()._publish_bucket(bucket, resources, bucket_id, bucket_path, bucket_pub_path)
 
+        # Collect JS & CSS resources
+        #
         js_deps = OrderedSet()
         css_deps = OrderedSet()
 
@@ -340,81 +428,15 @@ class OptimizedFSBackend(ResourceFSBackend):
             if isinstance(res, BaseJavaScriptModule):
                 js_deps.add(res)
 
-            elif isinstance(res, BaseCSSModule):
-                if not isinstance(res, CSSMixinDerivative):
-                    css_deps.add(res)
+            elif isinstance(res, BaseCSSModule) and not isinstance(res, CSSMixinDerivative):
+                css_deps.add(res)
 
-            else:
-                if isinstance(res, AbstractFileSystemResource):
-                    self._publish_fs_resource(bucket_path, bucket_pub_path, res)
-                elif isinstance(res, VirtualFile):
-                    self._publish_virtual_resource(bucket_path, bucket_pub_path, res)
-                else:
-                    continue
+        # Reset bucket -- forget about all published resources in it
+        bucket._init_published_list()
 
-                # Read XXX comment in "ResourceFSBackend._publish_bucket"
-                pub_path = os.path.join(bucket_pub_path, res.__sx_resource_get_public_path__())
-                setattr(res, bucket_id, pub_path)
-                bucket.published.add(res)
+        self._optimize_js(js_deps, bucket, bucket_id, bucket_path, bucket_pub_path)
 
-        compiled_name = self.compiled_module_name
-        compiled_name += (bucket.__module__ + '.' + bucket.__name__).replace('.', '_')
-
-        for type, mod_cls, deps in (('js', CompiledJavascriptModule, js_deps),
-                                    ('css', CompiledCSSModule, css_deps)):
-
-            output = os.path.abspath(os.path.join(bucket_path, '{}.{}'.format(compiled_name, type)))
-
-            with open(output, 'wb') as out:
-                for mod in deps:
-                    if isinstance(mod, VirtualFile):
-                        source = mod.__sx_resource_get_source__()
-                        if type == 'css':
-                            #: Read the comment in "_fix_css_links"
-                            source = self._fix_css_links(source.decode('utf-8'), bucket_pub_path) \
-                                                                                    .encode('utf-8')
-                        out.write(source)
-                    else:
-                        with open(mod.__sx_resource_path__, 'rb') as i:
-                            out.write(i.read())
-
-                    if type == 'js':
-                        out.write(b'\n;\n')
-
-            command = [compressor_path,
-                       '--line-break', '500',
-                       '-v',
-                       '--type', type,
-                       output, '-o', output]
-
-            command = ' '.join(command)
-
-            status, result = subprocess.getstatusoutput(command)
-            if status:
-                raise ResourcePublisherError('{}\n\nFILE: {}'.format(result, output))
-
-            output_gz = output + '.gz'
-            if self.gzip_output:
-                with open(output, 'rb') as f_in:
-                    with gzip.open(output_gz, 'wb', compresslevel=9) as f_out:
-                        f_out.writelines(f_in)
-
-                hash = self._get_file_hash(output_gz)
-
-                stats = os.stat(output)
-                os.utime(output_gz, (stats.st_atime, stats.st_mtime))
-
-            else:
-                hash = self._get_file_hash(output)
-
-                if os.path.exists(output_gz):
-                    os.remove(output_gz)
-
-            result = mod_cls(output.encode('utf-8'), compiled_name,
-                             '{}.{}?_cache={}'.format(compiled_name, type, hash))
-            pub_path = os.path.join(bucket_pub_path, result.__sx_resource_get_public_path__())
-            setattr(result, bucket_id, pub_path)
-            bucket.published.add(result)
+        self._optimize_css(css_deps, bucket, bucket_id, bucket_path, bucket_pub_path)
 
 
 def _collect_published_resources(bucket, types):
