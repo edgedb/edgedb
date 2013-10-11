@@ -69,7 +69,7 @@ def import_path(path):
         try:
             return importlib.import_module(name)
         except ImportError as ex:
-            if ex.args[0].startswith('No module named'):
+            if ex.args[0] == "No module named '{}'".format(name):
                 raise _NotFoundModuleError from ex
             raise
 
