@@ -301,6 +301,7 @@ class OptimizedFSBackend(ResourceFSBackend):
     js_sourcemaps = config.cvalue(True, type=bool)
     compiled_module_name = config.cvalue('__compiled__', type=str)
     closure_compiler_executable = config.cvalue('closure-compiler', type=str)
+    pretty_output = config.cvalue(False, type=bool)
 
     def _get_file_hash(self, filename):
         md5 = hashlib.md5()
@@ -344,6 +345,9 @@ class OptimizedFSBackend(ResourceFSBackend):
         command.append('--warning_level QUIET')
         command.append('--language_in ECMASCRIPT5')
         command.append('--third_party')
+
+        if self.pretty_output:
+            command.append('--formatting PRETTY_PRINT')
 
         if self.js_sourcemaps:
             command.append('--source_map_format V3')
@@ -394,7 +398,12 @@ class OptimizedFSBackend(ResourceFSBackend):
 
             buf.append(source)
 
-        compressed = csscompressor.compress('\n'.join(buf))
+        wrap = 1000
+        if self.pretty_output:
+            wrap = 1
+
+        compressed = csscompressor.compress('\n'.join(buf), wrap)
+
         with open(out_name, 'wt') as f:
             f.write(compressed)
 
