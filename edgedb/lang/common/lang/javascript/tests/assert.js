@@ -57,7 +57,7 @@
     };
 
     assert.raises = function(block, options) {
-        var expected = options.error,
+        var expected = options.error || null,
             scope = options.scope || global,
             message = options.message || '',
             error_re = options.error_re || null;
@@ -70,8 +70,8 @@
         }
 
         if (ex === undefined) {
-            assert.fail('Exception ' + expected + ' was expected to be thrown');
-        } else if (!(ex instanceof expected)) {
+            assert.fail('Exception ' + (expected || '')+ ' was expected to be thrown');
+        } else if (expected !== null && !(ex instanceof expected)) {
             assert.fail('Exception ' + expected + ' was expected to be thrown; got: ' + ex);
         }
 
