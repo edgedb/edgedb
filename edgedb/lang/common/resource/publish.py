@@ -443,9 +443,11 @@ class OptimizedFSBackend(ResourceFSBackend):
         # Reset bucket -- forget about all published resources in it
         bucket._init_published_list()
 
-        self._optimize_js(js_deps, bucket, bucket_id, bucket_path, bucket_pub_path)
+        if js_deps:
+            self._optimize_js(js_deps, bucket, bucket_id, bucket_path, bucket_pub_path)
 
-        self._optimize_css(css_deps, bucket, bucket_id, bucket_path, bucket_pub_path)
+        if css_deps:
+            self._optimize_css(css_deps, bucket, bucket_id, bucket_path, bucket_pub_path)
 
 
 def _collect_published_resources(bucket, types):
