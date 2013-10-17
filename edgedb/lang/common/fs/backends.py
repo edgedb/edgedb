@@ -153,6 +153,16 @@ class FSBackend(BaseFSBackend):
         self._after_save(path)
 
     @_coroutine
+    def store_stream(self, bucket, id, filename, stream, *, allow_rewrite=False):
+        name = os.path.basename(filename)
+        path = self._get_path(bucket, id, name, allow_rewrite)
+
+        with open(path, 'wb') as f:
+            f.write(stream.read())
+
+        self._after_save(path)
+
+    @_coroutine
     def delete_file(self, bucket, id, *, name=None):
         base = self._get_base_name(bucket, id, self.escape_filename(name))
         path = os.path.join(self.path, base)

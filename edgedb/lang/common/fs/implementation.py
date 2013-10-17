@@ -31,6 +31,10 @@ class BaseImplementation(abstract.Implementation, metaclass=ImplementationMeta):
         pass
 
     @abc.abstractclassmethod
+    def store_stream(self, bucket, id, filename, stream):
+        pass
+
+    @abc.abstractclassmethod
     def get_file_path(cls, bucket, id, filename):
         pass
 
@@ -72,6 +76,16 @@ class DefaultImplementation(BaseImplementation):
         for backend in backends:
             yield_ (backend.store_file(bucket, id, filename,
                                        name=name, allow_rewrite=allow_rewrite))
+
+    @classmethod
+    def store_stream(cls, bucket, id, filename, stream, *, allow_rewrite=False):
+        assert id and isinstance(id, uuid.UUID)
+
+        backends = cls._ensure_backends(bucket)
+
+        for backend in backends:
+            yield_ (backend.store_stream(bucket, id, filename, stream,
+                                         allow_rewrite=allow_rewrite))
 
     @classmethod
     def delete_file(cls, bucket, id, *, name):

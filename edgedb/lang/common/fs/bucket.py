@@ -105,6 +105,12 @@ class Bucket(BaseBucket, abstract=True):
                                                    name=name, allow_rewrite=allow_rewrite)
 
     @classmethod
+    def store_stream(cls, id, filename, stream, *, allow_rewrite=False):
+        cls._error_if_abstract()
+        return cls.get_implementation().store_stream(cls, id, filename, stream,
+                                                     allow_rewrite=allow_rewrite)
+
+    @classmethod
     def delete_file(cls, id, *, name=None):
         cls._error_if_abstract()
         return cls.get_implementation().delete_file(cls, id, name=name)
