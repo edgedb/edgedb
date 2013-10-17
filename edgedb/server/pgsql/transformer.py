@@ -479,7 +479,9 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
     def _process_record(self, context, expr, cte):
         my_elements = []
         attribute_map = []
+        virtuals_map = {}
         testref = None
+        schema = context.current.proto_schema
 
         if expr.linkprop_xvalue:
             for e in expr.elements:
@@ -512,6 +514,18 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                         ptr_target = e.rlink.link_proto.source
 
                 if isinstance(ptr_name, caos_name.Name):
+                    if (ptr_direction == caos_types.InboundDirection
+                            and ptr_target.is_virtual and ptr_target.is_derived):
+                        ptr_origins = set()
+
+                        for c in ptr_target.children(schema):
+                            c_ptr = c.pointers.get(ptr_name)
+                            if c_ptr is not None:
+                                ptr_origin = c.get_pointer_origin(ptr_name)
+                                ptr_origins.add(ptr_origin.name)
+
+                        virtuals_map[ptr_target.name + '::' + ptr_name] = tuple(ptr_origins)
+
                     attr_name = caos_types.PointerVector(name=ptr_name.name, module=ptr_name.module,
                                                          direction=ptr_direction,
                                                          target=ptr_target.name)
@@ -528,6 +542,7 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
         proto_class = expr.concept.get_canonical_class()
         proto_class_name = '{}.{}'.format(proto_class.__module__, proto_class.__name__)
         marker = pg_session.RecordInfo(attribute_map=attribute_map,
+                                       virtuals_map=virtuals_map,
                                        proto_class=proto_class_name,
                                        proto_name=expr.concept.name,
                                        is_xvalue=expr.linkprop_xvalue)

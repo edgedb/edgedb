@@ -271,7 +271,7 @@ sx.types.register('pgjson.', function(format, data, metadata) {
                 }
             }
 
-            result = new cls(result);
+            result = new cls(result, rec_info.virtuals_map);
         } else if (result.hasOwnProperty('t')) {
             result = new sx.caos.xvalue(result['t'], result['p']);
         }

@@ -61,8 +61,9 @@ class Transaction(session.Transaction):
 
 class RecordInfo:
     def __init__(self, *, attribute_map, proto_class=None, proto_name=None, is_xvalue=False,
-                          recursive_link=False):
+                          recursive_link=False, virtuals_map=None):
         self.attribute_map = attribute_map
+        self.virtuals_map = virtuals_map
         self.proto_class = proto_class
         self.proto_name = proto_name
         self.is_xvalue = is_xvalue
@@ -70,13 +71,16 @@ class RecordInfo:
         self.id = str(persistent_hash.persistent_hash(self))
 
     def persistent_hash(self):
-        return persistent_hash.persistent_hash((tuple(self.attribute_map), self.proto_class,
+        return persistent_hash.persistent_hash((tuple(self.attribute_map),
+                                                frozenset(self.virtuals_map.items()),
+                                                self.proto_class,
                                                 self.proto_name, self.is_xvalue,
                                                 self.recursive_link))
 
     def __mm_serialize__(self):
         return dict(
             attribute_map=self.attribute_map,
+            virtuals_map=self.virtuals_map,
             proto_class=self.proto_class,
             proto_name=self.proto_name,
             is_xvalue=self.is_xvalue,
