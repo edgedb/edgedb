@@ -72,7 +72,8 @@ class RecordInfo:
 
     def persistent_hash(self):
         return persistent_hash.persistent_hash((tuple(self.attribute_map),
-                                                frozenset(self.virtuals_map.items()),
+                                                frozenset(self.virtuals_map.items())
+                                                    if self.virtuals_map else None,
                                                 self.proto_class,
                                                 self.proto_name, self.is_xvalue,
                                                 self.recursive_link))
