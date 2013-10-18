@@ -297,11 +297,15 @@ sx.types.register('pgjson.', function(format, data, metadata) {
     }
 
     if (format_string == 'pgjson.caos.entity') {
-        if (sx.len(result) != 1) {
-            _throw('caos.entity selector did not yield exactly one element');
-        }
+        var rlen = sx.len(result);
 
-        result = result[0];
+        if (rlen > 1) {
+            _throw('caos.entity selector did not yield exactly one element');
+        } else if (rlen == 0) {
+            result = null;
+        } else {
+            result = result[0];
+        }
     }
 
     return result;
