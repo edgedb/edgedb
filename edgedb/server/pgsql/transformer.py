@@ -2565,6 +2565,12 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         is_root = not step_cte
 
+        if link is not None:
+            lp = link.link_proto
+            if (isinstance(lp.target, caos_types.ProtoAtom)
+                    and lp.singular() and not lp.has_user_defined_properties()):
+                return
+
         if not step_cte:
             if caos_path_tip.anchor:
                 # If the path caos_path_tip has been assigned a named pointer, re-use it in the
