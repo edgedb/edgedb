@@ -11,6 +11,12 @@
 %IMPORT metamagic.utils.fs._file AS _file
 ---
 
+links:
+    derivatives:
+        properties:
+            name: str
+
+
 concepts:
     Bucket:
         extends: extras.Dictionary
@@ -37,6 +43,15 @@ concepts:
                 Bucket:
                     loading: eager
                     mapping: "*1"
+
+            deleted:
+                bool:
+                    required: True
+                    default: False
+
+            derivatives:
+                File:
+                    mapping: "1*"
 
 
     SingleFileContainer:
