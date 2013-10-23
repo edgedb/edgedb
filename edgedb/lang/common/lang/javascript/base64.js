@@ -19,12 +19,18 @@ sx.base64 = (function() {
         overs32 = ['======', '====', '===', '='],
         overs64 = ['==', '='];
 
+    function _cast_msg(msg) {
+        if (sx.is_string(msg)) {
+            return sx.byteutils.to_bytes(msg);
+        } else {
+            return [].concat(msg || []);
+        }
+    }
+
     function b32encode(msg) {
         // produces exactly the same results as python `base64.b32encode`
 
-        if (sx.is_string(msg)) {
-            msg = sx.byteutils.to_bytes(msg);
-        }
+        msg = _cast_msg(msg);
 
         var len = msg.length,
             quanta = Math.floor(len / 5),
@@ -63,9 +69,7 @@ sx.base64 = (function() {
     }
 
     function b64encode(msg) {
-        if (sx.is_string(msg)) {
-            msg = sx.byteutils.to_bytes(msg);
-        }
+        msg = _cast_msg(msg);
 
         var len = msg.length,
             quanta = Math.floor(len / 3),
