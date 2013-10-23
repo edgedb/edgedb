@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2011-2012 Sprymix Inc.
+# Copyright (c) 2011-2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -9,20 +9,9 @@
 %SCHEMA metamagic.caos.backends.yaml.schemas.Semantics
 %IMPORT metamagic.utils.fs.file AS file
 ---
-links:
-    derivatives:
-        properties:
-            name: str
-
-
 concepts:
     Image:
         extends: file.File
-
-        links:
-            derivatives:
-                Image:
-                    mapping: "1*"
 
 
     ImageContainer:
