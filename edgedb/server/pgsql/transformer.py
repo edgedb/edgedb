@@ -2271,6 +2271,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 when_expr = pgsql.ast.CaseWhenNode(expr=cond,
                                                    result=pos)
                 result = pgsql.ast.CaseExprNode(args=[when_expr], default=neg)
+            elif expr.name == 'noneif':
+                name = 'NULLIF'
             elif expr.name == ('agg', 'sum'):
                 name = 'sum'
             elif expr.name == ('agg', 'product'):
