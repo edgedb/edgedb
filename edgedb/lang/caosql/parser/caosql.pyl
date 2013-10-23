@@ -32,7 +32,7 @@ definitions:
     xqdouble                "{quote}{quote}"
     xqinside                "[^']+"
 
-    self                    "[,\(\)\[\].;\:\+\-\*\/\^\<\>\=]"
+    self                    "[,\(\)\[\].;\:\+\-\*\/\%\^\<\>\=]"
     op_chars                "[\~\!\#\^\&\|\`\?\+\-\*\/\<\>\=]"
     operator                "{op_chars}+"
 

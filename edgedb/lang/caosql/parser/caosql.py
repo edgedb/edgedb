@@ -69,7 +69,7 @@ class P_IS(Precedence, assoc='nonassoc', tokens=('IS', 'NONE')):
 class P_ADD_OP(Precedence, assoc='left', tokens=('PLUS', 'MINUS')):
     pass
 
-class P_MUL_OP(Precedence, assoc='left', tokens=('STAR', 'SLASH', 'MOD')):
+class P_MUL_OP(Precedence, assoc='left', tokens=('STAR', 'SLASH', 'PERCENT')):
     pass
 
 class P_POW_OP(Precedence, assoc='left', tokens=('STARSTAR',)):
@@ -144,6 +144,9 @@ class T_STAR(Token, lextoken='*'):
     pass
 
 class T_SLASH(Token, lextoken='/'):
+    pass
+
+class T_PERCENT(Token, lextoken='%'):
     pass
 
 class T_AT(Token, lextoken='@'):
@@ -694,7 +697,7 @@ class Expr(Nonterm):
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.DIV, right=kids[2].val)
 
     def reduce_mod(self, *kids):
-        "%reduce Expr MOD Expr"
+        "%reduce Expr PERCENT Expr"
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.MOD, right=kids[2].val)
 
     def reduce_pow(self, *kids):
@@ -1246,6 +1249,10 @@ class NsAliasName(Nonterm):
 
 
 class LabelExpr(Nonterm):
+    def reduce_PERCENT(self, *kids):
+        "%reduce PERCENT"
+        self.val = kids[0].val
+
     def reduce_IDENT(self, *kids):
         "%reduce IDENT"
         self.val = kids[0].val
