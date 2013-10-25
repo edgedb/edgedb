@@ -123,6 +123,18 @@ class Database(FunctionArgument):
 
         admin_connection.close()
 
+        self.data_url = data_url
+        self.value = self
+
+    def teardown(self):
+        self.data_url = None
+
+
+class DatabaseConnection(FunctionArgument):
+    scope = 'class'
+
+    def setup(self):
+        data_url = self.space.get_funcarg('db', Database).data_url
         connection = postgresql.open(data_url)
 
         self.cleanup_before_use(connection)
