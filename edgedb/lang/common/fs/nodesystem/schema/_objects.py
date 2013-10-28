@@ -23,7 +23,10 @@ class FSSystem(nodesystem.FSSystem):
             for bucket_cls, backend_ctrs in self.class_buckets.items():
                 backends = []
                 for backend_ctr in backend_ctrs:
-                    backends.append(backend_ctr.cls(**(backend_ctr.args or {})))
+                    args = backend_ctr.args or {}
+                    if args:
+                        args = dict(args.items())
+                    backends.append(backend_ctr.cls(**args))
 
                 self.add_bucket(bucket_cls, backends)
 
