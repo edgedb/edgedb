@@ -690,6 +690,21 @@
                 return str.lastIndexOf(sub) === str.length - sublen;
             },
 
+            partition: function sx_partition(str, separator) {
+                if (!separator) {
+                    throw new sx.Error('empty separator');
+                }
+
+                var seplen = separator.length;
+                var lastpos = str.indexOf(separator);
+
+                if (lastpos != -1) {
+                    return [str.substr(0, lastpos), separator, str.substr(lastpos + seplen)];
+                } else {
+                    return [str, '', ''];
+                }
+            },
+
             rpartition: function sx_rpartition(str, separator) {
                 if (!separator) {
                     throw new sx.Error('empty separator');
