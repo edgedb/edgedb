@@ -26,6 +26,10 @@ class DateTime(datetime.datetime):
     def __new__(cls, value=None, format=None):
         tzinfo = None
 
+        if isinstance(value, int):
+            # Unitx timestamp (UTC)
+            value = datetime.datetime.utcfromtimestamp(value)
+
         if isinstance(value, datetime.datetime):
             args = [value.year, value.month, value.day, value.hour, value.minute, value.second,
                     value.microsecond]
