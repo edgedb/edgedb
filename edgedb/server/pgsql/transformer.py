@@ -2383,6 +2383,20 @@ class CaosTreeTransformer(CaosExprTransformer):
                 name = expr.name[1]
             elif expr.name == ('str', 'levenshtein'):
                 name = common.qname('caos', 'levenshtein')
+
+            elif expr.name == ('re', 'match'):
+                subq = pgsql.ast.SelectQueryNode()
+
+                flags = pgsql.ast.FunctionCallNode(
+                            name='coalesce',
+                            args=[args[2], pgsql.ast.ConstantNode(value='')])
+
+                fargs = [args[1], args[0], flags]
+                op = pgsql.ast.FunctionCallNode(name='regexp_matches', args=fargs)
+                subq.targets.append(op)
+
+                result = subq
+
             elif expr.name == ('str', 'strpos'):
                 r = pgsql.ast.FunctionCallNode(name='strpos', args=args)
                 result = pgsql.ast.BinOpNode(left=r, right=pgsql.ast.ConstantNode(value=1),
