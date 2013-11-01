@@ -805,10 +805,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         toplevel = []
 
         if items:
-            total_order = {item[connecting_attribute]: i for i, item in enumerate(items)}
+            total_order = {item[str(connecting_attribute)]: i for i, item in enumerate(items)}
 
             for item in items:
-                entity = item[connecting_attribute]
+                entity = item[str(connecting_attribute)]
 
                 target_id = item['__target__']
 

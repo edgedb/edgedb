@@ -534,25 +534,26 @@ class TreeTransformer:
                     caos_name.Name('metamagic.caos.builtins.ctime')
                 )
 
-                recurse_links = {l: caos_ast.PtrPathSpec(ptr_proto=ptrs[l])
-                                    for l in must_have_links}
+                recurse_links = {(l, caos_types.OutboundDirection):
+                                 caos_ast.PtrPathSpec(ptr_proto=ptrs[l]) for l in must_have_links}
 
                 for ps in pathspec:
                     if isinstance(ps.ptr_proto, caos_types.ProtoLink):
-                        recurse_links[ps.ptr_proto.normal_name()] = ps
+                        recurse_links[ps.ptr_proto.normal_name(), ps.ptr_direction] = ps
 
                     elif isinstance(ps.ptr_proto, str):
                         # metaref
                         recurse_metarefs.append(ps.ptr_proto)
 
             if recurse_links is None:
-                recurse_links = {pn: caos_ast.PtrPathSpec(ptr_proto=p)
+                recurse_links = {(pn, caos_types.OutboundDirection):
+                                    caos_ast.PtrPathSpec(ptr_proto=p)
                                     for pn, p in ptrs.items()
                                         if not isinstance(p, caos_types.ProtoComputable) and
                                            p.get_loading_behaviour() == caos_types.EagerLoading and
                                            p.target not in _visited_records}
 
-            for link_name, recurse_spec in recurse_links.items():
+            for (link_name, link_direction), recurse_spec in recurse_links.items():
                 el = None
 
                 link = recurse_spec.ptr_proto
