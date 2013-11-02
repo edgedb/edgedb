@@ -111,21 +111,23 @@ sx.base64 = (function() {
             e1 = tab64.indexOf(msg[i++]);
             e2 = tab64.indexOf(msg[i++]);
 
-            result.push((e1 << 2) | (e2 >> 4));
-
             if (i < len) {
                 e3 = tab64.indexOf(msg[i++]);
+                if (i < len) {
+                    e4 = tab64.indexOf(msg[i++]);
+                } else {
+                    e4 = 64;
+                }
+            } else {
+                e3 = e4 = 64;
+            }
 
-                if (e3 != 64) {
-                    result.push(((e2 & 15) << 4) | (e3 >> 2));
+            result.push((e1 << 2) | (e2 >> 4));
 
-                    if (i < len) {
-                        e4 = tab64.indexOf(msg[i++]);
-
-                        if (e4 != 64) {
-                            result.push(((e3 & 3) << 6) | e4);
-                        }
-                    }
+            if (e3 != 64) {
+                result.push(((e2 & 15) << 4) | (e3 >> 2));
+                if (e4 != 64) {
+                    result.push(((e3 & 3) << 6) | e4);
                 }
             }
         }
