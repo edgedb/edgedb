@@ -87,7 +87,7 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
         }
 
         print('OK');
-    })(this);
+    }).call(this, this);
     ''';
 
     TEST_HTML = '''<!DOCTYPE html>
