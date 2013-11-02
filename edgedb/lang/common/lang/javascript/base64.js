@@ -110,14 +110,22 @@ sx.base64 = (function() {
         while (i < len) {
             e1 = tab64.indexOf(msg[i++]);
             e2 = tab64.indexOf(msg[i++]);
-            e3 = tab64.indexOf(msg[i++]);
-            e4 = tab64.indexOf(msg[i++]);
 
             result.push((e1 << 2) | (e2 >> 4));
-            if (e3 != 64) {
-                result.push(((e2 & 15) << 4) | (e3 >> 2));
-                if (e4 != 64) {
-                    result.push(((e3 & 3) << 6) | e4);
+
+            if (i < len) {
+                e3 = tab64.indexOf(msg[i++]);
+
+                if (e3 != 64) {
+                    result.push(((e2 & 15) << 4) | (e3 >> 2));
+
+                    if (i < len) {
+                        e4 = tab64.indexOf(msg[i++]);
+
+                        if (e4 != 64) {
+                            result.push(((e3 & 3) << 6) | e4);
+                        }
+                    }
                 }
             }
         }
