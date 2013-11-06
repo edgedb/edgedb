@@ -1817,15 +1817,29 @@ class PointerMetaCommand(MetaCommand):
             host = self.get_host(meta, context)
 
             if host and old_name != new_name:
-                old_col_name = common.caos_name_to_pg_name(old_name)
-                new_col_name = common.caos_name_to_pg_name(new_name)
+                if new_name == 'metamagic.caos.builtins.target' and pointer.atomic():
+                    new_name += '@atom'
 
-                ptr_stor_info = types.get_pointer_storage_info(meta, pointer)
+                if new_name.endswith('caos.builtins.source') and not host.proto.generic():
+                    pass
+                else:
+                    old_col_name = common.caos_name_to_pg_name(old_name)
+                    new_col_name = common.caos_name_to_pg_name(new_name)
 
-                if ptr_stor_info.table_type[0] == 'source':
-                    table_name = common.get_table_name(host.proto, catenate=False)
-                    rename = dbops.AlterTableRenameColumn(table_name, old_col_name, new_col_name)
-                    self.pgops.add(rename)
+                    ptr_stor_info = types.get_pointer_storage_info(meta, pointer)
+
+                    if (ptr_stor_info.table_type[0] == 'source'
+                            and (isinstance(host.proto, proto.Concept)
+                                 or self.has_table(host.proto, meta))):
+                        table_name = common.get_table_name(host.proto, catenate=False)
+                        cond = [dbops.ColumnExists(table_name=table_name, column_name=old_col_name)]
+                        rename = dbops.AlterTableRenameColumn(table_name, old_col_name, new_col_name,
+                                                              conditions=cond)
+                        self.pgops.add(rename)
+
+                        tabcol = dbops.TableColumn(table_name=table_name,
+                                                   column=dbops.Column(name=new_col_name, type='str'))
+                        self.pgops.add(dbops.Comment(tabcol, new_name))
 
         rec = self.table.record()
         rec.name = str(self.new_name)
