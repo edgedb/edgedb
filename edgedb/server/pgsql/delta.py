@@ -1428,6 +1428,10 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
 
         self.rename(meta, context, self.prototype_name, self.new_name)
 
+        new_table_name = common.concept_name_to_table_name(self.new_name, catenate=False)
+        concept_table = dbops.Table(name=new_table_name)
+        self.pgops.add(dbops.Comment(object=concept_table, text=self.new_name))
+
         concept.op.table_name = common.concept_name_to_table_name(self.new_name, catenate=False)
 
         # Need to update all bits that reference concept name
