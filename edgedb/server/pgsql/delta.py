@@ -837,8 +837,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                                                                 meta, context)
 
     def adjust_pointer_constraints(self, meta, context, source, pointer_names=None):
-        source.materialize(meta)
-
         for pointer in (p for p in source.pointers.values() if p.atomic()):
             target = pointer.target
 
