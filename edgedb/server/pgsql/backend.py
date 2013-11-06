@@ -1389,10 +1389,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 mods.append(mod)
 
             for mod in mods:
-                for imp in mod.imports:
-                    if not self.meta.has_module(imp):
+                for imp_name in mod.imports:
+                    if not self.meta.has_module(imp_name):
                         # Must be a foreign module, import it directly
-                        impmod = importlib.import_module(imp)
+                        try:
+                            impmod = importlib.import_module(imp_name)
+                        except ImportError:
+                            # Module has moved, create a dummy
+                            impmod = proto.DummyModule(imp_name)
                         # Again, it must not be a schema module
                         assert not isinstance(impmod, lang_protoschema.SchemaModule)
 
