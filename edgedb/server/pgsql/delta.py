@@ -430,7 +430,7 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
         updaterec, updates = self.fill_record(meta)
 
         if updaterec:
-            condition = [('name', str(old_atom.name))]
+            condition = [('name', str(new_atom.name))]
             self.pgops.add(dbops.Update(table=self.table, record=updaterec, condition=condition))
 
         self.alter_atom(self, meta, context, old_atom, new_atom, updates=updates)
