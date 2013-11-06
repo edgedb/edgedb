@@ -703,6 +703,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                                                      conditions=(cond,)))
             old_table_name = (new_table_name[0], old_table_name[1])
 
+            cond = dbops.TableExists(name=old_table_name)
+
         if old_name.name != new_name.name:
             self.pgops.add(dbops.AlterTableRenameTo(old_table_name, new_table_name[1],
                                                     conditions=(cond,)))
