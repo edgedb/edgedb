@@ -859,6 +859,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 assert False
 
             source_context = context.get(ctx_class)
+            ptr_context = context.get(ptr_ctx_class)
+
             alter_table = source_context.op.get_alter_table(context)
             table = common.get_table_name(source, catenate=False)
 
@@ -905,8 +907,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                                       prototype_class=pointer.__class__.get_canonical_class())
 
                 with context(ptr_ctx_class(ptr_op, pointer)):
-                    for constraint in itertools.chain(pointer.constraints.values(),
-                                                      pointer.abstract_constraints.values()):
+                    for constraint in pointer.constraints.values():
                         if isinstance(constraint, proto.PointerConstraintUnique):
                             old_constraint = self.get_pointer_constraint(meta, context,
                                                                          constraint,
@@ -919,10 +920,87 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                             new_constraint = self.get_pointer_constraint(meta, context,
                                                                          constraint)
 
-                            op = self.rename_pointer_constraint(orig_source, source, pointer_name,
+                            if ptr_context:
+                                orig_ptr_name = ptr_context.original_proto.normal_name()
+                            else:
+                                orig_ptr_name = pointer_name
+
+                            op = self.rename_pointer_constraint(orig_source, source,
+                                                                orig_ptr_name,
+                                                                pointer_name,
                                                                 old_constraint, new_constraint,
                                                                 meta, context)
                             self.pgops.add(op)
+
+                    if pointer.source != source:
+                        for constrcls, constraint in pointer.abstract_constraints.items():
+                            old_constraint = self.get_pointer_constraint(meta, context,
+                                                                         constraint,
+                                                                         original=True)
+
+                            if old_constraint.raw_constraint_name() in drop_constraints:
+                                # No need to rename constraints that are to be dropped
+                                continue
+
+                            new_constraint = self.get_pointer_constraint(meta, context,
+                                                                         constraint)
+
+                            if ptr_context:
+                                orig_ptr_name = ptr_context.original_proto.normal_name()
+                            else:
+                                orig_ptr_name = pointer_name
+
+                            op = self.rename_pointer_constraint(orig_source, source,
+                                                                orig_ptr_name,
+                                                                pointer_name,
+                                                                old_constraint, new_constraint,
+                                                                meta, context)
+
+                            self.pgops.add(op)
+
+                    for constrcls, constraint in pointer.abstract_constraints.items():
+                        if isinstance(constraint, proto.PointerConstraintUnique):
+                            old_constraint = self.get_pointer_constraint(meta, context,
+                                                                         constraint,
+                                                                         original=True)
+
+                            if old_constraint.raw_constraint_name() in drop_constraints:
+                                # No need to rename constraints that are to be dropped
+                                continue
+
+                            new_constraint = self.get_pointer_constraint(meta, context,
+                                                                         constraint)
+
+                            if ptr_context:
+                                orig_ptr_name = ptr_context.original_proto.normal_name()
+                            else:
+                                orig_ptr_name = pointer_name
+
+                            for child in source.descendants(meta):
+                                try:
+                                    child_ptr = child.pointers[pointer_name]
+                                except KeyError:
+                                    child_ptr = child.pointers[orig_ptr_name]
+
+                                if child_ptr.source == child and child_ptr.abstract_constraints.get(constrcls):
+                                    continue
+
+                                old_child_constr = old_constraint.copy()
+                                old_child_constr.table_name = common.get_table_name(child, catenate=False)
+                                old_child_constr.prefix = (child.name, orig_ptr_name)
+
+                                new_child_constr = new_constraint.copy()
+                                new_child_constr.table_name = common.get_table_name(child, catenate=False)
+                                new_child_constr.prefix = (child.name, pointer_name)
+
+                                op = self.rename_pointer_constraint(child, child,
+                                                                    orig_ptr_name,
+                                                                    pointer_name,
+                                                                    old_child_constr,
+                                                                    new_child_constr,
+                                                                    meta, context)
+
+                                self.pgops.add(op)
 
 
     def add_pointer_constraint(self, source, pointer_name, constraint, meta, context):
@@ -943,8 +1021,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
             assert constraint_origins
 
             cuct = self._constr_mech.create_unique_constraint_trigger(source, pointer_name, constr,
-                                                                      constraint_origins, meta,
-                                                                      context)
+                                                                      constraint_origins, meta)
             self.pgops.add(cuct)
 
             self.pointer_constraints.setdefault(pointer_name, {})[constr_key] = constraint
@@ -985,22 +1062,26 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
             ptr_dropped_constr[constr_key] = constraint
 
-    def rename_pointer_constraint(self, orig_source, source, pointer_name,
+    def rename_pointer_constraint(self, orig_source, source, orig_pointer_name, pointer_name,
                                         old_constraint, new_constraint, meta, context):
 
         table = common.get_table_name(source, catenate=False)
 
         result = dbops.CommandGroup()
 
-        result.add_command(dbops.AlterTableRenameConstraint(table_name=table,
-                                                            constraint=old_constraint,
-                                                            new_constraint=new_constraint))
+        if old_constraint.raw_constraint_name() != new_constraint.raw_constraint_name():
+            constraint_exists = dbops.TableConstraintExists(table_name=table,
+                                                            constraint_name=old_constraint.constraint_name(quote=False))
+            result.add_command(dbops.AlterTableRenameConstraint(table_name=table,
+                                                                constraint=old_constraint,
+                                                                new_constraint=new_constraint,
+                                                                conditions=[constraint_exists]))
 
-        ops = self._constr_mech.rename_unique_constraint_trigger(orig_source, source, pointer_name,
-                                                                 old_constraint, new_constraint,
-                                                                 meta, context)
+            ops = self._constr_mech.rename_unique_constraint_trigger(orig_source.name, source.name,
+                                                                     orig_pointer_name, pointer_name,
+                                                                     old_constraint, new_constraint)
 
-        result.add_commands(ops)
+            result.add_commands(ops)
 
         return result
 
@@ -1219,7 +1300,6 @@ class CreateSourceIndex(SourceIndexCommand, adapts=delta_cmds.CreateSourceIndex)
         if not source:
             source = context.get(delta_cmds.ConceptCommandContext)
         table_name = common.get_table_name(source.proto, catenate=False)
-
         expr = caosql_expr.CaosQLExpression(meta).process_concept_expr(index.expr, source.proto)
         sql_tree = transformer.SimpleExprTransformer().transform(expr, True)
         sql_expr = codegen.SQLSourceGenerator.to_source(sql_tree)

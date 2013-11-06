@@ -201,7 +201,7 @@ class ConstraintMech:
         return result
 
     def create_unique_constraint_trigger(self, source, pointer_name, constraint,
-                                               constraint_origins, meta, context, priority=3):
+                                               constraint_origins, meta, priority=3):
 
         colname = common.quote_ident(common.caos_name_to_pg_name(pointer_name))
         if len(constraint_origins) == 1:
@@ -294,31 +294,40 @@ class ConstraintMech:
 
         return result
 
-    def rename_unique_constraint_trigger(self, orig_source, source, pointer_name,
-                                               old_constraint, new_constraint, meta, context):
+    def rename_unique_constraint_trigger(self, orig_source_name, source_name,
+                                               orig_pointer_name, pointer_name,
+                                               old_constraint, new_constraint):
 
         result = dbops.CommandGroup()
 
-        table_name = common.get_table_name(source, catenate=False)
-        orig_table_name = common.get_table_name(orig_source, catenate=False)
+        table_name = common.concept_name_to_table_name(source_name, catenate=False)
+        orig_table_name = common.concept_name_to_table_name(orig_source_name, catenate=False)
 
         old_trigger_name = common.caos_name_to_pg_name('%s_instrigger' % \
                                                        old_constraint.raw_constraint_name())
         new_trigger_name = common.caos_name_to_pg_name('%s_instrigger' % \
                                                        new_constraint.raw_constraint_name())
 
-        result.add_command(dbops.AlterTriggerRenameTo(trigger_name=old_trigger_name,
-                                                      new_trigger_name=new_trigger_name,
-                                                      table_name=table_name))
+        if old_trigger_name != new_trigger_name:
+            trigger_exists = dbops.TriggerExists(trigger_name=old_trigger_name,
+                                                 table_name=table_name)
+            result.add_command(dbops.AlterTriggerRenameTo(trigger_name=old_trigger_name,
+                                                          new_trigger_name=new_trigger_name,
+                                                          table_name=table_name,
+                                                          conditions=[trigger_exists]))
 
         old_trigger_name = common.caos_name_to_pg_name('%s_updtrigger' % \
                                                        old_constraint.raw_constraint_name())
         new_trigger_name = common.caos_name_to_pg_name('%s_updtrigger' % \
                                                        new_constraint.raw_constraint_name())
 
-        result.add_command(dbops.AlterTriggerRenameTo(trigger_name=old_trigger_name,
-                                                      new_trigger_name=new_trigger_name,
-                                                      table_name=table_name))
+        if old_trigger_name != new_trigger_name:
+            trigger_exists = dbops.TriggerExists(trigger_name=old_trigger_name,
+                                                 table_name=table_name)
+            result.add_command(dbops.AlterTriggerRenameTo(trigger_name=old_trigger_name,
+                                                          new_trigger_name=new_trigger_name,
+                                                          table_name=table_name,
+                                                          conditions=[trigger_exists]))
 
         old_proc_name = common.caos_name_to_pg_name('%s_trigproc' % \
                                                     old_constraint.raw_constraint_name())
@@ -329,11 +338,34 @@ class ConstraintMech:
                                                     new_constraint.raw_constraint_name())
         new_proc_name = table_name[0], new_proc_name
 
-        result.add_command(dbops.RenameFunction(name=old_proc_name, args=(), new_name=new_proc_name))
-        old = common.get_table_name(orig_source)
-        new = common.get_table_name(source)
-        result.add_command(dbops.AlterFunctionReplaceText(name=new_proc_name, args=(), old_text=old,
-                                                          new_text=new))
+        if old_proc_name != new_proc_name:
+            function_exists = dbops.FunctionExists(name=old_proc_name)
+            result.add_command(dbops.RenameFunction(name=old_proc_name, args=(),
+                                                    new_name=new_proc_name,
+                                                    conditions=[]))
+
+        if orig_source_name != source_name:
+            old = common.concept_name_to_table_name(orig_source_name)
+            new = common.concept_name_to_table_name(source_name)
+            result.add_command(dbops.AlterFunctionReplaceText(name=new_proc_name, args=(),
+                                                              old_text=old,
+                                                              new_text=new))
+
+        old_constr_name = old_constraint.constraint_name()
+        new_constr_name = new_constraint.constraint_name()
+
+        if old_constr_name != new_constr_name:
+            result.add_command(dbops.AlterFunctionReplaceText(name=new_proc_name, args=(),
+                                                              old_text=old_constr_name,
+                                                              new_text=new_constr_name))
+
+        if orig_pointer_name != pointer_name:
+            orig_col = common.caos_name_to_pg_name(orig_pointer_name)
+            new_col = common.caos_name_to_pg_name(pointer_name)
+
+            result.add_command(dbops.AlterFunctionReplaceText(name=new_proc_name, args=(),
+                                                              old_text=orig_col,
+                                                              new_text=new_col))
 
         return result
 
