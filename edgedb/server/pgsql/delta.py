@@ -2021,6 +2021,9 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
         else:
             link_cmd = context.get(delta_cmds.LinkCommandContext)
 
+            if self.has_table(result, meta):
+                self.rename(meta, context, self.prototype_name, self.new_name, obj=result)
+
             # Constraints
             if link_cmd.proto.normal_name() != link_cmd.original_proto.normal_name():
                 concept_cmd = context.get(delta_cmds.ConceptCommandContext)
