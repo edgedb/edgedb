@@ -22,9 +22,11 @@ from metamagic.utils.debug import debug
 from metamagic.utils.lang import yaml
 from metamagic.utils.algos.persistent_hash import persistent_hash
 from metamagic.utils import markup
+from metamagic.utils.lang.import_ import get_object
 
 from metamagic.caos.backends.pgsql import common
 from metamagic.caos.backends.pgsql import dbops, deltadbops, features
+
 from . import ast as pg_ast
 from . import codegen
 from . import datasources
