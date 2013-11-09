@@ -92,6 +92,7 @@ def import_path(path):
     else:
         path = path.rpartition('.')[0]
 
+    import_errors = []
     was_in_cwd = False
     for syspath in paths:
         if syspath == cwd:
@@ -110,8 +111,13 @@ def import_path(path):
             return _import_module(modname)
         except _NotFoundModuleError:
             pass
+        except ImportError as er:
+            import_errors.append(er)
+            continue
 
-    if was_in_cwd:
+    if import_errors:
+        raise import_errors[0]
+    elif was_in_cwd:
         modname = path[len(cwd):].strip(os.sep).replace(os.sep, '.')
         try:
             return _import_module(modname)
