@@ -125,7 +125,7 @@ class GraphExpr(Base):
                 'offset', 'limit', ('opselector', list), 'optarget', 'opvalues', 'op',
                 ('subgraphs', set), ('referrers', list), ('attrrefs', set),
                 ('cges', list), 'recurse_link', 'recurse_depth', 'aggregate_result',
-                'backend_text_override']
+                'backend_text_override', 'set_op', 'set_op_larg', 'set_op_rarg']
 
 
 class CommonGraphExpr(Base):

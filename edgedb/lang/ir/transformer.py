@@ -286,6 +286,10 @@ class TreeTransformer:
                 for e in expr.sorter:
                     self.apply_fixups(e)
 
+            if expr.set_op:
+                self.apply_fixups(expr.set_op_larg)
+                self.apply_fixups(expr.set_op_rarg)
+
         elif isinstance(expr, caos_ast.SortExpr):
             self.apply_fixups(expr.expr)
 
@@ -458,6 +462,10 @@ class TreeTransformer:
             if expr.sorter:
                 for e in expr.sorter:
                     self.apply_rewrites(e)
+
+            if expr.set_op:
+                self.apply_rewrites(expr.set_op_larg)
+                self.apply_rewrites(expr.set_op_rarg)
 
         elif isinstance(expr, caos_ast.SortExpr):
             self.apply_rewrites(expr.expr)
@@ -1106,6 +1114,10 @@ class TreeTransformer:
             if expr.sorter:
                 for e in expr.sorter:
                     self.link_subqueries(e)
+
+            if expr.set_op:
+                self.link_subqueries(expr.set_op_larg)
+                self.link_subqueries(expr.set_op_rarg)
 
         elif isinstance(expr, caos_ast.SubgraphRef):
             self.link_subqueries(expr.ref)
@@ -1962,6 +1974,14 @@ class TreeTransformer:
                                                            extract_subgraph_refs)
                             if normalized:
                                 paths.add(normalized)
+
+                if path.set_op:
+                    for arg in (path.set_op_larg, path.set_op_rarg):
+                        normalized = cls.extract_paths(arg, reverse, resolve_arefs,
+                                                       recurse_subqueries, all_fragments,
+                                                       extract_subgraph_refs)
+                        if normalized:
+                            paths.add(normalized)
 
                 if len(paths) == 1:
                     return next(iter(paths))

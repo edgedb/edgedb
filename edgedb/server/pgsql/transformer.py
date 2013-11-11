@@ -706,6 +706,24 @@ class CaosTreeTransformer(CaosExprTransformer):
                 context.current.query.ctes.add(cte)
                 context.current.explicit_cte_map[cge.expr] = cte
 
+        if graph.set_op:
+            with context(TransformerContext.NEW):
+                context.current.query = pgsql.ast.SelectQueryNode()
+                larg = self._transform_tree(context, graph.set_op_larg)
+
+            with context(TransformerContext.NEW):
+                context.current.query = pgsql.ast.SelectQueryNode()
+                rarg = self._transform_tree(context, graph.set_op_rarg)
+
+            if graph.set_op == ast.ops.OR:
+                set_op = pgsql.ast.UNION
+            elif graph.set_op == ast.ops.AND:
+                set_op = pgsql.ast.INTERSECT
+            else:
+                raise ValueError('unexpected selector set operation: {}'.format(graph.set_op))
+
+            self._setop_from_list(context.current.query, [larg, rarg], set_op)
+
         if graph.generator:
             expr = self._process_generator(context, graph.generator)
             if getattr(expr, 'aggregates', False):
@@ -1379,9 +1397,11 @@ class CaosTreeTransformer(CaosExprTransformer):
                 alias_c = pgsql.ast.ConstantNode(value=str(alias))
                 elems.append(pgsql.ast.RowExprNode(args=[alias_c, pgexpr]))
 
-            target = pgsql.ast.SelectExprNode(expr=pgsql.ast.RowExprNode(args=elems))
-            target = pgsql.ast.FunctionCallNode(name='row_to_json', args=[target])
-            query.targets.append(pgsql.ast.SelectExprNode(expr=target))
+            # Target list may be empty if selector is a set op product
+            if elems:
+                target = pgsql.ast.SelectExprNode(expr=pgsql.ast.RowExprNode(args=elems))
+                target = pgsql.ast.FunctionCallNode(name='row_to_json', args=[target])
+                query.targets.append(pgsql.ast.SelectExprNode(expr=target))
 
         else:
             for pgexpr, alias in selexprs:
@@ -3294,6 +3314,8 @@ class CaosTreeTransformer(CaosExprTransformer):
         nq = len(oplist)
 
         assert nq >= 2, 'set operation requires at least two arguments'
+
+        parent_qry.op = op
 
         for i in range(nq):
             parent_qry.larg = oplist[i]
