@@ -621,7 +621,7 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
                                                           constraint_code=constraint_code)
                     op.pgops.add(adac)
 
-                if new_extraconstraints:
+                if new_extraconstraints != old_extraconstraints:
                     values = {}
 
                     for constraint in new_extraconstraints:
