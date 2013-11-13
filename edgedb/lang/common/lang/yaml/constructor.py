@@ -301,7 +301,7 @@ class Constructor(yaml.constructor.Constructor):
         value = self.construct_ordered_mapping(node)
         data.update(value)
 
-    def construct_mapseq(self, node):
+    def construct_multimap(self, node):
         data = []
         yield data
         value = self.construct_ordered_mapping(node)
@@ -353,8 +353,8 @@ Constructor.add_constructor(
 )
 
 Constructor.add_constructor(
-    'tag:metamagic.sprymix.com,2009/metamagic/mapseq',
-    Constructor.construct_mapseq
+    'tag:metamagic.sprymix.com,2009/metamagic/multimap',
+    Constructor.construct_multimap
 )
 
 Constructor.add_constructor(
