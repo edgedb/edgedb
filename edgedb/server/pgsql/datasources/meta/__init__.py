@@ -7,6 +7,7 @@
 
 
 from . import atoms
+from . import attributes
 from . import backend_info
 from . import concepts
 from . import features

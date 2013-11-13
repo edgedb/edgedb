@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2012 Sprymix Inc.
+# Copyright (c) 2008-2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -7,11 +7,12 @@
 
 
 import bisect
-import os
-import re
 import collections
 import importlib
 import itertools
+import os
+import pickle
+import re
 import struct
 import uuid
 
@@ -558,6 +559,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 self._init_introspection_cache()
 
                 self.read_modules(self.meta)
+                self.read_attributes(self.meta)
                 self.read_pointer_cascade_actions(self.meta)
                 self.read_pointer_cascade_events(self.meta)
                 self.read_atoms(self.meta)
@@ -566,7 +568,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 self.read_link_properties(self.meta)
                 self.read_computables(self.meta)
                 self.read_pointer_cascade_policies(self.meta)
+                self.read_attribute_values(self.meta)
 
+                self.order_attributes(self.meta)
                 self.order_pointer_cascade_actions(self.meta)
                 self.order_pointer_cascade_events(self.meta)
                 self.order_atoms(self.meta)
@@ -1545,8 +1549,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def order_atoms(self, meta):
-        pass
-
+        for atom in meta(type='atom', include_automatic=True):
+            atom.acquire_parent_data(meta)
 
     def unpack_default(self, value):
         value = next(iter(yaml.Language.load(value)))
@@ -2037,6 +2041,41 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def order_computables(self, meta):
         pass
+
+
+    def read_attributes(self, meta):
+        attributes_ds = datasources.meta.attributes.Attributes(self.connection)
+        attributes = attributes_ds.fetch()
+
+        for r in attributes:
+            name = caos.name.Name(r['name'])
+            title = self.hstore_to_word_combination(r['title'])
+            description = r['description']
+            type = pickle.loads(r['type'])
+
+            attribute = proto.Attribute(name=name, title=title, description=description,
+                                        type=type)
+            meta.add(attribute)
+
+
+    def order_attributes(self, meta):
+        pass
+
+
+    def read_attribute_values(self, meta):
+        attributes_ds = datasources.meta.attributes.AttributeValues(self.connection)
+        attributes = attributes_ds.fetch()
+
+        for r in attributes:
+            name = caos.name.Name(r['name'])
+            subject = meta.get(r['subject_name'])
+            attribute = meta.get(r['attribute_name'])
+            value = pickle.loads(r['value'])
+
+            attribute = proto.AttributeValue(name=name, subject=subject, attribute=attribute,
+                                             value=value)
+            subject.add_attribute(attribute)
+            meta.add(attribute)
 
 
     def read_pointer_cascade_actions(self, meta):

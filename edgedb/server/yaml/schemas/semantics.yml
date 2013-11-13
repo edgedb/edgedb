@@ -21,13 +21,13 @@ mapping:
         required: no
         default: "data"
 
-    "atoms":
+    "attributes":
         type: map
         default: {}
         mapping:
-            =: # name of an atom
+            =: # name of an attribute
                 type: map
-                object: metamagic.caos.backends.yaml.Atom
+                object: metamagic.caos.backends.yaml.Attribute
                 required: yes
                 mapping:
                     "title": &TEXT_WITH_GRAM_CATEGORIES
@@ -39,6 +39,38 @@ mapping:
                               mapping:
                                 =:
                                     type: str
+
+                    "description":
+                        type: str
+
+                    "type":
+                        type: choice
+                        object: metamagic.caos.backends.yaml.SchemaType
+                        choice:
+                            - type: str
+                            - type: map
+                              mapping:
+                                  =:
+                                      type: map
+                                      mapping:
+                                          constraints:
+                                              type: multimap
+                                              object: metamagic.caos.backends.yaml.SchemaTypeConstraintSet
+                                              mapping:
+                                                    =:
+                                                          type: any
+
+    "atoms":
+        type: map
+        default: {}
+        mapping:
+            =: # name of an atom
+                type: map
+                object: metamagic.caos.backends.yaml.Atom
+                required: yes
+                mapping:
+                    "title":
+                        *TEXT_WITH_GRAM_CATEGORIES
 
                     "description":
                         type: str
@@ -87,7 +119,8 @@ mapping:
                         type: map
                         mapping:
                             =:
-                                type: scalar
+                                type: any
+                                object: metamagic.caos.backends.yaml.AttributeValue
 
                     "constraints": &ATOM_CONSTRAINTS
                         type: seq
@@ -159,29 +192,6 @@ mapping:
                                         type: seq
                                         sequence:
                                             - type: scalar
-                                - type: map
-                                  object: metamagic.caos.backends.yaml.AtomConstraintPrecision
-                                  max-length: 1
-                                  min-length: 1
-                                  mapping:
-                                    "precision":
-                                        type: choice
-                                        choice:
-                                            - type: seq
-                                              max-length: 2
-                                              min-length: 2
-                                              sequence:
-                                                - type: int
-                                            - type: int
-                                - type: map
-                                  object: metamagic.caos.backends.yaml.AtomConstraintRounding
-                                  max-length: 1
-                                  min-length: 1
-                                  mapping:
-                                    "rounding":
-                                        type: str
-                                        enum: [ceiling, down, floor, half-down,
-                                               half-even, half-up, up, 05up]
 
     "link-properties":
         type: map

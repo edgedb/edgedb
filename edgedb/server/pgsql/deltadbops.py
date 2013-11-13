@@ -324,6 +324,42 @@ class MetaObjectTable(dbops.Table):
         self._columns = self.columns()
 
 
+class AttributeTable(MetaObjectTable):
+    def __init__(self):
+        super().__init__(name=('caos', 'attribute'))
+        self.bases = [('caos', 'metaobject')]
+
+        self.constraints = set([
+            dbops.PrimaryKey(('caos', 'attribute'), columns=('id',)),
+            dbops.UniqueConstraint(('caos', 'attribute'), columns=('name',))
+        ])
+
+        self.__columns = datastructures.OrderedSet([
+            dbops.Column(name='type', type='bytea', required=True)
+        ])
+
+        self._columns = self.columns()
+
+
+class AttributeValueTable(MetaObjectTable):
+    def __init__(self):
+        super().__init__(name=('caos', 'attribute_value'))
+        self.bases = [('caos', 'metaobject')]
+
+        self.constraints = set([
+            dbops.PrimaryKey(('caos', 'attribute_value'), columns=('id',)),
+            dbops.UniqueConstraint(('caos', 'attribute_value'), columns=('name',))
+        ])
+
+        self.__columns = datastructures.OrderedSet([
+            dbops.Column(name='subject', type='integer', required=True),
+            dbops.Column(name='attribute', type='integer', required=True),
+            dbops.Column(name='value', type='bytea')
+        ])
+
+        self._columns = self.columns()
+
+
 class AtomTable(MetaObjectTable):
     def __init__(self):
         super().__init__(name=('caos', 'atom'))

@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2012 Sprymix Inc.
+# Copyright (c) 2008-2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -13,6 +13,7 @@ import builtins
 import collections
 import itertools
 import sys
+import re
 
 from metamagic.utils import lang
 from metamagic.utils.lang import context as lang_context
@@ -194,6 +195,92 @@ class LinkSearchWeight(StrLangObject, adapts=caos.types.LinkSearchWeight, ignore
         return str(data)
 
 
+class SchemaTypeConstraintSet(AbstractTypedCollection, adapts=proto.SchemaTypeConstraintSet,
+                                                       type=proto.SchemaTypeConstraint):
+    def __sx_setstate__(self, data):
+        if not isinstance(data, list):
+            data = (data,)
+
+        constrs = set()
+
+        for constr_type, constr_data in data:
+            if constr_type == 'enum':
+                constr = proto.SchemaTypeConstraintEnum(data=constr_data)
+            else:
+                context = lang_context.SourceContext.from_object(self)
+                msg = 'invalid schema type constraint type: {!r}'.format(constr_type)
+                raise MetaError(msg, context=context)
+
+            constrs.add(constr)
+
+        proto.SchemaTypeConstraintSet.__init__(self, constrs)
+
+    @classmethod
+    def __sx_getstate__(cls, data):
+        items = []
+
+        for item in data:
+            if not hasattr(item, '__sx_getstate__'):
+                adapter = yaml.ObjectMeta.get_adapter(item.__class__)
+            else:
+                adapter = item
+
+            item = adapter.__sx_getstate__(item)
+            items.append(item)
+
+        return yaml.types.multimap(items)
+
+
+class SchemaTypeConstraintEnum(LangObject, adapts=proto.SchemaTypeConstraintEnum):
+    _name = 'enum'
+
+    @classmethod
+    def __sx_getstate__(cls, data):
+        return [cls._name, list(data.data)]
+
+
+class SchemaType(LangObject, adapts=proto.SchemaType, ignore_aliases=True):
+    _typename_re = re.compile(r'(?P<typename>\w+)(?:\((?P<elname>\w+)\))?')
+
+    def __sx_setstate__(self, data):
+        if isinstance(data, str):
+            typename = data
+            constraints = None
+        else:
+            typename, info = next(iter(data.items()))
+            constraints = info.get('constraints')
+
+            if not isinstance(constraints, SchemaTypeConstraintSet):
+                # Data originating from delta dump lacks tags to construct the constraint
+                # set, so do this manually here.
+                c = SchemaTypeConstraintSet.__new__(SchemaTypeConstraintSet)
+                c.__sx_setstate__(constraints)
+                constraints = c
+
+        m = self._typename_re.match(typename)
+        if not m:
+            context = lang_context.SourceContext.from_object(self)
+            raise MetaError('malformed schema type name: {!r}'.format(typename), context=context)
+
+        main_type = m.group('typename')
+        element_type = m.group('elname')
+
+        proto.SchemaType.__init__(self, main_type=main_type, element_type=element_type,
+                                        constraints=constraints)
+
+    @classmethod
+    def __sx_getstate__(cls, data):
+        typename = data.main_type
+
+        if data.element_type:
+            typename += '({})'.format(data.element_type)
+
+        if data.constraints:
+            return {typename: dict(constraints=data.constraints)}
+        else:
+            return typename
+
+
 class PrototypeOrNativeClassRefList(AbstractTypedCollection,
                                     adapts=proto.PrototypeOrNativeClassRefList,
                                     type=proto.PointerCascadeAction):
@@ -242,6 +329,37 @@ class QueryDefaultSpec(DefaultSpec, adapts=proto.QueryDefaultSpec):
     @classmethod
     def __sx_getstate__(cls, data):
         return {'query': str(data.value)}
+
+
+class Attribute(LangObject, adapts=proto.Attribute):
+    def __sx_setstate__(self, data):
+        proto.Attribute.__init__(self, name=None, title=data['title'],
+                                 description=data.get('description'),
+                                 type=data.get('type'),
+                                 _setdefaults_=False, _relaxrequired_=True)
+
+    @classmethod
+    def __sx_getstate__(cls, data):
+        result = {}
+
+        result['type'] = data.type
+
+        if data.title:
+            result['title'] = data.title
+
+        if data.description:
+            result['description'] = data.description
+
+        return result
+
+
+class AttributeValue(LangObject, ignore_aliases=True, adapts=proto.AttributeValue):
+    def __sx_setstate__(self, data):
+        proto.AttributeValue.__init__(self, value=data, _setdefaults_=False, _relaxrequired_=True)
+
+    @classmethod
+    def __sx_getstate__(cls, data):
+        return data.value
 
 
 class AtomConstraint(LangObject, ignore_aliases=True):
@@ -302,37 +420,6 @@ class AtomConstraintMaxExValue(AtomConstraint, adapts=proto.AtomConstraintMaxExV
         return {'max-value-ex': data.value}
 
 
-class AtomConstraintPrecision(AtomConstraint, adapts=proto.AtomConstraintPrecision):
-    def __sx_setstate__(self, data):
-        if isinstance(data['precision'], int):
-            precision = (int(data['precision']), 0)
-        else:
-            precision = int(data['precision'][0])
-            scale = int(data['precision'][1])
-
-            if scale >= precision:
-                raise ValueError('Scale must be strictly less than total numeric precision')
-
-            precision = (precision, scale)
-        proto.AtomConstraintPrecision.__init__(self, precision)
-
-    @classmethod
-    def __sx_getstate__(cls, data):
-        if data.value[1] is None:
-            return {'precision': data.value[0]}
-        else:
-            return {'precision': list(data.value)}
-
-
-class AtomConstraintRounding(AtomConstraint, adapts=proto.AtomConstraintRounding):
-    def __sx_setstate__(self, data):
-        proto.AtomConstraintRounding.__init__(self, data['rounding'])
-
-    @classmethod
-    def __sx_getstate__(cls, data):
-        return {'rounding': data.value}
-
-
 class AtomConstraintExpr(AtomConstraint, adapts=proto.AtomConstraintExpr):
     def __sx_setstate__(self, data):
         proto.AtomConstraintExpr.__init__(self, [data['expr'].strip(' \n')])
@@ -370,12 +457,11 @@ class Atom(Prototype, adapts=proto.Atom):
         proto.Atom.__init__(self, name=default_name,
                             default=default, title=data['title'],
                             description=data['description'], is_abstract=data['abstract'],
-                            is_final=data['final'],
-                            attributes=data.get('attributes'),
-                            _setdefaults_=False, _relaxrequired_=True)
+                            is_final=data['final'], _setdefaults_=False, _relaxrequired_=True)
+        self._attributes = data.get('attributes')
         self._constraints = data.get('constraints')
         self._bases = [data['extends']]
-        self._yml_workattrs = {'_constraints', '_bases'}
+        self._yml_workattrs = {'_constraints', '_bases', '_attributes'}
 
     @classmethod
     def __sx_getstate__(cls, data):
@@ -410,8 +496,8 @@ class Atom(Prototype, adapts=proto.Atom):
             result['constraints'] = sorted(list(itertools.chain.from_iterable(data.constraints.values())),
                                            key=lambda i: i.__class__.constraint_name)
 
-        if data.attributes:
-            result['attributes'] = dict(data.attributes)
+        if data.local_attributes:
+            result['attributes'] = dict(data.local_attributes)
 
         return result
 
@@ -944,6 +1030,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
     def read_elements(self, data, localschema):
         self.caosql_expr = caosql_expr.CaosQLExpression(localschema, localschema.modules)
+        self.read_attributes(data, localschema)
         self.read_cascade_actions(data, localschema)
         self.read_cascade_events(data, localschema)
         self.read_atoms(data, localschema)
@@ -963,6 +1050,14 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         cascade_policy = OrderedSet(self.order_cascade_policy(localschema))
         cascade_events = OrderedSet(self.order_cascade_events(localschema))
         cascade_actions = OrderedSet(self.order_cascade_actions(localschema))
+        attribute_values = OrderedSet(self.order_attribute_values(localschema))
+        attributes = OrderedSet(self.order_attributes(localschema))
+
+        for attribute in attributes:
+            attribute.setdefaults()
+
+        for attribute_value in attribute_values:
+            attribute_value.setdefaults()
 
         for action in cascade_actions:
             action.setdefaults()
@@ -1050,9 +1145,9 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 links.add(link)
 
         # Arrange prototypes in the resulting schema according to determined topological order.
-        localschema.reorder(itertools.chain(cascade_actions, cascade_events,
-                                            atoms, computables, linkprops, links, concepts,
-                                            cascade_policy))
+        localschema.reorder(itertools.chain(attributes, attribute_values, cascade_actions,
+                                            cascade_events, atoms, computables, linkprops,
+                                            links, concepts, cascade_policy))
 
 
     def get_proto_schema_class(self):
@@ -1081,6 +1176,20 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                                                                        base.__name__))
 
         return base
+
+
+    def read_attributes(self, data, localschema):
+        for attribute_name, attribute in data['attributes'].items():
+            attribute.name = caos.Name(name=attribute_name, module=self.module.name)
+            self._add_proto(localschema, attribute)
+
+
+    def order_attributes(self, localschema):
+        return self.module('attribute', include_automatic=True)
+
+
+    def order_attribute_values(self, localschema):
+        return self.module('attribute-value', include_automatic=True)
 
 
     def read_cascade_actions(self, data, localschema):
@@ -1129,6 +1238,38 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         atoms = topological.normalize(g, merger=proto.PointerCascadeEvent.merge,
                                       context=localschema)
         return list(filter(lambda a: a.name.module == self.module.name, atoms))
+
+
+    def _normalize_attribute_values(self, localschema, subject, attributes):
+        attrs = {}
+
+        for attribute, attrvalue in attributes.items():
+            attribute = localschema.get(attribute, index_only=False)
+
+            name = caos.types.ProtoAttributeValue.generate_name(subject, attribute)
+            name = caos.name.Name(name=name, module=self.module.name)
+
+            attrvalue.name = name
+            attrvalue.subject = subject
+            attrvalue.attribute = attribute
+
+            if attribute.type.is_container and not isinstance(attrvalue.value, list):
+                val = [attrvalue.value]
+            else:
+                val = attrvalue.value
+
+            try:
+                attrvalue.value = attribute.type.coerce(val)
+            except ValueError as e:
+                msg = e.args[0].format(name=attribute.name.name)
+                context = lang_context.SourceContext.from_object(attrvalue)
+                raise MetaError(msg, context=context) from e
+
+            attrs[attribute.name] = attrvalue
+
+            self._add_proto(localschema, attrvalue)
+
+        return attrs
 
 
     def _read_cascade_policies(self, pointer, cascade_policies, localschema):
@@ -1215,6 +1356,12 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             g[atom.name] = {"item": atom, "merge": [], "deps": []}
 
             if atom.name.module == this_module:
+                attributes = getattr(atom, '_attributes', None)
+                if attributes:
+                    attrs = self._normalize_attribute_values(localschema, atom, attributes)
+                    for attr in attrs.values():
+                        atom.add_attribute(attr)
+
                 constraints = getattr(atom, '_constraints', None)
                 if constraints:
                     atom.normalize_constraints(localschema, constraints)

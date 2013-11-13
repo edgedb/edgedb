@@ -73,7 +73,8 @@ class CommandMeta(type(yaml.Object), type(delta.Command), MixedStructMeta):
 
 class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
     def adapt_value(self, field, value):
-        if isinstance(value, str) and isinstance(field.type[0], caos.types.PrototypeClass):
+        if (isinstance(value, str) and isinstance(field.type[0], caos.types.PrototypeClass)
+                                   and hasattr(field.type[0], 'name')):
             value = caos.name.Name(value)
             value = proto.PrototypeRef(prototype_name=value)
 
@@ -281,6 +282,14 @@ class AtomConstraintCommand(PrototypeCommand, adapts=delta.AtomConstraintCommand
     pass
 
 
+class AttributeCommand(PrototypeCommand, adapts=delta.AttributeCommand):
+    pass
+
+
+class AttributeValueCommand(PrototypeCommand, adapts=delta.AttributeValueCommand):
+    pass
+
+
 class SourceIndexCommand(PrototypeCommand, adapts=delta.SourceIndexCommand):
     pass
 
@@ -293,10 +302,6 @@ class LinkSearchConfigurationCommand(PrototypeCommand, adapts=delta.LinkSearchCo
     pass
 
 
-class CreateAtom(CreateNamedPrototype, adapts=delta.CreateAtom):
-    pass
-
-
 class CreateAtomConstraint(AtomConstraintCommand, CreateSimplePrototype, adapts=delta.CreateAtomConstraint):
     pass
 
@@ -306,6 +311,42 @@ class AlterAtomConstraint(AtomConstraintCommand, CreateSimplePrototype, adapts=d
 
 
 class DeleteAtomConstraint(AtomConstraintCommand, adapts=delta.DeleteAtomConstraint):
+    pass
+
+
+class CreateAttribute(AttributeCommand, adapts=delta.CreateAttribute):
+    pass
+
+
+class RenameAttribute(AttributeCommand, adapts=delta.RenameAttribute):
+    pass
+
+
+class AlterAttribute(AttributeCommand, adapts=delta.AlterAttribute):
+    pass
+
+
+class DeleteAttribute(AttributeCommand, adapts=delta.DeleteAttribute):
+    pass
+
+
+class CreateAttributeValue(AttributeValueCommand, adapts=delta.CreateAttributeValue):
+    pass
+
+
+class RenameAttributeValue(AttributeValueCommand, adapts=delta.RenameAttributeValue):
+    pass
+
+
+class AlterAttributeValue(AttributeValueCommand, adapts=delta.AlterAttributeValue):
+    pass
+
+
+class DeleteAttributeValue(AttributeValueCommand, adapts=delta.DeleteAttributeValue):
+    pass
+
+
+class CreateAtom(CreateNamedPrototype, adapts=delta.CreateAtom):
     pass
 
 

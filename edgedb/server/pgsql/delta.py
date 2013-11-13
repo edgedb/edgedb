@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2012 Sprymix Inc.
+# Copyright (c) 2008-2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -8,6 +8,7 @@
 
 import collections
 import itertools
+import pickle
 import postgresql.string
 import re
 
@@ -35,7 +36,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 18
+BACKEND_FORMAT_VERSION = 19
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -162,8 +163,7 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeC
         return updates
 
     def update(self, meta, context):
-        ctx = context.get_top()
-        orig_proto = ctx.original_proto
+        orig_proto = self.original_proto
         updaterec, updates = self.fill_record(meta)
 
         if updaterec:
@@ -230,6 +230,95 @@ class AlterDefault(MetaCommand, adapts=delta_cmds.AlterDefault):
         MetaCommand.apply(self, meta, context)
 
         return result
+
+
+class AttributeCommand:
+    table = deltadbops.AttributeTable()
+
+    def fill_record(self, schema, rec=None, obj=None):
+        rec, updates = super().fill_record(schema, rec=rec, obj=obj)
+
+        if rec:
+            type = updates.get('type')
+            if type:
+                rec.type = pickle.dumps(type[1])
+
+        return rec, updates
+
+
+class CreateAttribute(AttributeCommand,
+                      CreateNamedPrototype,
+                      adapts=delta_cmds.CreateAttribute):
+    pass
+
+
+class RenameAttribute(AttributeCommand,
+                      RenameNamedPrototype,
+                      adapts=delta_cmds.RenameAttribute):
+    pass
+
+
+class AlterAttribute(AttributeCommand,
+                     AlterNamedPrototype,
+                     adapts=delta_cmds.AlterAttribute):
+    pass
+
+
+class DeleteAttribute(AttributeCommand,
+                      DeleteNamedPrototype,
+                      adapts=delta_cmds.DeleteAttribute):
+    pass
+
+
+class AttributeValueCommand(metaclass=CommandMeta):
+    table = deltadbops.AttributeValueTable()
+    op_priority = 1
+
+    def fill_record(self, schema, rec=None, obj=None):
+        rec, updates = super().fill_record(schema, rec=rec, obj=obj)
+
+        if rec:
+            subj = updates.get('subject')
+            if subj:
+                rec.subject = dbops.Query(
+                    '(SELECT id FROM caos.metaobject WHERE name = $1)',
+                    [subj[1]], type='integer')
+
+            attribute = updates.get('attribute')
+            if attribute:
+                rec.attribute = dbops.Query(
+                    '(SELECT id FROM caos.metaobject WHERE name = $1)',
+                    [attribute[1]], type='integer')
+
+            value = updates.get('value')
+            if value:
+                rec.value = pickle.dumps(value[1])
+
+        return rec, updates
+
+
+class CreateAttributeValue(AttributeValueCommand,
+                           CreateNamedPrototype,
+                           adapts=delta_cmds.CreateAttributeValue):
+    pass
+
+
+class RenameAttributeValue(AttributeValueCommand,
+                           RenameNamedPrototype,
+                           adapts=delta_cmds.RenameAttributeValue):
+    pass
+
+
+class AlterAttributeValue(AttributeValueCommand,
+                          AlterNamedPrototype,
+                          adapts=delta_cmds.AlterAttributeValue):
+    pass
+
+
+class DeleteAttributeValue(AttributeValueCommand,
+                           DeleteNamedPrototype,
+                           adapts=delta_cmds.DeleteAttributeValue):
+    pass
 
 
 class CreateAtomConstraint(PrototypeMetaCommand, adapts=delta_cmds.CreateAtomConstraint):
@@ -2895,6 +2984,16 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
                                          neg_conditions=[dbops.TableExists(name=metatable.name)],
                                          priority=-1))
 
+        attributetable = deltadbops.AttributeTable()
+        self.pgops.add(dbops.CreateTable(table=attributetable,
+                                         neg_conditions=[dbops.TableExists(name=attributetable.name)],
+                                         priority=-1))
+
+        attrvaltable = deltadbops.AttributeValueTable()
+        self.pgops.add(dbops.CreateTable(table=attrvaltable,
+                                         neg_conditions=[dbops.TableExists(name=attrvaltable.name)],
+                                         priority=-1))
+
         policytable = deltadbops.PolicyTable()
         self.pgops.add(dbops.CreateTable(table=policytable,
                                          neg_conditions=[dbops.TableExists(name=policytable.name)],
@@ -3863,6 +3962,19 @@ class UpgradeBackend(MetaCommand):
         cond = dbops.FunctionExists(('caos', 'gen_random_bytes'))
         op = deltadbops.EnableFeature(feature=features.CryptoFeature(), neg_conditions=[cond])
         op.execute(context)
+
+    def update_to_version_19(self, context):
+        """
+        Backend format 19 adds base tables for attributes and attribute values
+        """
+
+        cg = dbops.CommandGroup()
+
+        for table in (deltadbops.AttributeTable(), deltadbops.AttributeValueTable()):
+            cg.add_command(dbops.CreateTable(table=table,
+                                             neg_conditions=[dbops.TableExists(name=table.name)]))
+
+        cg.execute(context)
 
     @classmethod
     def update_backend_info(cls):

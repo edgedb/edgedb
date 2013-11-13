@@ -1,0 +1,58 @@
+##
+# Copyright (c) 2013 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%SCHEMA metamagic.caos.datasources.schemas.Sql
+%NAME Attributes
+---
+params:
+    name:
+        type: str
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+            a.id           AS id,
+            a.name         AS name,
+            a.title        AS title,
+            a.description  AS description,
+            a.type         AS type
+        FROM
+            caos.attribute a
+        WHERE
+            %(name)s::text IS NULL OR a.name LIKE %(name)s::text
+...
+
+
+%SCHEMA metamagic.caos.datasources.schemas.Sql
+%NAME AttributeValues
+---
+params:
+    name:
+        type: str
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+            a.id           AS id,
+            a.name         AS name,
+            a.title        AS title,
+            a.description  AS description,
+            subj.name      AS subject_name,
+            attr.name      AS attribute_name,
+            a.value        AS value
+        FROM
+            caos.attribute_value a
+            INNER JOIN caos.metaobject subj ON (subj.id = a.subject)
+            INNER JOIN caos.metaobject attr ON (attr.id = a.attribute)
+        WHERE
+            %(name)s::text IS NULL OR a.name LIKE %(name)s::text
+...
