@@ -6,12 +6,8 @@
 ##
 
 
-import collections
 import importlib
-import itertools
-import os
 import sys
-import types
 import yaml
 
 from metamagic.utils.lang import meta, context as lang_context, loader as lang_loader
@@ -21,6 +17,7 @@ from metamagic.utils.lang.yaml import schema as yaml_schema
 from metamagic.utils.functional import Adapter
 from metamagic.utils.datastructures import OrderedSet
 
+from . import types
 
 
 class YAMLModuleCacheMetaInfo(lang_loader.LangModuleCacheMetaInfo):
@@ -296,7 +293,7 @@ class ObjectMeta(Adapter):
         super(ObjectMeta, cls).__init__(name, bases, clsdict, adapts=adapts, **kwargs)
 
         if hasattr(cls, '__sx_getstate__'):
-            representer = lambda dumper, data: cls.represent_wrapper(data, dumper)
+            representer = cls.represent_wrapper
 
             adaptee = cls.get_adaptee()
             if adaptee is not None:
@@ -307,18 +304,5 @@ class ObjectMeta(Adapter):
 
 class Object(meta.Object, metaclass=ObjectMeta):
     @classmethod
-    def represent_wrapper(cls, data, dumper):
-        result = cls.__sx_getstate__(data)
-
-        if isinstance(result, dict):
-            return dumper.represent_mapping('tag:yaml.org,2002:map', result)
-        elif isinstance(result, list):
-            return dumper.represent_sequence('tag:yaml.org,2002:seq', result)
-        elif isinstance(result, str):
-            return dumper.represent_scalar('tag:yaml.org,2002:str', result)
-        elif isinstance(result, bool):
-            return dumper.represent_scalar('tag:yaml.org,2002:bool', str(result))
-        elif isinstance(result, int):
-            return dumper.represent_scalar('tag:yaml.org,2002:int', str(result))
-        else:
-            assert False, 'unhandled representer result type: %s' % result
+    def represent_wrapper(cls, dumper, data):
+        return dumper.represent_data(cls.__sx_getstate__(data))
