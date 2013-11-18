@@ -128,6 +128,9 @@ class T_LBRACE(Token, lextoken='{'):
 class T_RBRACE(Token, lextoken='}'):
     pass
 
+class T_DOUBLECOLON(Token, lextoken='::'):
+    pass
+
 class T_COLON(Token, lextoken=':'):
     pass
 
@@ -1233,8 +1236,8 @@ class AnyFqName(Nonterm):
 
 
 class FqFuncName(Nonterm):
-    def reduce_IDENT_COLON_IDENT(self, *kids):
-        "%reduce IDENT COLON IDENT"
+    def reduce_IDENT_DOUBLECOLON_IDENT(self, *kids):
+        "%reduce IDENT DOUBLECOLON IDENT"
         self.val = (kids[0].val, kids[2].val)
 
 

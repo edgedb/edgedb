@@ -36,7 +36,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 19
+BACKEND_FORMAT_VERSION = 20
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -3973,6 +3973,58 @@ class UpgradeBackend(MetaCommand):
         for table in (deltadbops.AttributeTable(), deltadbops.AttributeValueTable()):
             cg.add_command(dbops.CreateTable(table=table,
                                              neg_conditions=[dbops.TableExists(name=table.name)]))
+
+        cg.execute(context)
+
+    def update_to_version_20(self, context):
+        """
+        Backend format 20 migrates saved CaosQL expressions from ':' ns-separator to '::'
+        """
+
+        from metamagic.utils.lang import yaml
+
+        cg = dbops.CommandGroup()
+
+        links_list = datasources.meta.links.ConceptLinks(context.db).fetch()
+        ltable = deltadbops.LinkTable()
+
+        for r in links_list:
+            if r['default']:
+                value = next(iter(yaml.Language.load(r['default'])))
+
+                result = []
+                for item in value:
+                    # XXX: This implicitly relies on yaml backend to be loaded, since
+                    # adapter for DefaultSpec is defined there.
+                    adapter = yaml.ObjectMeta.get_adapter(proto.DefaultSpec)
+                    assert adapter, "could not find YAML adapter for proto.DefaultSpec"
+                    data = item
+                    item = adapter.resolve(item)(item)
+                    item.__sx_setstate__(data)
+                    result.append(item)
+
+                for item in result:
+                    if isinstance(item, proto.QueryDefaultSpec):
+                        item.value = re.sub(r'(\w+):(\w+)\(', '\\1::\\2(', item.value)
+
+                newdefault = yaml.Language.dump(result)
+
+                if newdefault.lower() != r['default'].lower():
+                    rec = ltable.record()
+                    rec.default = newdefault
+                    condition = [('id', r['id'])]
+                    cg.add_command(dbops.Update(table=ltable, record=rec, condition=condition))
+
+        computables_list = datasources.meta.links.Computables(context.db).fetch()
+        ctable = deltadbops.ComputableTable()
+        for r in computables_list:
+            newexpression = re.sub(r'(\w+):(\w+)\(', '\\1::\\2(', r['expression'])
+
+            if newexpression.lower() != r['expression'].lower():
+                rec = ctable.record()
+                rec.expression = newexpression
+                condition = [('id', r['id'])]
+                cg.add_command(dbops.Update(table=ctable, record=rec, condition=condition))
 
         cg.execute(context)
 

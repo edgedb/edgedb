@@ -57,6 +57,7 @@ definitions:
     dir                     "\<\>"
     search                  "\@\@"
     starstar                "\*\*"
+    doublecolon             "::"
 
     other                   "."
 
@@ -82,6 +83,9 @@ INITIAL:
 
     "{starstar}":
         return '**'
+
+    "{doublecolon}":
+        return '::'
 
     "{self}":
         return self.value[0]
