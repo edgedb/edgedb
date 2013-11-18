@@ -12,6 +12,15 @@ from metamagic.utils import ast
 
 class RootNode(ast.AST): __fields = ['children']
 
+class IndirectionNode(ast.AST):
+    __fields = ['arg', 'indirection']
+
+class IndexNode(ast.AST):
+    __fields = ['index']
+
+class SliceNode(ast.AST):
+    __fields = ['start', 'stop']
+
 class ArgListNode(ast.AST): __fields = ['name', ('args', list)]
 class BinOpNode(ast.AST):  __fields = ['left', 'op', 'right']
 class FunctionCallNode(ast.AST): __fields = ['func', ('args', list), ('agg_sort', list)]

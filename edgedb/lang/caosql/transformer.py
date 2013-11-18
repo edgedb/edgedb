@@ -283,6 +283,37 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
 
             return result
 
+    def _is_none(self, expr):
+        return (isinstance(expr, (tree.ast.Constant, qlast.ConstantNode))
+                and expr.value is None and expr.index is None)
+
+    def _process_function(self, expr):
+        args = [self._process_expr(arg) for arg in expr.args]
+
+        if expr.name == 'getslice':
+            result = qlast.IndirectionNode(
+                arg=args[0],
+                indirection=[
+                    qlast.SliceNode(
+                        start=None if self._is_none(args[1]) else args[1],
+                        stop=None if self._is_none(args[2]) else args[2],
+                    )
+                ]
+            )
+        elif expr.name == 'getitem':
+            result = qlast.IndirectionNode(
+                arg=args[0],
+                indirection=[
+                    qlast.IndexNode(
+                        index=args[1]
+                    )
+                ]
+            )
+        else:
+            result = qlast.FunctionCallNode(func=expr.name, args=args)
+
+        return result
+
     def _process_expr(self, expr):
         if expr.rewrite_original:
             # Process original node instead of a rewrite
@@ -332,8 +363,7 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
                                         nones_order=expr.nones_order)
 
         elif isinstance(expr, tree.ast.FunctionCall):
-            args = [self._process_expr(arg) for arg in expr.args]
-            result = qlast.FunctionCallNode(func=expr.name, args=args)
+            result = self._process_function(expr)
 
         elif isinstance(expr, tree.ast.Record):
             if expr.rlink:
@@ -458,8 +488,15 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
             result = self.process_sequence(result)
 
         elif isinstance(expr, tree.ast.TypeCast):
-            result = qlast.TypeCastNode(expr=self._process_expr(expr.expr),
-                                        type=expr.type.name)
+            if isinstance(expr.type, tuple):
+                if expr.type[0] is not list:
+                    raise ValueError('unexpected collection type: {!r}'.format(expr.type[0]))
+
+                typ = (expr.type[0], expr.type[1].name)
+            else:
+                typ = expr.type.name
+
+            result = qlast.TypeCastNode(expr=self._process_expr(expr.expr), type=typ)
 
         else:
             assert False, "Unexpected expression type: %r" % expr
@@ -773,6 +810,28 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 typ = (expr.type[0], typ)
 
             node = tree.ast.TypeCast(expr=self._process_expr(context, expr.expr), type=typ)
+
+        elif isinstance(expr, qlast.IndirectionNode):
+            node = self._process_expr(context, expr.arg)
+            for indirection_el in expr.indirection:
+                if isinstance(indirection_el, qlast.IndexNode):
+                    idx = self._process_expr(context, indirection_el.index)
+                    node = tree.ast.FunctionCall(name='getitem', args=[node, idx])
+
+                elif isinstance(indirection_el, qlast.SliceNode):
+                    if indirection_el.start:
+                        start = self._process_expr(context, indirection_el.start)
+                    else:
+                        start = tree.ast.Constant(value=None)
+
+                    if indirection_el.stop:
+                        stop = self._process_expr(context, indirection_el.stop)
+                    else:
+                        stop = tree.ast.Constant(value=None)
+
+                    node = tree.ast.FunctionCall(name='getslice', args=[node, start, stop])
+                else:
+                    raise ValueError('unexpected indirection node: {!r}'.format(indirection_el))
 
         else:
             assert False, "Unexpected expr: %s" % expr

@@ -632,6 +632,46 @@ class OptAll(Nonterm):
         self.val = None
 
 
+class IndirectionEl(Nonterm):
+    def reduce_LBRACKET_Expr_RBRACKET(self, *kids):
+        "%reduce LBRACKET Expr RBRACKET"
+        self.val = qlast.IndexNode(index=kids[1].val)
+
+    def reduce_LBRACKET_Expr_COLON_Expr_RBRACKET(self, *kids):
+        "%reduce LBRACKET Expr COLON Expr RBRACKET"
+        self.val = qlast.SliceNode(start=kids[1].val, stop=kids[3].val)
+
+    def reduce_LBRACKET_Expr_COLON_RBRACKET(self, *kids):
+        "%reduce LBRACKET Expr COLON RBRACKET"
+        self.val = qlast.SliceNode(start=kids[1].val, stop=None)
+
+    def reduce_LBRACKET_COLON_Expr_RBRACKET(self, *kids):
+        "%reduce LBRACKET COLON Expr RBRACKET"
+        self.val = qlast.SliceNode(start=None, stop=kids[2].val)
+
+
+class OptIndirection(Nonterm):
+    def reduce_OptIndirection_IndirectionEl(self, *kids):
+        "%reduce OptIndirection IndirectionEl"
+        if kids[0].val is not None:
+            self.val = kids[0].val + [kids[1].val]
+        else:
+            self.val = [kids[1].val]
+
+    def reduce_empty(self, *kids):
+        "%reduce <e>"
+        self.val = None
+
+
+class Indirection(Nonterm):
+    def reduce_OptIndirection_IndirectionEl(self, *kids):
+        "%reduce OptIndirection IndirectionEl"
+        if kids[0].val is not None:
+            self.val = kids[0].val + [kids[1].val]
+        else:
+            self.val = [kids[1].val]
+
+
 class Expr(Nonterm):
     # Path | Constant | '(' Expr ')' | FuncExpr | Sequence
     # | '+' Expr | '-' Expr | Expr '+' Expr | Expr '-' Expr
@@ -655,9 +695,12 @@ class Expr(Nonterm):
         "%reduce Constant"
         self.val = kids[0].val
 
-    def reduce_LPAREN_Expr_RPAREN(self, *kids):
-        "%reduce LPAREN Expr RPAREN"
-        self.val = kids[1].val
+    def reduce_LPAREN_Expr_RPAREN_OptIndirection(self, *kids):
+        "%reduce LPAREN Expr RPAREN OptIndirection"
+        if kids[3].val:
+            self.val = qlast.IndirectionNode(arg=kids[1].val, indirection=kids[3].val)
+        else:
+            self.val = kids[1].val
 
     def reduce_FuncExpr(self, *kids):
         "%reduce FuncExpr"

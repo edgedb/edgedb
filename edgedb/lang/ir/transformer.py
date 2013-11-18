@@ -2883,7 +2883,10 @@ class TreeTransformer:
                 if fcls:
                     signature = fcls.get_signature(argtypes, schema=schema)
                     if signature and signature[2]:
-                        result = schema.get(signature[2])
+                        if isinstance(signature[2], tuple):
+                            result = (signature[2][0], schema.get(signature[2][1]))
+                        else:
+                            result = schema.get(signature[2])
 
         elif isinstance(expr, caos_ast.Constant):
             if expr.expr:

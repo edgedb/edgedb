@@ -186,8 +186,44 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
     def visit_TypeCastNode(self, node):
-        self.write('CAST (')
+        self.write('CAST(')
         self.visit(node.expr)
-        self.write(' AS [')
-        self.write(node.type)
-        self.write('])')
+        self.write(' AS ')
+        if isinstance(node.type, tuple):
+            if node.type[0] is list:
+                if '.' in node.type[1]:
+                    self.write('[')
+                self.write(node.type[1])
+                if '.' in node.type[1]:
+                    self.write(']')
+                self.write('[]')
+            else:
+                raise ValueError('unexpected collection type: {!r}'.format(node.type[0]))
+        else:
+            if '.' in node.type:
+                self.write('[')
+            self.write(node.type)
+            if '.' in node.type:
+                self.write(']')
+        self.write(')')
+
+    def visit_IndirectionNode(self, node):
+        self.write('(')
+        self.visit(node.arg)
+        self.write(')')
+        for indirection in node.indirection:
+            self.visit(indirection)
+
+    def visit_SliceNode(self, node):
+        self.write('[')
+        if node.start:
+            self.visit(node.start)
+        self.write(':')
+        if node.stop:
+            self.visit(node.stop)
+        self.write(']')
+
+    def visit_IndexNode(self, node):
+        self.write('[')
+        self.visit(node.index)
+        self.write(']')

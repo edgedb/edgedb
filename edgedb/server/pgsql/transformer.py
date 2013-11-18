@@ -2470,6 +2470,45 @@ class CaosTreeTransformer(CaosExprTransformer):
                 indirection = pgsql.ast.IndexIndirectionNode(upper=upper)
                 _expr = self._process_expr(context, expr.args[0], cte)
                 result = pgsql.ast.IndirectionNode(expr=_expr, indirection=indirection)
+
+            elif expr.name == 'getslice':
+                start = args[1]
+                stop = args[2]
+                one = pgsql.ast.ConstantNode(value=1)
+                zero = pgsql.ast.ConstantNode(value=0)
+
+                is_string = False
+                arg_type = self.get_expr_type(expr.args[0], context.current.proto_schema)
+
+                if isinstance(arg_type, caos_types.ProtoAtom):
+                    b = arg_type.get_topmost_base(context.current.proto_schema, top_prototype=True)
+                    is_string = b.name == 'metamagic.caos.builtins.str'
+
+                if start.value is None and start.index is None:
+                    start = zero
+                    lower = one
+                else:
+                    lower = pgsql.ast.BinOpNode(left=start, op=ast.ops.ADD, right=one)
+
+                if is_string:
+                    args = [args[0], lower]
+
+                    if stop.value is not None or stop.index is not None:
+                        stop = pgsql.ast.BinOpNode(left=stop, op=ast.ops.SUB, right=start)
+                        args.append(stop)
+
+                    name = 'substr'
+
+                else:
+                    if stop.value is None and stop.index is None:
+                        upper = pgsql.ast.FunctionCallNode(name='array_upper',
+                                                           args=[args[0], one])
+                    else:
+                        upper = stop
+
+                    indirection = pgsql.ast.IndexIndirectionNode(lower=lower, upper=upper)
+                    result = pgsql.ast.IndirectionNode(expr=args[0], indirection=indirection)
+
             elif isinstance(expr.name, tuple):
                 assert False, 'unsupported function %s' % (expr.name,)
             else:
