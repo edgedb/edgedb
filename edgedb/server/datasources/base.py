@@ -12,6 +12,7 @@ import uuid
 
 from metamagic.caos import types as caos_types
 from metamagic.utils.lang import meta as lang_meta
+from metamagic.utils.lang.import_ import get_object
 
 
 def check_type(variable, type):
