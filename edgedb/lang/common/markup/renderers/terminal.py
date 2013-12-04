@@ -221,9 +221,8 @@ class BaseRenderer:
             strlevel = '-'
 
         if self.max_width:
-            return '{str:{strlevel}^{width:d}s}'.format(strlevel=strlevel,
-                                                        width=self.max_width,
-                                                        str=str)
+            return '{{str:{strlevel}^{width:d}s}}'. \
+                        format(strlevel=strlevel, width=self.max_width).format(str=str)
         else:
             return '----{}----'.format(str)
 
