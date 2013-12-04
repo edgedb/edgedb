@@ -189,16 +189,6 @@ class TypeIO(pq3.TypeIO):
 
         return (None, _unpack_record)
 
-    def RowTypeFactory(self, attribute_map={}, _Row=pg_types.Row.from_sequence,
-                       composite_relid = None):
-        session = self.get_session()
-        if session is not None:
-            backend = session.backend
-            source = backend.source_name_from_relid(composite_relid)
-            if source is not None:
-                return partial(backend.entity_from_row_compat, session, source, attribute_map)
-        return partial(_Row, attribute_map)
-
 
 class ProxyBase:
     _intercepted_attrs = ('__repr__', '__wrapped__')

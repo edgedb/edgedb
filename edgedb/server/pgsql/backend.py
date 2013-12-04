@@ -753,25 +753,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return concept_name
 
 
-    def entity_from_row_compat(self, session, concept_name, attribute_map, row):
-        concept_map = self.get_concept_map(session)
-
-        concept_id = row[attribute_map['concept_id']]
-
-        if concept_id is None:
-            # empty record
-            return None
-
-        real_concept = concept_map[concept_id]
-
-        concept_proto = session.proto_schema.get(real_concept)
-        attribute_link_map = self.get_attribute_link_map(concept_proto, attribute_map)
-
-        links = {k: row[i] for k, i in attribute_link_map.items()}
-        concept_cls = session.schema.get(real_concept)
-        return session._merge(links['metamagic.caos.builtins.id'], concept_cls, links)
-
-
     def entity_from_row(self, session, record_info, links):
         if record_info.recursive_link:
             # Array representing a hierarchy connecting via cyclic link.
@@ -1177,29 +1158,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             raise caos.MetaError(msg, details=details)
 
         return concept_id
-
-
-    def get_attribute_link_map(self, concept, attribute_map):
-        key = (concept.name, frozenset(attribute_map.items()))
-
-        try:
-            attribute_link_map = self.attribute_link_map_cache[key]
-        except KeyError:
-            attribute_link_map = {}
-            for link_name, link in concept.pointers.items():
-                if not isinstance(link, caos.types.ProtoComputable):
-                    col_name = common.caos_name_to_pg_name(link_name)
-
-                    try:
-                        attribute_link_map[link_name] = attribute_map[col_name]
-                    except KeyError:
-                        # The passed attribute map may be that of a parent concept,
-                        # which may not have all the links this concept has.
-                        pass
-
-            self.attribute_link_map_cache[key] = attribute_link_map
-
-        return attribute_link_map
 
 
     def source_name_from_relid(self, table_oid):
