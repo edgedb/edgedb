@@ -391,30 +391,6 @@ mapping:
                                                 "default":
                                                     *DEFAULT
 
-                    "computables":
-                        &COMPUTABLES
-                        type: map
-                        ordered: True
-                        default: {}
-                        mapping:
-                            =:
-                                type: choice
-                                required: yes
-                                object: metamagic.caos.backends.yaml.Computable
-                                choice:
-                                    - type: str
-                                    - type: map
-                                      mapping:
-                                        "title":
-                                            *TEXT_WITH_GRAM_CATEGORIES
-                                        "description":
-                                            type: str
-                                        "expression":
-                                            type: str
-                                        "mapping":
-                                            *LINK_MAPPING
-                                        "exposed_behaviour":
-                                            *LINK_EXPOSED_BEHAVIOUR
 
                     "indexes":
                         &INDEXES
@@ -527,9 +503,6 @@ mapping:
                                                             enum: ['A', 'B', 'C', 'D']
                                                             required: True
                                                     - type: bool
-
-                    "computables":
-                        *COMPUTABLES
 
                     "indexes":
                         *INDEXES

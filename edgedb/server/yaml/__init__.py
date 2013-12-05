@@ -38,6 +38,11 @@ from metamagic.caos.caosql import errors as caosql_exc
 from . import delta
 
 
+class Expression:
+    def __init__(self, expr):
+        self.expr = expr
+
+
 class MetaError(yaml_protoschema.SchemaError, caos.MetaError):
     pass
 
@@ -515,9 +520,8 @@ class Concept(Prototype, adapts=proto.Concept):
                                _setdefaults_=False, _relaxrequired_=True)
         self._bases = extends
         self._links = data.get('links', {})
-        self._computables = data.get('computables', {})
         self._indexes = data.get('indexes') or ()
-        self._yml_workattrs = {'_links', '_computables', '_indexes', '_bases'}
+        self._yml_workattrs = {'_links', '_indexes', '_bases'}
 
     @classmethod
     def __sx_getstate__(cls, data):
@@ -540,7 +544,6 @@ class Concept(Prototype, adapts=proto.Concept):
 
         if data.own_pointers:
             result['links'] = {}
-            result['computables'] = {}
             for ptr_name, ptr in data.own_pointers.items():
                 if isinstance(ptr.target, proto.Atom) and ptr.target.automatic:
                     key = ptr.target.bases[0].name
@@ -550,9 +553,7 @@ class Concept(Prototype, adapts=proto.Concept):
                     else:
                         key = ptr.target.name
 
-                section = 'computables' if isinstance(ptr, proto.Computable) else 'links'
-
-                result[section][ptr_name] = {key: ptr}
+                result['links'][ptr_name] = {key: ptr}
 
         if data.indexes:
             result['indexes'] = list(sorted(data.indexes, key=lambda i: i.expr))
@@ -711,6 +712,14 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
                                               _setdefaults_=False, _relaxrequired_=True)
             self._target = data
             self._yml_workattrs = {'_target'}
+
+        elif isinstance(data, Expression):
+            deflt = proto.QueryDefaultSpec(data.expr)
+            context = lang_context.SourceContext.from_object(self)
+            lang_context.SourceContext.register_object(deflt, context)
+            proto.LinkProperty.__init__(self, _setdefaults_=False, _relaxrequired_=True,
+                                              default=[deflt], readonly=True)
+
         else:
             atom_name, info = next(iter(data.items()))
 
@@ -799,10 +808,9 @@ class LinkDef(Prototype, adapts=proto.Link):
 
         self._bases = extends
         self._properties = data['properties']
-        self._computables = data.get('computables', {})
         self._indexes = data.get('indexes') or ()
         self._cascades = data.get('cascades')
-        self._yml_workattrs = {'_properties', '_computables', '_indexes', '_cascades', '_bases'}
+        self._yml_workattrs = {'_properties', '_indexes', '_cascades', '_bases'}
 
     @classmethod
     def __sx_getstate__(cls, data):
@@ -847,12 +855,8 @@ class LinkDef(Prototype, adapts=proto.Link):
 
         if data.own_pointers:
             result['properties'] = {}
-            result['computables'] = {}
             for ptr_name, ptr in data.own_pointers.items():
-                if isinstance(ptr, proto.Computable):
-                    result['computables'][ptr_name] = ptr
-                else:
-                    result['properties'][ptr_name] = ptr
+                result['properties'][ptr_name] = ptr
 
         if data.local_constraints:
             constraints = result.setdefault('constraints', [])
@@ -937,6 +941,15 @@ class SpecializedLink(LangObject):
             lang_context.SourceContext.register_object(link, context)
             link._targets = (data,) if isinstance(data, str) else data
             link._yml_workattrs = {'_targets'}
+            self.link = link
+
+        elif isinstance(data, Expression):
+            deflt = proto.QueryDefaultSpec(data.expr)
+            context = lang_context.SourceContext.from_object(self)
+            lang_context.SourceContext.register_object(deflt, context)
+            link = proto.Link(_setdefaults_=False, _relaxrequired_=True,
+                              default=[deflt], readonly=True)
+            lang_context.SourceContext.register_object(link, context)
             self.link = link
 
         elif isinstance(data, dict):
@@ -1045,7 +1058,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         concepts = OrderedSet(self.order_concepts(localschema))
         links = OrderedSet(self.order_links(localschema))
         linkprops = OrderedSet(self.order_link_properties(localschema))
-        computables = OrderedSet(self.order_computables(localschema))
         atoms = OrderedSet(self.order_atoms(localschema))
         cascade_policy = OrderedSet(self.order_cascade_policy(localschema))
         cascade_events = OrderedSet(self.order_cascade_events(localschema))
@@ -1074,9 +1086,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 for workattr in atom._yml_workattrs:
                     delattr(atom, workattr)
                 delattr(atom, '_yml_workattrs')
-
-        for comp in computables:
-            comp.setdefaults()
 
         for prop in linkprops:
             prop.setdefaults()
@@ -1110,7 +1119,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     csql_expr.check_source_atomic_expr(index.tree, concept)
 
                 self.normalize_pointer_defaults(concept, localschema)
-                self.normalize_computables(concept, localschema)
 
             except caosql_exc.CaosQLReferenceError as e:
                 concept_context = lang_context.SourceContext.from_object(concept)
@@ -1146,7 +1154,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
         # Arrange prototypes in the resulting schema according to determined topological order.
         localschema.reorder(itertools.chain(attributes, attribute_values, cascade_actions,
-                                            cascade_events, atoms, computables, linkprops,
+                                            cascade_events, atoms, linkprops,
                                             links, concepts, cascade_policy))
 
 
@@ -1471,7 +1479,9 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 property_qname = property_base.name
 
             if link.generic() or getattr(property, '_target', None) is not None:
-                property.target = localschema.get(property._target)
+                targetname = getattr(property, '_target', None)
+                if targetname:
+                    property.target = localschema.get(targetname)
                 proptarget = property.target
             else:
                 link_base = link.bases[0]
@@ -1484,11 +1494,14 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
             atom_constraints = self._get_link_atom_constraints(property)
 
+            target_name = None
+
             if atom_constraints:
                 target_name = Atom.gen_atom_name(link, property_qname)
                 target_name = caos.Name(name=target_name, module=link.name.module)
             else:
-                target_name = proptarget.name
+                if proptarget:
+                    target_name = proptarget.name
 
             # A new specialized subclass of the link property is created for each
             # (source, property_name, target_atom) combination
@@ -1518,47 +1531,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         self._add_proto(localschema, linkdef)
         return linkdef
 
-    def _read_computables(self, source, localschema):
-        for cname, computable in getattr(source, '_computables', {}).items():
-            computable_base = localschema.get(cname, type=proto.Computable, default=None,
-                                              index_only=False)
-
-            if computable_base is None:
-                if not caos.Name.is_qualified(cname):
-                    computable_qname = caos.Name(name=cname, module=self.module.name)
-                else:
-                    computable_qname = caos.Name(cname)
-            else:
-                computable_qname = computable_base.name
-
-            if computable_qname in source.own_pointers:
-                context = lang_context.SourceContext.from_object(computable)
-                raise MetaError('computable "%(name)s" conflicts with "%(name)s" pointer '
-                                'defined in the same source' % {'name': computable_qname},
-                                 context=context)
-
-            computable_name = proto.Computable.generate_specialized_name(source.name,
-                                                                         computable_qname)
-            computable.source = source
-            computable.name = caos.Name(name=computable_name, module=self.module.name)
-            computable.setdefaults()
-            source.add_pointer(computable)
-
-            super = localschema.get(computable.normal_name(), default=None, index_only=False)
-            if super is None:
-                type = proto.Link if isinstance(source, proto.Concept) else proto.LinkProperty
-                super = self._create_base_link(computable, computable.normal_name(), localschema,
-                                               type=type)
-
-            computable.bases = [super]
-
-            self._add_proto(localschema, computable)
-
-
-    def order_computables(self, localschema):
-        return self.module('computable', include_automatic=True)
-
-
     def read_links(self, data, localschema):
         for link_name, link in data['links'].items():
             module = self.module.name
@@ -1577,8 +1549,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 link.bases = bases
             elif link.name != 'metamagic.caos.builtins.link':
                 link.bases = [localschema.get('metamagic.caos.builtins.link')]
-
-            self._read_computables(link, localschema)
 
             for index in link._indexes:
                 expr, tree = self.normalize_index_expr(index.expr, link, localschema)
@@ -1664,7 +1634,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 for index in link.own_indexes:
                     csql_expr.check_source_atomic_expr(index.tree, link)
 
-                self.normalize_computables(link, localschema)
                 self.normalize_pointer_defaults(link, localschema)
 
         except caosql_exc.CaosQLReferenceError as e:
@@ -1721,14 +1690,17 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
                 link.source = concept
 
-                targets = []
-                for t in link._targets:
-                    target = localschema.get(t)
-                    targets.append(target.name)
+                if getattr(link, '_targets', None):
+                    targets = []
+                    for t in link._targets:
+                        target = localschema.get(t)
+                        targets.append(target.name)
 
-                link._targets = targets
-                link._target = self._normalize_link_target_name(link_qname, link._targets,
-                                                                localschema)
+                    link._targets = targets
+                    link._target = self._normalize_link_target_name(link_qname, link._targets,
+                                                                    localschema)
+                else:
+                    link._target = None
 
                 atom_constraints = self._get_link_atom_constraints(link)
 
@@ -1756,9 +1728,11 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         for concept in self.module('concept'):
             for link_name, link in concept._links.items():
                 link = link.link
-                if len(link._targets) > 1:
+                targets = getattr(link, '_targets', ())
+
+                if len(targets) > 1:
                     link.target = self._create_link_target(concept, link, localschema)
-                else:
+                elif targets:
                     link.target = localschema.get(link._target)
 
                 target_pname = caos.Name('metamagic.caos.builtins.target')
@@ -1766,7 +1740,10 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                                             bases=[target_pbase],
                                             loading=caos.types.EagerLoading,
                                             _setdefaults_=False, _relaxrequired_=True)
-                target._target = link.target.name
+                if link.target:
+                    target._target = link.target.name
+                else:
+                    target._target = caos.Name('metamagic.caos.builtins.none')
 
                 source_pname = caos.Name('metamagic.caos.builtins.source')
                 source = proto.LinkProperty(name=source_pname,
@@ -1779,8 +1756,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 self._read_properties_for_link(link, props, localschema)
 
         for concept in self.module('concept'):
-            self._read_computables(concept, localschema)
-
             for index in getattr(concept, '_indexes', ()):
                 expr, tree = self.normalize_index_expr(index.expr, concept, localschema)
                 index.expr = expr
@@ -1821,12 +1796,9 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
     def normalize_pointer_defaults(self, source, localschema):
         for link in source.own_pointers.values():
-            if isinstance(link, proto.Computable):
-                continue
-
             if link.default:
                 for default in link.default:
-                    if isinstance(default, QueryDefaultSpec):
+                    if isinstance(default, proto.QueryDefaultSpec):
                         def_context = lang_context.SourceContext.from_object(default)
 
                         module_aliases = {None: str(def_context.document.import_context)}
@@ -1834,13 +1806,28 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                             module_aliases[alias] = module.__name__
 
                         value, tree = self.caosql_expr.normalize_expr(default.value,
-                                                                      module_aliases)
+                                                                      module_aliases,
+                                                                      anchors={'self': source})
 
                         first = list(tree.result_types.values())[0][0]
-                        if len(tree.result_types) > 1 or not first.issubclass(link.target):
+                        if (len(tree.result_types) > 1
+                                or not isinstance(first, caos.types.ProtoNode)
+                                or (link.target is not None and not first.issubclass(link.target))):
+
                             raise MetaError(('default value query must yield a '
                                              'single-column result of type "%s"') %
                                              link.target.name, context=def_context)
+
+                        if link.target is None or link.target.name == 'metamagic.caos.builtins.none':
+                            # Pure computable without explicit target.
+                            # Fixup link target and target property.
+                            link.target = first
+                            link.is_atom = isinstance(first, proto.Atom)
+
+                            if isinstance(link, proto.Link):
+                                pname = caos.name.Name('metamagic.caos.builtins.target')
+                                tgt_prop = link.pointers[pname]
+                                tgt_prop.target = first
 
                         if not isinstance(link.target, caos.types.ProtoAtom):
                             if link.mapping not in (caos.types.ManyToOne, caos.types.ManyToMany):
@@ -1850,45 +1837,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
                         default.value = value
                 link.normalize_defaults()
-
-
-    def normalize_computables(self, source, localschema):
-        for link in source.own_pointers.values():
-            if not isinstance(link, proto.Computable):
-                continue
-
-            src_context = lang_context.SourceContext.from_object(source)
-            module_aliases = {None: str(src_context.document.import_context)}
-            for alias, module in src_context.document.imports.items():
-                module_aliases[alias] = module.__name__
-
-            expression, tree = self.caosql_expr.normalize_expr(link.expression,
-                                                               module_aliases,
-                                                               anchors={'self': source})
-            refs = self.caosql_expr.get_node_references(tree)
-
-            expression = self.caosql_expr.normalize_refs(link.expression, module_aliases)
-
-            first = list(tree.result_types.values())[0][0]
-
-            assert first, "Could not determine computable expression result type"
-
-            if len(tree.result_types) > 1:
-                link_context = lang_context.SourceContext.from_object(link)
-                raise MetaError(('computable expression must yield a '
-                                 'single-column result'), context=link_context)
-
-            if isinstance(source, proto.Link) and not isinstance(first, proto.Atom):
-                link_context = lang_context.SourceContext.from_object(link)
-                raise MetaError(('computable expression for link property must yield a '
-                                 'scalar'), context=link_context)
-
-            link.target = first
-            link.expression = expression
-            link.is_local = len(refs) == 1 and tuple(refs)[0] is source
-            link.is_atom = isinstance(link.target, caos.types.ProtoAtom)
-
-            type = proto.Link if isinstance(source, proto.Concept) else proto.LinkProperty
 
 
     def order_concepts(self, localschema):

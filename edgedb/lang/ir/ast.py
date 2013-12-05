@@ -133,7 +133,7 @@ class CommonGraphExpr(Base):
 
 
 class Path(Base):
-    __fields = ['anchor', 'show_as_anchor']
+    __fields = ['anchor', 'show_as_anchor', ('reference', Base, None, False)]
 
     def __getattr__(self, name):
         if name == 'paths':
@@ -287,7 +287,6 @@ class EntitySet(Path):
                 'filter',
                 ('conjunction', Conjunction),
                 ('disjunction', Disjunction),
-                ('reference', Path, None, False),
                 ('origin', Path, None, False),
                 ('rlink', EntityLink, None, False),
                 ('atomrefs', set), ('metarefs', set), ('users', set),

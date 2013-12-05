@@ -37,7 +37,6 @@ class ParseContextLevel(object):
                 self.module_aliases = prevlevel.module_aliases
                 self.aliascnt = prevlevel.aliascnt.copy()
                 self.subgraphs_map = {}
-                self.resolve_computables = prevlevel.resolve_computables
                 self.cge_map = prevlevel.cge_map.copy()
             else:
                 self.graph = prevlevel.graph
@@ -53,7 +52,6 @@ class ParseContextLevel(object):
                 self.module_aliases = prevlevel.module_aliases
                 self.aliascnt = prevlevel.aliascnt
                 self.subgraphs_map = prevlevel.subgraphs_map
-                self.resolve_computables = prevlevel.resolve_computables
                 self.cge_map = prevlevel.cge_map
         else:
             self.graph = None
@@ -69,7 +67,6 @@ class ParseContextLevel(object):
             self.module_aliases = None
             self.aliascnt = {}
             self.subgraphs_map = {}
-            self.resolve_computables = True
             self.cge_map = {}
 
     def genalias(self, hint=None):
@@ -495,7 +492,7 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
                 linkproto = expr.link_proto
                 lname = linkproto.normal_name()
 
-                if expr.target:
+                if expr.target and isinstance(expr.target, tree.ast.EntitySet):
                     target = expr.target.concept.name
                     target = qlast.PrototypeRefNode(name=target.name, module=target.module)
                 else:
@@ -559,11 +556,15 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         return stree
 
     def transform_fragment(self, caosql_tree, arg_types, module_aliases=None, anchors=None,
-                                 location=None, resolve_computables=True):
+                                 location=None):
         context = self._init_context(arg_types, module_aliases, anchors)
         context.current.location = location or 'generator'
-        context.current.resolve_computables = resolve_computables
-        stree = self._process_expr(context, caosql_tree)
+
+        if isinstance(caosql_tree, qlast.SelectQueryNode):
+            stree = self._transform_select(context, caosql_tree, arg_types)
+        else:
+            stree = self._process_expr(context, caosql_tree)
+
         return stree
 
     def normalize_refs(self, caosql_tree, module_aliases):
@@ -667,6 +668,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             graph.limit = tree.ast.Constant(value=caosql_tree.limit.value,
                                              index=caosql_tree.limit.index,
                                              type=context.current.proto_schema.get('int'))
+
+        context.current.location = 'top'
 
         # Merge selector and sorter disjunctions first
         paths = [s.expr for s in graph.selector] + [s.expr for s in graph.sorter] + \
@@ -1236,11 +1239,6 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
                     assert target
 
-                    if isinstance(link_item, caos_types.ProtoComputable) and \
-                            context.current.resolve_computables:
-                        newtips[target] = {self.link_computable(link_item, tip)}
-                        continue
-
                     link_proto = link_item
                     link_item = self.proto_schema.get(link_item.normal_name())
 
@@ -1317,6 +1315,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                                                    ref=t, id=atomref_id,
                                                                    rlink=link,
                                                                    ptr_proto=link_proto)
+                                link.target = atomref
+
                             newtips[target].add(atomref)
 
                     else:
@@ -1546,13 +1546,4 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     expr = self.merge_paths(expr)
                     result.append(expr)
 
-        return result
-
-    def link_computable(self, computable_proto, path_tip):
-        path_tip = next(iter(path_tip))
-        anchors = {'self': path_tip}
-        caosql_tree = self.parser.parse(computable_proto.expression)
-        result = self.transform_fragment(caosql_tree, (), anchors=anchors,
-                                       location='computable')
-        result.ptr_proto = computable_proto
         return result

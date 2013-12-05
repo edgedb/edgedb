@@ -489,7 +489,7 @@ class TypeMech:
                 assert False
 
             for pointer_name, pointer in prototype.pointers.items():
-                if isinstance(pointer, caos.types.ProtoComputable) or not pointer.singular():
+                if not pointer.singular():
                     continue
 
                 if pointer_name == 'metamagic.caos.builtins.source':

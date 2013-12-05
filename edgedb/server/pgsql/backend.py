@@ -574,8 +574,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 self.order_pointer_cascade_actions(self.meta)
                 self.order_pointer_cascade_events(self.meta)
                 self.order_atoms(self.meta)
-                self.order_link_properties(self.meta)
                 self.order_computables(self.meta)
+                self.order_link_properties(self.meta)
                 self.order_links(self.meta)
                 self.order_concepts(self.meta)
                 self.order_pointer_cascade_policies(self.meta)
@@ -844,7 +844,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             for link_name, link in concept_proto.pointers.items():
 
                 if link.atomic() and link.singular() \
-                                 and not isinstance(link, caos.types.ProtoComputable) \
+                                 and not link.is_pure_computable() \
                             and link_name != 'metamagic.caos.builtins.id' \
                             and link.loading != caos.types.LazyLoading:
                     colname = common.caos_name_to_pg_name(link_name)
@@ -1004,7 +1004,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 link_proto = link_cls._class_metadata.link.__sx_prototype__
                 if link_proto.atomic() and link_proto.singular() \
                                        and link_name != 'metamagic.caos.builtins.id' \
-                                       and not isinstance(link_proto, caos.types.ProtoComputable) \
+                                       and not link_proto.is_pure_computable() \
                                        and link_name in links:
                     value = links[link_name]
                     if isinstance(value, caos.types.NodeClass):
@@ -1211,18 +1211,17 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             attrs = {}
             for prop_name, prop_cls in link_cls._iter_all_pointers():
-                if not isinstance(prop_cls._class_metadata.link, caos.types.ComputableClass):
-                    if prop_name not in {'metamagic.caos.builtins.source',
-                                         'metamagic.caos.builtins.target'}:
-                        try:
-                            # We must look into link object __dict__ directly so as not to
-                            # potentially trigger link object reload for lazy properties,
-                            # which would fail with non-persistent link objects.
-                            prop_value = link_obj.__dict__[prop_name]
-                        except KeyError:
-                            pass
-                        else:
-                            attrs[common.caos_name_to_pg_name(prop_name)] = prop_value
+                if prop_name not in {'metamagic.caos.builtins.source',
+                                     'metamagic.caos.builtins.target'}:
+                    try:
+                        # We must look into link object __dict__ directly so as not to
+                        # potentially trigger link object reload for lazy properties,
+                        # which would fail with non-persistent link objects.
+                        prop_value = link_obj.__dict__[prop_name]
+                    except KeyError:
+                        pass
+                    else:
+                        attrs[common.caos_name_to_pg_name(prop_name)] = prop_value
 
             rec = table.record(**attrs)
 

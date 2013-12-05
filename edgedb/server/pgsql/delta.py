@@ -892,8 +892,9 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
     def affirm_pointer_defaults(self, source, meta, context):
         for pointer_name, pointer in source.pointers.items():
-            if pointer.generic() or not pointer.atomic() or not pointer.singular() or \
-                    isinstance(pointer, proto.Computable) or not pointer.default:
+            # XXX pointer_storage_info?
+            if (pointer.generic() or not pointer.atomic() or not pointer.singular()
+                                                          or not pointer.default):
                 continue
 
             default = None
@@ -911,7 +912,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
     def create_pointer_constraints(self, source, meta, context):
         for pointer_name, pointer in source.pointers.items():
             if pointer_name not in source.own_pointers:
-                if pointer.generic() or not pointer.atomic() or isinstance(pointer, proto.Computable):
+                if pointer.generic() or not pointer.atomic():
                     continue
 
                 constraints = itertools.chain(pointer.constraints.values(),
@@ -1734,7 +1735,7 @@ class PointerMetaCommand(MetaCommand):
     def get_host(self, meta, context):
         if context:
             link = context.get(delta_cmds.LinkCommandContext)
-            if link and isinstance(self, (delta_cmds.LinkPropertyCommand, delta_cmds.ComputableCommand)):
+            if link and isinstance(self, delta_cmds.LinkPropertyCommand):
                 return link
             concept = context.get(delta_cmds.ConceptCommandContext)
             if concept:
@@ -1938,7 +1939,7 @@ class PointerMetaCommand(MetaCommand):
 
     @classmethod
     def has_table(cls, link, meta):
-        if isinstance(link, caos.types.ProtoComputable):
+        if link.is_pure_computable():
             return False
         elif link.generic():
             if link.name == 'metamagic.caos.builtins.link':
@@ -1947,7 +1948,7 @@ class PointerMetaCommand(MetaCommand):
                 return True
             else:
                 for l in link.children(meta):
-                    if not l.generic() and not isinstance(l, caos.types.ProtoComputable):
+                    if not l.generic():
                         ptr_stor_info = types.get_pointer_storage_info(meta, l, resolve_type=False)
                         if ptr_stor_info.table_type[0] == 'pointer':
                             return True

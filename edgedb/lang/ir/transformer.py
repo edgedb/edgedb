@@ -333,6 +333,55 @@ class TreeTransformer:
                     if result:
                         self.apply_rewrites(result)
                 break
+        else:
+            if isinstance(expr, caos_ast.EntityLink):
+                if type == 'computable' and expr.link_proto.is_pure_computable():
+                    deflt = expr.link_proto.default[0]
+                    if isinstance(deflt, caos_types.LiteralDefaultSpec):
+                        caosql_expr = "'" + str(deflt.value).replace("'", "''") + "'"
+                        target_type = expr.link_proto.target.name
+                        caosql_expr = 'CAST ({} AS [{}])'.format(caosql_expr, target_type)
+                    else:
+                        caosql_expr = deflt.value
+
+                    anchors = {'self': expr.source.concept}
+                    self._rewrite_with_caosql_expr(expr, caosql_expr, anchors)
+
+    def _rewrite_with_caosql_expr(self, expr, caosql, anchors):
+        from metamagic.caos.caosql import expr as caosql_expr
+        cexpr = caosql_expr.CaosQLExpression(proto_schema=self.context.current.proto_schema)
+
+        expr_tree = cexpr.transform_expr_fragment(caosql, anchors=anchors)
+
+        node = expr.source
+        rewrite_target = expr.target
+
+        path_id = LinearPath([node.concept])
+        nodes = ast.find_children(expr_tree,
+                                  lambda n: isinstance(n, caos_ast.EntitySet) and n.id == path_id)
+
+        for expr_node in nodes:
+            expr_node.reference = node
+
+        ptrname = expr.link_proto.normal_name()
+
+        expr_ref = caos_ast.SubgraphRef(name=ptrname, force_inline=True, rlink=expr,
+                                        is_rewrite_product=True, rewrite_original=rewrite_target)
+
+        self.context.current.graph.replace_refs([rewrite_target], expr_ref, deep=True)
+
+        if not isinstance(expr_tree, caos_ast.GraphExpr):
+            expr_tree = caos_ast.GraphExpr(
+                selector = [
+                    caos_ast.SelectorExpr(expr=expr_tree, name=ptrname)
+                ]
+            )
+
+        expr_tree.referrers.append('exists')
+        expr_tree.referrers.append('generator')
+
+        self.context.current.graph.subgraphs.add(expr_tree)
+        expr_ref.ref = expr_tree
 
     def apply_rewrites(self, expr):
         """Apply rewrites from policies
@@ -557,8 +606,7 @@ class TreeTransformer:
                 recurse_links = {(pn, caos_types.OutboundDirection):
                                     caos_ast.PtrPathSpec(ptr_proto=p)
                                     for pn, p in ptrs.items()
-                                        if not isinstance(p, caos_types.ProtoComputable) and
-                                           p.get_loading_behaviour() == caos_types.EagerLoading and
+                                        if p.get_loading_behaviour() == caos_types.EagerLoading and
                                            p.target not in _visited_records}
 
             for (link_name, link_direction), recurse_spec in recurse_links.items():
@@ -566,9 +614,6 @@ class TreeTransformer:
 
                 link = recurse_spec.ptr_proto
                 link_direction = recurse_spec.ptr_direction or caos_types.OutboundDirection
-
-                if isinstance(link, caos_types.ProtoComputable):
-                    continue
 
                 root_link_proto = schema.get(link_name)
                 link_proto = link
@@ -603,6 +648,7 @@ class TreeTransformer:
                     targetstep = prefixes[full_path_id]
                     targetstep = next(iter(targetstep))
                     link_node = targetstep.rlink
+                    reusing_target = True
                 else:
                     targetstep = caos_ast.EntitySet(conjunction=caos_ast.Conjunction(),
                                                     disjunction=caos_ast.Disjunction(),
@@ -615,6 +661,7 @@ class TreeTransformer:
                                                     users={'selector'})
 
                     targetstep.rlink = link_node
+                    reusing_target = False
 
                 if recurse_spec.trigger is not None:
                     link_node.pathspec_trigger = recurse_spec.trigger
@@ -666,10 +713,13 @@ class TreeTransformer:
 
                 if isinstance(target_proto, caos_types.ProtoAtom):
                     if link_singular:
-                        newstep = caos_ast.AtomicRefSimple(ref=lref, name=link_name, id=full_path_id,
-                                                           ptr_proto=link_proto, rlink=link_node)
-                        link_node.target = newstep
-                        atomrefs.append(newstep)
+                        if not reusing_target:
+                            newstep = caos_ast.AtomicRefSimple(ref=lref, name=link_name,
+                                                               id=full_path_id,
+                                                               ptr_proto=link_proto,
+                                                               rlink=link_node)
+                            link_node.target = newstep
+                            atomrefs.append(newstep)
                     else:
                         ptr_name = caos_name.Name('metamagic.caos.builtins.target')
                         prop_id = LinearPath(ref.id)
@@ -717,15 +767,13 @@ class TreeTransformer:
                     else:
                         recurse_props = {pn: caos_ast.PtrPathSpec(ptr_proto=p)
                                             for pn, p in link.pointers.items()
-                                                if not isinstance(p, caos_types.ProtoComputable)
-                                                   and p.get_loading_behaviour() == caos_types.EagerLoading
+                                                if p.get_loading_behaviour() == caos_types.EagerLoading
                                                    and not p.is_endpoint_pointer()}
 
                     proprec = caos_ast.Record(elements=prop_elements, concept=root_link_proto)
 
                     for prop_name, prop_proto in link.pointers.items():
-                        if (isinstance(prop_proto, caos_types.ProtoComputable)
-                                        or prop_name not in recurse_props):
+                        if prop_name not in recurse_props:
                             continue
 
                         prop_id = LinearPath(ref.id)
@@ -828,8 +876,7 @@ class TreeTransformer:
                     ptrspec.pathspec = []
 
                     for ptr in ptrspec.target_proto.pointers.values():
-                        if not isinstance(ptr, caos_types.ProtoComputable) \
-                                and ptr.get_loading_behaviour() == caos_types.EagerLoading:
+                        if ptr.get_loading_behaviour() == caos_types.EagerLoading:
                             ptrspec.pathspec.append(caos_ast.PtrPathSpec(ptr_proto=ptr))
 
                 recspec = caos_ast.PtrPathSpec(ptr_proto=ptrspec.ptr_proto,
@@ -2983,6 +3030,9 @@ class PathResolver(TreeTransformer):
         return self._serialize_path(path)
 
     def _serialize_path(self, path):
+        if path.rewrite_original is not None:
+            return self._serialize_path(path.rewrite_original)
+
         if isinstance(path, caos_ast.Disjunction):
             result = []
 
@@ -3174,6 +3224,9 @@ class PathResolver(TreeTransformer):
         return list(self._resolve_path(tree, class_factory))
 
     def _resolve_path(self, path, class_factory):
+        if path.rewrite_original is not None:
+            return self._resolve_path(path.rewrite_original, class_factory)
+
         if isinstance(path, caos_ast.Disjunction):
             result = set()
 

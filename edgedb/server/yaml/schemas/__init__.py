@@ -10,11 +10,12 @@ from metamagic.caos import proto as caos_proto
 from metamagic.utils.lang import protoschema
 from metamagic.utils.lang.yaml.schema import CachingSchema
 
+from .. import Expression
 from .semantics import Semantics
 from .delta import Delta
 
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 3
 
 
 class Semantics(Semantics, CachingSchema):
@@ -36,6 +37,14 @@ class Semantics(Semantics, CachingSchema):
         # cls.get_module_class().get_schema_class().get_builtins_module()
         return ('metamagic.caos.builtins',)
 
-    @classmethod
     def get_schema_magic(cls):
         return SCHEMA_VERSION
+
+    @classmethod
+    def get_tags(cls):
+        return {
+            '!expr': (
+                ['tag:yaml.org,2002:str'],
+                lambda loader, node: Expression(node.value)
+            )
+        }
