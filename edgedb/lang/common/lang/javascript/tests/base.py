@@ -43,7 +43,7 @@ filter = re.compile(r'(\s|\'|\"|\\|;)+')
 
 
 class BaseJSFunctionalTestMeta(type, metaclass=config.ConfigurableMeta):
-    v8_executable = config.cvalue('v8', type=str, doc='path to v8 executable')
+    v8_executable = config.cvalue('node', type=str, doc='path to nodejs executable')
     v8_found = None
 
     # flag to be used for disabling tests
@@ -53,7 +53,7 @@ class BaseJSFunctionalTestMeta(type, metaclass=config.ConfigurableMeta):
     def __new__(mcls, name, bases, dct):
         if mcls.v8_found is None:
             result = subprocess.getoutput('{} {}'.format(mcls.v8_executable,
-                                                         """-e 'print("metamagic")'"""))
+                                                         """-e 'console.log("metamagic")'"""))
             mcls.v8_found = result == 'metamagic'
             mcls.skipif = not mcls.v8_found
 
@@ -206,8 +206,11 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
     @classmethod
     def run_v8(mcls, imports, bootstrap, source):
         with tempfile.NamedTemporaryFile('w') as file:
+            file.write('(function() {\n\n');
+            file.write('function print() { console.log.apply(console, arguments); };\n\n');
             file.write(bootstrap)
             file.write(source)
+            file.write('\n\n}).call(global);'); #nodejs: to fix 'this' to point to the global ns
             file.flush()
 
             result = subprocess.getoutput('{} {}'.format(mcls.v8_executable, file.name))
@@ -289,7 +292,7 @@ class MetaJSParserTest_Functional(BaseJSFunctionalTestMeta, MetaJSParserTest_Bas
         jsparser = jsp.JSParser(**flags)
 
         with tempfile.NamedTemporaryFile('w') as file:
-            file.write(src)
+            file.write('function print(){console.log.apply(console, arguments)};\n' + src)
             file.flush()
 
             result = subprocess.getoutput("%s %s" %
@@ -316,7 +319,7 @@ class MetaJSParserTest_Functional(BaseJSFunctionalTestMeta, MetaJSParserTest_Bas
                 processed_src += (len(src) - len(processed_src) + 1) * ' '
 
             file.seek(0)
-            file.write(processed_src)
+            file.write('function print(){console.log.apply(console, arguments)};\n' + processed_src)
             file.flush()
 
             processed = subprocess.getoutput("%s %s" %
