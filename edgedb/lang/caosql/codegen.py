@@ -7,9 +7,10 @@
 
 
 from metamagic.exceptions import MetamagicError
-from metamagic.utils.ast import codegen
+from metamagic.utils.ast import codegen, AST
 
 from . import ast as caosql_ast
+from . import quote as caosql_quote
 
 
 class CaosQLSourceGeneratorError(MetamagicError):
@@ -152,7 +153,9 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
     def visit_ConstantNode(self, node):
         if node.value is not None:
             if isinstance(node.value, str):
-                self.write("'%s'" % node.value)
+                self.write(caosql_quote.quote_literal(node.value))
+            elif isinstance(node.value, AST):
+                self.visit(node.value)
             else:
                 self.write("%s" % node.value)
         elif node.index is not None:
