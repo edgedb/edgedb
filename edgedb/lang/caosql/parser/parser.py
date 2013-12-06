@@ -13,7 +13,20 @@ from metamagic.caos.caosql import ast as qlast, CaosQLQueryError
 from metamagic.caos import types as caos_types
 
 
-class CaosQLParser(parsing.Parser):
+class CaosQLParserMeta(type(parsing.Parser)):
+    _instances = {}
+
+    @property
+    def instance(cls):
+        try:
+            parser = cls.__class__._instances[cls]
+        except KeyError:
+            parser = cls.__class__._instances[cls] = cls()
+
+        return parser
+
+
+class CaosQLParser(parsing.Parser, metaclass=CaosQLParserMeta):
     def get_parser_spec_module(self):
         from . import caosql
         return caosql
