@@ -1,11 +1,12 @@
 ##
-# Copyright (c) 2008-2012 Sprymix Inc.
+# Copyright (c) 2008-2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
 
+import collections
 import itertools
 import operator
 
@@ -352,7 +353,15 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
             if expr.expr is not None:
                 result = self._process_expr(expr.expr)
             else:
-                result = qlast.ConstantNode(value=expr.value, index=expr.index)
+                value = expr.value
+                index = expr.index
+
+                if  (isinstance(value, collections.Container)
+                                and not isinstance(value, (str, bytes))):
+                    elements = [qlast.ConstantNode(value=v) for v in value]
+                    result = qlast.SequenceNode(elements=elements)
+                else:
+                    result = qlast.ConstantNode(value=value, index=index)
 
         elif isinstance(expr, tree.ast.SelectorExpr):
             result = qlast.SelectExprNode(expr=self._process_expr(expr.expr), alias=expr.name)
