@@ -57,6 +57,15 @@ class Field:
 
         return value
 
+    def __get__(self, instance, owner):
+        # struct.fieldname should never result in a Field,
+        # when struct is an instance of a struct.
+        #
+        if instance is not None:
+            return None
+        else:
+            return self
+
 
 class StructMeta(type):
     def __new__(mcls, name, bases, clsdict, *, use_slots=True):
