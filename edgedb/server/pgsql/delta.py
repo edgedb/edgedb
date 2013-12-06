@@ -1760,7 +1760,10 @@ class PointerMetaCommand(MetaCommand):
     def record_metadata(self, pointer, old_pointer, meta, context):
         rec, updates = self.fill_record(meta)
 
-        if rec:
+        if updates:
+            if not rec:
+                rec = self.table.record()
+
             host = self.get_host(meta, context)
 
             source = updates.get('source')

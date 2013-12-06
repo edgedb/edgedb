@@ -1246,7 +1246,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         for attribute, attrvalue in attributes.items():
             attribute = localschema.get(attribute, index_only=False)
 
-            name = caos.types.ProtoAttributeValue.generate_name(subject, attribute)
+            name = caos.types.ProtoAttributeValue.generate_name(subject.name, attribute.name)
             name = caos.name.Name(name=name, module=self.module.name)
 
             attrvalue.name = name
@@ -1492,9 +1492,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             # A new specialized subclass of the link property is created for each
             # (source, property_name, target_atom) combination
             property.bases = [localschema.get(property_qname, type=caos.proto.LinkProperty)]
-            prop_genname = proto.LinkProperty.generate_specialized_name(link.name,
-                                                                        target_name,
-                                                                        property_qname)
+            prop_genname = proto.LinkProperty.generate_specialized_name(link.name, property_qname)
 
             property.name = caos.Name(name=prop_genname, module=self.module.name)
             property.source = link
@@ -1538,7 +1536,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                                 'defined in the same source' % {'name': computable_qname},
                                  context=context)
 
-            computable_name = proto.Computable.generate_specialized_name(source.name, None,
+            computable_name = proto.Computable.generate_specialized_name(source.name,
                                                                          computable_qname)
             computable.source = source
             computable.name = caos.Name(name=computable_name, module=self.module.name)
@@ -1743,8 +1741,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 # (source, link_name, target) combination
                 link.bases = [localschema.get(link_qname)]
 
-                link_genname = proto.Link.generate_specialized_name(link.source.name, target_name,
-                                                                    link_qname)
+                link_genname = proto.Link.generate_specialized_name(link.source.name, link_qname)
                 link.name = caos.Name(name=link_genname, module=self.module.name)
 
                 self.read_properties_for_link(link, localschema)

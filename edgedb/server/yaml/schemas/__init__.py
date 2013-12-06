@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2012 Sprymix Inc.
+# Copyright (c) 2008-2013 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -12,6 +12,9 @@ from metamagic.utils.lang.yaml.schema import CachingSchema
 
 from .semantics import Semantics
 from .delta import Delta
+
+
+SCHEMA_VERSION = 1
 
 
 class Semantics(Semantics, CachingSchema):
@@ -32,3 +35,7 @@ class Semantics(Semantics, CachingSchema):
     def get_implicit_imports(cls):
         # cls.get_module_class().get_schema_class().get_builtins_module()
         return ('metamagic.caos.builtins',)
+
+    @classmethod
+    def get_schema_magic(cls):
+        return SCHEMA_VERSION
