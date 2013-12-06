@@ -714,6 +714,10 @@ class Expr(Nonterm):
         "%reduce EXISTS SelectWithParens"
         self.val = qlast.ExistsPredicateNode(expr=kids[1].val)
 
+    def reduce_EXISTS_LPAREN_Expr_RPAREN(self, *kids):
+        "%reduce EXISTS LPAREN Expr RPAREN"
+        self.val = qlast.ExistsPredicateNode(expr=kids[2].val)
+
     def reduce_LPAREN_Sequence_RPAREN(self, *kids):
         "%reduce LPAREN Sequence RPAREN"
         self.val = kids[1].val
