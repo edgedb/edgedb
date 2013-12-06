@@ -183,6 +183,9 @@ class ParserError(MetamagicError):
 class Lexer(pyggy.lexer.lexer):
     def __init__(self, lexspec):
         super().__init__(lexspec)
+        self.reset()
+
+    def reset(self):
         self.lineno = 1
         self.offset = 0
         self.column = 1
@@ -192,8 +195,9 @@ class Lexer(pyggy.lexer.lexer):
         self.offset += 1
         return super().nextch()
 
-    def setinputstr(self, str) :
+    def setinputstr(self, str):
         self.inputstr = str
+        self.reset()
         super().setinputstr(str)
 
     def PUSHBACK(self, backupdata):
