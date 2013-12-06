@@ -110,7 +110,7 @@ def group(name, node):
 
 
 def _match_node(pattern, node, context):
-    if not issubclass(pattern.__class__, node.__class__):
+    if not issubclass(node.__class__, pattern.__class__.get_adaptee()):
         return None
 
     for field_name, field_value in pattern:
