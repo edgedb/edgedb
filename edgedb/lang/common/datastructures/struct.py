@@ -104,6 +104,9 @@ class StructMeta(type):
     def __init__(cls, name, bases, clsdict, *, use_slots=None):
         super().__init__(name, bases, clsdict)
 
+    def get_field(cls, name):
+        return cls._fields[name]
+
     def get_fields(cls):
         return cls._fields
 
@@ -278,6 +281,16 @@ class Struct(metaclass=StructMeta):
         else:
             value = field.default
         return value
+
+    def get_field_value(self, field_name):
+        try:
+            return self.__dict__[field_name]
+        except KeyError as e:
+            field = self.__class__.get_field(field_name)
+            try:
+                return self._getdefault(field_name, field)
+            except TypeError:
+                raise e
 
 
 class MixedStructMeta(StructMeta):
