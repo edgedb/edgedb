@@ -133,7 +133,13 @@ class CommonGraphExpr(Base):
 
 
 class Path(Base):
-    pass
+    __fields = ['anchor', 'show_as_anchor']
+
+    def __getattr__(self, name):
+        if name == 'paths':
+            return (self,)
+        else:
+            return super().__getattr__(name)
 
 
 class SubgraphRef(Path):
@@ -220,7 +226,8 @@ class LinkPropRefExpr(LinkPropRef, BaseRefExpr):
 
 class EntityLink(Base):
     __fields = ['propfilter', 'source', 'target', 'link_proto', ('proprefs', set),
-                ('metarefs', set), ('users', set), 'anchor', 'direction', 'pathspec_trigger']
+                ('metarefs', set), ('users', set), 'anchor', 'show_as_anchor',
+                'direction', 'pathspec_trigger']
 
     def replace_refs(self, old, new, deep=False, _memo=None):
         # Since EntityLink can be a member of PathCombination set
@@ -275,7 +282,8 @@ class AtomicRefSet(typed.TypedSet, type=AtomicRef):
 
 
 class EntitySet(Path):
-    __fields = ['id', 'anchor', ('concept', caos_types.ProtoNode), 'atom',
+    __fields = ['id', 'anchor', 'show_as_anchor',
+                ('concept', caos_types.ProtoNode), 'atom',
                 'filter',
                 ('conjunction', Conjunction),
                 ('disjunction', Disjunction),

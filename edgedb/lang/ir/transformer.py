@@ -2215,15 +2215,23 @@ class TreeTransformer:
         if isinstance(path, caos_ast.EntitySet):
             result = caos_ast.EntitySet(id=path.id, anchor=path.anchor, concept=path.concept,
                                         users=path.users, joins=path.joins,
-                                        rewrite_flags=path.rewrite_flags.copy())
+                                        rewrite_flags=path.rewrite_flags.copy(),
+                                        show_as_anchor=path.show_as_anchor)
             rlink = path.rlink
 
             if connect_to_origin:
                 result.origin = path.origin if path.origin is not None else path
 
         elif isinstance(path, caos_ast.BaseRef):
-            result = path.__class__(id=path.id, ref=path.ref, ptr_proto=path.ptr_proto,
-                                    rewrite_flags=path.rewrite_flags.copy())
+            args = dict(id=path.id, ref=path.ref, ptr_proto=path.ptr_proto,
+                        rewrite_flags=path.rewrite_flags.copy(),
+                        anchor=path.anchor, show_as_anchor=path.show_as_anchor)
+
+            if isinstance(path, caos_ast.BaseRefExpr):
+                args['expr'] = path.expr
+                args['inline'] = path.inline
+
+            result = path.__class__(**args)
             rlink = path.rlink
 
             if isinstance(path, (caos_ast.AtomicRefSimple, caos_ast.LinkPropRefSimple)):

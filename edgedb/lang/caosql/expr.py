@@ -21,7 +21,7 @@ from . import errors
 
 class CaosQLExpression:
     def __init__(self, proto_schema, module_aliases=None):
-        self.parser = parser.CaosQLParser()
+        self.parser = parser.CaosQLParser.instance
         self.module_aliases = module_aliases
         self.proto_schema = proto_schema
         self.transformer = transformer.CaosqlTreeTransformer(proto_schema, module_aliases)
@@ -39,12 +39,16 @@ class CaosQLExpression:
         tree = self.transformer.normalize_refs(tree, module_aliases=module_aliases)
         return codegen.CaosQLSourceGenerator.to_source(tree)
 
-    def normalize_expr(self, expr, module_aliases=None, anchors=None):
-        tree = self.parser.parse(expr)
+    def normalize_tree(self, tree, module_aliases=None, anchors=None, inline_anchors=False):
         tree, arg_types = self.parser.normalize_select_query(tree)
         caos_tree = self.transformer.transform(tree, (), module_aliases=module_aliases,
                                                          anchors=anchors)
-        tree = self.reverse_transformer.transform(caos_tree)
+        caosql_tree = self.reverse_transformer.transform(caos_tree, inline_anchors=inline_anchors)
+        return caosql_tree, caos_tree
+
+    def normalize_expr(self, expr, module_aliases=None, anchors=None):
+        tree = self.parser.parse(expr)
+        tree, caos_tree = self.normalize_tree(tree, module_aliases=module_aliases, anchors=anchors)
         return codegen.CaosQLSourceGenerator.to_source(tree), caos_tree
 
     def transform_expr_fragment(self, expr, anchors=None, resolve_computables=True, location=None):
