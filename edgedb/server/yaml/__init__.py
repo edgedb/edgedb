@@ -1246,7 +1246,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         for attribute, attrvalue in attributes.items():
             attribute = localschema.get(attribute, index_only=False)
 
-            name = caos.types.ProtoAttributeValue.generate_name(subject.name, attribute.name)
+            name = caos.types.ProtoAttributeValue.generate_specialized_name(subject.name,
+                                                                            attribute.name)
             name = caos.name.Name(name=name, module=self.module.name)
 
             attrvalue.name = name
