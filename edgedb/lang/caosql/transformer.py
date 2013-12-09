@@ -453,7 +453,7 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
 
             result = path
 
-        elif isinstance(expr, tree.ast.Disjunction):
+        elif isinstance(expr, tree.ast.PathCombination):
             paths = list(expr.paths)
             if len(paths) == 1:
                 result = self._process_expr(context, paths[0])
