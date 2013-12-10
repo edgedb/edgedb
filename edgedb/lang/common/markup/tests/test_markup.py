@@ -6,6 +6,8 @@
 ##
 
 
+import collections
+
 from metamagic.utils import markup
 from metamagic.utils.markup.format import xrepr
 
@@ -145,3 +147,8 @@ class TestUtilsMarkup:
         assert xrepr(repr, max_len=100) == repr(repr)
 
         assert len(xrepr(repr, max_len=10)) == 10
+
+    def test_utils_markup_dump_ordereddict(self):
+        obj = collections.OrderedDict([[1,2],[2,3],[3,4],[5,6]])
+        result = ''.join(markup.dumps(obj).split())
+        assert result == '{1:2,2:3,3:4,5:6}'

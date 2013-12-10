@@ -57,7 +57,7 @@ class MarkupList(typed.TypedList, type=Markup):
     """List of BaseMarkup elements"""
 
 
-class MarkupMapping(typed.TypedDict, keytype=str, valuetype=Markup):
+class MarkupMapping(typed.OrderedTypedDict, keytype=str, valuetype=Markup):
     """Mapping ``str -> BaseMarkup``"""
 
 

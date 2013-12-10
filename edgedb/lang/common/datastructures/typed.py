@@ -13,7 +13,7 @@ import collections
 from metamagic.utils.datastructures.all import Void
 
 
-__all__ = 'TypedList', 'TypedDict'
+__all__ = 'TypedList', 'TypedDict', 'OrderedTypedDict'
 
 
 class TypedCollectionMeta(abc.ABCMeta):
@@ -99,20 +99,8 @@ class AbstractTypedMapping(AbstractTypedCollection, keytype=None, valuetype=None
             self._check_value(value)
 
 
-class TypedDict(AbstractTypedMapping, collections.UserDict, keytype=None, valuetype=None):
-    """Dict-like mapping with typed keys and values.
-
-    .. code-block:: pycon
-
-        >>> class StrIntMapping(TypedDict, keytype=str, valuetype=int):
-        ...    pass
-
-        >>> dct = StrIntMapping()
-        >>> dct['foo'] = 42
-
-        >>> dct['foo'] = 'spam'
-        ValueError
-    """
+class _AbstractTypedDict(AbstractTypedMapping, keytype=None, valuetype=None):
+    _base_dict_cls = None
 
     def __init__(self, initdict=Void, **kwargs):
         """
@@ -120,7 +108,7 @@ class TypedDict(AbstractTypedMapping, collections.UserDict, keytype=None, valuet
         """
 
         AbstractTypedCollection.__init__(self)
-        collections.UserDict.__init__(self)
+        self.__class__._base_dict_cls.__init__(self)
 
         if initdict is not Void:
             if isinstance(initdict, collections.Mapping):
@@ -135,6 +123,28 @@ class TypedDict(AbstractTypedMapping, collections.UserDict, keytype=None, valuet
         self._check_key(key)
         self._check_value(value)
         super().__setitem__(key, value)
+
+
+class TypedDict(_AbstractTypedDict, collections.UserDict, keytype=None, valuetype=None):
+    """Dict-like mapping with typed keys and values.
+
+    .. code-block:: pycon
+
+        >>> class StrIntMapping(TypedDict, keytype=str, valuetype=int):
+        ...    pass
+
+        >>> dct = StrIntMapping()
+        >>> dct['foo'] = 42
+
+        >>> dct['foo'] = 'spam'
+        ValueError
+    """
+
+    _base_dict_cls = collections.UserDict
+
+
+class OrderedTypedDict(_AbstractTypedDict, collections.OrderedDict, keytype=None, valuetype=None):
+    _base_dict_cls = collections.OrderedDict
 
 
 class TypedList(AbstractTypedSequence, collections.UserList, type=None):
