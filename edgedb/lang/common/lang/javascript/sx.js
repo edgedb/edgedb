@@ -657,6 +657,20 @@
 
             insort_left: function(a, x, lo, hi) {
                 a.splice(sx.array.bisect_left(a, x, lo, hi), 0, x);
+            },
+
+            index: function(a, x) {
+                if (Array.prototype.hasOwnProperty('indexOf')) {
+                    return a.indexOf(x);
+                } else {
+                    for (var i = 0; i < a.length; i++) {
+                        if (a[i] === x) {
+                            return i;
+                        }
+                    }
+
+                    return -1;
+                }
             }
         },
 
