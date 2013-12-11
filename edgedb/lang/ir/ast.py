@@ -139,7 +139,7 @@ class Path(Base):
         if name == 'paths':
             return (self,)
         else:
-            return super().__getattr__(name)
+            return Base.__getattribute__(self, name)
 
 
 class SubgraphRef(Path):
