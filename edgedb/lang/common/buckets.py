@@ -6,6 +6,7 @@
 ##
 
 
+import logging
 import weakref
 
 from metamagic.utils import abc, config
@@ -21,6 +22,8 @@ class BucketMeta(abc.AbstractMeta, config.ConfigurableMeta):
 
 
 class Bucket(metaclass=BucketMeta):
+    logger = logging.getLogger('metamagic.node')
+
     def __new__(cls, *args, **kwargs):
         if super().__new__ is object.__new__:
             instance = super().__new__(cls)
@@ -102,6 +105,9 @@ class Bucket(metaclass=BucketMeta):
 
             raise ValueError('implementation was already defined in one of '
                              'the parent buckets: {!r}'.format(holder))
+
+        cls.logger.debug('buckets: setting implementation {!r} for bucket {!r}'.
+                         format(implementation, cls))
 
         cls._implementation = implementation
 
