@@ -480,7 +480,7 @@ sx.Markup.Renderer.prototype = {
             children: [
                 {cls: 'tb-line-header', children: [
                      {text: 'File '},
-                     {tag: 'span', cls: 'tb-line-fn', text: o.filename},
+                     {tag: 'span', cls: 'tb-line-fn', text: o.filename}
 
                  ].concat((o.lineno != null) ? [
                      {text: ', line '},
