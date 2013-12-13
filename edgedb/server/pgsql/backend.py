@@ -352,7 +352,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     """, re.X)
 
     error_res = {
-        postgresql.exceptions.UniqueError: collections.OrderedDict((
+        postgresql.exceptions.ICVError: collections.OrderedDict((
             ('link_mapping',
              re.compile(r'^.*"(?P<constr_name>.*_link_mapping_idx)".*$')),
             ('ptr_constraint',
@@ -944,8 +944,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def _interpret_db_error(self, connection, err, source, pointer=None):
-        if isinstance(err, postgresql.exceptions.UniqueError):
-            eres = self.error_res[postgresql.exceptions.UniqueError]
+        if isinstance(err, postgresql.exceptions.ICVError):
+            eres = self.error_res[postgresql.exceptions.ICVError]
 
             error_info = None
 
@@ -1298,7 +1298,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             try:
                 for cmd in cmds:
                     cmd.execute(context)
-            except postgresql.exceptions.UniqueError as e:
+            except postgresql.exceptions.ICVError as e:
                 raise self._interpret_db_error(session.get_connection(), e, source, link_cls) from e
 
 
