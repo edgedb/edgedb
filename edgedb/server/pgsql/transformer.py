@@ -2570,13 +2570,9 @@ class CaosTreeTransformer(CaosExprTransformer):
 
     def _simple_join(self, context, left, right, key, type='inner', condition=None):
         if condition is None:
-            condition = left.bonds(key)[-1]
-            if not isinstance(condition, pgsql.ast.BinOpNode):
-                condition = right.bonds(key)[-1]
-                if not isinstance(condition, pgsql.ast.BinOpNode):
-                    left_refs = left.bonds(key)[-1]
-                    right_refs = right.bonds(key)[-1]
-                    condition = self._join_condition(context, left_refs, right_refs)
+            left_refs = left.bonds(key)[-1]
+            right_refs = right.bonds(key)[-1]
+            condition = self._join_condition(context, left_refs, right_refs)
 
         join = pgsql.ast.JoinNode(type=type, left=left, right=right, condition=condition)
 
@@ -2634,10 +2630,6 @@ class CaosTreeTransformer(CaosExprTransformer):
         @param weak:
         """
 
-        # Avoid processing the same caos_path_tip twice
-        #if caos_path_tip in context.current.ctemap:
-        #    return context.current.ctemap[caos_path_tip]
-
         is_root = not step_cte
 
         if link is not None:
@@ -2683,96 +2675,98 @@ class CaosTreeTransformer(CaosExprTransformer):
             tip_concepts = None
 
         if not sql_path_tip:
+            # This is the first relation on this level
             fromnode.expr = concept_table
         else:
-            target_id_field = pgsql.ast.FieldRefNode(table=concept_table,
-                                                     field=id_field,
-                                                     origin=concept_table,
-                                                     origin_field=id_field)
+            # This is not the first relation on this level, do the joining magic.
+
+            link_proto = link.link_proto
 
             if isinstance(sql_path_tip, pgsql.ast.CTENode) and is_root:
                 sql_path_tip.referrers.add(step_cte)
                 step_cte.ctes.add(sql_path_tip)
 
-            if fromnode.expr:
-                join = fromnode.expr
-            else:
-                join = sql_path_tip
+            join = fromnode.expr if fromnode.expr else sql_path_tip
 
-            target_bond_expr = None
-
-            # If specific links are provided we LEFT JOIN all corresponding link tables and then
-            # INNER JOIN the concept table using an aggregated condition disjunction.
-            #
             map_join_type = 'left' if weak else 'inner'
-
-            link_ref_map = {}
             tip_anchor = caos_path_tip.anchor if caos_path_tip else None
-            existing_link = step_cte.linkmap.get((link.link_proto, link.direction,
-                                                  link.source, tip_anchor))
+            linkmap_key = link_proto, link.direction, link.source, tip_anchor
 
-            link_proto = link.link_proto
-
-            if existing_link:
+            try:
                 # The same link map must not be joined more than once,
                 # otherwise the cardinality of the result set will be wrong.
                 #
-                map = existing_link[link_proto]
-                link_ref_map[link_proto] = map
-            else:
-                map = self._relation_from_link(context, link)
-                map.concepts = tip_concepts
-                link_ref_map[link_proto] = map
+                map_rel, map_join = step_cte.linkmap[linkmap_key]
+            except KeyError:
+                map_rel = self._relation_from_link(context, link)
+                map_rel.concepts = tip_concepts
+                map_join = None
 
-            source_ref = pgsql.ast.FieldRefNode(table=map, field='metamagic.caos.builtins.source',
-                                                origin=map, origin_field='metamagic.caos.builtins.source')
-            target_ref = pgsql.ast.FieldRefNode(table=map, field='metamagic.caos.builtins.target',
-                                                origin=map, origin_field='metamagic.caos.buitlins.target')
+            # Set up references according to link direction
+            #
+            src_col = common.caos_name_to_pg_name('metamagic.caos.builtins.source')
+            source_ref = pgsql.ast.FieldRefNode(table=map_rel, field=src_col,
+                                                origin=map_rel, origin_field=src_col)
+
+            tgt_col = common.caos_name_to_pg_name('metamagic.caos.builtins.target')
+            target_ref = pgsql.ast.FieldRefNode(table=map_rel, field=tgt_col,
+                                                origin=map_rel, origin_field=tgt_col)
+
             valent_bond = join.bonds(link.source.id)[-1]
             forward_bond = self._join_condition(context, valent_bond, source_ref, op='=')
             backward_bond = self._join_condition(context, valent_bond, target_ref, op='=')
 
             if link.direction == caos_types.InboundDirection:
                 map_join_cond = backward_bond
-                cond_expr = pgsql.ast.BinOpNode(left=source_ref, op='=', right=target_id_field)
-
             else:
                 map_join_cond = forward_bond
-                cond_expr = pgsql.ast.BinOpNode(left=target_ref, op='=', right=target_id_field)
 
-            if not existing_link:
+            if map_join is None:
                 if link and link.propfilter:
-                    ##
                     # Switch context to link filter and make the concept table available for
                     # atoms in filter expression to reference.
                     #
                     context.push()
                     context.current.location = 'linkfilter'
-                    context.current.link_node_map[link] = {'local_ref_map': link_ref_map}
+                    context.current.link_node_map[link] = {'local_ref_map': {link_proto: map_rel}}
                     propfilter_expr = self._process_expr(context, link.propfilter)
                     if propfilter_expr:
                         map_join_cond = pgsql.ast.BinOpNode(left=map_join_cond, op=ast.ops.AND,
                                                             right=propfilter_expr)
                     context.pop()
 
-                join = self._simple_join(context, join, map, link.source.id,
-                                         type=map_join_type,
-                                         condition=map_join_cond)
+                # Join link relation to source relation
+                #
+                map_join = self._simple_join(context, join, map_rel, link.source.id,
+                                             type=map_join_type, condition=map_join_cond)
 
-            if target_bond_expr:
-                target_bond_expr = pgsql.ast.BinOpNode(left=target_bond_expr, op='or', right=cond_expr)
-            else:
-                target_bond_expr = cond_expr
+                step_cte.linkmap[linkmap_key] = map_rel, map_join
 
-            if not existing_link:
-                step_cte.linkmap[(link.link_proto, link.direction, link.source, tip_anchor)] = link_ref_map
+                join = map_join
 
             if concept_table:
+                # Join the target relation, if we have it
+                #
+
+                target_id_field = pgsql.ast.FieldRefNode(table=concept_table,
+                                                         field=id_field,
+                                                         origin=concept_table,
+                                                         origin_field=id_field)
+
+                if link.direction == caos_types.InboundDirection:
+                    map_tgt_ref = source_ref
+                else:
+                    map_tgt_ref = target_ref
+
+                cond_expr = pgsql.ast.BinOpNode(left=map_tgt_ref, op='=', right=target_id_field)
+
                 prev_bonds = join.bonds(caos_path_tip.id)
-                join.addbond(caos_path_tip.id, target_bond_expr)
+
                 join = self._simple_join(context, join, concept_table,
                                          caos_path_tip.id,
-                                         type='left' if weak else 'inner')
+                                         type='left' if weak else 'inner',
+                                         condition=cond_expr)
+
                 if prev_bonds:
                     join.addbond(caos_path_tip.id, prev_bonds[-1])
 
@@ -2787,8 +2781,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         if caos_path_tip and isinstance(caos_path_tip.concept, caos_types.ProtoConcept):
             # Process references to atoms.
             #
-            atomrefs = {'metamagic.caos.builtins.id'} | \
-                       {f.name for f in caos_path_tip.atomrefs}
+            atomrefs = {'metamagic.caos.builtins.id'} | {f.name for f in caos_path_tip.atomrefs}
 
             context.current.concept_node_map.setdefault(caos_path_tip, {})
             step_cte.concept_node_map.setdefault(caos_path_tip, {})
@@ -2957,10 +2950,11 @@ class CaosTreeTransformer(CaosExprTransformer):
             expr = self._process_expr(context, caos_path_tip.filter)
             if expr:
                 if weak_filter:
-                    step_cte.where_weak = self.extend_predicate(step_cte.where_weak, expr, ast.ops.OR)
+                    step_cte.where_weak = self.extend_predicate(step_cte.where_weak, expr,
+                                                                ast.ops.OR)
                 else:
-                    step_cte.where_strong = self.extend_predicate(step_cte.where_strong, expr, ast.ops.AND,
-                                                                  strong=True)
+                    step_cte.where_strong = self.extend_predicate(step_cte.where_strong, expr,
+                                                                  ast.ops.AND, strong=True)
 
             context.pop()
 
@@ -2968,15 +2962,13 @@ class CaosTreeTransformer(CaosExprTransformer):
             for propref in link.proprefs:
                 link_proto = link.link_proto
 
-                maptable = link_ref_map[link_proto]
-
                 proto_schema = context.current.proto_schema
                 prop_stor_info = types.get_pointer_storage_info(proto_schema, propref.ptr_proto,
                                                                 resolve_type=False)
                 colname = prop_stor_info.column_name
 
-                fieldref = pgsql.ast.FieldRefNode(table=maptable, field=colname,
-                                                  origin=maptable, origin_field=colname)
+                fieldref = pgsql.ast.FieldRefNode(table=map_rel, field=colname,
+                                                  origin=map_rel, origin_field=colname)
 
                 alias = str(link_proto.name) + str(propref.name)
                 alias = step_cte.alias + ('_' + context.current.genalias(hint=alias))
@@ -2988,7 +2980,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 # Record references in the global map in case they have to be pulled up later
                 #
                 refexpr = pgsql.ast.FieldRefNode(table=step_cte, field=selectnode.alias,
-                                                 origin=map, origin_field=colname)
+                                                 origin=map_rel, origin_field=colname)
                 selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
                 context.current.link_node_map.setdefault(link, {})[propref.name] = selectnode
 
@@ -3011,7 +3003,8 @@ class CaosTreeTransformer(CaosExprTransformer):
 
             has_bonds = step_cte.bonds(caos_path_tip.id)
             if not has_bonds:
-                bond = pgsql.ast.FieldRefNode(table=step_cte, field=aliases['metamagic.caos.builtins.id'])
+                bond = pgsql.ast.FieldRefNode(table=step_cte,
+                                              field=aliases['metamagic.caos.builtins.id'])
                 step_cte.addbond(caos_path_tip.id, bond)
 
         return step_cte
