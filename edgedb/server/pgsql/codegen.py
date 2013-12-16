@@ -335,11 +335,16 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_JoinNode(self, node):
         self.visit(node.left)
-        self.new_lines = 1
-        self.write(node.type.upper() + ' JOIN ')
-        self.visit(node.right)
-        self.write(' ON ')
-        self.visit(node.condition)
+        if node.right is not None:
+            self.new_lines = 1
+            self.write(node.type.upper() + ' JOIN ')
+            if isinstance(node.right, pgast.JoinNode) and node.right.right is not None:
+                self.write('(')
+            self.visit(node.right)
+            if isinstance(node.right, pgast.JoinNode) and node.right.right is not None:
+                self.write(')')
+            self.write(' ON ')
+            self.visit(node.condition)
 
     def visit_TableNode(self, node):
         self.write(common.qname(node.schema, node.name))

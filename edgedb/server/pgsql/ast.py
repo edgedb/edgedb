@@ -125,6 +125,18 @@ class CTEAttrRefNode(Base):
 class JoinNode(RelationNode):
     __fields = ['left', 'right', 'condition', 'type']
 
+    def copy(self):
+        result = self.__class__()
+        result.copyfrom(self)
+        return result
+
+    def copyfrom(self, other):
+        self.left = other.left
+        self.right = other.right
+        self.condition = other.condition
+        self.type = other.type
+
+
 class ExistsNode(Base):
     __fields = ['expr']
 

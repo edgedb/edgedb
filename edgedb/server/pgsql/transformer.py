@@ -2735,14 +2735,15 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                             right=propfilter_expr)
                     context.pop()
 
+                map_join = pgsql.ast.JoinNode(left=map_rel)
+                map_join.updatebonds(map_rel)
+
                 # Join link relation to source relation
                 #
-                map_join = self._simple_join(context, join, map_rel, link.source.id,
-                                             type=map_join_type, condition=map_join_cond)
+                join = self._simple_join(context, join, map_join, link.source.id,
+                                         type=map_join_type, condition=map_join_cond)
 
                 step_cte.linkmap[linkmap_key] = map_rel, map_join
-
-                join = map_join
 
             if concept_table:
                 # Join the target relation, if we have it
@@ -2762,10 +2763,24 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                 prev_bonds = join.bonds(caos_path_tip.id)
 
-                join = self._simple_join(context, join, concept_table,
-                                         caos_path_tip.id,
-                                         type='left' if weak else 'inner',
-                                         condition=cond_expr)
+                # We use inner join for target relations to make sure this join relation is
+                # not producing dangling links, either as a result of partial data, or query
+                # constraints.
+                #
+                if map_join.right is None:
+                    map_join.right = concept_table
+                    map_join.condition = cond_expr
+                    map_join.type = 'inner'
+                    map_join.updatebonds(concept_table)
+                else:
+                    pre_map_join = map_join.copy()
+                    new_map_join = self._simple_join(context, pre_map_join, concept_table,
+                                                     caos_path_tip.id,
+                                                     type='inner',
+                                                     condition=cond_expr)
+                    map_join.copyfrom(new_map_join)
+
+                join.updatebonds(concept_table)
 
                 if prev_bonds:
                     join.addbond(caos_path_tip.id, prev_bonds[-1])
