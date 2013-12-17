@@ -2920,7 +2920,7 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.EntitySet):
             result = expr.concept
 
-        elif isinstance(expr, caos_ast.Disjunction):
+        elif isinstance(expr, caos_ast.PathCombination):
             if expr.paths:
                 result = self.get_expr_type(next(iter(expr.paths)), schema)
             else:
