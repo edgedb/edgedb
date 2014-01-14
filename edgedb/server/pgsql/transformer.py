@@ -2772,6 +2772,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                     map_join.condition = cond_expr
                     map_join.type = 'inner'
                     map_join.updatebonds(concept_table)
+
                 else:
                     pre_map_join = map_join.copy()
                     new_map_join = self._simple_join(context, pre_map_join, concept_table,
@@ -3081,28 +3082,30 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         for link in conjunction.paths:
             if isinstance(link, tree.ast.EntityLink):
+                item_cte = cte
 
                 cardinality_ok = self._check_join_cardinality(context, link)
 
                 link_target = link.target if isinstance(link.target, tree.ast.EntitySet) else None
 
                 if cardinality_ok:
-                    sql_path = self.caos_path_to_sql_path(context, cte, parent_cte, link_target,
-                                                                        sql_path, link, weak)
+                    sql_path = self.caos_path_to_sql_path(context, item_cte, parent_cte,
+                                                          link_target, sql_path, link, weak)
 
-                    sql_path = self._process_path(context, cte, sql_path, link_target, weak)
+                    sql_path = self._process_path(context, item_cte, sql_path, link_target, weak)
                 else:
-                    cte = self.init_filter_cte(context, parent_cte or sql_path_tip, caos_path_tip)
-                    pred = pgsql.ast.ExistsNode(expr=cte)
+                    item_cte = self.init_filter_cte(context, parent_cte or sql_path_tip,
+                                                             caos_path_tip)
+                    pred = pgsql.ast.ExistsNode(expr=item_cte)
                     op = ast.ops.OR if weak else ast.ops.AND
                     sql_path_tip.where = self.extend_predicate(sql_path_tip.where, pred, op)
 
                     with context(TransformerContext.NEW):
                         context.current.ignore_cardinality = True
-                        sql_path = self.caos_path_to_sql_path(context, cte, cte, link_target,
-                                                                            sql_path, link, weak)
+                        sql_path = self.caos_path_to_sql_path(context, item_cte, item_cte,
+                                                              link_target, sql_path, link, weak)
 
-                        self._process_path(context, cte, sql_path, link_target, weak)
+                        self._process_path(context, item_cte, sql_path, link_target, weak)
                         sql_path = sql_path_tip
             else:
                 sql_path = self._process_path(context, cte, sql_path, link, weak)
@@ -3115,28 +3118,31 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         for link in disjunction.paths:
             if isinstance(link, tree.ast.EntityLink):
+                item_cte = cte
+
                 link_target = link.target if isinstance(link.target, tree.ast.EntitySet) else None
 
                 if self._check_join_cardinality(context, link):
-                    sql_path = self.caos_path_to_sql_path(context, cte, sql_path_tip,
+                    sql_path = self.caos_path_to_sql_path(context, item_cte, sql_path_tip,
                                                           link_target, sql_path_tip, link,
                                                           weak=True)
-                    sql_path = self._process_path(context, cte, sql_path, link_target,
+                    sql_path = self._process_path(context, item_cte, sql_path, link_target,
                                                                           weak=True)
                     sql_paths.append(sql_path)
                 else:
-                    cte = self.init_filter_cte(context, sql_path_tip, caos_path_tip)
-                    pred = pgsql.ast.ExistsNode(expr=cte)
+                    item_cte = self.init_filter_cte(context, sql_path_tip, caos_path_tip)
+                    pred = pgsql.ast.ExistsNode(expr=item_cte)
                     op = ast.ops.OR
                     sql_path_tip.where_weak = self.extend_predicate(sql_path_tip.where_weak,
                                                                     pred, op)
 
                     with context(TransformerContext.NEW):
                         context.current.ignore_cardinality = True
-                        sql_path = self.caos_path_to_sql_path(context, cte, cte, link_target,
-                                                              sql_path_tip, link, weak=True)
+                        sql_path = self.caos_path_to_sql_path(context, item_cte, item_cte,
+                                                              link_target, sql_path_tip, link,
+                                                              weak=True)
 
-                        self._process_path(context, cte, sql_path, link_target, weak=True)
+                        self._process_path(context, item_cte, sql_path, link_target, weak=True)
 
             elif isinstance(link, tree.ast.Conjunction):
                 sql_path = self._process_conjunction(context, cte, sql_path_tip,
