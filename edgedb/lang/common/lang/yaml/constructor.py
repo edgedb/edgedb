@@ -147,6 +147,21 @@ class Composer(yaml.composer.Composer):
         return namespace
 
 
+class ConstructorContext:
+    def __init__(self, constructor, yaml_constructors):
+        self.constructor = constructor
+        self.yaml_constructors = yaml_constructors
+
+    def __enter__(self):
+        self.old_constructors = self.constructor.yaml_constructors
+        constructors = self.constructor.yaml_constructors.copy()
+        constructors.update(self.yaml_constructors)
+        self.constructor.yaml_constructors = constructors
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.constructor.yaml_constructors = self.old_constructors
+
+
 class Constructor(yaml.constructor.Constructor):
     def __init__(self, context=None):
         super().__init__()
@@ -185,11 +200,23 @@ class Constructor(yaml.constructor.Constructor):
         return node.tag.startswith('tag:metamagic.sprymix.com,2009/metamagic/class/derive:') or \
                node.tag.startswith('tag:metamagic.sprymix.com,2009/metamagic/object/create:')
 
+    def constructor_context(self, yaml_constructors):
+        return ConstructorContext(self, yaml_constructors)
+
     def construct_document(self, node):
         context = self._get_source_context(node, self.document_context)
         lang_context.SourceContext.register_object(node, context)
 
-        return super().construct_document(node)
+        if node.schema:
+            schema_tags = {tag: tdata[1] for tag, tdata in node.schema.get_tags().items()}
+        else:
+            schema_tags = None
+
+        if schema_tags:
+            with self.constructor_context(schema_tags):
+                return super().construct_document(node)
+        else:
+            return super().construct_document(node)
 
     def construct_python_class(self, parent, node):
         cls = self._get_class_from_tag(parent, node, 'class')

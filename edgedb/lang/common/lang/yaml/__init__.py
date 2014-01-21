@@ -84,7 +84,7 @@ class Loader(lang_loader.LanguageSourceFileLoader):
 class Language(meta.Language):
     file_extensions = ('yml',)
     loader = Loader
-    LANG_VERSION = 5
+    LANG_VERSION = 6
 
     @classmethod
     def get_language_version(cls, metadata):
