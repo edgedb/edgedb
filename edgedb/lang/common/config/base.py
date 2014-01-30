@@ -41,7 +41,7 @@ class ConfigRootLink(metaclass=slots.SlotsMeta):
 
     def __exit__(self, exc_type, exc_value, exc_tb):
         _set_head(self._parent)
-        self._parent = None
+        #self._parent = None
 
     def cache_get(self, key):
         try:

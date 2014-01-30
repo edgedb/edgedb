@@ -39,7 +39,7 @@ class TreeNode(metaclass=SlotsMeta):
 
     def __getattribute__(self, name):
         if name.startswith('__node_') or name in ('__dict__', '__bases__', '__class__', \
-                                                  '__enter__', '__exit__'):
+                                                  '__enter__', '__exit__', '__mmdump__'):
             return object.__getattribute__(self, name)
 
         return_container = False
@@ -62,6 +62,19 @@ class TreeNode(metaclass=SlotsMeta):
                 return obj.value
         else:
             return obj
+
+    def __mmdump__(self, level=0):
+        if level == 0:
+            print(id(self), end=' %% ')
+        print(level * '    ' + self.__node_name__)
+        if self.__node_children__:
+            for name, ch in self.__node_children__.items():
+                if isinstance(ch, TreeValue):
+                    print((level+1) * '    ' + name + '=' + ch.name + ':' + repr(ch.value))
+                elif isinstance(ch, TreeNode):
+                    ch.__mmdump__(level+1)
+                else:
+                    assert 0
 
 
 class TreeRootNode(TreeNode):
