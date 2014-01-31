@@ -2862,6 +2862,8 @@ class TreeTransformer:
             result = caos_ast.AtomicRefExpr(expr=caos_ast.UnaryOp(expr=expr, op=operator))
         elif isinstance(expr, caos_ast.LinkPropRef):
             result = caos_ast.LinkPropRefExpr(expr=caos_ast.UnaryOp(expr=expr, op=operator))
+        elif isinstance(expr, caos_ast.Constant):
+            result = caos_ast.Constant(expr=caos_ast.UnaryOp(expr=expr, op=operator))
         else:
             paths = self.extract_paths(expr, reverse=False, resolve_arefs=False)
             exprs = self.get_multipath(paths)
