@@ -73,6 +73,11 @@ class DaemonContext:
         lib.change_umask(self.umask)
         lib.change_working_directory(self.working_directory)
 
+        # Test that we can write to log files/output right after
+        # chdir call
+        self._test_sys_streams()
+
+
         if self.uid is not None:
             lib.change_process_uid(self.uid)
 
@@ -119,6 +124,15 @@ class DaemonContext:
             self._close_stderr.close()
             self._close_stderr = None
         self.stderr = None
+
+    def _test_sys_streams(self):
+        stderr = self.stderr or self._stderr_name
+        if isinstance(stderr, str):
+            open(stderr, 'at').close()
+
+        stdout = self.stdout or self._stdout_name
+        if isinstance(stdout, str):
+            open(stdout, 'at').close()
 
     def _open_sys_streams(self):
         stdin = self.stdin or self._stdin_name
