@@ -44,7 +44,23 @@ class Dark16(StylesTable):
     ref = Style(color='red')
 
     unknown_object = Style(color='blue', bold=True)
-    serialization_error = unknown_markup = Style(color='white', bgcolor='red')
+    serialization_error = unknown_markup = overflow = Style(color='white', bgcolor='red')
+
+    diff_anno = Style(color='white')
+    diff_after = Style(color='green')
+    diff_before = Style(color='red')
+
+    code = Style(color='white')
+    code_decorator = Style(color='black', bold=True)
+    code_comment = attribute
+    code_string = literal
+    code_number = Style(color='green')
+    code_constant = constant
+    code_punctuation = bracket
+    code_keyword = constant
+    code_decl_name = tree_node
+    code_tag = code_keyword
+    code_attribute = Style(color=attribute.color)
 
 
 class Dark256(StylesTable):
