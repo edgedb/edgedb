@@ -70,7 +70,7 @@ if (!global.Map) {
         get: function(key) {
             var hashed = _key(key);
             if (hashed === null) {
-                var idx = this._keys.indexOf(key);
+                var idx = sx.array.index(this._keys, key);
                 if (idx >= 0) {
                     return this._values[idx];
                 }
@@ -82,7 +82,7 @@ if (!global.Map) {
         has: function(key) {
             var hashed = _key(key);
             if (hashed === null) {
-                return this._keys.indexOf(key) >= 0;
+                return sx.array.index(this._keys, key) >= 0;
             } else {
                 return hop.call(this._hash, hashed);
             }
@@ -98,7 +98,7 @@ if (!global.Map) {
         del: function(key) {
             var hashed = _key(key);
             if (hashed === null) {
-                var idx = this._keys.indexOf(key);
+                var idx = sx.array.index(this._keys, key);
                 if (idx >= 0) {
                     this._keys.splice(idx, 1);
                     this._values.splice(idx, 1);
@@ -164,7 +164,7 @@ if (!global.Set) {
         has: function(item) {
             var hashed = _key(item);
             if (hashed === null) {
-                return this._items.indexOf(item) >= 0;
+                return sx.array.index(this._items, item) >= 0;
             } else {
                 return hop.call(this._hash, hashed);
             }
@@ -179,7 +179,7 @@ if (!global.Set) {
         del: function(item) {
             var hashed = _key(item);
             if (hashed === null) {
-                var idx = this._keys.indexOf(item);
+                var idx = sx.array.index(this._keys, item);
                 if (idx >= 0) {
                     this._items.splice(idx, 1);
                     this.size--;
