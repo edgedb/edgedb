@@ -315,10 +315,13 @@ class OptimizedFSBackend(ResourceFSBackend):
 
         return md5.hexdigest()
 
-    def _compiled_name(self, bucket, ext:str):
-        base_compiled_name = self.compiled_module_name
-        base_compiled_name += (bucket.__module__ + '.' + bucket.__name__).replace('.', '_')
-        return base_compiled_name + '.' + ext
+    def _compiled_name(self, bucket, ext:str, suffix=None):
+        name = self.compiled_module_name
+        name += (bucket.__module__ + '.' + bucket.__name__).replace('.', '_')
+        if suffix is not None:
+            name += '.' + str(suffix)
+        name += '.' + ext
+        return name
 
     def _gzip_file(self, name):
         output_gz = name + '.gz'
@@ -382,9 +385,6 @@ class OptimizedFSBackend(ResourceFSBackend):
     def _optimize_css(self, mods, bucket, bucket_id, bucket_path, bucket_pub_path):
         from metamagic.rendering.css import CompiledCSSModule
 
-        out_short_name = self._compiled_name(bucket, 'css')
-        out_name = os.path.abspath(os.path.join(bucket_path, out_short_name))
-
         buf = []
         for mod in mods:
             if isinstance(mod, VirtualFile):
@@ -402,21 +402,29 @@ class OptimizedFSBackend(ResourceFSBackend):
         if self.pretty_output:
             wrap = 1
 
-        compressed = csscompressor.compress('\n'.join(buf), wrap)
+        compressed = csscompressor.compress_partitioned('\n'.join(buf),
+                                                        max_linelen=wrap,
+                                                        max_rules_per_file=3500)
 
-        with open(out_name, 'wt') as f:
-            f.write(compressed)
+        for idx, compressed_part in enumerate(compressed):
+            name_suffix = idx if len(compressed) > 1 else None
+            out_short_name = self._compiled_name(bucket, 'css', suffix=name_suffix)
+            out_name = os.path.abspath(os.path.join(bucket_path, out_short_name))
 
-        if self.gzip_output:
-            self._gzip_file(out_name)
+            with open(out_name, 'wt') as f:
+                f.write(compressed_part)
 
-        hash = self._get_file_hash(out_name)
+            if self.gzip_output:
+                self._gzip_file(out_name)
 
-        result = CompiledCSSModule(b'', out_short_name,
-                                   '{}?_cache={}'.format(out_short_name, hash))
-        pub_path = os.path.join(bucket_pub_path, result.__sx_resource_get_public_path__())
-        setattr(result, bucket_id, pub_path)
-        bucket.published.add(result)
+            hash = self._get_file_hash(out_name)
+
+            outmod = CompiledCSSModule(b'', out_short_name,
+                                       '{}?_cache={}'.format(out_short_name, hash))
+            pub_path = os.path.join(bucket_pub_path,
+                                    outmod.__sx_resource_get_public_path__())
+            setattr(outmod, bucket_id, pub_path)
+            bucket.published.add(outmod)
 
     def _publish_bucket(self, bucket, resources, bucket_id, bucket_path, bucket_pub_path):
         from metamagic.utils.lang.javascript import BaseJavaScriptModule
