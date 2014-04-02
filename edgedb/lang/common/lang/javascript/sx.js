@@ -87,6 +87,10 @@
             return Object.prototype.toString.call(obj) === '[object String]';
         },
 
+        is_number: function sx_is_number(obj) {
+            return Object.prototype.toString.call(obj) === '[object Number]';
+        },
+
         is_node: function(obj) {
             return (
                 typeof Node === "object"
