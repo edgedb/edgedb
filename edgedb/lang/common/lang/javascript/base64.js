@@ -101,6 +101,11 @@ sx.base64 = (function() {
         return encoded;
     }
 
+    function urlsafe_b64encode(msg) {
+        var encoded = b64encode(msg);
+        return encoded.replace(/\+/g, '-').replace(/\//, '_');
+    }
+
     function b64decode(msg) {
         var result = [],
             i = 0,
@@ -135,10 +140,17 @@ sx.base64 = (function() {
         return result;
     }
 
+    function urlsafe_b64decode(msg) {
+        msg = msg.replace(/-/g, '+').replace(/_/, '\/');
+        return b64decode(msg);
+    }
+
     return {
         b32encode: b32encode,
         b64encode: b64encode,
         b64decode: b64decode,
+        urlsafe_b64encode: urlsafe_b64encode,
+        urlsafe_b64decode: urlsafe_b64decode,
         b64decode_tostr: function(m) {
             return sx.byteutils.from_bytes(b64decode(m));
         }
