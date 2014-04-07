@@ -39,3 +39,8 @@ class frozendict(dict, metaclass=ImmutableMeta):
 
     def __repr__(self):
         return '%s(%s)' % (self.__class__.__name__, super().__repr__())
+
+    __eq__ = dict.__eq__
+
+    def __hash__(self):
+        return hash(frozenset(self.items()))
