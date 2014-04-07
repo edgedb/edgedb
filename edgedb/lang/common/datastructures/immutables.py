@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2010, 2014 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -8,6 +8,8 @@
 
 import abc
 import collections
+
+from metamagic.utils.algos.persistent_hash import persistent_hash
 
 
 class ImmutableMeta(type):
@@ -44,3 +46,6 @@ class frozendict(dict, metaclass=ImmutableMeta):
 
     def __hash__(self):
         return hash(frozenset(self.items()))
+
+    def persistent_hash(self):
+        return persistent_hash(frozenset(self.items()))
