@@ -230,3 +230,10 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         self.write('[')
         self.visit(node.index)
         self.write(']')
+
+    def visit_PrototypeRefNode(self, node):
+        self.write('[')
+        self.write(node.module)
+        self.write('.')
+        self.write(node.name)
+        self.write(']')

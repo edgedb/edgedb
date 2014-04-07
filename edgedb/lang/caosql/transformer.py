@@ -361,7 +361,14 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
 
                 if  (isinstance(value, collections.Container)
                                 and not isinstance(value, (str, bytes))):
-                    elements = [qlast.ConstantNode(value=v) for v in value]
+
+                    elements = []
+
+                    for v in value:
+                        if isinstance(v, caos_types.ProtoObject):
+                            v = qlast.PrototypeRefNode(module=v.name.module, name=v.name.name)
+                        elements.append(v)
+
                     result = qlast.SequenceNode(elements=elements)
                 else:
                     result = qlast.ConstantNode(value=value, index=index)
