@@ -432,10 +432,11 @@ class GET_ITER(OpCode):
     stack_effect    = 0
 
 
-class STORE_LOCALS(OpCode):
-    __slots__       = ()
-    code            = 69
-    stack_effect    = -1
+if sys.version_info[:2] <= (3, 3):
+    class STORE_LOCALS(OpCode):
+        __slots__       = ()
+        code            = 69
+        stack_effect    = -1
 
 
 class PRINT_EXPR(OpCode):
