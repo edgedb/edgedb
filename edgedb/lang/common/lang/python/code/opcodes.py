@@ -884,6 +884,11 @@ class SETUP_WITH(JRelOpCode):
     stack_effect    = 7
 
 
+class EXTENDED_ARG(ArgOpCode):
+    __slots__        = ()
+    code            = 144
+
+
 class LIST_APPEND(ArgOpCode):
     __slots__       = ()
     code            = 145
@@ -902,9 +907,11 @@ class MAP_ADD(ArgOpCode):
     stack_effect    = -2
 
 
-class EXTENDED_ARG(ArgOpCode):
-    __slots__        = ()
-    code            = 144
+if sys.version_info[:2] >= (3, 4):
+    class LOAD_CLASSDEREF(FreeNameOpCode):
+        __slots__       = ()
+        code            = 148
+        stack_effect    = 1
 
 
 OPS         = frozenset(OPS)
