@@ -114,7 +114,11 @@ class BasePythonSourceGenerator(SourceGenerator):
                 self.visit(default)
         if node.vararg is not None:
             write_comma()
-            self.write('*' + node.vararg)
+            if isinstance(node.vararg, str):
+                argname = node.vararg
+            else:
+                argname = node.vararg.arg
+            self.write('*' + argname)
 
         if node.kwonlyargs:
             if not node.vararg:
@@ -131,7 +135,11 @@ class BasePythonSourceGenerator(SourceGenerator):
 
         if node.kwarg is not None:
             write_comma()
-            self.write('**' + node.kwarg)
+            if isinstance(node.kwarg, str):
+                argname = node.kwarg
+            else:
+                argname = node.kwarg.arg
+            self.write('**' + argname)
 
     def _decorators(self, node):
         for decorator in node.decorator_list:
@@ -373,6 +381,9 @@ class BasePythonSourceGenerator(SourceGenerator):
 
     def visit_PyName(self, node):
         self.write(node.id)
+
+    def visit_PyNameConstant(self, node):
+        self.write(str(node.value))
 
     def visit_PyStr(self, node):
         self.write(repr(node.s))

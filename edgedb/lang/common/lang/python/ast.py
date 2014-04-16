@@ -143,6 +143,7 @@ class PyCall(PyAST): __fields = ['func', ('args', list), ('keywords', list), 'st
 class PyNum(PyAST): __fields = ['n']
 class PyStr(PyAST): __fields = ['s']
 class PyBytes(PyAST): __fields = ['s']
+class PyNameConstant(PyAST): __fields = ['value']
 class PyEllipsis(PyAST): pass
 
 #         -- other literals? bools?
