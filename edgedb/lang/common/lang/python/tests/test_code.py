@@ -107,7 +107,7 @@ class BaseTestLangPythonCode:
 
         code1_flags = code1.co_flags & _SUPPORTED_FLAGS
         code2_flags = code2.co_flags & _SUPPORTED_FLAGS
-        assert code1_flags == code2_flags
+        assert code1_flags == code2_flags, bin(code1_flags) + '!=' + bin(code2_flags)
 
         # we need exact equality here, as positions can be
         # mapped to the __closure__ function attribute or so
@@ -323,7 +323,7 @@ class TestLangPythonCode(BaseTestLangPythonCode):
 
         assert list(test(10)) == [100]
 
-    def test_utils_lang_python_code_decimal_assemble_disassemble(self):
+    def test_utils_lang_python_code_difflib_assemble_disassemble(self):
         '''Disassembles and then assembles back code objects of decimal
         module's functions and methods, and compares the new code objects
         to the old ones'''
@@ -336,7 +336,6 @@ class TestLangPythonCode(BaseTestLangPythonCode):
             attr = getattr(mod, attr_name)
 
             if isinstance(attr, types.FunctionType):
-                #print('>>>>', attr_name)
                 self.check_on(attr.__code__)
 
             elif isinstance(attr, type):
@@ -345,5 +344,4 @@ class TestLangPythonCode(BaseTestLangPythonCode):
                     attr = getattr(cls, attr_name)
 
                     if isinstance(attr, types.FunctionType):
-                        #print('>>>>', cls.__name__, '::', attr_name)
                         self.check_on(attr.__code__)

@@ -34,6 +34,7 @@ OP_JUMP_FORWARD     = opcodes.JUMP_FORWARD
 OP_FOR_ITER         = opcodes.FOR_ITER
 OP_EXTENDED_ARG     = opcodes.EXTENDED_ARG
 OP_YIELD_VALUE      = opcodes.YIELD_VALUE
+OP_YIELD_FROM       = getattr(opcodes, 'YIELD_FROM', None)
 OP_EXTENDED_ARG     = opcodes.EXTENDED_ARG
 OP_RETURN_VALUE     = opcodes.RETURN_VALUE
 
@@ -52,6 +53,7 @@ CO_VARARGS          = 0x0004
 CO_VARKEYWORDS      = 0x0008
 CO_GENERATOR        = 0x0020
 CO_NOFREE           = 0x0040
+
 
 #: ``co_flags`` we support.
 #: The constant is for the testing purposes.
@@ -277,6 +279,10 @@ class Code:
 
         if OP_YIELD_VALUE in ops_set:
             flags |= CO_GENERATOR
+
+        if OP_YIELD_FROM is not None:
+            if OP_YIELD_FROM in ops_set:
+                flags |= CO_GENERATOR
 
         if not len(opcodes.FREE_OPS & ops_set) and not self.has_class_freevar:
             flags |= CO_NOFREE
