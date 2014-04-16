@@ -63,9 +63,14 @@ def _find_spec(name):
             if isinstance(loader, importlib._bootstrap.NamespaceLoader):
                 path = loader._path._path
             else:
-                modfile = loader.get_filename(modname)
-                # os.path.dirname(__file__) is a common importlib assumption for __path__
-                path = [os.path.dirname(modfile)]
+                if hasattr(loader, 'get_filename'):
+                    modfile = loader.get_filename(modname)
+                    # os.path.dirname(__file__) is a common importlib assumption for __path__
+                    path = [os.path.dirname(modfile)]
+                else:
+                    p = getattr(loader, 'path', None)
+                    if p:
+                        path = [p]
 
     if loader is None:
         return None
