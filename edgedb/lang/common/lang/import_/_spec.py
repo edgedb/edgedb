@@ -23,26 +23,12 @@ class ModuleSpec:
         self.submodule_search_locations = [] if is_package else None
 
 
-def find_spec(name, package=None):
-    """Implementation of importlib.util.find_spec for Python 3.3."""
+def _find_deep_spec(name, path):
+    """Implementation of importlib._bootstrap._find_spec for Python 3.3."""
 
-    if name.startswith('.'):
-        name = importlib.util.resolve_name(name, package)
-
-    try:
-        module = sys.modules[name]
-    except KeyError:
-        return _find_spec(name)
-    else:
-        if module is None:
-            return None
-
-        return _spec_from_module(module)
-
-
-def _find_spec(name):
     steps = name.split('.')
     path = None
+    origin = None
 
     for i in range(len(steps)):
         loader = None
@@ -86,7 +72,10 @@ def _find_spec(name):
         else:
             is_package = False
 
-    return ModuleSpec(name, loader, is_package=is_package)
+    if isinstance(loader, importlib._bootstrap.NamespaceLoader):
+        origin = 'namespace'
+
+    return ModuleSpec(name, loader, is_package=is_package, origin=origin)
 
 
 def _spec_from_file_location(name, loader):

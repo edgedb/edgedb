@@ -183,6 +183,8 @@ def modules_from_import_statements(package, imports, ignore_missing=False):
 
     modules = []
 
+    package_module = sys.modules[package]
+
     for name, fromlist in imports:
         path = None
         fq_name = resolve_module_name(name, package)
@@ -192,12 +194,12 @@ def modules_from_import_statements(package, imports, ignore_missing=False):
 
         add_package = True
 
-        spec = module_spec.find_spec(fq_name)
+        spec = module_spec.find_spec(fq_name, path=getattr(package_module, '__path__', None))
         if spec is None:
             if ignore_missing:
                 add_package = False
             else:
-                raise ValueError('Could not find module named {!r}'.format(modname))
+                raise ValueError('Could not find module named {!r}'.format(name))
 
         if spec and spec.submodule_search_locations is not None:
             if fromlist and not isinstance(fromlist, str):
@@ -207,7 +209,7 @@ def modules_from_import_statements(package, imports, ignore_missing=False):
                 for entry in fromlist:
                     modname = '{}.{}'.format(fq_name, entry)
 
-                    spec = module_spec.find_spec(modname)
+                    spec = module_spec.find_spec(modname, path=loader_path)
 
                     if spec is not None:
                         if spec.origin != 'namespace':

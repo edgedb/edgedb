@@ -53,6 +53,9 @@ class FileFinder(machinery.FileFinder):
             return cls(path, *_get_file_loaders())
         return path_hook_for_FileFinder
 
+    def __repr__(self):
+        return 'mm.FileFinder({!r})'.format(self.path)
+
 
 def install():
     sys.path_hooks.insert(0, FileFinder.path_hook())

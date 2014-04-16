@@ -80,10 +80,38 @@ class LoaderCommon:
         # PEP 451 API
         return self.new_module(spec.name)
 
+    @debug
     def exec_module(self, module):
+        """LOG [lang.import.trace]
+        import time
+
+        fullname = module.__name__
+
+        try:
+            tdata = LoaderCommon.__mm_trace_data__
+        except AttributeError:
+            tdata = LoaderCommon.__mm_trace_data__ = dict(indent=0, timings=[])
+
+        start = time.monotonic()
+        print('import: {}+{}'.format('  ' * tdata['indent'], fullname))
+        tdata['indent'] += 1
+        timing_idx = len(tdata['timings'])
+        """
+
         # PEP 451 API
         module = self._init_module(module)
         sys.modules[module.__name__] = module
+
+        """LOG [lang.import.trace]
+        tdata['indent'] -= 1
+        end = time.monotonic()
+        full_time = end - start
+        self_time = full_time - sum(t[2] for t in tdata['timings'][timing_idx:])
+        tdata['timings'].append((fullname, full_time, self_time))
+
+        msg = 'import: {}*{} ({:.3f}ms, {:.3f}ms)'
+        print(msg.format('  ' * tdata['indent'], fullname, full_time * 1000, self_time * 1000))
+        """
 
     def _load_module_impl(self, fullname):
         try:
