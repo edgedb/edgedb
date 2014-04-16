@@ -359,7 +359,7 @@ class ProxyModule(LightProxyModule):
 class ModuleInfo:
     def __init__(self, module=None, *, name=None, package=None, path=None, file=None):
         if module is not None:
-            for attr in ('__name__', '__package__', '__path__', '__file__'):
+            for attr in ('__name__', '__package__', '__path__', '__file__', '__spec__'):
                 try:
                     v = getattr(module, attr)
                 except AttributeError:

@@ -13,6 +13,7 @@ import re
 import sys
 import types
 
+from importlib.util import resolve_name as resolve_module_name
 
 from metamagic.utils.algos import topological
 from metamagic.utils.debug import debug
@@ -20,6 +21,7 @@ from metamagic.utils.debug import debug
 from .context import ImportContext
 from . import cache as caches
 from . import module as module_types
+from . import spec as module_spec
 
 
 def cache_from_source(path, debug_override=None, cache_ext=None):
@@ -174,30 +176,11 @@ def reload(module):
             _RELOADING.pop(modname, None)
 
 
-def resolve_module_name(name, package):
-    level = 0
-
-    while level < len(name) and name[level] == '.':
-        level += 1
-
-    if level > 0:
-        steps = package.rsplit('.', level - 1)
-        if len(steps) < level:
-            raise ValueError('relative import reaches beyond top-level package')
-
-        suffix = name[level:]
-
-        if suffix:
-            fq_name = '{}.{}'.format(steps[0], name[level:])
-        else:
-            fq_name = steps[0]
-    else:
-        fq_name = name
-
-    return fq_name
-
-
 def modules_from_import_statements(package, imports, ignore_missing=False):
+    """Return a list of fully-qualified module names that would be
+       imported by specified import statements.
+    """
+
     modules = []
 
     for name, fromlist in imports:
@@ -207,68 +190,28 @@ def modules_from_import_statements(package, imports, ignore_missing=False):
         if fq_name == 'builtins':
             continue
 
-        steps = fq_name.split('.')
-
         add_package = True
-        loader = None
 
-        for i in range(len(steps)):
-            loader = None
-
-            modname = '.'.join(steps[:i + 1])
-
-            # Some modules (mostly builtin and frozen) may not have the __loader__ attribute)
-            try:
-                mod = sys.modules[modname]
-            except KeyError:
-                has_loader = True
+        spec = module_spec.find_spec(fq_name)
+        if spec is None:
+            if ignore_missing:
+                add_package = False
             else:
-                has_loader = hasattr(mod, '__loader__')
+                raise ValueError('Could not find module named {!r}'.format(modname))
 
-            if has_loader:
-                loader = importlib.find_loader(modname, path=path)
-
-            if loader is None:
-                if ignore_missing:
-                    add_package = False
-                    break
-                else:
-                    raise ValueError('could not find loader for module {}'.format(modname))
-
-            if not isinstance(loader, importlib._bootstrap.NamespaceLoader):
-                if not loader.is_package(modname):
-                    break
-
-            if isinstance(loader, importlib._bootstrap.NamespaceLoader):
-                path = loader._path._path
-            else:
-                modfile = loader.get_filename(modname)
-                # os.path.dirname(__file__) is a common importlib assumption for __path__
-                path = [os.path.dirname(modfile)]
-        else:
+        if spec and spec.submodule_search_locations is not None:
             if fromlist and not isinstance(fromlist, str):
-                # Try to obtain package loader path and do it with care
-                # as NamespaceLoader/NamespacePath have slightly different
-                # semantics.
-                try:
-                    loader_path = loader.path
-                except AttributeError:
-                    try:
-                        loader_path = loader._path
-                    except AttributeError:
-                        loader_path = []
-
-                if loader_path:
-                    loader_path = list(loader_path)
-
+                loader_path = spec.submodule_search_locations
                 add_package = False
 
                 for entry in fromlist:
                     modname = '{}.{}'.format(fq_name, entry)
-                    entry_loader = importlib.find_loader(modname, path=path)
 
-                    if entry_loader is not None and list(entry_loader.path) != loader_path:
-                        modules.append(modname)
+                    spec = module_spec.find_spec(modname)
+
+                    if spec is not None:
+                        if spec.origin != 'namespace':
+                            modules.append(modname)
                     else:
                         add_package = True
 

@@ -15,6 +15,7 @@ import sys
 
 from metamagic.utils.lang.import_ import loader
 from metamagic.utils.lang.import_ import module as module_types
+from metamagic.utils.lang.import_ import spec as module_spec
 
 from .context import DocumentContext
 from . import exceptions as lang_errors
@@ -238,12 +239,10 @@ class LanguageLoader(LanguageLoaderBase):
     def _get_loader(self, modname):
         if '.' in modname:
             dep_parent, _, _ = modname.rpartition('.')
-            dep_parent = importlib.import_module(dep_parent)
-            dep_path = dep_parent.__path__
         else:
-            dep_path = None
+            dep_parent = None
 
-        dep_loader = importlib.find_loader(modname, path=dep_path)
+        dep_loader = module_spec.find_spec(modname, dep_parent)
         if dep_loader is None:
             raise ImportError('could not find loader for dependency module {}'.format(modname))
 

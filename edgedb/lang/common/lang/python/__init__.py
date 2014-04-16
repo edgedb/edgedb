@@ -35,7 +35,7 @@ class LangModuleCache(lang_loader.LangModuleCache):
 
 
 class Loader(imploader.LoaderCommon, _SourceFileLoader, imploader.SourceLoader,
-                                                        lang_loader.LanguageLoaderBase):
+             lang_loader.LanguageLoaderBase, imploader.LoaderIface):
     def __init__(self, fullname, filename, language):
         super().__init__(fullname, filename)
         self._language = language
@@ -80,9 +80,19 @@ class Loader(imploader.LoaderCommon, _SourceFileLoader, imploader.SourceLoader,
 
         return code
 
+    def exec_module(self, module):
+        super(_SourceFileLoader, self).exec_module(module)
+        module = self._init_module(module)
+        sys.modules[module.__name__] = module
+
     def _load_module_impl(self, fullname):
         _SourceFileLoader.load_module(self, fullname)
         mod = sys.modules[fullname]
+        self._init_module(mod)
+        return mod
+
+    def _init_module(self, mod):
+        fullname = mod.__name__
 
         try:
             track_policy = mod.__mm_track_dependencies__

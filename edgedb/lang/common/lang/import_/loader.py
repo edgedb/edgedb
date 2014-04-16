@@ -76,6 +76,15 @@ class LoaderCommon:
 
         return module
 
+    def create_module(self, spec):
+        # PEP 451 API
+        return self.new_module(spec.name)
+
+    def exec_module(self, module):
+        # PEP 451 API
+        module = self._init_module(module)
+        sys.modules[module.__name__] = module
+
     def _load_module_impl(self, fullname):
         try:
             module = sys.modules[fullname]
