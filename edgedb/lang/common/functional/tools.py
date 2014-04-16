@@ -18,28 +18,11 @@ from metamagic.exceptions import MetamagicError
 
 __all__ = ('get_argsspec', 'apply_decorator', 'decorate', 'isdecorated',
            'Decorator', 'BaseDecorator', 'NonDecoratable', 'render_signature_args',
-           'unwrap', 'hybridmethod', 'cachedproperty', 'in_class', 'get_safe_attrname')
+           'unwrap', 'hybridmethod', 'cachedproperty', 'get_safe_attrname')
 
 
 class NonDecoratable:
     pass
-
-
-def in_class():
-    frame = sys._getframe()
-    try:
-        while frame.f_back:
-            frame = frame.f_back
-
-            if type(frame.f_locals.get('__locals__')) is dict and \
-                    type(frame.f_locals.get('__module__')) is str and \
-                    frame.f_locals is not frame.f_globals:
-
-                return True
-    finally:
-        del frame
-
-    return False
 
 
 WRAPPER_ASSIGNMENTS = {'__module__', '__name__', '__doc__', '__annotations__'}

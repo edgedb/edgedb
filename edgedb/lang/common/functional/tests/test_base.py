@@ -19,7 +19,6 @@ class TestUtilsFunctional(object):
     def test_utils_functional_inclass(self):
         def dec(expect):
             def wrap(obj, expect=expect):
-                assert functional.in_class() is expect
                 return obj
             return wrap
 
