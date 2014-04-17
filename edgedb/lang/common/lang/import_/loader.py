@@ -303,14 +303,17 @@ class SourceLoader:
                 return deptracking_policy
 
 
-# Global module cache signature.  Bump the lower part on globally affecting.
+# Global module cache signature.  Bump _GENERAL_VERSION on globally affecting
 # import system changes, such as changes to the cache structure.
 #
-GENERAL_MAGIC = (0x4D4D << 16) | 1
+_GENERAL_VERSION = 1
+_PYMAGIC = int.from_bytes(imp_utils.get_py_magic(), 'big')
+
+GENERAL_MAGIC = (0x4D4D << 48) | (_GENERAL_VERSION  << 32) | _PYMAGIC
 
 
 class ModuleCacheMetaInfo:
-    _cache_struct = struct.Struct('!IQQQI')
+    _cache_struct = struct.Struct('>QQQQI')
 
     def __init__(self, modname, *, magic=None, modver=None, code_offset=None):
         self.modname = modname
@@ -324,7 +327,7 @@ class ModuleCacheMetaInfo:
         extras = self.marshal_extras()
         magic_hi, magic_lo = self.magic >> 64, self.magic & 0xFFFFFFFFFFFFFFFF
 
-                 #      I           Q         Q           Q                     I             #
+                 #      Q           Q         Q           Q                     I             #
         header = [GENERAL_MAGIC, magic_hi, magic_lo, self.modver, len(extras) if extras else 0]
         result = bytearray(self._cache_struct.pack(*header))
 

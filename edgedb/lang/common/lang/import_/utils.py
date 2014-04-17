@@ -13,6 +13,7 @@ import re
 import sys
 import types
 
+from importlib import util as imp_util
 from importlib.util import resolve_name as resolve_module_name
 
 from metamagic.utils.algos import topological
@@ -285,3 +286,14 @@ def reload_modified(modified=None):
             reloaded.append(module)
 
     return reloaded
+
+
+try:
+    imp_util.MAGIC_NUMBER
+except AttributeError:
+    import imp
+    def get_py_magic():
+        return imp.get_magic()
+else:
+    def get_py_magic():
+        return imp_util.MAGIC_NUMBER
