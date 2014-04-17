@@ -113,7 +113,10 @@ def _spec_from_module(module):
     try:
         location = module.__file__
     except AttributeError:
-        location = None
+        if hasattr(loader, 'get_filename'):
+            return _spec_from_file_location(name, loader)
+        else:
+            location = '<unknown>'
 
     try:
         submodule_search_locations = list(module.__path__)
