@@ -1431,3 +1431,17 @@ class TestTranslation(BaseJPlusTest):
         %%
         [1,2]+{a:1,b:2,c:3} []+{}
         '''
+
+    @transpiler_opts(debug=False)
+    def test_utils_lang_jp_tr_pyargs_5(self):
+        '''JS+
+
+        function test1(a) {
+            print(a)
+        }
+
+        test1()
+        test1(1,foo='bar')
+        %%
+        undefined\n1
+        '''
