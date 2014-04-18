@@ -151,3 +151,9 @@ class TestTranslation(BaseJPlusTest):
         '''JS+
         import (a)
         '''
+
+    @expected_fail(UnexpectedToken, attrs={'line': 1, 'col': 9})
+    def test_utils_lang_jp_parser_var_1(self):
+        '''JS+
+        var a;
+        '''
