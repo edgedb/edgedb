@@ -93,12 +93,16 @@ class TableColumn(base.DBObject):
 
 
 class TableConstraint(base.DBObject):
-    def __init__(self, table_name, column_name=None):
+    def __init__(self, table_name, column_name=None, constraint_name=None):
         self.table_name = table_name
         self.column_name = column_name
+        self._constraint_name = constraint_name
 
-    def constraint_name(self):
-        raise NotImplementedError
+    def constraint_name(self, quote=True):
+        if quote and self._constraint_name:
+            return common.quote_ident(self._constraint_name)
+        else:
+            return self._constraint_name
 
     def code(self, context):
         return None
@@ -145,8 +149,8 @@ class UniqueConstraint(TableConstraint):
 
 
 class CheckConstraint(TableConstraint):
-    def __init__(self, table_name, expr, inherit=True):
-        super().__init__(table_name)
+    def __init__(self, table_name, constraint_name, expr, inherit=True):
+        super().__init__(table_name, constraint_name=constraint_name)
         self.expr = expr
         self.inherit = inherit
 
@@ -368,7 +372,12 @@ class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
         self.constraint = constraint
 
     def code(self, context):
-        return 'ADD  ' + self.constraint.code(context)
+        code = 'ADD '
+        name = self.constraint.constraint_name()
+        if name:
+            code += 'CONSTRAINT {} '.format(name)
+
+        return code + self.constraint.code(context)
 
     def extra(self, context, alter_table):
         return self.constraint.extra(context, alter_table)
@@ -376,6 +385,20 @@ class AlterTableAddConstraint(AlterTableFragment, TableConstraintCommand):
     def __repr__(self):
         return '<%s.%s %r>' % (self.__class__.__module__, self.__class__.__name__,
                                self.constraint)
+
+
+class AlterTableRenameConstraintSimple(AlterTableFragment, TableConstraintCommand):
+    def __init__(self, old_name, new_name):
+        self.old_name = old_name
+        self.new_name = new_name
+
+    def code(self, context):
+        return 'RENAME CONSTRAINT {} TO {}'.format(common.quote_ident(self.old_name),
+                                                   common.quote_ident(self.new_name))
+
+    def __repr__(self):
+        return '<%s.%s %r to %r>' % (self.__class__.__module__, self.__class__.__name__,
+                                     self.old_name, self.new_name)
 
 
 class AlterTableRenameConstraint(AlterTableBase, TableConstraintCommand):

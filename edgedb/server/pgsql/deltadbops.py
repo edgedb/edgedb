@@ -142,8 +142,7 @@ class TableClassConstraint(dbops.TableConstraint):
         return self.__class__(self.table_name, self.column_name, self.prefix, self.constrobj)
 
     def code(self, context):
-        return 'CONSTRAINT %s %s' % (self.constraint_name(),
-                                     self.constraint_code(context, self.column_name))
+        return self.constraint_code(context, self.column_name)
 
     def extra(self, context, alter_table):
         text = self.raw_constraint_name()
