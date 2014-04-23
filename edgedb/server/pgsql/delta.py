@@ -2342,7 +2342,11 @@ class CreatePointerConstraint(PointerConstraintMetaCommand,
 class DeletePointerConstraint(PointerConstraintMetaCommand, adapts=delta_cmds.DeletePointerConstraint):
     def apply(self, meta, context=None):
         source, pointer = CompositePrototypeMetaCommand.get_source_and_pointer_ctx(meta, context)
-        constraint = pointer.proto.constraints.get(self.prototype_class)
+
+        if self.abstract:
+            constraint = pointer.proto.abstract_constraints.get(self.prototype_class)
+        else:
+            constraint = pointer.proto.constraints.get(self.prototype_class)
 
         delta_cmds.DeletePointerConstraint.apply(self, meta, context)
         PointerConstraintMetaCommand.apply(self, meta, context)
