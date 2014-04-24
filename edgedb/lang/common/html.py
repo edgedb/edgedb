@@ -9,16 +9,21 @@
 """HTML-related utility functions collection"""
 
 
-import html.parser
+import html
 
 
-def unescape(s):
-    """Unescapes HTML-escaped strings:
+try:
+    unescape = html.unescape
+except AttributeError:
+    import html.parser
 
-    ..code-block:: pycon
+    def unescape(s):
+        """Unescapes HTML-escaped strings:
 
-        >>> html.unescape('&lt;hello&gt;')
-        <hello>
-    """
+        ..code-block:: pycon
 
-    return html.parser.HTMLParser.unescape(None, s)
+            >>> html.unescape('&lt;hello&gt;')
+            <hello>
+        """
+
+        return html.parser.HTMLParser.unescape(None, s)
