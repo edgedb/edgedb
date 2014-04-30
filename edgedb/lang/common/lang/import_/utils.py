@@ -288,6 +288,10 @@ def reload_modified(modified=None):
     return reloaded
 
 
+def set_dependency_tracking(module_name, enabled):
+    caches.deptracked_modules[module_name] = enabled
+
+
 try:
     imp_util.MAGIC_NUMBER
 except AttributeError:
