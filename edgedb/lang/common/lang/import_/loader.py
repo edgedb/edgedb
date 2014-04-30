@@ -100,7 +100,6 @@ class LoaderCommon:
 
         # PEP 451 API
         module = self._init_module(module)
-        sys.modules[module.__name__] = module
 
         """LOG [lang.import.trace]
         tdata['indent'] -= 1
@@ -195,6 +194,7 @@ class LoaderCommon:
             _module = module_class(module.__name__)
             _module.__dict__.update(module.__dict__)
             module = _module
+            sys.modules[module.__name__] = module
 
         try:
             finalize_load = module.__sx_finalize_load__
