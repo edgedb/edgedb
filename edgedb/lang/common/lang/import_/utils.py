@@ -133,9 +133,6 @@ def import_path(path):
 _RELOADING = {}
 
 def reload(module):
-    # XXX: imp.reload has a hardcoded check that fails on instances of module subclasses,
-    # so we have to reimplement reload here
-
     if not isinstance(module, types.ModuleType):
         raise TypeError('reload() argument must be module')
 
@@ -158,6 +155,7 @@ def reload(module):
             if parent_name and parent_name not in sys.modules:
                 msg = 'parent {!r} not in sys.modules'
                 raise ImportError(msg.format(parent_name), name=parent_name)
+
             mod = module.__loader__.load_module(modname)
 
             if proxied:

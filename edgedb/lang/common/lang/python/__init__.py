@@ -14,6 +14,8 @@ try:
 except ImportError:
     from importlib._bootstrap import SourceFileLoader as _SourceFileLoader
 
+from importlib import _bootstrap, util as importlib_util
+
 from metamagic.utils.lang import meta as lang_meta, loader as lang_loader
 from metamagic.utils.lang import runtimes as lang_runtimes
 from metamagic.utils.lang.import_ import utils as imputils
@@ -85,9 +87,33 @@ class Loader(imploader.LoaderCommon, _SourceFileLoader, imploader.SourceLoader,
         module = self._init_module(module)
         sys.modules[module.__name__] = module
 
+    if sys.version_info[:2] < (3, 4):
+        @importlib_util.module_for_loader
+        def _load_module_wrapper(self, module, *, sourceless=False):
+            name = module.__name__
+            module.__file__ = self.get_filename(name)
+            if not sourceless:
+                try:
+                    module.__cached__ = _bootstrap.cache_from_source(module.__file__)
+                except NotImplementedError:
+                    module.__cached__ = module.__file__
+            else:
+                module.__cached__ = module.__file__
+            module.__package__ = name
+            if self.is_package(name):
+                module.__path__ = [_bootstrap._path_split(module.__file__)[0]]
+            else:
+                module.__package__ = module.__package__.rpartition('.')[0]
+            module.__loader__ = self
+            code_object = self.get_code(name)
+            _bootstrap._call_with_frames_removed(exec, code_object, module.__dict__)
+            return module
+    else:
+        def _load_module_wrapper(self, fullname):
+            return _SourceFileLoader.load_module(self, fullname)
+
     def _load_module_impl(self, fullname):
-        _SourceFileLoader.load_module(self, fullname)
-        mod = sys.modules[fullname]
+        mod = self._load_module_wrapper(fullname)
         self._init_module(mod)
         return mod
 
