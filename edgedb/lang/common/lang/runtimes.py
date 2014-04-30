@@ -189,6 +189,7 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
         code_counter = {}
 
         mod_adapters = cls.get_adapters(module)
+
         if mod_adapters:
             constructor = cls.get_derivative_constructor(module, mod_adapters)
 
@@ -242,13 +243,19 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
                     rest[attr_name] = attr
 
             classes_set = set(classes.values())
+            class_names = {c.__name__ for c in classes_set}
 
             class_g = {}
 
             for attr_name, attr in classes.items():
                 in_module_parents = set(attr.__mro__[1:]) & classes_set
-                class_g[attr.__name__] = {'item': attr, 'deps': [p.__name__
-                                           for p in in_module_parents]}
+                deps = {p.__name__ for p in in_module_parents}
+                explicit_deps = getattr(attr, '__mm_dependencies__', None)
+                if explicit_deps:
+                    explicit_deps = set(explicit_deps) & class_names
+                    deps.update(explicit_deps)
+
+                class_g[attr.__name__] = {'item': attr, 'deps': deps}
 
             sorted_classes = list(topological.sort(class_g))
 
