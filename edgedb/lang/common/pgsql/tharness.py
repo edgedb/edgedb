@@ -132,9 +132,10 @@ class Database(FunctionArgument):
 
 class DatabaseConnection(FunctionArgument):
     scope = 'class'
+    database_funcarg_cls = Database
 
     def setup(self):
-        data_url = self.space.get_funcarg('db', Database).data_url
+        data_url = self.space.get_funcarg('db', self.database_funcarg_cls).data_url
         connection = postgresql.open(data_url)
 
         self.cleanup_before_use(connection)
@@ -155,3 +156,12 @@ class DatabaseConnection(FunctionArgument):
 
     def cleanup_after_use(self, connection):
         pass
+
+
+class GlobalDatabase(Database):
+    scope = 'global'
+
+
+class GlobalDatabaseConnection(DatabaseConnection):
+    scope = 'global'
+    database_funcarg_cls = GlobalDatabase
