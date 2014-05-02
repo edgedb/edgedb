@@ -2241,10 +2241,10 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
                     col = dbops.AlterTableDropColumn(col)
                     alter_table.add_operation(col)
 
-        if self.has_table(result, meta):
-            old_table_name = common.get_table_name(result, catenate=False)
-            self.pgops.add(dbops.DropTable(name=old_table_name))
-            self.cancel_mapping_update(result, meta, context)
+        old_table_name = common.get_table_name(result, catenate=False)
+        condition = dbops.TableExists(name=old_table_name)
+        self.pgops.add(dbops.DropTable(name=old_table_name, conditions=[condition]))
+        self.cancel_mapping_update(result, meta, context)
 
         if not result.generic() and result.mapping != caos.types.ManyToMany:
             self.schedule_mapping_update(result, meta, context)
