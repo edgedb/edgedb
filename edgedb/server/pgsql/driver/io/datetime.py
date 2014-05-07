@@ -38,11 +38,6 @@ def timestamptz_pack(x,
     return ((days * seconds_in_day) + seconds, microseconds)
 
 
-def timestamptz_unpack(seconds):
-    timestamp = pg_datetime_io.timestamptz_unpack(seconds)
-    return timestamp.astimezone(DateTime.get_tz())
-
-
 oid_to_io = {
     postgresql.types.INTERVALOID: (
         compose((interval_pack, postgresql.types.io.lib.interval64_pack)),
@@ -54,7 +49,7 @@ oid_to_io = {
                                                  postgresql.types.io.lib.time64_pack)),
                                         pg_datetime_io.time64_pack_constants),
         pg_datetime_io.proc_when_not_in(compose((postgresql.types.io.lib.time64_unpack,
-                                                 timestamptz_unpack)),
+                                                 pg_datetime_io.timestamptz_unpack)),
                                         pg_datetime_io.time64_unpack_constants),
         datetime.datetime
     ),
