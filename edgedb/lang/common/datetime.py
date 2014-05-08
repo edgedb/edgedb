@@ -106,9 +106,108 @@ class DateTime(datetime.datetime):
         else:
             return result
 
-    def truncate(self, field):
-        # XXX
-        raise NotImplementedError
+    def _truncate_to_milliseconds(self):
+        return self.replace(microsecond=self.microsecond // 1000 * 1000)
+
+    def _truncate_to_week(self):
+        def _iso_calendar_to_date(iso_year, iso_week, iso_day):
+            jan4 = datetime.date(iso_year, 1, 4)
+            delta = datetime.timedelta(jan4.isoweekday() - 1)
+            return jan4 - delta + datetime.timedelta(days=iso_day - 1, weeks=iso_week-1)
+
+        year, week, weekday = self.isocalendar()
+
+        d = _iso_calendar_to_date(year, week, 1)
+
+        return self.replace(year=d.year, month=d.month, day=d.day)
+
+    def _truncate_to_quarter(self):
+        return self.replace(month=((self.month - 1) // 3) * 3 + 1)
+
+    def _truncate_to_decade(self):
+        return self.replace(year=self.year // 10 * 10)
+
+    def _truncate_to_century(self):
+        return self.replace(year=self.year // 100 * 100 + 1)
+
+    def _truncate_to_millennium(self):
+        return self.replace(year=self.year // 1000 * 1000 + 1)
+
+    _field_base = {
+        'microsecond': 0,
+        'second': 0,
+        'minute': 0,
+        'hour': 0,
+        'day': 1,
+        'month': 1,
+        'year': 1
+    }
+
+    _trunc_map = {
+        'microsecond': {
+        },
+        'millisecond': {
+            'fields': [],
+            'postproc': _truncate_to_milliseconds
+        },
+        'second': {
+            'fields': ['microsecond']
+        },
+        'minute': {
+            'fields': ['microsecond', 'second']
+        },
+        'hour': {
+            'fields': ['microsecond', 'second', 'minute']
+        },
+        'day': {
+            'fields': ['microsecond', 'second', 'minute', 'hour']
+        },
+        'week': {
+            'fields': ['microsecond', 'second', 'minute', 'hour'],
+            'postproc': _truncate_to_week
+        },
+        'month': {
+            'fields': ['microsecond', 'second', 'minute', 'hour', 'day']
+        },
+        'quarter': {
+            'fields': ['microsecond', 'second', 'minute', 'hour', 'day'],
+            'postproc': _truncate_to_quarter
+        },
+        'year': {
+            'fields': ['microsecond', 'second', 'minute', 'hour', 'day', 'month']
+        },
+        'decade': {
+            'fields': ['microsecond', 'second', 'minute', 'hour', 'day', 'month'],
+            'postproc': _truncate_to_decade
+        },
+        'century': {
+            'fields': ['microsecond', 'second', 'minute', 'hour', 'day', 'month'],
+            'postproc': _truncate_to_century
+        },
+        'millennium': {
+            'fields': ['microsecond', 'second', 'minute', 'hour', 'day', 'month'],
+            'postproc': _truncate_to_millennium
+        },
+    }
+
+    def truncate(self, precision):
+        truncated = self.astimezone(datetime.timezone.utc)
+
+        trunc_def = self._trunc_map.get(precision)
+        if trunc_def is None:
+            raise ValueError('DateTime.truncate: invalid precision: {}'.format(precision))
+
+        fields = trunc_def.get('fields')
+        postproc = trunc_def.get('postproc')
+
+        if fields:
+            replace_fields = {field: self._field_base[field] for field in fields}
+            truncated = truncated.replace(**replace_fields)
+
+        if postproc:
+            truncated = postproc(truncated)
+
+        return truncated
 
 
 class Date(datetime.date):
