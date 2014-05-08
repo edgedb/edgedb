@@ -207,6 +207,9 @@ class DateTime(datetime.datetime):
         if postproc:
             truncated = postproc(truncated)
 
+        if not isinstance(truncated, self.__class__):
+            truncated = self.__class__(truncated)
+
         return truncated
 
 
