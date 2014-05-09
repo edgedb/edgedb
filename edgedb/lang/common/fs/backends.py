@@ -188,10 +188,13 @@ class FSBackend(BaseFSBackend):
 class TemporaryFSBackend(FSBackend):
     def __init__(self, **kwargs):
         self.tmpdir = tempfile.mkdtemp()
+        self._closed = False
         super().__init__(path=self.tmpdir, **kwargs)
 
     def stop(self):
         try:
             super().stop()
         finally:
-            shutil.rmtree(self.tmpdir)
+            if not self._closed:
+                self._closed = True
+                shutil.rmtree(self.tmpdir)
