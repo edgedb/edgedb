@@ -13,6 +13,7 @@ import itertools
 import os
 import re
 import shutil
+import tempfile
 import uuid
 
 from metamagic.utils import buckets as base_buckets, config, abc
@@ -182,3 +183,15 @@ class FSBackend(BaseFSBackend):
     def get_file_pub_url(self, bucket, id, filename):
         filename = self.escape_filename(filename)
         return os.path.join(self.pub_path, self._get_base_name(bucket, id, filename))
+
+
+class TemporaryFSBackend(FSBackend):
+    def __init__(self, **kwargs):
+        self.tmpdir = tempfile.mkdtemp()
+        super().__init__(path=self.tmpdir, **kwargs)
+
+    def stop(self):
+        try:
+            super().stop()
+        finally:
+            shutil.rmtree(self.tmpdir)
