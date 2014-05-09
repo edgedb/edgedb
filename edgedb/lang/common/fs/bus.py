@@ -1,13 +1,15 @@
 ##
-# Copyright (c) 2012-2013 Sprymix Inc.
+# Copyright (c) 2012-2014 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
 
+import mimetypes
 import types
 
+from metamagic.spin import coroutine
 from metamagic.spin.node.dispatch.bus import public
 from metamagic.spin.node.dispatch.http import http as http_base
 from metamagic.spin.protocols.http import headers as http_headers, statuses as http_statuses
@@ -31,12 +33,31 @@ class http(http_base):
 http.add_middleware(CaosSessionMiddleware)
 
 
+@coroutine
+def _do_upload(session, fileobj, bucket_cls, concept, fieldcls=None, config=None):
+    with session.transaction():
+        with session.transaction():
+            bucket_entity = bucket_cls.get_bucket_entity(session)
+            concept = concept.set_session(session)
+            file_entity = concept(name=fileobj.filename, hash=fileobj.md5,
+                                  mimetype=str(fileobj.content_type),
+                                  bucket=bucket_entity)
+
+        file_id = file_entity.id
+        bucket_cls.store_http_file(id=file_id, file=fileobj)
+
+        if fieldcls and callable(getattr(fieldcls, 'validate', None)):
+            filepath = bucket_cls.get_file_path(file_id, file_entity.name)
+            fieldcls.validate(filepath, config)
+
+    return file_entity
+
+
 @files
 def upload(context, bucket:str, concept:str=None, fieldcls=None, config=None):
     bucket_cls = BucketMeta.get_bucket_class(bucket)
 
     session = context.session
-    bucket_entity = bucket_cls.get_bucket_entity(session)
 
     form = yield context.multipart.parse()
     files = form.getlist('files')
@@ -51,26 +72,12 @@ def upload(context, bucket:str, concept:str=None, fieldcls=None, config=None):
     else:
         Concept = session.schema.get(concept)
 
+    file_ids = {}
+
     with session.transaction():
-        file_entities = []
         for file in files:
-            file_entities.append((file, Concept(name=file.filename,
-                                                hash=file.md5,
-                                                mimetype=str(file.content_type),
-                                                bucket=bucket_entity),
-                                  file.filename))
-        session.sync()
-
-        file_ids = {}
-        for file, file_entity, filename in file_entities:
-            file_id = file_entity.id
-            bucket_cls.store_http_file(id=file_id, file=file)
-
-            if fieldcls and callable(getattr(fieldcls, 'validate', None)):
-                filepath = bucket_cls.get_file_path(file_id, file_entity.name)
-                fieldcls.validate(filepath, config)
-
-            file_ids[file_id] = [filename]
+            file_entity = yield _do_upload(session, file, bucket_cls, Concept, fieldcls, config)
+            file_ids[file_entity.id] = [file_entity.name]
 
     return file_ids
 
@@ -94,3 +101,27 @@ def download(context, id):
     context.response.headers.add(http_headers.Location(url))
 
     return ''
+
+
+@coroutine
+def http_upload(session, request, bucket_cls, *, concept=None, fieldcls=None, config=None,
+                                                 basename='file'):
+    """Store a file represented by an HTTP request body.
+
+    Note that this function does not handle multipart uploads.  For
+    that see :method:`upload`
+    """
+
+    content_type = request.headers.get('content-type')
+    if not content_type:
+        raise ValueError('missing required Content-Type header')
+
+    content_type = '{}/{}'.format(content_type.type, content_type.subtype)
+    extension = mimetypes.guess_extension(content_type)
+    filename = '{}{}'.format(basename, extension)
+
+    fileobj = yield request.get_file(filename)
+
+    file_entity = yield _do_upload(session, fileobj, bucket_cls, concept, fieldcls, config)
+
+    return file_entity
