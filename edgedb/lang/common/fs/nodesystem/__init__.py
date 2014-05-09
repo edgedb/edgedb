@@ -26,3 +26,14 @@ class FSSystem(node.System):
     def build(self):
         for bucket_cls in self.buckets.keys():
             bucket_cls.build()
+
+    def stop(self):
+        for backends in self.buckets.values():
+            for backend in backends:
+                try:
+                    backend.stop()
+                except Exception:
+                    self.logger.error(
+                        'node: FSSystem {!r}: error while stopping backend {!r}'
+                            .format(self, backend),
+                        exc_info=True)

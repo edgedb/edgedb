@@ -64,6 +64,9 @@ class BaseFSBackend(Backend):
             if not os.path.exists(self.path):
                 raise BackendError('unable to create directory {!r}'.format(self.path))
 
+    def stop(self):
+        pass
+
 
 class FSBackend(BaseFSBackend):
     _re_escape = re.compile(r'[^\w\-\._]')
