@@ -82,7 +82,7 @@ def upload(context, bucket:str, concept:str=None, fieldcls=None, config=None):
     return file_ids
 
 
-@http
+@http('download/<id>')
 def download(context, id):
     # NOTE: Right now, this method just redirects to the public URL of
     # the file.  Later, it should read settings from file's bucket
