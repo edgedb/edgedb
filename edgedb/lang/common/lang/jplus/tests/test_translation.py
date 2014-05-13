@@ -6,8 +6,6 @@
 ##
 
 
-import py.test
-
 from .base import BaseJPlusTest, transpiler_opts
 
 
@@ -134,7 +132,7 @@ class TestTranslation(BaseJPlusTest):
 
         class MA(type) {
             static constructor(name, bases, dct) {
-                dct.foo = name + name;
+                dct.foo = name[name.length - 1];
                 return super().constructor(name, bases, dct)
             }
         }
@@ -146,7 +144,7 @@ class TestTranslation(BaseJPlusTest):
         print(A().foo + ' | ' + B().foo)
 
         %%
-        __main__.A__main__.A | __main__.B__main__.B
+        A | B
         '''
 
     def test_utils_lang_jp_tr_class_super_1(self):
@@ -1444,4 +1442,70 @@ class TestTranslation(BaseJPlusTest):
         test1(1,foo='bar')
         %%
         undefined\n1
+        '''
+
+    def test_utils_lang_jp_tr_import_1(self):
+        '''JS+
+
+        from metamagic.utils.lang.jplus.tests.subs import test1
+
+        print(test1.sum(1, 41))
+
+        %%
+        42
+        '''
+
+    def test_utils_lang_jp_tr_import_2(self):
+        '''JS+
+
+        from metamagic.utils.lang.jplus.tests.subs.test1 import sum
+
+        print(sum(3, 41))
+
+        %%
+        44
+        '''
+
+    def test_utils_lang_jp_tr_import_3(self):
+        '''JS+
+
+        from metamagic.utils.lang.jplus.tests.subs.test1 import sum as ttt
+
+        print(ttt(3, 41))
+
+        %%
+        44
+        '''
+
+    def test_utils_lang_jp_tr_import_4(self):
+        '''JS+
+
+        from metamagic.utils.lang.jplus.tests.subs.test1 import sum as ttt, sub
+
+        print(ttt(3, 41) + ':' + sub(44, 2));
+
+        %%
+        44:42
+        '''
+
+    def test_utils_lang_jp_tr_import_5(self):
+        '''JS+
+
+        import metamagic.utils.lang.jplus.tests.subs.test1 as test1
+
+        print(test1.sum(3, 41))
+
+        %%
+        44
+        '''
+
+    def test_utils_lang_jp_tr_import_6(self):
+        '''JS+
+
+        import metamagic.utils.lang.jplus.tests.subs.test1
+
+        print(metamagic.utils.lang.jplus.tests.subs.test1.sum(3, 41))
+
+        %%
+        44
         '''

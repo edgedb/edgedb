@@ -13,12 +13,15 @@ from metamagic.utils.lang.javascript import ast as js_ast
 
 from metamagic.exceptions import MetamagicError
 
+from metamagic.utils import config
 from metamagic.utils.ast import iter_fields as iter_ast_fields
 from metamagic.utils.ast.visitor import NodeVisitor
 from metamagic.utils.ast.transformer import NodeTransformer
 from . import ast
 
 from metamagic.utils.lang.jplus.support import builtins as builtins_js
+
+from metamagic.utils.lang.import_ import utils as import_utils
 
 
 JSBuiltins = ['NaN', 'Object', 'Function', 'undefined', 'Math', 'JSON', 'String',
@@ -282,17 +285,24 @@ class NameError(TranspilerError):
     pass
 
 
-class Transpiler(NodeTransformer):
-    def __init__(self, *, debug=True):
+class Transpiler(NodeTransformer, metaclass=config.ConfigurableMeta):
+    debug = config.cvalue(True, type=bool)
+
+    def __init__(self, *, debug=None):
         super().__init__()
         self.scope_head = ScopeHead(head=None)
         self.state_head = StateHead(head=None)
 
-        self._kwargs_marker = '__jpkw' # NOTE! Same name in builtins.js.
-
         # In debug mode code will:
         # - Ensure arguments correctness (more args than needed, no undefineds etc)
-        self.debug = debug
+        if debug is None:
+            self.debug = self.__class__.debug
+        else:
+            self.debug = debug
+
+        self._kwargs_marker = '__jpkw' # NOTE! Same name in builtins.js.
+
+        self.modlist = collections.OrderedDict()
 
     @property
     def scope(self):
@@ -310,15 +320,16 @@ class Transpiler(NodeTransformer):
         if not self.scope.is_local(varname):
             raise NameError('variable {!r} must be local to the scope'.format(varname))
 
-    def transpile(self, node, *, module='__main__'):
+    def transpile(self, node, *, module='__main__', package=None):
         state = ModuleState(self,
                             module_name=module,
+                            package=package,
                             deps=set())
 
         with state:
             js = self.visit(node)
 
-        return js, {builtins_js}
+        return js, tuple(self.modlist.items())
 
     def visit(self, node):
         assert isinstance(node, js_ast.Base)
@@ -1659,3 +1670,92 @@ class Transpiler(NodeTransformer):
                         func,
                         js_ast.ThisNode()
                     ])
+
+    def add_module(self, module, implist=None):
+        if module not in self.modlist:
+            self.modlist[module] = set()
+        self.modlist[module].update(implist)
+
+    def visit_jp_ImportFromNode(self, node):
+        mod = node.module
+        implist = [name.name for name in node.names]
+        self.add_module(node.level * '.' + mod, implist)
+
+        if node.level > 1:
+            fullmod = '.'.join(self.state.package.split('.')[:-(node.level-1)]) + '.' + mod
+        elif node.level == 1:
+            fullmod = self.state.package + '.' + mod
+        else:
+            fullmod = mod
+
+        assigns = []
+        for imp in node.names:
+            cur = js_ast.IDNode(name=imp.name)
+            for name in reversed(fullmod.split('.')):
+                cur = js_ast.DotExpressionNode(
+                    left=js_ast.IDNode(name=name),
+                    right=cur)
+
+            impname = imp.asname or imp.name
+
+            self.scope.add(Variable(impname, needs_decl=True))
+
+            assigns.append(
+                js_ast.StatementNode(
+                    statement=js_ast.AssignmentExpressionNode(
+                        left=js_ast.IDNode(name=impname),
+                        op='=',
+                        right=js_ast.DotExpressionNode(
+                            left=js_ast.IDNode(name='$SXJSP'),
+                            right=js_ast.DotExpressionNode(
+                                left=js_ast.IDNode(name='_modules'),
+                                right=cur)))))
+
+        return js_ast.SourceElementsNode(code=assigns)
+
+    def visit_jp_ImportNode(self, node):
+        assigns = []
+
+        for imp in node.names:
+            self.add_module(imp.name, ())
+
+            if imp.asname:
+                cur = None
+                for name in reversed(imp.name.split('.')):
+                    if cur is None:
+                        cur = js_ast.IDNode(name=name)
+                    else:
+                        cur = js_ast.DotExpressionNode(
+                            left=js_ast.IDNode(name=name),
+                            right=cur)
+
+                self.scope.add(Variable(imp.asname, needs_decl=True))
+
+                assigns.append(
+                    js_ast.StatementNode(
+                        statement=js_ast.AssignmentExpressionNode(
+                            left=js_ast.IDNode(name=imp.asname),
+                            op='=',
+                            right=js_ast.DotExpressionNode(
+                                left=js_ast.IDNode(name='$SXJSP'),
+                                right=js_ast.DotExpressionNode(
+                                    left=js_ast.IDNode(name='_modules'),
+                                    right=cur)))))
+
+            else:
+                impname = imp.name.split('.')[0]
+
+                self.scope.add(Variable(impname, needs_decl=True))
+
+                assigns.append(
+                    js_ast.StatementNode(
+                        statement=js_ast.AssignmentExpressionNode(
+                            left=js_ast.IDNode(name=impname),
+                            op='=',
+                            right=js_ast.DotExpressionNode(
+                                left=js_ast.IDNode(name='$SXJSP'),
+                                right=js_ast.DotExpressionNode(
+                                    left=js_ast.IDNode(name='_modules'),
+                                    right=js_ast.IDNode(name=impname))))))
+
+        return js_ast.SourceElementsNode(code=assigns)

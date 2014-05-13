@@ -110,39 +110,52 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
 
         modname = 'tmp_mod_' + (name or 'test_js')
 
+        module = mcls.load_test_module_from_source(modname, source)
+
+        deps = Target.get_import_list((module,))
+        deps.discard(module)
+        return module, deps
+
+    @classmethod
+    def load_test_module_from_source(mcls, modname, source):
         loader = JSBufferLoader(modname, source.encode('utf-8'), JSLanguage)
 
         with debug.debug_logger_off():
             module = loader.load_module(modname)
 
-        deps = Target.get_import_list((module,))
-        deps.discard(module)
-        return source, deps
+        return module
+
+    @classmethod
+    def get_source(mcls, module):
+        if isinstance(module, JavaScriptModule):
+            with open(module.__file__, 'rt') as mod_f:
+                return mod_f.read()
+        elif (isinstance(module, resource.VirtualFile) and
+                                    isinstance(module, BaseJavaScriptModule)):
+            return module.__sx_resource_get_source__().decode('utf-8')
 
     @classmethod
     def compile_boostrap(mcls, deps):
-        imports = []
         bootstrap = []
         for dep in deps:
-            if isinstance(dep, JavaScriptModule):
-                imports.append(dep.__name__)
-                with open(dep.__file__, 'rt') as dep_f:
-                    bootstrap.append(dep_f.read())
-            elif (isinstance(dep, resource.VirtualFile) and
-                                        isinstance(dep, BaseJavaScriptModule)):
-                bootstrap.append(dep.__sx_resource_get_source__().decode('utf-8'))
+            source = mcls.get_source(dep)
+            if source:
+                bootstrap.append(source)
 
-        return imports, bootstrap
+        return bootstrap
 
     @classmethod
-    def do_test(mcls, source, name=None, data=None):
-        source, deps = mcls.parse_test(source, name=name)
-        imports, bootstrap = mcls.compile_boostrap(deps)
+    def do_test(mcls, source, name=None, data=None, *, expected_output='OK'):
+        module, deps = mcls.parse_test(source, name=name)
+
+        js_source = mcls.get_source(module)
+        bootstrap = mcls.compile_boostrap(deps)
 
         if data is not None:
             bootstrap.append('var $ = ' + json.dumps(data) + ';');
 
-        mcls.run_v8(imports, '\n;\n'.join(bootstrap), source)
+        mcls.run_v8(deps, '\n;\n'.join(bootstrap), js_source,
+                    expected_output=expected_output)
 
     @classmethod
     def _gen_html(mcls, cls, dct):
@@ -204,7 +217,7 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
         return cls
 
     @classmethod
-    def run_v8(mcls, imports, bootstrap, source):
+    def run_v8(mcls, imports, bootstrap, source, expected_output='OK'):
         with tempfile.NamedTemporaryFile('w') as file:
             file.write('(function() {\n\n');
             file.write('function print() { console.log.apply(console, arguments); };\n\n');
@@ -213,15 +226,16 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
             file.write('\n\n}).call(global);'); #nodejs: to fix 'this' to point to the global ns
             file.flush()
 
-            result = subprocess.getoutput('{} {}'.format(mcls.v8_executable, file.name))
-            if result != 'OK':
+            result = subprocess.getoutput('{} {}'.format(mcls.v8_executable, file.name)).strip()
+            if result != expected_output:
                 print()
                 markup.dump(imports, header='Imports', trim=False)
                 markup.dump_code(source, lexer='javascript', header='Test Source')
                 markup.dump_header('Test Execution Trace')
                 print(result)
 
-            assert result =='OK'
+            assert result == expected_output, \
+                   'expected {!r} != result {!r}'.format(expected_output, result)
 
     @classmethod
     def make_test(mcls, meth, doc):

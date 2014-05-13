@@ -169,6 +169,8 @@ $SXJSP = (function() {
     return EXPORTS({
         /* private */
 
+        _modules: modules,
+
         _module: function(name, dct) {
             var parts = name.split('.'),
                 i, len = parts.length,
