@@ -155,6 +155,14 @@ class Language(lang_meta.Language):
         yield '__jplus_js_source__', code.code
 
 
+class JPlusJavaScriptRuntimeDerivative(javascript.JavaScriptRuntimeDerivative):
+    def __sx_resource_get_source__(self):
+        # Bypass common JavaScript module wrapping, as JPlus transpiler
+        # handles it in its own way.
+        #
+        return resource.VirtualFile.__sx_resource_get_source__(self)
+
+
 class JavaScriptAdapter(javascript.JavaScriptRuntimeAdapter,
                         adapts_instances_of=JPlusModule):
     def get_source(self):
@@ -167,3 +175,9 @@ class JavaScriptAdapter(javascript.JavaScriptRuntimeAdapter,
 
         deps.add(builtins)
         return deps
+
+    @classmethod
+    def new_derivative(cls, module, runtime):
+        res = JPlusJavaScriptRuntimeDerivative(None, runtime.get_derivative_mod_name(module))
+        res.__language__ = Language
+        return res
