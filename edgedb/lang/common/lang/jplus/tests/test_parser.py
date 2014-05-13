@@ -6,8 +6,6 @@
 ##
 
 
-import py.test
-
 from .base import BaseJPlusTest, expected_fail
 from metamagic.utils.lang.javascript.parser.jsparser import UnexpectedToken, UnknownToken
 
