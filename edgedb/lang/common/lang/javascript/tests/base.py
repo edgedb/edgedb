@@ -22,6 +22,7 @@ from metamagic.utils.lang.javascript.codegen import JavascriptSourceGenerator
 from metamagic.utils.lang.javascript import BufferLoader as JSBufferLoader, BaseJavaScriptModule, \
                                            Language as JSLanguage, JavaScriptModule, \
                                            VirtualJavaScriptResource
+from metamagic.utils.lang.javascript import module as js_module_def
 
 
 def jxfail(*args, **kwargs):
@@ -114,6 +115,7 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
 
         deps = Target.get_import_list((module,))
         deps.discard(module)
+        deps.add(js_module_def)
         return module, deps
 
     @classmethod

@@ -185,7 +185,7 @@ class Loader(JavascriptLoader, lang_loader.LanguageSourceFileLoader):
 
 class BufferLoader(JavascriptLoader, lang_loader.LanguageSourceBufferLoader):
     def new_module(self, fullname):
-        return VirtualJavaScriptResource(None, fullname)
+        return VirtualJavaScriptResource(self.buffer, fullname)
 
 
 # XXX Do this implicitly?
