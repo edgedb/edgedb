@@ -1,12 +1,12 @@
 /*
-* Copyright (c) 2012 Sprymix Inc.
+* Copyright (c) 2012, 2014 Sprymix Inc.
 * All rights reserved.
 *
 * See LICENSE for details.
 **/
 
 
-// %from . import sx
+// %from . import sx_base
 
 
 (function(global) {'use strict'; if (!sx.$bootstrap_class_system) {
@@ -23,7 +23,6 @@ sx.$bootstrap_class_system = function(opts) {
         error_mcls_conflict = 'metaclass conflict: the metaclass of a derived class must be ' +
                               'a (non-strict) subclass of the metaclasses of all its bases',
 
-        Error = sx.Error,
         natives = [Array, Number, Date, Boolean, String, Object, RegExp],
         i,
 
@@ -68,10 +67,18 @@ sx.$bootstrap_class_system = function(opts) {
         AUTO_REGISTER_NS = opts.auto_register_ns,
         LAST_INST_ATTR = opts.last_instance_attr,
         ARGS_MARKER = {},
-        CACHED_CONSTR = opts.cached_constructor;
+        CACHED_CONSTR = opts.cached_constructor,
+        sx_ns_resolve, sx_ns;
 
     if (AUTO_REGISTER_NS) {
-        var sx_ns_resolve = sx.ns.resolve;
+        if (sx.ns) {
+            sx_ns_resolve = sx.ns.resolve;
+            sx_ns = sx.ns;
+        } else {
+            sx_ns_resolve = sx_ns = function() {
+                throw 'sx.ns is undefined';
+            };
+        }
     }
 
     if (!indexOf) {
@@ -326,7 +333,7 @@ sx.$bootstrap_class_system = function(opts) {
         cls = make_universal_constructor();
 
         if (AUTO_REGISTER_NS && name.indexOf('.') != -1) {
-            sx.ns(name, cls);
+            sx_ns(name, cls);
         }
 
         cls.toString = function() { return '<class ' + name + '>'; };
@@ -336,7 +343,7 @@ sx.$bootstrap_class_system = function(opts) {
             cls[MODULE_ATTR] = name.substr(0, i);
         } else {
             cls[NAME_ATTR] = name;
-            cls[MODULE_ATTR] = '';
+            cls[MODULE_ATTR] = null;
         }
         cls[QUALNAME_ATTR] = name;
 
@@ -631,7 +638,9 @@ sx.$bootstrap_class_system = function(opts) {
     };
 
     // Low-level function that should be used by compilers only
-    function sx_define_ll(name, bases, body, metaclass) {
+    function sx_define_ll(module, name, bases, body, metaclass) {
+        var cls;
+
         if (bases.length == 0) {
             bases.push(ObjectClass);
         }
@@ -643,10 +652,14 @@ sx.$bootstrap_class_system = function(opts) {
         }
 
         if (hop.call(metaclass, MRO_ATTR)) {
-            return new metaclass(name, bases, body);
+            cls = new metaclass(name, bases, body);
         } else {
-            return metaclass(name, bases, body);
+            cls = metaclass(name, bases, body);
         }
+
+        cls[MODULE_ATTR] = module || null;
+
+        return cls;
     };
 
     sx_define.new_class = sx_define_ll;

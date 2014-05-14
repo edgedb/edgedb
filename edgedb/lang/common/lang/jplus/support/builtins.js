@@ -6,7 +6,7 @@
 **/
 
 
-// %from metamagic.utils.lang.javascript import sx, class
+// %from metamagic.utils.lang.javascript import sx_base, class
 
 
 $SXJSP = (function() {
@@ -21,44 +21,9 @@ $SXJSP = (function() {
         Array_slice = StdArray.prototype.slice,
         _no_kwarg = {}; // marker
 
+    var Object_keys = sx.keys;
 
-    var Object_keys = StdObject.keys || (function () {
-        // Code from:
-        // https://developer.mozilla.org/en-US/docs/JavaScript/Reference/Global_Objects/Object/keys
-        var hasDontEnumBug = !{toString:null}.propertyIsEnumerable("toString"),
-            DontEnums = [
-                'toString',
-                'toLocaleString',
-                'valueOf',
-                'hasOwnProperty',
-                'isPrototypeOf',
-                'propertyIsEnumerable',
-                'constructor'
-            ],
-            DontEnumsLength = DontEnums.length;
-
-        return function (o) {
-            if (typeof o != "object" && typeof o != "function" || o === null)
-                throw new TypeError("Object.keys called on a non-object");
-
-            var result = [];
-            for (var name in o) {
-                if (hop.call(o, name))
-                    result.push(name);
-            }
-
-            if (hasDontEnumBug) {
-                for (var i = 0; i < DontEnumsLength; i++) {
-                    if (hop.call(o, DontEnums[i]))
-                        result.push(DontEnums[i]);
-                }
-            }
-
-            return result;
-        };
-    })();
-
-    var Function_bind = StdFunction.prototype.bind1 || (function (scope) {
+    var Function_bind = StdFunction.prototype.bind || (function (scope) {
         if (!callable(this)) {
             throw new TypeError("Function.prototype.bind - what is trying to be bound is not callable");
         }

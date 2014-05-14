@@ -132,7 +132,7 @@ class TestTranslation(BaseJPlusTest):
 
         class MA(type) {
             static constructor(name, bases, dct) {
-                dct.foo = name[name.length - 1];
+                dct.foo = name;
                 return super().constructor(name, bases, dct)
             }
         }

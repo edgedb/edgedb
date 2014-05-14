@@ -1,21 +1,26 @@
 /*
-* Copyright (c) 2011-2012 Sprymix Inc.
+* Copyright (c) 2011-2014 Sprymix Inc.
 * All rights reserved.
 *
 * See LICENSE for details.
 **/
 
 
+// %from . import sx_base
 // %from . import json
 
 
 (function(global) {
     'use strict';
 
+    var sx = global.sx;
+
+    if (sx.ns) {
+        return; // same module loaded more than once
+    }
+
     var undefined = void(0),
-        sx = function(selector) { return new sx._fn.init(selector); },
         _is_id = /^#([\w\-]*)$/,
-        _id_counter = 0,
         _unescape_entities = {
             '&amp;': '&',
             '&gt;': '>',
@@ -29,66 +34,30 @@
                                                 : String.fromCharCode(parseInt(entity.substr(2)));
         },
         has_own_property = Object.prototype.hasOwnProperty,
-        NodeList = (typeof window != 'undefined' && window.NodeList) ? window.NodeList : null,
-        namespace_id = '5a697742-a5e9-11e2-ad56-58b035786373';
+        tos = Object.prototype.toString,
+        NodeList = (typeof window != 'undefined' && window.NodeList) ? window.NodeList : null;
 
-    function _apply(obj /*, ... */) {
-        var i = 1,
-            len = arguments.length,
-            property, arg;
+    sx.$call = function(selector) { return new sx._fn.init(selector); }
 
-        for (; i < len; i++) {
-            arg = arguments[i];
-            for (property in arg) {
-                if (has_own_property.call(arg, property)) {
-                    obj[property] = arg[property];
-                }
-            }
-        }
-
-        return obj;
-    };
-
-    var Error = function(msg) {
-        this.message = msg;
-    };
-    Error.prototype = {
-        name: 'sx.Error',
-        toString: function() {
-            return this.name + ': ' + this.message;
-        }
-    };
-    Error.toString = function() {
-        return 'sx.Error';
-    };
-
-    _apply(sx, {
-        Error: Error,
-
-        id: function(suffix) {
-            return 'sx-id-' + (++_id_counter) + (suffix || '');
-        },
-
-        apply: _apply,
-
+    sx.apply(sx, {
         is_array: function sx_is_array(obj) {
-            return Object.prototype.toString.call(obj) === '[object Array]';
+            return tos.call(obj) === '[object Array]';
         },
 
         is_function: function sx_is_function(obj) {
-            return Object.prototype.toString.call(obj) === '[object Function]';
+            return tos.call(obj) === '[object Function]';
         },
 
         is_object: function sx_is_object(obj) {
-            return !!obj && Object.prototype.toString.call(obj) === '[object Object]';
+            return !!obj && tos.call(obj) === '[object Object]';
         },
 
         is_string: function sx_is_string(obj) {
-            return Object.prototype.toString.call(obj) === '[object String]';
+            return tos.call(obj) === '[object String]';
         },
 
         is_number: function sx_is_number(obj) {
-            return Object.prototype.toString.call(obj) === '[object Number]';
+            return tos.call(obj) === '[object Number]';
         },
 
         is_node: function(obj) {
@@ -357,49 +326,6 @@
             return result;
         },
 
-        keys: (function() {
-            if (Object.keys) {
-                return Object.keys;
-            }
-
-            // copied from
-            // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/keys
-            var hasDontEnumBug = !({toString: null}).propertyIsEnumerable('toString'),
-                dontEnums = [
-                    'toString',
-                    'toLocaleString',
-                    'valueOf',
-                    'hasOwnProperty',
-                    'isPrototypeOf',
-                    'propertyIsEnumerable',
-                    'constructor'
-                ],
-                dontEnumsLength = dontEnums.length;
-
-            return function sx_keys(obj) {
-                if (typeof obj !== 'object' && (typeof obj !== 'function' || obj === null)) {
-                    throw new TypeError('Object.keys called on non-object');
-                }
-
-                var result = [], prop, i;
-
-                for (prop in obj) {
-                    if (has_own_property.call(obj, prop)) {
-                        result.push(prop);
-                    }
-                }
-
-                if (hasDontEnumBug) {
-                    for (i = 0; i < dontEnumsLength; i++) {
-                        if (has_own_property.call(obj, dontEnums[i])) {
-                            result.push(dontEnums[i]);
-                        }
-                    }
-                }
-                return result;
-            }
-        })(),
-
         len: function sx_len(obj) {
             if (sx.is_array(obj) || obj instanceof sx) {
                 return obj.length;
@@ -607,7 +533,7 @@
                 }
 
                 if (lo < 0) {
-                    throw new sx.Error('bisect: lo must not be negative');
+                    throw new Error('bisect: lo must not be negative');
                 }
 
                 if (typeof hi == 'undefined') {
@@ -634,7 +560,7 @@
                 }
 
                 if (lo < 0) {
-                    throw new sx.Error('bisect: lo must not be negative');
+                    throw new Error('bisect: lo must not be negative');
                 }
 
                 if (typeof hi == 'undefined') {
@@ -710,7 +636,7 @@
 
             partition: function sx_partition(str, separator) {
                 if (!separator) {
-                    throw new sx.Error('empty separator');
+                    throw new Error('empty separator');
                 }
 
                 var seplen = separator.length;
@@ -725,7 +651,7 @@
 
             rpartition: function sx_rpartition(str, separator) {
                 if (!separator) {
-                    throw new sx.Error('empty separator');
+                    throw new Error('empty separator');
                 }
 
                 var seplen = separator.length;
@@ -777,7 +703,7 @@
                     var match = parse_re.exec(value);
 
                     if (!match) {
-                        throw new sx.Error('sx.date.parse_iso: invalid date: "' + value + '"');
+                        throw new Error('sx.date.parse_iso: invalid date: "' + value + '"');
                     }
 
                     var year = Number(match[1]),
@@ -804,7 +730,7 @@
                         unix_day;
 
                     if (month > 11) {
-                        throw new sx.Error('sx.date.parse_iso: invalid date: "' + value + '"');
+                        throw new Error('sx.date.parse_iso: invalid date: "' + value + '"');
                     }
 
                     unix_day = _unix_day(year, month);
@@ -817,7 +743,7 @@
                             && tzoffsetminute < 60;
 
                     if (!valid) {
-                        throw new sx.Error('sx.date.parse_iso: invalid date: "' + value + '"');
+                        throw new Error('sx.date.parse_iso: invalid date: "' + value + '"');
                     }
 
                     var hours = ((unix_day + day) * 24 + hour + tzoffsethour * tzoffsetsign),
@@ -1212,9 +1138,4 @@
     };
 
     sx._fn.init.prototype = sx._fn;
-    sx.$sx_namespace_id$ = namespace_id;
-
-    if (!global.sx || global.sx.$sx_namespace_id$ != namespace_id) {
-        global.sx = sx;
-    }
 })(this);

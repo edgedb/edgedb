@@ -158,8 +158,7 @@ class TestJSsx(JSFunctionalTest):
         '''JS
         // %from metamagic.utils.lang.javascript import sx
 
-        assert.equal(String(new sx.Error('foo')), 'sx.Error: foo');
-        assert.equal(String(sx.Error), 'sx.Error');
+        assert.equal(sx.Error, Error);
         '''
 
     def test_utils_lang_js_sx_contains(self):

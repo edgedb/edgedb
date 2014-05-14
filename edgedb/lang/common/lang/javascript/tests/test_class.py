@@ -57,7 +57,7 @@ class TestJSClass(JSFunctionalTest):
         });
 
         assert.equal(A.$name, 'A');
-        assert.equal(A.$module, '');
+        assert.equal(A.$module, null);
 
         assert.equal(A.$mro, [A, sx.object]);
         assert.equal(B.$mro, [B, sx.object]);

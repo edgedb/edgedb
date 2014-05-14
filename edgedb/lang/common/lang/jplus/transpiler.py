@@ -1023,12 +1023,8 @@ class Transpiler(NodeTransformer, metaclass=config.ConfigurableMeta):
                        right=js_ast.CallNode(
                            call=js_ast.IDNode(name=js_classdef),
                            arguments=[
-                               js_ast.BinExpressionNode(
-                                    left=js_ast.IDNode(
-                                        name='__SXJSP_module_name'),
-                                    op='+',
-                                    right=js_ast.StringLiteralNode(
-                                        value='.' + name)),
+                               js_ast.IDNode(name='__SXJSP_module_name'),
+                               js_ast.StringLiteralNode(value=name),
                                js_ast.ArrayLiteralNode(array=bases),
                                js_ast.ObjectLiteralNode(
                                    properties=dct_items),
