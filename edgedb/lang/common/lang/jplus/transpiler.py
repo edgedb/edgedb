@@ -1519,8 +1519,13 @@ class Transpiler(NodeTransformer, metaclass=config.ConfigurableMeta):
         return self.generic_visit(node)
 
     visit_js_ArrayLiteralNode = generic_visit_expression
-    visit_js_StatementNode = generic_visit_expression
     visit_js_ExpressionListNode = generic_visit_expression
+
+    def visit_js_StatementNode(self, node):
+        node = self.generic_visit_expression(node)
+        if node is None or getattr(node, 'statement', None) is None:
+            return
+        return node
 
     def visit_js_ObjectLiteralNode(self, node):
         for p in node.properties:
@@ -1678,6 +1683,12 @@ class Transpiler(NodeTransformer, metaclass=config.ConfigurableMeta):
 
     def visit_jp_ImportFromNode(self, node):
         mod = node.module
+
+        if mod == '__javascript__':
+            for name in node.names:
+                self.scope.add(Variable(name.name, needs_decl=False))
+            return
+
         implist = [name.name for name in node.names]
         self.add_module(node.level * '.' + mod, implist)
 

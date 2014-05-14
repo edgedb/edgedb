@@ -1447,9 +1447,9 @@ class TestTranslation(BaseJPlusTest):
     def test_utils_lang_jp_tr_import_1(self):
         '''JS+
 
-        from metamagic.utils.lang.jplus.tests.subs import test1
+        from metamagic.utils.lang.jplus.tests.subs import test1;
 
-        print(test1.sum(1, 41))
+        print(test1.sum(1, 41));
 
         %%
         42
@@ -1458,9 +1458,9 @@ class TestTranslation(BaseJPlusTest):
     def test_utils_lang_jp_tr_import_2(self):
         '''JS+
 
-        from metamagic.utils.lang.jplus.tests.subs.test1 import sum
+        from metamagic.utils.lang.jplus.tests.subs.test1 import sum;
 
-        print(sum(3, 41))
+        print(sum(3, 41));
 
         %%
         44
@@ -1469,7 +1469,7 @@ class TestTranslation(BaseJPlusTest):
     def test_utils_lang_jp_tr_import_3(self):
         '''JS+
 
-        from metamagic.utils.lang.jplus.tests.subs.test1 import sum as ttt
+        from metamagic.utils.lang.jplus.tests.subs.test1 import sum as ttt;
 
         print(ttt(3, 41))
 
@@ -1480,7 +1480,7 @@ class TestTranslation(BaseJPlusTest):
     def test_utils_lang_jp_tr_import_4(self):
         '''JS+
 
-        from metamagic.utils.lang.jplus.tests.subs.test1 import sum as ttt, sub
+        from metamagic.utils.lang.jplus.tests.subs.test1 import sum as ttt, sub;
 
         print(ttt(3, 41) + ':' + sub(44, 2));
 
@@ -1491,7 +1491,7 @@ class TestTranslation(BaseJPlusTest):
     def test_utils_lang_jp_tr_import_5(self):
         '''JS+
 
-        import metamagic.utils.lang.jplus.tests.subs.test1 as test1
+        import metamagic.utils.lang.jplus.tests.subs.test1 as test1;
 
         print(test1.sum(3, 41))
 
@@ -1502,10 +1502,23 @@ class TestTranslation(BaseJPlusTest):
     def test_utils_lang_jp_tr_import_6(self):
         '''JS+
 
-        import metamagic.utils.lang.jplus.tests.subs.test1
+        import metamagic.utils.lang.jplus.tests.subs.test1;
 
         print(metamagic.utils.lang.jplus.tests.subs.test1.sum(3, 41))
 
         %%
         44
+        '''
+
+    def test_utils_lang_jp_tr_import_7(self):
+        '''JS+
+
+        from __javascript__ import Float32Array;
+
+        if (Float32Array) {
+            print(1);
+        }
+
+        %%
+        1
         '''
