@@ -117,6 +117,14 @@ class State:
                 return cur
             cur = cur._parent
 
+    def within(self, state_class):
+        cur = self
+        while cur is not None:
+            if isinstance(cur, state_class):
+                return True
+            cur = cur._parent
+        return False
+
     def distance(self, parent_state_class):
         assert issubclass(parent_state_class, State)
         idx = 0
@@ -146,6 +154,10 @@ class ForState(State):
 
 
 class WhileState(State):
+    pass
+
+
+class JSWithState(State):
     pass
 
 
@@ -313,6 +325,8 @@ class Transpiler(NodeTransformer, metaclass=config.ConfigurableMeta):
         return self.state_head.head
 
     def check_scope_load(self, varname):
+        if self.state.within(JSWithState):
+            return
         if varname not in self.scope:
             raise NameError('unknown variable: {!r}'.format(varname))
 
@@ -369,18 +383,30 @@ class Transpiler(NodeTransformer, metaclass=config.ConfigurableMeta):
                                vars=vars))
 
     def visit_jp_ModuleNode(self, node):
-        processed = [js_ast.StatementNode(
-                        statement=js_ast.StringLiteralNode(
-                                        value='use strict'))]
+        processed = []
 
         scope = ModuleScope(self, node=node)
         name = self.state(ModuleState).module_name
         scope.add(Variable(name='__SXJSP_module_name', needs_decl=True,
                            value=js_ast.StringLiteralNode(value=name), aux=True))
 
+        use_strict = True
         with scope:
             for child in node.body:
+                if isinstance(child, js_ast.StatementNode) \
+                        and isinstance(child.statement, js_ast.StringLiteralNode) \
+                        and child.statement.value == 'non-strict':
+                    use_strict = False
+                    continue
+
                 processed.append(self.visit(child))
+
+        if use_strict:
+            processed.insert(0,
+                js_ast.StatementNode(
+                    statement=js_ast.StringLiteralNode(
+                        value='use strict'))
+            )
 
         var = self._gen_var(scope)
         if var:
@@ -1394,6 +1420,10 @@ class Transpiler(NodeTransformer, metaclass=config.ConfigurableMeta):
 
     def visit_js_WhileNode(self, node):
         with WhileState(self):
+            return self.generic_visit(node)
+
+    def visit_js_WithNode(self, node):
+        with JSWithState(self):
             return self.generic_visit(node)
 
     def visit_jp_WithNode(self, node):

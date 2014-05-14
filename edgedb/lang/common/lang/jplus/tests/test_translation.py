@@ -132,7 +132,7 @@ class TestTranslation(BaseJPlusTest):
 
         class MA(type) {
             static constructor(name, bases, dct) {
-                dct.foo = name;
+                dct.foo = name[name.length - 1];
                 return super().constructor(name, bases, dct)
             }
         }
@@ -749,13 +749,13 @@ class TestTranslation(BaseJPlusTest):
             }
         }
 
-        with (W1() as w) {
+        do with (W1() as w) {
             chk += w['a'];
         }
 
         chk += '|';
 
-        with (W1() as w) {
+        do with (W1() as w) {
             throw E();
         }
 
@@ -789,7 +789,7 @@ class TestTranslation(BaseJPlusTest):
             }
         }
 
-        with (W('a0') as a0, W('a1'), W('a2')) {
+        do with (W('a0') as a0, W('a1'), W('a2')) {
             chk += '|' + a0.name + '|';
         }
 
@@ -803,7 +803,7 @@ class TestTranslation(BaseJPlusTest):
     def test_utils_lang_jp_tr_with_3(self):
         '''JS+
         try {
-            with (1) {}
+            do with (1) {}
             print('fail');
         } catch (e) {
             e2 = e + '';
@@ -816,6 +816,20 @@ class TestTranslation(BaseJPlusTest):
 
         %%
         ok
+        '''
+
+    def test_utils_lang_jp_tr_with_4(self):
+        '''JS+
+        'non-strict';
+
+        a = {'b': 42};
+
+        with (a) {
+            print(b);
+        }
+
+        %%
+        42
         '''
 
     def test_utils_lang_jp_tr_func_rest_1(self):
@@ -1336,13 +1350,13 @@ class TestTranslation(BaseJPlusTest):
         }
 
         try {
-            with (assert_raises(Error)) {
+            do with (assert_raises(Error)) {
             }
         } except (Error) {}
         else { assert 0 }
 
         try {
-            with (assert_raises(Error)) {
+            do with (assert_raises(Error)) {
                 throw new Error('aaa')
             }
         } except (Error) {assert 0}
@@ -1351,10 +1365,10 @@ class TestTranslation(BaseJPlusTest):
         function test1(a) {
             print(a)
         }
-        with (assert_raises(TypeError, 'takes 1 of positional only arguments (2 given)')) {
+        do with (assert_raises(TypeError, 'takes 1 of positional only arguments (2 given)')) {
             test1(1, 2)
         }
-        with (assert_raises(TypeError, 'takes 1 of positional only arguments (0 given)')) {
+        do with (assert_raises(TypeError, 'takes 1 of positional only arguments (0 given)')) {
             test1()
         }
 
@@ -1362,19 +1376,19 @@ class TestTranslation(BaseJPlusTest):
             print(a)
         }
 
-        with (assert_raises(TypeError, 'got an unexpected keyword argument b')) {
+        do with (assert_raises(TypeError, 'got an unexpected keyword argument b')) {
             test2(1, b=2)
         }
 
-        with (assert_raises(TypeError, 'got an unexpected keyword argument c')) {
+        do with (assert_raises(TypeError, 'got an unexpected keyword argument c')) {
             test2(1, c=2)
         }
 
-        with (assert_raises(TypeError, 'takes 2 of positional only arguments (3 given)')) {
+        do with (assert_raises(TypeError, 'takes 2 of positional only arguments (3 given)')) {
             test2(1, 2, 3)
         }
 
-        with (assert_raises(TypeError, 'got an unexpected keyword argument c')) {
+        do with (assert_raises(TypeError, 'got an unexpected keyword argument c')) {
             test2(1, 2, c=2)
         }
 
@@ -1382,19 +1396,19 @@ class TestTranslation(BaseJPlusTest):
             print(a)
         }
 
-        with (assert_raises(TypeError, 'takes 1 of positional only arguments (2 given)')) {
+        do with (assert_raises(TypeError, 'takes 1 of positional only arguments (2 given)')) {
             test3(1, 2)
         }
 
-        with (assert_raises(TypeError, 'needs keyword-only argument b')) {
+        do with (assert_raises(TypeError, 'needs keyword-only argument b')) {
             test3(1)
         }
 
-        with (assert_raises(TypeError, 'needs keyword-only argument b')) {
+        do with (assert_raises(TypeError, 'needs keyword-only argument b')) {
             test3(1, c=2)
         }
 
-        with (assert_raises(TypeError, 'test3() got an unexpected keyword argument c')) {
+        do with (assert_raises(TypeError, 'test3() got an unexpected keyword argument c')) {
             test3(1, b=10, c=2)
         }
         '''

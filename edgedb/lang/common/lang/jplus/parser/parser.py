@@ -26,13 +26,14 @@ class Parser(JSParser):
     SPECIAL_NAMES['is'] = 'Binary'
     SPECIAL_NAMES['isnt'] = 'Binary'
 
-    def __init__(self):
+    def __init__(self, withstatement=True):
         super().__init__(expansionsupport=True, forofsupport=True,
                          arraycompsupport=True, arrowfuncsupport=True,
                          paramdefaultsupport=True)
 
         self.lexer.multiline_strings = True
         self.lexer.at_literal = True
+        self.withstatement = withstatement
 
     def parse(self, *args, **kwargs):
         node = super().parse(*args, **kwargs)
@@ -54,9 +55,14 @@ class Parser(JSParser):
 
         return ast.AssertNode(test=test, failexpr=failexpr)
 
-    @stamp_state('stmt', affectslabels=True)
-    def parse_with_guts(self):
-        started_at = self.prevtoken.position
+    @stamp_state('loop', affectslabels=True)
+    def parse_do_guts(self):
+        """Parse do loop."""
+
+        started_at = self.token.position
+
+        if not self.tentative_match('with', regexp=False):
+            return super().parse_do_guts()
 
         self.must_match('(')
 
