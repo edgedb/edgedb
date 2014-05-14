@@ -23,21 +23,17 @@ from metamagic.utils.markup import dump, dump_code
 from metamagic.utils.lang.jplus import transpiler, parser
 from metamagic.utils.lang.javascript import codegen
 from metamagic.utils.lang import javascript
+from metamagic.utils.lang import runtimes as lang_runtimes
 
 
-class JPlusModule(types.ModuleType):
-    pass
+class JPlusModule(javascript.BaseJavaScriptModule, resource.VirtualFile):
+    def __init__(self, name):
+        javascript.BaseJavaScriptModule.__init__(self, name)
+        resource.VirtualFile.__init__(self, None, name + '.js')
 
 
 class ProxyJPlusModule(module_types.ProxyModule, JPlusModule):
     pass
-
-
-class VirtualJPlusResource(JPlusModule, resource.VirtualFile):
-    def __init__(self, source, name):
-        self.__sx_imports__ = []
-        JPlusModule.__init__(self, name)
-        resource.VirtualFile.__init__(self, source, name + '.jp')
 
 
 class JPlusModuleCache(loader.LangModuleCache):
@@ -75,8 +71,6 @@ class Compiler:
         dump(jsp_ast)
         """
 
-
-
         js_ast, deps = self.transpiler.transpile(jsp_ast,
                                                  module=modname,
                                                  package=package)
@@ -106,7 +100,7 @@ class Loader(BaseLoader, loader.LanguageSourceFileLoader):
 
 class BufferLoader(BaseLoader, loader.LanguageSourceBufferLoader):
     def new_module(self, fullname):
-        return VirtualJPlusResource(None, fullname)
+        return JPlusModule(fullname)
 
 
 class JPlusCodeObject(loader.LanguageCodeObject):
@@ -122,10 +116,11 @@ class JPlusCodeObject(loader.LanguageCodeObject):
 class Language(lang_meta.Language):
     file_extensions = ('jp',)
     loader = Loader
+    default_runtime = javascript.JavaScriptRuntime
 
     @classmethod
     def get_proxy_module_cls(cls):
-        return None
+        return ProxyJPlusModule
 
     @classmethod
     def load_code(cls, stream, context):
@@ -144,6 +139,7 @@ class Language(lang_meta.Language):
                                                      package=package)
 
         imports = import_utils.modules_from_import_statements(package, imports)
+        imports.append('metamagic.utils.lang.jplus.support.builtins')
 
         return JPlusCodeObject(js_code, imports)
 
@@ -152,32 +148,4 @@ class Language(lang_meta.Language):
         for modname in code.imports:
             importlib.import_module(modname)
 
-        yield '__jplus_js_source__', code.code
-
-
-class JPlusJavaScriptRuntimeDerivative(javascript.JavaScriptRuntimeDerivative):
-    def __sx_resource_get_source__(self):
-        # Bypass common JavaScript module wrapping, as JPlus transpiler
-        # handles it in its own way.
-        #
-        return resource.VirtualFile.__sx_resource_get_source__(self)
-
-
-class JavaScriptAdapter(javascript.JavaScriptRuntimeAdapter,
-                        adapts_instances_of=JPlusModule):
-    def get_source(self):
-        return self.module.__jplus_js_source__
-
-    def get_dependencies(self):
-        from metamagic.utils.lang.jplus.support import builtins
-
-        deps = super().get_dependencies()
-
-        deps.add(builtins)
-        return deps
-
-    @classmethod
-    def new_derivative(cls, module, runtime):
-        res = JPlusJavaScriptRuntimeDerivative(None, runtime.get_derivative_mod_name(module))
-        res.__language__ = Language
-        return res
+        yield '__sx_resource_source_value__', code.code.encode('utf-8')

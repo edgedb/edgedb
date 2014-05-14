@@ -34,6 +34,8 @@ class LanguageMeta(type):
         if register:
             LanguageMeta.languages.append(lang)
             finder.update_finders()
+            if lang.default_runtime is not None:
+                LanguageRuntimeMeta.default_runtimes[lang] = lang.default_runtime
         return lang
 
     def __init__(cls, name, bases, dct, *, register=True):
@@ -66,6 +68,7 @@ class LanguageMeta(type):
 class Language(metaclass=LanguageMeta, register=False):
     loader = LanguageSourceFileLoader
     file_extensions = ()
+    default_runtime = None
 
     @classmethod
     def get_proxy_module_cls(cls):
