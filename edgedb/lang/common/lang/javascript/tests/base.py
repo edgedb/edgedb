@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2012 Sprymix Inc.
+# Copyright (c) 2008-2012, 2014 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -7,10 +7,11 @@
 
 
 import functools
+import importlib
 import re
 import subprocess
+import sys
 import tempfile
-import importlib
 
 from metamagic.utils.datastructures import OrderedSet
 from metamagic.utils import debug, functional, config, markup, resource
@@ -116,7 +117,11 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
         deps = Target.get_import_list((module,))
         deps.discard(module)
         deps.add(js_module_def)
-        return module, deps
+
+        js_source = mcls.get_source(module)
+        del sys.modules[modname]
+
+        return js_source, deps
 
     @classmethod
     def load_test_module_from_source(mcls, modname, source):
@@ -148,9 +153,7 @@ class JSFunctionalTestMeta(BaseJSFunctionalTestMeta):
 
     @classmethod
     def do_test(mcls, source, name=None, data=None, *, expected_output='OK'):
-        module, deps = mcls.parse_test(source, name=name)
-
-        js_source = mcls.get_source(module)
+        js_source, deps = mcls.parse_test(source, name=name)
         bootstrap = mcls.compile_boostrap(deps)
 
         if data is not None:
