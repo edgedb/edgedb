@@ -1536,3 +1536,14 @@ class TestTranslation(BaseJPlusTest):
         %%
         1
         '''
+
+    def test_utils_lang_jp_tr_var_stmt_1(self):
+        '''JS+
+
+        var a = 1, b;
+        b = 2;
+        print(a + b);
+
+        %%
+        3
+        '''

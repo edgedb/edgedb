@@ -513,6 +513,3 @@ class Parser(JSParser):
 
         return ast.CallNode(call=left, arguments=args,
                             position=token.position)
-
-    def parse_var_guts(self, statement=True):
-        raise UnexpectedToken(self.prevtoken, parser=self)

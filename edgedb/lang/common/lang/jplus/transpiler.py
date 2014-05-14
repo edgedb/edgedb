@@ -1796,3 +1796,8 @@ class Transpiler(NodeTransformer, metaclass=config.ConfigurableMeta):
                                     right=js_ast.IDNode(name=impname))))))
 
         return js_ast.SourceElementsNode(code=assigns)
+
+    def visit_js_VarDeclarationNode(self, node):
+        for init in node.vars:
+            self.scope.add(Variable(init.name.name, needs_decl=False))
+        return self.generic_visit(node)
