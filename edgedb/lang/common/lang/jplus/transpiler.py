@@ -300,7 +300,7 @@ class NameError(TranspilerError):
 class Transpiler(NodeTransformer, metaclass=config.ConfigurableMeta):
     debug = config.cvalue(True, type=bool)
 
-    def __init__(self, *, debug=None):
+    def __init__(self, *, debug=None, check_variables=False):
         super().__init__()
         self.scope_head = ScopeHead(head=None)
         self.state_head = StateHead(head=None)
@@ -311,6 +311,8 @@ class Transpiler(NodeTransformer, metaclass=config.ConfigurableMeta):
             self.debug = self.__class__.debug
         else:
             self.debug = debug
+
+        self.check_variables = check_variables
 
         self._kwargs_marker = '__jpkw' # NOTE! Same name in builtins.js.
 
@@ -325,6 +327,11 @@ class Transpiler(NodeTransformer, metaclass=config.ConfigurableMeta):
         return self.state_head.head
 
     def check_scope_load(self, varname):
+        if not self.check_variables:
+            # Important to call __contains__ here (to register builtins etc)
+            self.scope.__contains__(varname)
+            return
+
         if self.state.within(JSWithState):
             return
         if varname not in self.scope:
