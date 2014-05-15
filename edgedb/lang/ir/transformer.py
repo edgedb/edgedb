@@ -2529,9 +2529,10 @@ class TreeTransformer:
                     isinstance(right.type[1], caos_types.PrototypeClass))
 
     def is_const_idfilter(self, left, right, op, reversed):
-        return isinstance(left, caos_ast.Path) and isinstance(right, caos_ast.Constant) and \
-                (op in (ast.ops.IN, ast.ops.NOT_IN) or \
-                 (not reversed and op in (ast.ops.EQ, ast.ops.NE)))
+        return (isinstance(left, caos_ast.Path) and not isinstance(left, caos_ast.SubgraphRef)
+                and isinstance(right, caos_ast.Constant)
+                and (op in (ast.ops.IN, ast.ops.NOT_IN) or
+                     (not reversed and op in (ast.ops.EQ, ast.ops.NE))))
 
     def get_multipath(self, expr:caos_ast.Path):
         if not isinstance(expr, caos_ast.PathCombination):
