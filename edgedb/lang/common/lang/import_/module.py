@@ -156,7 +156,7 @@ class ObjectProxyMeta(type):
         '__repr__', '__reversed__', '__rfloorfiv__', '__rlshift__', '__rmod__',
         '__rmul__', '__ror__', '__rpow__', '__rrshift__', '__rshift__', '__rsub__',
         '__rtruediv__', '__rxor__', '__setitem__', '__sub__',
-        '__truediv__', '__xor__'
+        '__truediv__', '__xor__', '__str__'
     ]
 
     def __sx_adjust_class_dict__(cls, wrappedcls, dct=None):
