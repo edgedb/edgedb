@@ -19,7 +19,12 @@ $SXJSP = (function() {
         hop = StdObject.prototype.hasOwnProperty,
         tos = StdObject.prototype.toString,
         Array_slice = StdArray.prototype.slice,
-        _no_kwarg = {}; // marker
+        _no_kwarg = {}, // marker
+        sys_module = {
+            modules: modules
+        };
+
+    modules.sys = sys_module;
 
     var Object_keys = sx.keys;
 
@@ -42,15 +47,9 @@ $SXJSP = (function() {
         return bound;
     });
 
-    function Module(name, dct) {
+    function Module(name) {
         this.$name = name;
-        this.$initialized = dct != null;
-
-        for (var i in dct) {
-            if (hop.call(dct, i) && i.length && i[0] != '$') {
-                this[i] = dct[i];
-            }
-        }
+        this.$initialized = false;
     }
 
     function error(msg) {
@@ -136,7 +135,7 @@ $SXJSP = (function() {
 
         _modules: modules,
 
-        _module: function(name, dct) {
+        _module: function(name, func) {
             var parts = name.split('.'),
                 i, len = parts.length,
                 next = modules,
@@ -145,7 +144,8 @@ $SXJSP = (function() {
                 part,
                 mod,
                 mod_name,
-                mod_dct;
+                mod_dct,
+                dct;
 
             if (!len) {
                 error('invalid module name: "' +name + '"');
@@ -164,18 +164,23 @@ $SXJSP = (function() {
 
             mod_name = parts[len - 1];
             mod = next[mod_name];
+
             if (mod != null) {
                 if (mod.$initialized) {
                     error('duplicate module? (' + name + ')');
                 }
-                for (i in dct) {
-                    if (!mod.hasOwnProperty(i) && dct.hasOwnProperty(i)) {
-                        mod[i] = dct[i];
-                    }
-                }
             } else {
-                next[mod_name] = new Module(name, dct);
+                mod = next[mod_name] = new Module(name);
             }
+
+            dct = func();
+            for (i in dct) {
+                if (!mod.hasOwnProperty(i) && dct.hasOwnProperty(i)) {
+                    mod[i] = dct[i];
+                }
+            }
+
+            mod.$initialized = true;
         },
 
         _validate_with: function(obj) {

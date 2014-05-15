@@ -457,10 +457,9 @@ class Transpiler(NodeTransformer, metaclass=config.ConfigurableMeta):
                             right=js_ast.IDNode(name='_module')),
                         arguments=[
                             js_ast.StringLiteralNode(value=name),
-                            js_ast.CallNode(
-                                call=js_ast.FunctionNode(
-                                    body=js_ast.StatementBlockNode(
-                                        statements=processed)))]))])
+                            js_ast.FunctionNode(
+                                body=js_ast.StatementBlockNode(
+                                    statements=processed))]))])
 
     def is_assignment_list(self, node):
         assert isinstance(node, js_ast.ArrayLiteralNode)
@@ -1722,8 +1721,10 @@ class Transpiler(NodeTransformer, metaclass=config.ConfigurableMeta):
                 self.scope.add(Variable(name.name, needs_decl=False))
             return
 
-        implist = [name.name for name in node.names]
-        self.add_module(node.level * '.' + mod, implist)
+        full_mod_name = node.level * '.' + mod
+        if full_mod_name != 'sys':
+            implist = [name.name for name in node.names]
+            self.add_module(full_mod_name, implist)
 
         if node.level > 1:
             fullmod = '.'.join(self.state.package.split('.')[:-(node.level-1)]) + '.' + mod
@@ -1761,7 +1762,8 @@ class Transpiler(NodeTransformer, metaclass=config.ConfigurableMeta):
         assigns = []
 
         for imp in node.names:
-            self.add_module(imp.name, ())
+            if imp.name != 'sys':
+                self.add_module(imp.name, ())
 
             if imp.asname:
                 cur = None
