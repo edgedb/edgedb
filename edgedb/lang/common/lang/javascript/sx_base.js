@@ -55,6 +55,66 @@
             return 'sx-id-' + (++_id_counter) + (suffix || '');
         },
 
+        ns: (function() {
+            var ns = function(ns, obj) {
+                var i, chunks = ns.split('.'),
+                    len = chunks.length,
+                    chunk,
+                    cursor = global;
+
+                if (obj !== undefined) {
+                    len--;
+                }
+
+                for (i = 0; i < len; i++) {
+                    chunk = chunks[i];
+                    if (!has_own_property.call(cursor, chunk)) {
+                        cursor[chunk] = {};
+                    }
+
+                    cursor = cursor[chunk];
+                }
+
+                if (obj !== undefined) {
+                    chunk = chunks[i];
+
+                    if (has_own_property.call(cursor, chunk)) {
+                        throw new Error('sx.ns: conflicting namespace: "' + ns + '"');
+                    }
+
+                    cursor[chunk] = obj;
+                }
+
+                return obj;
+            };
+
+            var r = ns.resolve_from = function(root, ns, deflt) {
+                var i, chunks = ns.split('.'),
+                    len = chunks.length,
+                    cursor = root,
+                    chunk;
+
+                for (i = 0; i < len; i++) {
+                    chunk = chunks[i];
+                    cursor = cursor[chunk];
+                    if (cursor == undefined) {
+                        if (deflt !== undefined) {
+                            return deflt;
+                        }
+                        throw new Error('unable to resolve ns "' + ns + '"');
+                    }
+                }
+
+                return cursor;
+            };
+
+            ns.resolve = function(ns, deflt) {
+                return r(global, ns, deflt);
+            };
+
+            return ns;
+        })(),
+
         keys: (function() {
             if (Object.keys) {
                 return Object.keys;
