@@ -36,7 +36,7 @@ class Dark256:
 
 
 class MetamagicLogHandler(BootstrapLogHandler, metaclass=config.ConfigurableMeta):
-    _enabled = config.cvalue(True, type=bool)
+    _enabled = True
 
     dump_exceptions = config.cvalue(True, type=bool)
 

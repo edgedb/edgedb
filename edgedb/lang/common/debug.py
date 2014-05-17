@@ -237,8 +237,15 @@ def debug_logger_on(logger_cls=logging.MetamagicLogHandler):
     if not logger_cls._installed:
         logger_cls.install()
 
-    conf_name = '{}.{}._enabled'.format(logger_cls.__module__, logger_cls.__name__)
-    with config.inline({conf_name: True}):
+    handler = logger_cls._installed
+    if handler:
+        old_flag = handler._enabled
+        handler._enabled = True
+        try:
+            yield
+        finally:
+            handler._enabled = old_flag
+    else:
         yield
 
 
@@ -247,8 +254,15 @@ def debug_logger_off(logger_cls=logging.MetamagicLogHandler):
     '''Context manager, that disables printing log messages to stdout
     for the wrapped code'''
 
-    conf_name = '{}.{}._enabled'.format(logger_cls.__module__, logger_cls.__name__)
-    with config.inline({conf_name: False}):
+    handler = logger_cls._installed
+    if handler:
+        old_flag = handler._enabled
+        handler._enabled = False
+        try:
+            yield
+        finally:
+            handler._enabled = old_flag
+    else:
         yield
 
 
