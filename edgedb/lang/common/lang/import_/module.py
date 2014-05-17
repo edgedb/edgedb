@@ -6,6 +6,7 @@
 ##
 
 
+import collections.abc
 import importlib
 import types
 
@@ -81,9 +82,6 @@ class ClassProxyMeta(type):
                     pass
                 b.append(base)
             bases = tuple(b)
-
-        if 'Language' in name:
-            print(dct['__module__'])
 
         orig_mcls = type if mcls is ClassProxyMeta else mcls.__mro__[2]
         # Only use ClassProxyMeta for actual proxies
@@ -220,6 +218,69 @@ class ObjectProxy(BaseObjectProxy, metaclass=ObjectProxyMeta):
         super().__setattr__(name, value)
 
 
+def _proxy_class(mod, cls):
+    try:
+        cls = cls.__wrapped__
+    except AttributeError:
+        pass
+
+    try:
+        metaclasses = object.__getattribute__(mod, '__sx_metaclsproxies__')
+    except AttributeError:
+        metaclasses = {}
+        object.__setattr__(mod, '__sx_metaclsproxies__', metaclasses)
+
+    result_metacls = type(cls)
+    result_metacls_name = '{}.{}'.format(result_metacls.__module__,
+                                         result_metacls.__name__)
+
+    try:
+        proxy_metacls = metaclasses[result_metacls_name]
+    except KeyError:
+        # Override metaclass to alter __new__ and __subclasscheck__ behaviour.
+        if result_metacls is type:
+            proxy_metacls = ClassProxyMeta
+        else:
+            proxy_metacls = type('{}_sx_proxy_mcls__'.format(result_metacls.__name__),
+                                 (ClassProxyMeta, result_metacls),
+                                 {'__module__': result_metacls.__module__})
+
+        metaclasses[result_metacls_name] = proxy_metacls
+
+    # Inject magic methods directly instead of inheriting from BaseProxy to avoid conflicts
+    proxy = proxy_metacls('{}_sx_proxy__'.format(cls.__name__), (cls,),
+                          {'__module__': cls.__module__,
+                           '__getattribute__': BaseObjectProxy.__getattribute__,
+                           '__setattr__': BaseObjectProxy.__setattr__,
+                           '__new__': BaseObjectProxy.__new_object__,
+                           '__wrapped__': cls
+                          })
+
+    return proxy
+
+
+class ProxyModuleDict(collections.abc.MutableMapping):
+    def __init__(self, proxy_module):
+        self._proxy_module = proxy_module
+
+    def __getitem__(self, key):
+        return getattr(self._proxy_module, key)
+
+    def __setitem__(self, key, value):
+        return setattr(self._proxy_module, key, value)
+
+    def __delitem__(self, key):
+        return delattr(self._proxy_module, key)
+
+    def __iter__(self):
+        wrapped = object.__getattribute__(self._proxy_module, '__wrapped__')
+        return iter(object.__getattribute__(wrapped, '__dict__'))
+
+    def __len__(self):
+        wrapped = object.__getattribute__(self._proxy_module, '__wrapped__')
+        return len(object.__getattribute__(wrapped, '__dict__'))
+
+
 class ProxyModule(LightProxyModule):
     """A module proxy that manages module attributes.
 
@@ -230,49 +291,17 @@ class ProxyModule(LightProxyModule):
           classes are not proxies.
     """
 
-
-    def _proxy_class(self, cls):
-        try:
-            cls = cls.__wrapped__
-        except AttributeError:
-            pass
-
-        try:
-            metaclasses = object.__getattribute__(self, '__sx_metaclsproxies__')
-        except AttributeError:
-            metaclasses = {}
-            object.__setattr__(self, '__sx_metaclsproxies__', metaclasses)
-
-        result_metacls = type(cls)
-        result_metacls_name = '{}.{}'.format(result_metacls.__module__,
-                                             result_metacls.__name__)
-
-        try:
-            proxy_metacls = metaclasses[result_metacls_name]
-        except KeyError:
-            # Override metaclass to alter __new__ and __subclasscheck__ behaviour.
-            if result_metacls is type:
-                proxy_metacls = ClassProxyMeta
-            else:
-                proxy_metacls = type('{}_sx_proxy_mcls__'.format(result_metacls.__name__),
-                                     (ClassProxyMeta, result_metacls),
-                                     {'__module__': result_metacls.__module__})
-
-            metaclasses[result_metacls_name] = proxy_metacls
-
-        # Inject magic methods directly instead of inheriting from BaseProxy to avoid conflicts
-        proxy = proxy_metacls('{}_sx_proxy__'.format(cls.__name__), (cls,),
-                              {'__module__': cls.__module__,
-                               '__getattribute__': BaseObjectProxy.__getattribute__,
-                               '__setattr__': BaseObjectProxy.__setattr__,
-                               '__new__': BaseObjectProxy.__new_object__,
-                               '__wrapped__': cls
-                              })
-
-        return proxy
-
     def __getattribute__(self, name):
         # Create proxies when _reading_ attributes written directly into module's __dict__
+
+        if name == '__dict__':
+            try:
+                dictproxy = object.__getattribute__(self, '__sx_dictproxy__')
+            except AttributeError:
+                dictproxy = ProxyModuleDict(self)
+                object.__setattr__(self, '__sx_dictproxy__', dictproxy)
+
+            return dictproxy
 
         result = super().__getattribute__(name)
 
@@ -285,18 +314,17 @@ class ProxyModule(LightProxyModule):
             proxies = {}
             object.__setattr__(self, '__sx_attrproxies__', proxies)
 
-        if name not in ('__name__', '__repr__', '__wrapped__'):
-            try:
-                proxy = proxies[name]
-            except KeyError:
-                if isinstance(result, type):
-                    proxy = object.__getattribute__(self, '_proxy_class')(result)
-                else:
-                    proxy = ObjectProxy.__sx_new__(result)
+        try:
+            proxy = proxies[name]
+        except KeyError:
+            if isinstance(result, type):
+                proxy = _proxy_class(self, result)
+            else:
+                proxy = ObjectProxy.__sx_new__(result)
 
-                proxies[name] = proxy
+            proxies[name] = proxy
 
-            result = proxy
+        result = proxy
 
         return result
 
@@ -334,7 +362,7 @@ class ProxyModule(LightProxyModule):
                     proxy = proxies[name]
                 except KeyError:
                     if isinstance(value, type):
-                        proxy = object.__getattribute__(self, '_proxy_class')(value)
+                        proxy = _proxy_class(self, value)
                     else:
                         proxy = ObjectProxy.__sx_new__(value)
                 else:

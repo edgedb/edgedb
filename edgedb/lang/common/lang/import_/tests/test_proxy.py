@@ -70,6 +70,10 @@ class TestLangImportModuleProxy:
         assert proxiedmod.a == 20
         assert mod.a == 20
 
+        proxiedmod.__dict__['a'] = 30
+        assert proxiedmod.a == 30
+        assert mod.a == 30
+
         del proxiedmod.a
         assert not hasattr(proxiedmod, 'a')
         assert not hasattr(mod, 'a')
