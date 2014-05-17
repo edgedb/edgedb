@@ -226,6 +226,8 @@ class LoaderCommon:
             else:
                 result_mod = proxy_cls(module.__name__, module)
 
+            sys.modules[module.__name__] = result_mod
+
         return result_mod
 
     def get_modtags(self, modname):
