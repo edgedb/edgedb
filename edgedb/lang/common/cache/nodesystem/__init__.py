@@ -8,12 +8,12 @@
 
 import weakref
 
-from metamagic import node
+from metamagic import node as node_module
 from ..exceptions import CacheError
 from ..bucket import Bucket
 
 
-class CacheSystem(node.System):
+class CacheSystem(node_module.System):
     class_buckets = None
     node_buckets_cache = weakref.WeakKeyDictionary()
 
@@ -39,7 +39,7 @@ class CacheSystem(node.System):
 
     @classmethod
     def get_bucket(cls, bucket_cls=None):
-        active_node = node.Node.active
+        active_node = node_module.Node.active
         if not active_node:
             raise CacheError('An active node is required to get cache bucket {}'.format(bucket_cls))
 
@@ -69,7 +69,7 @@ class _NodeCacheDescriptor:
     def __init__(self, node):
         try:
             node.get_system(CacheSystem)
-        except node.NodeError as ex:
+        except node_module.NodeError as ex:
             raise CacheError('Node does not have a configured cache system.') from ex
 
         self.root = NodeCache('{}.{}'.format(node.__class__.__module__,
