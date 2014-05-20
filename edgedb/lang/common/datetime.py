@@ -29,6 +29,7 @@ class DateTime(datetime.datetime):
         if isinstance(value, int):
             # Unitx timestamp (UTC)
             value = datetime.datetime.utcfromtimestamp(value)
+            value = value.replace(tzinfo=datetime.timezone.utc)
 
         if isinstance(value, datetime.datetime):
             args = [value.year, value.month, value.day, value.hour, value.minute, value.second,
