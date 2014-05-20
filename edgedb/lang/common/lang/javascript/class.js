@@ -664,6 +664,21 @@ sx.$bootstrap_class_system = function(opts) {
 
     sx_define.new_class = sx_define_ll;
 
+    sx_define.forModule = function(modName) {
+        return function(name, bases, dct) {
+            if (name.indexOf('.') >= 0) {
+                throw new Error('invalid class name "' + name + '" (remove the ".")');
+            }
+
+            var fullname = name;
+            if (name[0] != '_') {
+                var fullname = modName + '.' + name;
+            }
+
+            return sx_define(fullname, bases, dct);
+        }
+    };
+
     // BaseObject is an empty class that is not intended
     // to be ever instantiated.  It's main purpose is
     // to play role of the 'root' javascript class, that
