@@ -2238,8 +2238,10 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
                     alter_table = concept.op.get_alter_table(context)
                     col = dbops.Column(name=ptr_stor_info.column_name,
                                        type=ptr_stor_info.column_type)
+                    cond = dbops.ColumnExists(table_name=concept.op.table_name,
+                                              column_name=col.name)
                     col = dbops.AlterTableDropColumn(col)
-                    alter_table.add_operation(col)
+                    alter_table.add_operation((col, [cond], []))
 
         old_table_name = common.get_table_name(result, catenate=False)
         condition = dbops.TableExists(name=old_table_name)
