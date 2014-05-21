@@ -6,9 +6,14 @@
 ##
 
 
-%SCHEMA metamagic.caos.backends.yaml.schemas.Semantics
-%IMPORT metamagic.utils.fs.file AS file
+%schema metamagic.caos.backends.yaml.schemas.Semantics
+%import metamagic.utils.fs.file as file
+%from metamagic.caos import extras
 ---
+links:
+    images:
+        extends: extras.ordered
+
 concepts:
     Image:
         extends: file.File
