@@ -7,6 +7,7 @@
 
 
 %schema metamagic.utils.lang.yaml.schema.Schema
+%from metamagic.node import schema as node_schema
 %name fs
 ---
 
@@ -20,5 +21,5 @@ mapping:
                 type: seq
                 required: yes
                 sequence:
-                    - metamagic.node.schema._constructor
+                    - node_schema._constructor
 ...
