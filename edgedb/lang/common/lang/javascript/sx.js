@@ -289,6 +289,29 @@
                             (typeof obj));
         },
 
+        empty: function(obj) {
+            if (sx.is_array(obj) || obj instanceof sx) {
+                return !obj.length;
+            }
+
+            if (sx.is_object(obj)) {
+                var attr, len = 0;
+                for (attr in obj) {
+                    if (obj.hasOwnProperty(attr)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            if (sx.is_string(obj)) {
+                return !obj.length;
+            }
+
+            throw new Error('sx.empty function supports only objects and arrays, got ' +
+                            (typeof obj));
+        },
+
         hasattr: function sx_hasattr(obj, attr, weak) {
             if (obj === null || obj === undefined) {
                 return false;
