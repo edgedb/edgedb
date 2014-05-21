@@ -51,10 +51,15 @@ class Schema(validator.Schema):
         # Reference to an external schema
         head, _, tail = schema_name.partition('.')
 
-        imported = self.__class__._context.document.imports.get(head)
-        if imported:
-            head = imported.__name__
+        try:
+            schema = self.__class__._context.document.namespace[head]
+        except KeyError:
+            raise NameError('reference to undefined name: {!r}'.format(head))
 
-        schema = get_object(head + '.' + tail)
+        if tail:
+            steps = tail.split('.')
+
+            for step in steps:
+                schema = getattr(schema, step)
 
         return schema
