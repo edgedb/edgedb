@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2011, 2014 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -141,6 +141,18 @@ class UnexpectedNewline(SyntaxError):
                          token.end[0], token.end[1])
 
 
+class UnmatchedTag(SyntaxError):
+    def __init__(self, start_tag, start_pos, end_tag, end_pos, parser=None):
+        super().__init__("unmatched xml tag %r (line %i, column %i), got %r instead (line %i, column %i)." %
+                         (start_tag, start_pos[0], start_pos[1], end_tag, end_pos[0], end_pos[1]),
+                         end_pos[0], end_pos[1])
+
+        if parser is not None:
+            exc = ExceptionContext(lineno=end_pos[0], colno=end_pos[1],
+                                   filename=parser.filename, source=parser.source)
+            _add_context(self, exc)
+
+
 # decorator for certain parsing methods that need to keep track of labels
 #
 def stamp_state(name, affectslabels=False):
@@ -236,7 +248,8 @@ class JSParser:
                  arrowfuncsupport=False,
                  paramdefaultsupport=False,
                  paramrestsupport=False,
-                 spreadsupport=False):
+                 spreadsupport=False,
+                 xmlsupport=False):
 
         super().__init__()
 
@@ -256,12 +269,16 @@ class JSParser:
         self.paramdefaultsupport = paramdefaultsupport
         self.paramrestsupport = paramrestsupport
         self.spreadsupport = spreadsupport
+        self.xmlsupport = xmlsupport
         self.lexer.ellipsis_literal = paramrestsupport or spreadsupport
         self.setup_operators()
 
     def _get_operators_table(self):
         return [
         #   (<bp>, <special type>, <token vals>, <active>)
+        # XXX: '<' denotes the start of a tag if it appears as a unary prefix, we want it to bind
+        #      stronger than anything else, so that we don't parse the rest of the "expression"
+            ('rbp', 'Unary',    ('<',), self.xmlsupport),
             ('rbp', '',         ('{', ), True),
         # XXX: '{' is right-binding because it functions like a prefix operator
         #       creating an object literal or variable unpacking expression
@@ -529,9 +546,13 @@ class JSParser:
 
 
     def nud_Unary(self, token):
-        operand = self.parse_assignment_expression(token.rbp)
-        return jsast.PrefixExpressionNode(op=token.string, expression=operand,
-                                          position=token.position)
+        if token.string == '<':
+            return self.parse_xmltag()
+
+        else:
+            operand = self.parse_assignment_expression(token.rbp)
+            return jsast.PrefixExpressionNode(op=token.string, expression=operand,
+                                              position=token.position)
 
 
     def led_Unary(self, left, token):
@@ -1774,6 +1795,116 @@ class JSParser:
                 break
 
         return jsast.GeneratorExprNode(expr=expr, comprehensions=comprehensions)
+
+
+    def parse_xmltag(self):
+        '''Parse an embedded xml tag. Normal grammar rules are suspended. All IDs are legal.'''
+        # First we try to parse the tag name, so we must have an ID or a KEYWORD to start with.
+        # Whitespace becomes more significant here, the tag name must not contain any whitespace.
+        #
+        pos = self.prevtoken.start
+
+        name, name_pos = self.parse_xmltag_name()
+
+        # parse attributes if any
+        #
+        attrs = []
+        while not self.tentative_match('/', '>', regexp=False, consume=False):
+            attr, attr_pos = self.parse_xmltag_name()
+            self.must_match('=', regexp=False)
+            if self.token.type == 'STRING':
+                # XXX: need to enforce strickter string rules
+                attrs.append(jsast.XMLAttrNode(name=attr, value=self.token.value,
+                                               position=attr_pos))
+                self.get_next_token(regexp=False)
+
+            elif self.tentative_match('{'):
+                attrs.append(jsast.XMLAttrNode(name=attr, value=self.parse_xmltag_js(),
+                                               position=attr_pos))
+
+            else:
+                raise UnexpectedToken(self.token, parser=self)
+
+        if self.tentative_match('/', regexp=False):
+            # tag could be closed using long format, then we'll need to match the closing tag
+            #
+            self.must_match('>', regexp=False)
+            return jsast.XMLTagNode(name=name, attrs=attrs, position=pos)
+
+        else:
+            # tag is not expected to have a matching closing tag, also no body is expected either
+            #
+            self.must_match('>', regexp=False)
+            body = self.parse_xmltag_body(name, name_pos)
+            return jsast.XMLTagNode(name=name, attrs=attrs, body=body, position=pos)
+
+    def parse_xmltag_name(self):
+        # XXX: still need to check whitespace
+        pos = self.token.position
+        name = [self.parse_ID(allowkeyword=True).name]
+        while self.tentative_match('.', regexp=False):
+            name.append('.')
+            name.append(self.parse_ID(allowkeyword=True).name)
+
+        if self.tentative_match(':', regexp=False):
+            name.append(':')
+            name.append(self.parse_ID(allowkeyword=True).name)
+            if self.tentative_match('.', regexp=False):
+                name.append('.')
+                name.append(self.parse_ID(allowkeyword=True).name)
+
+        name = ''.join(name)
+
+        return name, pos
+
+    def parse_xmltag_body(self, name, name_pos):
+        body = []
+        while True:
+            text = []
+            while not self.tentative_match('<', '{', regexp=False, consume=False):
+                # read all tokens and just concat them together, unless you see another tag
+                #
+                if self.token.start != self.prevtoken.end:
+                    text.append(' ')
+
+                # XXX: this is very crude... it will break on JS string literals and escaped chars
+                text.append(str(self.token.value))
+                self.get_next_token(regexp=False)
+
+            if self.token.start != self.prevtoken.end:
+                text.append(' ')
+            text = ''.join(text)
+            body.append(jsast.XMLTextNode(text=text))
+
+            # did we get a JS context or a new tag?
+            #
+            if self.tentative_match('{'):
+                body.append(self.parse_xmltag_js())
+
+            else:
+                self.get_next_token(regexp=False)
+
+                if self.tentative_match('/', regexp=False):
+                    # closing tag, must match the name
+                    closing_name, closing_pos = self.parse_xmltag_name()
+                    if closing_name != name:
+                        raise UnmatchedTag(name, name_pos, closing_name, closing_pos, parser=self)
+                    self.must_match('>', regexp=False)
+                    break
+
+                else:
+                    # a new tag!
+                    body.append(self.parse_xmltag())
+
+        return body
+
+
+    def parse_xmltag_js(self):
+        '''Parse a JS expression embedded into XML (which is embedded into JS...)'''
+
+        expr = self.parse_expression()
+        self.must_match('}', regexp=False)
+        return expr
 
 
     def parse(self, program, *, filename=None):

@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2011, 2014 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -274,3 +274,15 @@ class AssignmentElementList(Base):
 
 class SpreadElement(Expression):
     __fields = ['expression']
+
+
+class XMLTagNode(Expression):
+    __fields = ['name', ('attrs', list), ('body', list)]
+
+
+class XMLAttrNode(Expression):
+    __fields = ['name', 'value']
+
+
+class XMLTextNode(Expression):
+    __fields = ['text']

@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2011, 2014 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -543,3 +543,45 @@ class JavascriptSourceGenerator(SourceGenerator):
     def visit_SpreadElement(self, node):
         self.write('...')
         self.visit(node.expression)
+
+
+    def visit_XMLTagNode(self, node):
+        self.write('<')
+        self.write(node.name)
+        for attr in node.attrs:
+            self.write(' ')
+            self.visit(attr)
+
+        if node.body:
+            self.write('>')
+            for elem in node.body:
+                if isinstance(elem, (jsast.XMLTextNode, jsast.XMLTagNode)):
+                    self.visit(elem)
+                else:
+                    self.write('{');
+                    self.visit(elem)
+                    self.write('}');
+
+            self.write('</')
+            self.write(node.name)
+            self.write('>')
+
+        else:
+            self.write(' />')
+
+
+    def visit_XMLAttrNode(self, node):
+        self.write(node.name)
+        self.write('=');
+        if isinstance(node.value, jsast.Base):
+            self.write('{');
+            self.visit(node.value)
+            self.write('}');
+        else:
+            self.write('"');
+            self.write(node.value)
+            self.write('"');
+
+
+    def visit_XMLTextNode(self, node):
+        self.write(node.text)
