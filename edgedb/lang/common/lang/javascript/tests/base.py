@@ -279,7 +279,9 @@ class MetaJSParserTest_Base(type, metaclass=config.ConfigurableMeta):
         markup.dump_code(processed_src, lexer='javascript')
         """
 
-        assert filter.sub('', src) == filter.sub('', processed_src)
+        expected = filter.sub('', src)
+        result = filter.sub('', processed_src)
+        assert expected == result, 'expected {!r} != returned {!r}'.format(expected, result)
 
     def __new__(cls, name, bases, dct):
         for testname, testfunc in dct.items():
