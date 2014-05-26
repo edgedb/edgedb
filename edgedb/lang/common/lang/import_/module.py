@@ -219,6 +219,10 @@ class ObjectProxy(BaseObjectProxy, metaclass=ObjectProxyMeta):
 
 
 def _proxy_class(mod, cls):
+    if cls.__module__ != mod.__name__:
+        # Only proxy classes actually defined in the module.
+        return cls
+
     try:
         cls = cls.__wrapped__
     except AttributeError:
