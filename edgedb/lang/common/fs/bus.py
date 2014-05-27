@@ -15,6 +15,7 @@ from metamagic.spin.node.dispatch.http import http as http_base
 from metamagic.spin.protocols.http import headers as http_headers, statuses as http_statuses
 from metamagic.caos.nodesystem.middleware import CaosSessionMiddleware
 
+from metamagic.utils import config
 from metamagic.utils.lang.import_ import get_object
 
 from .bucket import BucketMeta, Bucket
@@ -31,6 +32,25 @@ class http(http_base):
     pass
 
 http.add_middleware(CaosSessionMiddleware)
+
+
+class settings(config.Configurable):
+    use_x_sendfile = config.cvalue(False, type=bool,
+                          doc=('whether default fs download method shoule use X-SendFile '
+                               '(or comparable) header.  Use if your frontend server supports '
+                               'X-SendFile or X-Accel-Redirect'))
+
+
+class XAccelRedirect(http_headers.ValueHeader):
+    __slots__ = ()
+    pattern = 'x-accel-redirect'
+    quote_value_on_dump = False
+
+
+class XSendFile(http_headers.ValueHeader):
+    __slots__ = ()
+    pattern = 'x-send-file'
+    quote_value_on_dump = False
 
 
 @coroutine
@@ -84,12 +104,9 @@ def upload(context, bucket:str, concept:str=None, fieldcls=None, config=None):
 
 @http('download/<id>')
 def download(context, id):
-    # NOTE: Right now, this method just redirects to the public URL of
-    # the file.  Later, it should read settings from file's bucket
-    # and decide either to redirect, or to validate user session and
-    # transfer file manually
-
     session = context.session
+    response = context.response
+
     File = session.schema.metamagic.utils.fs.file.File
 
     file = File.get(File.id == id)
@@ -97,10 +114,17 @@ def download(context, id):
 
     url = bucket_cls.get_file_pub_url(file.id, file.name)
 
-    context.response.status = http_statuses.found
-    context.response.headers.add(http_headers.Location(url))
 
-    return ''
+    if settings.use_x_sendfile:
+        response.headers.add(XSendFile(url))
+        response.headers.add(XAccelRedirect(url))
+
+        return 'Redirecting...'
+    else:
+        response.status = http_statuses.found
+        response.headers.add(http_headers.Location(url))
+
+        return ''
 
 
 @coroutine
