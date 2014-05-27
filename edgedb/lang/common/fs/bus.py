@@ -118,6 +118,7 @@ def download(context, id):
     if settings.use_x_sendfile:
         response.headers.add(XSendFile(url))
         response.headers.add(XAccelRedirect(url))
+        response.content_type = http_headers.ContentType(*(file.mimetype.split('/')))
 
         return 'Redirecting...'
     else:
