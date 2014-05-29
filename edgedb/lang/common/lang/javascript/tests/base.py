@@ -18,12 +18,14 @@ from metamagic.utils import debug, functional, config, markup, resource
 from metamagic.node.targets import Target
 from metamagic.utils.lang import loader as lang_loader
 from metamagic import json, test
-import metamagic.utils.lang.javascript.parser.jsparser as jsp
-from metamagic.utils.lang.javascript.codegen import JavascriptSourceGenerator
+
 from metamagic.utils.lang.javascript import BufferLoader as JSBufferLoader, BaseJavaScriptModule, \
                                            Language as JSLanguage, JavaScriptModule, \
                                            VirtualJavaScriptResource
 from metamagic.utils.lang.javascript import module as js_module_def
+
+import jplus.javascript.parser.jsparser as jsp
+from jplus.javascript.codegen import JavascriptSourceGenerator
 
 
 def jxfail(*args, **kwargs):

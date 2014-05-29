@@ -22,6 +22,9 @@ from metamagic.utils.lang import meta as lang_meta, loader as lang_loader
 from metamagic.utils.lang import runtimes as lang_runtimes
 from metamagic.utils.lang.import_ import module as module_types, loader, utils as imp_utils
 
+# Don't remove the following import -- backwards compatibility
+from jplus.javascript import codegen, parser, ast
+
 
 class BaseJavaScriptModule(module_types.Module):
     pass

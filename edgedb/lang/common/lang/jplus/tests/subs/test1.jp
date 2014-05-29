@@ -1,5 +1,0 @@
-from .test2 import sub
-
-function sum(a, b) {
-    return a + b;
-}
