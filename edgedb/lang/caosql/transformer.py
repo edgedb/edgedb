@@ -1204,28 +1204,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                         links = inbound
 
                     if len(links) > 1:
-                        modaliases = context.current.namespaces
-
-                        if not linkname[0]:
-                            if direction == caos_types.OutboundDirection:
-                                lname = (concept.name.module, linkname[1])
-                            else:
-                                if link_target:
-                                    lname = (link_target.name.module, linkname[1])
-                                else:
-                                    default_mod = modaliases.get(None)
-                                    if default_mod:
-                                        lname = (default_mod, linkname[1])
-                                    else:
-                                        lname = (None, linkname[1],)
+                        if linkname[1] == '%':
+                            link_item = self.proto_schema.get('metamagic.caos.builtins.link')
                         else:
-                            lname = linkname
-
-                        if lname[1] == '%':
-                            lname = ('metamagic.caos.builtins', 'link')
-
-                        link_item = self.proto_schema.get('.'.join(lname),
-                                                          module_aliases=modaliases)
+                            link_item = caos_utils.get_prototype_nearest_common_ancestor(links)
 
                         targets = {l.get_far_endpoint(direction) for l in links}
 
