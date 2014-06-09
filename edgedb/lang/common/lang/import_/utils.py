@@ -182,7 +182,11 @@ def modules_from_import_statements(package, imports, ignore_missing=False):
 
     modules = []
 
-    package_module = sys.modules[package]
+    if package:
+        package_module = sys.modules[package]
+        package_path = getattr(package_module, '__path__', None)
+    else:
+        package_module = package_path = None
 
     for name, fromlist in imports:
         path = None
@@ -193,7 +197,7 @@ def modules_from_import_statements(package, imports, ignore_missing=False):
 
         add_package = True
 
-        spec = module_spec.find_spec(fq_name, path=getattr(package_module, '__path__', None))
+        spec = module_spec.find_spec(fq_name, path=package_path)
         if spec is None:
             if ignore_missing:
                 add_package = False
