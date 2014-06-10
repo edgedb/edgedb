@@ -17,12 +17,12 @@ sx.types = (function() {
         json_formats = [],
         undefined = void(0);
 
-    function _sx_types_walk(reviver, holder, key) {
+    function _sx_types_walk(ctx, reviver, holder, key) {
         var k, v, value = holder[key];
         if (value && typeof value === 'object') {
             for (k in value) {
                 if (hop.call(value, k)) {
-                    v = _sx_types_walk(reviver, value, k);
+                    v = _sx_types_walk(ctx, reviver, value, k);
                     if (v !== undefined) {
                         value[k] = v;
                     } else {
@@ -31,10 +31,10 @@ sx.types = (function() {
                 }
             }
         }
-        return reviver.call(holder, key, value);
+        return reviver.call(holder, ctx, key, value);
     };
 
-    function _sx_types_unpacker(data) {
+    function _sx_types_unpacker(ctx, data) {
         var data = data.$sxjson$,
             data_format = data.format[0],
             i, len, format;
@@ -42,26 +42,28 @@ sx.types = (function() {
         for (i = 0, len = json_formats.length; i < len; i++) {
             format = json_formats[i];
             if (sx.str.startswith(data_format, format[0])) {
-                return format[1](data.format, data.data, data.metadata);
+                return format[1](data.format, data.data, data.metadata, ctx);
             }
         }
 
-        throw new sx.Error('unable to find unpacker for "' + data.format[0] + '"')
+        throw new Error('unable to find unpacker for "' + data.format[0] + '"')
     };
 
-    function _sx_types_unpacker_callback(key, value) {
+    function _sx_types_unpacker_callback(ctx, key, value) {
         if (value != null && hop.call(value, '$sxjson$')) {
-            return _sx_types_unpacker(value);
+            return _sx_types_unpacker(ctx, value);
         }
         return value;
     };
 
-    function sx_types_unpack(data) {
-        return _sx_types_walk(_sx_types_unpacker_callback, {'': data}, '');
+    function sx_types_unpack(data, ctx) {
+        return _sx_types_walk(ctx, _sx_types_unpacker_callback, {'': data}, '');
     };
 
-    function sx_types_parse(data) {
-        return json_parse(data, _sx_types_unpacker_callback);
+    function sx_types_parse(data, ctx) {
+        return json_parse(data, function(key, value) {
+            return _sx_types_unpacker_callback(ctx, key, value);
+        });
     };
 
     function sx_types_register(prefix, unpacker) {
