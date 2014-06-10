@@ -24,17 +24,46 @@ sx.types.register('pgjson.', function(format, data, metadata, ctx) {
         throw new sx.Error('malformed "' + format_string + '" data: ' + msg);
     }
 
-    var is_concept = function(obj) {
-        return obj.$cls.$sx_prototype.$cls === sx.caos.ProtoConcept;
+    var is_concept = function(cls) {
+        return cls.$sx_prototype.$cls === sx.caos.ProtoConcept;
     };
 
-    var merge_into_session = function(session, obj) {
-        var result = session.get(result['metamagic.caos.builtins.id']);
+    var merge_into_session = function(session, cls, data, virtuals_map) {
+        var result = session.get(data['metamagic.caos.builtins.id']);
+
         if (result) {
-            result.update(result, rec_info.virtuals_map);
+            result.update(data, virtuals_map);
         } else {
-            result = new cls(result, rec_info.virtuals_map);
+            result = new cls(data, virtuals_map);
             session.add(result);
+        }
+
+        return result;
+    };
+
+    var merge_entity = function(session, data, rec_info) {
+        var clsname = data['$sxclsname$'];
+        data['$sxclsname$'] = null;
+        var cls = sx.caos.schema.get(clsname);
+
+        // Filter out pointers that do not belong to this class.
+        // This happens when we receive a combined record for multiple classes.
+        var keys = sx.keys(data), kl = keys.length;
+
+        var result;
+
+        for (var i = 0; i < kl; i++) {
+            var key = keys[i];
+            if (!sx.contains(key, '<') && !cls['$ptr$' + key]) {
+                delete data[key];
+            }
+        }
+
+        if (session != null && is_concept(cls)) {
+            result = merge_into_session(session, cls, data,
+                                        rec_info.virtuals_map);
+        } else {
+            result = new cls(data, rec_info.virtuals_map);
         }
 
         return result;
@@ -273,32 +302,8 @@ sx.types.register('pgjson.', function(format, data, metadata, ctx) {
         }
 
         if (result['$sxclsname$']) {
-            var clsname = result['$sxclsname$'];
-            result['$sxclsname$'] = null;
-            var cls = sx.caos.schema.get(clsname);
-
-            // Filter out pointers that do not belong to this class.
-            // This happens when we receive a combined record for multiple classes.
-            var keys = sx.keys(result), kl = keys.length;
-
-            for (var i = 0; i < kl; i++) {
-                var key = keys[i];
-                if (!sx.contains(key, '<') && !cls['$ptr$' + key]) {
-                    delete result[key];
-                }
-            }
-
-            if (session != null && is_concept(result)) {
-                merge_into_session(session, result)
-            } else {
-                result = new cls(result, rec_info.virtuals_map);
-            }
-
+            result = merge_entity(session, result, rec_info);
         } else if (result.hasOwnProperty('t')) {
-            if (session != null && is_concept(result['t'])) {
-                result['t'] = merge_into_session(session, result['t']);
-            }
-
             result = new sx.caos.xvalue(result['t'], result['p']);
         }
 
