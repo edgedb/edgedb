@@ -281,7 +281,8 @@ sx.types.register('pgjson.', function(format, data, metadata) {
 
     if (format_string == 'pgjson.caos.selector' || format_string == 'pgjson.caos.entity') {
         for (var i = 0; i < data.length; i++) {
-            var item = _decode_record(data[i]);
+            var row = sx.json.parse(data[i]);
+            var item = _decode_record(row);
 
             if (sx.len(item) != 1) {
                 _throw('top-level element must contain exactly one attribute');
@@ -291,7 +292,9 @@ sx.types.register('pgjson.', function(format, data, metadata) {
         }
     } else {
         for (var i = 0; i < data.length; i++) {
-            var item = _decode_record(data[i]);
+            var row = sx.json.parse(data[i]);
+            var item = _decode_record(row);
+
             result.push(item);
         }
     }
