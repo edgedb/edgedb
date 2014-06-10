@@ -10,7 +10,7 @@
 // %import metamagic.caos.frontends.javascript.base
 
 
-sx.types.register('pgjson.', function(format, data, metadata) {
+sx.types.register('pgjson.', function(format, data, metadata, ctx) {
     "use strict";
 
     var format_string = format[0], format_version = format[1];
@@ -18,10 +18,27 @@ sx.types.register('pgjson.', function(format, data, metadata) {
     var supported_formats = ['pgjson.caos.selector', 'pgjson.caos.queryselector',
                              'pgjson.caos.entity', 'pgjson.caos'];
     var hop = {}.constructor.prototype.hasOwnProperty;
+    var session = ctx ? ctx.session || null : null;
 
     var _throw = function(msg) {
         throw new sx.Error('malformed "' + format_string + '" data: ' + msg);
     }
+
+    var is_concept = function(obj) {
+        return obj.$cls.$sx_prototype.$cls === sx.caos.ProtoConcept;
+    };
+
+    var merge_into_session = function(session, obj) {
+        var result = session.get(result['metamagic.caos.builtins.id']);
+        if (result) {
+            result.update(result, rec_info.virtuals_map);
+        } else {
+            result = new cls(result, rec_info.virtuals_map);
+            session.add(result);
+        }
+
+        return result;
+    };
 
     if (sx.contains(supported_formats, format_string)) {
         if (format_version != 1) {
@@ -271,8 +288,17 @@ sx.types.register('pgjson.', function(format, data, metadata) {
                 }
             }
 
-            result = new cls(result, rec_info.virtuals_map);
+            if (session != null && is_concept(result)) {
+                merge_into_session(session, result)
+            } else {
+                result = new cls(result, rec_info.virtuals_map);
+            }
+
         } else if (result.hasOwnProperty('t')) {
+            if (session != null && is_concept(result['t'])) {
+                result['t'] = merge_into_session(session, result['t']);
+            }
+
             result = new sx.caos.xvalue(result['t'], result['p']);
         }
 
