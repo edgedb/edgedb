@@ -114,6 +114,10 @@
         },
 
         each: function sx_each(obj, func, scope) {
+            if (obj.__sx_each__) {
+                return obj.__sx_each__(func, scope);
+            }
+
             scope = scope || global;
 
             if (func.length < 1 || func.length > 3) {
@@ -282,6 +286,10 @@
             }
 
             if (sx.is_string(obj)) {
+                return obj.length;
+            }
+
+            if (obj.length != null && sx.is_number(obj.length)) {
                 return obj.length;
             }
 
