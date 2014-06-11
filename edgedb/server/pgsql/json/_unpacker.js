@@ -34,8 +34,9 @@ sx.types.register('pgjson.', function(format, data, metadata, ctx) {
         if (result) {
             result.update(data, virtuals_map);
         } else {
-            result = new cls(data, virtuals_map);
-            session.add(result);
+            session.withSession(function() {
+                result = new cls(data, virtuals_map);
+            });
         }
 
         return result;
