@@ -821,6 +821,9 @@ class TreeTransformer:
                     if sorter:
                         subgraph.sorter = sorter
 
+                    subgraph.offset = recurse_spec.offset
+                    subgraph.limit = recurse_spec.limit
+
                     if recurse_spec.recurse is not None:
                         subgraph.recurse_link = link_node
                         subgraph.recurse_depth = recurse_spec.recurse
@@ -883,7 +886,10 @@ class TreeTransformer:
                                                ptr_direction=ptrspec.ptr_direction,
                                                recurse=ptrspec.recurse,
                                                target_proto=ptrspec.target_proto,
+                                               generator=ptrspec.generator,
                                                sorter=ptrspec.sorter,
+                                               limit=ptrspec.limit,
+                                               offset=ptrspec.offset,
                                                pathspec=ptrspec.pathspec[:])
 
                 for i, subptrspec in enumerate(ptrspec.pathspec):
@@ -943,7 +949,9 @@ class TreeTransformer:
                         target_proto=target,
                         recurse=item1.recurse,
                         sorter=item1.orderexprs,
-                        generator=item1.generator
+                        generator=item1.generator,
+                        offset=item1.offset,
+                        limit=item1.limit
                     )
 
                     result.append(merged)
