@@ -917,6 +917,13 @@ class CaosTreeTransformer(CaosExprTransformer):
 
             elif graph.aggregate_result.name == ('agg', 'count'):
                 aggfunc = 'count'
+
+            elif graph.aggregate_result.name == ('agg', 'min'):
+                aggfunc = 'min'
+
+            elif graph.aggregate_result.name == ('agg', 'max'):
+                aggfunc = 'max'
+
             else:
                 msg = 'unexpected auto-aggregate function: {}'.format(graph.aggregate_result.name)
                 raise ValueError(msg)
