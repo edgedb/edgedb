@@ -1041,6 +1041,11 @@ class CaosTreeTransformer(CaosExprTransformer):
             pgsql.ast.SelectExprNode(expr=ref)
         )
 
+        if query.proxyouterbonds:
+            wrapper.proxyouterbonds.update(query.proxyouterbonds)
+        elif query.outerbonds:
+            wrapper.proxyouterbonds[query] = query.outerbonds
+
         return wrapper
 
     def _generate_recursive_query(self, context, query, recurse_link, recurse_depth):
