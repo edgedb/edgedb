@@ -18,6 +18,8 @@ from metamagic.caos.nodesystem.middleware import CaosSessionMiddleware
 from metamagic.utils import config
 from metamagic.utils.lang.import_ import get_object
 
+from metamagic import caos
+
 from .bucket import BucketMeta, Bucket
 from .backends import FSBackend
 
@@ -74,7 +76,8 @@ def _do_upload(session, fileobj, bucket_cls, concept, fieldcls=None, config=None
 
 
 @files
-def upload(context, bucket:str, concept:str=None, fieldcls=None, config=None):
+def upload(context, bucket:str, concept:str=None, fieldcls=None, config=None,
+                    return_selector=False):
     bucket_cls = BucketMeta.get_bucket_class(bucket)
 
     session = context.session
@@ -99,7 +102,10 @@ def upload(context, bucket:str, concept:str=None, fieldcls=None, config=None):
             file_entity = yield _do_upload(session, file, bucket_cls, Concept, fieldcls, config)
             file_ids[file_entity.id] = [file_entity.name]
 
-    return file_ids
+    if return_selector:
+        return Concept.filter(caos.expr.In(Concept.id, list(file_ids)))
+    else:
+        return file_ids
 
 
 @http('download/<id>')
