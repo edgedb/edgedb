@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2012 Sprymix Inc.
+# Copyright (c) 2008-2014 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -58,7 +58,14 @@ class FileFinder(machinery.FileFinder):
 
 
 def install():
-    sys.path_hooks.insert(0, FileFinder.path_hook())
+    for i, hook in enumerate(sys.path_hooks):
+        hook_mod = getattr(hook, '__module__', '')
+        if (hook_mod.startswith('importlib')
+                or hook_mod.startswith('_frozen_importlib')):
+            sys.path_hooks.insert(i, FileFinder.path_hook())
+            break
+    else:
+        sys.path_hooks.insert(0, FileFinder.path_hook())
 
 
 def update_finders():
