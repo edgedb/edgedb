@@ -54,8 +54,15 @@ class PGCluster(FunctionArgument):
                 port=port,
                 log_destination='stderr',
                 log_min_messages='FATAL',
-                unix_socket_directory=tempdir,
             ))
+            if install.version_info[:2] < (9, 3):
+                cluster.settings.update(dict(
+                    unix_socket_directory = tempdir,
+                ))
+            else:
+                cluster.settings.update(dict(
+                    unix_socket_directories = tempdir,
+                ))
             cluster.start()
             cluster.wait_until_started(timeout=20)
             c = cluster.connection(user='test', database='template1')
