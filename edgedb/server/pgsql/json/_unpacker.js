@@ -25,7 +25,7 @@ sx.types.register('pgjson.', function(format, data, metadata, ctx) {
     }
 
     var is_concept = function(cls) {
-        return cls.$sx_prototype.$cls === sx.caos.ProtoConcept;
+        return cls.$sx_prototype.__class__ === sx.caos.ProtoConcept;
     };
 
     var merge_into_session = function(session, cls, data, virtuals_map) {

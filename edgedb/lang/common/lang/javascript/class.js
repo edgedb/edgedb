@@ -29,15 +29,14 @@ sx.$bootstrap_class_system = function(opts) {
         default_opts = {
             constructor_name: 'constructor',
 
-            cls_attr: '$cls',
-            mro_attr: '$mro',
-            bases_attr: '$bases',
-            name_attr: '$name',
-            wrapped_attr: '$wrapped',
+            cls_attr: '__class__',
+            mro_attr: '__mro__',
+            bases_attr: '__bases__',
+            name_attr: '__name__',
+            wrapped_attr: '__wrapped__',
             own_attr: '$$own',
             statics_attr: '$$statics',
-            module_attr: '$module',
-            qualname_attr: '$qualname',
+            module_attr: '__module__',
             last_instance_attr: '$$_lastinst',
             cached_constructor: '$$_cached_c',
             type_cls_name: 'type',
@@ -63,7 +62,6 @@ sx.$bootstrap_class_system = function(opts) {
         OWN_ATTR = opts.own_attr,
         STATICS_ATTR = opts.statics_attr,
         MODULE_ATTR = opts.module_attr,
-        QUALNAME_ATTR = opts.qualname_attr,
         AUTO_REGISTER_NS = opts.auto_register_ns,
         LAST_INST_ATTR = opts.last_instance_attr,
         ARGS_MARKER = {},
@@ -345,7 +343,6 @@ sx.$bootstrap_class_system = function(opts) {
             cls[NAME_ATTR] = name;
             cls[MODULE_ATTR] = null;
         }
-        cls[QUALNAME_ATTR] = name;
 
         cls[CLS_ATTR] = this;
         proto = cls.prototype = {};
@@ -487,17 +484,18 @@ sx.$bootstrap_class_system = function(opts) {
     new_class[NAME_ATTR] = CONSTRUCTOR;
     TypeClass[STATICS_ATTR] = false;
     TypeClass[OWN_ATTR] = false;
-    var type_qualname = TypeClass[QUALNAME_ATTR] = opts.type_cls_name;
+    var type_qualname = opts.type_cls_name;
 
     var object_constructor = function() {};
     var ObjectClass = make_universal_constructor();
     object_constructor[NAME_ATTR] = CONSTRUCTOR;
     object_constructor[CLS_ATTR] = ObjectClass;
     var ObjectClass_toString = function() {
-        return '<instance of ' + this[CLS_ATTR][QUALNAME_ATTR] + '>';
+        return '<instance of ' + this[CLS_ATTR][MODULE_ATTR] + '.' +
+                                 this[CLS_ATTR][NAME_ATTR] + '>';
     };
-    ObjectClass_toString.$cls = ObjectClass;
-    ObjectClass_toString.$name = 'toString';
+    ObjectClass_toString.__class__ = ObjectClass;
+    ObjectClass_toString.__name__ = 'toString';
     ObjectClass.prototype = {
         toString: ObjectClass_toString
     };
@@ -517,7 +515,7 @@ sx.$bootstrap_class_system = function(opts) {
     ObjectClass[BASES_ATTR] = [ObjectClass];
     ObjectClass[NAME_ATTR] = opts.object_cls_name;
     ObjectClass[MODULE_ATTR] = opts.builtins_name;
-    var obj_qualname = ObjectClass[QUALNAME_ATTR] = opts.object_cls_name;
+    var obj_qualname = opts.object_cls_name;
     ObjectClass[MRO_ATTR] = [ObjectClass];
     ObjectClass[OWN_ATTR] = false;
     ObjectClass.toString = function() { return '<class ' + obj_qualname + '>'; };

@@ -44,7 +44,7 @@ sx.define('metamagic.utils.fs.frontends.javascript.BaseBucket', [], {
         },
 
         get_backends: function() {
-            var mro = this.$mro,
+            var mro = this.__mro__,
                 len = mro.length,
                 i, backends;
 
@@ -60,7 +60,7 @@ sx.define('metamagic.utils.fs.frontends.javascript.BaseBucket', [], {
             var backends = this.get_backends();
 
             if (!backends) {
-                throw new Error('Bucket.get_file_pub_url: ' + this.$name + ' bucket has no ' +
+                throw new Error('Bucket.get_file_pub_url: ' + this.__name__ + ' bucket has no ' +
                                 'backends set');
             }
 

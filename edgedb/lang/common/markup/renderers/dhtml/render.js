@@ -796,18 +796,29 @@ var js_id = 0,
         return Object.prototype.toString.call(obj);
     },
     public_attrs = {
-        '$name':1,
-        '$cls':1,
-        '$mro':1,
-        '$module':1
+        '__class__':1,
+        '__mro__':1,
+        '__name__':1,
+        '__module__':1
     },
     private_attrs = {
         'toString':1,
         'constructor':1
     },
     public_attr = function(sx_obj_attr) {
-        return (sx_obj_attr[0] == '$') ? hop.call(public_attrs, sx_obj_attr) :
-                                                    !hop.call(private_attrs, sx_obj_attr);
+        var len = sx_obj_attr.length;
+
+        if (len < 6) {
+            return true;
+        }
+
+        if ((sx_obj_attr[0] == sx_obj_attr[1] == '_') &&
+            (sx_obj_attr[len-1] == sx_obj_attr[len-2] == '_')) {
+
+            return hop.call(public_attrs, sx_obj_attr);
+        }
+
+        return !hop.call(private_attrs, sx_obj_attr);
     };
 
 sx.Markup.Renderer.to_markup = function(obj, seen) {
