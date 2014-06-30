@@ -203,6 +203,16 @@ def serialize_exception(obj, *, ctx):
     if obj_traceback:
         traceback = elements.lang.ExceptionContext(title='Traceback',
                                                    body=[serialize(obj_traceback, ctx=ctx)])
+
+        if isinstance(obj, SyntaxError):
+            point = elements.lang.TracebackPoint(
+                        name='<parser>',
+                        lineno=obj.lineno,
+                        colno=obj.offset,
+                        filename=obj.filename)
+            point.load_source()
+            traceback.body[0].items.append(point)
+
         contexts.append(traceback)
 
     if details_context is not None:
