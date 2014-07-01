@@ -435,7 +435,7 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
         return str(self)
 
 
-class Time(TimeDelta):
+class Time(datetime.time):
     def __new__(cls, value=None, *, format=None):
         if isinstance(value, (Time, datetime.time)):
             d = value
@@ -463,9 +463,3 @@ class Time(TimeDelta):
 
         return super().__new__(cls, hour=d.hour, minute=d.minute, second=d.second,
                                     microsecond=d.microsecond)
-
-    def __str__(self):
-        return '%d:%d:%d.%d' % (self.hour, self.minute, self.second, self.microsecond)
-
-    def __repr__(self):
-        return "'%d:%d:%d.%d'" % (self.hour, self.minute, self.second, self.microsecond)
