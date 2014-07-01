@@ -463,3 +463,39 @@ class Time(datetime.time):
 
         return super().__new__(cls, hour=d.hour, minute=d.minute, second=d.second,
                                     microsecond=d.microsecond)
+
+
+class IANATimeZone(datetime.tzinfo):
+    _re = re.compile(r'^\w[\w-]*(/\w[\w-]*)?$')
+
+    def __init__(self, name):
+        if not self._re.match(name):
+            raise ValueError("invalid timezone name: {!r}".format(name))
+
+        self._name = name
+        self._tz = dateutil.tz.gettz(name)
+
+        if self._tz is None:
+            raise ValueError("invalid timezone name: {!r}".format(name))
+
+    @property
+    def name(self):
+        return self._name
+
+    def utcoffset(self, dt):
+        return self._tz.utcoffset(dt)
+
+    def dst(self, dt):
+        return self._tz.dst(dt)
+
+    def tzname(self, dt):
+        return self._tz.tzname(dt)
+
+    def __eq__(self, other):
+        if not isinstance(other, IANATimeZone):
+            return False
+        else:
+            return self._name == other._name and self._tz == other._tz
+
+    def __repr__(self):
+        return '<{} {!r}>'.format(self.__class__.__name__, self.name)
