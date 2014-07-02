@@ -244,6 +244,9 @@ def modified_modules():
         except AttributeError:
             # Weird custom module, skip
             continue
+        except ImportError:
+            # Crazy module proxy, skip
+            continue
 
         try:
             loaded_metainfo = module.__mm_metadata__
