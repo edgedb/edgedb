@@ -33,9 +33,6 @@ class TestJSClass(JSFunctionalTest):
 
         assert.equal(Bar.__name__, 'Bar');
         assert.equal(Bar.__module__, 'test.sub');
-
-        assert.equal(sx.type.__name__, 'type');
-        assert.equal(sx.object.__name__, 'object');
         '''
 
     def test_utils_lang_js_sx_class_2(self):
@@ -763,13 +760,10 @@ class TestJSClass(JSFunctionalTest):
         assert.ok(sx.isinstance(new Number(10), [Number, String]));
         assert.ok(sx.isinstance('spam', String));
         assert.ok(sx.isinstance(10, Number));
-        assert.ok(sx.isinstance(10, sx.BaseObject));
         assert.ok(sx.isinstance(true, Boolean));
         assert.ok(sx.isinstance(false, Boolean));
 
         assert.not(sx.isinstance(null, String));
-        assert.not(sx.isinstance(null, sx.BaseObject));
-        assert.not(sx.isinstance(void(0), sx.BaseObject));
 
         var a = function(){};
         var b = function(){};
@@ -830,10 +824,8 @@ class TestJSClass(JSFunctionalTest):
         // %from metamagic.utils.lang.javascript import class
 
         sx.define('com.acme.Bar');
-        assert.equal(com.acme.Bar() + '', '<instance of com.acme.Bar>');
-        assert.equal(com.acme.Bar + '', '<class com.acme.Bar>');
-        assert.equal(sx.type + '', '<class type>');
-        assert.equal(sx.object + '', '<class object>');
+        assert.equal(com.acme.Bar() + '', "<object 'com.acme.Bar'>");
+        assert.equal(com.acme.Bar + '', "<class 'com.acme.Bar'>");
         '''
 
     def test_utils_lang_js_sx_class_statics_scope(self):
@@ -850,9 +842,7 @@ class TestJSClass(JSFunctionalTest):
             }
         });
 
-        var scope = {a: 42};
-
-        assert.equal(com.acme.Bar.foo.call(scope), 42);
+        assert.equal(new com.acme.Bar().foo(), 100);
         assert.equal(com.acme.Bar.foo(), 100);
         '''
 
@@ -862,17 +852,11 @@ class TestJSClass(JSFunctionalTest):
 
         var Foo = sx.define('Foo', [], {
             foo: null,
-            bar: void 0,
-
-            statics: {
-                foo: null,
-                bar: void 0
-            }
+            bar: void 0
         });
 
         assert.equal(Foo.foo, null);
         assert.equal(Foo.bar, void 0);
-        assert.ok(Foo.hasOwnProperty('bar'));
         assert.equal(Foo().foo, null);
         assert.equal(Foo().bar, void 0);
         '''
