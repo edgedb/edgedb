@@ -157,7 +157,7 @@
 
                 if (no_desc) {
                     for (i in obj) {
-                        if (obj.hasOwnProperty(i)) {
+                        if (has_own_property.call(obj, i)) {
                             r = func.call(scope, obj[i], i);
 
                             if (r !== undefined) {
@@ -168,7 +168,7 @@
                     }
                 } else {
                     for (i in obj) {
-                        if (obj.hasOwnProperty(i)) {
+                        if (has_own_property.call(obj, i)) {
                             r = func.call(scope, obj[i], i, {
                                 first: cnt == 0,
                                 last: cnt == len - 1,
