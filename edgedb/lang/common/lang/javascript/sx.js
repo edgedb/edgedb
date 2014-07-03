@@ -278,7 +278,7 @@
             if (sx.is_object(obj)) {
                 var attr, len = 0;
                 for (attr in obj) {
-                    if (obj.hasOwnProperty(attr)) {
+                    if (has_own_property.call(obj, attr)) {
                         len++;
                     }
                 }
@@ -305,7 +305,7 @@
             if (sx.is_object(obj)) {
                 var attr, len = 0;
                 for (attr in obj) {
-                    if (obj.hasOwnProperty(attr)) {
+                    if (has_own_property.call(obj, attr)) {
                         return false;
                     }
                 }
@@ -393,7 +393,7 @@
             }
 
             if (sx.is_array(container)) {
-                if (Array.prototype.hasOwnProperty('indexOf')) {
+                if (has_own_property.call(Array.prototype, 'indexOf')) {
                     return container.indexOf(obj) != -1;
                 } else {
                     for (var i = 0; i < container.length; i++) {
@@ -469,7 +469,7 @@
         unescape: (function() {
             var entities = [];
             for (var entity in _unescape_entities) {
-                if (_unescape_entities.hasOwnProperty(entity)) {
+                if (has_own_property.call(_unescape_entities, entity)) {
                     entities.push(entity);
                 }
             }
@@ -843,7 +843,7 @@
 
                     if (attrs) {
                         for (i in attrs) {
-                            if (attrs.hasOwnProperty(i)) {
+                            if (has_own_property.call(attrs, i)) {
                                 new_el.setAttribute(i, attrs[i]);
                             }
                         }
