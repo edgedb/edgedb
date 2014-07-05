@@ -44,6 +44,37 @@ sx.parent = function(cls, ths, method, args) {
 }
 
 
+_newFactories = {};
+function _getNewFactory(n) {
+    if (_newFactories[n]) {
+        return _newFactories[n];
+    }
+
+    var args = [], src = [], i;
+    for (i = 0; i < n; i++) {
+        args.push('_' + i);
+        src.push('_' + i);
+    }
+
+    src = src.join(', ');
+    src = 'return new this(' + src + ')';
+
+    _newFactories[n] = new Function(args, src);
+
+    return _newFactories[n];
+}
+
+
+function __call__() {
+    if (!arguments.length) {
+        return new this();
+    }
+
+    var f = _getNewFactory(arguments.length);
+    return f.apply(this, arguments);
+}
+
+
 sx.define = function(name, bases, body) {
     var statics, attr, attrname, metaclass = null, args, extra_args = false;
 
@@ -54,6 +85,8 @@ sx.define = function(name, bases, body) {
     if (!body) {
         body = {};
     }
+
+    body.__call__ = __call__;
 
     if (arguments.length > 3) {
         extra_args = true;
@@ -132,9 +165,9 @@ sx.define = function(name, bases, body) {
         name = name[2];
     }
 
-    var cls = JPlus._newclass(module, name, bases, body, metaclass);
+    body['$$metamagic_class$$'] = true;
 
-    cls['$$metamagic_class$$'] = true;
+    var cls = JPlus._newclass(module, name, bases, body, metaclass);
 
     if (module) {
         sx.ns(fullname, cls);
