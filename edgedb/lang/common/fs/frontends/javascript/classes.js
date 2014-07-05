@@ -39,6 +39,8 @@ sx.define('metamagic.utils.fs.frontends.javascript.BaseBucket', [], {
     metaclass: BucketMeta,
 
     statics: {
+        backends: null,
+
         set_backends: function(backends) {
             this.backends = backends;
         },
