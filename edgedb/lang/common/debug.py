@@ -266,7 +266,7 @@ def debug_logger_off(logger_cls=logging.MetamagicLogHandler):
         yield
 
 
-class _LoggingAssertHandler(logging.Handler):
+class BufferingLogHandler(logging.Handler):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.buffer = []
@@ -274,6 +274,11 @@ class _LoggingAssertHandler(logging.Handler):
     def emit(self, record):
         self.buffer.append(record)
 
+    def get_logs(self):
+        return list(self.buffer)
+
+    def reset_logs(self):
+        self.buffer[:] = []
 
 @contextlib.contextmanager
 def assert_logs(message_re, *, logger_re=None):
@@ -291,7 +296,7 @@ def assert_logs(message_re, *, logger_re=None):
     logger_level = logger.level
     logger.setLevel(logging.DEBUG)
 
-    handler = _LoggingAssertHandler(level=logging.DEBUG)
+    handler = BufferingLogHandler(level=logging.DEBUG)
     logger.addHandler(handler)
 
     msg_re = re.compile(message_re)
