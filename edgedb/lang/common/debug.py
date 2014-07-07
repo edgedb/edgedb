@@ -280,6 +280,20 @@ class BufferingLogHandler(logging.Handler):
     def reset_logs(self):
         self.buffer[:] = []
 
+
+@contextlib.contextmanager
+def custom_logger(handler):
+    logger_level = logging.getLogger().level
+    logger = logging.getLogger()
+    logger.addHandler(handler)
+
+    try:
+        with debug_logger_off():
+            yield
+    finally:
+        logger.removeHandler(handler)
+
+
 @contextlib.contextmanager
 def assert_logs(message_re, *, logger_re=None):
     '''Context manager, that ensures that the wrapped block of code
