@@ -116,11 +116,11 @@ class Bucket(BaseBucket, abstract=True):
         return cls.get_implementation().delete_file(cls, id, name=name)
 
     @classmethod
-    def get_file_pub_url(cls, id, filename):
+    def get_file_pub_url(cls, id, filename=None):
         cls._error_if_abstract()
         return cls.get_implementation().get_file_pub_url(cls, id, filename)
 
     @classmethod
-    def get_file_path(cls, id, filename):
+    def get_file_path(cls, id, filename=None):
         cls._error_if_abstract()
         return cls.get_implementation().get_file_path(cls, id, filename)

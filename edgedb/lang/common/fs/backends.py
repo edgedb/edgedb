@@ -90,8 +90,12 @@ class FSBackend(BaseFSBackend):
 
         new_id = base64.b32encode(hashlib.md5(id.bytes).digest()).decode('ascii')
 
-        base_filename = id.hex + '_'
-        filename = base_filename + filename
+        base_filename = id.hex
+
+        if filename is not None:
+            filename = base_filename + '_' + filename
+        else:
+            filename = base_filename
 
         if len(filename) > self._FN_LEN_LIMIT:
             if '.' in filename:
@@ -117,10 +121,25 @@ class FSBackend(BaseFSBackend):
                 else:
                     os.remove(path)
             else:
-                raise BackendError('file names collision: {} already exists'.format(path))
+                raise BackendError('file names collision: {} already exists'\
+                                    .format(path))
 
         dir = os.path.dirname(path)
         os.makedirs(dir, exist_ok=True, mode=(0o777 - self.umask))
+
+        if getattr(bucket, 'allow_empty_names', False):
+            alias = self._get_base_name(bucket, id, None)
+            alias = os.path.join(self.path, alias)
+
+            if os.path.exists(alias):
+                if os.path.islink(alias):
+                    os.unlink(path)
+                else:
+                    raise BackendError('file alias exists and is not a symlink: {}'\
+                                       .format(alias))
+
+            os.symlink(os.path.basename(path), alias)
+
         return path
 
     def _after_save(self, path):
@@ -168,21 +187,44 @@ class FSBackend(BaseFSBackend):
 
     @_coroutine
     def delete_file(self, bucket, id, *, name=None):
+        alias = self._get_base_name(bucket, id, None)
+
+        if name is None:
+            aem = getattr(bucket, 'allow_empty_names', False)
+            if not aem:
+                raise ValueError('filename is required for this bucket')
+
+            name = os.readlink(alias)
+            _, _, name = name.partition('_')
+
         base = self._get_base_name(bucket, id, self.escape_filename(name))
         path = os.path.join(self.path, base)
 
-        if not os.path.exists(path):
-            return
+        if os.path.exists(path):
+            os.remove(path)
 
-        os.remove(path)
+        if os.path.exists(alias):
+            os.unlink(alias)
 
-    def get_file_path(self, bucket, id, filename):
-        filename = self.escape_filename(filename)
-        return os.path.join(self.path, self._get_base_name(bucket, id, filename))
+    def get_file_path(self, bucket, id, filename=None):
+        if filename is not None:
+            filename = self.escape_filename(filename)
+        else:
+            aem = getattr(bucket, 'allow_empty_names', False)
+            if not aem:
+                raise ValueError('filename is required for this bucket')
+        return os.path.join(self.path, self._get_base_name(bucket, id,
+                                                           filename))
 
-    def get_file_pub_url(self, bucket, id, filename):
-        filename = self.escape_filename(filename)
-        return os.path.join(self.pub_path, self._get_base_name(bucket, id, filename))
+    def get_file_pub_url(self, bucket, id, filename=None):
+        if filename is not None:
+            filename = self.escape_filename(filename)
+        else:
+            aem = getattr(bucket, 'allow_empty_names', False)
+            if not aem:
+                raise ValueError('filename is required for this bucket')
+        return os.path.join(self.pub_path, self._get_base_name(bucket, id,
+                                                               filename))
 
 
 class TemporaryFSBackend(FSBackend):
