@@ -311,37 +311,42 @@ sx.types.register('pgjson.', function(format, data, metadata, ctx) {
         return result;
     };
 
-    if (format_string == 'pgjson.caos.selector' || format_string == 'pgjson.caos.entity') {
-        for (var i = 0; i < data.length; i++) {
-            var row = sx.json.parse(data[i]);
-            var item = _decode_record(row);
+    var _decode = function() {
+        if (format_string == 'pgjson.caos.selector'
+                    || format_string == 'pgjson.caos.entity') {
+            for (var i = 0; i < data.length; i++) {
+                var row = sx.json.parse(data[i]);
+                var item = _decode_record(row);
 
-            if (sx.len(item) != 1) {
-                _throw('top-level element must contain exactly one attribute');
+                if (sx.len(item) != 1) {
+                    _throw('top-level element must contain exactly one attribute');
+                }
+
+                result.push(sx.first(item));
             }
-
-            result.push(sx.first(item));
-        }
-    } else {
-        for (var i = 0; i < data.length; i++) {
-            var row = sx.json.parse(data[i]);
-            var item = _decode_record(row);
-
-            result.push(item);
-        }
-    }
-
-    if (format_string == 'pgjson.caos.entity') {
-        var rlen = sx.len(result);
-
-        if (rlen > 1) {
-            _throw('caos.entity selector did not yield exactly one element');
-        } else if (rlen == 0) {
-            result = null;
         } else {
-            result = result[0];
+            for (var i = 0; i < data.length; i++) {
+                var row = sx.json.parse(data[i]);
+                var item = _decode_record(row);
+
+                result.push(item);
+            }
+        }
+
+        if (format_string == 'pgjson.caos.entity') {
+            var rlen = sx.len(result);
+
+            if (rlen > 1) {
+                _throw('caos.entity selector did not yield exactly one element');
+            } else if (rlen == 0) {
+                result = null;
+            } else {
+                result = result[0];
+            }
         }
     }
+
+    session.withBatch(_decode)
 
     return result;
 });
