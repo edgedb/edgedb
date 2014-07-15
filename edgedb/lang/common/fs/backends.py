@@ -111,7 +111,9 @@ class FSBackend(BaseFSBackend):
         return os.path.join(base, new_id[:2], new_id[2:4], filename)
 
     def _get_path(self, bucket, id, filename, allow_rewrite):
-        base = self._get_base_name(bucket, id, self.escape_filename(filename))
+        if filename:
+            filename = self.escape_filename(filename)
+        base = self._get_base_name(bucket, id, filename)
         path = os.path.join(self.path, base)
 
         if os.path.exists(path):
@@ -127,7 +129,7 @@ class FSBackend(BaseFSBackend):
         dir = os.path.dirname(path)
         os.makedirs(dir, exist_ok=True, mode=(0o777 - self.umask))
 
-        if getattr(bucket, 'allow_empty_names', False):
+        if filename and getattr(bucket, 'allow_empty_names', False):
             alias = self._get_base_name(bucket, id, None)
             alias = os.path.join(self.path, alias)
 
@@ -184,6 +186,33 @@ class FSBackend(BaseFSBackend):
             f.write(stream.read())
 
         self._after_save(path)
+
+    @_coroutine
+    def create_link(self, bucket, link_id, id, filename=None):
+        if filename is not None:
+            filename = self.escape_filename(filename)
+        else:
+            aem = getattr(bucket, 'allow_empty_names', False)
+            if not aem:
+                raise ValueError('filename is required for this bucket')
+
+        base_link_name = self._get_base_name(bucket, link_id, None)
+        linkname = self._get_path(bucket, link_id, None, allow_rewrite=False)
+        linkpath = os.path.join(self.path, linkname)
+
+        basename = self._get_base_name(bucket, id, filename)
+        updirs = ['..' for _ in range(base_link_name.count(os.path.sep))]
+        updirs.append(basename)
+        targetpath = os.path.join(*updirs)
+
+        os.symlink(targetpath, linkpath)
+
+    @_coroutine
+    def delete_link(self, bucket, link_id):
+        link_relpath = self._get_base_name(bucket, link_id, None)
+        linkpath = os.path.join(self.path, link_relpath)
+        if os.path.exists(linkpath):
+            os.unlink(linkpath)
 
     @_coroutine
     def delete_file(self, bucket, id, *, name=None):

@@ -111,6 +111,16 @@ class Bucket(BaseBucket, abstract=True):
                                                      allow_rewrite=allow_rewrite)
 
     @classmethod
+    def create_link(cls, link_id, id, filename=None):
+        cls._error_if_abstract()
+        return cls.get_implementation().create_link(cls, link_id, id, filename)
+
+    @classmethod
+    def delete_link(cls, link_id):
+        cls._error_if_abstract()
+        return cls.get_implementation().delete_link(cls, link_id)
+
+    @classmethod
     def delete_file(cls, id, *, name=None):
         cls._error_if_abstract()
         return cls.get_implementation().delete_file(cls, id, name=name)

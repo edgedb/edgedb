@@ -35,6 +35,14 @@ class BaseImplementation(abstract.Implementation, metaclass=ImplementationMeta):
         pass
 
     @abc.abstractclassmethod
+    def create_link(self, bucket, link_id, id, filename=None):
+        pass
+
+    @abc.abstractclassmethod
+    def delete_link(self, bucket, link_id):
+        pass
+
+    @abc.abstractclassmethod
     def get_file_path(cls, bucket, id, filename=None):
         pass
 
@@ -86,6 +94,25 @@ class DefaultImplementation(BaseImplementation):
         for backend in backends:
             yield_ (backend.store_stream(bucket, id, filename, stream,
                                          allow_rewrite=allow_rewrite))
+
+    @classmethod
+    def create_link(cls, bucket, link_id, id, filename=None):
+        assert link_id and isinstance(link_id, uuid.UUID)
+        assert id and isinstance(id, uuid.UUID)
+
+        backends = cls._ensure_backends(bucket)
+
+        for backend in backends:
+            yield_ (backend.create_link(bucket, link_id, id, filename))
+
+    @classmethod
+    def delete_link(cls, bucket, link_id):
+        assert link_id and isinstance(link_id, uuid.UUID)
+
+        backends = cls._ensure_backends(bucket)
+
+        for backend in backends:
+            yield_ (backend.delete_link(bucket, link_id))
 
     @classmethod
     def delete_file(cls, bucket, id, *, name):
