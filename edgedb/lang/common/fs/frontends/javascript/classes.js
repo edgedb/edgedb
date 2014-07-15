@@ -85,14 +85,21 @@ sx.define('metamagic.utils.fs.frontends.javascript.BaseFSBackend', [], {
         id = new sx.UUID(id);
 
         var base = bucket.id.toString(),
-            new_id = sx.base64.b32encode(sx.byteutils.unhexlify(sx.crypt.md5(id.toBytes())));
+            new_id = sx.base64.b32encode(sx.byteutils.unhexlify(sx.crypt.md5(id.toBytes()))),
+            url = base + '/' + new_id.slice(0, 2) + '/' + new_id.slice(2, 4) +
+                                                    '/' + id.hex
 
-        return base + '/' + new_id.slice(0, 2) + '/' + new_id.slice(2, 4) + '/' +
-               id.hex + '_' + filename;
+        if (filename) {
+            return url + '_' + filename;
+        } else {
+            return url;
+        }
     },
 
     get_file_pub_url: function(bucket, id, filename) {
-        filename = this.escape_filename(filename);
+        if (filename) {
+            filename = this.escape_filename(filename);
+        }
         return this.pub_path + '/' + this._get_base_name(bucket, id, filename);
     }
 });
