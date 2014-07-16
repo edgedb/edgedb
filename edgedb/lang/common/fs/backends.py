@@ -211,7 +211,7 @@ class FSBackend(BaseFSBackend):
     def delete_link(self, bucket, link_id):
         link_relpath = self._get_base_name(bucket, link_id, None)
         linkpath = os.path.join(self.path, link_relpath)
-        if os.path.exists(linkpath):
+        if os.path.lexists(linkpath):
             os.unlink(linkpath)
 
     @_coroutine
