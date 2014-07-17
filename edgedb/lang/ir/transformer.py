@@ -807,10 +807,35 @@ class TreeTransformer:
                         link_node.proprefs.add(newstep)
 
                     generator = caos_ast.Conjunction(paths=frozenset((targetstep,)))
-                    if filter_generator is not None:
-                        generator.paths = frozenset(generator.paths | {filter_generator})
 
-                    generator = self.merge_paths(generator)
+                    if filter_generator is not None:
+                        ref_gen = caos_ast.Conjunction(paths=frozenset((targetstep,)))
+                        generator.paths = frozenset(generator.paths | {filter_generator})
+                        generator = self.merge_paths(generator)
+
+                        # merge_paths fails to update all refs, because
+                        # some nodes that need to be updated are behind
+                        # non-traversable rlink attribute.  Do the
+                        # proper update manually.  Also, make sure
+                        # aggregate_result below gets a correct ref.
+                        #
+                        new_targetstep = next(iter(ref_gen.paths))
+                        if new_targetstep != targetstep:
+                            el.replace_refs([targetstep], new_targetstep,
+                                            deep=True)
+
+                            for elem in el.elements:
+                                try:
+                                    rlink = elem.rlink
+                                except AttributeError:
+                                    pass
+                                else:
+                                    if rlink:
+                                        rlink.replace_refs([targetstep],
+                                                           new_targetstep,
+                                                           deep=True)
+
+                            targetstep = new_targetstep
 
                     subgraph = caos_ast.GraphExpr()
                     subgraph.generator = generator
