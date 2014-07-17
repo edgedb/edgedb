@@ -651,6 +651,10 @@ class Feature:
     def init_feature(cls, db):
         pass
 
+    @classmethod
+    def reset_connection(cls, connection):
+        pass
+
 
 class EnableFeature(dbops.DDLOperation):
     def __init__(self, feature, *, conditions=None, neg_conditions=None, priority=0):

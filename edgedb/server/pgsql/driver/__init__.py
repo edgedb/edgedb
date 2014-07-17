@@ -353,9 +353,13 @@ class Connection(pq3.Connection, caos_pool.Connection):
         else:
             self.execute("SET SESSION AUTHORIZATION DEFAULT;")
             self.execute("RESET ALL;")
+            self.settings._clear_cache()
             self.execute("CLOSE ALL;")
             self.execute("UNLISTEN *;")
             self.execute("SELECT pg_advisory_unlock_all();")
+
+        if self._pool:
+            self._pool.backend.reset_connection(self)
 
     def close(self):
         self._prepared_statements.clear()

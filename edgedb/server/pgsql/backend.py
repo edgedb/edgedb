@@ -432,6 +432,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             self._read_and_init_features(connection)
 
 
+    def reset_connection(self, connection):
+        for feature_class_name in self.features.values():
+            feature_class = get_object(feature_class_name)
+            feature_class.reset_connection(connection)
+
+
     def _read_and_init_features(self, connection):
         if self.features is None:
             self.features = self.read_features(connection)
