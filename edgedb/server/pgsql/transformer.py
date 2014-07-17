@@ -58,6 +58,7 @@ class TransformerContextLevel(object):
             self.in_subquery = prevlevel.in_subquery
             self.global_ctes = prevlevel.global_ctes
             self.local_atom_expr_source = prevlevel.local_atom_expr_source
+            self.search_path = prevlevel.search_path
 
             if mode == TransformerContext.NEW_TRANSPARENT:
                 self.location = prevlevel.location
@@ -130,6 +131,7 @@ class TransformerContextLevel(object):
             self.output_format = None
             self.in_subquery = False
             self.local_atom_expr_source = None
+            self.search_path = []
 
     def genalias(self, alias=None, hint=None):
         if alias is None:
@@ -2578,10 +2580,23 @@ class CaosTreeTransformer(CaosExprTransformer):
                     indirection = pgsql.ast.IndexIndirectionNode(lower=lower, upper=upper)
                     result = pgsql.ast.IndirectionNode(expr=args[0], indirection=indirection)
 
+            elif expr.name == ('geo', 'covers'):
+                # _st_covers instead of st_covers, because Postgres chokes on && operator
+                # inside st_covers for some reason.
+                name = common.qname('caos_aux_feat_gis', '_st_covers')
+                context.current.search_path.append('caos_aux_feat_gis')
+
+            elif expr.name == ('geo', 'distance'):
+                args = self._geo_convert_to_geometry(context, args)
+                name = common.qname('caos_aux_feat_gis', 'st_distance_sphere')
+                context.current.search_path.append('caos_aux_feat_gis')
+
             elif isinstance(expr.name, tuple):
                 assert False, 'unsupported function %s' % (expr.name,)
+
             else:
                 name = expr.name
+
             if not result:
                 result = pgsql.ast.FunctionCallNode(name=name, args=args,
                                                     aggregates=bool(expr.aggregates),
@@ -2589,6 +2604,16 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                 if expr.window:
                     result.over = pgsql.ast.WindowDefNode()
+
+        return result
+
+    def _geo_convert_to_geometry(self, context, exprs):
+        result = []
+
+        for expr in exprs:
+            conv = pgsql.ast.FunctionCallNode(name=common.qname('caos_aux_feat_gis', 'geometry'),
+                                              args=[expr])
+            result.append(conv)
 
         return result
 

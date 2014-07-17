@@ -85,3 +85,25 @@ class KnownRecordMarkerFeature(deltadbops.Feature):
         oid = ps.first()
         if oid is not None:
             db._sx_known_record_marker_oid_ = oid
+
+
+class GisFeature(deltadbops.Feature):
+    def __init__(self, schema='caos_aux_feat_gis'):
+        super().__init__(name='postgis', schema=schema)
+
+    @classmethod
+    def init_feature(cls, db):
+        cls.reset_connection(db)
+
+        for typ in ('box2d', 'box3d', 'geometry', 'geography'):
+            try:
+                db.typio.identify(contrib_postgis='{}.{}'.format('caos_aux_feat_gis', typ))
+            except postgresql.exceptions.SchemaNameError:
+                pass
+
+    @classmethod
+    def reset_connection(cls, connection):
+        search_path = connection.settings['search_path']
+
+        if 'caos_aux_feat_gis' not in search_path:
+            connection.settings['search_path'] = search_path + ',caos_aux_feat_gis'

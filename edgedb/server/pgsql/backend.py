@@ -1318,7 +1318,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def read_modules(self, meta):
         schemas = introspection.schemas.SchemasList(self.connection).fetch(schema_name='caos%')
-        schemas = {s['name'] for s in schemas}
+        schemas = {s['name'] for s in schemas if not s['name'].startswith('caos_aux_')}
 
         context = delta_cmds.CommandContext(self.connection)
         cond = dbops.TableExists(name=('caos', 'module'))
@@ -2313,6 +2313,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             domain_name = typname[-1]
         else:
             domain_name = typname
+            if atom_schema != common.caos_module_name_to_schema_name('metamagic.caos.builtins'):
+                typname = (atom_schema, typname)
         atom_name = self.domain_to_atom_map.get((atom_schema, domain_name))
 
         if atom_name:

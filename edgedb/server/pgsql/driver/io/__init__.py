@@ -17,7 +17,11 @@ io_modules = {
     'datetime': {
         postgresql.types.INTERVALOID,
         postgresql.types.TIMESTAMPTZOID
-    }
+    },
+
+    'contrib_postgis': {
+        'contrib_postgis'
+    },
 }
 
 

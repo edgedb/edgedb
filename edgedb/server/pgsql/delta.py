@@ -17,6 +17,7 @@ from metamagic.caos import proto
 from metamagic.caos import delta as delta_cmds
 from metamagic.caos.caosql import expr as caosql_expr
 from metamagic.caos import objects as caos_objects
+from metamagic.caos.objects import geo as geo_objects
 
 from metamagic.utils import datastructures
 from metamagic.utils.debug import debug
@@ -428,6 +429,15 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
     def apply(self, meta, context=None):
         atom = delta_cmds.CreateAtom.apply(self, meta, context)
         AtomMetaCommand.apply(self, meta, context)
+
+        if atom.issubclass(geo_objects.Geometry):
+            schema = dbops.CreateSchema(name='caos_aux_feat_gis')
+            feat = deltadbops.EnableFeature(feature=features.GisFeature())
+
+            cond = dbops.TypeExists(('caos_aux_feat_gis', 'geography'))
+            cmd = dbops.CommandGroup(neg_conditions=[cond])
+            cmd.add_commands([schema, feat])
+            self.pgops.add(cmd)
 
         new_domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
         base, _, constraints, extraconstraints = types.get_atom_base_and_constraints(meta, atom)
@@ -3163,7 +3173,6 @@ class UpgradeBackend(MetaCommand):
         column = dbops.Column(name='is_virtual', type='boolean', required=True, default=False)
         add_column = dbops.AlterTableAddColumn(column)
         cmd.add_operation(add_column)
-
         cmd.execute(context)
 
     def update_to_version_4(self, context):

@@ -9,8 +9,23 @@
 from metamagic import caos
 from metamagic.caos import proto
 from metamagic.utils.lang.import_ import get_object
+from metamagic.caos.objects import geo as geo_objects
 
 from . import common
+
+
+def parse_geo_type(connection, type_name, *type_mods):
+    if type_mods:
+        cls = geo_objects.GeometryMeta.class_from_name(type_mods[0])
+        if cls is None:
+            details = 'Could not find matching atom for GIS type %s(%s)' % \
+                        (type_name, ', '.join(type_mods))
+            raise caos.types.MetaError('internal metadata error', details=details)
+        return caos.types.proto_name_from_type(cls), ()
+    else:
+        details = 'Could not find matching atom for GIS type %s(%s)' % \
+                        (type_name, ', '.join(type_mods))
+        raise caos.types.MetaError('internal metadata error', details=details)
 
 
 base_type_name_map = {
@@ -26,7 +41,11 @@ base_type_name_map = {
     caos.Name('metamagic.caos.builtins.date'): 'date',
     caos.Name('metamagic.caos.builtins.time'): 'time without time zone',
     caos.Name('metamagic.caos.builtins.timedelta'): 'interval',
-    caos.Name('metamagic.caos.builtins.bytes'): 'bytea'
+    caos.Name('metamagic.caos.builtins.bytes'): 'bytea',
+
+    caos.Name('metamagic.caos.geo.point'): 'caos_aux_feat_gis.geography(POINT)',
+    caos.Name('metamagic.caos.geo.linestring'): 'caos_aux_feat_gis.geography(LINESTRING)',
+    caos.Name('metamagic.caos.geo.polygon'): 'caos_aux_feat_gis.geography(POLYGON)'
 }
 
 base_type_name_map_r = {
@@ -49,7 +68,9 @@ base_type_name_map_r = {
     'time without time zone': caos.Name('metamagic.caos.builtins.time'),
     'time': caos.Name('metamagic.caos.builtins.time'),
     'interval': caos.Name('metamagic.caos.builtins.timedelta'),
-    'bytea': caos.Name('metamagic.caos.builtins.bytes')
+    'bytea': caos.Name('metamagic.caos.builtins.bytes'),
+
+    ('caos_aux_feat_gis', 'geography'): parse_geo_type
 }
 
 
