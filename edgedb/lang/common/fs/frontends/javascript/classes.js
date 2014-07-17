@@ -73,6 +73,8 @@ sx.define('metamagic.utils.fs.frontends.javascript.BaseBucket', [], {
 
 
 sx.define('metamagic.utils.fs.frontends.javascript.BaseFSBackend', [], {
+    _FN_LEN_LIMIT: 75,
+
     constructor: function(args) {
         sx.apply(this, args);
     },
@@ -86,14 +88,34 @@ sx.define('metamagic.utils.fs.frontends.javascript.BaseFSBackend', [], {
 
         var base = bucket.id.toString(),
             new_id = sx.base64.b32encode(sx.byteutils.unhexlify(sx.crypt.md5(id.toBytes()))),
-            url = base + '/' + new_id.slice(0, 2) + '/' + new_id.slice(2, 4) +
-                                                    '/' + id.hex
+            base_filename = id.hex;
 
         if (filename) {
-            return url + '_' + filename;
+            filename = base_filename + '_' + filename;
         } else {
-            return url;
+            filename = base_filename;
         }
+
+        if (filename.length > this._FN_LEN_LIMIT) {
+            if (filename.indexOf('.') > -1) {
+
+                var extension = sx.str.rpartition(filename, '.')[2];
+                var limit = this._FN_LEN_LIMIT - extension.length - 1;
+
+                if (limit <= 0) {
+                    filename = filename.slice(0, this._FN_LEN_LIMIT);
+                } else {
+                    filename = filename.slice(0, limit) + '.' + extension;
+                }
+            } else {
+                filename = filename.slice(0, this._FN_LEN_LIMIT);
+            }
+
+        }
+
+        return base + '/' + new_id.slice(0, 2)
+                    + '/' + new_id.slice(2, 4)
+                    + '/' + filename;
     },
 
     get_file_pub_url: function(bucket, id, filename) {
