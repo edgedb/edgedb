@@ -169,6 +169,8 @@ sx.define = function(name, bases, body) {
 
     var cls = JPlus._newclass(module, name, bases, body, metaclass);
 
+    cls.statics = null;
+
     if (module) {
         sx.ns(fullname, cls);
     }
