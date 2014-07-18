@@ -413,13 +413,20 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
 
             union_list = []
 
+            link_protos = set()
+
             for source in {endpoint} | set(endpoint.descendants(schema)):
-                # Sift through the descendants to see who defines this link
+                # Sift through the descendants to see who has this link
                 try:
-                    src_link_proto = source.own_pointers[linkname]
+                    src_link_proto = source.pointers[linkname]
                 except KeyError:
                     # This source has no such link, skip it
                     continue
+                else:
+                    if src_link_proto in link_protos:
+                        # Seen this link already
+                        continue
+                    link_protos.add(src_link_proto)
 
                 table = self._table_from_link_proto(context, src_link_proto)
 
