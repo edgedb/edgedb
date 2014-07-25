@@ -135,7 +135,7 @@ class FSBackend(BaseFSBackend):
 
             if os.path.exists(alias):
                 if os.path.islink(alias):
-                    os.unlink(path)
+                    os.unlink(alias)
                 else:
                     raise BackendError('file alias exists and is not a symlink: {}'\
                                        .format(alias))
