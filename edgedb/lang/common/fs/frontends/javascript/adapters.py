@@ -22,7 +22,7 @@ from . import classes
 
 
 class BucketClassAdapter(jsadapters.BaseClassAdapter, adapts=bucket.BaseBucket):
-    base_class = bucket.Bucket
+    base_class = bucket.BaseBucket
 
     def get_dependencies(self):
         cls = self.attr_value
@@ -69,7 +69,7 @@ class BackendClassAdapter(jsadapters.BaseClassAdapter, adapts=backends.Backend):
     def _get_class_bases(self):
         cls = self.attr_value
         bases = super()._get_class_bases()
-        if cls is backends.FSBackend:
+        if cls is backends.Backend:
             bases.insert(0, 'metamagic.utils.fs.frontends.javascript.BaseFSBackend')
         return bases
 
@@ -107,7 +107,7 @@ class FSSystemClassAdapter(node_adapters.NodeSystemClassAdapter, adapts=nodesyst
 
 
 class FSBackendInstanceAdapter(javascript.JavaScriptRuntimeAdapter,
-                               adapts_instances_of=backends.FSBackend):
+                               adapts_instances_of=backends.BaseFSBackend):
 
     def collect_candidate_imports(self):
         return ()
@@ -126,7 +126,7 @@ class FSBackendInstanceAdapter(javascript.JavaScriptRuntimeAdapter,
         return '''new {cls}({args})'''.format(
                     cls=obj.__class__.__module__ + '.' + obj.__class__.__name__,
                     args=json.dumps(dict(
-                        pub_path=obj.pub_path
+                        pub_path=getattr(obj, 'pub_path', None)
                     ))
                 )
 

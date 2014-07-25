@@ -129,11 +129,11 @@ sx.define('metamagic.utils.fs.frontends.javascript.BaseFSBackend', [], {
 
 sx.define('metamagic.utils.fs.frontends.javascript.BaseFSSystem', [], {
     constructor: function(args) {
-        self.buckets = [];
+        this.buckets = [];
     },
 
     add_bucket: function(bucket_cls) {
-        self.buckets.push(bucket_cls);
+        this.buckets.push(bucket_cls);
     }
 });
 
