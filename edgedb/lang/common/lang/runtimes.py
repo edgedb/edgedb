@@ -514,19 +514,19 @@ def get_runtime_map(runtimes, module, tags=()):
     used = set()
 
     for i, runtime_mro in enumerate(runtimes_full):
-        if set(runtime_mro) & modruntimes:
+        if i not in used:
+            derivative = runtime_mro[0].get_derivative(module)
+            if derivative is not None:
+                result[derivative] = runtime_mro[0]
+
+    for i, runtime_mro in enumerate(runtimes_full):
+        if set(runtime_mro) & modruntimes and i not in used:
             try:
                 result[module].add(runtime_mro[0])
             except KeyError:
                 result[module] = {runtime_mro[0]}
 
             used.add(i)
-
-    for i, runtime_mro in enumerate(runtimes_full):
-        if i not in used:
-            derivative = runtime_mro[0].get_derivative(module)
-            if derivative is not None:
-                result[derivative] = runtime_mro[0]
 
     return result
 
