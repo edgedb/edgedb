@@ -31,7 +31,7 @@ class BaseImplementation(abstract.Implementation, metaclass=ImplementationMeta):
         pass
 
     @abc.abstractclassmethod
-    def store_stream(self, bucket, id, filename, stream):
+    def store_stream(self, bucket, id, name, stream):
         pass
 
     @abc.abstractclassmethod
@@ -86,13 +86,13 @@ class DefaultImplementation(BaseImplementation):
                                        name=name, allow_rewrite=allow_rewrite))
 
     @classmethod
-    def store_stream(cls, bucket, id, filename, stream, *, allow_rewrite=False):
+    def store_stream(cls, bucket, id, name, stream, *, allow_rewrite=False):
         assert id and isinstance(id, uuid.UUID)
 
         backends = cls._ensure_backends(bucket)
 
         for backend in backends:
-            yield_ (backend.store_stream(bucket, id, filename, stream,
+            yield_ (backend.store_stream(bucket, id, name, stream,
                                          allow_rewrite=allow_rewrite))
 
     @classmethod

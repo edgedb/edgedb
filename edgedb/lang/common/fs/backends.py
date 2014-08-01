@@ -178,8 +178,7 @@ class FSBackend(BaseFSBackend):
         self._after_save(path)
 
     @_coroutine
-    def store_stream(self, bucket, id, filename, stream, *, allow_rewrite=False):
-        name = os.path.basename(filename)
+    def store_stream(self, bucket, id, name, stream, *, allow_rewrite=False):
         path = self._get_path(bucket, id, name, allow_rewrite)
 
         with open(path, 'wb') as f:
