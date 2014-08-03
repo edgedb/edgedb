@@ -9,7 +9,41 @@
 import re
 
 
-class ModuleGlobPattern:
+def _translate_pattern(pattern):
+    pattern = re.escape(pattern)
+
+    pattern = (pattern.replace(r'\*\*\.', r'(|.+\.)')
+                      .replace(r'\.\*\*', r'(|\..+)')
+                      .replace(r'\*\*', r'.*')
+                      .replace(r'\*\.', r'(|[^\.]+\.)')
+                      .replace(r'\.\*', r'(|\.[^\.]+)')
+                      .replace(r'\*', r'[^\.]*')
+
+                      .replace(r'\+\+\.', r'.+\.')
+                      .replace(r'\.\+\+', r'\..+')
+                      .replace(r'\+\+', r'.+')
+                      .replace(r'\+\.', r'[^\.]+\.')
+                      .replace(r'\.\+', r'\.[^\.]+')
+                      .replace(r'\+', r'[^\.]+'))
+
+    return '^' + pattern + '$'
+
+
+class _MatchMixin:
+    def match(self, string):
+        """Returns True if the specified string can be matched by this pattern"""
+        return bool(self._pattern.match(string))
+
+    def match_all(self, strings):
+        """Returns True if all specified strings can be matched by this pattern"""
+        return all(self._pattern.match(s) for s in strings)
+
+    def match_any(self, strings):
+        """Returns True if any of the specified strings can be matched by this pattern"""
+        return any(self._pattern.match(s) for s in strings)
+
+
+class ModuleGlobPattern(_MatchMixin):
     """Matches module names against the specified pattern.
 
        The following are the matching rules:
@@ -34,28 +68,52 @@ class ModuleGlobPattern:
 
     def __init__(self, pattern):
         self._pattern_source = pattern
+        self._pattern = re.compile(_translate_pattern(pattern))
 
-        pattern = re.escape(pattern)
+    def __eq__(self, other):
+        if not isinstance(other, ModuleGlobPattern):
+            return False
+        else:
+            return self._pattern_source == other._pattern_source
 
-        pattern = (pattern.replace(r'\*\*\.', r'(|.+\.)')
-                          .replace(r'\.\*\*', r'(|\..+)')
-                          .replace(r'\*\*', r'.*')
-                          .replace(r'\*\.', r'(|[^\.]+\.)')
-                          .replace(r'\.\*', r'(|\.[^\.]+)')
-                          .replace(r'\*', r'[^\.]*')
-
-                          .replace(r'\+\+\.', r'.+\.')
-                          .replace(r'\.\+\+', r'\..+')
-                          .replace(r'\+\+', r'.+')
-                          .replace(r'\+\.', r'[^\.]+\.')
-                          .replace(r'\.\+', r'\.[^\.]+')
-                          .replace(r'\+', r'[^\.]+'))
-
-        self._pattern = re.compile('^' + pattern + '$')
-
-    def match(self, string):
-        """Returns True if the specified string can be matched by this pattern"""
-        return bool(self._pattern.match(string))
+    def __hash__(self):
+        return hash(self._pattern_source)
 
     def __repr__(self):
         return '<{}: {}>'.format(self.__class__.__name__, self._pattern_source)
+
+    def __mm_serialize__(self):
+        return self._pattern_source
+
+
+class ModuleGlobPatternSet(frozenset, _MatchMixin):
+    """Matches module names against the specified set of patterns."""
+
+    def __new__(cls, patterns):
+        s = super().__new__(cls, (ModuleGlobPattern(p) for p in patterns))
+
+        res = []
+
+        s._pattern_source = frozenset(patterns)
+        s._is_universal = False
+
+        for pattern in set(patterns):
+            if pattern == '**':
+                s._is_universal = True
+
+            res.append(_translate_pattern(pattern))
+
+        s._pattern = re.compile('|'.join(res))
+
+        return s
+
+    def match(self, string):
+        return bool(self._pattern.match(string))
+
+    @property
+    def is_universal(self):
+        """True if this pattern set matches any string"""
+        return self._is_universal
+
+    def __mm_serialize__(self):
+        return list(self._pattern_source)
