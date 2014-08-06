@@ -304,10 +304,11 @@ class TreeTransformer:
             assert False, 'unexpected node: "%r"' % expr
 
     def _apply_rewrite_hooks(self, expr, type):
-        keys = []
+        sources = []
+        ln = None
 
         if isinstance(expr, caos_ast.EntitySet):
-            keys = [expr.concept.name]
+            sources = [expr.concept]
         elif isinstance(expr, caos_ast.EntityLink):
             ln = expr.link_proto.normal_name()
 
@@ -315,24 +316,38 @@ class TreeTransformer:
                 schema = self.context.current.proto_schema
                 for c in expr.source.concept.children(schema):
                     if ln in c.pointers:
-                        keys.append((c.name, ln))
+                        sources.append(c)
             else:
-                keys = [(expr.source.concept.name, ln)]
+                sources = [expr.source.concept]
         else:
             raise TypeError('unexpected node to _apply_rewrite_hooks: {!r}'.format(expr))
 
-        for key in keys:
-            try:
-                hooks = caos_types._rewrite_hooks[key, 'read', type]
-            except KeyError:
-                pass
+        for source in sources:
+            mro = source.get_mro()
+
+            mro = [cls for cls in mro if isinstance(cls, caos_types.ProtoObject)]
+
+            for proto in mro:
+                if ln:
+                    key = (proto.name, ln)
+                else:
+                    key = proto.name
+
+                try:
+                    hooks = caos_types._rewrite_hooks[key, 'read', type]
+                except KeyError:
+                    pass
+                else:
+                    for hook in hooks:
+                        result = hook(self.context.current.graph, expr,
+                                      self.context.current.context_vars)
+                        if result:
+                            self.apply_rewrites(result)
+                    break
             else:
-                for hook in hooks:
-                    result = hook(self.context.current.graph, expr,
-                                  self.context.current.context_vars)
-                    if result:
-                        self.apply_rewrites(result)
-                break
+                continue
+
+            break
         else:
             if isinstance(expr, caos_ast.EntityLink):
                 if type == 'computable' and expr.link_proto.is_pure_computable():
