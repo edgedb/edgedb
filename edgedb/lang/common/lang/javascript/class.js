@@ -21,6 +21,8 @@ var StdObject = {}.constructor,
 sx.issubclass = JPlus.issubclass;
 sx.isinstance = JPlus.isinstance;
 
+sx.objId = JPlus.id;
+
 
 sx.object = JPlus.JObject;
 sx.type = JPlus.JType;

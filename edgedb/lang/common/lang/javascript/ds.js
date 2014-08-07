@@ -29,12 +29,8 @@ var _key = function(key) {
     if (key === null) {
         return 'null';
     }
-    if (key.__class__) { // sx.class, and we're fine with modifying it
-        var hash = key.$hash;
-        if (hash != null) {
-            return hash;
-        }
-        return (key.$hash = ('hash' + (++HASH)));
+    if (key.__class__) {
+        return 'hash-' + sx.objId(key);
     }
     return null;
 };
