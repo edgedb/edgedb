@@ -90,14 +90,24 @@ class ModuleGlobPatternSet(frozenset, _MatchMixin):
     """Matches module names against the specified set of patterns."""
 
     def __new__(cls, patterns):
-        s = super().__new__(cls, (ModuleGlobPattern(p) for p in patterns))
+        sources = []
+        exprs = []
+
+        for p in patterns:
+            if not isinstance(p, ModuleGlobPattern):
+                p = ModuleGlobPattern(p)
+
+            sources.append(p._pattern_source)
+            exprs.append(p)
+
+        s = super().__new__(cls, exprs)
 
         res = []
 
-        s._pattern_source = frozenset(patterns)
+        s._pattern_source = frozenset(sources)
         s._is_universal = False
 
-        for pattern in set(patterns):
+        for pattern in s._pattern_source:
             if pattern == '**':
                 s._is_universal = True
 
