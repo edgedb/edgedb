@@ -57,10 +57,8 @@ class TestJSds(JSFunctionalTest):
         assert.equal(m.get(function(){}), undefined);
 
         var A = sx.define('A', [], {});
-        assert.not(A.$hash);
         m.set(A, A);
         assert.equal(m.get(A), A);
-        assert.ok(A.$hash);
         assert.equal(m.size, 7);
         var B = sx.define('A', [], {});
         assert.equal(m.get(B), undefined);
@@ -128,10 +126,8 @@ class TestJSds(JSFunctionalTest):
         assert.equal(m.size, 3);
 
         var A = sx.define('A', [], {});
-        assert.not(A.$hash);
         m.add(A);
         assert.ok(m.has(A));
-        assert.ok(A.$hash);
         assert.equal(m.size, 4);
         var B = sx.define('A', [], {});
         assert.not(m.has(B));
