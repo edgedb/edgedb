@@ -19,6 +19,7 @@ sx.types.register('pgjson.', function(format, data, metadata, ctx) {
                              'pgjson.caos.entity', 'pgjson.caos'];
     var hop = {}.constructor.prototype.hasOwnProperty;
     var session = (ctx ? ctx.session : null) || sx.caos.$current_session;
+    var sessionMergeReplace = ctx ? ctx.sessionMergeReplace : false;
 
     var _throw = function(msg) {
         throw new sx.Error('malformed "' + format_string + '" data: ' + msg);
@@ -32,7 +33,7 @@ sx.types.register('pgjson.', function(format, data, metadata, ctx) {
         var result = session.get(data['metamagic.caos.builtins.id']);
 
         if (result) {
-            result.update(data, virtuals_map);
+            result.update(data, virtuals_map, sessionMergeReplace);
         } else {
             session.withSession(function() {
                 result = new cls(data, virtuals_map);
