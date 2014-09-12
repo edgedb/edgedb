@@ -1984,8 +1984,12 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         super().__init__(**kwargs)
         self.table = deltadbops.LinkTable()
 
-    def create_table(self, link, meta, context, conditional=False):
+    @classmethod
+    def _create_table(cls, link, meta, context, conditional=False,
+                           create_bases=True, create_children=True):
         new_table_name = common.get_table_name(link, catenate=False)
+
+        create_c = dbops.CommandGroup()
 
         constraints = []
         columns = []
@@ -2012,8 +2016,13 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
 
             for parent in link.bases:
                 if isinstance(parent, caos.types.ProtoObject):
+                    if create_bases:
+                        bc = cls._create_table(parent, meta, context,
+                                               conditional=True,
+                                               create_children=False)
+                        create_c.add_command(bc)
+
                     tabname = common.get_table_name(parent, catenate=False)
-                    self.create_table(parent, meta, context, conditional=True)
                     bases.append(tabname)
 
             table.bases = bases
@@ -2035,6 +2044,20 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
 
         c.add_command(dbops.Comment(table, link.name))
 
+        create_c.add_command(c)
+
+        if create_children:
+            for l_descendant in link.descendants(meta):
+                if not l_descendant.generic():
+                    lc = LinkMetaCommand._create_table(l_descendant, meta, context,
+                            conditional=True, create_bases=False,
+                            create_children=False)
+                    create_c.add_command(lc)
+
+        return create_c
+
+    def create_table(self, link, meta, context, conditional=False):
+        c = self._create_table(link, meta, context, conditional=conditional)
         self.pgops.add(c)
 
     def provide_table(self, link, meta, context):
