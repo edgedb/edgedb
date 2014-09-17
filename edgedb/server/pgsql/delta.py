@@ -2007,6 +2007,12 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
         constraints.append(dbops.UniqueConstraint(table_name=new_table_name,
                                                   columns=[src_col, tgt_col, 'link_type_id']))
 
+        if not link.generic() and link.atomic():
+            tgt_prop = link.pointers['metamagic.caos.builtins.target']
+            tgt_ptr = types.get_pointer_storage_info(meta, tgt_prop)
+            columns.append(dbops.Column(name=tgt_ptr.column_name,
+                                        type=tgt_ptr.column_type))
+
         table = dbops.Table(name=new_table_name)
         table.add_columns(columns)
         table.constraints = constraints
