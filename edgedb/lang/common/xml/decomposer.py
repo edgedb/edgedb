@@ -121,6 +121,13 @@ class _Decomposer:
 
     def decompose(self, string):
         parser = expat.ParserCreate()
+
+        # Expat normally breaks character data into chunks at every line ending.
+        # Setting this to True causes Expat to call CharacterDataHandler() on
+        # the entire text content of the tag. This is important because we
+        # strip() the textual content.
+        #
+        parser.buffer_text = True
         parser.StartElementHandler = self._handle_start_element
         parser.EndElementHandler = self._handle_end_element
         parser.CharacterDataHandler = self._handle_data
