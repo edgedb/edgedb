@@ -101,3 +101,20 @@ class TestXMLDecomposer:
         assert str(tree['head']) == 'foo'
         assert int(tree['body']['p'][0]) == 123
         assert tree['body']['p'][1].foo == 'bar'
+
+
+    def test_utils_xml_decomposer_whitespace(self):
+        decompose = decomposer.Decomposer.decompose
+
+        tree = decompose('''
+            <data>
+                <foo>
+                    one line
+                    another line
+                </foo>
+                <bar>one &amp; two</bar>
+            </data>
+        ''')
+
+        assert str(tree['foo']).split() == ['one', 'line', 'another', 'line']
+        assert str(tree['bar']).split() == ['one', '&', 'two']
