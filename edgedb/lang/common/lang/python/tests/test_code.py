@@ -94,7 +94,7 @@ class BaseTestLangPythonCode:
 
             assert attr1 == attr2, field
 
-        assert code1.co_stacksize >= code2.co_stacksize
+        assert code2.co_stacksize >= 0
 
         dis_code1 = self.disassemble(code1, skip_lines=skip_lines)
         dis_code2 = self.disassemble(code2, skip_lines=skip_lines)
