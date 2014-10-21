@@ -26,7 +26,7 @@ class MatchASTNode:
     def __setattr__(self, name, value):
         if name in self._fields:
             self.fields[name] = value
-        super().__setattr__(name, value)
+        object.__setattr__(self, name, value)
 
     def __iter__(self):
         for field_name, field_value in self.fields.items():
