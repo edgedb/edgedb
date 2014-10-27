@@ -75,10 +75,12 @@ class DateTime(datetime.datetime):
 
     @classmethod
     def get_tz(cls, name=None, offset=None):
-        if name is None:
+        if name is None and offset is None:
             if cls.local_tz is None:
                 cls.local_tz = dateutil.tz.gettz(name=DateTimeConfig.local_timezone)
             return cls.local_tz
+        elif offset is not None:
+            return dateutil.tz.tzoffset(name, offset)
         else:
             return dateutil.tz.gettz(name)
 
@@ -87,6 +89,9 @@ class DateTime(datetime.datetime):
         if not tz:
             tz = cls.get_tz()
         return cls(datetime.datetime.now(tz=tz))
+
+    def astimezone(self, tz=None):
+        return self.__class__(super().astimezone(tz))
 
     def __sub__(self, other):
         if isinstance(other, datetime.datetime):
