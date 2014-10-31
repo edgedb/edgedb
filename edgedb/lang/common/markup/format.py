@@ -24,7 +24,7 @@ def xrepr(obj, *, max_len=None):
 
     result = str(repr(obj))
 
-    if max_len is not None and len(result) > max_len:
+    if max_len is not None and len(result) > max_len and False:
         ext = '...'
         if result[0] in ('"', "'"):
             ext = result[0] + ext

@@ -96,6 +96,7 @@ class ConstraintsSchema:
 
         if constraint._params:
             fmtparams = {}
+            exprparams = {}
 
             for pn, pv in constraint._params.items():
                 try:
@@ -107,13 +108,18 @@ class ConstraintsSchema:
                     param = arg_type.coerce(pv, schema)
                     params[pn] = param
 
-                    if isinstance(param, (set, list, tuple)):
+                    if isinstance(param, (frozenset, tuple)):
+                        # This assumes that the datatype in this collection
+                        # is orderable.  If this ever breaks, use OrderedSet.
+                        param = list(sorted(param))
                         fmtparams[pn] = ', '.join(param)
                     else:
                         fmtparams[pn] = str(param)
 
+                    exprparams[pn] = param
+
             ce = caosql_expr.CaosQLExpression(schema, {})
-            ce.inline_constants(caosql_tree, params, all_arg_types)
+            ce.inline_constants(caosql_tree, exprparams, all_arg_types)
 
             constraint.errmessage = constraint.errmessage.format(subject='{subject}', **fmtparams)
 

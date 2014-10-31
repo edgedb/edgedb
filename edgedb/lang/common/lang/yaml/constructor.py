@@ -7,6 +7,7 @@
 
 
 import ast
+import decimal
 import yaml
 import importlib
 import collections
@@ -335,8 +336,12 @@ class Constructor(yaml.constructor.Constructor):
         data.extend(value)
 
     def construct_frozenset(self, node):
-        value = self.construct_mapping(node, deep=True)
+        value = self.construct_mapping(node)
         return frozenset(value)
+
+    def construct_decimal(self, node):
+        value = self.construct_scalar(node)
+        return decimal.Decimal(value)
 
     def construct_namespace_map(self, node):
         data = collections.OrderedDict()
@@ -391,6 +396,11 @@ Constructor.add_constructor(
 Constructor.add_constructor(
     'tag:metamagic.sprymix.com,2009/metamagic/frozenset',
     Constructor.construct_frozenset
+)
+
+Constructor.add_constructor(
+    'tag:metamagic.sprymix.com,2009/metamagic/decimal',
+    Constructor.construct_decimal
 )
 
 Constructor.add_constructor(

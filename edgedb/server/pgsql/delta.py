@@ -355,7 +355,7 @@ class ConstraintCommand(metaclass=CommandMeta):
                     setattr(rec, ptn, pt)
 
             args = updates.get('args')
-            rec.args = pickle.dumps(args) if args and args[1] else None
+            rec.args = pickle.dumps(dict(args[1])) if args and args[1] else None
 
             # Write the original locally-defined expression
             # so that when the schema is introspected the

@@ -15,6 +15,8 @@ import itertools
 import sys
 import re
 
+import yaml as pyyaml
+
 from metamagic.utils import lang
 from metamagic.utils.lang import context as lang_context
 from metamagic.utils.lang import yaml
@@ -77,27 +79,30 @@ class Bool(yaml.Object, adapts=objects.boolean.Bool, ignore_aliases=True):
         return bool(data)
 
 
-class TimeDelta(yaml.Object, adapts=objects.datetime.TimeDelta, ignore_aliases=True):
-    @classmethod
-    def __sx_getstate__(cls, data):
-        return str(data)
+class TimedeltaRepresenter(pyyaml.representer.SafeRepresenter):
+    def represent_timedelta(self, data):
+        value = str(data)
+        return self.represent_scalar(
+            'tag:metamagic.sprymix.com,2009/metamagic/timedelta', value)
+
+pyyaml.representer.SafeRepresenter.add_representer(objects.datetime.TimeDelta,
+    TimedeltaRepresenter.represent_timedelta)
+
+
+class TimedeltaConstructor(pyyaml.constructor.Constructor):
+    def construct_timedelta(self, data):
+        value = self.construct_scalar(node)
+        return objects.datetime.TimeDelta(value)
+
+pyyaml.constructor.Constructor.add_constructor(
+    'tag:metamagic.sprymix.com,2009/metamagic/timedelta',
+    TimedeltaConstructor.construct_timedelta)
 
 
 class Int(yaml.Object, adapts=objects.int.Int, ignore_aliases=True):
     @classmethod
     def __sx_getstate__(cls, data):
         return int(data)
-
-
-class DecimalMeta(LangObjectMeta, type(objects.numeric.Decimal)):
-    pass
-
-
-class Decimal(yaml.Object, metaclass=DecimalMeta,
-              adapts=objects.numeric.Decimal, ignore_aliases=True):
-    @classmethod
-    def __sx_getstate__(cls, data):
-        return str(data)
 
 
 class TypedCollectionMeta(type(yaml.Object), type(typed.AbstractTypedCollection)):
@@ -133,6 +138,10 @@ class ArgDict(AbstractTypedCollection, adapts=proto.ArgDict,
                                        type=object):
     def __sx_setstate__(self, data):
         proto.ArgDict.__init__(self, data)
+
+    @classmethod
+    def __sx_getstate__(cls, data):
+        return dict(data.items())
 
 
 class WordCombination(LangObject, adapts=morphology.WordCombination, ignore_aliases=True):
