@@ -334,6 +334,10 @@ class Constructor(yaml.constructor.Constructor):
         value = self.construct_ordered_mapping(node)
         data.extend(value)
 
+    def construct_frozenset(self, node):
+        value = self.construct_mapping(node, deep=True)
+        return frozenset(value)
+
     def construct_namespace_map(self, node):
         data = collections.OrderedDict()
         yield data
@@ -382,6 +386,11 @@ Constructor.add_constructor(
 Constructor.add_constructor(
     'tag:metamagic.sprymix.com,2009/metamagic/multimap',
     Constructor.construct_multimap
+)
+
+Constructor.add_constructor(
+    'tag:metamagic.sprymix.com,2009/metamagic/frozenset',
+    Constructor.construct_frozenset
 )
 
 Constructor.add_constructor(
