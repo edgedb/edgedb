@@ -102,7 +102,7 @@ class AbstractTypedMapping(AbstractTypedCollection, keytype=None, valuetype=None
 class _AbstractTypedDict(AbstractTypedMapping, keytype=None, valuetype=None):
     _base_dict_cls = None
 
-    def __init__(self, initdict=Void, **kwargs):
+    def __init__(self, *args, **kwargs):
         """
         :param kwargs: Initial values.
         """
@@ -110,11 +110,11 @@ class _AbstractTypedDict(AbstractTypedMapping, keytype=None, valuetype=None):
         AbstractTypedCollection.__init__(self)
         self.__class__._base_dict_cls.__init__(self)
 
-        if initdict is not Void:
-            if isinstance(initdict, collections.Mapping):
-                self.update(initdict)
-            else:
-                kwargs['initdict'] = initdict
+        if len(args) == 1:
+            self.update(args[0])
+        elif len(args) > 1:
+            msg = 'TypedDict expected at most 1 arguments, got {}'
+            raise TypeError(msg.format(len(args)))
 
         if kwargs:
             self.update(kwargs)
