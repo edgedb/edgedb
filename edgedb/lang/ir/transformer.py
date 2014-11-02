@@ -3056,65 +3056,123 @@ class TreeTransformer:
         return result
 
 
-class PathResolver(TreeTransformer):
-    def serialize_path(self, path):
-        return self._serialize_path(path)
+class PathResolverContextLevel:
+    def __init__(self, prevlevel=None):
+        self.include_filters = False
+        self.expr_root = None
 
-    def _serialize_path(self, path):
+        if prevlevel:
+            self.include_filters = prevlevel.include_filters
+
+
+class PathResolverContext:
+    def __init__(self):
+        self.stack = []
+        self.push()
+
+    def push(self, mode=None):
+        level = PathResolverContextLevel(self.current)
+        self.stack.append(level)
+
+        return level
+
+    def pop(self):
+        self.stack.pop()
+
+    def __call__(self, mode=None):
+        return PathResolverContextWrapper(self)
+
+    @property
+    def current(self):
+        if len(self.stack) > 0:
+            return self.stack[-1]
+        else:
+            return None
+
+
+class PathResolverContextWrapper:
+    def __init__(self, context):
+        self.context = context
+
+    def __enter__(self):
+        self.context.push()
+        return self.context
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.context.pop()
+
+
+
+class PathResolver(TreeTransformer):
+    def serialize_path(self, path, include_filters=False):
+        context = PathResolverContext()
+        context.current.include_filters = include_filters
+
+        return self._serialize_path(context, path)
+
+    def _serialize_path(self, context, path):
         if path.rewrite_original is not None:
-            return self._serialize_path(path.rewrite_original)
+            return self._serialize_path(context, path.rewrite_original)
 
         if isinstance(path, caos_ast.Disjunction):
             result = []
 
             for p in path.paths:
-                result.extend(self._serialize_path(p))
+                result.extend(self._serialize_path(context, p))
 
             if len(path.paths) > 1:
                 result = [('set',) + tuple(result)]
 
         elif isinstance(path, caos_ast.MetaRef):
-            source = self._serialize_path(path.ref)
+            source = self._serialize_path(context, path.ref)
             result = [('getclassattr', source, path.name)]
 
         elif isinstance(path, caos_ast.AtomicRefSimple):
-            source = self._serialize_path(path.ref)
+            source = self._serialize_path(context, path.ref)
             result = [('getattr', source, path.name)]
 
         elif isinstance(path, caos_ast.AtomicRefExpr) and path.ptr_proto is not None:
-            source = self._serialize_path(path.ref)
+            source = self._serialize_path(context, path.ref)
             result = [('getattr', source, path.ptr_proto.normal_name())]
 
         elif isinstance(path, caos_ast.LinkPropRefSimple):
             if path.name == 'metamagic.caos.builtins.target':
-                result = self._serialize_link(path.ref)
+                result = self._serialize_link(context, path.ref)
             else:
-                source = self._serialize_path(path.ref)
+                source = self._serialize_path(context, path.ref)
                 result = [('getattr', source, path.name)]
 
         elif isinstance(path, caos_ast.EntitySet):
             target = [('getcls', path.concept.name)]
 
-            if path.rlink:
+            if path.rlink and path != context.current.expr_root:
                 link_proto = path.rlink.link_proto
                 dir = path.rlink.direction
-                source = self._serialize_path(path.rlink.source)
+                source = self._serialize_path(context, path.rlink.source)
 
                 result = [('step', source, target, link_proto.normal_name(), dir)]
             else:
                 result = target
 
+            if context.current.include_filters and path.filter:
+                with context():
+                    context.current.expr_root = path
+                    context.current.include_filters = False
+                    qual = self._serialize_filter(context, path.filter)
+
+                result = [('filter', result, qual)]
+
         elif isinstance(path, caos_ast.EntityLink):
-            link = self._serialize_link(path)
+            link = self._serialize_link(context, path)
             result = [('as_link', link)]
 
         elif isinstance(path, caos_ast.TypeCast):
-            result = self._serialize_path(path.expr)
+            result = self._serialize_path(context, path.expr)
 
         elif isinstance(path, caos_ast.Record):
             for elem in path.elements:
                 if isinstance(elem, caos_ast.BaseRef):
-                    result = self._serialize_path(elem.ref)
+                    result = self._serialize_path(context, elem.ref)
                     break
             else:
                 raise AssertionError('unexpected record structure: no atomrefs found')
@@ -3127,12 +3185,35 @@ class PathResolver(TreeTransformer):
 
         return result
 
-    def _serialize_link(self, link):
-        source = self._serialize_path(link.source)
+    def _serialize_filter(self, context, expr):
+        if isinstance(expr, caos_ast.BinOp):
+            left = self._serialize_filter(context, expr.left)
+            right = self._serialize_filter(context, expr.right)
+            result = [('binop', str(expr.op), left, right)]
+
+        elif isinstance(expr, caos_ast.AtomicRefSimple):
+            result = self._serialize_path(context, expr)
+
+        elif isinstance(expr, caos_ast.Constant):
+            if expr.index is not None:
+                msg = 'filters in path expressions do not support symbolic vars'
+                raise ValueError(msg)
+
+            result = [('const', expr.value)]
+
+        else:
+            msg = 'unsupported node in path expression filter: {!r}'
+            raise ValueError(msg.format(expr))
+
+        return result
+
+
+    def _serialize_link(self, context, link):
+        source = self._serialize_path(context, link.source)
         if link.direction == caos_types.OutboundDirection:
             result = [('getattr', source, link.link_proto.normal_name())]
         else:
-            target = self._serialize_path(link.target)
+            target = self._serialize_path(context, link.target)
             result = [('step', source, target, link.link_proto.normal_name(), link.direction)]
 
         return result
@@ -3196,6 +3277,9 @@ class PathResolver(TreeTransformer):
                 sources.extend(self._exec_cmd(a, class_factory))
             result = [expr.as_link() for expr in sources]
 
+        elif cmd == 'filter':
+            result = args[0]
+
         else:
             raise TreeError('unexpected path resolver command: "{}"'.format(cmd))
 
@@ -3245,6 +3329,28 @@ class PathResolver(TreeTransformer):
             for a in args[0]:
                 sources.extend(self._convert_to_entity_path(a))
             result = [('as_link', sources)]
+
+        elif cmd == 'filter':
+            sources = []
+            for a in args[0]:
+                sources.extend(self._convert_to_entity_path(a))
+            quals = []
+            for q in args[1]:
+                quals.extend(self._convert_to_entity_path(q))
+
+            result = [('filter', sources, quals)]
+
+        elif cmd == 'binop':
+            lefts = []
+            for a in args[1]:
+                lefts.extend(self._convert_to_entity_path(a))
+            rights = []
+            for a in args[2]:
+                rights.extend(self._convert_to_entity_path(a))
+            result = [('binop', args[0], lefts, rights)]
+
+        elif cmd == 'const':
+            result = [(cmd,) + tuple(args)]
 
         else:
             raise TreeError('unexpected path resolver command: "{}"'.format(cmd))
