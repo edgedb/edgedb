@@ -3060,9 +3060,11 @@ class PathResolverContextLevel:
     def __init__(self, prevlevel=None):
         self.include_filters = False
         self.expr_root = None
+        self.path_shift = None
 
         if prevlevel:
             self.include_filters = prevlevel.include_filters
+            self.path_shift = prevlevel.path_shift
 
 
 class PathResolverContext:
@@ -3285,41 +3287,47 @@ class PathResolver(TreeTransformer):
 
         return result
 
-    def convert_to_entity_path(self, script):
-        result = []
+    def convert_to_entity_path(self, script, path_shift):
+        context = PathResolverContext()
+        context.current.path_shift = path_shift
 
+        result = []
         for cmd in script:
-            result.extend(self._convert_to_entity_path(cmd))
+            result.extend(self._convert_to_entity_path(context, cmd))
 
         return result
 
-    def _convert_to_entity_path(self, cmd):
+    def _convert_to_entity_path(self, context, cmd):
         cmd, *args = cmd
 
         if cmd == 'set':
             result = []
 
             for a in args:
-                result.extend(self._convert_to_entity_path(a))
+                result.extend(self._convert_to_entity_path(context, a))
 
         elif cmd == 'getattr':
             sources = []
             for a in args[0]:
-                sources.extend(self._convert_to_entity_path(a))
+                sources.extend(self._convert_to_entity_path(context, a))
             result = [('follow', sources, args[1], caos_types.OutboundDirection)]
 
         elif cmd == 'getclassattr':
             sources = []
             for a in args[0]:
-                sources.extend(self._convert_to_entity_path(a))
+                sources.extend(self._convert_to_entity_path(context, a))
             result = [('getclassattr', sources, args[1])]
 
         elif cmd == 'step':
             sources = []
             for a in args[0]:
-                sources.extend(self._convert_to_entity_path(a))
+                sources.extend(self._convert_to_entity_path(context, a))
 
-            result = [('follow', sources, args[2], args[3], args[1][0][1])]
+            if context.current.path_shift > 0:
+                result = sources
+                context.current.path_shift -= 1
+            else:
+                result = [('follow', sources, args[2], args[3], args[1][0][1])]
 
         elif cmd == 'getcls':
             result = [('this',)]
@@ -3327,26 +3335,26 @@ class PathResolver(TreeTransformer):
         elif cmd == 'as_link':
             sources = []
             for a in args[0]:
-                sources.extend(self._convert_to_entity_path(a))
+                sources.extend(self._convert_to_entity_path(context, a))
             result = [('as_link', sources)]
 
         elif cmd == 'filter':
             sources = []
             for a in args[0]:
-                sources.extend(self._convert_to_entity_path(a))
+                sources.extend(self._convert_to_entity_path(context, a))
             quals = []
             for q in args[1]:
-                quals.extend(self._convert_to_entity_path(q))
+                quals.extend(self._convert_to_entity_path(context, q))
 
             result = [('filter', sources, quals)]
 
         elif cmd == 'binop':
             lefts = []
             for a in args[1]:
-                lefts.extend(self._convert_to_entity_path(a))
+                lefts.extend(self._convert_to_entity_path(context, a))
             rights = []
             for a in args[2]:
-                rights.extend(self._convert_to_entity_path(a))
+                rights.extend(self._convert_to_entity_path(context, a))
             result = [('binop', args[0], lefts, rights)]
 
         elif cmd == 'const':
