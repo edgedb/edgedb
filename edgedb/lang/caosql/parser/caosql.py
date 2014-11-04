@@ -996,10 +996,6 @@ class PathSimple(Nonterm):
         "%reduce FuncExpr SubpathNoParens"
         self.val = [kids[0].val] + kids[1].val
 
-    def reduce_PathStart_AT_LinkPropName(self, *kids):
-        "%reduce PathStart AT LinkPropName"
-        self.val = [kids[0].val, qlast.LinkPropExprNode(expr=kids[2].val)]
-
 
 class PathStart(Nonterm):
     def reduce_NodeName_Anchor(self, *kids):
@@ -1043,10 +1039,6 @@ class SubpathNoParens(Nonterm):
         "%reduce PathStepList"
         self.val = kids[0].val
 
-    def reduce_PathStepList_AT_LinkPropName(self, *kids):
-        "%reduce PathStepList AT LinkPropName"
-        self.val = kids[0].val + [qlast.LinkPropExprNode(expr=kids[2].val)]
-
 
 class PathStepList(Nonterm):
     def reduce_PathStep(self, *kids):
@@ -1085,6 +1077,10 @@ class PathStepSimple(Nonterm):
     def reduce_DOT_PathExpr(self, *kids):
         "%reduce DOT PathExpr"
         self.val = qlast.LinkExprNode(expr=kids[1].val)
+
+    def reduce_AT_PathExpr(self, *kids):
+        "%reduce AT PathExpr"
+        self.val = qlast.LinkPropExprNode(expr=kids[1].val)
 
 
 class PathExpr(Nonterm):

@@ -1353,31 +1353,50 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 else:
                     for concept, tip in tips.items():
                         for entset in tip:
-                            if isinstance(entset, tree.ast.EntityLink):
-                                link = entset
-                                link_proto = link.link_proto
-                                id = tree.transformer.LinearPath([None])
-                                id.add(link_proto, caos_types.OutboundDirection, None)
-                            elif isinstance(entset, tree.ast.LinkPropRefSimple):
-                                link = entset.ref
-                                id = entset.id
-                            else:
-                                link = entset.rlink
-                                id = entset.id
-
-                            link_proto = link.link_proto
                             prop_name = (link_expr.namespace, link_expr.name)
-                            ptr_resolution = self._resolve_ptr(context, link_proto,
-                                                               prop_name,
-                                                               caos_types.OutboundDirection,
-                                                               ptr_type=caos_types.ProtoLinkProperty)
-                            sources, outbound, inbound = ptr_resolution
 
-                            for prop_proto in outbound:
-                                propref = tree.ast.LinkPropRefSimple(name=prop_proto.normal_name(),
-                                                                     ref=link, id=id,
-                                                                     ptr_proto=prop_proto)
-                                newtips[prop_proto] = {propref}
+                            if (isinstance(entset, tree.ast.LinkPropRefSimple)
+                                and not entset.ptr_proto.is_endpoint_pointer()):
+                                # We are at propref point, the only valid
+                                # step from here is @source taking us back
+                                # to the link context.
+                                if link_expr.name != 'source':
+                                    msg = 'invalid reference: {}.{}'\
+                                                .format(entset.ptr_proto,
+                                                        link_expr.name)
+                                    raise errors.CaosQLReferenceError(msg)
+
+                                link = entset.ref
+                                target = link.target
+                                newtips[target.concept] = {target}
+
+                            else:
+                                if isinstance(entset, tree.ast.LinkPropRefSimple):
+                                    link = entset.ref
+                                    link_proto = link.link_proto
+                                    id = entset.id
+                                elif isinstance(entset, tree.ast.EntityLink):
+                                    link = entset
+                                    link_proto = link.link_proto
+                                    id = tree.transformer.LinearPath([None])
+                                    id.add(link_proto, caos_types.OutboundDirection, None)
+                                else:
+                                    link = entset.rlink
+                                    link_proto = link.link_proto
+                                    id = entset.id
+
+                                ptr_resolution = self._resolve_ptr(
+                                    context, link_proto, prop_name,
+                                    caos_types.OutboundDirection,
+                                    ptr_type=caos_types.ProtoLinkProperty)
+
+                                sources, outbound, inbound = ptr_resolution
+
+                                for prop_proto in outbound:
+                                    propref = tree.ast.LinkPropRefSimple(
+                                        name=prop_proto.normal_name(),
+                                        ref=link, id=id, ptr_proto=prop_proto)
+                                    newtips[prop_proto] = {propref}
 
                 tips = newtips
             else:
@@ -1411,14 +1430,20 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         else:
             return tree.ast.Disjunction(paths=frozenset(final_paths))
 
-    def _resolve_ptr(self, context, source, ptr_name, direction, ptr_type=caos_types.ProtoLink,
-                                                                 target=None):
+    def _resolve_ptr(self, context, source, ptr_name, direction,
+                           ptr_type=caos_types.ProtoLink, target=None):
+        sources = []
+        inbound = []
+        outbound = []
+
         ptr_module, ptr_nqname = ptr_name
 
         if ptr_module:
             ptr_fqname = caos_name.Name(module=ptr_module, name=ptr_nqname)
             modaliases = context.current.namespaces
-            pointer = self.proto_schema.get(ptr_fqname, module_aliases=modaliases, type=ptr_type)
+            pointer = self.proto_schema.get(ptr_fqname,
+                                            module_aliases=modaliases,
+                                            type=ptr_type)
             pointer_name = pointer.name
         else:
             pointer_name = ptr_fqname = ptr_nqname
@@ -1426,18 +1451,20 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         if target is not None and not isinstance(target, caos_types.ProtoNode):
             target_name = '.'.join(filter(None, target))
             modaliases = context.current.namespaces
-            target = self.proto_schema.get(target_name, module_aliases=modaliases)
+            target = self.proto_schema.get(target_name,
+                                           module_aliases=modaliases)
 
         if ptr_nqname == '%':
             pointer_name = self.proto_schema.get_root_class(ptr_type).name
 
-        sources, outbound, inbound = source.resolve_pointer(self.proto_schema, pointer_name,
-                                                            direction=direction,
-                                                            look_in_children=True,
-                                                            include_inherited=True)
+        sources, outbound, inbound = source.resolve_pointer(
+            self.proto_schema, pointer_name,
+            direction=direction, look_in_children=True,
+            include_inherited=True)
 
         if not sources:
-            msg = 'could not resolve "{}".[{}{}] pointer'.format(source.name, direction, ptr_fqname)
+            msg = 'could not resolve {}.[{}{}] pointer'\
+                        .format(source.name, direction, ptr_name)
             raise errors.CaosQLReferenceError(msg)
 
         if target is not None:
