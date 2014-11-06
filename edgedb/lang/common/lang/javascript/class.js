@@ -7,7 +7,7 @@
 
 
 // %import metamagic.utils.lang.javascript.sx
-// %import jplus.runtime._compiled_runtime
+// %import jplus.runtime
 
 
 (function() {
