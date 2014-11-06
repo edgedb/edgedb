@@ -24,6 +24,7 @@ from metamagic.utils.datastructures import OrderedSet, OrderedIndex
 
 from .resource import Resource, VirtualFile, AbstractFileSystemResource, AbstractFileResource
 from .resource import EmptyResource
+from .resource import call_publication_hooks, is_standalone
 from .exceptions import ResourceError
 
 
@@ -194,6 +195,8 @@ class ResourceFSBackend(BaseResourceBackend):
     @debug.debug
     def _publish_bucket(self, bucket, resources, bucket_id, bucket_path, bucket_pub_path):
         for resource in resources:
+            resource = call_publication_hooks(resource, bucket, self)
+
             if isinstance(resource, EmptyResource):
                 """LINE [resource.publish.skip] Skipping empty resource
                 bucket.__name__, resource
@@ -294,7 +297,7 @@ class ResourceFSBackend(BaseResourceBackend):
 
 
 class OptimizedFSBackend(ResourceFSBackend):
-    '''Compresses javascript and css files using YUI Compressor.
+    '''Performs source compression for resources
     Use it for production purposes.'''
 
     gzip_output = config.cvalue(True, type=bool)
@@ -333,7 +336,9 @@ class OptimizedFSBackend(ResourceFSBackend):
         stats = os.stat(name)
         os.utime(output_gz, (stats.st_atime, stats.st_mtime))
 
-    def _optimize_js(self, mods, bucket, bucket_id, bucket_path, bucket_pub_path):
+    def _optimize_js(self, mods, bucket, bucket_id, bucket_path,
+                                                    bucket_pub_path):
+
         from metamagic.utils.lang.javascript import CompiledJavascriptModule
 
         out_short_name = self._compiled_name(bucket, 'js')
@@ -353,11 +358,19 @@ class OptimizedFSBackend(ResourceFSBackend):
             command.append('--formatting PRETTY_PRINT')
 
         if self.js_sourcemaps:
+            map_name = '{}.map'.format(out_short_name)
+
             command.append('--source_map_format V3')
-            command.append('--create_source_map "{}.map"'.format(out_short_name))
+            command.append('--create_source_map "{}"'.format(map_name))
 
         for mod in mods:
-            command.append('--js "{}"'.format(mod.__sx_resource_get_public_path__()))
+            if is_standalone(mod):
+                # Skip modules marked as standalone
+                bucket.published.add(mod)
+            else:
+                path = mod.__sx_resource_get_public_path__()
+                command.append('--js "{}"'.format(path))
+
 
         command.append('--js_output_file "{}"'.format(out_short_name))
 
@@ -387,16 +400,22 @@ class OptimizedFSBackend(ResourceFSBackend):
 
         buf = []
         for mod in mods:
-            if isinstance(mod, VirtualFile):
-                source = mod.__sx_resource_get_source__()
-                #: Read the comment in "_fix_css_links"
-                source = self._fix_css_links(source.decode('utf-8'), bucket_pub_path)
-
+            if is_standalone(mod):
+                # Skip modules marked as standalone
+                bucket.published.add(mod)
             else:
-                with open(mod.__sx_resource_path__, 'rt') as i:
-                    source = i.read()
 
-            buf.append(source)
+                if isinstance(mod, VirtualFile):
+                    source = mod.__sx_resource_get_source__()
+                    #: Read the comment in "_fix_css_links"
+                    source = self._fix_css_links(source.decode('utf-8'),
+                                                 bucket_pub_path)
+
+                else:
+                    with open(mod.__sx_resource_path__, 'rt') as i:
+                        source = i.read()
+
+                buf.append(source)
 
         wrap = 1000
         if self.pretty_output:
@@ -441,7 +460,7 @@ class OptimizedFSBackend(ResourceFSBackend):
         js_deps = OrderedSet()
         css_deps = OrderedSet()
 
-        for res in resources:
+        for res in bucket.published:
             if isinstance(res, BaseJavaScriptModule):
                 js_deps.add(res)
 

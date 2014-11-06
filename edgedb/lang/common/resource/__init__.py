@@ -11,7 +11,9 @@ such as defining them, managing, publishing etc.
 """
 
 
-from .resource import Resource, AbstractFileResource, VirtualFile, AbstractFileSystemResource, \
-                      ResourceContainer, File, Directory, EmptyResource
+from .resource import Resource, AbstractFileResource, VirtualFile, \
+                      AbstractFileSystemResource, \
+                      ResourceContainer, File, Directory, EmptyResource, \
+                      add_publication_hook, mark_standalone
 
 from .exceptions import ResourceError

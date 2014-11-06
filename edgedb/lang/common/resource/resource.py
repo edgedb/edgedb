@@ -19,6 +19,7 @@ class Resource:
 
     def __init__(self):
         self.__sx_resource_deps__ = collections.OrderedDict()
+        self.__mm_publication_hooks__ = []
 
     def __sx_add_required_resource__(self, dependency, weak=False):
         """Make ``resource`` dependent on ``dependency``.  ``weak`` means that the
@@ -70,6 +71,39 @@ class Resource:
             to_import -= collected
 
         return tuple(collected)
+
+    def __mm_add_publication_hook__(self, hook):
+        self.__mm_publication_hooks__.append(hook)
+
+
+def add_publication_hook(resource, hook):
+    if not isinstance(resource, Resource):
+        raise TypeError('not a valid Resource instance')
+
+    resource.__mm_add_publication_hook__(hook)
+
+
+def call_publication_hooks(resource, bucket, publisher):
+    hooks = getattr(resource, '__mm_publication_hooks__', [])
+    for hook in hooks:
+        resource = hook(resource, bucket, publisher)
+
+    return resource
+
+
+def mark_standalone(resource):
+    imports = getattr(resource, '__sx_imports__', None)
+    deps = getattr(resource, '__sx_resource_deps__', None)
+
+    if imports or deps:
+        msg = '{!r} depends on other modules and cannot be marked standalone'
+        raise ValueError(msg.format(resource))
+
+    resource.__mm_resource_standalone__ = True
+
+
+def is_standalone(resource):
+    return getattr(resource, '__mm_resource_standalone__', False)
 
 
 class ResourceContainer(Resource):
