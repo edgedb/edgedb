@@ -37,6 +37,7 @@ class Semantics(Semantics, CachingSchema):
         # cls.get_module_class().get_schema_class().get_builtins_module()
         return ('metamagic.caos.builtins',)
 
+    @classmethod
     def get_schema_magic(cls):
         return SCHEMA_VERSION
 

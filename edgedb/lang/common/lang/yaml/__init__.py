@@ -174,8 +174,8 @@ class Language(meta.Language):
 
                 if issubclass(schema, yaml_schema.ModuleSchemaBase):
                     module_schema = schema
-                else:
-                    schemas.append(schema)
+
+                schemas.append(schema)
 
                 if (not caching_schemas and issubclass(schema, yaml_schema.CachingSchema)
                                         and schema.cacheable()):
