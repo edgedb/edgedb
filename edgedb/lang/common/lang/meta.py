@@ -7,6 +7,7 @@
 
 
 import base64
+import collections
 import hashlib
 import functools
 import itertools
@@ -104,6 +105,15 @@ class Language(metaclass=LanguageMeta, register=False):
     @classmethod
     def get_language_version(cls, metadata):
         return 0
+
+    @classmethod
+    def set_module_attributes(cls, module, attributes):
+        module.__odict__ = collections.OrderedDict()
+
+        for attribute_name, attribute_value in attributes:
+            attribute_name = str(attribute_name)
+            module.__odict__[attribute_name] = attribute_value
+            setattr(module, attribute_name, attribute_value)
 
 
 class ObjectError(Exception):

@@ -252,15 +252,7 @@ class LanguageLoader(LanguageLoaderBase):
         modinfo = module_types.ModuleInfo(module)
         context = DocumentContext(module=modinfo, import_context=self._context)
         attributes = getattr(self._language, method)(data, context=context)
-        self.set_module_attributes(module, attributes)
-
-    def set_module_attributes(self, module, attributes):
-        module.__odict__ = collections.OrderedDict()
-
-        for attribute_name, attribute_value in attributes:
-            attribute_name = str(attribute_name)
-            module.__odict__[attribute_name] = attribute_value
-            setattr(module, attribute_name, attribute_value)
+        self._language.set_module_attributes(module, attributes)
 
     def execute_module_code(self, module, code):
         runtimes = lang_runtimes.get_compatible_runtimes(module)
