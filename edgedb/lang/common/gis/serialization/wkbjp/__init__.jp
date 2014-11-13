@@ -1,0 +1,175 @@
+/*
+* Copyright (c) 2012-2014 Sprymix Inc.
+* All rights reserved.
+*
+* See LICENSE for details.
+**/
+
+
+export parseBytes, parseString
+
+
+from metamagic.utils.lang.jplus import byteutils, ieee754
+
+
+GEOMETRYTYPE = 0
+POINTTYPE = 1
+LINETYPE = 2
+POLYGONTYPE = 3
+MULTIPOINTTYPE = 4
+MULTILINETYPE = 5
+MULTIPOLYGONTYPE = 6
+COLLECTIONTYPE = 7
+CIRCSTRINGTYPE = 8
+COMPOUNDTYPE = 9
+CURVEPOLYTYPE = 10
+MULTICURVETYPE = 11
+MULTISURFACETYPE = 12
+CURVETYPE = 13
+SURFACETYPE = 14
+POLYHEDRALSURFACETYPE = 15
+TIN = 16
+
+WKBZOFFSET = 0x80000000
+WKBMOFFSET = 0x40000000
+WKBSRIDFLAG = 0x20000000
+WKBBBOXFLAG = 0x10000000
+
+dimensionalityMap = {
+    "falsefalse": ['x', 'y', null, null],
+    "truefalse": ['x', 'y', 'z', null],
+    "falsetrue": ['x', 'y', null, 'm'],
+    "truetrue": ['x', 'y', 'z', 'm'],
+}
+
+
+fn getDimensions(zDimension, mDimension) {
+    key = zDimension.toString() + mDimension.toString()
+    return dimensionalityMap[key]
+}
+
+
+fn parsePoint(factory, unpacker, zDimension, mDimension, srid) {
+    coords = [unpacker.doubleUnpack(), unpacker.doubleUnpack()]
+    dimensions = getDimensions(zDimension, mDimension)
+
+    if zDimension {
+        coords.push(unpacker.doubleUnpack())
+    }
+
+    if mDimension {
+        coords.push(unpacker.doubleUnpack())
+    }
+
+    return factory('POINT', coords, dimensions, srid)
+}
+
+
+fn parseLine(factory, unpacker, zDimension, mDimension, srid) {
+    numPoints = unpacker.uint32Unpack()
+
+    points = []
+    for i = 0; i < numPoints; i++ {
+        point = parsePoint(unpacker, zDimension, mDimension, srid)
+        points.push(point)
+    }
+
+    dimensions = getDimensions(zDimension, mDimension)
+    return factory('LINESTRING', points, dimensions, srid)
+}
+
+
+fn parsePolygon(factory, unpacker, zDimension, mDimension, srid) {
+    numRings = unpacker.uint32Unpack()
+
+    for i = 0; i < num_rings; i++ {
+        ring = self.parseLine(unpacker, zDimension, mDimension, srid)
+        rings.push(ring)
+    }
+
+    dimensions = getDimensions(zDimension, mDimension)
+    return factory('POLYGON', rings, dimensions, srid)
+}
+
+
+_handlers = {}
+
+_handlers['t' + POINTTYPE] = parsePoint
+_handlers['t' + LINETYPE] = parseLine
+_handlers['t' + POLYGONTYPE] = parsePolygon
+
+
+class _leUnpacker {
+    fn constructor(data) {
+        this.data = data
+        this._pos = 0
+    }
+
+    fn uint32Unpack() {
+        bytes = this.data.slice(this._pos, this._pos + 4)
+        this._pos += 4
+        return bytes[3] << 24 | bytes[2] << 16 | bytes[1] << 8 | bytes[0]
+    }
+
+    fn doubleUnpack() {
+        bytes = this.data.slice(this._pos, this._pos + 8)
+        bytes.reverse()
+        this._pos += 8
+        return ieee754.unpackFloat64(bytes)
+    }
+}
+
+
+class _geUnpacker {
+    fn constructor(data) {
+        this.data = data
+        this._pos = 0
+    }
+
+    fn uint32Unpack() {
+        bytes = this.data.slice(this._pos, this._pos + 4)
+        this._pos += 4
+        return bytes[0] << 24 | bytes[1] << 16 | bytes[2] << 8 | bytes[3]
+    }
+
+    fn doubleUnpack() {
+        bytes = this.data.slice(this._pos, this._pos + 8)
+        this._pos += 8
+        return ieee754.unpackFloat64(bytes)
+    }
+}
+
+
+fn _parseGeometry(factory, unpacker) {
+    geotype = unpacker.uint32Unpack()
+
+    zDimension = !!(geotype & WKBZOFFSET)
+    mDimension = !!(geotype & WKBMOFFSET)
+    srid = geotype & WKBSRIDFLAG ? unpacker.uint32Unpack() : null
+
+    geotype &= 0x0000FFFF
+
+    handler = _handlers['t' + geotype]
+
+    if !handler {
+        throw new TypeError('unexpected geotype (' + geotype.toString() + ')'
+                             + ' in EWKB data at offset '
+                             + unpacker._pos.toString())
+    }
+
+    return handler(factory, unpacker, zDimension, mDimension, srid)
+}
+
+
+fn parseString(factory, s) {
+    bytes = byteutils.unhexlify(s)
+    return parseBytes(factory, bytes)
+}
+
+
+fn parseBytes(factory, b) {
+    le = b[0]
+    data = b.slice(1)
+    unpacker = le ? new _leUnpacker(data) : new _beUnpacker(data)
+    return _parseGeometry(factory, unpacker)
+}
