@@ -1,0 +1,348 @@
+/*
+ * Copyright (c) 2012-2014 Sprymix Inc.
+ * All rights reserved.
+ *
+ * See LICENSE for details.
+ */
+
+
+import bisect
+
+from metamagic.caos import jplus as caos
+
+
+fn _unpacker(format, data, metadata, ctx) {
+    formatString = format[0]
+    formatVersion = format[1]
+
+    FREEFORM_RECORD_ID = '6e51108d-7440-47f7-8c65-dc4d43fd90d2'
+    supportedFormats = ['pgjson.caos.selector', 'pgjson.caos.queryselector',
+                        'pgjson.caos.entity', 'pgjson.caos']
+
+    session = (ctx ? ctx.session : null) || caos.Session.current
+    sessionMergeReplace = ctx ? ctx.sessionMergeReplace : false
+    errPrefix = 'invalid "' + formatString + '": '
+
+    if formatString in supportedFormats {
+        if formatVersion != 1 {
+            err = 'unsupported "' + formatString +
+                                    '" version: ' + formatVersion
+            throw new ValueError(err)
+        }
+    } else {
+        throw new ValueError('unsupported format: "' + formatString + '"')
+    }
+
+    if !isinstance(data, Array) {
+        err = errPrefix + 'not an array'
+        throw new ValueError(err)
+    }
+
+    recordInfo = {}
+
+    if metadata {
+        for ri in metadata.record_info {
+            recordInfo[ri.id] = ri
+        }
+    }
+
+    fn mergeIntoSession(session, cls, data, virtualsMap) {
+        result = session.get(data['metamagic.caos.builtins.id'])
+
+        if result {
+            result.update(data, virtualsMap, sessionMergeReplace)
+        } else {
+            result = new cls(data, virtualsMap, session)
+        }
+
+        return result
+    }
+
+    fn mergeEntity(session, data, recInfo) {
+        clsname = data['$sxclsname$']
+        data['$sxclsname$'] = null
+        cls = caos.schema.get(clsname)
+
+        for key in data {
+            // Filter out pointers that do not belong to this class.
+            // This happens when we receive a combined record for
+            // multiple classes.
+            if '<' !in key && !cls['$ptr$' + key] {
+                delete data[key]
+            }
+        }
+
+        if session != null && issubclass(cls, caos.Concept) {
+            result = mergeIntoSession(session, cls, data,
+                                      recInfo.virtuals_map)
+        } else {
+            result = new cls(data, recInfo.virtuals_map)
+        }
+
+        return result
+    }
+
+    fn _decodeRecordTree(tree, connectingAttribute) {
+        tl = tree.length
+
+        toplevel = []
+        updates = {}
+        ca = connectingAttribute
+        attrname = ca.name + ca.direction + ca.target
+
+        totalOrder = {}
+
+        items = {}
+
+        for i = 0; i < tl; i++ {
+            item = _decodeRecord(tree[i])
+            itemId = item[ca.name].id
+            items[itemId] = item
+            totalOrder[itemId] = i
+        }
+
+        for id in items {
+            item = items[id]
+
+            entity = item[ca.name]
+
+            if !isset(entity) {
+                continue
+            }
+
+            targetId = item['__target__']
+
+            if !isset(targetId) {
+                continue
+            }
+
+            target = items[targetId]
+
+            if !target {
+                // The items below us have been cut off by
+                // recursion depth limit
+                continue
+            }
+
+            titem = [totalOrder[targetId], target[ca.name]]
+
+            if item['__depth__'] == 0 {
+                bisect.insortLeft(toplevel, titem)
+            } else {
+                if entity.id !in updates {
+                    updates[entity.id] = [titem]
+                } else {
+                    bisect.insortLeft(updates[entity.id], titem)
+                }
+            }
+        }
+
+        for srcId in updates {
+            src = items[srcId][ca.name]
+            if !src {
+                e = 'unexpected error in recursion tree unpack: source is empty'
+                throw ValueError(errPrefix + e)
+            }
+
+            srcUpdates = updates[srcId]
+            entities = []
+
+            for srcUpdate in srcUpdates {
+                entities.push(srcUpdate[1])
+            }
+
+            u = {}
+            u[attrname] = entities
+
+            src.update(u)
+        }
+
+        toplevelEntities = []
+
+        for tl in toplevel {
+            toplevelEntities.push(tl[1])
+        }
+
+        return toplevelEntities
+    }
+
+    fn _decodeSequence(seq) {
+        result = []
+
+        for v in seq {
+            if isinstance(v, PlainObject) && 'f1' in v {
+                v = _decodeRecord(v)
+            }
+
+            if isset(v) {
+                result.push(v)
+            }
+        }
+
+        return result
+    }
+
+    fn _decodeRecord(record) {
+        result = {}
+        recId = record.f1
+        recInfo = recordInfo[recId]
+
+        if recId == FREEFORM_RECORD_ID {
+            result = []
+
+            reclen = len(record)
+            for i = 1; i < reclen; i++ {
+                k = 'f' + (i + 1).toString()
+                itemVal = record[k]
+
+                if isinstance(itemVal, PlainObject) && 'f1' in itemVal {
+                    itemVal = _decodeRecord(itemVal)
+                } else if isinstance(itemVal, Array) {
+                    itemVal = _decodeSequence(itemVal)
+                }
+
+                result.push(itemVal)
+            }
+        } else if !recInfo {
+            if formatString == 'pgjson.caos' {
+                // Raw SQL result
+                result = record
+            } else {
+                for k in record {
+                    v = record[k]
+
+                    itemKey = v.f1
+
+                    if !itemKey {
+                        err = errPrefix + 'missing record item name'
+                        throw new ValueError(err)
+                    }
+
+                    itemVal = v.f2
+
+                    if isinstance(itemVal, PlainObject) && 'f1' in itemVal {
+                        itemVal = _decodeRecord(itemVal)
+                    } else if isinstance(itemVal, Array) {
+                        itemVal = _decodeSequence(itemVal)
+                    }
+
+                    result[itemKey] = itemVal
+                }
+            }
+        } else {
+            if recInfo.recursive_link {
+                _rec = {}
+
+                reclen = len(record)
+                for i = 1; i < reclen; i++ {
+                    k = 'f' + (i + 1).toString()
+                    itemKey = recInfo.attribute_map[i - 1]
+                    itemVal = record[k]
+                    _rec[itemKey] = itemVal
+                }
+
+                if _rec['data'] {
+                    return _decodeRecordTree(_rec['data'],
+                                             recInfo.recursive_link)
+                }
+            }
+
+            reclen = len(record)
+            for i = 1; i < reclen; i++ {
+                k = 'f' + (i + 1).toString()
+                itemKey = recInfo.attribute_map[i - 1]
+
+                if !itemKey {
+                    err = errPrefix + 'missing record item name'
+                    throw new ValueError(err)
+                }
+
+                itemVal = record[k]
+
+                if isinstance(itemVal, PlainObject) && 'f1' in itemVal {
+                    itemVal = _decodeRecord(itemVal)
+                } else if isinstance(itemVal, Array) {
+                    itemVal = _decodeSequence(itemVal)
+                }
+
+                if isinstance(itemKey, PlainObject) {
+                    // key is a PointerVector
+                    if itemKey.direction == '<' {
+                        compKey = itemKey.name + itemKey.direction +
+                                                 itemKey.target
+                        result[compKey] = itemVal
+                    } else {
+                        result[itemKey.name] = itemVal
+                    }
+                } else {
+                    result[itemKey] = itemVal
+                }
+            }
+        }
+
+        if result['$sxclsid$'] {
+            result['$sxclsid$'] = null
+        }
+
+        if result['$sxclsname$'] {
+            result = mergeEntity(session, result, recInfo)
+        } else if 't' in result {
+            result = new caos.xvalue(result['t'], result['p'])
+        }
+
+        return result
+    }
+
+    fn _decode() {
+        result = []
+
+        if (formatString == 'pgjson.caos.selector'
+                    || formatString == 'pgjson.caos.entity') {
+
+            for i = 0; i < data.length; i++ {
+                row = JSON.parse(data[i])
+                item = _decodeRecord(row)
+
+                if len(item) != 1 {
+                    err = errPrefix + 'top-level element must contain ' +
+                                      'exactly one attribute'
+                    throw new ValueError(err)
+                }
+
+                result.push(item[first(item)])
+            }
+        } else {
+            for i = 0; i < data.length; i++ {
+                row = JSON.parse(data[i])
+                item = _decodeRecord(row)
+
+                result.push(item)
+            }
+        }
+
+        if formatString == 'pgjson.caos.entity' {
+            rlen = len(result)
+
+            if rlen > 1 {
+                err = errPrefix + 'caos.entity selector did not ' +
+                                  'yield exactly one element'
+                throw new ValueError(err)
+            } else if rlen == 0 {
+                result = null
+            } else {
+                result = result[0]
+            }
+        }
+
+        return result
+    }
+
+    with session.batch() {
+        result = _decode()
+    }
+
+    return result
+}
+
+
+caos.json.register('pgjson', _unpacker)

@@ -6,8 +6,11 @@
 ##
 
 
-from metamagic.caos.frontends import javascript
+from metamagic.caos.frontends.javascript import json_formats as js_json_formats
+from . import _unpacker as _js_unpacker
+js_json_formats.register_json_format('pgjson', _js_unpacker)
 
-from . import _unpacker
 
-javascript.json_formats['pgjson'] = _unpacker
+from metamagic.caos.frontends.jplus import json_formats as jp_json_formats
+from . import _jp_unpacker
+jp_json_formats.register_json_format('pgjson', _jp_unpacker)
