@@ -179,6 +179,10 @@ class File(AbstractFileSystemResource):
         if not os.path.isfile(path):
             raise ResourceError('{!r} is not a file'.format(path))
 
+    def __sx_resource_get_source__(self):
+        with open(self.__sx_resource_path__, 'rb') as f:
+            return f.read()
+
 
 class Directory(AbstractFileSystemResource):
     """A directory.  For instance, a directory of graphical assets required for
