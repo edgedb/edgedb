@@ -31,12 +31,14 @@ class LanguageRuntimeMeta(type):
     runtimes = {}
     default_runtimes = {}
 
-    def __new__(mcls, name, bases, dct, *, languages=None, abstract=False, default=False):
+    def __new__(mcls, name, bases, dct, *, languages=None, abstract=False,
+                                                           default=False):
         runtime = super().__new__(mcls, name, bases, dct)
         runtime._name_suffix = mcls._get_runtime_name_suffix(runtime)
         runtime._modcache = set()
 
-        if languages is not None and not isinstance(languages, (tuple, list, set)):
+        if (languages is not None and
+                not isinstance(languages, (tuple, list, set))):
             languages = [languages]
 
         if not abstract and languages:
@@ -57,15 +59,18 @@ class LanguageRuntimeMeta(type):
                 except KeyError:
                     mcls.default_runtimes[language] = runtime
                 else:
-                    ex_runtime_name = '{}.{}'.format(ex_def_runtime.__module__,
-                                                     ex_default_runtime.__name__)
-                    lang_name = '{}.{}'.format(language.__module__, language.__name__)
-                    msg = '"{}" has already been registered as a default runtime for "{}"'
+                    ex_runtime_name = '{}.{}'.format(
+                        ex_def_runtime.__module__, ex_default_runtime.__name__)
+                    lang_name = '{}.{}'.format(
+                        language.__module__, language.__name__)
+                    msg = ('"{}" has already been registered as a default ' +
+                           'runtime for "{}"')
                     raise RuntimeError(msg.format(ex_runtime_name, lang_name))
 
         return runtime
 
-    def __init__(cls, name, bases, dct, *, languages=None, abstract=False, default=False):
+    def __init__(cls, name, bases, dct, *, languages=None, abstract=False,
+                                                           default=False):
         super().__init__(name, bases, dct)
 
     @classmethod
@@ -79,7 +84,8 @@ class LanguageRuntimeMeta(type):
     @classmethod
     def _get_runtime_name_suffix(mcls, cls):
         name = '{}.{}'.format(cls.__module__, cls.__name__)
-        name_hash = base64.urlsafe_b64encode(hashlib.md5(name.encode()).digest()).decode()
+        name_sig = hashlib.md5(name.encode()).digest()
+        name_hash = base64.urlsafe_b64encode(name_sig).decode()
         name_hash = name_hash.strip('=').replace('-', '_')
         return '{}_{}'.format(name_hash, cls.__name__)
 
@@ -115,11 +121,12 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
             except NotImplementedError:
                 derivative = None
             else:
-                # Copy over parent's module tags and resource parent link so that the
-                # derivative is published properly.
+                # Copy over parent's module tags and resource parent
+                # link so that the derivative is published properly.
                 #
                 try:
-                    derivative.__mm_module_tags__ = frozenset(module.__mm_module_tags__)
+                    derivative.__mm_module_tags__ = \
+                                frozenset(module.__mm_module_tags__)
                 except AttributeError:
                     pass
 
@@ -146,7 +153,8 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
             return None
 
         if consider_inheritance:
-            runtimes = [r for r in cls.__mro__ if issubclass(r, LanguageRuntime)]
+            runtimes = [r for r in cls.__mro__
+                          if issubclass(r, LanguageRuntime)]
         else:
             runtimes = (cls,)
 
@@ -179,8 +187,9 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
         else:
             # Too many constructors defined, ambiguous
             msg = 'multiple derivative constructors'
-            details = 'new_derivative() is defined in multiple runtime adapters for {}: {}' \
-                            .format(type(module), ', '.join(str(a) for a in constructors))
+            details = ('new_derivative() is defined in multiple runtime ' +
+                      'adapters for {}: {}').format(
+                      type(module), ', '.join(str(a) for a in constructors))
             raise RuntimeAdapterDefinitionError(msg, details=details)
 
     @classmethod
@@ -201,7 +210,8 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
                 try:
                     derivative = derivatives[runtime]
                 except KeyError:
-                    derivative = runtime.obtain_derivative(module, constructor=constructor)
+                    derivative = runtime.obtain_derivative(
+                                    module, constructor=constructor)
                     derivatives[runtime] = derivative
 
                 if not derivative.has_derivative_tag(derivative_tag):
@@ -223,7 +233,8 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
 
                     runtime_deps = mod_adapter.get_runtime_dependencies()
                     if runtime_deps:
-                        derivative.__mm_runtime_dependencies__.update(runtime_deps)
+                        derivative.__mm_runtime_dependencies__.update(
+                                                                runtime_deps)
 
                     derivative.add_derivative_tag(derivative_tag)
 
@@ -237,7 +248,8 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
             rest = {}
 
             for attr_name, attr in module.__dict__.items():
-                if isinstance(attr, type) and attr.__module__ == module.__name__:
+                if (isinstance(attr, type) and
+                        attr.__module__ == module.__name__):
                     classes[attr_name] = attr
                 else:
                     rest[attr_name] = attr
@@ -259,13 +271,15 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
 
             sorted_classes = list(topological.sort(class_g))
 
-            dct = itertools.chain([(c.__name__, c) for c in sorted_classes], rest.items())
+            dct = itertools.chain([(c.__name__, c) for c in sorted_classes],
+                                  rest.items())
 
             for attr_name, attr in dct:
                 if isinstance(attr, types.ModuleType):
                     continue
 
-                if isinstance(attr, type) and attr.__module__ != module.__name__:
+                if (isinstance(attr, type)
+                        and attr.__module__ != module.__name__):
                     continue
 
                 adapters = cls.get_adapters(attr)
@@ -280,10 +294,12 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
                     try:
                         derivative = attr_derivatives[runtime]
                     except KeyError:
-                        derivative = runtime.obtain_derivative(module, constructor=constructor)
+                        derivative = runtime.obtain_derivative(
+                                        module, constructor=constructor)
                         attr_derivatives[runtime] = derivative
 
-                    derivative_tag = runtime.get_adapter_tag(adapter_cls) + '__attr__' + attr_name
+                    derivative_tag = (runtime.get_adapter_tag(adapter_cls) +
+                                        '__attr__' + attr_name)
 
                     if not derivative.has_derivative_tag(derivative_tag):
                         adapter = adapter_cls(module, attr_name, attr)
@@ -292,11 +308,12 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
                         if source:
                             source = source.encode('utf-8')
 
-                        if source:
                             try:
-                                derivative.__sx_resource_source_value__ += source
+                                derivative.__sx_resource_source_value__ += \
+                                                                source
                             except AttributeError:
-                                derivative.__sx_resource_source_value__ = source
+                                derivative.__sx_resource_source_value__ = \
+                                                                source
 
                         deps = adapter.get_dependencies()
                         if deps:
@@ -304,7 +321,8 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
 
                         runtime_deps = adapter.get_runtime_dependencies()
                         if runtime_deps:
-                            derivative.__mm_runtime_dependencies__.update(runtime_deps)
+                            derivative.__mm_runtime_dependencies__.update(
+                                        runtime_deps)
 
                         derivative.add_derivative_tag(derivative_tag)
 
@@ -313,11 +331,13 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
                         except KeyError:
                             code_counter[runtime] = [source or b'']
 
-            # Put implicit dependencies between attribute derivatives based on runtime hierarchy
+            # Put implicit dependencies between attribute
+            # derivatives based on runtime hierarchy.
             attr_runtimes = set(attr_derivatives)
             for runtime, derivative in attr_derivatives.items():
                 for parent in set(runtime.__mro__[1:]) & attr_runtimes:
-                    derivative.__mm_imported_modules__.add(attr_derivatives[parent])
+                    derivative.__mm_imported_modules__.add(
+                                        attr_derivatives[parent])
 
             derivatives.update(attr_derivatives)
 
@@ -348,8 +368,9 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
     @classmethod
     def _get_adapters(cls, value):
         for runtime in [r for r in cls.__mro__
-                            if issubclass(r, LanguageRuntime) and not r.abstract]:
-            adapters = LanguageRuntimeAdapterMeta.get_adapter(value, runtime=runtime)
+                          if issubclass(r, LanguageRuntime) and not r.abstract]:
+            adapters = LanguageRuntimeAdapterMeta.get_adapter(
+                                        value, runtime=runtime)
             if adapters:
                 return adapters, runtime
 
@@ -361,17 +382,21 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
 
 
 class LanguageRuntimeAdapterMeta(adapter.MultiAdapter):
-    def __new__(mcls, name, bases, clsdict, *, runtime, adapts=None, pure=True, **kwargs):
+    def __new__(mcls, name, bases, clsdict, *,
+                      runtime, adapts=None, pure=True, **kwargs):
         clsdict['runtime'] = runtime
-        return super().__new__(mcls, name, bases, clsdict, adapts=adapts, pure=pure,
-                               adapterargs={'runtime': runtime}, **kwargs)
+        return super().__new__(mcls, name, bases, clsdict, adapts=adapts,
+                               pure=pure, adapterargs={'runtime': runtime},
+                               **kwargs)
 
-    def __init__(cls, name, bases, clsdict, *, runtime, adapts=None, pure=True, **kwargs):
+    def __init__(cls, name, bases, clsdict, *,
+                      runtime, adapts=None, pure=True, **kwargs):
         super().__init__(name, bases, clsdict, adapts=adapts, pure=pure,
                          adapterargs={'runtime': runtime}, **kwargs)
 
 
-class LanguageRuntimeAdapter(metaclass=LanguageRuntimeAdapterMeta, runtime=None):
+class LanguageRuntimeAdapter(metaclass=LanguageRuntimeAdapterMeta,
+                             runtime=None):
     def __init__(self, module, attr_name=None, attr_value=None):
         self.module = module
         self.attr_name = attr_name
@@ -469,10 +494,8 @@ def get_compatible_runtimes(module, tags=None, consider_derivatives=False,
                             if issubclass(tag_runtime, default_runtime):
                                 runtimes.add(tag_runtime)
 
-        if not runtimes:
-            default_runtime = LanguageRuntimeMeta.get_default_runtime(lang)
-            if default_runtime:
-                runtimes.add(default_runtime)
+        if not runtimes and default_runtime:
+            runtimes.add(default_runtime)
 
     if consider_derivatives:
         derivatives = getattr(module, '__mm_runtime_derivatives__', {})
@@ -481,7 +504,7 @@ def get_compatible_runtimes(module, tags=None, consider_derivatives=False,
     if runtimes and include_ancestors:
         runtimes = {c for r in runtimes
                       for c in r.__mro__ if issubclass(c, LanguageRuntime)
-                                            and not getattr(c, 'abstract', False)}
+                                        and not getattr(c, 'abstract', False)}
 
     return runtimes
 
@@ -492,24 +515,28 @@ def runtimes_compatible(runtimes1, runtimes2):
     if not runtimes1:
         return True
 
-    runtimes2 = {c for r2 in runtimes2 for c in r2.__mro__ if not getattr(c, 'abstract', False)}
+    runtimes2 = {c for r2 in runtimes2 for c in r2.__mro__
+                                       if not getattr(c, 'abstract', False)}
 
-    # For each runtime of module1 there exists at least one subclass in runtimes of module2,
-    # or vice-versa
-    return all({c for c in r1.__mro__ if not getattr(c, 'abstract', False)} & runtimes2
-                                                                            for r1 in runtimes1)
+    # For each runtime of module1 there exists at least
+    # one subclass in runtimes of module2, or vice-versa.
+    return all({c for c in r1.__mro__ if not getattr(c, 'abstract', False)}
+                & runtimes2 for r1 in runtimes1)
 
 
 def get_runtime_map(runtimes, module, tags=()):
-    """Return a mapping of module and its derivatives that satisfy a specified set of runtimes"""
+    """Return a mapping of module and its derivatives that satisfy
+    a specified set of runtimes"""
 
     result = {}
-    modruntimes = get_compatible_runtimes(module, tags=tags, include_ancestors=True)
+    modruntimes = get_compatible_runtimes(module, tags=tags,
+                                          include_ancestors=True)
 
     runtimes_full = []
 
     for runtime in runtimes:
-        runtimes_full.append([c for c in runtime.__mro__ if not getattr(c, 'abstract', False)])
+        runtimes_full.append([c for c in runtime.__mro__
+                                if not getattr(c, 'abstract', False)])
 
     used = set()
 
