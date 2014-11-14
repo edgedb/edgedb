@@ -143,23 +143,26 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
         filtered = {}
 
         for bucket, mods in buckets.items():
-            for mod in mods:
-                if isinstance(mod, bucket.can_contain):
-                    try:
-                        filtered[bucket].add(mod)
-                    except KeyError:
-                        filtered[bucket] = OrderedSet([mod])
+            if bucket is not None:
+                for mod in mods:
+                    if isinstance(mod, bucket.can_contain):
+                        try:
+                            filtered[bucket].add(mod)
+                        except KeyError:
+                            filtered[bucket] = OrderedSet([mod])
 
-                    bucket.add(mod)
+                        bucket.add(mod)
 
         for bucket in cls._iter_children(include_self=True):
-            try:
-                resources = filtered[bucket]
-            except KeyError:
-                pass
-            else:
-                for backend in bucket.get_backends():
-                    backend.publish_bucket(bucket, resources if increment_set else bucket.resources)
+            if bucket is not None:
+                try:
+                    resources = filtered[bucket]
+                except KeyError:
+                    pass
+                else:
+                    for backend in bucket.get_backends():
+                        r = resources if increment_set else bucket.resources
+                        backend.publish_bucket(bucket, r)
 
 
 class BaseResourceBackend(fs.backends.BaseFSBackend):
