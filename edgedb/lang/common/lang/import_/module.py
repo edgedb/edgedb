@@ -326,7 +326,9 @@ class ProxyModule(LightProxyModule):
             else:
                 proxy = ObjectProxy.__sx_new__(result)
 
-            proxies[name] = proxy
+            if proxy is not result:
+                # Only record actual proxies
+                proxies[name] = proxy
 
         result = proxy
 
