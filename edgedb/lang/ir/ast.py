@@ -431,7 +431,8 @@ class FunctionCall(Expr):
                 ('kwargs', dict),
                 ('aggregates', bool),
                 ('window', bool),
-                ('agg_sort', list)]
+                ('agg_sort', list),
+                ('partition', list)]
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)

@@ -641,22 +641,27 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
 
         else:
             result = None
-            agg_sort = []
             if expr.aggregates:
                 with context(context.NEW_TRANSPARENT):
                     context.current.in_aggregate = True
                     context.current.query.aggregates = True
                     args = [self._process_expr(context, a, cte) for a in expr.args]
-
-                if expr.agg_sort:
-                    for sortexpr in expr.agg_sort:
-                        _sortexpr = self._process_expr(context, sortexpr.expr, cte)
-                        agg_sort.append(pgsql.ast.SortExprNode(expr=_sortexpr,
-                                                               direction=sortexpr.direction,
-                                                               nulls_order=sortexpr.nones_order))
-
             else:
                 args = [self._process_expr(context, a, cte) for a in expr.args]
+
+            agg_sort = []
+            if expr.agg_sort:
+                for sortexpr in expr.agg_sort:
+                    _sortexpr = self._process_expr(context, sortexpr.expr, cte)
+                    agg_sort.append(pgsql.ast.SortExprNode(expr=_sortexpr,
+                                                           direction=sortexpr.direction,
+                                                           nulls_order=sortexpr.nones_order))
+
+            partition = []
+            if expr.partition:
+                for partition_expr in expr.partition:
+                    _pexpr = self._process_expr(context, partition_expr, cte)
+                    partition.append(_pexpr)
 
             if expr.name == 'if':
                 cond = self._process_expr(context, expr.args[0], cte)
@@ -712,6 +717,8 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                     arg0_type = pg_types.pg_type_from_atom(schema, arg0_type)
                     args[2] = pgsql.ast.TypeCastNode(expr=args[2],
                                                      type=pgsql.ast.TypeNode(name=arg0_type))
+            elif expr.name == ('window', 'rank'):
+                name = expr.name[1]
             elif expr.name == ('math', 'abs'):
                 name = 'abs'
             elif expr.name == ('math', 'round'):
@@ -937,13 +944,21 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                 assert False, 'unsupported function %s' % (expr.name,)
             else:
                 name = expr.name
+
             if not result:
+                if expr.window:
+                    window_sort = agg_sort
+                    agg_sort = None
+
                 result = pgsql.ast.FunctionCallNode(name=name, args=args,
                                                     aggregates=bool(expr.aggregates),
                                                     agg_sort=agg_sort)
 
                 if expr.window:
-                    result.over = pgsql.ast.WindowDefNode()
+                    result.over = pgsql.ast.WindowDefNode(
+                        orderby=window_sort,
+                        partition=partition
+                    )
 
         return result
 
@@ -2345,7 +2360,6 @@ class CaosTreeTransformer(CaosExprTransformer):
                         except KeyError:
                             subgraph_map = context.current.concept_node_map[subgraph] = {}
                         subgraph_map[expr.name] = selexpr
-
                 else:
                     result = pgsql.ast.FieldRefNode(table=explicit_cte, field=expr.name,
                                                     origin=explicit_cte, origin_field=expr.name)
