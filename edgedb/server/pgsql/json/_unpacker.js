@@ -10,7 +10,7 @@
 // %import metamagic.caos.frontends.javascript.base
 
 
-sx.types.register('pgjson.', function(format, data, metadata, ctx) {
+sx.types.register('pgjson.', function(format, data, metadata) {
     "use strict";
 
     var format_string = format[0], format_version = format[1];
@@ -18,58 +18,10 @@ sx.types.register('pgjson.', function(format, data, metadata, ctx) {
     var supported_formats = ['pgjson.caos.selector', 'pgjson.caos.queryselector',
                              'pgjson.caos.entity', 'pgjson.caos'];
     var hop = {}.constructor.prototype.hasOwnProperty;
-    var session = (ctx ? ctx.session : null) || sx.caos.$current_session;
-    var sessionMergeReplace = ctx ? ctx.sessionMergeReplace : false;
 
     var _throw = function(msg) {
         throw new sx.Error('malformed "' + format_string + '" data: ' + msg);
     }
-
-    var is_concept = function(cls) {
-        return cls.$sx_prototype.__class__ === sx.caos.ProtoConcept;
-    };
-
-    var merge_into_session = function(session, cls, data, virtuals_map) {
-        var result = session.get(data['metamagic.caos.builtins.id']);
-
-        if (result) {
-            result.update(data, virtuals_map, sessionMergeReplace);
-        } else {
-            session.withSession(function() {
-                result = new cls(data, virtuals_map);
-            });
-        }
-
-        return result;
-    };
-
-    var merge_entity = function(session, data, rec_info) {
-        var clsname = data['$sxclsname$'];
-        data['$sxclsname$'] = null;
-        var cls = sx.caos.schema.get(clsname);
-
-        // Filter out pointers that do not belong to this class.
-        // This happens when we receive a combined record for multiple classes.
-        var keys = sx.keys(data), kl = keys.length;
-
-        var result;
-
-        for (var i = 0; i < kl; i++) {
-            var key = keys[i];
-            if (!sx.contains(key, '<') && !cls['$ptr$' + key]) {
-                delete data[key];
-            }
-        }
-
-        if (session != null && is_concept(cls)) {
-            result = merge_into_session(session, cls, data,
-                                        rec_info.virtuals_map);
-        } else {
-            result = new cls(data, rec_info.virtuals_map);
-        }
-
-        return result;
-    };
 
     if (sx.contains(supported_formats, format_string)) {
         if (format_version != 1) {
@@ -304,7 +256,22 @@ sx.types.register('pgjson.', function(format, data, metadata, ctx) {
         }
 
         if (result['$sxclsname$']) {
-            result = merge_entity(session, result, rec_info);
+            var clsname = result['$sxclsname$'];
+            result['$sxclsname$'] = null;
+            var cls = sx.caos.schema.get(clsname);
+
+            // Filter out pointers that do not belong to this class.
+            // This happens when we receive a combined record for multiple classes.
+            var keys = sx.keys(result), kl = keys.length;
+
+            for (var i = 0; i < kl; i++) {
+                var key = keys[i];
+                if (!sx.contains(key, '<') && !cls['$ptr$' + key]) {
+                    delete result[key];
+                }
+            }
+
+            result = new cls(result, rec_info.virtuals_map);
         } else if (result.hasOwnProperty('t')) {
             result = new sx.caos.xvalue(result['t'], result['p']);
         }
@@ -312,42 +279,37 @@ sx.types.register('pgjson.', function(format, data, metadata, ctx) {
         return result;
     };
 
-    var _decode = function() {
-        if (format_string == 'pgjson.caos.selector'
-                    || format_string == 'pgjson.caos.entity') {
-            for (var i = 0; i < data.length; i++) {
-                var row = sx.json.parse(data[i]);
-                var item = _decode_record(row);
+    if (format_string == 'pgjson.caos.selector' || format_string == 'pgjson.caos.entity') {
+        for (var i = 0; i < data.length; i++) {
+            var row = sx.json.parse(data[i]);
+            var item = _decode_record(row);
 
-                if (sx.len(item) != 1) {
-                    _throw('top-level element must contain exactly one attribute');
-                }
-
-                result.push(sx.first(item));
+            if (sx.len(item) != 1) {
+                _throw('top-level element must contain exactly one attribute');
             }
-        } else {
-            for (var i = 0; i < data.length; i++) {
-                var row = sx.json.parse(data[i]);
-                var item = _decode_record(row);
 
-                result.push(item);
-            }
+            result.push(sx.first(item));
         }
+    } else {
+        for (var i = 0; i < data.length; i++) {
+            var row = sx.json.parse(data[i]);
+            var item = _decode_record(row);
 
-        if (format_string == 'pgjson.caos.entity') {
-            var rlen = sx.len(result);
-
-            if (rlen > 1) {
-                _throw('caos.entity selector did not yield exactly one element');
-            } else if (rlen == 0) {
-                result = null;
-            } else {
-                result = result[0];
-            }
+            result.push(item);
         }
     }
 
-    session.withBatch(_decode)
+    if (format_string == 'pgjson.caos.entity') {
+        var rlen = sx.len(result);
+
+        if (rlen > 1) {
+            _throw('caos.entity selector did not yield exactly one element');
+        } else if (rlen == 0) {
+            result = null;
+        } else {
+            result = result[0];
+        }
+    }
 
     return result;
 });
