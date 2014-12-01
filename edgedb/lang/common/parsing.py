@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2010 Sprymix Inc.
+# Copyright (c) 2010, 2014 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -10,13 +10,12 @@ import os
 import sys
 
 import parsing
-import pyggy
-import pyggy.lexer
 
 from metamagic.exceptions import MetamagicError, _add_context
 from metamagic.utils.lang import context as lang_context
 from metamagic.utils.datastructures import xvalue
 from metamagic.utils import markup
+from metamagic.utils import lexer
 
 
 class TokenMeta(type):
@@ -130,10 +129,6 @@ class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
     pass
 
 
-class SourcePoint(lang_context.SourcePoint):
-    pass
-
-
 class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
     title = 'Parser Context'
 
@@ -180,47 +175,6 @@ class ParserError(MetamagicError):
             _add_context(self, context)
 
 
-class Lexer(pyggy.lexer.lexer):
-    def __init__(self, lexspec):
-        super().__init__(lexspec)
-        self.reset()
-
-    def reset(self):
-        self.lineno = 1
-        self.offset = 0
-        self.column = 1
-        self.lineoffset = 0
-
-    def nextch(self):
-        self.offset += 1
-        return super().nextch()
-
-    def setinputstr(self, str):
-        self.inputstr = str
-        self.reset()
-        super().setinputstr(str)
-
-    def PUSHBACK(self, backupdata):
-        self.offset -= len(backupdata)
-        super().PUSHBACK(backupdata)
-
-    def newline(self):
-        self.lineno += 1
-        self.lineoffset = self.offset
-        self.column = 1
-
-    def context(self):
-        value = self.value.value if isinstance(self.value, xvalue) else self.value
-        value_len = len(str(value))
-
-        start_offset = self.offset - value_len
-        column = start_offset - self.lineoffset
-        start = SourcePoint(line=self.lineno, column=column, pointer=start_offset)
-        end = SourcePoint(line=self.lineno, column=self.column + value_len, pointer=self.offset)
-        context = ParserContext(name='<string>', buffer=self.inputstr, start=start, end=end)
-        return context
-
-
 class Parser:
     def __init__(self, **parser_data):
         self.lexer = None
@@ -249,30 +203,38 @@ class Parser:
                                                 #graphFile=self.localpath(mod, "dot"),
                                                 verbose=self.get_debug())
 
-    def get_lexer_spec(self):
-        mod = self.get_parser_spec_module()
-        _, lexer_spec = pyggy.getlexer(self.localpath(mod, "pyl"))
-        self.__class__.lexer_spec = lexer_spec.lexspec
-
     def get_specs(self):
         self.get_parser_spec()
-        self.get_lexer_spec()
 
     def localpath(self, mod, type):
         return os.path.join(os.path.dirname(mod.__file__), mod.__name__.rpartition('.')[2] + '.' + type)
+
+    def get_lexer(self):
+        '''Return an initialized lexer.
+
+        The lexer must implement 'setinputstr' and 'token' methods.
+        A lexer derived from metamagic.utils.lexer.Lexer will satisfy these
+        criteria.
+        '''
+        raise NotImplementedError
 
     def reset_parser(self, input):
         if getattr(self.__class__, 'parser_spec', None) is None:
             self.get_specs()
 
         if not self.parser:
-            self.lexer = Lexer(self.__class__.lexer_spec)
+            self.lexer = self.get_lexer()
             self.parser = parsing.Lr(self.__class__.parser_spec)
             self.parser.parser_data = self.parser_data
             self.parser.verbose = self.get_debug()
 
         self.parser.reset()
         self.lexer.setinputstr(input)
+
+    def process_lex_token(self, mod, tok):
+        return mod.TokenMeta.for_lex_token(tok.attrs['type'])(self.parser,
+                                                              tok.value,
+                                                              self.context(tok))
 
     def parse(self, input):
         self.reset_parser(input)
@@ -282,15 +244,28 @@ class Parser:
             tok = self.lexer.token()
 
             while tok:
-                token = mod.TokenMeta.for_lex_token(tok)(self.parser, self.lexer.value,
-                                                         self.lexer.context())
+                token = self.process_lex_token(mod, tok)
+                if token is not None:
+                    self.parser.token(token)
 
-                self.parser.token(token)
                 tok = self.lexer.token()
 
             self.parser.eoi()
 
         except parsing.SyntaxError as e:
-            raise self.get_exception(e, context=self.lexer.context()) from e
+            raise self.get_exception(e, context=self.context()) from e
 
         return self.parser.start[0].val
+
+    def context(self, tok=None):
+        lex = self.lexer
+        name = lex.filename if lex.filename else '<string>'
+
+        if tok is None:
+            position = lang_context.SourcePoint(line=lex.lineno, column=lex.column, pointer=lex.start)
+            context = ParserContext(name=name, buffer=lex.inputstr, start=position, end=position)
+
+        else:
+            context = ParserContext(name=name, buffer=lex.inputstr, start=tok.attrs['start'], end=tok.attrs['end'])
+
+        return context

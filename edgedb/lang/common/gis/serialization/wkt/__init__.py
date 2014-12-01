@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2011, 2014 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -12,8 +12,20 @@ from ..base import Serializer, SerializerError
 
 from metamagic.utils.gis.proto.abc import GeometryContainer
 
+from . import lexer
+
 
 class WKTParser(parsing.Parser):
+    def get_lexer(self):
+        return lexer.WKTLexer()
+
+    def process_lex_token(self, mod, tok):
+        tok_type = tok.attrs['type']
+        if tok_type in ('WS', 'NL'):
+            return None
+
+        return super().process_lex_token(mod, tok)
+
     def get_parser_spec_module(self):
         from . import wkt
         return wkt

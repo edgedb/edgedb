@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2010, 2014 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -11,6 +11,8 @@ from metamagic.utils import ast, parsing, debug
 from metamagic.caos.caosql.parser.errors import CaosQLSyntaxError
 from metamagic.caos.caosql import ast as qlast, CaosQLQueryError
 from metamagic.caos import types as caos_types
+
+from . import lexer
 
 
 class CaosQLParserMeta(type(parsing.Parser)):
@@ -36,6 +38,16 @@ class CaosQLParser(parsing.Parser, metaclass=CaosQLParserMeta):
 
     def get_exception(self, native_err, context):
         return CaosQLQueryError(native_err.args[0], context=context)
+
+    def get_lexer(self):
+        return lexer.CaosQLLexer()
+
+    def process_lex_token(self, mod, tok):
+        tok_type = tok.attrs['type']
+        if tok_type in ('WS', 'NL', 'COMMENT'):
+            return None
+
+        return super().process_lex_token(mod, tok)
 
     def normalize_select_query(self, query, filters=None, sort=None, limit=None,
                                      offset=None, anchors=None):
