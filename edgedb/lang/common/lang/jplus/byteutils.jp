@@ -74,7 +74,7 @@ fn toBytes(str) {
     // array of bytes
 
     str = _UTF8Encode(str)
-    l = str.length,
+    l = str.length
     res = new Array(l)
 
     for i = 0; i < l; i++ {
