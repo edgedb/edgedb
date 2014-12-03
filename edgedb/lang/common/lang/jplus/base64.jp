@@ -1,0 +1,159 @@
+/**
+ * Copyright (c) 2013-2014 Sprymix Inc.
+ * All rights reserved.
+ *
+ * See LICENSE for details.
+ */
+
+
+export b32encode, b64encode, urlsafeB64Encode, b64decode, urlsafeB64Decode, \
+       b64decodeToStr
+
+
+from metamagic.utils.lang.jplus import byteutils
+
+
+pads = [[0], [0, 0], [0, 0, 0], [0, 0, 0, 0], [0, 0, 0, 0, 0]]
+_caps = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'
+tab32 = _caps + '234567'
+tab64 = _caps + _caps.toLowerCase() + '0123456789+/='
+overs32 = ['======', '====', '===', '=']
+overs64 = ['==', '=']
+
+
+fn _castMsg(msg) {
+    if isinstance(msg, String) {
+        return byteutils.toBytes(msg)
+    } else {
+        return [].concat(msg || [])
+    }
+}
+
+
+fn b32encode(msg) {
+    // produces exactly the same results as python `base64.b32encode`
+
+    msg = _castMsg(msg)
+
+    len = msg.length
+    quanta = Math.floor(len / 5)
+    leftover = len % 5
+    encoded = ''
+
+    if leftover {
+        msg.push.apply(msg, pads[5 - leftover])
+        quanta += 1
+    }
+
+    for i = 0; i < quanta; i += 1 {
+        k = i * 5
+
+        c1 = msg[k]
+        c2 = msg[k+1]
+        c3 = msg[k+2]
+        c4 = msg[k+3]
+        c5 = msg[k+4]
+
+        encoded += tab32[c1 >>> 3]
+        encoded += tab32[((c1 & 0x7) << 2) + (c2 >>> 6)]
+        encoded += tab32[(c2 >>> 1) & 0x1F]
+        encoded += tab32[((c2 & 0x1) << 4) + (c3 >>> 4)]
+        encoded += tab32[((c3 & 0xF) << 1) + (c4 >>> 7)]
+        encoded += tab32[(c4 >>> 2) & 0x1F]
+        encoded += tab32[((c4 & 0x3) << 3) + (c5 >>> 5)]
+        encoded += tab32[c5 & 0x1F]
+    }
+
+    if leftover {
+        i = overs32[leftover - 1]
+        return encoded.substring(0, encoded.length - i.length) + i
+    }
+
+    return encoded
+}
+
+
+fn b64encode(msg) {
+    msg = _castMsg(msg)
+
+    len = msg.length
+    quanta = Math.floor(len / 3)
+    leftover = len % 3
+    encoded = ''
+
+    if leftover {
+        msg.push.apply(msg, pads[3 - leftover])
+        quanta += 1
+    }
+
+    for i = 0; i < quanta; i += 1 {
+        k = i * 3
+
+        c1 = msg[k]
+        c2 = msg[k+1]
+        c3 = msg[k+2]
+
+        encoded += tab64[c1 >>> 2]
+        encoded += tab64[((c1 & 3) << 4) | (c2 >> 4)]
+        encoded += tab64[((c2 & 15) << 2) | (c3 >> 6)]
+        encoded += tab64[c3 & 63]
+    }
+
+    if leftover {
+        i = overs64[leftover - 1]
+        return encoded.substring(0, encoded.length - i.length) + i
+    }
+
+    return encoded
+}
+
+
+fn urlsafeB64Encode(msg) {
+    encoded = b64encode(msg)
+    return encoded.replace(/\+/g, '-').replace(/\//, '_')
+}
+
+
+fn b64decode(msg) {
+    result = []
+    i = 0,
+    len = msg.length
+
+    while i < len {
+        e1 = tab64.indexOf(msg[i++])
+        e2 = tab64.indexOf(msg[i++])
+
+        if i < len {
+            e3 = tab64.indexOf(msg[i++])
+            if i < len {
+                e4 = tab64.indexOf(msg[i++])
+            } else {
+                e4 = 64
+            }
+        } else {
+            e3 = e4 = 64
+        }
+
+        result.push((e1 << 2) | (e2 >> 4))
+
+        if e3 != 64 {
+            result.push(((e2 & 15) << 4) | (e3 >> 2))
+            if e4 != 64 {
+                result.push(((e3 & 3) << 6) | e4)
+            }
+        }
+    }
+
+    return result
+}
+
+
+fn urlsafeB64Decode(msg) {
+    msg = msg.replace(/-/g, '+').replace(/_/, '\/')
+    return b64decode(msg)
+}
+
+
+fn b64decodeToStr(m) {
+    return byteutils.fromBytes(b64decode(m))
+}
