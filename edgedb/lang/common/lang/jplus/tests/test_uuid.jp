@@ -1,0 +1,38 @@
+//
+// Copyright (c) 2013 Sprymix Inc.
+// All rights reserved.
+//
+// See LICENSE for details.
+//
+
+
+import unittest
+
+from metamagic.utils.lang.jplus import uuid
+
+from javascript import RegExp
+
+
+class TestJPUUID(unittest.TestCase) {
+    fn test_utils_lang_jp_uuid_1() {
+        u = new uuid.UUID('ca8adeb4-e3ec-4510-bef9-a933085c19f6')
+
+        this.assertEqual(u.toHex(), 'ca8adeb4e3ec4510bef9a933085c19f6')
+        this.assertEqual(u + '', 'ca8adeb4-e3ec-4510-bef9-a933085c19f6')
+        this.assertEqual(u.toBytes(),
+                         [202, 138, 222, 180, 227, 236, 69, 16,
+                          190, 249, 169, 51, 8, 92, 25, 246])
+    }
+
+    fn test_utils_lang_jp_uuid_2() {
+        this.assertNotEqual(uuid.UUID.uuid4() + '', uuid.UUID.uuid4() + '')
+
+        // Check that our uuid4 matches the UUID spec (from wikipedia)
+        r = 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'
+        r = r.replace('y', '[89ab]').replace(/x/g, '[a-f0-9]')
+        r = '^' + r + '$'
+        r = new RegExp(r)
+        this.assertFalse('f8f6df46-c22f-11e2-8c16-7c6d62900c7c'.match(r))
+        this.assertTrue(uuid.UUID.uuid4().toString().match(r))
+    }
+}
