@@ -75,8 +75,10 @@ class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
     def as_markup(cls, self, *, ctx):
         me = markup.elements
 
-        prefix = '{} line={} col={}: '.format(self.name, self.start.line, self.start.column)
-        snippet, offset = self.get_line_snippet(self.start, max_length=80 - len(prefix))
+        prefix = '{} line={} col={}: '.format(self.name, self.start.line,
+                                              self.start.column)
+        snippet, offset = self.get_line_snippet(self.start,
+                                                max_length=80 - len(prefix))
         errpos = ' ' * (len(prefix) + offset) + '^'
         prefix += snippet + '\n'
 

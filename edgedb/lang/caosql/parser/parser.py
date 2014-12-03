@@ -67,15 +67,20 @@ class CaosQLParser(parsing.Parser, metaclass=CaosQLParserMeta):
             for name, value in filters.items():
                 target = targets.get(name)
                 if not target:
-                    err = 'filters reference column %s which is not in query targets' % name
+                    err = 'filters reference column %s which is not in query ' \
+                          'targets' % name
                     raise CaosQLQueryError(err)
 
-                const = qlast.ConstantNode(value=None, index='__filter%s' % name)
+                const = qlast.ConstantNode(value=None,
+                                           index='__filter%s' % name)
                 arg_types['__filter%s' % name] = value.__class__
 
-                filter_expr = qlast.BinOpNode(left=target, right=const, op=ast.ops.EQ)
+                filter_expr = qlast.BinOpNode(left=target, right=const,
+                                              op=ast.ops.EQ)
                 if qtree.where:
-                    qtree.where = qlast.BinOpNode(left=qtree.where, right=filter_expr, op=ast.ops.AND)
+                    qtree.where = qlast.BinOpNode(left=qtree.where,
+                                                  right=filter_expr,
+                                                  op=ast.ops.AND)
                 else:
                     qtree.where = filter_expr
 
@@ -86,11 +91,14 @@ class CaosQLParser(parsing.Parser, metaclass=CaosQLParserMeta):
             for name, direction, *nones in sort:
                 target = targets.get(name)
                 if not target:
-                    err = 'sort reference column %s which is not in query targets' % name
+                    err = 'sort reference column %s which is not in query ' \
+                          'targets' % name
                     raise CaosQLQueryError(err)
 
-                nones_order = qlast.NonesOrder(nones[0].lower()) if nones and nones[0] else None
-                newsort.append(qlast.SortExprNode(path=target, direction=direction,
+                nones_order = qlast.NonesOrder(nones[0].lower()) if \
+                                                    nones and nones[0] else None
+                newsort.append(qlast.SortExprNode(path=target,
+                                                  direction=direction,
                                                   nones_order=nones_order))
 
             qtree.orderby = newsort
