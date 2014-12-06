@@ -112,9 +112,7 @@ class LanguageLoader(LanguageLoaderBase):
         return self._language.get_proxy_module_cls()
 
     def check_runtime_compatibility(cls, module1, module2):
-        runtimes1 = lang_runtimes.get_compatible_runtimes(module1, consider_derivatives=True)
-        runtimes2 = lang_runtimes.get_compatible_runtimes(module2, consider_derivatives=True)
-        return lang_runtimes.runtimes_compatible(runtimes1, runtimes2)
+        return lang_runtimes.module_runtimes_compatible(module1, module2)
 
     def code_from_source(self, modname, source_bytes, *, cache=None):
         filename = self.get_filename(modname)

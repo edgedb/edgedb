@@ -19,3 +19,4 @@ BaseBucket.set_implementation(DefaultImplementation)
 
 # Register JS hook
 from .frontends import javascript
+from .frontends import jplus

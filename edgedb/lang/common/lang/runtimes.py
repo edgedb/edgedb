@@ -356,6 +356,10 @@ class LanguageRuntime(metaclass=LanguageRuntimeMeta, abstract=True):
 
         for runtime, derivative in derivatives.items():
             sources = getattr(derivative, '__sx_resource_source_value__', None)
+            if sources:
+                sources = derivative.postprocess_source(sources, module)
+                derivative.__sx_resource_source_value__ = sources
+
             if sources or isinstance(derivative, EmptyDerivative):
                 runtime.add_derivative(module, derivative)
 
@@ -406,23 +410,29 @@ class LanguageRuntimeAdapter(metaclass=LanguageRuntimeAdapterMeta,
         try:
             imports = [sys.modules[m] for m in self.module.__sx_imports__]
         except AttributeError:
-            imports = ()
+            imports = []
 
-        return imports
+        return OrderedSet(imports)
 
     def collect_compatible_imports(self):
         new_imports = OrderedSet()
 
         imports = self.collect_candidate_imports()
         for impmod in imports:
-            deriv = load_module_for_runtime(impmod.__name__, self.runtime)
-            if deriv is not None:
-                new_imports.add(deriv)
+            load_module_for_runtime(impmod.__name__, self.runtime)
+            if module_runtimes_compatible(self.module, impmod):
+                new_imports.add(impmod)
 
         return new_imports
 
     def get_dependencies(self):
-        return self.collect_compatible_imports()
+        imports = self.collect_compatible_imports()
+        new_imports = OrderedSet()
+        for impmod in imports:
+            new_imports.add(load_module_for_runtime(impmod.__name__,
+                                                    self.runtime))
+
+        return new_imports
 
     def get_runtime_dependencies(self):
         return OrderedSet()
@@ -443,6 +453,9 @@ class RuntimeDerivative(types.ModuleType):
 
     def has_derivative_tag(self, tag):
         return tag in self._derivative_tags
+
+    def postprocess_source(self, source, module):
+        return source
 
 
 class EmptyDerivative(RuntimeDerivative):
@@ -522,6 +535,12 @@ def runtimes_compatible(runtimes1, runtimes2):
     # one subclass in runtimes of module2, or vice-versa.
     return all({c for c in r1.__mro__ if not getattr(c, 'abstract', False)}
                 & runtimes2 for r1 in runtimes1)
+
+
+def module_runtimes_compatible(module1, module2):
+    runtimes1 = get_compatible_runtimes(module1, consider_derivatives=True)
+    runtimes2 = get_compatible_runtimes(module2, consider_derivatives=True)
+    return runtimes_compatible(runtimes1, runtimes2)
 
 
 def get_runtime_map(runtimes, module, tags=()):
