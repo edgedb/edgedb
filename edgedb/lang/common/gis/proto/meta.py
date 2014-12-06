@@ -31,4 +31,4 @@ class GeometryMeta(type):
 
     @classmethod
     def class_from_name(cls, geo_class_name):
-        return cls._index_by_class_name.get((cls, geo_class_name))
+        return cls._index_by_class_name.get((cls, geo_class_name.upper()))
