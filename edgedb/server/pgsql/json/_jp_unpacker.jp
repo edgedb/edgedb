@@ -19,7 +19,12 @@ fn _unpacker(format, data, metadata, ctx) {
     supportedFormats = ['pgjson.caos.selector', 'pgjson.caos.queryselector',
                         'pgjson.caos.entity', 'pgjson.caos']
 
-    session = (ctx ? ctx.session : null) || caos.Session.current
+    session = ctx.session
+
+    if !isset(session) {
+        throw new ValueError('missing required Caos session in context')
+    }
+
     sessionMergeReplace = ctx ? ctx.sessionMergeReplace : false
     errPrefix = 'invalid "' + formatString + '": '
 
@@ -50,9 +55,9 @@ fn _unpacker(format, data, metadata, ctx) {
         result = session.get(data['metamagic.caos.builtins.id'])
 
         if result {
-            result.$load(data, virtualsMap, sessionMergeReplace)
+            result.$load(data, session, virtualsMap, sessionMergeReplace)
         } else {
-            result = new cls(data, virtualsMap, session)
+            result = new cls(data, session, virtualsMap)
         }
 
         return result
@@ -154,7 +159,7 @@ fn _unpacker(format, data, metadata, ctx) {
             u = {}
             u[attrname] = entities
 
-            src.$load(u)
+            src.$load(u, session)
         }
 
         toplevelEntities = []
