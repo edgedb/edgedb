@@ -347,11 +347,11 @@ class ProxyModule(LightProxyModule):
                 except AttributeError:
                     pass
                 else:
-                    for attr, proxy in proxies.items():
+                    for attr, proxy in list(proxies.items()):
                         try:
                             attrval = getattr(value, attr)
                         except AttributeError:
-                            proxy.__wrapped__ = None
+                            del proxies[attr]
                         else:
                             proxy.__wrapped__ = attrval
         else:
