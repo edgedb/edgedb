@@ -50,7 +50,7 @@ fn _unpacker(format, data, metadata, ctx) {
         result = session.get(data['metamagic.caos.builtins.id'])
 
         if result {
-            result.update(data, virtualsMap, sessionMergeReplace)
+            result.$load(data, virtualsMap, sessionMergeReplace)
         } else {
             result = new cls(data, virtualsMap, session)
         }
@@ -154,7 +154,7 @@ fn _unpacker(format, data, metadata, ctx) {
             u = {}
             u[attrname] = entities
 
-            src.update(u)
+            src.$load(u)
         }
 
         toplevelEntities = []
@@ -337,11 +337,7 @@ fn _unpacker(format, data, metadata, ctx) {
         return result
     }
 
-    with session.batch() {
-        result = _decode()
-    }
-
-    return result
+    return _decode()
 }
 
 
