@@ -419,7 +419,7 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
         source inheritance into account.
         """
         linkname = link_proto.normal_name()
-        endpoint = link_proto.get_near_endpoint(direction)
+        endpoint = link_proto.source
 
         if link_proto.generic():
             # Generic links would capture the necessary set via inheritance.
