@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2011-2013 Sprymix Inc.
+# Copyright (c) 2011-2013, 2015 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -172,7 +172,8 @@ class LanguageLoader(LanguageLoaderBase):
         super().update_module_attributes_from_code(module, code)
         module.__sx_imports__ = code.imports or ()
         module.__mm_runtime_imports__ = code.runtime_imports or ()
-        module.__language__ = self._language
+        if not hasattr(module, '__language__'):
+            module.__language__ = self._language
 
     def _get_module_version(self, modname, metadata):
         my_modver = super()._get_module_version(modname, metadata)
@@ -249,8 +250,8 @@ class LanguageLoader(LanguageLoaderBase):
     def _execute(self, module, data, method):
         modinfo = module_types.ModuleInfo(module)
         context = DocumentContext(module=modinfo, import_context=self._context)
-        attributes = getattr(self._language, method)(data, context=context)
-        self._language.set_module_attributes(module, attributes)
+        attributes = getattr(module.__language__, method)(data, context=context)
+        module.__language__.set_module_attributes(module, attributes)
 
     def execute_module_code(self, module, code):
         runtimes = lang_runtimes.get_compatible_runtimes(module)
