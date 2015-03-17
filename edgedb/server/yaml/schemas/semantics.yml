@@ -162,6 +162,7 @@ mapping:
                             type: choice
                             object: metamagic.caos.backends.yaml.Constraint
                             choice:
+                                - type: none
                                 - type: map
                                   mapping:
                                     "title":
