@@ -2169,6 +2169,11 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         return concepts
 
 
+class LinkProps(LangObject):
+    def __sx_setstate__(self, data):
+        self.props = data['@']
+
+
 class EntityShellMeta(type(LangObject), type(caos.concept.EntityShell)):
     def __init__(cls, name, bases, dct, *, adapts=None, ignore_aliases=False):
         type(LangObject).__init__(cls, name, bases, dct, adapts=adapts,
@@ -2176,7 +2181,8 @@ class EntityShellMeta(type(LangObject), type(caos.concept.EntityShell)):
         type(caos.concept.EntityShell).__init__(cls, name, bases, dct)
 
 
-class EntityShell(LangObject, adapts=caos.concept.EntityShell, metaclass=EntityShellMeta):
+class EntityShell(LangObject, adapts=caos.concept.EntityShell,
+                              metaclass=EntityShellMeta):
     def __sx_setstate__(self, data):
         caos.concept.EntityShell.__init__(self)
 
@@ -2247,6 +2253,99 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell, metaclass=EntityS
             ent_context.document.import_context.entities.append(self.entity)
 
 
+class EntityShell2(LangObject, adapts=caos.concept.EntityShell2,
+                               metaclass=EntityShellMeta):
+
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+
+    def _construct(self, concept):
+        ent_context = lang_context.SourceContext.from_object(self)
+        aliases = {alias: mod.__name__
+                   for alias, mod in ent_context.document.imports.items()}
+        session = ent_context.document.import_context.session
+        cls = session.schema.get(concept, aliases=aliases)
+        self.entity = cls(**self.links)
+
+        for (link_name, target), link_properties in self.props.items():
+            linkcls = caos.concept.getlink(self.entity, link_name, target)
+            linkcls.update(**link_properties)
+
+    def _process_expr(self, expr):
+        ent_context = lang_context.SourceContext.from_object(self)
+
+        aliases = {alias: mod.__name__
+                   for alias, mod in ent_context.document.imports.items()}
+        session = ent_context.document.import_context.session
+
+        selector = session.selector(expr, module_aliases=aliases)
+
+        if not isinstance(selector, caos.types.ConceptClass):
+            raise MetaError('query expressions must return a single entity')
+
+        selector_iter = iter(selector)
+
+        try:
+            entity = next(selector_iter)
+        except StopIteration:
+            raise MetaError('query expressions must return a single entity')
+
+        try:
+            next(selector_iter)
+        except StopIteration:
+            pass
+        else:
+            raise MetaError('query expressions must return a single entity')
+
+        return entity
+
+    def _process_target(self, data):
+        if isinstance(data, dict):
+            clsname, target = next(iter(data.items()))
+            target._construct(clsname)
+
+        elif isinstance(data, Expression):
+            target = caos.concept.EntityShell()
+            target.entity = self._process_expr(data.expr)
+
+        else:
+            target = data
+
+        return target
+
+    def _process_link(self, data):
+        if isinstance(data, LinkProps):
+            value = self._process_target(data.props.pop('target'))
+            target = xvalue(value, **data.props)
+        else:
+            target = xvalue(self._process_target(data))
+
+        return target
+
+    def __sx_setstate__(self, data):
+        caos.concept.EntityShell2.__init__(self)
+
+        links = self.links = {}
+        props = self.props = {}
+
+        for link_name, linkval in data.items():
+            if not isinstance(linkval, list):
+                linkval = [linkval]
+
+            links[link_name] = list()
+            for item in linkval:
+                lspec = self._process_link(item)
+
+                target = lspec.value
+                links[link_name].append(target)
+                if lspec.attrs:
+                    props[link_name, target] = lspec.attrs
+
+        entity = getattr(self, 'entity', None)
+        if entity is not None:
+            ent_context.document.import_context.entities.append(entity)
+
+
 class ProtoSchema(LangObject, adapts=proto.ProtoSchema):
     @classmethod
     def __sx_getstate__(cls, data):
@@ -2274,13 +2373,27 @@ class ProtoSchema(LangObject, adapts=proto.ProtoSchema):
 
 class DataSet(LangObject):
     def __sx_setstate__(self, data):
-
-        entities = {id: [shell.entity for shell in shells] for id, shells in data.items()}
+        entities = {id: [shell.entity for shell in shells]
+                    for id, shells in data.items() if id}
         context = lang_context.SourceContext.from_object(self)
         session = context.document.import_context.session
         with session.transaction():
             for entity in context.document.import_context.entities:
                 entity.__class__.materialize_links(entity, entities)
+
+
+class DataSet2(LangObject):
+    def __sx_setstate__(self, data):
+        context = lang_context.SourceContext.from_object(self)
+        session = context.document.import_context.session
+
+        with session.transaction():
+            for clsname, shell in data:
+                shell._construct(clsname)
+                context.document.import_context.entities.append(shell.entity)
+
+            for entity in context.document.import_context.entities:
+                entity.__class__.materialize_links(entity, None)
 
 
 class CaosName(StrLangObject, adapts=caos.Name, ignore_aliases=True):
