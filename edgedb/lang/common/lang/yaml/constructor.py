@@ -151,16 +151,38 @@ class Composer(yaml.composer.Composer):
 class ConstructorContext:
     def __init__(self, constructor, yaml_constructors):
         self.constructor = constructor
-        self.yaml_constructors = yaml_constructors
+
+        self.simple_constructors, self.multi_constructors = \
+                self._sort_constructors(yaml_constructors)
+
+    def _sort_constructors(self, constructors):
+        simple = {}
+        multi = {}
+
+        for tag, constructor in constructors.items():
+            if tag.endswith(':'):
+                multi[tag] = constructor
+            else:
+                simple[tag] = constructor
+
+        return simple, multi
 
     def __enter__(self):
         self.old_constructors = self.constructor.yaml_constructors
         constructors = self.constructor.yaml_constructors.copy()
-        constructors.update(self.yaml_constructors)
+
+        self.old_multi_constructors = self.constructor.yaml_multi_constructors
+        multi_constructors = self.constructor.yaml_multi_constructors.copy()
+
+        constructors.update(self.simple_constructors)
+        multi_constructors.update(self.multi_constructors)
+
         self.constructor.yaml_constructors = constructors
+        self.constructor.yaml_multi_constructors = multi_constructors
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.constructor.yaml_constructors = self.old_constructors
+        self.constructor.yaml_multi_constructors = self.old_multi_constructors
 
 
 class Constructor(yaml.constructor.Constructor):
