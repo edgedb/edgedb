@@ -3083,12 +3083,14 @@ class TreeTransformer:
 class PathResolverContextLevel:
     def __init__(self, prevlevel=None):
         self.include_filters = False
+        self.included_filters = set()
         self.expr_root = None
         self.path_shift = None
 
         if prevlevel:
             self.include_filters = prevlevel.include_filters
             self.path_shift = prevlevel.path_shift
+            self.included_filters = prevlevel.included_filters
 
 
 class PathResolverContext:
@@ -3136,6 +3138,21 @@ class PathResolver(TreeTransformer):
 
         return self._serialize_path(context, path)
 
+    def _collect_quals(self, context, path):
+        quals = []
+
+        if path.conjunction and path.conjunction.paths:
+            for ptr in path.conjunction.paths:
+                if (ptr.target and ptr.target.filter
+                        and (ptr.target.origin or ptr.target) not in context.current.included_filters):
+                    qual = self._serialize_filter(context, ptr.target.filter)
+                    quals.append(qual)
+
+                    context.current.included_filters.add(ptr.target.origin or ptr.target)
+                    quals.extend(self._collect_quals(context, ptr.target))
+
+        return quals
+
     def _serialize_path(self, context, path):
         if path.rewrite_original is not None:
             return self._serialize_path(context, path.rewrite_original)
@@ -3171,6 +3188,23 @@ class PathResolver(TreeTransformer):
         elif isinstance(path, caos_ast.EntitySet):
             target = [('getcls', path.concept.name)]
 
+            if context.current.include_filters:
+                quals = []
+
+                if path.filter:
+                    with context():
+                        context.current.expr_root = path
+                        context.current.include_filters = False
+                        context.current.included_filters.add(path.origin or path)
+                        quals.append(self._serialize_filter(context,
+                                                            path.filter))
+
+                if path.conjunction and path.conjunction.paths:
+                    with context():
+                        context.current.expr_root = path
+                        context.current.include_filters = False
+                        quals.extend(self._collect_quals(context, path))
+
             if path.rlink and path != context.current.expr_root:
                 link_proto = path.rlink.link_proto
                 dir = path.rlink.direction
@@ -3180,12 +3214,13 @@ class PathResolver(TreeTransformer):
             else:
                 result = target
 
-            if context.current.include_filters and path.filter:
-                with context():
-                    context.current.expr_root = path
-                    context.current.include_filters = False
-                    qual = self._serialize_filter(context, path.filter)
+            if context.current.include_filters and quals:
+                qual = quals[0]
+                for right in quals[1:]:
+                    qual = [('binop', 'and', qual, right)]
 
+                import metamagic.utils.markup
+                metamagic.utils.markup.dump(qual)
                 result = [('filter', result, qual)]
 
         elif isinstance(path, caos_ast.EntityLink):
@@ -3225,7 +3260,13 @@ class PathResolver(TreeTransformer):
                 msg = 'filters in path expressions do not support symbolic vars'
                 raise ValueError(msg)
 
-            result = [('const', expr.value)]
+            typ = str(expr.type.name) if expr.type else None
+            result = [('const', expr.value, typ)]
+
+        elif isinstance(expr, caos_ast.TypeCast):
+            cast_expr = self._serialize_filter(context, expr.expr)
+            typ = str(expr.type.name)
+            result = [('cast', cast_expr, typ)]
 
         else:
             msg = 'unsupported node in path expression filter: {!r}'
@@ -3383,6 +3424,12 @@ class PathResolver(TreeTransformer):
 
         elif cmd == 'const':
             result = [(cmd,) + tuple(args)]
+
+        elif cmd == 'cast':
+            cast_expr = []
+            for a in args[0]:
+                cast_expr.extend(self._convert_to_entity_path(context, a))
+            result = [(cmd, cast_expr) + tuple(args[1:])]
 
         else:
             raise TreeError('unexpected path resolver command: "{}"'.format(cmd))
