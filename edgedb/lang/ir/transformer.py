@@ -3218,9 +3218,6 @@ class PathResolver(TreeTransformer):
                 qual = quals[0]
                 for right in quals[1:]:
                     qual = [('binop', 'and', qual, right)]
-
-                import metamagic.utils.markup
-                metamagic.utils.markup.dump(qual)
                 result = [('filter', result, qual)]
 
         elif isinstance(path, caos_ast.EntityLink):
