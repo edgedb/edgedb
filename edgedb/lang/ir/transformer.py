@@ -2575,6 +2575,11 @@ class TreeTransformer:
                 (op in (ast.ops.IN, ast.ops.NOT_IN) or \
                  (not reversed and op in (ast.ops.EQ, ast.ops.NE)))
 
+    def is_constant(self, expr):
+        flt = lambda node: isinstance(node, caos_ast.Path)
+        paths = ast.visitor.find_children(expr, flt)
+        return not paths and not isinstance(expr, caos_ast.Path)
+
     def get_multipath(self, expr:caos_ast.Path):
         if not isinstance(expr, caos_ast.PathCombination):
             expr = caos_ast.Disjunction(paths=frozenset((expr,)))
@@ -2720,7 +2725,7 @@ class TreeTransformer:
                 right_paths = self.extract_paths(right, reverse=False, resolve_arefs=False,
                                                         extract_subgraph_refs=True)
 
-                if isinstance(right, caos_ast.Constant):
+                if self.is_constant(right):
                     paths = set()
 
                     if proppathdict:
