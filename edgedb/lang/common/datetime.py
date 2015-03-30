@@ -1,17 +1,20 @@
 ##
-# Copyright (c) 2008-2010 Sprymix Inc.
+# Copyright (c) 2008-2010, 2015 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
 
+import decimal
+import math
+import re
+import time
+
 import datetime
 import dateutil.parser
 import dateutil.relativedelta
 import dateutil.tz
-import re
-import time
 
 from metamagic.utils import config
 
@@ -264,26 +267,57 @@ class Date(datetime.date):
 
 
 class TimeDelta(dateutil.relativedelta.relativedelta):
-    _interval_tokens = {'year': 'years', 'years': 'years',
-                        'month': 'months', 'months': 'months',
-                        'mon': 'months',
-                        'week': 'weeks', 'weeks': 'weeks',
-                        'day': 'days', 'days': 'days',
-                        'hour': 'hours', 'hours': 'hours',
-                        'minute': 'minutes', 'minutes': 'minutes',
-                        'second': 'seconds', 'seconds': 'seconds',
-                        'microsecond': 'microseconds', 'microseconds': 'microseconds'}
+    _verbose_units = {
+        'microsecond',
+        'millisecond',
+        'second',
+        'minute',
+        'hour',
+        'day',
+        'week',
+        'month',
+        'year'
+    }
 
-    def __new__(cls, value=None, *, dt1=None, dt2=None, years=0, months=0, days=0, leapdays=0,
-                      weeks=0, hours=0, minutes=0, seconds=0, microseconds=0, year=None,
-                      month=None, day=None, weekday=None, yearday=None, nlyearday=None, hour=None,
-                      minute=None, second=None, microsecond=None):
+    _verbose_units_plural = {u + 's' for u in _verbose_units}
+
+    _verbose_units_map = dict(
+        zip(_verbose_units_plural, _verbose_units_plural),
+        **{u: u + 's' for u in _verbose_units})
+
+    _verbose_units_re = \
+        '(?:' + '|'.join('(' + u + ')' + '(?:s)?' for u in _verbose_units) + ')'
+
+    _parse_re = re.compile(
+        '^' +
+            '(?:(?:P)' +
+                # PnnYnnWnnMnnDTnnHnnMnnS
+                '(' +
+                    r'((?:(?:\d+(?:\.\d+)?)(?:[YMDW]))*)' +
+                    r'(?:T((?:(?:\d+(?:\.\d+)?)(?:[HMS]))+))?' +
+                ')' +
+            ')' +
+                '|' +
+                # 1 year(s) 3 day(s) ... etc.
+            '(' +
+                r'(?:(-?\d+(?:\.\d+)?)\s*' + _verbose_units_re + ')' +
+                r'(?:\s+(-?\d+(?:\.\d+)?)\s*' + _verbose_units_re + ')*' +
+            ')' +
+        '$',
+        re.I
+    )
+
+    def __new__(cls, value=None, *, dt1=None, dt2=None, years=0, months=0,
+                     days=0, leapdays=0, weeks=0, hours=0, minutes=0,
+                     seconds=0, microseconds=0, year=None, month=None,
+                     day=None, weekday=None, yearday=None, nlyearday=None,
+                     hour=None, minute=None, second=None, microsecond=None):
 
         if value is None:
             result = super().__new__(cls)
             super().__init__(result,
-                             dt1=dt1, dt2=dt2, years=years, months=months, days=days,
-                             hours=hours, minutes=minutes,
+                             dt1=dt1, dt2=dt2, years=years, months=months,
+                             days=days, hours=hours, minutes=minutes,
                              seconds=seconds, microseconds=microseconds,
                              leapdays=leapdays, year=year, weeks=weeks,
                              month=month, day=day, weekday=weekday,
@@ -293,13 +327,15 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
         elif isinstance(value, dateutil.relativedelta.relativedelta):
             result = super().__new__(cls)
             super().__init__(result,
-                             years=value.years, months=value.months, days=value.days,
-                             hours=value.hours, minutes=value.minutes,
-                             seconds=value.seconds, microseconds=value.microseconds,
+                             years=value.years, months=value.months,
+                             days=value.days, hours=value.hours,
+                             minutes=value.minutes, seconds=value.seconds,
+                             microseconds=value.microseconds,
                              leapdays=value.leapdays, year=value.year,
-                             month=value.month, day=value.day, weekday=value.weekday,
-                             hour=value.hour, minute=value.minute,
-                             second=value.second, microsecond=value.microsecond)
+                             month=value.month, day=value.day,
+                             weekday=value.weekday, hour=value.hour,
+                             minute=value.minute, second=value.second,
+                             microsecond=value.microsecond)
 
         elif isinstance(value, datetime.timedelta):
             result = super().__new__(cls)
@@ -308,30 +344,41 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
                              microseconds=value.microseconds)
 
         elif isinstance(value, str):
-            expecting_number = True
+            match = cls._parse_re.match(value)
 
-            intervals = {}
-            interval_tokens = cls._interval_tokens
+            if not match:
+                msg = "invalid timedelta value: {!r}".format(value)
+                raise ValueError(msg)
 
+            quantities = {}
             try:
-                number = None
+                if value[0] == 'P':
+                    if match.group(2):
+                        cls._parse_quantities(
+                            match.group(2), quantities,
+                            {'y': 'years', 'm': 'months',
+                             'w': 'weeks', 'd': 'days'}
+                        )
 
-                for token in re.split('\s+', value.lower()):
-                    if expecting_number:
-                        number = int(token)
-                    else:
-                        interval = interval_tokens[token]
-                        if interval in intervals:
-                            raise ValueError
-                        intervals[interval] = number
-                    expecting_number = not expecting_number
-                if not expecting_number:
-                    raise ValueError
-            except (ValueError, KeyError) as e:
-                raise ValueError("invalid timedelta value: '%s'" % value) from e
+                    if match.group(3):
+                        cls._parse_quantities(
+                            match.group(3), quantities,
+                            {'h': 'hours', 'm': 'minutes',
+                             's': 'seconds'}
+                        )
+                else:
+                    # Verbose format
+                    cls._parse_quantities(match.group(4), quantities,
+                                          cls._verbose_units_map, True)
+
+            except ValueError:
+                msg = "invalid timedelta value: {!r}".format(value)
+                raise ValueError(msg) from None
+
+            cls._fix_quantities(quantities)
 
             result = super().__new__(cls)
-            super().__init__(result, **intervals)
+            super().__init__(result, **quantities)
 
         else:
             raise ValueError("invalid timedelta value: '%s'" % value)
@@ -438,6 +485,54 @@ class TimeDelta(dateutil.relativedelta.relativedelta):
 
     def __mm_serialize__(self):
         return str(self)
+
+    @classmethod
+    def _fix_quantities(cls, quantities):
+        seconds = quantities.get('seconds')
+        if seconds:
+            sec_fraction = seconds - math.floor(seconds)
+            if sec_fraction:
+                ms = quantities.get('microseconds') or 0
+                quantities['microseconds'] = ms + sec_fraction * 1000000
+
+        for unit, quantity in quantities.items():
+            quantities[unit] = int(quantity)
+
+    @classmethod
+    def _parse_quantities(cls, value, quantities, units,
+                               allow_whitespace=False):
+        re_src = ''
+
+        if allow_whitespace:
+            re_src += r'\s*'
+        re_src += r'(-?\d+(?:\.\d+)?)'
+        if allow_whitespace:
+            re_src += r'\s*'
+
+        units_sorted = sorted(units, key=lambda u: -len(u))
+        re_src += '(' + '|'.join(units_sorted) + ')'
+
+        expr = re.compile(re_src, re.I)
+        pos = 0
+
+        while True:
+            match = expr.match(value, pos)
+            if not match:
+                break
+
+            quantity = decimal.Decimal(match.group(1))
+            unit = match.group(2).lower()
+
+            if unit not in units:
+                raise ValueError('unexpected unit in interval spec: ' + unit)
+
+            unit = units[unit]
+
+            if unit in quantities:
+                raise ValueError('repeated unit in interval spec: ' + unit)
+
+            quantities[unit] = quantity
+            pos += len(match.group(0))
 
 
 class Time(datetime.time):
