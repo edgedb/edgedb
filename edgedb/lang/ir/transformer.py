@@ -1280,6 +1280,9 @@ class TreeTransformer:
             if expr.target:
                 self._postprocess_expr(expr.target)
 
+        elif isinstance(expr, caos_ast.BaseRef):
+            pass
+
         else:
             assert False, "Unexpexted expression: %s" % expr
 
@@ -3342,7 +3345,9 @@ class PathResolver(TreeTransformer):
             result = [expr.as_link() for expr in sources]
 
         elif cmd == 'filter':
-            result = args[0]
+            result = []
+            for a in args[0]:
+                result.extend(self._exec_cmd(a, class_factory))
 
         else:
             raise TreeError('unexpected path resolver command: "{}"'.format(cmd))
