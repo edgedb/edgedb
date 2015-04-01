@@ -2271,6 +2271,8 @@ class EntityShell2(LangObject, adapts=caos.concept.EntityShell2,
             linkcls = caos.concept.getlink(self.entity, link_name, target)
             linkcls.update(**link_properties)
 
+        ent_context.document.import_context.entities.append(self.entity)
+
     def _process_expr(self, expr):
         ent_context = lang_context.SourceContext.from_object(self)
 
