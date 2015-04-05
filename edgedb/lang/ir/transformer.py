@@ -3160,36 +3160,28 @@ class PathResolver(TreeTransformer):
         if path.rewrite_original is not None:
             return self._serialize_path(context, path.rewrite_original)
 
-        if isinstance(path, caos_ast.Disjunction):
-            result = []
-
-            for p in path.paths:
-                result.extend(self._serialize_path(context, p))
-
-            if len(path.paths) > 1:
-                result = [('set',) + tuple(result)]
-
-        elif isinstance(path, caos_ast.MetaRef):
+        if isinstance(path, caos_ast.MetaRef):
             source = self._serialize_path(context, path.ref)
-            result = [('getclassattr', source, path.name)]
+            result = ('getclassattr', source, path.name)
 
         elif isinstance(path, caos_ast.AtomicRefSimple):
             source = self._serialize_path(context, path.ref)
-            result = [('getattr', source, path.name)]
+            result = ('getattr', source, path.name)
 
-        elif isinstance(path, caos_ast.AtomicRefExpr) and path.ptr_proto is not None:
+        elif (isinstance(path, caos_ast.AtomicRefExpr)
+                and path.ptr_proto is not None):
             source = self._serialize_path(context, path.ref)
-            result = [('getattr', source, path.ptr_proto.normal_name())]
+            result = ('getattr', source, path.ptr_proto.normal_name())
 
         elif isinstance(path, caos_ast.LinkPropRefSimple):
             if path.name == 'metamagic.caos.builtins.target':
                 result = self._serialize_link(context, path.ref)
             else:
                 source = self._serialize_path(context, path.ref)
-                result = [('getattr', source, path.name)]
+                result = ('getattr', source, path.name)
 
         elif isinstance(path, caos_ast.EntitySet):
-            target = [('getcls', path.concept.name)]
+            target = ('getcls', path.concept.name)
 
             if context.current.include_filters:
                 quals = []
@@ -3213,19 +3205,19 @@ class PathResolver(TreeTransformer):
                 dir = path.rlink.direction
                 source = self._serialize_path(context, path.rlink.source)
 
-                result = [('step', source, target, link_proto.normal_name(), dir)]
+                result = ('step', source, target, link_proto.normal_name(), dir)
             else:
                 result = target
 
             if context.current.include_filters and quals:
                 qual = quals[0]
                 for right in quals[1:]:
-                    qual = [('binop', 'and', qual, right)]
-                result = [('filter', result, qual)]
+                    qual = ('binop', 'and', qual, right)
+                result = ('filter', result, qual)
 
         elif isinstance(path, caos_ast.EntityLink):
             link = self._serialize_link(context, path)
-            result = [('as_link', link)]
+            result = ('as_link', link)
 
         elif isinstance(path, caos_ast.TypeCast):
             result = self._serialize_path(context, path.expr)
@@ -3250,7 +3242,7 @@ class PathResolver(TreeTransformer):
         if isinstance(expr, caos_ast.BinOp):
             left = self._serialize_filter(context, expr.left)
             right = self._serialize_filter(context, expr.right)
-            result = [('binop', str(expr.op), left, right)]
+            result = ('binop', str(expr.op), left, right)
 
         elif isinstance(expr, caos_ast.AtomicRefSimple):
             result = self._serialize_path(context, expr)
@@ -3261,12 +3253,12 @@ class PathResolver(TreeTransformer):
                 raise ValueError(msg)
 
             typ = str(expr.type.name) if expr.type else None
-            result = [('const', expr.value, typ)]
+            result = ('const', expr.value, typ)
 
         elif isinstance(expr, caos_ast.TypeCast):
             cast_expr = self._serialize_filter(context, expr.expr)
             typ = str(expr.type.name)
-            result = [('cast', cast_expr, typ)]
+            result = ('cast', cast_expr, typ)
 
         else:
             msg = 'unsupported node in path expression filter: {!r}'
@@ -3278,37 +3270,28 @@ class PathResolver(TreeTransformer):
     def _serialize_link(self, context, link):
         source = self._serialize_path(context, link.source)
         if link.direction == caos_types.OutboundDirection:
-            result = [('getattr', source, link.link_proto.normal_name())]
+            result = ('getattr', source, link.link_proto.normal_name())
         else:
             target = self._serialize_path(context, link.target)
-            result = [('step', source, target, link.link_proto.normal_name(), link.direction)]
+            result = ('step', source, target,
+                      link.link_proto.normal_name(), link.direction)
 
         return result
 
     def unserialize_path(self, script, class_factory):
-        result = []
-
-        for cmd in script:
-            result.extend(self._exec_cmd(cmd, class_factory))
-
-        return result
+        return self._exec_cmd(script, class_factory)
 
     def _exec_cmd(self, cmd, class_factory):
         from metamagic.caos import expr as caos_expr
 
         cmd, *args = cmd
 
-        if cmd == 'set':
-            result = []
+        if cmd == 'getattr':
 
-            for a in args:
-                result.extend(self._exec_cmd(a, class_factory))
-
-        elif cmd == 'getattr':
             sources = []
-            for a in args[0]:
-                sources.extend(self._exec_cmd(a, class_factory))
-            result = [getattr(src, args[1]) for src in sources]
+            src = self._exec_cmd(args[0], class_factory)
+            ptr = args[1]
+            result = getattr(src, ptr)
 
         elif cmd == 'getclassattr':
             result = []
@@ -3318,128 +3301,98 @@ class PathResolver(TreeTransformer):
             else:
                 atom_name = 'metamagic.caos.builtins.str'
 
-            for a in args[0]:
-                source = self._exec_cmd(a, class_factory)
-                metadata = dict(source_expr=getattr(caos_expr.type(source[0]), args[1]))
-                atom = class_factory.get_class(atom_name)
-                result.append(atom._copy_(metadata=metadata))
+            source = self._exec_cmd(args[0], class_factory)
+            metadata = dict(source_expr=getattr(caos_expr.type(source), args[1]))
+            atom = class_factory.get_class(atom_name)
+            result = atom._copy_(metadata=metadata)
 
         elif cmd == 'step':
-            sources = []
-            for a in args[0]:
-                sources.extend(self._exec_cmd(a, class_factory))
-            targets = []
-            for a in args[1]:
-                targets.extend(self._exec_cmd(a, class_factory))
+            source = self._exec_cmd(args[0], class_factory)
+            target = self._exec_cmd(args[1], class_factory)
 
-            result = [caos_utils.create_path_step(class_factory, expr, targets[0],
-                                                  args[2], args[3]) for expr in sources]
+            result = caos_utils.create_path_step(
+                        class_factory, source, target, args[2], args[3])
 
         elif cmd == 'getcls':
-            result = [class_factory.get_class(args[0])]
+            result = class_factory.get_class(args[0])
 
         elif cmd == 'as_link':
-            sources = []
-            for a in args[0]:
-                sources.extend(self._exec_cmd(a, class_factory))
-            result = [expr.as_link() for expr in sources]
+            source = self._exec_cmd(args[0], class_factory)
+            result = source.as_link()
 
         elif cmd == 'filter':
-            result = []
-            for a in args[0]:
-                result.extend(self._exec_cmd(a, class_factory))
+            result = self._exec_cmd(args[0], class_factory)
 
         else:
-            raise TreeError('unexpected path resolver command: "{}"'.format(cmd))
+            msg = 'unexpected path resolver command: "{}"'.format(cmd)
+            raise TreeError(msg)
 
         return result
 
     def convert_to_entity_path(self, script, path_shift):
         context = PathResolverContext()
         context.current.path_shift = path_shift
-
-        result = []
-        for cmd in script:
-            result.extend(self._convert_to_entity_path(context, cmd))
-
-        return result
+        return self._convert_to_entity_path(context, script)
 
     def _convert_to_entity_path(self, context, cmd):
         cmd, *args = cmd
 
-        if cmd == 'set':
-            result = []
-
-            for a in args:
-                result.extend(self._convert_to_entity_path(context, a))
-
-        elif cmd == 'getattr':
-            sources = []
-            for a in args[0]:
-                sources.extend(self._convert_to_entity_path(context, a))
-            result = [('follow', sources, args[1], caos_types.OutboundDirection)]
+        if cmd == 'getattr':
+            source = self._convert_to_entity_path(context, args[0])
+            ptr = args[1]
+            result = ('follow', source, ptr, caos_types.OutboundDirection)
 
         elif cmd == 'getclassattr':
-            sources = []
-            for a in args[0]:
-                sources.extend(self._convert_to_entity_path(context, a))
-            result = [('getclassattr', sources, args[1])]
+            source = self._convert_to_entity_path(context, args[0])
+            result = ('getclassattr', sources, args[1])
 
         elif cmd == 'step':
-            sources = []
-            for a in args[0]:
-                sources.extend(self._convert_to_entity_path(context, a))
+            source = self._convert_to_entity_path(context, args[0])
 
             if context.current.path_shift > 0:
-                result = sources
+                result = source
                 context.current.path_shift -= 1
             else:
-                result = [('follow', sources, args[2], args[3], args[1][0][1])]
+                pointer = args[2]
+                direction = args[3]
+                target = args[1][1]
+                result = ('follow', source, pointer, direction, target)
 
         elif cmd == 'getcls':
-            result = [('this',)]
+            result = ('this',)
 
         elif cmd == 'as_link':
-            sources = []
-            for a in args[0]:
-                sources.extend(self._convert_to_entity_path(context, a))
-            result = [('as_link', sources)]
+            source = self._convert_to_entity_path(context, args[0])
+            result = ('as_link', source)
 
         elif cmd == 'filter':
-            sources = []
-            for a in args[0]:
-                sources.extend(self._convert_to_entity_path(context, a))
-            quals = []
-            for q in args[1]:
-                quals.extend(self._convert_to_entity_path(context, q))
-
-            result = [('filter', sources, quals)]
+            source = self._convert_to_entity_path(context, args[0])
+            qual = self._convert_to_entity_path(context, args[1])
+            result = ('filter', source, qual)
 
         elif cmd == 'binop':
-            lefts = []
-            for a in args[1]:
-                lefts.extend(self._convert_to_entity_path(context, a))
-            rights = []
-            for a in args[2]:
-                rights.extend(self._convert_to_entity_path(context, a))
-            result = [('binop', args[0], lefts, rights)]
+            op = args[0]
+            left = self._convert_to_entity_path(context, args[1])
+            right = self._convert_to_entity_path(context, args[2])
+            result = ('binop', op, left, right)
 
         elif cmd == 'const':
-            result = [(cmd,) + tuple(args)]
+            result = (cmd,) + tuple(args)
 
         elif cmd == 'cast':
-            cast_expr = []
-            for a in args[0]:
-                cast_expr.extend(self._convert_to_entity_path(context, a))
-            result = [(cmd, cast_expr) + tuple(args[1:])]
+            cast_expr = self._convert_to_entity_path(context, args[0])
+            result = (cmd, cast_expr) + tuple(args[1:])
 
         else:
-            raise TreeError('unexpected path resolver command: "{}"'.format(cmd))
+            msg = 'unexpected path resolver command: "{}"'.format(cmd)
+            raise TreeError(msg)
 
         return result
 
     def resolve_path(self, tree, class_factory=None):
-        return list(self._resolve_path(tree, class_factory))
+        targets = list(self._resolve_path(tree, class_factory))
+        assert len(targets) <= 1
+        return targets[0]
 
     def _resolve_path(self, path, class_factory):
         if path.rewrite_original is not None:
