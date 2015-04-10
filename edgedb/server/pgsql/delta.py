@@ -1574,9 +1574,14 @@ class PointerMetaCommand(MetaCommand):
 
                     ptr_stor_info = types.get_pointer_storage_info(meta, pointer)
 
-                    if (ptr_stor_info.table_type == 'concept'
-                            and (isinstance(host.proto, proto.Concept)
-                                 or self.has_table(host.proto, meta))):
+                    is_a_column = (
+                        (ptr_stor_info.table_type == 'concept'
+                                and isinstance(host.proto, proto.Concept))
+                        or (ptr_stor_info.table_type == 'link'
+                                and isinstance(host.proto, proto.Link))
+                    )
+
+                    if is_a_column:
                         table_name = common.get_table_name(host.proto, catenate=False)
                         cond = [dbops.ColumnExists(table_name=table_name, column_name=old_col_name)]
                         rename = dbops.AlterTableRenameColumn(table_name, old_col_name, new_col_name,
