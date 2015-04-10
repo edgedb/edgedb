@@ -97,7 +97,8 @@ class PreparedPythonQuery:
         return self.rows(**kwargs)[0][0]
 
     def rows(self, **kwargs):
-        row = eval(self.statement, self.globals, kwargs)
+        var_vals = {k.replace('.', '__'): v for k, v in kwargs.items()}
+        row = eval(self.statement, self.globals, var_vals)
         return (Row.from_sequence(seq=row, keymap=self.query.keymap),)
 
     def describe_output(self, session):
@@ -260,7 +261,7 @@ class CaosToPythonTransformer(TreeTransformer):
             if expr.expr:
                 result = self._process_expr(expr.expr, context)
             elif expr.index:
-                result = py_ast.PyName(id=expr.index)
+                result = py_ast.PyName(id=expr.index.replace('.', '__'))
             else:
                 if isinstance(expr.value, numbers.Number):
                     result = py_ast.PyNum(n=expr.value)
