@@ -3344,7 +3344,7 @@ class PathResolver(TreeTransformer):
 
         elif cmd == 'getclassattr':
             source = self._convert_to_entity_path(context, args[0])
-            result = ('getclassattr', sources, args[1])
+            result = ('getclassattr', source, args[1])
 
         elif cmd == 'step':
             source = self._convert_to_entity_path(context, args[0])
