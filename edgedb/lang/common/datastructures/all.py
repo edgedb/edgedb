@@ -134,66 +134,6 @@ class OrderedIndex(OrderedSet, collections.MutableMapping):
         return list(self.map.values())
 
 
-class Record(type):
-    def __new__(mcls, name, fields, default=None):
-        dct = {'_fields___': fields, '_default___': default}
-        bases = (RecordBase,)
-        return super(Record, mcls).__new__(mcls, name, bases, dct)
-
-    def __init__(mcls, name, fields, default):
-        pass
-
-
-class RecordBase:
-    def __init__(self, **kwargs):
-        for k, v in kwargs.items():
-            if k not in self.__class__._fields___:
-                msg = '__init__() got an unexpected keyword argument %s' % k
-                raise TypeError(msg)
-            setattr(self, k, v)
-
-        for k in set(self.__class__._fields___) - set(kwargs.keys()):
-            setattr(self, k, self.__class__._default___)
-
-
-    def __setattr__(self, name, value):
-        if name not in self.__class__._fields___:
-            msg = '%s has no attribute %s' % (self.__class__.__name__, name)
-            raise AttributeError(msg)
-        super().__setattr__(name, value)
-
-    def __eq__(self, tup):
-        if not isinstance(tup, tuple):
-            return NotImplemented
-
-        return tuple(self) == tup
-
-    def __getitem__(self, index):
-        return getattr(self, self.__class__._fields___[index])
-
-    def __iter__(self):
-        for name in self.__class__._fields___:
-            yield getattr(self, name)
-
-    def __len__(self):
-        return len(self.__class__._fields___)
-
-    def items(self):
-        for name in self.__class__._fields___:
-            yield name, getattr(self, name)
-
-    def keys(self):
-        return iter(self.__class__._fields___)
-
-    def __str__(self):
-        f = ', '.join(str(v) for v in self)
-        if len(self) == 1:
-            f += ','
-        return '(%s)' % f
-
-    __repr__ = __str__
-
-
 class xvalue:
     """xvalue is a "rich" value that can have an arbitrary set of additional
     attributes attached to it."""
