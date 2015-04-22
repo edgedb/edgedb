@@ -40,20 +40,6 @@ class Void(_Marker, metaclass=_VoidMeta):
     pass
 
 
-class SetView(collections.Set):
-    def __init__(self, set):
-        self._set = set
-
-    def __contains__(self, item):
-        return item in self._set
-
-    def __iter__(self):
-        return iter(self._set)
-
-    def __len__(self):
-        return len(self._set)
-
-
 class OrderedSet(collections.MutableSet):
     def __init__(self, iterable=None):
         self.map = collections.OrderedDict()
