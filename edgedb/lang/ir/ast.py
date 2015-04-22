@@ -13,7 +13,7 @@ from metamagic.exceptions import MetamagicError
 from metamagic.utils import ast
 from metamagic.caos import name as caos_name
 from metamagic.caos import types as caos_types
-from metamagic.utils.datastructures import StrSingleton, typed
+from metamagic.utils.datastructures import typed
 
 
 class ASTError(MetamagicError):
@@ -397,7 +397,7 @@ class SearchVectorElement(Base):
         ref.backrefs.add(self)
         self.refs.add(ref)
 
-class SortOrder(StrSingleton):
+class SortOrder(caos_types.StrSingleton):
     _map = {
         'ASC': 'SortAsc',
         'DESC': 'SortDesc',
@@ -409,7 +409,7 @@ SortDesc = SortOrder('DESC')
 SortDefault = SortAsc
 
 
-class NonesOrder(StrSingleton):
+class NonesOrder(caos_types.StrSingleton):
     _map = {
         'first': 'NonesFirst',
         'last': 'NonesLast'

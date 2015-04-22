@@ -7,7 +7,6 @@
 
 
 import collections
-import sys
 
 
 class _MarkerMeta(type):
@@ -159,21 +158,3 @@ class xvalue:
         return hash((self.value, frozenset(self.attrs.items())))
 
     __str__ = __repr__
-
-
-class StrSingleton(str):
-    def __new__(cls, val=''):
-        name = cls._map.get(val)
-        if name:
-            ns = sys.modules[cls.__module__].__dict__
-            return ns.get(name, str.__new__(cls, val))
-        else:
-            raise ValueError('invalid value for %s: %s' % (cls.__name__, val))
-
-    @classmethod
-    def keys(cls):
-        return iter(cls._map.values())
-
-    @classmethod
-    def values(cls):
-        return iter(cls._map.keys())
