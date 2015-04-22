@@ -10,7 +10,7 @@ import abc
 import builtins
 import collections
 
-from metamagic.utils.datastructures.all import Void
+from metamagic.utils.datastructures.marker import Void
 
 
 __all__ = 'TypedList', 'TypedDict', 'OrderedTypedDict'

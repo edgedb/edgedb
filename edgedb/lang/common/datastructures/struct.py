@@ -7,7 +7,7 @@
 
 
 from metamagic.utils.functional import hybridmethod
-from .all import Void
+from .marker import Void
 
 
 class NoDefault(Void):

@@ -9,36 +9,6 @@
 import collections
 
 
-class _MarkerMeta(type):
-    def __repr__(cls):
-        repr_ = cls.__repr__
-        if repr_ is object.__repr__:
-            repr_ = type.__repr__
-        return repr_(cls)
-
-    def __str__(cls):
-        return cls.__name__
-
-
-class _Marker(metaclass=_MarkerMeta):
-    def __init__(self):
-        raise TypeError('%r cannot be instantiated' % self.__class__.__name__)
-
-    def __str__(cls):
-        return cls.__name__
-
-    __repr__ = __str__
-
-
-class _VoidMeta(_MarkerMeta):
-    def __bool__(cls):
-        return False
-
-
-class Void(_Marker, metaclass=_VoidMeta):
-    pass
-
-
 class OrderedSet(collections.MutableSet):
     def __init__(self, iterable=None):
         self.map = collections.OrderedDict()
@@ -131,30 +101,3 @@ class OrderedIndex(OrderedSet, collections.MutableMapping):
 
     def __mm_serialize__(self):
         return list(self.map.values())
-
-
-class xvalue:
-    """xvalue is a "rich" value that can have an arbitrary set of additional
-    attributes attached to it."""
-
-
-    __slots__ = ('value', 'attrs')
-
-    def __init__(self, value, **attrs):
-        self.value = value
-        self.attrs = attrs
-
-    def __repr__(self):
-        attrs = ', '.join('%s=%r' % (k, v) for k, v in self.attrs.items())
-        return '<xvalue "%r"; %s>' % (self.value, attrs)
-
-    def __eq__(self, other):
-        if not isinstance(other, xvalue):
-            return NotImplemented
-
-        return self.value == other.value and self.attrs == other.attrs
-
-    def __hash__(self):
-        return hash((self.value, frozenset(self.attrs.items())))
-
-    __str__ = __repr__

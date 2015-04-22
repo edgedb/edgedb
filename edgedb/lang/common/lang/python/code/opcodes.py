@@ -15,7 +15,7 @@ import sys
 import opcode as _opcode
 
 from metamagic.utils import slots
-from metamagic.utils.datastructures.all import Void as _no_arg
+from metamagic.utils.datastructures import Void as _no_arg
 
 
 OPMAP       = {}

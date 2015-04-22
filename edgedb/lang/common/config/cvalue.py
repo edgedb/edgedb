@@ -10,7 +10,7 @@ import types
 from string import Template
 
 from metamagic.utils.slots import SlotsMeta
-from metamagic.utils.datastructures.all import _Marker
+from metamagic.utils.datastructures import Marker
 from metamagic.utils.functional.types import Checker, FunctionValidator, \
                                             ChecktypeExempt, TypeChecker, CombinedChecker
 
@@ -24,7 +24,7 @@ __all__ = 'cvalue',
 
 _std_type = type
 
-class _no_default(_Marker):
+class _no_default(Marker):
     pass
 
 
