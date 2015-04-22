@@ -77,7 +77,7 @@ class ResourceBucket(fs.BaseBucket, metaclass=ResourceBucketMeta, abstract=True)
         cls._error_if_abstract()
         if cls.resources is None:
             cls.resources = OrderedSet()
-        cls.resources.append(resource)
+        cls.resources.add(resource)
 
     @classmethod
     def set_backends(cls, *backends):

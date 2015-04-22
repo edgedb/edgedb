@@ -17,7 +17,6 @@ import sys
 import types
 
 from metamagic.utils.algos import topological
-from metamagic.utils.datastructures import OrderedSet
 from metamagic.utils.functional import adapter
 
 from .exceptions import LanguageError

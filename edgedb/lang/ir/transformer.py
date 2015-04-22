@@ -1559,7 +1559,7 @@ class TreeTransformer:
         return result
 
     def miniterms_from_conjunctions(self, paths):
-        variables = datastructures.OrderedSet()
+        variables = collections.OrderedDict()
 
         terms = []
 
@@ -1569,17 +1569,17 @@ class TreeTransformer:
             if isinstance(path, caos_ast.Conjunction):
                 for subpath in path.paths:
                     if subpath not in variables:
-                        variables.add(subpath)
-                    term += 1 << variables.index(subpath)
+                        variables[subpath] = len(variables)
+                    term += 1 << variables[subpath]
 
             elif isinstance(path, caos_ast.EntityLink):
                 if path not in variables:
-                    variables.add(path)
-                term += 1 << variables.index(path)
+                    variables[path] = len(variables)
+                term += 1 << variables[path]
 
             terms.append(term)
 
-        return variables, boolean.ints_to_terms(*terms)
+        return list(variables), boolean.ints_to_terms(*terms)
 
     def conjunctions_from_miniterms(self, terms, variables):
         paths = set()

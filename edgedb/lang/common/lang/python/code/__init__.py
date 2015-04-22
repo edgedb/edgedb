@@ -308,15 +308,15 @@ class Code:
         #
         co_varnames = OrderedSet()
         if self.args:
-            co_varnames.extend(self.args)
+            co_varnames.update(self.args)
         co_argcount = len(co_varnames)
         if self.kwonlyargs:
-            co_varnames.extend(self.kwonlyargs)
+            co_varnames.update(self.kwonlyargs)
         co_kwonlyargcount = len(self.kwonlyargs)
         if self.vararg:
-            co_varnames.append(self.vararg)
+            co_varnames.add(self.vararg)
         if self.varkwarg:
-            co_varnames.append(self.varkwarg)
+            co_varnames.add(self.varkwarg)
 
         co_names = OrderedSet()
         co_cellvars = OrderedSet()

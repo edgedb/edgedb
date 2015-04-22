@@ -204,8 +204,7 @@ class SortedList(list):
             super(SortedList, self).insert(i, x)
 
 
-class BaseOrderedSet(collections.MutableSet):
-
+class OrderedSet(collections.MutableSet):
     def __init__(self, iterable=None):
         self.map = collections.OrderedDict()
         if iterable is not None:
@@ -215,14 +214,15 @@ class BaseOrderedSet(collections.MutableSet):
     def key(item):
         return item
 
-    def add(self, key):
+    def add(self, key, *, last=None):
         k = self.key(key)
         self.map[k] = key
+        if last is not None:
+            self.map.move_to_end(k, last=last)
 
     def discard(self, key):
         key = self.key(key)
-        if key in self.map:
-            self.map.pop(key)
+        self.map.pop(key, None)
 
     def popitem(self, last=True):
         key, value = self.map.popitem(last)
@@ -244,7 +244,7 @@ class BaseOrderedSet(collections.MutableSet):
         return iter(list(self.map.values()))
 
     def __reversed__(self):
-        return reversed(self.map)
+        return reversed(self.map.values())
 
     def __repr__(self):
         if not self:
@@ -253,7 +253,7 @@ class BaseOrderedSet(collections.MutableSet):
 
     def __eq__(self, other):
         if isinstance(other, self.__class__):
-            return len(self) == len(other) and list(self) == list(other)
+            return len(self) == len(other) and self.map == other.map
         elif other is None:
             return False
         else:
@@ -264,39 +264,6 @@ class BaseOrderedSet(collections.MutableSet):
 
     def clear(self):
         self.map.clear()
-
-
-class OrderedSet(BaseOrderedSet, collections.MutableSequence):
-
-    def __getitem__(self, key):
-        # XXX
-        return list(self.map.keys())[key]
-
-    def __setitem__(self, slice):
-        raise NotImplementedError
-
-    def __delitem__(self, slice):
-        raise NotImplementedError
-
-    def __contains__(self, key):
-        return key in self.map
-
-    append = BaseOrderedSet.add
-
-    def appendleft(self, key):
-        self.add(key)
-        k = self.key(key)
-        self.map.move_to_end(k, last=False)
-
-    def insert(self, pos, item):
-        raise NotImplementedError
-
-    def index(self, key):
-        #XXX
-        return list(self.map.keys()).index(key)
-
-    def count(self, key):
-        return int(key in self)
 
 
 class ExtendedSet(collections.MutableSet):
@@ -342,11 +309,7 @@ class ExtendedSet(collections.MutableSet):
     intersection_update = collections.MutableSet.__iand__
 
 
-class OrderedSetWrapper(OrderedSet, MutableSet, MutableSequence):
-    original_base = OrderedSet
-
-
-class OrderedIndex(BaseOrderedSet, collections.MutableMapping):
+class OrderedIndex(OrderedSet, collections.MutableMapping):
     def __init__(self, iterable=None, *, key=None):
         self.key = key or hash
         super().__init__(iterable)

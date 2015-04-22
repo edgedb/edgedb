@@ -2412,7 +2412,7 @@ class UpdateMappingIndexes(MetaCommand):
             for mapping, maplinks in new_indexes.items():
                 if maplinks:
                     maplinks = list(i[0] for i in maplinks)
-                    self.pgops.append(CreateMappingIndexes(table_name, mapping, maplinks))
+                    self.pgops.add(CreateMappingIndexes(table_name, mapping, maplinks))
 
             for mapping, maplinks in alter_indexes.items():
                 new = []
@@ -2429,13 +2429,13 @@ class UpdateMappingIndexes(MetaCommand):
                     new.append(maplink_name)
 
                 if new:
-                    self.pgops.append(CreateMappingIndexes(table_name, mapping, new))
+                    self.pgops.add(CreateMappingIndexes(table_name, mapping, new))
 
                 for idx_names, altlinks in alter.items():
                     if not altlinks:
-                        self.pgops.append(DropMappingIndexes(ex_idx_names, table_name, mapping))
+                        self.pgops.add(DropMappingIndexes(ex_idx_names, table_name, mapping))
                     else:
-                        self.pgops.append(AlterMappingIndexes(idx_names, table_name, mapping,
+                        self.pgops.add(AlterMappingIndexes(idx_names, table_name, mapping,
                                                               altlinks))
 
 
@@ -2667,9 +2667,9 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
         MetaCommand.apply(self, meta)
 
         self.update_mapping_indexes.apply(meta, context)
-        self.pgops.append(self.update_mapping_indexes)
+        self.pgops.add(self.update_mapping_indexes)
 
-        self.pgops.append(UpgradeBackend.update_backend_info())
+        self.pgops.add(UpgradeBackend.update_backend_info())
 
     def is_material(self):
         return True

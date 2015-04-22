@@ -1065,7 +1065,7 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
 
             if expr.index is not None and not isinstance(expr.index, int):
                 if expr.index in context.current.argmap:
-                    index = context.current.argmap.index(expr.index)
+                    index = list(context.current.argmap).index(expr.index)
                 else:
                     context.current.argmap.add(expr.index)
                     index = len(context.current.argmap) - 1
@@ -1632,7 +1632,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                       alias=query.targets[0].alias)]
 
         if graph.backend_text_override:
-            argmap = context.current.argmap
+            argmap = list(context.current.argmap)
 
             text_override = graph.backend_text_override
             text_override = re.sub(r'\$(\w+)', lambda m: '$' + str(argmap.index(m.group(1)) + 1),
