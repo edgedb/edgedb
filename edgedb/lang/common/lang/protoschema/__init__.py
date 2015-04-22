@@ -17,7 +17,7 @@ import types
 
 from metamagic.exceptions import MetamagicError
 from metamagic.utils import lang
-from metamagic.utils.datastructures import OrderedSet, ExtendedSet
+from metamagic.utils.datastructures import OrderedSet
 from metamagic.utils import abc
 from metamagic.utils.functional import hybridmethod, get_safe_attrname
 from metamagic.utils.datastructures.struct import MixedStruct, MixedStructMeta, Field
@@ -125,6 +125,49 @@ class attrgetter:
 
     def __call__(self, obj):
         return self.getter(obj)
+
+
+class ExtendedSet(collections.MutableSet):
+    def __init__(self, *args, key=hash, **kwargs):
+        self._set = set()
+        self._key = key
+        self._index = set()
+
+        if args:
+            self.update(args[0])
+
+    def __contains__(self, item):
+        return self._key(item) in self._index
+
+    def __iter__(self):
+        return iter(self._set)
+
+    def __len__(self):
+        return len(self._set)
+
+    def add(self, item):
+        self._index.add(self._key(item))
+        self._set.add(item)
+
+    def discard(self, item):
+        self._index.discard(self._key(item))
+        self._set.discard(item)
+
+    def remove(self, item):
+        self._index.remove(self._key(item))
+        self._set.remove(item)
+
+    def clear(self):
+        self._index.clear()
+        self._set.clear()
+
+    def copy(self):
+        return self.__class__(self, key=self._key)
+
+    update = collections.MutableSet.__ior__
+    difference_update = collections.MutableSet.__isub__
+    symmetric_difference_update = collections.MutableSet.__ixor__
+    intersection_update = collections.MutableSet.__iand__
 
 
 class PrototypeSet(ExtendedSet):
