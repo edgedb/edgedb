@@ -1,13 +1,11 @@
 ##
-# Copyright (c) 2008-2011 Sprymix Inc.
+# Copyright (c) 2008-2012, 2015 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
 
-import abc
-import bisect
 import collections
 import sys
 
@@ -22,6 +20,7 @@ class _MarkerMeta(type):
     def __str__(cls):
         return cls.__name__
 
+
 class _Marker(metaclass=_MarkerMeta):
     def __init__(self):
         raise TypeError('%r cannot be instantiated' % self.__class__.__name__)
@@ -31,6 +30,7 @@ class _Marker(metaclass=_MarkerMeta):
 
     __repr__ = __str__
 
+
 class _VoidMeta(_MarkerMeta):
     def __bool__(cls):
         return False
@@ -38,114 +38,6 @@ class _VoidMeta(_MarkerMeta):
 
 class Void(_Marker, metaclass=_VoidMeta):
     pass
-
-
-class GenericWrapperMeta(abc.ABCMeta):
-
-    def __init__(cls, name, bases, dict):
-        super().__init__(name, bases, dict)
-
-        write_methods = set()
-        read_methods = set()
-
-        for i in range(0, len(cls.__mro__) - 1):
-            lst = getattr(cls, '_' + cls.__mro__[i].__name__ + '__read_methods', set())
-            read_methods.update(lst)
-            lst = getattr(cls, '_' + cls.__mro__[i].__name__ + '__write_methods', set())
-            write_methods.update(lst)
-
-        cls.read_methods = read_methods
-        cls.write_methods = write_methods
-
-        cls._sethook('read')
-        cls._sethook('write')
-
-
-class GenericWrapper(object, metaclass=GenericWrapperMeta):
-    write_methods = ()
-    read_methods = ()
-
-    @classmethod
-    def _sethook(cls, hookname):
-        hookmethod = '_' + hookname + '_hook'
-        if hasattr(cls, hookmethod):
-            hook = getattr(cls, hookmethod)
-            methods = getattr(cls, hookname + '_methods')
-
-            if hook:
-                for method in methods:
-                    setattr(cls, method + '_orig', getattr(cls, method, None))
-                    setattr(cls, method, cls._gethook(hook, method))
-
-    @classmethod
-    def _gethook(cls, hook, method):
-        def hookbody(self, *args, **kwargs):
-            original = getattr(cls, method + '_orig', None)
-            if not original:
-                raise NotImplementedError
-            hook(self, method, *args, **kwargs)
-            return original(self, *args, **kwargs)
-
-        return hookbody
-
-
-class Container(GenericWrapper):
-    __read_methods = ('__contains__',)
-
-
-class Hashable(GenericWrapper):
-    __read_methods = ('__hash__',)
-
-
-class Iterable(GenericWrapper):
-    __read_methods = ('__iter__',)
-
-
-class Sized(GenericWrapper):
-    __read_methods = ('__len__',)
-
-
-class Callable(GenericWrapper):
-    __read_methods = ('__call__',)
-
-
-class Sequence(Sized, Iterable, Container):
-    __read_methods = ('__getitem__', '__reversed__', 'index', 'count')
-
-
-class MutableSequence(Sequence):
-    __write_methods = ('__setitem__', '__delitem__', 'insert', 'append', 'reverse', 'extend', 'pop', 'remove',
-                       '__iadd__')
-
-
-class Set(Sized, Iterable, Container):
-    __read_methods = ('__le__', '__lt__', '__eq__', '__ne__', '__gt__', '__ge__', '__and__', '__or__',
-                      '__sub__', '__xor__', 'isdisjoint')
-
-class MutableSet(Set):
-    __write_methods = ('add', 'discard', 'clear', 'pop', 'remove', '__ior__', '__iand__', '__ixor__',
-                       '__isub__')
-
-
-class Mapping(Sized, Iterable, Container):
-    __read_methods = ('__getitem__', '__contains__', 'keys', 'items', 'values', 'get', '__eq__', '__ne__')
-
-
-class MutableMapping(Mapping):
-    __write_methods = ('__setitem__', '__delitem__', 'pop', 'popitem', 'clear', 'update')
-
-
-class SetWrapper(set, MutableSet):
-
-    __write_methods = ('update', 'intersection_update', 'difference_update', 'symmetric_difference_update')
-
-    __read_methods = ('issubset', 'issuperset', 'union', 'intersection', 'difference', 'symmetric_difference')
-
-    original_base = set
-
-
-class ListWrapper(list, MutableSequence):
-    original_base = list
 
 
 class SetView(collections.Set):
@@ -160,48 +52,6 @@ class SetView(collections.Set):
 
     def __len__(self):
         return len(self._set)
-
-
-class SortedList(list):
-    """
-    A list that maintains it's order by a given criteria
-    """
-
-    def __init__(self, data=None):
-        if data is None:
-            data = []
-
-        super(SortedList, self).__init__(data)
-
-        self.sort()
-        self.appending = False
-        self.extending = False
-        self.inserting = False
-
-    def append(self, x):
-        if not self.appending:
-            self.appending = True
-            bisect.insort_right(self, x)
-            self.appending = False
-        else:
-            super(SortedList, self).append(x)
-
-    def extend(self, L):
-        if not self.extending:
-            self.extending = True
-            for x in L:
-                bisect.insort_right(self, x)
-            self.extending = False
-        else:
-            super(SortedList, self).extend(L)
-
-    def insert(self, i, x):
-        if not self.inserting:
-            self.inserting = True
-            bisect.insort_right(self, x)
-            self.inserting = False
-        else:
-            super(SortedList, self).insert(i, x)
 
 
 class OrderedSet(collections.MutableSet):
@@ -341,13 +191,6 @@ class OrderedIndex(OrderedSet, collections.MutableMapping):
         return list(self.map.values())
 
 
-class StrictOrderedIndex(OrderedIndex):
-    def __setitem__(self, item):
-        if item in self:
-            raise ValueError('item %s is already present in the index' % item)
-        super().__setitem__(item)
-
-
 class Record(type):
     def __new__(mcls, name, fields, default=None):
         dct = {'_fields___': fields, '_default___': default}
@@ -362,7 +205,8 @@ class RecordBase:
     def __init__(self, **kwargs):
         for k, v in kwargs.items():
             if k not in self.__class__._fields___:
-                raise TypeError('__init__() got an unexpected keyword argument %s' % k)
+                msg = '__init__() got an unexpected keyword argument %s' % k
+                raise TypeError(msg)
             setattr(self, k, v)
 
         for k in set(self.__class__._fields___) - set(kwargs.keys()):
@@ -371,7 +215,8 @@ class RecordBase:
 
     def __setattr__(self, name, value):
         if name not in self.__class__._fields___:
-            raise AttributeError('%s has no attribute %s' % (self.__class__.__name__, name))
+            msg = '%s has no attribute %s' % (self.__class__.__name__, name)
+            raise AttributeError(msg)
         super().__setattr__(name, value)
 
     def __eq__(self, tup):
@@ -437,7 +282,8 @@ class StrSingleton(str):
     def __new__(cls, val=''):
         name = cls._map.get(val)
         if name:
-            return sys.modules[cls.__module__].__dict__.get(name, str.__new__(cls, val))
+            ns = sys.modules[cls.__module__].__dict__
+            return ns.get(name, str.__new__(cls, val))
         else:
             raise ValueError('invalid value for %s: %s' % (cls.__name__, val))
 
@@ -448,8 +294,3 @@ class StrSingleton(str):
     @classmethod
     def values(cls):
         return iter(cls._map.keys())
-
-
-class SimpleNamespace:
-    def __init__(self, **kwargs):
-        self.__dict__.update(kwargs)
