@@ -118,7 +118,7 @@ class FSBackendInstanceAdapter(javascript.JavaScriptRuntimeAdapter,
         basemod = lang_runtimes.load_module_for_runtime(obj.__class__.__module__,
                                                         self.runtime)
         assert basemod
-        deps.append(basemod)
+        deps.add(basemod)
         return deps
 
     def get_source(self):
@@ -150,13 +150,13 @@ class FSSystemInstanceAdapter(javascript.JavaScriptRuntimeAdapter,
                 basemod = lang_runtimes.load_module_for_runtime(backend.__class__.__module__,
                                                                 self.runtime)
                 assert basemod
-                deps.append(basemod)
+                deps.add(basemod)
 
             for child_bucket in bucket._iter_children(include_self=True):
                 basemod = lang_runtimes.load_module_for_runtime(child_bucket.__module__,
                                                                 self.runtime)
                 assert basemod
-                deps.append(basemod)
+                deps.add(basemod)
 
         return deps
 
