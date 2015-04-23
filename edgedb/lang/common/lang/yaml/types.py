@@ -6,4 +6,4 @@
 ##
 
 
-from metamagic.bootstrap.yaml.validator.types.multimap import multimap
+from .validator.types.multimap import multimap

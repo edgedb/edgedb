@@ -6,8 +6,8 @@
 ##
 
 
-from metamagic.bootstrap.yaml.validator import types as v_types
 from . import validator
+from .validator import types as v_types
 
 
 class YamlValidationError(Exception):
