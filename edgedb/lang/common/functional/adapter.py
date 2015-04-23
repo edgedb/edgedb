@@ -14,11 +14,13 @@ class Adapter(type):
     adapters = {}
     instance_adapters = {}
 
-    def __new__(mcls, name, bases, clsdict, *, adapts=None, adapts_instances_of=None, pure=False,
-                                                            adapterargs=None, **kwargs):
+    def __new__(mcls, name, bases, clsdict, *, adapts=None,
+                      adapts_instances_of=None, pure=False,
+                      adapterargs=None, **kwargs):
 
         if adapts is not None and adapts_instances_of is not None:
-            msg = 'adapter class: adapts and adapts_instances_of args are mutually exclusive'
+            msg = 'adapter class: adapts and adapts_instances_of args are ' + \
+                  'mutually exclusive'
             raise AdapterError(msg)
 
         collection = None
@@ -49,8 +51,9 @@ class Adapter(type):
         result.__sx_adaptee__ = adapts
         return result
 
-    def __init__(cls, name, bases, clsdict, *, adapts=None, adapts_instances_of=None, pure=False,
-                                                            adapterargs=None, **kwargs):
+    def __init__(cls, name, bases, clsdict, *, adapts=None,
+                      adapts_instances_of=None, pure=False,
+                      adapterargs=None, **kwargs):
         super().__init__(name, bases, clsdict, **kwargs)
 
     @classmethod
@@ -110,8 +113,9 @@ class Adapter(type):
     def adapt(mcls, obj):
         adapter = mcls.get_adapter(obj.__class__)
         if adapter is None:
-            raise AdapterError('could not find %s.%s adapter for %s' % \
-                               (mcls.__module__, mcls.__name__, obj.__class__.__name__))
+            raise AdapterError('could not find {}.{} adapter for {}'.format(
+                               mcls.__module__, mcls.__name__,
+                               obj.__class__.__name__))
         elif adapter is not obj.__class__:
             return adapter.adapt(obj)
         else:
