@@ -8,7 +8,7 @@
 
 from metamagic import caos
 from metamagic.caos import proto
-from metamagic.utils.lang.import_ import get_object
+from importkit.import_ import get_object
 from metamagic.caos.objects import geo as geo_objects
 
 from . import common

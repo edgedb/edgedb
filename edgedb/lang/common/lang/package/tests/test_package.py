@@ -12,7 +12,7 @@ from . import tags
 class TestPackage:
     def test_package_tags(self):
         from . import package1
-        from metamagic.utils.lang.import_ import cache
+        from importkit.import_ import cache
 
         assert cache.deptracked_modules.get(package1.__name__) == True
         assert package1.__name__ in cache.package_tag_maps

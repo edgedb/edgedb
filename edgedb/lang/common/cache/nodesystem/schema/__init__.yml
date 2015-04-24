@@ -6,7 +6,7 @@
 ##
 
 
-%schema metamagic.utils.lang.yaml.schema.Schema
+%schema importkit.yaml.schema.Schema
 %from metamagic.node import schema as node_schema
 %name cache
 ---

@@ -13,7 +13,7 @@ import re
 from metamagic.caos.backends import deltarepo
 from metamagic.caos import delta as base_delta
 
-from metamagic.utils.lang import yaml
+from importkit import yaml
 
 
 class MetaDeltaRepository(deltarepo.MetaDeltaRepository):

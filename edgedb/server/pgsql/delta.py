@@ -21,10 +21,10 @@ from metamagic.caos.objects import geo as geo_objects
 
 from metamagic.utils import datastructures
 from metamagic.utils.debug import debug
-from metamagic.utils.lang import yaml
+from importkit import yaml
 from metamagic.utils.algos.persistent_hash import persistent_hash
 from metamagic.utils import markup
-from metamagic.utils.lang.import_ import get_object
+from importkit.import_ import get_object
 
 from metamagic.caos.backends.pgsql import common
 from metamagic.caos.backends.pgsql import dbops, deltadbops, features
@@ -3589,7 +3589,7 @@ class UpgradeBackend(MetaCommand):
         Backend format 20 migrates saved CaosQL expressions from ':' ns-separator to '::'
         """
 
-        from metamagic.utils.lang import yaml
+        from importkit import yaml
 
         cg = dbops.CommandGroup()
 

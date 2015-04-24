@@ -16,7 +16,7 @@ import tempfile
 from metamagic.utils.datastructures import OrderedSet
 from metamagic.utils import debug, functional, config, markup, resource
 from metamagic.node.targets import Target
-from metamagic.utils.lang import loader as lang_loader
+from importkit import loader as lang_loader
 from metamagic import json, test
 
 from metamagic.utils.lang.javascript import BufferLoader as JSBufferLoader, BaseJavaScriptModule, \

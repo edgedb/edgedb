@@ -18,9 +18,9 @@ import zlib
 
 from metamagic.utils.datastructures import OrderedSet
 from metamagic.utils import resource, abc
-from metamagic.utils.lang import meta as lang_meta, loader as lang_loader
-from metamagic.utils.lang import runtimes as lang_runtimes
-from metamagic.utils.lang.import_ import module as module_types, loader, utils as imp_utils
+from importkit import meta as lang_meta, loader as lang_loader
+from importkit import runtimes as lang_runtimes
+from importkit.import_ import module as module_types, loader, utils as imp_utils
 
 # Don't remove the following import -- backwards compatibility
 from jplus.javascript import ast

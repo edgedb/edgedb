@@ -20,8 +20,8 @@ from metamagic.caos.caosql import transformer as caosql_transformer
 from metamagic.utils import ast
 from metamagic.utils import datastructures
 from metamagic.utils import markup
-from metamagic.utils.lang import yaml
-from metamagic.utils.lang.import_ import get_object
+from importkit import yaml
+from importkit.import_ import get_object
 
 from .datasources import introspection
 from . import ast as pg_ast

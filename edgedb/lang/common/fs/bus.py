@@ -16,7 +16,7 @@ from metamagic.spin.protocols.http import headers as http_headers, statuses as h
 from metamagic.caos.nodesystem.middleware import CaosSessionMiddleware
 
 from metamagic.utils import config
-from metamagic.utils.lang.import_ import get_object
+from importkit.import_ import get_object
 
 from metamagic import caos
 

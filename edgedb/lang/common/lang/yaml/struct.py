@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils.lang import yaml
+from importkit import yaml
 from metamagic.utils.datastructures import StructMeta, MixedStructMeta
 
 

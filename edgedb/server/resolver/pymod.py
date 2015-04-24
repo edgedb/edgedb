@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils.lang.import_ import utils as imp_utils
+from importkit.import_ import utils as imp_utils
 
 from . import shell
 from . import error

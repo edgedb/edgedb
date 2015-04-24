@@ -13,7 +13,7 @@ from metamagic import node
 
 from metamagic.node.frontends.jplus import adapters as node_adapters
 
-from metamagic.utils.lang import runtimes as lang_runtimes
+from importkit import runtimes as lang_runtimes
 from metamagic.utils.lang import jplus
 from metamagic.utils.lang.jplus import adapters as jpadapters
 from metamagic.utils.lang.jplus import uuid as jp_uuid

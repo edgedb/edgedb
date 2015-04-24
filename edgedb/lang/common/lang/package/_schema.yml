@@ -6,7 +6,7 @@
 ##
 
 
-%schema metamagic.utils.lang.yaml.schema.ModuleSchema
+%schema importkit.yaml.schema.ModuleSchema
 %name Package
 ---
 type: map

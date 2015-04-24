@@ -12,7 +12,7 @@ from metamagic.caos.datasources.schemas.base import Base
 class Sql(Base):
     def check(self, node):
         cls = 'metamagic.caos.datasources.sql.Sql'
-        tag = 'tag:metamagic.sprymix.com,2009/metamagic/class/derive:%s' % cls
+        tag = 'tag:importkit.magic.io,2009/importkit/class/derive:%s' % cls
         self.push_tag(node, tag)
         return super().check(node)
 
@@ -20,7 +20,7 @@ class Sql(Base):
 class Python(Base):
     def check(self, node):
         cls = 'metamagic.caos.datasources.python.Python'
-        tag = 'tag:metamagic.sprymix.com,2009/metamagic/class/derive:%s' % cls
+        tag = 'tag:importkit.magic.io,2009/importkit/class/derive:%s' % cls
         self.push_tag(node, tag)
         return super().check(node)
 
@@ -28,7 +28,7 @@ class Python(Base):
 class Yaml(Base):
     def check(self, node):
         cls = 'metamagic.caos.datasources.yaml.Yaml'
-        tag = 'tag:metamagic.sprymix.com,2009/metamagic/class/derive:%s' % cls
+        tag = 'tag:importkit.magic.io,2009/importkit/class/derive:%s' % cls
         self.push_tag(node, tag)
         return super().check(node)
 
@@ -36,6 +36,6 @@ class Yaml(Base):
 class CaosQL(Base):
     def check(self, node):
         cls = 'metamagic.caos.datasources.caosql.CaosQL'
-        tag = 'tag:metamagic.sprymix.com,2009/metamagic/class/derive:%s' % cls
+        tag = 'tag:importkit.magic.io,2009/importkit/class/derive:%s' % cls
         self.push_tag(node, tag)
         return super().check(node)

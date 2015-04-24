@@ -10,9 +10,9 @@ import itertools
 import types
 
 
-from metamagic.utils.lang import context as lang_context
+from importkit import context as lang_context
 from metamagic.utils.lang import protoschema
-from metamagic.utils.lang import yaml
+from importkit import yaml
 
 
 class SchemaError(protoschema.SchemaError):

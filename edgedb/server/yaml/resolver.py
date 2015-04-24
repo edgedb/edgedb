@@ -7,7 +7,9 @@
 
 
 import importlib
-from metamagic.utils import lang
+
+import importkit.yaml
+
 from metamagic.caos.backends.resolver import shell, BackendResolverError
 from metamagic.caos.backends.yaml import Backend
 
@@ -16,7 +18,7 @@ from .deltarepo import MetaDeltaRepository
 
 class BackendResolver(shell.BackendResolverDataHelper, shell.BackendResolverModuleHelper):
     data_mime_types = ('application/x-yaml',)
-    languages = (lang.yaml.Language,)
+    languages = (importkit.yaml.Language,)
 
     def resolve_module(self, module, delta_repo_class_name):
         if delta_repo_class_name:

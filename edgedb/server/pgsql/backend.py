@@ -22,10 +22,10 @@ from postgresql.types.io import lib as pg_io_lib
 from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
 from metamagic.utils import ast
-from metamagic.utils.lang.import_ import get_object
+from importkit.import_ import get_object
 from metamagic.utils.algos import topological, persistent_hash
 from metamagic.utils.debug import debug
-from metamagic.utils.lang import yaml
+from importkit import yaml
 from metamagic.utils.lang import protoschema as lang_protoschema
 from metamagic.utils.nlang import morphology
 from metamagic.utils import datastructures, markup

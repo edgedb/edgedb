@@ -8,8 +8,8 @@
 
 import types
 
-from metamagic.utils.lang.context import LazyImportsModule
-from metamagic.utils.lang.yaml.schema import LazyImportsSchema
+from importkit.context import LazyImportsModule
+from importkit.yaml.schema import LazyImportsSchema
 
 from . import _schema
 

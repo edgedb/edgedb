@@ -13,7 +13,7 @@ from metamagic.caos import error as caos_error
 
 from metamagic.exceptions import MetamagicError, _replace_context
 from metamagic.utils import markup
-from metamagic.utils.lang import context as lang_context
+from importkit import context as lang_context
 
 
 class BackendError(caos_error.CaosError):

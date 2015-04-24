@@ -12,7 +12,7 @@
 import textwrap
 
 from metamagic import json
-from metamagic.utils.lang import runtimes as lang_runtimes
+from importkit import runtimes as lang_runtimes
 from metamagic.utils.datastructures import OrderedSet
 from . import JavaScriptRuntimeAdapter
 

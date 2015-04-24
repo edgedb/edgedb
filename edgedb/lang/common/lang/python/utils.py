@@ -12,10 +12,8 @@ import linecache
 import inspect
 import types
 
-from metamagic.utils.lang.context import SourcePoint, SourceContext
-from metamagic.utils.lang.exceptions import SourceErrorContext
-
-from .code import Code, opcodes
+from importkit.context import SourcePoint, SourceContext
+from importkit.exceptions import SourceErrorContext
 
 
 def source_context_from_frame(frame):
@@ -47,35 +45,6 @@ class SourceErrorContext(SourceErrorContext):
             self.source_context = source_context_from_frame(source_context)
         else:
             self.source_context = source_context
-
-
-def get_top_level_imports(code):
-    assert isinstance(code, types.CodeType)
-
-    imports = []
-
-    ops = iter(Code.from_code(code).ops)
-
-    try:
-        c1 = next(ops)
-        c2 = next(ops)
-    except StopIteration:
-        return imports
-
-    while True:
-        try:
-            c3 = next(ops)
-        except StopIteration:
-            return imports
-
-        if isinstance(c3, opcodes.IMPORT_NAME):
-            assert isinstance(c1, opcodes.LOAD_CONST)
-            assert isinstance(c2, opcodes.LOAD_CONST)
-
-            imports.append((c1.const * '.' + c3.name, c2.const))
-
-        c1 = c2
-        c2 = c3
 
 
 def resolve(expr, globals):

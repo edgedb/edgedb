@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.utils.lang.import_ import get_object
+from importkit.import_ import get_object
 from metamagic.utils.shell import CommandGroup
 from metamagic.utils.cache.nodesystem import CacheSystem
 from metamagic.node.shell import base

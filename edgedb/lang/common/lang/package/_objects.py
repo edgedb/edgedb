@@ -9,8 +9,8 @@
 import collections
 
 from metamagic.utils import glob
-from metamagic.utils.lang import context as lang_context
-from metamagic.utils.lang import yaml
+from importkit import context as lang_context
+from importkit import yaml
 
 
 class Package(yaml.Object):

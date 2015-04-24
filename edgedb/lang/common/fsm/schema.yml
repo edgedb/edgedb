@@ -6,7 +6,7 @@
 ##
 
 
-%SCHEMA metamagic.utils.lang.yaml.schema.Schema
+%SCHEMA importkit.yaml.schema.Schema
 %NAME Schema
 ---
 type: map

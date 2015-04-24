@@ -17,9 +17,12 @@ import re
 
 import yaml as pyyaml
 
+import importkit
+from importkit import context as lang_context
+from importkit import yaml
+from importkit.import_ import get_object
+
 from metamagic.utils import lang
-from metamagic.utils.lang import context as lang_context
-from metamagic.utils.lang import yaml
 from metamagic.utils.lang import protoschema as lang_protoschema
 from metamagic.utils.lang.yaml import protoschema as yaml_protoschema
 from metamagic.utils.lang.yaml.struct import MixedStructMeta
@@ -27,7 +30,6 @@ from metamagic.utils.nlang import morphology
 from metamagic.utils.algos.persistent_hash import persistent_hash
 from metamagic.utils.algos import topological
 from metamagic.utils.datastructures import xvalue, OrderedSet, typed
-from metamagic.utils.lang.import_ import get_object
 
 from metamagic import caos
 from metamagic.caos import proto
@@ -2412,7 +2414,7 @@ class ModuleFromData:
         self.__name__ = name
 
 
-class FixtureImportContext(lang.ImportContext):
+class FixtureImportContext(importkit.ImportContext):
     def __new__(cls, name, *, loader=None, session=None, entities=None):
         result = super().__new__(cls, name, loader=loader)
         result.session = session

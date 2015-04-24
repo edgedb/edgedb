@@ -12,7 +12,7 @@ import sys
 import parsing
 
 from metamagic.exceptions import MetamagicError, _add_context
-from metamagic.utils.lang import context as lang_context
+from importkit import context as lang_context
 from metamagic.utils.datastructures import xvalue
 from metamagic.utils import markup
 from metamagic.utils import lexer

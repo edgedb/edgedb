@@ -8,8 +8,8 @@
 
 import re
 
-from metamagic.utils.lang import context as lang_context
-from metamagic.utils.lang.context import SourcePoint
+from importkit import context as lang_context
+from importkit.context import SourcePoint
 from metamagic.utils.datastructures import xvalue
 from metamagic.utils import markup
 

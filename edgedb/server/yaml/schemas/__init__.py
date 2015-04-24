@@ -8,7 +8,7 @@
 
 from metamagic.caos import proto as caos_proto
 from metamagic.utils.lang import protoschema
-from metamagic.utils.lang.yaml.schema import CachingSchema
+from importkit.yaml.schema import CachingSchema
 
 from .. import Expression
 from .semantics import Semantics

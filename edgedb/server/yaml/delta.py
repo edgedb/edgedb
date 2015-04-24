@@ -10,8 +10,8 @@ from metamagic import caos
 from metamagic.caos import delta, proto
 from metamagic.utils import datastructures
 from metamagic.utils.datastructures import typed
-from metamagic.utils.lang import yaml
-from metamagic.utils.lang.import_ import get_object
+from importkit import yaml
+from importkit.import_ import get_object
 from metamagic.utils.lang.yaml.struct import MixedStructMeta
 
 

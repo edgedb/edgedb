@@ -10,7 +10,7 @@ import sys
 
 from metamagic.utils.lang import javascript
 from metamagic.utils.lang.javascript import adapters as jsadapters
-from metamagic.utils.lang import runtimes as lang_runtimes
+from importkit import runtimes as lang_runtimes
 
 from metamagic.utils.fs import bucket, nodesystem, backends
 from metamagic import json, node

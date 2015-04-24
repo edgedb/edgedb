@@ -8,8 +8,8 @@
 
 import os
 
-from metamagic.utils.lang import yaml
-from metamagic.utils.lang import context as lang_context
+from importkit import yaml
+from importkit import context as lang_context
 from metamagic.utils.slots import SlotsMeta
 
 from ..base import ConfigRootNode
