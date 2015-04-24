@@ -132,11 +132,11 @@ class FSSystemInstanceAdapter(jplus.JPlusWebRuntimeAdapter,
 
             for backend in backends:
                 basemod = sys.modules[backend.__class__.__module__]
-                imps.append(basemod)
+                imps.add(basemod)
 
             for child_bucket in bucket._iter_children(include_self=True):
                 basemod = sys.modules[child_bucket.__module__]
-                imps.append(basemod)
+                imps.add(basemod)
 
         return imps
 
