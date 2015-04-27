@@ -39,6 +39,7 @@ class ParseContextLevel(object):
                 self.aliascnt = prevlevel.aliascnt.copy()
                 self.subgraphs_map = {}
                 self.cge_map = prevlevel.cge_map.copy()
+                self.weak_path = None
             else:
                 self.graph = prevlevel.graph
                 self.pathvars = prevlevel.pathvars
@@ -55,6 +56,7 @@ class ParseContextLevel(object):
                 self.aliascnt = prevlevel.aliascnt
                 self.subgraphs_map = prevlevel.subgraphs_map
                 self.cge_map = prevlevel.cge_map
+                self.weak_path = prevlevel.weak_path
         else:
             self.graph = None
             self.pathvars = {}
@@ -71,6 +73,7 @@ class ParseContextLevel(object):
             self.aliascnt = {}
             self.subgraphs_map = {}
             self.cge_map = {}
+            self.weak_path = None
 
     def genalias(self, hint=None):
         if hint is None:
@@ -130,6 +133,192 @@ class ParseContextWrapper(object):
 
     def __exit__(self, exc_type, exc_value, traceback):
         self.context.pop()
+
+
+class CaosqlExprShortener:
+    def transform(self, caosql_tree):
+        context = ParseContext()
+        self._process_expr(context, caosql_tree)
+
+        nses = []
+        for alias, fq_name in context.current.namespaces.items():
+            decl = qlast.NamespaceDeclarationNode(namespace=fq_name,
+                                                  alias=alias)
+            nses.append(decl)
+
+        if caosql_tree.namespaces is not None:
+            caosql_tree.namespaces[:] = nses
+        else:
+            caosql_tree.namespaces = nses
+
+        return caosql_tree
+
+    def _process_expr(self, context, expr):
+        if isinstance(expr, qlast.SelectQueryNode):
+            if expr.namespaces:
+                context.current.namespaces.update(
+                    (ns.alias, ns.namespace) for ns in expr.namespaces)
+
+            if expr.where:
+                self._process_expr(context, expr.where)
+
+            if expr.groupby:
+                for gb in expr.groupby:
+                    self._process_expr(context, gb)
+
+            for tgt in expr.targets:
+                self._process_expr(context, tgt.expr)
+
+            if expr.orderby:
+                for sort in expr.orderby:
+                    self._process_expr(context, sort.path)
+
+            if expr.offset:
+                self._process_expr(context, expr.offset)
+
+            if expr.limit:
+                self._process_expr(context, expr.limit)
+
+        elif isinstance(expr, qlast.UpdateQueryNode):
+            if expr.namespaces:
+                context.current.namespaces.update(
+                    (ns.alias, ns.namespace) for ns in expr.namespaces)
+
+            self._process_expr(context, expr.subject)
+
+            if expr.where:
+                self._process_expr(context, expr.where)
+
+            for v in expr.values:
+                self._process_expr(context, v.expr)
+                self._process_expr(context, v.value)
+
+            for tgt in expr.targets:
+                self._process_expr(context, tgt.expr)
+
+        elif isinstance(expr, qlast.DeleteQueryNode):
+            if expr.namespaces:
+                context.current.namespaces.update(
+                    (ns.alias, ns.namespace) for ns in expr.namespaces)
+
+            self._process_expr(context, expr.subject)
+
+            if expr.where:
+                self._process_expr(context, expr.where)
+
+            for tgt in expr.targets:
+                self._process_expr(context, tgt.expr)
+
+        elif isinstance(expr, qlast.SubqueryNode):
+            with context(ParseContext.SUBQUERY):
+                self._process_expr(context, expr.expr)
+
+        elif isinstance(expr, qlast.PredicateNode):
+            self._process_expr(context, expr.expr)
+
+        elif isinstance(expr, qlast.BinOpNode):
+            self._process_expr(context, expr.left)
+            self._process_expr(context, expr.right)
+
+        elif isinstance(expr, qlast.FunctionCallNode):
+            for arg in expr.args:
+                self._process_expr(context, arg)
+
+            if expr.agg_sort:
+                for sort in expr.agg_sort:
+                    self._process_expr(context, sort.path)
+
+            if expr.window:
+                self._process_expr(context, expr.window)
+
+        elif isinstance(expr, qlast.WindowSpecNode):
+            if expr.orderby:
+                for orderby in expr.orderby:
+                    self._process_expr(context, orderby.path)
+
+            if expr.partition:
+                for partition in expr.partition:
+                    self._process_expr(context, partition)
+
+        elif isinstance(expr, qlast.UnaryOpNode):
+            self._process_expr(context, expr.operand)
+
+        elif isinstance(expr, qlast.PostfixOpNode):
+            self._process_expr(context, expr.operand)
+
+        elif isinstance(expr, qlast.SequenceNode):
+            for el in expr.elements:
+                self._process_expr(context, el)
+
+        elif isinstance(expr, qlast.TypeCastNode):
+            self._process_expr(context, expr.expr)
+            self._process_expr(context, expr.type)
+
+        elif isinstance(expr, qlast.TypeRefNode):
+            self._process_expr(context, expr.expr)
+
+        elif isinstance(expr, qlast.NoneTestNode):
+            self._process_expr(context, expr.expr)
+
+        elif isinstance(expr, qlast.PrototypeRefNode):
+            if expr.module:
+                expr.module = self._process_module_ref(
+                                context, expr.module)
+
+        elif isinstance(expr, qlast.PathNode):
+            if expr.pathspec:
+                self._process_pathspec(context, expr.pathspec)
+
+            for step in expr.steps:
+                self._process_expr(context, step)
+
+        elif isinstance(expr, qlast.PathStepNode):
+            if expr.namespace:
+                expr.namespace = self._process_module_ref(
+                                    context, expr.namespace)
+
+        elif isinstance(expr, (qlast.LinkExprNode, qlast.LinkPropExprNode)):
+            self._process_expr(context, expr.expr)
+
+        elif isinstance(expr, qlast.LinkNode):
+            if expr.namespace:
+                expr.namespace = self._process_module_ref(
+                                    context, expr.namespace)
+
+            if expr.target:
+                self._process_expr(context, expr.target)
+
+    def _process_pathspec(self, context, pathspec):
+        for spec in pathspec:
+            if isinstance(spec, qlast.SelectPathSpecNode):
+                if spec.where:
+                    self._process_expr(context, spec.where)
+
+                if spec.orderby:
+                    for orderby in spec.orderby:
+                        self._process_expr(context, orderby.path)
+
+                self._process_expr(context, spec.expr)
+
+                if spec.pathspec:
+                    self._process_pathspec(context, spec.pathspec)
+
+    def _process_module_ref(self, context, module):
+        if module == 'metamagic.caos.builtins':
+            return None
+
+        if '.' in module:
+            modmap = {v: k for k, v in context.current.namespaces.items()}
+            try:
+                alias = modmap[module]
+            except KeyError:
+                _, _, mtail = module.rpartition('.')
+                alias = context.current.genalias(hint=mtail)
+                context.current.namespaces[alias] = module
+
+            return alias
+        else:
+            return module
 
 
 class ReverseParseContext:
@@ -560,7 +749,17 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
     def transform(self, caosql_tree, arg_types, module_aliases=None, anchors=None):
         context = self._init_context(arg_types, module_aliases, anchors)
-        stree = self._transform_select(context, caosql_tree, arg_types)
+
+        if isinstance(caosql_tree, qlast.SelectQueryNode):
+            stree = self._transform_select(context, caosql_tree, arg_types)
+        elif isinstance(caosql_tree, qlast.UpdateQueryNode):
+            stree = self._transform_update(context, caosql_tree, arg_types)
+        elif isinstance(caosql_tree, qlast.DeleteQueryNode):
+            stree = self._transform_delete(context, caosql_tree, arg_types)
+        else:
+            msg = 'unexpected statement type: {!r}'.format(caosql_tree)
+            raise ValueError(msg)
+
         self.apply_fixups(stree)
         self.apply_rewrites(stree)
         return stree
@@ -660,14 +859,66 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 context.current.cge_map[cge.alias] = _cge
                 graph.cges.append(tree.ast.CommonGraphExpr(expr=_cge, alias=cge.alias))
 
-        graph.generator = self._process_select_where(context, caosql_tree.where)
+        if caosql_tree.op:
+            graph.set_op = tree.ast.SetOperator(caosql_tree.op)
+            graph.set_op_larg = self._transform_select(
+                                    context, caosql_tree.op_larg, arg_types)
+            graph.set_op_rarg = self._transform_select(
+                                    context, caosql_tree.op_rarg, arg_types)
+        else:
+            graph.generator = self._process_select_where(context, caosql_tree.where)
 
-        graph.grouper = self._process_grouper(context, caosql_tree.groupby)
-        if graph.grouper:
-            groupgraph = tree.ast.Disjunction(paths=frozenset(graph.grouper))
-            context.current.groupprefixes = self.extract_prefixes(groupgraph)
+            graph.grouper = self._process_grouper(context, caosql_tree.groupby)
+            if graph.grouper:
+                groupgraph = tree.ast.Disjunction(paths=frozenset(graph.grouper))
+                context.current.groupprefixes = self.extract_prefixes(groupgraph)
+            else:
+                # Check if query() or order() contain any aggregate
+                # expressions and if so, add a sentinel group prefix
+                # instructing the transformer that we are implicitly grouping
+                # the whole set.
+                def checker(n):
+                    if (isinstance(n, qlast.FunctionCallNode)
+                            and n.func[0] == 'agg'):
+                        return True
+                    elif isinstance(n, (qlast.SubqueryNode,
+                                        qlast.SelectQueryNode)):
+                        # Make sure we don't dip into subqueries
+                        raise ast.SkipNode()
 
-        graph.selector = self._process_select_targets(context, caosql_tree.targets)
+                for node in itertools.chain(caosql_tree.orderby or [],
+                                            caosql_tree.targets or []):
+                    if ast.find_children(node, checker, force_traversal=True):
+                        context.current.groupprefixes = {True: True}
+                        break
+
+            graph.selector = self._process_select_targets(
+                                context, caosql_tree.targets)
+
+            if (len(caosql_tree.targets) == 1
+                  and isinstance(caosql_tree.targets[0].expr, qlast.PathNode)
+                  and not graph.generator):
+                # This is a node selector query, ensure it is treated as
+                # a generator path even in potential absense of an explicit
+                # generator expression.
+                def augmenter(n):
+                    if isinstance(n, tree.ast.Record):
+                        if n.rlink is not None:
+                            n.rlink.users.add('generator')
+                            n.rlink.source.users.add('generator')
+                            self._postprocess_expr(n.rlink.source)
+                        raise ast.SkipNode()
+                    if hasattr(n, 'users'):
+                        n.users.add('generator')
+                    if isinstance(n, tree.ast.EntitySet):
+                        self._postprocess_expr(n)
+
+                with context():
+                    context.current.location = 'generator'
+                    for expr in graph.selector:
+                        ast.find_children(expr, augmenter, force_traversal=True)
+
+
         graph.sorter = self._process_sorter(context, caosql_tree.orderby)
         if caosql_tree.offset:
             graph.offset = tree.ast.Constant(value=caosql_tree.offset.value,
@@ -702,6 +953,220 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             self.reorder_aggregates(graph.generator)
 
         graph.result_types = self.get_selector_types(graph.selector, self.proto_schema)
+        graph.argument_types = self.context.current.arguments
+        graph.context_vars = self.context.current.context_vars
+
+        self.link_subqueries(graph)
+
+        return graph
+
+    def _transform_update(self, context, caosql_tree, arg_types):
+        self.arg_types = arg_types or {}
+
+        graph = context.current.graph = tree.ast.GraphExpr()
+        graph.op = 'update'
+
+        if caosql_tree.namespaces:
+            for ns in caosql_tree.namespaces:
+                context.current.namespaces[ns.alias] = ns.namespace
+
+        if context.current.module_aliases:
+            context.current.namespaces.update(context.current.module_aliases)
+
+        if caosql_tree.cges:
+            graph.cges = []
+
+            for cge in caosql_tree.cges:
+                with context(ParseContext.SUBQUERY):
+                    _cge = self._transform_select(context, cge.expr, arg_types)
+                context.current.cge_map[cge.alias] = _cge
+                graph.cges.append(
+                    tree.ast.CommonGraphExpr(expr=_cge, alias=cge.alias))
+
+        tgt = graph.optarget = self._process_select_where(
+                                context, caosql_tree.subject)
+
+        idname = caos_name.Name('metamagic.caos.builtins.id')
+        idref = tree.ast.AtomicRefSimple(
+                    name=idname, ref=tgt,
+                    ptr_proto=tgt.concept.pointers[idname])
+        tgt.atomrefs.add(idref)
+        selexpr = tree.ast.SelectorExpr(expr=idref, name=None)
+        graph.selector.append(selexpr)
+
+        graph.generator = self._process_select_where(
+                            context, caosql_tree.where)
+
+        with context():
+            context.current.location = 'optarget_shaper'
+            graph.opselector = self._process_select_targets(
+                                    context, caosql_tree.targets)
+
+        with context():
+            context.current.location = 'opvalues'
+            graph.opvalues = self._process_op_values(context, graph,
+                                                     caosql_tree.values)
+
+        context.current.location = 'top'
+
+        paths = [s.expr for s in graph.opselector] + \
+                    [s.expr for s in graph.selector] + [graph.optarget]
+
+        if graph.generator:
+            paths.append(graph.generator)
+
+        union = tree.ast.Disjunction(paths=frozenset(paths))
+        self.flatten_and_unify_path_combination(union, deep=True,
+                                                merge_filters=True)
+
+        # Reorder aggregate expressions so that all of them appear as the
+        # first sub-tree in the generator expression.
+        #
+        if graph.generator:
+            self.reorder_aggregates(graph.generator)
+
+        graph.result_types = self.get_selector_types(
+                                graph.opselector, self.proto_schema)
+        graph.argument_types = self.context.current.arguments
+        graph.context_vars = self.context.current.context_vars
+
+        self.link_subqueries(graph)
+
+        return graph
+
+    def _process_op_values(self, context, graph, opvalues):
+        refs = []
+
+        for updexpr in opvalues:
+            targetexpr = updexpr.expr
+            value = updexpr.value
+
+            tpath = qlast.PathNode(
+                steps=[
+                    qlast.LinkExprNode(
+                        expr=qlast.LinkNode(
+                            name=targetexpr.name,
+                            namespace=targetexpr.module
+                        )
+                    )
+                ]
+            )
+
+            targetexpr = self._process_path(context, tpath,
+                                            path_tip=graph.optarget)
+
+            if not isinstance(targetexpr, tree.ast.AtomicRefSimple):
+                msg = 'operation update list can only reference atoms'
+                raise errors.CaosQLError(msg)
+
+            if isinstance(value, qlast.ConstantNode):
+                v = self._process_constant(context, value)
+            else:
+                v = self._process_expr(context, value)
+                paths = tree.ast.Conjunction(
+                            paths=frozenset((v, graph.optarget)))
+                self.flatten_and_unify_path_combination(
+                    paths, deep=True, merge_filters=True)
+                self._check_update_expr(graph.optarget, v)
+
+            ref = tree.ast.UpdateExpr(expr=targetexpr, value=v)
+            refs.append(ref)
+
+        return refs
+
+    def _check_update_expr(self, source, expr):
+        # Check that all refs in expr point to source and are atomic
+        schema_scope = self.get_query_schema_scope(expr)
+        ok = (len(schema_scope) == 0 or
+                    (len(schema_scope) == 1
+                        and schema_scope[0].concept == source.concept))
+
+        if not ok:
+            msg = "update expression can only reference local atoms"
+            raise errors.CaosQLError(msg)
+
+    def _transform_delete(self, context, caosql_tree, arg_types):
+        self.arg_types = arg_types or {}
+
+        graph = context.current.graph = tree.ast.GraphExpr()
+        graph.op = 'delete'
+
+        if caosql_tree.namespaces:
+            for ns in caosql_tree.namespaces:
+                context.current.namespaces[ns.alias] = ns.namespace
+
+        if context.current.module_aliases:
+            context.current.namespaces.update(context.current.module_aliases)
+
+        if caosql_tree.cges:
+            graph.cges = []
+
+            for cge in caosql_tree.cges:
+                with context(ParseContext.SUBQUERY):
+                    _cge = self._transform_select(context, cge.expr, arg_types)
+                context.current.cge_map[cge.alias] = _cge
+                graph.cges.append(
+                    tree.ast.CommonGraphExpr(expr=_cge, alias=cge.alias))
+
+        tgt = graph.optarget = self._process_select_where(
+                                context, caosql_tree.subject)
+
+        if (isinstance(tgt, tree.ast.LinkPropRefSimple)
+                and tgt.name == 'metamagic.caos.builtins.target'):
+
+            idpropname = caos_name.Name('metamagic.caos.builtins.linkid')
+            idprop_proto = tgt.ref.link_proto.pointers[idpropname]
+            idref = tree.ast.LinkPropRefSimple(name=idpropname,
+                                               ref=tgt.ref,
+                                               ptr_proto=idprop_proto)
+            graph.optarget.ref.proprefs.add(idref)
+
+            selexpr = tree.ast.SelectorExpr(expr=idref, name=None)
+            graph.selector.append(selexpr)
+
+        elif isinstance(tgt, tree.ast.AtomicRefSimple):
+            idname = caos_name.Name('metamagic.caos.builtins.id')
+            idref = tree.ast.AtomicRefSimple(name=idname, ref=tgt.ref,
+                                             ptr_proto=tgt.ptr_proto)
+            tgt.ref.atomrefs.add(idref)
+            selexpr = tree.ast.SelectorExpr(expr=idref, name=None)
+            graph.selector.append(selexpr)
+
+        else:
+            idname = caos_name.Name('metamagic.caos.builtins.id')
+            idref = tree.ast.AtomicRefSimple(
+                        name=idname, ref=tgt,
+                        ptr_proto=tgt.concept.pointers[idname])
+            tgt.atomrefs.add(idref)
+            selexpr = tree.ast.SelectorExpr(expr=idref, name=None)
+            graph.selector.append(selexpr)
+
+        graph.generator = self._process_select_where(
+                            context, caosql_tree.where)
+
+        graph.opselector = self._process_select_targets(
+                                context, caosql_tree.targets)
+
+        context.current.location = 'top'
+
+        paths = [s.expr for s in graph.opselector] + \
+                    [s.expr for s in graph.selector] + [graph.optarget]
+
+        if graph.generator:
+            paths.append(graph.generator)
+
+        union = tree.ast.Disjunction(paths=frozenset(paths))
+        self.flatten_and_unify_path_combination(union, deep=True,
+                                                merge_filters=True)
+
+        # Reorder aggregate expressions so that all of them appear as the
+        # first sub-tree in the generator expression.
+        #
+        if graph.generator:
+            self.reorder_aggregates(graph.generator)
+
+        graph.result_types = self.get_selector_types(
+                                graph.opselector, self.proto_schema)
         graph.argument_types = self.context.current.arguments
         graph.context_vars = self.context.current.context_vars
 
@@ -786,7 +1251,10 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
     def _process_expr(self, context, expr):
         node = None
 
-        if isinstance(expr, qlast.SelectQueryNode):
+        if isinstance(expr, qlast.SubqueryNode):
+            node = self._process_expr(context, expr.expr)
+
+        elif isinstance(expr, qlast.SelectQueryNode):
             node = context.current.subgraphs_map.get(expr)
 
             if node is None:
@@ -817,12 +1285,35 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                          isinstance(right.type, tuple) and
                          isinstance(right.type[1], caos_types.PrototypeClass)):
                 left = left.elements[0].ref
+
             node = self.process_binop(left, right, expr.op)
 
         elif isinstance(expr, qlast.PathNode):
             node = self._process_path(context, expr)
-            if context.current.groupprefixes and context.current.location in ('sorter', 'selector')\
-                                             and not context.current.in_aggregate:
+
+            if not isinstance(node, tree.ast.BaseRef):
+                if (context.current.location in
+                        {'sorter', 'optarget_shaper', 'opvalues'} \
+                            and not context.current.in_func_call):
+                    if context.current.location == 'sorter':
+                        loc = 'order()'
+                    elif context.current.location == 'grouper':
+                        loc = 'group()'
+                    else:
+                        if context.current.graph.op == 'update':
+                            loc = 'update()'
+                        elif context.current.graph.op == 'delete':
+                            loc = 'delete()'
+
+                        if context.current.location == 'optarget_shaper':
+                            loc += ' return list'
+
+                    err = 'unexpected reference to non-atom path in %s' % loc
+                    raise errors.CaosQLError(err)
+
+            if (context.current.groupprefixes
+                    and context.current.location in ('sorter', 'selector')\
+                    and not context.current.in_aggregate):
                 for p in node.paths:
                     if isinstance(p, tree.ast.MetaRef):
                         p = p.ref
@@ -834,8 +1325,8 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
             if (context.current.location not in {'generator', 'selector'} \
                             and not context.current.in_func_call) or context.current.in_aggregate:
-
-                node = self.entityref_to_record(node, self.proto_schema)
+                if isinstance(node, tree.ast.EntitySet):
+                    node = self.entityref_to_record(node, self.proto_schema)
 
         elif isinstance(expr, qlast.ConstantNode):
             node = self._process_constant(context, expr)
@@ -855,11 +1346,46 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 if expr.func[0] == 'agg':
                     context.current.in_aggregate.append(expr)
                 context.current.in_func_call = True
-                args = [self._process_expr(context, a) for a in expr.args]
-                agg_sort = [tree.ast.SortExpr(expr=self._process_expr(context, e.path),
-                                              direction=e.direction)
-                            for e in expr.agg_sort] if expr.agg_sort else []
-                node = tree.ast.FunctionCall(name=expr.func, args=args, agg_sort=agg_sort)
+
+                args = []
+                kwargs = {}
+
+                for a in expr.args:
+                    if isinstance(a, qlast.NamedArgNode):
+                        kwargs[a.name] = self._process_expr(context, a.arg)
+                    else:
+                        args.append(self._process_expr(context, a))
+
+                node = tree.ast.FunctionCall(name=expr.func, args=args,
+                                             kwargs=kwargs)
+
+                if expr.agg_sort:
+                    node.agg_sort = [
+                        tree.ast.SortExpr(
+                            expr=self._process_expr(context, e.path),
+                            direction=e.direction
+                        )
+                        for e in expr.agg_sort
+                    ]
+
+                elif expr.window:
+                    if expr.window.orderby:
+                        node.agg_sort = [
+                            tree.ast.SortExpr(
+                                expr=self._process_expr(context, e.path),
+                                direction=e.direction
+                            )
+                            for e in expr.window.orderby
+                        ]
+
+                    if expr.window.partition:
+                        for partition_expr in expr.window.partition:
+                            partition_expr = self._process_expr(
+                                                context, partition_expr)
+                            node.partition.append(partition_expr)
+
+                    node.window = True
+
                 node = self.process_function_call(node)
 
         elif isinstance(expr, qlast.PrototypeRefNode):
@@ -873,7 +1399,22 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             node = tree.ast.Constant(value=(node,), type=(list, node.__class__))
 
         elif isinstance(expr, qlast.UnaryOpNode):
-            node = self.process_unaryop(self._process_expr(context, expr.operand), expr.op)
+            if (expr.op == ast.ops.NOT
+                    and isinstance(expr.operand, qlast.NoneTestNode)):
+                # Make sure NOT(IS NONE) does not produce weak paths, as IS
+                # NONE would normally do.
+                self.context.current.weak_path = False
+
+            operand = self._process_expr(context, expr.operand)
+            node = self.process_unaryop(operand, expr.op)
+
+        elif isinstance(expr, qlast.NoneTestNode):
+            with context():
+                if self.context.current.weak_path is None:
+                    self.context.current.weak_path = True
+                expr = self._process_expr(context, expr.expr)
+                nt = tree.ast.NoneTest(expr=expr)
+                node = self.process_none_test(nt, context.current.proto_schema)
 
         elif isinstance(expr, qlast.ExistsPredicateNode):
             subquery = self._process_expr(context, expr.expr)
@@ -978,10 +1519,25 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     raise errors.CaosQLError(msg)
 
                 result = self._merge_pathspecs(result, glob_specs, target_most_generic=False)
-            else:
-                ptrname = (ptrspec.expr.namespace, ptrspec.expr.name)
 
-                if ptrspec.expr.type == 'property':
+            elif isinstance(ptrspec, qlast.SelectTypeRefNode):
+                type_prop_name = ptrspec.attrs[0].expr.name
+                type_prop = source.get_type_property(
+                                type_prop_name, context.current.proto_schema)
+
+                node = tree.ast.PtrPathSpec(
+                            ptr_proto=type_prop,
+                            ptr_direction=caos_types.OutboundDirection,
+                            target_proto=type_prop.target,
+                            trigger=tree.ast.ExplicitPathSpecTrigger())
+
+                result.append(node)
+
+            else:
+                lexpr = ptrspec.expr.expr
+                ptrname = (lexpr.namespace, lexpr.name)
+
+                if lexpr.type == 'property':
                     if rlink_proto is None:
                         msg = 'link properties are not available at this point in path'
                         raise errors.CaosQLError(msg)
@@ -992,40 +1548,26 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                     ptrsource = source
                     ptrtype = caos_types.ProtoLink
 
-                if ptrspec.expr.target is not None:
-                    target_name = (ptrspec.expr.target.module, ptrspec.expr.target.name)
+                if lexpr.target is not None:
+                    target_name = (lexpr.target.module, lexpr.target.name)
                 else:
                     target_name = None
 
-                ptr_direction = ptrspec.expr.direction or caos_types.OutboundDirection
-                ptr = self._resolve_ptr(context, ptrsource, ptrname, ptr_direction,
-                                        ptr_type=ptrtype, target=target_name)
-
-                if ptr_direction == caos_types.OutboundDirection:
-                    ptr = next(iter(ptr[1]))
-                else:
-                    ptr = next(iter(ptr[2]))
+                ptr_direction = lexpr.direction or caos_types.OutboundDirection
+                ptr = self._resolve_ptr(context, ptrsource, ptrname,
+                                        ptr_direction, ptr_type=ptrtype,
+                                        target=target_name)
 
                 if ptrspec.recurse is not None:
                     recurse = self._process_constant(context, ptrspec.recurse)
                 else:
                     recurse = None
 
-                if target_name is not None:
-                    if target_name[0]:
-                        target_fq_name = '{}.{}'.format(*target_name)
-                    else:
-                        target_fq_name = target_name[1]
-                    modaliases = context.current.namespaces
-                    target_proto = context.current.proto_schema.get(target_fq_name,
-                                                                    module_aliases=modaliases)
-                else:
-                    target_proto = ptr.target
+                target_proto = ptr.get_far_endpoint(ptr_direction)
 
                 if ptrspec.where:
-                    with context():
-                        context.current.location = 'generator'
-                        generator = self._process_expr(context, ptrspec.where)
+                    generator = self._process_select_where(context,
+                                                           ptrspec.where)
                 else:
                     generator = None
 
@@ -1034,10 +1576,22 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 else:
                     sorter = None
 
+                if ptrspec.offset is not None:
+                    offset = self._process_expr(context, ptrspec.offset)
+                else:
+                    offset = None
+
+                if ptrspec.limit is not None:
+                    limit = self._process_expr(context, ptrspec.limit)
+                else:
+                    limit = None
+
                 node = tree.ast.PtrPathSpec(
                             ptr_proto=ptr, ptr_direction=ptr_direction,
                             recurse=recurse, target_proto=target_proto,
-                            generator=generator, sorter=sorter)
+                            generator=generator, sorter=sorter,
+                            trigger=tree.ast.ExplicitPathSpecTrigger(),
+                            offset=offset, limit=limit)
 
                 if ptrspec.pathspec is not None:
                     node.pathspec = self._process_pathspec(
@@ -1054,10 +1608,9 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
         return result
 
-    def _process_path(self, context, path):
+    def _process_path(self, context, path, path_tip=None):
         pathvars = context.current.pathvars
         anchors = context.current.anchors
-        tips = {}
         typeref = None
 
         for i, node in enumerate(path.steps):
@@ -1094,31 +1647,20 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                                     pass
 
                         if refnode:
-                            if isinstance(refnode, tree.ast.Disjunction):
-                                tips = {}
-                                for p in refnode.paths:
-                                    concept = getattr(p, 'concept', None)
-                                    path_copy = self.copy_path(p)
-                                    path_copy.users.add(context.current.location)
-                                    if concept in tips:
-                                        tips[concept].add(path_copy)
-                                    else:
-                                        tips[concept] = {path_copy}
-
-                            elif isinstance(refnode, tree.ast.Path):
+                            if isinstance(refnode, tree.ast.Path):
                                 path_copy = self.copy_path(refnode)
                                 path_copy.users.add(context.current.location)
                                 concept = getattr(refnode, 'concept', None)
-                                tips = {concept: {path_copy}}
+                                path_tip = path_copy
 
                             else:
-                                tips = {None: {refnode}}
+                                path_tip = refnode
 
                             continue
 
                         elif node.expr in context.current.cge_map:
                             cge = context.current.cge_map[node.expr]
-                            tips = {None: {cge}}
+                            path_tip = cge
                             continue
 
                     tip = node
@@ -1128,23 +1670,24 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
             else:
                 tip = node
 
-            tip_is_link = tips and next(iter(tips.keys())) is None
+            tip_is_link = path_tip and isinstance(path_tip, tree.ast.EntityLink)
+            tip_is_cge = path_tip and isinstance(path_tip, tree.ast.GraphExpr)
 
             if isinstance(tip, qlast.PathStepNode):
 
-                proto = self._normalize_concept(context, tip.expr, tip.namespace)
+                proto = self._normalize_concept(
+                            context, tip.expr, tip.namespace)
 
-                if isinstance(proto, (caos_types.ProtoConcept, caos_types.ProtoAtom)):
+                if isinstance(proto, caos_types.ProtoNode):
                     step = tree.ast.EntitySet()
                     step.concept = proto
-                    tips = {step.concept: {step}}
                     step.id = tree.transformer.LinearPath([step.concept])
                     step.pathvar = pathvar
-
                     step.users.add(context.current.location)
                 else:
                     step = tree.ast.EntityLink(link_proto=proto)
-                    tips = {None: {step}}
+
+                path_tip = step
 
                 if pathvar:
                     pathvars[pathvar] = step
@@ -1153,301 +1696,193 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 typeref = self._process_path(context, tip.expr)
                 if isinstance(typeref, tree.ast.PathCombination):
                     if len(typeref.paths) > 1:
-                        raise errors.CaosQLError("type() argument must not be a path combination")
+                        msg = "type() argument must not be a path combination"
+                        raise errors.CaosQLError(msg)
                     typeref = next(iter(typeref.paths))
 
             elif isinstance(tip, qlast.LinkExprNode) and typeref:
-                tips = {None: {tree.ast.MetaRef(ref=typeref, name=tip.expr.name)}}
+                path_tip = tree.ast.MetaRef(ref=typeref, name=tip.expr.name)
 
-            elif isinstance(tip, qlast.LinkExprNode) and not tip_is_link and not typeref:
+            elif isinstance(tip, qlast.LinkExprNode) and tip_is_cge:
+                path_tip = tree.ast.SubgraphRef(ref=path_tip,
+                                                name=tip.expr.name)
+
+            elif (isinstance(tip, qlast.LinkExprNode)
+                    and not tip_is_link and not typeref):
                 # LinkExprNode
                 link_expr = tip.expr
                 link_target = None
 
                 if isinstance(link_expr, qlast.LinkNode):
-                    direction = link_expr.direction or caos_types.OutboundDirection
+                    direction = (link_expr.direction
+                                    or caos_types.OutboundDirection)
                     if link_expr.target:
-                        link_target = self._normalize_concept(context, link_expr.target.name,
-                                                              link_expr.target.module)
+                        link_target = self._normalize_concept(
+                                            context, link_expr.target.name,
+                                            link_expr.target.module)
                 else:
-                    raise errors.CaosQLError("complex link expressions are not supported yet")
-
-                newtips = {}
-                sources = set()
+                    msg = "complex link expressions are not supported yet"
+                    raise errors.CaosQLError()
 
                 linkname = (link_expr.namespace, link_expr.name)
 
-                for concept, tip in tips.items():
-                    try:
-                        ptr_resolution = self._resolve_ptr(context, concept, linkname, direction,
-                                                                    target=link_target)
-                    except errors.CaosQLReferenceError:
-                        continue
+                link_proto = self._resolve_ptr(
+                                    context, path_tip.concept, linkname,
+                                    direction, target=link_target)
 
-                    sources, outbound, inbound = ptr_resolution
+                target = link_proto.get_far_endpoint(direction)
 
-                    seen_concepts = seen_atoms = False
+                gen_link_proto = self.proto_schema.get(
+                                    link_proto.normal_name())
 
-                    if len(sources) > 1:
-                        newtip = set()
-                        for t in tip:
-                            if t.rlink:
-                                paths = set(t.rlink.source.disjunction.paths)
+                if isinstance(target, caos_types.ProtoConcept):
+                    target_set = tree.ast.EntitySet()
+                    target_set.concept = target
+                    target_set.id = tree.transformer.LinearPath(path_tip.id)
+                    target_set.id.add(link_proto, direction,
+                                      target_set.concept)
+                    target_set.users.add(context.current.location)
 
-                                for source in sources:
-                                    t_id = tree.transformer.LinearPath(t.id[:-2])
-                                    t_id.add(t.rlink.link_proto, t.rlink.direction, source)
+                    link = tree.ast.EntityLink(source=path_tip,
+                                               target=target_set,
+                                               direction=direction,
+                                               link_proto=link_proto,
+                                               pathvar=link_pathvar,
+                                               users={context.current.location})
 
-                                    new_target = tree.ast.EntitySet()
-                                    new_target.concept = source
-                                    new_target.id = t_id
-                                    new_target.users = t.users.copy()
+                    path_tip.disjunction.update(link)
+                    path_tip.disjunction.fixed = context.current.weak_path
+                    target_set.rlink = link
 
-                                    newtip.add(new_target)
+                    path_tip = target_set
 
-                                    link = tree.ast.EntityLink(source=t.rlink.source,
-                                                               target=new_target,
-                                                               link_proto=t.rlink.link_proto,
-                                                               direction=t.rlink.direction)
+                elif isinstance(target, caos_types.ProtoAtom):
+                    target_set = tree.ast.EntitySet()
+                    target_set.concept = target
+                    target_set.id = tree.transformer.LinearPath(path_tip.id)
+                    target_set.id.add(link_proto, direction,
+                                      target_set.concept)
+                    target_set.users.add(context.current.location)
 
-                                    new_target.rlink = link
-                                    paths.add(link)
+                    link = tree.ast.EntityLink(source=path_tip,
+                                               target=target_set,
+                                               link_proto=link_proto,
+                                               direction=direction,
+                                               pathvar=link_pathvar,
+                                               users={context.current.location})
 
-                                paths.remove(t.rlink)
-                                t.rlink.source.disjunction.paths = frozenset(paths)
-                            else:
-                                newtip.add(t)
+                    target_set.rlink = link
 
-                            tip = newtip
+                    atomref_id = tree.transformer.LinearPath(path_tip.id)
+                    atomref_id.add(link_proto, direction, target)
 
-                    links = {caos_types.OutboundDirection: outbound,
-                             caos_types.InboundDirection: inbound}
-
-                    if direction == caos_types.OutboundDirection:
-                        links = outbound
+                    if not link_proto.singular():
+                        ptr_name = caos_name.Name(
+                                        'metamagic.caos.builtins.target')
+                        ptr_proto = link_proto.pointers[ptr_name]
+                        atomref = tree.ast.LinkPropRefSimple(
+                                        name=ptr_name, ref=link,
+                                        id=atomref_id, ptr_proto=ptr_proto)
+                        link.proprefs.add(atomref)
+                        path_tip.disjunction.update(link)
+                        path_tip.disjunction.fixed = context.current.weak_path
                     else:
-                        links = inbound
+                        atomref = tree.ast.AtomicRefSimple(
+                                        name=link_proto.normal_name(),
+                                        ref=path_tip, id=atomref_id,
+                                        rlink=link, ptr_proto=link_proto)
+                        path_tip.atomrefs.add(atomref)
+                        link.target = atomref
 
-                    if len(links) > 1:
-                        if linkname[1] == '%':
-                            link_item = self.proto_schema.get('metamagic.caos.builtins.link')
-                        else:
-                            link_item = caos_utils.get_prototype_nearest_common_ancestor(links)
-
-                        targets = {l.get_far_endpoint(direction) for l in links}
-
-                        if link_target is None:
-                            link_target = link_item.create_common_target(self.proto_schema, targets,
-                                                                         minimize_by='most_generic')
-
-                    else:
-                        try:
-                            link_item = list(links)[0]
-                        except IndexError:
-                            continue
-
-                    if link_target is not None:
-                        target = link_target
-                    else:
-                        target = link_item.get_far_endpoint(direction)
-
-                    assert target
-
-                    link_proto = link_item
-                    link_item = self.proto_schema.get(link_item.normal_name())
-
-                    pathvar_links = []
-
-                    if isinstance(target, caos_types.ProtoConcept):
-                        if seen_atoms:
-                            raise errors.CaosQLError('path expression results in an '
-                                                     'invalid atom/concept mix')
-                        seen_concepts = True
-
-                        for t in tip:
-                            target_set = tree.ast.EntitySet()
-                            target_set.concept = target
-                            target_set.id = tree.transformer.LinearPath(t.id)
-                            target_set.id.add(link_item, direction,
-                                              target_set.concept)
-                            target_set.users.add(context.current.location)
-
-                            link = tree.ast.EntityLink(source=t, target=target_set,
-                                                       direction=direction,
-                                                       link_proto=link_proto,
-                                                       pathvar=link_pathvar,
-                                                       users={context.current.location})
-
-                            t.disjunction.update(link)
-                            target_set.rlink = link
-
-                            pathvar_links.append(link)
-
-                            if target in newtips:
-                                newtips[target].add(target_set)
-                            else:
-                                newtips[target] = {target_set}
-
-                    elif isinstance(target, caos_types.ProtoAtom):
-                        if seen_concepts:
-                            raise errors.CaosQLError('path expression results in an '
-                                                     'invalid atom/concept mix')
-                        seen_atoms = True
-
-                        newtips[target] = set()
-                        for t in tip:
-                            target_set = tree.ast.EntitySet()
-                            target_set.concept = target
-                            target_set.id = tree.transformer.LinearPath(t.id)
-                            target_set.id.add(link_proto, direction,
-                                              target_set.concept)
-                            target_set.users.add(context.current.location)
-
-                            link = tree.ast.EntityLink(source=t, target=target_set,
-                                                       link_proto=link_proto,
-                                                       direction=direction,
-                                                       pathvar=link_pathvar,
-                                                       users={context.current.location})
-
-                            target_set.rlink = link
-
-                            pathvar_links.append(link)
-
-                            atomref_id = tree.transformer.LinearPath(t.id)
-                            atomref_id.add(link_item, direction, target)
-
-                            if not link_proto.singular():
-                                ptr_name = caos_name.Name('metamagic.caos.builtins.target')
-                                ptr_proto = link_proto.pointers[ptr_name]
-                                atomref = tree.ast.LinkPropRefSimple(name=ptr_name,
-                                                                     ref=link,
-                                                                     id=atomref_id,
-                                                                     ptr_proto=ptr_proto)
-                                t.disjunction.update(link)
-                            else:
-                                atomref = tree.ast.AtomicRefSimple(name=link_item.normal_name(),
-                                                                   ref=t, id=atomref_id,
-                                                                   rlink=link,
-                                                                   ptr_proto=link_proto)
-                                link.target = atomref
-
-                            newtips[target].add(atomref)
-
-                    else:
-                        assert False, 'unexpected link target type: %s' % target
-
-                if not newtips:
-                    source_name = ','.join(concept.name for concept in tips)
-                    ptr_fqname = '.'.join(filter(None, linkname))
-                    raise errors.CaosQLReferenceError('could not resolve "{}"."{}" pointer'\
-                                                      .format(source_name, ptr_fqname))
+                    path_tip = atomref
 
                 if pathvar:
-                    paths = itertools.chain.from_iterable(newtips.values())
-                    pathvars[pathvar] = tree.ast.Disjunction(paths=frozenset(paths))
+                    pathvars[pathvar] = path_tip
 
                 if link_pathvar:
-                    if len(pathvar_links) > 1:
-                        pathvars[link_pathvar] = tree.ast.Disjunction(paths=frozenset(pathvar_links))
-                    else:
-                        pathvars[link_pathvar] = pathvar_links[0]
-
-                tips = newtips
+                    pathvars[link_pathvar] = link
 
             elif isinstance(tip, qlast.LinkPropExprNode) or tip_is_link:
                 # LinkExprNode
                 link_expr = tip.expr
 
-                newtips = {}
-
-                tip = tips.get(None)
-
-                if tip and isinstance(next(iter(tip)), tree.ast.GraphExpr):
-                    subgraph = next(iter(tip))
+                if path_tip and isinstance(path_tip, tree.ast.GraphExpr):
+                    subgraph = path_tip
                     subgraph.attrrefs.add(link_expr.name)
-                    sgref = tree.ast.SubgraphRef(ref=subgraph, name=link_expr.name)
-                    newtips = {None: {sgref}}
+                    sgref = tree.ast.SubgraphRef(ref=subgraph,
+                                                 name=link_expr.name)
+                    path_tip = sgref
                 else:
-                    for concept, tip in tips.items():
-                        for entset in tip:
-                            prop_name = (link_expr.namespace, link_expr.name)
+                    prop_name = (link_expr.namespace, link_expr.name)
 
-                            if (isinstance(entset, tree.ast.LinkPropRefSimple)
-                                and not entset.ptr_proto.is_endpoint_pointer()):
-                                # We are at propref point, the only valid
-                                # step from here is @source taking us back
-                                # to the link context.
-                                if link_expr.name != 'source':
-                                    msg = 'invalid reference: {}.{}'\
-                                                .format(entset.ptr_proto,
-                                                        link_expr.name)
-                                    raise errors.CaosQLReferenceError(msg)
+                    if (isinstance(path_tip, tree.ast.LinkPropRefSimple)
+                        and not path_tip.ptr_proto.is_endpoint_pointer()):
+                        # We are at propref point, the only valid
+                        # step from here is @source taking us back
+                        # to the link context.
+                        if link_expr.name != 'source':
+                            msg = 'invalid reference: {}.{}'\
+                                        .format(path_tip.ptr_proto,
+                                                link_expr.name)
+                            raise errors.CaosQLReferenceError(msg)
 
-                                link = entset.ref
-                                target = link.target
-                                newtips[target.concept] = {target}
+                        link = path_tip.ref
+                        target = link.target
+                        path_tip = target
 
-                            else:
-                                if isinstance(entset, tree.ast.LinkPropRefSimple):
-                                    link = entset.ref
-                                    link_proto = link.link_proto
-                                    id = entset.id
-                                elif isinstance(entset, tree.ast.EntityLink):
-                                    link = entset
-                                    link_proto = link.link_proto
-                                    id = tree.transformer.LinearPath([None])
-                                    id.add(link_proto, caos_types.OutboundDirection, None)
-                                else:
-                                    link = entset.rlink
-                                    link_proto = link.link_proto
-                                    id = entset.id
+                    else:
+                        if isinstance(path_tip, tree.ast.LinkPropRefSimple):
+                            link = path_tip.ref
+                            link_proto = link.link_proto
+                            id = path_tip.id
+                        elif isinstance(path_tip, tree.ast.EntityLink):
+                            link = path_tip
+                            link_proto = link.link_proto
+                            id = tree.transformer.LinearPath([None])
+                            id.add(link_proto, caos_types.OutboundDirection, None)
+                        else:
+                            link = path_tip.rlink
+                            link_proto = link.link_proto
+                            id = path_tip.id
 
-                                ptr_resolution = self._resolve_ptr(
-                                    context, link_proto, prop_name,
-                                    caos_types.OutboundDirection,
-                                    ptr_type=caos_types.ProtoLinkProperty)
+                        prop_proto = self._resolve_ptr(
+                            context, link_proto, prop_name,
+                            caos_types.OutboundDirection,
+                            ptr_type=caos_types.ProtoLinkProperty)
 
-                                sources, outbound, inbound = ptr_resolution
+                        propref = tree.ast.LinkPropRefSimple(
+                            name=prop_proto.normal_name(),
+                            ref=link, id=id, ptr_proto=prop_proto)
+                        link.proprefs.add(propref)
 
-                                for prop_proto in outbound:
-                                    propref = tree.ast.LinkPropRefSimple(
-                                        name=prop_proto.normal_name(),
-                                        ref=link, id=id, ptr_proto=prop_proto)
-                                    newtips[prop_proto] = {propref}
+                        path_tip = propref
 
-                tips = newtips
             else:
                 assert False, 'Unexpected path step expression: "%s"' % tip
 
-        paths = itertools.chain.from_iterable(tips.values())
-        final_paths = []
+        if isinstance(path_tip, tree.ast.EntityLink):
+            # Dangling link reference, possibly from an anchor ref,
+            # complement it to target ref
+            link_proto = path_tip.link_proto
 
-        for path in paths:
-            if isinstance(path, tree.ast.EntityLink):
-                # Dangling link reference, possibly from an anchor ref,
-                # complement it to target ref
-                link_proto = path.link_proto
+            pref_id = tree.transformer.LinearPath(path_tip.source.id)
+            pref_id.add(link_proto, caos_types.OutboundDirection,
+                        link_proto.target)
+            ptr_proto = link_proto.pointers['metamagic.caos.builtins.target']
+            ptr_name = ptr_proto.normal_name()
+            propref = tree.ast.LinkPropRefSimple(
+                        name=ptr_name, ref=path_tip, id=pref_id,
+                        ptr_proto=ptr_proto)
+            propref.anchor = path_tip.anchor
+            propref.show_as_anchor = path_tip.show_as_anchor
+            propref.pathvar = path_tip.pathvar
+            path_tip.proprefs.add(propref)
 
-                pref_id = tree.transformer.LinearPath(path.source.id)
-                pref_id.add(link_proto, caos_types.OutboundDirection, link_proto.target)
-                ptr_proto = link_proto.pointers['metamagic.caos.builtins.target']
-                ptr_name = ptr_proto.normal_name()
-                propref = tree.ast.LinkPropRefSimple(name=ptr_name, ref=path, id=pref_id,
-                                                     ptr_proto=ptr_proto)
-                propref.anchor = path.anchor
-                propref.show_as_anchor = path.show_as_anchor
-                propref.pathvar = path.pathvar
+            path_tip = propref
 
-                path = propref
+        return path_tip
 
-            final_paths.append(path)
-
-        if len(final_paths) == 1:
-            return final_paths[0]
-        else:
-            return tree.ast.Disjunction(paths=frozenset(final_paths))
-
-    def _resolve_ptr(self, context, source, ptr_name, direction,
+    def _resolve_ptr(self, context, near_endpoint, ptr_name, direction,
                            ptr_type=caos_types.ProtoLink, target=None):
         sources = []
         inbound = []
@@ -1474,33 +1909,29 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         if ptr_nqname == '%':
             pointer_name = self.proto_schema.get_root_class(ptr_type).name
 
-        sources, outbound, inbound = source.resolve_pointer(
-            self.proto_schema, pointer_name,
-            direction=direction, look_in_children=True,
-            include_inherited=True)
+        if target is not None:
+            far_endpoints = (target,)
+        else:
+            far_endpoints = None
 
-        if not sources:
-            msg = 'could not resolve {}.[{}{}] pointer'\
-                        .format(source.name, direction, ptr_name)
+        ptr = near_endpoint.resolve_pointer(
+                    self.proto_schema, pointer_name,
+                    direction=direction,
+                    look_in_children=True,
+                    include_inherited=True,
+                    far_endpoints=far_endpoints)
+
+        if not ptr:
+            msg = ('[{near_endpoint}].[{direction}{ptr_name}{far_endpoint}] '
+                   'does not resolve to any known path')
+            far_endpoint_str = '({})'.format(target.name) if target else ''
+            msg = msg.format(near_endpoint=near_endpoint.name,
+                             direction=direction,
+                             ptr_name=pointer_name,
+                             far_endpoint=far_endpoint_str)
             raise errors.CaosQLReferenceError(msg)
 
-        if target is not None:
-            if direction == caos_types.OutboundDirection:
-                ptrs = outbound
-                link_end = 'target'
-            else:
-                ptrs = inbound
-                link_end = 'source'
-
-            flt = lambda p: target.issubclass(getattr(p, link_end))
-            ptrs = tuple(filter(flt, ptrs))
-
-            if direction == caos_types.OutboundDirection:
-                outbound = ptrs
-            else:
-                inbound = ptrs
-
-        return sources, outbound, inbound
+        return ptr
 
     def _normalize_concept(self, context, concept, namespace):
         if concept == '%':

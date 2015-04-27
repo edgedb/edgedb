@@ -446,7 +446,7 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.over:
             self.write(' OVER (')
             if node.over.partition:
-                self.write('PARTITION BY')
+                self.write('PARTITION BY ')
 
                 count = len(node.over.partition)
                 for i, groupexpr in enumerate(node.over.partition):

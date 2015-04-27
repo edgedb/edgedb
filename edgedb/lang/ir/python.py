@@ -154,7 +154,8 @@ class CaosToPythonTransformerContext:
 
 class CaosToPythonTransformer(TreeTransformer):
     def transform(self, tree, proto_schema, context=None):
-        if tree.grouper or tree.sorter or tree.set_op:
+        if (tree.grouper or tree.sorter or tree.set_op
+                or tree.op in {'update', 'delete'}):
             raise NotImplementedError('unsupported query tree')
 
         context = CaosToPythonTransformerContext(proto_schema=proto_schema, context=context)

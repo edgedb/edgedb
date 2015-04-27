@@ -23,7 +23,16 @@ class SliceNode(ast.AST):
 
 class ArgListNode(ast.AST): __fields = ['name', ('args', list)]
 class BinOpNode(ast.AST):  __fields = ['left', 'op', 'right']
-class FunctionCallNode(ast.AST): __fields = ['func', ('args', list), ('agg_sort', list)]
+
+class WindowSpecNode(ast.AST):
+    __fields = [('orderby', list), ('partition', list)]
+
+class NamedArgNode(ast.AST):
+    __fields = [('name', str), 'arg']
+
+class FunctionCallNode(ast.AST):
+    __fields = ['func', ('args', list), ('agg_sort', list),
+                'window']
 
 class VarNode(ast.AST): __fields = ['name']
 class PathVarNode(VarNode): pass
@@ -39,15 +48,35 @@ class PathDisjunctionNode(ast.AST): __fields = ['left', 'right']
 
 class PathStepNode(ast.AST): __fields = ['namespace', 'expr', 'link_expr']
 
+class TypeIndirection(ast.AST): pass
+
 class LinkNode(ast.AST): __fields = ['name', 'namespace', 'direction', 'target', 'type']
 
 class LinkExprNode(ast.AST): __fields = ['expr']
 
 class LinkPropExprNode(ast.AST): __fields = ['expr']
 
-class SelectQueryNode(ast.AST):
-    __fields = ['namespaces', 'distinct', ('targets', list), 'where', ('groupby', list),
-                ('orderby', list), 'offset', 'limit', '_hash', ('cges', list)]
+class StatementNode(ast.AST):
+    pass
+
+class SelectQueryNode(StatementNode):
+    __fields = ['namespaces', 'distinct', ('targets', list), 'where',
+                ('groupby', list), ('orderby', list), 'offset', 'limit',
+                '_hash', ('cges', list), 'op', 'op_larg', 'op_rarg']
+
+class UpdateQueryNode(StatementNode):
+    __fields = ['namespaces', 'subject', 'where', ('values', list),
+                ('targets', list), ('cges', list)]
+
+class UpdateExprNode(ast.AST):
+    __fields = ['expr', 'value']
+
+class DeleteQueryNode(StatementNode):
+    __fields = ['namespaces', 'subject', 'where',
+                ('targets', list), ('cges', list)]
+
+class SubqueryNode(ast.AST):
+    __fields = ['expr']
 
 class CGENode(ast.AST):
     __fields = ['expr', 'alias']
@@ -63,7 +92,11 @@ class ExistsPredicateNode(PredicateNode): pass
 class SelectExprNode(ast.AST): __fields = ['expr', 'alias']
 
 class SelectPathSpecNode(ast.AST):
-    __fields = ['expr', 'pathspec', 'recurse', 'where', 'orderby']
+    __fields = ['expr', 'pathspec', 'recurse', 'where', 'orderby', 'offset',
+                'limit']
+
+class SelectTypeRefNode(ast.AST):
+    __fields = ['attrs']
 
 class PointerGlobNode(ast.AST): __fields = ['filters', 'type']
 
@@ -122,3 +155,11 @@ class NonesOrder(tree_ast.NonesOrder):
 
 NonesFirst = NonesOrder(tree_ast.NonesFirst)
 NonesLast = NonesOrder(tree_ast.NonesLast)
+
+
+class SetOperator(CaosQLOperator):
+    pass
+
+UNION = SetOperator('UNION')
+INTERSECT = SetOperator('INTERSECT')
+EXCEPT = SetOperator('EXCEPT')

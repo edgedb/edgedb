@@ -352,9 +352,11 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                         try:
                             coltype = coltypes[aname]
                         except KeyError:
-                            result = concept.resolve_pointer(schema, aname, look_in_children=True)
-                            target_ptr = next(iter(result[1]))
-                            coltype = pg_types.pg_type_from_atom(schema, target_ptr.target)
+                            target_ptr = concept.resolve_pointer(
+                                            schema, aname,
+                                            look_in_children=True)
+                            coltype = pg_types.pg_type_from_atom(
+                                            schema, target_ptr.target)
                             coltypes[aname] = coltype
 
                         selexpr = pgsql.ast.ConstantNode(value=None)
@@ -672,6 +674,8 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                 result = pgsql.ast.CaseExprNode(args=[when_expr], default=neg)
             elif expr.name == 'noneif':
                 name = 'NULLIF'
+            elif expr.name == ('search', 'weight'):
+                name = 'setweight'
             elif expr.name == ('agg', 'sum'):
                 name = 'sum'
             elif expr.name == ('agg', 'product'):
@@ -992,7 +996,17 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
             refs = [(r, r.ptr_proto.search.weight) for r in self._text_search_refs(context, vector)]
 
         elif isinstance(vector, tree.ast.Sequence):
-            refs = [(r, r.ptr_proto.search.weight) for r in vector.elements]
+            refs = []
+
+            for r in vector.elements:
+                if isinstance(r, tree.ast.BaseRef):
+                    refs.append((r, r.ptr_proto.search.weight))
+                elif (isinstance(r, tree.ast.FunctionCall)
+                        and r.name == ('search', 'weight')):
+                    refs.append((r.args[0], r.args[1]))
+                else:
+                    msg = 'unexpected element in search vector: %r'.format(r)
+                    raise ValueError(msg)
 
         elif isinstance(vector, tree.ast.AtomicRef):
             link = vector.ref.concept.getptr(context.current.proto_schema, vector.name)
@@ -1004,11 +1018,6 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                                              ptr_proto=vector.ptr_proto)
             refs = [(ref, caos_types.SearchWeight_A)]
 
-        elif isinstance(vector, tree.ast.SearchVector):
-            refs = []
-
-            for elem in vector.items:
-                refs.append((elem.ref, elem.weight))
         else:
             assert False, "unexpected node type: %r" % vector
 
@@ -1018,7 +1027,12 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                 ref = pgsql.ast.FunctionCallNode(name='coalesce', args=[ref, empty_str])
                 ref = pgsql.ast.FunctionCallNode(name='to_tsvector',
                                                  args=[text_search_conf_ref, ref])
-                weight_const = pgsql.ast.ConstantNode(value=weight)
+
+                if isinstance(weight, tree.ast.Constant):
+                    weight_const = self._process_expr(context, weight)
+                else:
+                    weight_const = pgsql.ast.ConstantNode(value=weight)
+
                 ref = pgsql.ast.FunctionCallNode(name='setweight', args=[ref, weight_const])
                 cols = self.extend_predicate(cols, ref, op='||')
         else:
@@ -1331,13 +1345,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 context.current.query = pgsql.ast.SelectQueryNode()
                 rarg = self._transform_tree(context, graph.set_op_rarg)
 
-            if graph.set_op == ast.ops.OR:
-                set_op = pgsql.ast.UNION
-            elif graph.set_op == ast.ops.AND:
-                set_op = pgsql.ast.INTERSECT
-            else:
-                raise ValueError('unexpected selector set operation: {}'.format(graph.set_op))
-
+            set_op = pgsql.ast.PgSQLSetOperator(graph.set_op)
             self._setop_from_list(context.current.query, [larg, rarg], set_op)
 
         if graph.generator:
@@ -1346,6 +1354,9 @@ class CaosTreeTransformer(CaosExprTransformer):
                 context.current.query.having = expr
             else:
                 context.current.query.where = expr
+        else:
+            for expr in graph.selector:
+                self._process_expr(context, expr.expr, context.current.query)
 
         self._join_subqueries(context, context.current.query)
 
@@ -1852,7 +1863,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                     subgraph_map[attrref] = selexpr
 
         # Pull up CTEs
-        context.current.ctemap[wrapper] = context.current.ctemap[query]
+        if query in context.current.ctemap:
+            context.current.ctemap[wrapper] = context.current.ctemap[query]
         wrapper.ctes = query.ctes
         wrapper.proxyouterbonds = {query: query.outerbonds[:]}
         query.ctes = OrderedSet()
@@ -2212,17 +2224,19 @@ class CaosTreeTransformer(CaosExprTransformer):
 
         if context.current.in_aggregate and not meta:
             # Cast atom refs to the base type in aggregate expressions, since
-            # PostgreSQL does not create array types for custom domains and will
-            # fail to process a query with custom domains appearing as array elements.
+            # PostgreSQL does not create array types for custom domains and
+            # will fail to process a query with custom domains appearing as
+            # array elements.
             #
-            res = caos_node.concept.resolve_pointer(context.current.proto_schema, link_name,
-                                                    look_in_children=True)
-            link = next(iter(res[1]))
-            pgtype = types.pg_type_from_atom(context.current.proto_schema, link.target,
-                                             topbase=True)
+            schema = context.current.proto_schema
+            link = caos_node.concept.resolve_pointer(
+                            schema, link_name,
+                            look_in_children=True)
+            pgtype = types.pg_type_from_atom(
+                            schema, link.target,
+                            topbase=True)
             pgtype = pgsql.ast.TypeNode(name=pgtype)
             ref = pgsql.ast.TypeCastNode(expr=ref, type=pgtype)
-
 
         return ref
 
@@ -2727,12 +2741,6 @@ class CaosTreeTransformer(CaosExprTransformer):
 
             result = pgsql.ast.ExistsNode(expr=expr)
 
-        elif isinstance(expr, tree.ast.SearchVector):
-            for elem in expr.items:
-                self._process_expr(context, elem.ref, cte)
-
-            result = pgsql.ast.IgnoreNode()
-
         else:
             assert False, "Unexpected expression: %s" % expr
 
@@ -3040,10 +3048,12 @@ class CaosTreeTransformer(CaosExprTransformer):
                 try:
                     atomref_tables = ref_map[field]
                 except KeyError:
-                    sources, _, _ = concept.resolve_pointer(proto_schema, field,
-                                                            look_in_children=True,
-                                                            strict_ancestry=True)
+                    sources = concept.get_ptr_sources(
+                                    proto_schema, field,
+                                    look_in_children=True,
+                                    strict_ancestry=True)
                     assert sources
+
                     if concept.is_virtual:
                         # Atom refs to columns present in direct children of a virtual concept
                         # are guaranteed to be included in the relation representing the virtual

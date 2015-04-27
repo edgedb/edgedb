@@ -161,7 +161,7 @@ class Session(session.Session):
     def _drop_connection(self):
         if self._connection is not None:
             try:
-                self._connection.release()
+                self._connection.close()
             except (postgresql.exceptions.Error, IOError) as e:
                 # The session is likely already dying horribly, quite likely due to a
                 # backend/driver exception, so we must expect further breakage when releasing

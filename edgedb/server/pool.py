@@ -74,3 +74,6 @@ class Connection:
 
     def release(self):
         self._pool.recycle(self)
+
+    def close(self):
+        self._pool.remove(self)

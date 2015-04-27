@@ -133,8 +133,11 @@ class CommonGraphExpr(Base):
 
 
 class Path(Base):
-    __fields = ['anchor', 'show_as_anchor', 'pathvar',
+    __fields = ['id', 'anchor', 'show_as_anchor', 'pathvar',
                 ('reference', Base, None, False)]
+
+    def get_id(self):
+        return self.pathvar or self.id
 
     def __setattr__(self, name, value):
         assert not (name == 'pathvar' and value == 'self')
@@ -153,8 +156,7 @@ class SubgraphRef(Path):
 
 
 class BaseRef(Path):
-    __fields = ['id',
-                ('ref', Base, None, False),
+    __fields = [('ref', Base, None, False),
                 ('rlink', Base, None, (False, True), False, True),
                 'ptr_proto', ('users', set)]
 
@@ -292,7 +294,7 @@ class AtomicRefSet(typed.TypedSet, type=AtomicRef):
 
 
 class EntitySet(Path):
-    __fields = ['id', ('concept', caos_types.ProtoNode), 'atom',
+    __fields = [('concept', caos_types.ProtoNode), 'atom',
                 'filter',
                 ('conjunction', Conjunction),
                 ('disjunction', Disjunction),
@@ -374,29 +376,6 @@ class InlinePropFilter(Base): __fields  = ['expr', 'ref']
 class ExistPred(Expr): __fields = ['expr', 'outer']
 class AtomicExistPred(ExistPred): pass
 
-class SearchVector(Base):
-    __fields = ['items']
-
-class SearchVectorElement(Base):
-    __fields = [('ref', Base, None, True), 'weight']
-
-    def __setattr__(self, name, value):
-        super().__setattr__(name, value)
-
-        if name == 'ref':
-            self.update_refs()
-
-    def update_refs(self):
-        if isinstance(self.ref, (EntitySet, EntityLink)):
-            ref = self.ref
-        elif isinstance(self.ref, (BaseRef,)):
-            ref = self.ref.ref
-        else:
-            return
-
-        ref.backrefs.add(self)
-        self.refs.add(ref)
-
 class SortOrder(caos_types.StrSingleton):
     _map = {
         'ASC': 'SortAsc',
@@ -472,3 +451,11 @@ class CaosMatchOperator(CaosComparisonOperator):
 
 LIKE = CaosMatchOperator('like')
 ILIKE = CaosMatchOperator('ilike')
+
+
+class SetOperator(CaosOperator):
+    pass
+
+UNION = SetOperator('UNION')
+INTERSECT = SetOperator('INTERSECT')
+EXCEPT = SetOperator('EXCEPT')

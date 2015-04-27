@@ -64,6 +64,10 @@ class CaosQLLexer(lexer.Lexer):
                     | (?:--.*?$)
                 '''),
 
+        Rule(token='COLONEQUALS',
+             next_state=STATE_KEEP,
+             regexp=r':='),
+
         Rule(token='<>',
              next_state=STATE_KEEP,
              regexp=r'<>'),
@@ -79,6 +83,10 @@ class CaosQLLexer(lexer.Lexer):
         Rule(token='::',
              next_state=STATE_KEEP,
              regexp=r'::'),
+
+        Rule(token='TYPE_INDIRECTION',
+             next_state=STATE_KEEP,
+             regexp=r'__type__'),
 
         # multichar ops (so 2+ chars)
         Rule(token='OP',
@@ -136,6 +144,18 @@ class CaosQLLexer(lexer.Lexer):
                 )*'
              '''),
 
+        # quoted identifier
+        Rule(token='QIDENT',
+             next_state=STATE_KEEP,
+             regexp=r'''
+                    (?:U&)?
+                    "(?:
+                        [^"]
+                        |
+                        ""
+                    )+"
+                '''),
+
         Rule(token='IDENT',
              next_state=STATE_KEEP,
              regexp=r'''
@@ -158,6 +178,10 @@ class CaosQLLexer(lexer.Lexer):
 
         if rule_token == 'self':
             tok.attrs['type'] = txt
+
+        elif rule_token == 'QIDENT':
+            tok.attrs['type'] = 'IDENT'
+            tok.value = txt[:-1].split('"', 1)[1]
 
         elif rule_token == 'SCONST':
             tok.value = clean_string.sub('', txt[1:-1].replace("''", "'"))

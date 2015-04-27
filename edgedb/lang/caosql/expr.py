@@ -30,6 +30,9 @@ class CaosQLExpression:
         self.reverse_transformer = transformer.CaosqlReverseTransformer()
         self.path_resolver = None
 
+    def parse_expr(self, expr):
+        return self.parser.parse(expr)
+
     def process_concept_expr(self, expr, concept):
         tree = self.parser.parse(expr)
         context = transformer.ParseContext()
@@ -83,7 +86,7 @@ class CaosQLExpression:
         markup.dump(caosql_tree)
         """
 
-        if not isinstance(caosql_tree, caosql.ast.SelectQueryNode):
+        if not isinstance(caosql_tree, caosql.ast.StatementNode):
             selnode = caosql.ast.SelectQueryNode()
             selnode.targets = [caosql.ast.SelectExprNode(expr=caosql_tree)]
             caosql_tree = selnode
@@ -247,8 +250,10 @@ class _PrependSource(ast.visitor.NodeVisitor):
 
         if isinstance(self.source, caos.types.ProtoLink):
             type = proto.LinkProperty
+            strtype = 'property'
         else:
             type = proto.Link
+            strtype = 'link'
 
         prototype = self.schema.get(name, None)
 
@@ -258,7 +263,8 @@ class _PrependSource(ast.visitor.NodeVisitor):
         if not isinstance(prototype, self.source.__class__.get_canonical_class()):
 
             pointer_node = caosql_ast.LinkNode(name=prototype.name.name,
-                                               namespace=prototype.name.module)
+                                               namespace=prototype.name.module,
+                                               type=strtype)
 
             if isinstance(self.source, caos.types.ProtoLink):
                 link = caosql_ast.LinkPropExprNode(expr=pointer_node)

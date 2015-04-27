@@ -21,21 +21,151 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
     def generic_visit(self, node):
         raise CaosQLSourceGeneratorError('No method to generate code for %s' % node.__class__.__name__)
 
-    def visit_SelectQueryNode(self, node):
-        self.write('SELECT ')
-        for i, e in enumerate(node.targets):
+    def _visit_cges(self, cges):
+        if cges:
+            self.new_lines = 1
+            self.write('WITH')
+            self.new_lines = 1
+            self.indentation += 1
+            for i, cge in enumerate(cges):
+                if i > 0:
+                    self.write(',')
+                    self.new_lines = 1
+                self.visit(cge)
+            self.indentation -= 1
+            self.new_lines = 1
+
+    def visit_CGENode(self, node):
+        self.write(node.alias)
+        self.write(' AS (')
+        self.new_lines = 1
+        self.indentation += 1
+        self.visit(node.expr)
+        self.indentation -= 1
+        self.new_lines = 1
+        self.write(')')
+
+    def visit_UpdateQueryNode(self, node):
+        if node.namespaces:
+            self.write('USING')
+            self.indentation += 1
+            self.new_lines = 1
+            for i, ns in enumerate(node.namespaces):
+                if i > 0:
+                    self.write(', ')
+                self.visit(ns)
+            self.new_lines = 1
+            self.indentation -= 1
+
+        self._visit_cges(node.cges)
+
+        self.write('UPDATE')
+
+        self.indentation += 1
+        self.new_lines = 1
+        self.visit(node.subject)
+        self.indentation -= 1
+        self.new_lines = 1
+
+        self.write('SET')
+
+        self.indentation += 1
+        self.new_lines = 1
+        for i, e in enumerate(node.values):
             if i > 0:
-                self.write(', ')
+                self.write(',')
+                self.new_lines = 1
             self.visit(e)
+        self.indentation -= 1
+
         if node.where:
-            self.write(' WHERE ')
+            self.new_lines = 1
+            self.write('WHERE')
+            self.indentation += 1
+            self.new_lines = 1
             self.visit(node.where)
-        if node.groupby:
-            self.write(' GROUP BY ')
-            for i, e in enumerate(node.groupby):
+            self.indentation -= 1
+
+        if node.targets:
+            self.new_lines = 1
+            self.write('RETURNING')
+            self.indentation += 1
+            self.new_lines = 1
+            for i, e in enumerate(node.targets):
                 if i > 0:
                     self.write(', ')
                 self.visit(e)
+            self.indentation -= 1
+
+    def visit_UpdateExprNode(self, node):
+        self.visit(node.expr)
+        self.write(' = ')
+        self.visit(node.value)
+
+    def visit_DeleteQueryNode(self, node):
+        if node.namespaces:
+            self.write('USING ')
+            for i, ns in enumerate(node.namespaces):
+                if i > 0:
+                    self.write(', ')
+                self.visit(ns)
+            self.write(' ')
+        self._visit_cges(node.cges)
+        self.write('DELETE ')
+        self.visit(node.subject)
+        if node.where:
+            self.write(' WHERE ')
+            self.visit(node.where)
+        if node.targets:
+            self.write(' RETURNING ')
+            for i, e in enumerate(node.targets):
+                if i > 0:
+                    self.write(', ')
+                self.visit(e)
+
+    def visit_SubqueryNode(self, node):
+        self.write('(')
+        self.visit(node.expr)
+        self.write(')')
+
+    def visit_SelectQueryNode(self, node):
+        if node.namespaces:
+            self.write('USING ')
+            for i, ns in enumerate(node.namespaces):
+                if i > 0:
+                    self.write(', ')
+                self.visit(ns)
+            self.write(' ')
+
+        if node.op:
+            # Upper level set operation node (UNION/INTERSECT)
+            self.write('(')
+            self.visit(node.op_larg)
+            self.write(')')
+            self.new_lines = 1
+            self.write(' ' + node.op + ' ')
+            self.new_lines = 1
+            self.write('(')
+            self.visit(node.op_rarg)
+            self.write(')')
+        else:
+            self._visit_cges(node.cges)
+
+            self.write('SELECT ')
+            for i, e in enumerate(node.targets):
+                if i > 0:
+                    self.write(', ')
+                self.visit(e)
+            if node.where:
+                self.write(' WHERE ')
+                self.visit(node.where)
+            if node.groupby:
+                self.write(' GROUP BY ')
+                for i, e in enumerate(node.groupby):
+                    if i > 0:
+                        self.write(', ')
+                    self.visit(e)
+
         if node.orderby:
             self.write(' ORDER BY ')
             for i, e in enumerate(node.orderby):
@@ -49,11 +179,19 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
             self.write(' LIMIT ')
             self.visit(node.limit)
 
+    def visit_NamespaceDeclarationNode(self, node):
+        self.write(node.namespace)
+        if node.alias:
+            self.write(' AS ')
+            self.write(node.alias)
+
     def visit_SelectExprNode(self, node):
         self.visit(node.expr)
         if node.alias:
             self.write(' AS ')
+            self.write('"')
             self.write(node.alias)
+            self.write('"')
 
     def visit_SortExprNode(self, node):
         self.visit(node.path)
@@ -94,11 +232,14 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
     def visit_PathNode(self, node):
         for i, e in enumerate(node.steps):
             if i > 0:
-                if isinstance(e, caosql_ast.LinkPropExprNode):
-                    self.write('@')
-                else:
+                if not isinstance(e, caosql_ast.LinkPropExprNode):
                     self.write('.')
             self.visit(e)
+
+        if node.var:
+            self.write('{')
+            self.write(node.var.name)
+            self.write('}')
 
         if node.pathspec:
             self._visit_pathspec(node.pathspec)
@@ -130,23 +271,69 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.expr)
 
     def visit_LinkNode(self, node, quote=True):
+        if node.type == 'property':
+            self.write('@')
+
         if node.namespace or node.target or node.direction:
             if quote:
                 self.write('[')
-            if node.direction:
+            if node.direction and node.direction != '>':
                 self.write(node.direction)
-            self.write('%s.%s' % (node.namespace, node.name))
-            if node.target:
-                self.write('({}.{})'.format(node.target.module, node.target.name))
+            if node.namespace:
+                self.write('%s.%s' % (node.namespace, node.name))
+            else:
+                self.write(node.name)
+            if node.target and node.type != 'property':
+                if node.target.module:
+                    self.write('({}.{})'.format(
+                        node.target.module, node.target.name))
+                else:
+                    self.write('({})'.format(node.target.name))
             if quote:
                 self.write(']')
         else:
             self.write(node.name)
 
+    def visit_SelectTypeRefNode(self, node):
+        self.write('__type__.')
+        for i, attr in enumerate(node.attrs):
+            if i > 0:
+                self.write('.')
+            self.visit(attr)
+
     def visit_SelectPathSpecNode(self, node):
         # PathSpecNode can only contain LinkExpr or LinkPropExpr,
         # and must not be quoted.
+        if node.where or node.orderby or node.offset or node.limit:
+            self.write('(')
+
         self.visit_LinkNode(node.expr.expr, quote=False)
+
+        if node.where:
+            self.write(' WHERE ')
+            self.visit(node.where)
+
+        if node.orderby:
+            self.write(' ORDER BY ')
+            for i, e in enumerate(node.orderby):
+                if i > 0:
+                    self.write(', ')
+                self.visit(e)
+
+        if node.offset:
+            self.write(' OFFSET ')
+            self.visit(node.offset)
+
+        if node.limit:
+            self.write(' LIMIT ')
+            self.visit(node.limit)
+
+        if node.where or node.orderby or node.offset or node.limit:
+            self.write(')')
+
+        if node.recurse:
+            self.write('*')
+            self.visit(node.recurse)
 
         if node.pathspec:
             self._visit_pathspec(node.pathspec)
@@ -188,7 +375,41 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
                 self.write(', ')
             self.visit(arg)
 
+        if node.agg_sort:
+            self.write(' ORDER BY ')
+            for i, sortexpr in enumerate(node.agg_sort):
+                if i > 0:
+                    self.write(', ')
+                self.visit(sortexpr)
+
         self.write(')')
+
+        if node.window:
+            self.write(' OVER (')
+
+            if node.window.partition:
+                self.write('PARTITION BY')
+
+                count = len(node.window.partition)
+                for i, groupexpr in enumerate(node.window.partition):
+                    self.visit(groupexpr)
+                    if i != count - 1:
+                        self.write(',')
+
+            if node.window.orderby:
+                self.write(' ORDER BY ')
+                count = len(node.window.orderby)
+                for i, sortexpr in enumerate(node.window.orderby):
+                    self.visit(sortexpr)
+                    if i != count - 1:
+                        self.write(',')
+
+            self.write(')')
+
+    def visit_NamedArgNode(self, node):
+        self.write(node.name)
+        self.write(' := ')
+        self.visit(node.arg)
 
     def visit_TypeRefNode(self, node):
         self.write('type(')

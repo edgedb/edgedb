@@ -227,6 +227,7 @@ class PgSQLSetOperator(PgSQLOperator):
 
 UNION = PgSQLSetOperator('UNION')
 INTERSECT = PgSQLSetOperator('INTERSECT')
+EXCEPT = PgSQLSetOperator('EXCEPT')
 
 class SortOrder(tree_ast.SortOrder):
     _map = {

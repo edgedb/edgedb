@@ -57,7 +57,7 @@ class P_IN(Precedence, assoc='nonassoc', tokens=('IN',)):
 class P_POSTFIXOP(Precedence, assoc='left'):
     pass
 
-class P_IDENT(Precedence, assoc='nonassoc', tokens=('IDENT',)):
+class P_IDENT(Precedence, assoc='nonassoc', tokens=('IDENT', 'PARTITION')):
     pass
 
 class P_OP(Precedence, assoc='left', tokens=('OPERATOR', 'OP')):
@@ -164,6 +164,9 @@ class T_CIRCUM(Token, lextoken='^'):
 class T_STARSTAR(Token, lextoken='**'):
     pass
 
+class T_COLONEQUALS(Token):
+    pass
+
 class T_LANGBRACKET_RANGBRACKET(Token, lextoken='<>'):
     pass
 
@@ -192,6 +195,9 @@ class T_OPERATOR(Token):
     pass
 
 class T_OP(Token):
+    pass
+
+class T_TYPE_INDIRECTION(Token):
     pass
 
 
@@ -228,6 +234,75 @@ class Stmt(Nonterm):
     def reduce_SelectNoParens(self, *kids):
         "%reduce SelectNoParens"
         self.val = kids[0].val
+
+    def reduce_UpdateStmt(self, *kids):
+        "%reduce UpdateStmt"
+        self.val = kids[0].val
+
+    def reduce_DeleteStmt(self, *kids):
+        "%reduce DeleteStmt"
+        self.val = kids[0].val
+
+
+class UpdateStmt(Nonterm):
+    def reduce_UpdateStmt(self, *kids):
+        "%reduce OptNsDecl UPDATE Path SET SetClauseList OptWhereClause OptReturningClause"
+        self.val = qlast.UpdateQueryNode(
+            namespaces = kids[0].val,
+            subject = kids[2].val,
+            values = kids[4].val,
+            where = kids[5].val,
+            targets = kids[6].val
+        )
+
+
+class SetClauseList(Nonterm):
+    def reduce_SetClause(self, *kids):
+        "%reduce SetClause"
+        self.val = [kids[0].val]
+
+    def reduce_SetClauseList_COMMA_SetClause(self, *kids):
+        "%reduce SetClauseList COMMA SetClause"
+        self.val = kids[0].val + [kids[2].val]
+
+
+class SetClause(Nonterm):
+    def reduce_SetTarget_EQUALS_Expr(self, *kids):
+        "%reduce SetTarget EQUALS Expr"
+        self.val = qlast.UpdateExprNode(expr=kids[0].val, value=kids[2].val)
+
+
+class SetTarget(Nonterm):
+    def reduce_NodeName(self, *kids):
+        "%reduce NodeName"
+        self.val = kids[0].val
+
+
+class DeleteStmt(Nonterm):
+    def reduce_DeleteStmt(self, *kids):
+        "%reduce OptNsDecl DELETE Path OptWhereClause OptReturningClause"
+        self.val = qlast.DeleteQueryNode(
+            namespaces = kids[0].val,
+            subject = kids[2].val,
+            where = kids[3].val,
+            targets = kids[4].val
+        )
+
+
+class ReturningClause(Nonterm):
+    def reduce_RETURNING_SelectTargetList(self, *kids):
+        "%reduce RETURNING SelectTargetList"
+        self.val = kids[1].val
+
+
+class OptReturningClause(Nonterm):
+    def reduce_ReturningClause(self, *kids):
+        "%reduce ReturningClause"
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        "%reduce <e>"
+        self.val = None
 
 
 class SelectStmt(Nonterm):
@@ -316,8 +391,8 @@ class CgeList(Nonterm):
 
 
 class Cge(Nonterm):
-    def reduce_AnchorName_AS_LPAREN_SelectNoParens_RPAREN(self, *kids):
-        "%reduce AnchorName AS LPAREN SelectNoParens RPAREN"
+    def reduce_AnchorName_AS_LPAREN_SelectStmt_RPAREN(self, *kids):
+        "%reduce AnchorName AS LPAREN SelectStmt RPAREN"
         self.val = qlast.CGENode(expr=kids[3].val, alias=kids[0].val)
 
 
@@ -343,15 +418,37 @@ class SimpleSelect(Nonterm):
 
     def reduce_UNION(self, *kids):
         "%reduce SelectClause UNION OptAll SelectClause"
-        raise CaosQLQueryError('union/intersect/except queries are not supported yet')
+        self.val = qlast.SelectQueryNode(
+            op=qlast.UNION,
+            op_larg=kids[0].val,
+            op_rarg=kids[3].val
+        )
 
     def reduce_INTERSECT(self, *kids):
         "%reduce SelectClause INTERSECT OptAll SelectClause"
-        raise CaosQLQueryError('union/intersect/except queries are not supported yet')
+        self.val = qlast.SelectQueryNode(
+            op=qlast.INTERSECT,
+            op_larg=kids[0].val,
+            op_rarg=kids[3].val
+        )
 
     def reduce_EXCEPT(self, *kids):
         "%reduce SelectClause EXCEPT OptAll SelectClause"
-        raise CaosQLQueryError('union/intersect/except queries are not supported yet')
+        self.val = qlast.SelectQueryNode(
+            op=qlast.EXCEPT,
+            op_larg=kids[0].val,
+            op_rarg=kids[3].val
+        )
+
+
+class OptNsDecl(Nonterm):
+    def reduce_NsDecl(self, *kids):
+        "%reduce NsDecl"
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        "%reduce <e>"
+        self.val = None
 
 
 class NsDecl(Nonterm):
@@ -449,7 +546,9 @@ class SelectPointerSpec(Nonterm):
 
     def reduce_AT_AnyFqLinkPropName(self, *kids):
         "%reduce AT AnyFqLinkPropName"
-        self.val = qlast.SelectPathSpecNode(expr=kids[1].val)
+        self.val = qlast.SelectPathSpecNode(
+            expr=qlast.LinkExprNode(expr=kids[1].val)
+        )
 
     def reduce_PointerSpecSetExpr_OptSelectPathSpec(self, *kids):
         "%reduce PointerSpecSetExpr OptPointerRecursionSpec OptSelectPathSpec"
@@ -459,14 +558,20 @@ class SelectPointerSpec(Nonterm):
 
 
 class PointerSpecSetExpr(Nonterm):
-    def reduce_ParenthesizedQualifiedLinkedSetExpr(self, *kids):
-        "%reduce ParenthesizedQualifiedLinkedSetExpr"
+    def reduce_ParenthesizedTransformedLinkedSetExpr(self, *kids):
+        "%reduce ParenthesizedTransformedLinkedSetExpr"
         self.val = kids[0].val
 
     def reduce_SimpleFqLinkExpr(self, *kids):
         "%reduce SimpleFqLinkExpr"
         self.val = qlast.SelectPathSpecNode(
-            expr=kids[0].val
+            expr=qlast.LinkExprNode(expr=kids[0].val)
+        )
+
+    def reduce_TYPE_INDIRECTION_SubpathNoParens(self, *kids):
+        "%reduce TYPE_INDIRECTION SubpathNoParens"
+        self.val = qlast.SelectTypeRefNode(
+            attrs=kids[1].val
         )
 
 
@@ -474,35 +579,29 @@ class QualifiedLinkedSetExpr(Nonterm):
     def reduce_SimpleFqLinkExpr(self, *kids):
         "%reduce SimpleFqLinkExpr"
         self.val = qlast.SelectPathSpecNode(
-            expr=kids[0].val
+            expr=qlast.LinkExprNode(expr=kids[0].val)
         )
 
     def reduce_SimpleFqLinkExpr_WhereClause(self, *kids):
         "%reduce SimpleFqLinkExpr WhereClause"
         self.val = qlast.SelectPathSpecNode(
-            expr=kids[0].val,
+            expr=qlast.LinkExprNode(expr=kids[0].val),
             where=kids[1].val
         )
 
-    def reduce_SimpleFqLinkExpr_SortClause(self, *kids):
-        "%reduce SimpleFqLinkExpr SortClause"
-        self.val = qlast.SelectPathSpecNode(
-            expr=kids[0].val,
-            orderby=kids[1].val
-        )
 
-    def reduce_SimpleFqLinkExpr_WhereClause_SortClause(self, *kids):
-        "%reduce SimpleFqLinkExpr WhereClause SortClause"
-        self.val = qlast.SelectPathSpecNode(
-            expr=kids[0].val,
-            where=kids[1].val,
-            orderby=kids[2].val
-        )
+class TransformedLinkedSetExpr(Nonterm):
+    def reduce_QualifiedLinkedSetExpr_OptSortClause(self, *kids):
+        "%reduce QualifiedLinkedSetExpr OptSortClause OptSelectLimit"
+        self.val = kids[0].val
+        self.val.orderby = kids[1].val
+        self.val.offset = kids[2].val[0]
+        self.val.limit = kids[2].val[1]
 
 
-class ParenthesizedQualifiedLinkedSetExpr(Nonterm):
-    def reduce_LPAREN_QualifiedLinkedSetExpr_RPAREN(self, *kids):
-        "%reduce LPAREN QualifiedLinkedSetExpr RPAREN"
+class ParenthesizedTransformedLinkedSetExpr(Nonterm):
+    def reduce_LPAREN_TransformedLinkedSetExpr_RPAREN(self, *kids):
+        "%reduce LPAREN TransformedLinkedSetExpr RPAREN"
         self.val = kids[1].val
 
 
@@ -888,13 +987,12 @@ class Expr(Nonterm):
 
     def reduce_Expr_IS_NONE(self, *kids):
         "%reduce Expr IS NONE"
-        right = qlast.ConstantNode(value=None)
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IS, right=right)
+        self.val = qlast.NoneTestNode(expr=kids[0].val)
 
     def reduce_Expr_IS_NOT_NONE(self, *kids):
         "%reduce Expr IS NOT NONE"
-        right = qlast.ConstantNode(value=None)
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IS_NOT, right=right)
+        nt = qlast.NoneTestNode(expr=kids[0].val)
+        self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=nt)
 
     def reduce_Expr_IS_IsExpr(self, *kids):
         "%reduce Expr IS IsExpr [P_IS]"
@@ -950,6 +1048,10 @@ class IsExpr(Nonterm):
 
     def reduce_FqNodeName(self, *kids):
         "%reduce FqNodeName"
+        self.val = kids[0].val
+
+    def reduce_ArgConstant(self, *kids):
+        "%reduce ArgConstant"
         self.val = kids[0].val
 
 
@@ -1054,8 +1156,8 @@ class PathSimple(Nonterm):
         if kids[1].val:
             self.val += kids[1].val
 
-    def reduce_FuncExpr_SubpathNoParens(self, *kids):
-        "%reduce FuncExpr SubpathNoParens"
+    def reduce_FuncApplication_SubpathNoParens(self, *kids):
+        "%reduce FuncApplication SubpathNoParens"
         self.val = [kids[0].val] + kids[1].val
 
 
@@ -1136,14 +1238,24 @@ class Anchor(Nonterm):
 
 
 class PathStepSimple(Nonterm):
-    def reduce_DOT_PathExpr(self, *kids):
-        "%reduce DOT PathExpr"
+    def reduce_DOT_PathExprOrType(self, *kids):
+        "%reduce DOT PathExprOrType"
         self.val = qlast.LinkExprNode(expr=kids[1].val)
 
     def reduce_AT_PathExpr(self, *kids):
         "%reduce AT PathExpr"
         self.val = qlast.LinkPropExprNode(expr=kids[1].val)
         kids[1].val.type = 'property'
+
+
+class PathExprOrType(Nonterm):
+    def reduce_PathExpr(self, *kids):
+        "%reduce PathExpr"
+        self.val = kids[0].val
+
+    def reduce_TYPE_INDIRECTION(self, *kids):
+        "%reduce TYPE_INDIRECTION"
+        self.val = qlast.TypeIndirection()
 
 
 class PathExpr(Nonterm):
@@ -1204,7 +1316,7 @@ class SimpleFqLinkExpr(Nonterm):
 
 
 class OptLinkTargetExpr(Nonterm):
-    def reduce_AnyFqNodeName_LPAREN_NodeName_RPAREN(self, *kids):
+    def reduce_LPAREN_AnyFqNodeName_RPAREN(self, *kids):
         "%reduce LPAREN AnyFqNodeName RPAREN"
         self.val = kids[1].val
 
@@ -1223,7 +1335,7 @@ class LinkDirection(Nonterm):
         self.val = caos_types.OutboundDirection
 
 
-class FuncExpr(Nonterm):
+class FuncApplication(Nonterm):
     def reduce_CAST_LPAREN_Expr_AS_TypeName_RPAREN(self, *kids):
         "%reduce CAST LPAREN Expr AS TypeName RPAREN"
         self.val = qlast.TypeCastNode(expr=kids[2].val, type=kids[4].val)
@@ -1248,13 +1360,59 @@ class FuncExpr(Nonterm):
             self.val = qlast.FunctionCallNode(func=func_name, args=args, agg_sort=kids[3].val)
 
 
-class FuncArgList(Nonterm):
+class FuncExpr(Nonterm):
+    def reduce_FuncApplication_OptOverClause(self, *kids):
+        "%reduce FuncApplication OptOverClause"
+        self.val = kids[0].val
+        self.val.window = kids[1].val
+
+
+class OptOverClause(Nonterm):
+    def reduce_OVER_WindowSpec(self, *kids):
+        "%reduce OVER WindowSpec"
+        self.val = kids[1].val
+
+    def reduce_empty(self, *kids):
+        "%reduce <e>"
+        self.val = None
+
+
+class WindowSpec(Nonterm):
+    def reduce_LPAREN_OptPartitionClause_OptSortClause_RPAREN(self, *kids):
+        "%reduce LPAREN OptPartitionClause OptSortClause RPAREN"
+        self.val = qlast.WindowSpecNode(
+                        partition=kids[1].val,
+                        orderby=kids[2].val
+                   )
+
+
+class OptPartitionClause(Nonterm):
+    def reduce_PARTITION_BY_ExprList(self, *kids):
+        "%reduce PARTITION BY ExprList"
+        self.val = kids[2].val
+
+    def reduce_empty(self, *kids):
+        "%reduce <e>"
+        self.val = None
+
+
+class FuncArgExpr(Nonterm):
     def reduce_Expr(self, *kids):
         "%reduce Expr"
+        self.val = kids[0].val
+
+    def reduce_ParamName_COLONEQUALS_Expr(self, *kids):
+        "%reduce ParamName COLONEQUALS Expr"
+        self.val = qlast.NamedArgNode(name=kids[0].val, arg=kids[2].val)
+
+
+class FuncArgList(Nonterm):
+    def reduce_FuncArgExpr(self, *kids):
+        "%reduce FuncArgExpr"
         self.val = [kids[0].val]
 
     def reduce_FuncArgList_COMMA_Expr(self, *kids):
-        "%reduce FuncArgList COMMA Expr"
+        "%reduce FuncArgList COMMA FuncArgExpr"
         self.val = kids[0].val + [kids[2].val]
 
     def reduce_empty(self, *kids):
@@ -1418,6 +1576,16 @@ class SimpleArgName(Nonterm):
 
     def reduce_ReservedKeyword(self, *kids):
         "%reduce ReservedKeyword"
+        self.val = kids[0].val
+
+
+class ParamName(Nonterm):
+    def reduce_IDENT(self, *kids):
+        "%reduce IDENT"
+        self.val = kids[0].val
+
+    def reduce_UnreservedKeyword(self, *kids):
+        "%reduce UnreservedKeyword"
         self.val = kids[0].val
 
 

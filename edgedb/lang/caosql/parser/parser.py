@@ -38,12 +38,11 @@ class CaosQLParser(parsing.Parser):
 
     def normalize_select_query(self, query, filters=None, sort=None, limit=None,
                                      offset=None, anchors=None):
-        nodetype = type(query)
         arg_types = {}
 
         qtree = query
 
-        if nodetype != qlast.SelectQueryNode:
+        if not isinstance(query, qlast.StatementNode):
             selnode = qlast.SelectQueryNode()
             selnode.targets = [qlast.SelectExprNode(expr=qtree)]
             qtree = selnode

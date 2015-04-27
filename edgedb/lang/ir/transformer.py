@@ -101,7 +101,7 @@ class TreeTransformer:
                 self.extract_prefixes(path, prefixes)
 
         elif isinstance(expr, (caos_ast.EntitySet, caos_ast.AtomicRefSimple)):
-            key = getattr(expr, 'pathvar', None) or expr.id
+            key = expr.get_id()
 
             if key:
                 # XXX AtomicRefs with PathCombinations in ref don't have an id
@@ -180,10 +180,6 @@ class TreeTransformer:
 
         elif isinstance(expr, caos_ast.SubgraphRef):
             self.extract_prefixes(expr.ref, prefixes)
-
-        elif isinstance(expr, caos_ast.SearchVector):
-            for ref in expr.items:
-                self.extract_prefixes(ref.ref, prefixes)
 
         else:
             assert False, 'unexpected node: "%r"' % expr
@@ -299,10 +295,6 @@ class TreeTransformer:
 
         elif isinstance(expr, caos_ast.SubgraphRef):
             self.apply_fixups(expr.ref)
-
-        elif isinstance(expr, caos_ast.SearchVector):
-            for ref in expr.items:
-                self.apply_fixups(ref.ref)
 
         else:
             assert False, 'unexpected node: "%r"' % expr
@@ -543,10 +535,6 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.SubgraphRef):
             self.apply_rewrites(expr.ref)
 
-        elif isinstance(expr, caos_ast.SearchVector):
-            for ref in expr.items:
-                self.apply_rewrites(ref.ref)
-
         else:
             assert False, 'unexpected node: "%r"' % expr
 
@@ -619,9 +607,9 @@ class TreeTransformer:
                     if isinstance(ps.ptr_proto, caos_types.ProtoLink):
                         recurse_links[ps.ptr_proto.normal_name(), ps.ptr_direction] = ps
 
-                    elif isinstance(ps.ptr_proto, str):
+                    elif isinstance(ps.ptr_proto, caos_types.ProtoTypeProperty):
                         # metaref
-                        recurse_metarefs.append(ps.ptr_proto)
+                        recurse_metarefs.append(ps.ptr_proto.normal_name().name)
 
             if recurse_links is None:
                 recurse_links = {(pn, caos_types.OutboundDirection):
@@ -710,7 +698,7 @@ class TreeTransformer:
                         sort_target = self.copy_path(sortpath)
 
                         if isinstance(sortpath, caos_ast.LinkPropRef):
-                            if sortpath.ref.link_proto == link_node.link_proto:
+                            if sortpath.ref.link_proto.normal_name() == link_node.link_proto.normal_name():
                                 sort_target.ref = link_node
                                 link_node.proprefs.add(sort_target)
                             else:
@@ -723,7 +711,7 @@ class TreeTransformer:
                                                             target=sort_target,
                                                             link_proto=sortpath_link.link_proto,
                                                             direction=sortpath_link.direction,
-                                                            users=sortpath_link.users)
+                                                            users=sortpath_link.users.copy())
 
                             sort_target.rlink = sort_link
                             sort_source.atomrefs.add(sort_target)
@@ -738,7 +726,8 @@ class TreeTransformer:
                             newstep = caos_ast.AtomicRefSimple(ref=lref, name=link_name,
                                                                id=full_path_id,
                                                                ptr_proto=link_proto,
-                                                               rlink=link_node)
+                                                               rlink=link_node,
+                                                               users=link_node.users.copy())
                             link_node.target = newstep
                             atomrefs.append(newstep)
                     else:
@@ -1119,10 +1108,6 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.SubgraphRef):
             pass
 
-        elif isinstance(expr, caos_ast.SearchVector):
-            for ref in expr.items:
-                self.reorder_aggregates(ref.ref)
-
         else:
             # All other nodes fall through
             assert False, 'unexpected node "%r"' % expr
@@ -1228,10 +1213,6 @@ class TreeTransformer:
 
         elif isinstance(expr, caos_ast.SelectorExpr):
             self.link_subqueries(expr.expr)
-
-        elif isinstance(expr, caos_ast.SearchVector):
-            for ref in expr.items:
-                self.link_subqueries(ref.ref)
 
         else:
             # All other nodes fall through
@@ -1438,24 +1419,6 @@ class TreeTransformer:
 
         elif isinstance(expr, caos_ast.SubgraphRef):
             pass
-
-        elif isinstance(expr, caos_ast.SearchVector):
-            refs = []
-            for elem in expr.items:
-                elem.ref = self.merge_paths(elem.ref)
-                refs.append(elem.ref)
-
-            if len(refs) > 1:
-                # Make sure that all refs in search vector are merged with each other
-                # properly.
-                #
-                paths = []
-                for ref in refs:
-                    path = self.extract_paths(ref, reverse=True)
-                    if path:
-                        paths.append(path)
-                e = caos_ast.Conjunction(paths=frozenset(paths))
-                self.flatten_and_unify_path_combination(e)
 
         else:
             assert False, 'unexpected node "%r"' % expr
@@ -2254,21 +2217,6 @@ class TreeTransformer:
         elif isinstance(path, caos_ast.Constant):
             return None
 
-        elif isinstance(path, caos_ast.SearchVector):
-            paths = set()
-            for p in path.items:
-                p = cls.extract_paths(p.ref, reverse, resolve_arefs, recurse_subqueries,
-                                      all_fragments, extract_subgraph_refs)
-                if p:
-                    paths.add(p)
-
-            if len(paths) == 1:
-                return next(iter(paths))
-            elif len(paths) == 0:
-                return None
-            else:
-                return caos_ast.Disjunction(paths=frozenset(paths))
-
         else:
             assert False, 'unexpected node "%r"' % path
 
@@ -2362,7 +2310,7 @@ class TreeTransformer:
 
     def process_function_call(self, node):
         if node.name in (('search', 'rank'), ('search', 'headline')):
-            if not isinstance(node.args[0], caos_ast.SearchVector):
+            if not isinstance(node.args[0], caos_ast.Sequence):
                 refs = set()
                 for arg in node.args:
                     if isinstance(arg, caos_ast.EntitySet):
@@ -2619,10 +2567,7 @@ class TreeTransformer:
         left_paths = self.extract_paths(left, reverse=False, resolve_arefs=False,
                                               extract_subgraph_refs=True)
 
-        if isinstance(left, caos_ast.SearchVector):
-            result = newbinop(left, right, uninline=True)
-
-        elif isinstance(left_paths, caos_ast.Path):
+        if isinstance(left_paths, caos_ast.Path):
             # If both left and right operands are references to atoms of the same node,
             # or one of the operands is a reference to an atom and other is a constant,
             # then fold the expression into an in-line filter of that node.
@@ -2798,9 +2743,9 @@ class TreeTransformer:
 
                             for ref in left_exprs.paths:
                                 if isinstance(ref, caos_ast.AtomicRef):
-                                    left_id = ref.ref.id
+                                    left_id = ref.ref.get_id()
                                 else:
-                                    left_id = ref.id
+                                    left_id = ref.get_id()
 
                                 right_expr = rightdict.get(left_id)
 
@@ -2955,15 +2900,14 @@ class TreeTransformer:
             else:
                 concept = expr.ref.concept
 
-            sources, outbound, inbound = concept.resolve_pointer(schema, expr.name,
-                                                                look_in_children=True)
-            assert sources, '"%s" is not a link of "%s"' % (expr.name, concept.name)
-            targets = [l.target for linkset in outbound for l in linkset]
+            ptr = concept.resolve_pointer(schema, expr.name,
+                                          look_in_children=True)
+            if not ptr:
+                msg = ('[{source}].[{link_name}] does not '
+                       'resolve to any known path')
+                msg = msg.format(source=concept.name, link_name=expr.name)
 
-            if len(targets) == 1:
-                result = targets[0]
-            else:
-                result = caos_utils.get_prototype_nearest_common_ancestor(targets)
+            result = ptr.target
 
         elif isinstance(expr, caos_ast.LinkPropRefSimple):
             if isinstance(expr.ref, caos_ast.PathCombination):
@@ -3146,7 +3090,7 @@ class PathResolver(TreeTransformer):
 
         if path.conjunction and path.conjunction.paths:
             for ptr in path.conjunction.paths:
-                if (ptr.target and ptr.target.filter
+                if (ptr.target and getattr(ptr.target, 'filter', None)
                         and (ptr.target.origin or ptr.target) not in context.current.included_filters):
                     qual = self._serialize_filter(context, ptr.target.filter)
                     quals.append(qual)
@@ -3302,9 +3246,7 @@ class PathResolver(TreeTransformer):
                 atom_name = 'metamagic.caos.builtins.str'
 
             source = self._exec_cmd(args[0], class_factory)
-            metadata = dict(source_expr=getattr(caos_expr.type(source), args[1]))
-            atom = class_factory.get_class(atom_name)
-            result = atom._copy_(metadata=metadata)
+            result = getattr(caos_expr.type(source), args[1])
 
         elif cmd == 'step':
             source = self._exec_cmd(args[0], class_factory)
@@ -3416,9 +3358,7 @@ class PathResolver(TreeTransformer):
             result = []
 
             for e in expr:
-                metadata = dict(source_expr=getattr(caos_expr.type(e), path.name))
-                atom = class_factory.get_class(atom_name)
-                result.append(atom._copy_(metadata=metadata))
+                result.append(getattr(caos_expr.type(e), path.name))
 
         elif isinstance(path, caos_ast.AtomicRefSimple):
             expr = self._resolve_path(path.ref, class_factory)
