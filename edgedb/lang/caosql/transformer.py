@@ -1022,18 +1022,35 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 else:
                     target_proto = ptr.target
 
-                node = tree.ast.PtrPathSpec(ptr_proto=ptr, ptr_direction=ptr_direction,
-                                            recurse=recurse, target_proto=target_proto)
+                if ptrspec.where:
+                    with context():
+                        context.current.location = 'generator'
+                        generator = self._process_expr(context, ptrspec.where)
+                else:
+                    generator = None
+
+                if ptrspec.orderby:
+                    sorter = self._process_sorter(context, ptrspec.orderby)
+                else:
+                    sorter = None
+
+                node = tree.ast.PtrPathSpec(
+                            ptr_proto=ptr, ptr_direction=ptr_direction,
+                            recurse=recurse, target_proto=target_proto,
+                            generator=generator, sorter=sorter)
 
                 if ptrspec.pathspec is not None:
-                    node.pathspec = self._process_pathspec(context, target_proto,
-                                                           ptr, ptrspec.pathspec)
+                    node.pathspec = self._process_pathspec(
+                                        context, target_proto,
+                                        ptr, ptrspec.pathspec)
                 else:
                     node.pathspec = None
 
-                result = self._merge_pathspecs(result, [node], target_most_generic=False)
+                result = self._merge_pathspecs(result, [node],
+                                               target_most_generic=False)
 
-        self._normalize_pathspec_recursion(result, source, context.current.proto_schema)
+        self._normalize_pathspec_recursion(result, source,
+                                           context.current.proto_schema)
 
         return result
 
@@ -1553,6 +1570,9 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 for sorter in sorters:
                     expr = self._process_expr(context, sorter.path)
                     expr = self.merge_paths(expr)
+                    if isinstance(expr, tree.ast.PathCombination):
+                        assert len(expr.paths) == 1
+                        expr = next(iter(expr.paths))
                     s = tree.ast.SortExpr(expr=expr, direction=sorter.direction,
                                           nones_order=sorter.nones_order)
                     result.append(s)

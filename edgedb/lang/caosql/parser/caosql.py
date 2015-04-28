@@ -422,6 +422,16 @@ class SelectPathSpec(Nonterm):
         self.val = kids[1].val
 
 
+class OptSelectPathSpec(Nonterm):
+    def reduce_SelectPathSpec(self, *kids):
+        "%reduce SelectPathSpec"
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        "%reduce <e>"
+        self.val = None
+
+
 class SelectPointerSpecList(Nonterm):
     def reduce_SelectPointerSpec(self, *kids):
         "%reduce SelectPointerSpec"
@@ -437,17 +447,63 @@ class SelectPointerSpec(Nonterm):
         "%reduce PointerGlob"
         self.val = kids[0].val
 
-    def reduce_SimpleFqLinkExpr_OptPointerRecursionSpec(self, *kids):
-        "%reduce SimpleFqLinkExpr OptPointerRecursionSpec"
-        self.val = qlast.SelectPathSpecNode(expr=kids[0].val, recurse=kids[1].val)
-
     def reduce_AT_AnyFqLinkPropName(self, *kids):
         "%reduce AT AnyFqLinkPropName"
         self.val = qlast.SelectPathSpecNode(expr=kids[1].val)
 
-    def reduce_SimpleFqLinkExpr_SelectPathSpec(self, *kids):
-        "%reduce SimpleFqLinkExpr SelectPathSpec"
-        self.val = qlast.SelectPathSpecNode(expr=kids[0].val, pathspec=kids[1].val)
+    def reduce_PointerSpecSetExpr_OptSelectPathSpec(self, *kids):
+        "%reduce PointerSpecSetExpr OptPointerRecursionSpec OptSelectPathSpec"
+        self.val = kids[0].val
+        self.val.recurse = kids[1].val
+        self.val.pathspec = kids[2].val
+
+
+class PointerSpecSetExpr(Nonterm):
+    def reduce_ParenthesizedQualifiedLinkedSetExpr(self, *kids):
+        "%reduce ParenthesizedQualifiedLinkedSetExpr"
+        self.val = kids[0].val
+
+    def reduce_SimpleFqLinkExpr(self, *kids):
+        "%reduce SimpleFqLinkExpr"
+        self.val = qlast.SelectPathSpecNode(
+            expr=kids[0].val
+        )
+
+
+class QualifiedLinkedSetExpr(Nonterm):
+    def reduce_SimpleFqLinkExpr(self, *kids):
+        "%reduce SimpleFqLinkExpr"
+        self.val = qlast.SelectPathSpecNode(
+            expr=kids[0].val
+        )
+
+    def reduce_SimpleFqLinkExpr_WhereClause(self, *kids):
+        "%reduce SimpleFqLinkExpr WhereClause"
+        self.val = qlast.SelectPathSpecNode(
+            expr=kids[0].val,
+            where=kids[1].val
+        )
+
+    def reduce_SimpleFqLinkExpr_SortClause(self, *kids):
+        "%reduce SimpleFqLinkExpr SortClause"
+        self.val = qlast.SelectPathSpecNode(
+            expr=kids[0].val,
+            orderby=kids[1].val
+        )
+
+    def reduce_SimpleFqLinkExpr_WhereClause_SortClause(self, *kids):
+        "%reduce SimpleFqLinkExpr WhereClause SortClause"
+        self.val = qlast.SelectPathSpecNode(
+            expr=kids[0].val,
+            where=kids[1].val,
+            orderby=kids[2].val
+        )
+
+
+class ParenthesizedQualifiedLinkedSetExpr(Nonterm):
+    def reduce_LPAREN_QualifiedLinkedSetExpr_RPAREN(self, *kids):
+        "%reduce LPAREN QualifiedLinkedSetExpr RPAREN"
+        self.val = kids[1].val
 
 
 class OptPointerRecursionSpec(Nonterm):
@@ -504,10 +560,16 @@ class PointerGlobFilter(Nonterm):
         self.val = qlast.PointerGlobFilter(property=kids[1].val, any=True)
 
 
-class OptWhereClause(Nonterm):
+class WhereClause(Nonterm):
     def reduce_WHERE_Expr(self, *kids):
         "%reduce WHERE Expr"
         self.val = kids[1].val
+
+
+class OptWhereClause(Nonterm):
+    def reduce_WhereClause(self, *kids):
+        "%reduce WhereClause"
+        self.val = kids[0].val
 
     def reduce_empty(self, *kids):
         "%reduce <e>"
