@@ -15,7 +15,8 @@ class GeometryMeta(type):
 
         geo_class_id = getattr(result, 'geo_class_id', None)
         geo_class_name = getattr(result, 'geo_class_name', name)
-        if geo_class_id is not None:
+        if (geo_class_id is not None and
+                (mcls, geo_class_id) not in mcls._index_by_class_id):
             if geo_class_name is None:
                 geo_class_name = name
 

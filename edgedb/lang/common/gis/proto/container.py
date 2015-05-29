@@ -23,3 +23,8 @@ class GeometryContainer(Geometry, abc.GeometryContainer):
 
     def __getitem__(self, i):
         return self._elements[i]
+
+    @classmethod
+    def copy(cls, value):
+        return cls(value._elements, dimensions=value.dimensions,
+                                    srid=value.srid)
