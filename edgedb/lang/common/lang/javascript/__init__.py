@@ -53,6 +53,11 @@ class JavaScriptModule(BaseJavaScriptModule, resource.File):
         public_path = name + '.js'
         resource.File.__init__(self, path, public_path=public_path)
 
+    def __sx_resource_get_cache_tag__(self):
+        metadata = getattr(self, '__mm_metadata__', None)
+        if metadata:
+            return metadata.modver
+
 
 class BaseVirtualJavaScriptResource(BaseJavaScriptModule, resource.VirtualFile):
     def __init__(self, source, name):
@@ -72,9 +77,13 @@ class VirtualJavaScriptResource(BaseVirtualJavaScriptResource):
 
 
 class JavaScriptRuntimeDerivative(VirtualJavaScriptResource, lang_runtimes.RuntimeDerivative):
-    def __init__(self, source, name):
+    def __init__(self, source, name, modver=None):
         VirtualJavaScriptResource.__init__(self, source, name)
         lang_runtimes.RuntimeDerivative.__init__(self, name)
+        self._modver = modver
+
+    def __sx_resource_get_cache_tag__(self):
+        return self._modver
 
 
 class JavaScriptDynamicRuntimeDerivative(JavaScriptRuntimeDerivative,
@@ -141,7 +150,7 @@ class JavascriptLoader:
     logger = logging.getLogger('metamagic')
 
     #: version of cache format
-    CACHE_MAGIC_BASE = 3
+    CACHE_MAGIC_BASE = 4
 
     # That's the attribute where the actual magic number will be stored.
     # The magic number depends on the 'CACHE_MAGIC_BASE' constant +
@@ -175,7 +184,7 @@ class JavascriptLoader:
         cls._import_detect_hooks[hook_name] = hook
         cls._recalc_magic()
 
-    def new_cache(self, modname):
+    def create_cache(self, modname):
         return ModuleCache(modname, self)
 
     def cache_path_from_source_path(self, source_path):
@@ -208,7 +217,7 @@ class Language(lang_meta.Language):
         if not len(loader._import_detect_hooks):
             # No import hooks?  We can't find any imports then.
             #
-            return JavascriptCodeObject((), ())
+            return JavascriptCodeObject(None, (), ())
 
         source = stream.read().decode()
 
@@ -224,7 +233,7 @@ class Language(lang_meta.Language):
         if not len(raw_imports):
             # Source was analyzed and no imports found.
             #
-            return JavascriptCodeObject((), ())
+            return JavascriptCodeObject(None, (), ())
 
         is_package = loader.is_package(modname)
 
@@ -266,7 +275,7 @@ class Language(lang_meta.Language):
                 mm = importlib.import_module(name)
 
         return JavascriptCodeObject(None, imports=tuple(imports),
-                                          runtime_imports=tuple(runtime_imports))
+                                    runtime_imports=tuple(runtime_imports))
 
     @classmethod
     def execute_code(cls, code, context):
@@ -276,7 +285,12 @@ class Language(lang_meta.Language):
 class JavaScriptRuntime(lang_runtimes.LanguageRuntime, languages=Language, default=True):
     @classmethod
     def new_derivative(cls, mod):
-        res = JavaScriptRuntimeDerivative(None, cls.get_derivative_mod_name(mod))
+        try:
+            modver = mod.__mm_metadata__.modver
+        except AttributeError:
+            modver = None
+        res = JavaScriptRuntimeDerivative(
+                    None, cls.get_derivative_mod_name(mod), modver)
         res.__language__ = Language
         return res
 
