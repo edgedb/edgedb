@@ -2619,7 +2619,10 @@ class TreeTransformer:
         left_paths = self.extract_paths(left, reverse=False, resolve_arefs=False,
                                               extract_subgraph_refs=True)
 
-        if isinstance(left_paths, caos_ast.Path):
+        if isinstance(left, caos_ast.SearchVector):
+            result = newbinop(left, right, uninline=True)
+
+        elif isinstance(left_paths, caos_ast.Path):
             # If both left and right operands are references to atoms of the same node,
             # or one of the operands is a reference to an atom and other is a constant,
             # then fold the expression into an in-line filter of that node.
@@ -2898,9 +2901,6 @@ class TreeTransformer:
             result = newbinop(left, right, uninline=True)
 
         elif isinstance(left, caos_ast.SubgraphRef):
-            result = newbinop(left, right, uninline=True)
-
-        elif isinstance(left, caos_ast.SearchVector):
             result = newbinop(left, right, uninline=True)
 
         if not result:
