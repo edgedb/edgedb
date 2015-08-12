@@ -348,10 +348,11 @@ class INPLACE_TRUE_DIVIDE(OpCode):
     stack_effect    = -1
 
 
-class STORE_MAP(OpCode):
-    __slots__       = ()
-    code            = 54
-    stack_effect    = -2
+if sys.version_info[:2] < (3, 5):
+    class STORE_MAP(OpCode):
+        __slots__       = ()
+        code            = 54
+        stack_effect    = -2
 
 
 class INPLACE_ADD(OpCode):
@@ -437,6 +438,11 @@ if sys.version_info[:2] <= (3, 3):
         __slots__       = ()
         code            = 69
         stack_effect    = -1
+elif sys.version_info[:2] >= (3, 5):
+    class GET_YIELD_FROM_ITER(OpCode):
+        __slots__       = ()
+        code            = 69
+        stack_effect    = 0
 
 
 class PRINT_EXPR(OpCode):
@@ -494,10 +500,21 @@ class BREAK_LOOP(OpCode):
     stack_effect    = 0
 
 
-class WITH_CLEANUP(OpCode):
-    __slots__       = ()
-    code            = 81
-    stack_effect    = -1 # XXX: Sometimes more
+if sys.version_info[:2] < (3, 5):
+    class WITH_CLEANUP(OpCode):
+        __slots__       = ()
+        code            = 81
+        stack_effect    = -1 # XXX: Sometimes more
+else:
+    class WITH_CLEANUP_START(OpCode):
+        __slots__       = ()
+        code            = 81
+        stack_effect    = 1
+
+    class WITH_CLEANUP_FINISH(OpCode):
+        __slots__       = ()
+        code            = 82
+        stack_effect    = -1
 
 
 class RETURN_VALUE(OpCode):
