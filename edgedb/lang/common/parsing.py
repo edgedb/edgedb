@@ -194,17 +194,25 @@ class Parser:
         return ParserError(native_err.args[0], context=context)
 
     def get_parser_spec(self):
-        mod = self.get_parser_spec_module()
-        self.__class__.parser_spec = parsing.Spec(
-                                                mod,
-                                                pickleFile=self.localpath(mod, "pickle"),
-                                                skinny=not self.get_debug(),
-                                                logFile=self.localpath(mod, "log"),
-                                                #graphFile=self.localpath(mod, "dot"),
-                                                verbose=self.get_debug())
+        cls = self.__class__
 
-    def get_specs(self):
-        self.get_parser_spec()
+        try:
+            spec = cls.__dict__['parser_spec']
+        except KeyError:
+            pass
+        else:
+            if spec is not None:
+                return spec
+
+        mod = self.get_parser_spec_module()
+        spec = parsing.Spec(mod,
+                            pickleFile=self.localpath(mod, "pickle"),
+                            skinny=not self.get_debug(),
+                            logFile=self.localpath(mod, "log"),
+                            verbose=self.get_debug())
+
+        self.__class__.parser_spec = spec
+        return spec
 
     def localpath(self, mod, type):
         return os.path.join(os.path.dirname(mod.__file__), mod.__name__.rpartition('.')[2] + '.' + type)
@@ -219,12 +227,9 @@ class Parser:
         raise NotImplementedError
 
     def reset_parser(self, input):
-        if getattr(self.__class__, 'parser_spec', None) is None:
-            self.get_specs()
-
         if not self.parser:
             self.lexer = self.get_lexer()
-            self.parser = parsing.Lr(self.__class__.parser_spec)
+            self.parser = parsing.Lr(self.get_parser_spec())
             self.parser.parser_data = self.parser_data
             self.parser.verbose = self.get_debug()
 
