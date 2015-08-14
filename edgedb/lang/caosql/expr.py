@@ -23,7 +23,7 @@ from . import errors
 
 class CaosQLExpression:
     def __init__(self, proto_schema, module_aliases=None):
-        self.parser = parser.CaosQLParser.instance
+        self.parser = parser.CaosQLParser()
         self.module_aliases = module_aliases
         self.proto_schema = proto_schema
         self.transformer = transformer.CaosqlTreeTransformer(proto_schema, module_aliases)
