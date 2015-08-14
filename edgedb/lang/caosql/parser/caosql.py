@@ -1143,6 +1143,7 @@ class PathStepSimple(Nonterm):
     def reduce_AT_PathExpr(self, *kids):
         "%reduce AT PathExpr"
         self.val = qlast.LinkPropExprNode(expr=kids[1].val)
+        kids[1].val.type = 'property'
 
 
 class PathExpr(Nonterm):
