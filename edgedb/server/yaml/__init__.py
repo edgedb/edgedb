@@ -2258,9 +2258,6 @@ class EntityShell(LangObject, adapts=caos.concept.EntityShell,
 class EntityShell2(LangObject, adapts=caos.concept.EntityShell2,
                                metaclass=EntityShellMeta):
 
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-
     def _construct(self, concept):
         ent_context = lang_context.SourceContext.from_object(self)
         aliases = {alias: mod.__name__
@@ -2273,7 +2270,9 @@ class EntityShell2(LangObject, adapts=caos.concept.EntityShell2,
             linkcls = caos.concept.getlink(self.entity, link_name, target)
             linkcls.update(**link_properties)
 
-        ent_context.document.import_context.entities.append(self.entity)
+        imp_ctx = ent_context.document.import_context
+        imp_ctx.entities.append(self.entity)
+        imp_ctx.unconstructed_entities.discard(self)
 
     def _process_expr(self, expr):
         ent_context = lang_context.SourceContext.from_object(self)
@@ -2328,6 +2327,9 @@ class EntityShell2(LangObject, adapts=caos.concept.EntityShell2,
 
     def __sx_setstate__(self, data):
         caos.concept.EntityShell2.__init__(self)
+        ent_ctx = lang_context.SourceContext.from_object(self)
+        imp_ctx = ent_ctx.document.import_context
+        imp_ctx.unconstructed_entities.add(self)
 
         links = self.links = {}
         props = self.props = {}
@@ -2344,10 +2346,6 @@ class EntityShell2(LangObject, adapts=caos.concept.EntityShell2,
                 links[link_name].append(target)
                 if lspec.attrs:
                     props[link_name, target] = lspec.attrs
-
-        entity = getattr(self, 'entity', None)
-        if entity is not None:
-            ent_context.document.import_context.entities.append(entity)
 
 
 class ProtoSchema(LangObject, adapts=proto.ProtoSchema):
@@ -2389,12 +2387,17 @@ class DataSet(LangObject):
 class DataSet2(LangObject):
     def __sx_setstate__(self, data):
         context = lang_context.SourceContext.from_object(self)
-        session = context.document.import_context.session
+        imp_ctx = context.document.import_context
+        session = imp_ctx.session
 
         with session.transaction():
             for clsname, shell in data:
                 shell._construct(clsname)
-                context.document.import_context.entities.append(shell.entity)
+
+            if imp_ctx.unconstructed_entities:
+                entity = next(iter(imp_ctx.unconstructed_entities))
+                e_ctx = lang_context.SourceContext.from_object(entity)
+                raise MetaError('invalid link target', context=e_ctx)
 
             for entity in context.document.import_context.entities:
                 entity.__class__.materialize_links(entity, None)
@@ -2419,6 +2422,7 @@ class FixtureImportContext(importkit.ImportContext):
         result = super().__new__(cls, name, loader=loader)
         result.session = session
         result.entities = entities if entities is not None else []
+        result.unconstructed_entities = set()
         return result
 
     def __init__(self, name, *, loader=None, session=None, entities=None):
