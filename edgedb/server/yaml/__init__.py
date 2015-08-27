@@ -2291,14 +2291,16 @@ class EntityShell2(LangObject, adapts=caos.concept.EntityShell2,
         try:
             entity = next(selector_iter)
         except StopIteration:
-            raise MetaError('query expressions must return a single entity')
+            msg = 'query returned zero results, expecting exactly one'
+            raise MetaError(msg, details=expr, context=ent_context)
 
         try:
             next(selector_iter)
         except StopIteration:
             pass
         else:
-            raise MetaError('query expressions must return a single entity')
+            msg = 'query returned multiple results, expecting exactly one'
+            raise MetaError(msg, details=expr, context=ent_context)
 
         return entity
 
