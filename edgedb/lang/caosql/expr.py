@@ -45,7 +45,11 @@ class CaosQLExpression:
         return codegen.CaosQLSourceGenerator.to_source(tree)
 
     def normalize_tree(self, tree, module_aliases=None, anchors=None, inline_anchors=False):
-        tree, arg_types = self.parser.normalize_select_query(tree)
+        if not isinstance(tree, caosql_ast.StatementNode):
+            selnode = caosql_ast.SelectQueryNode()
+            selnode.targets = [caosql_ast.SelectExprNode(expr=tree)]
+            tree = selnode
+
         caos_tree = self.transformer.transform(tree, (), module_aliases=module_aliases,
                                                          anchors=anchors)
         caosql_tree = self.reverse_transformer.transform(caos_tree, inline_anchors=inline_anchors)
@@ -61,25 +65,12 @@ class CaosQLExpression:
         return self.transformer.transform_fragment(tree, (), anchors=anchors, location=location)
 
     @debug.debug
-    def transform_expr(self, expr, anchors=None, arg_types=None,
-                             result_filters=None, result_sort=None):
+    def transform_expr(self, expr, anchors=None, arg_types=None):
         """LOG [caos.query] CaosQL query:
         print(expr)
         """
 
         caosql_tree = self.parser.parse(expr)
-
-        if result_filters is not None or result_sort is not None:
-            caosql_tree, aux_arg_types = self.parser.normalize_select_query(
-                                            caosql_tree, anchors=anchors,
-                                            filters=result_filters,
-                                            sort=result_sort
-                                         )
-        else:
-            aux_arg_types = {}
-
-        if arg_types:
-            aux_arg_types.update(arg_types)
 
         """LOG [caos.query] CaosQL tree:
         from metamagic.utils import markup
@@ -91,7 +82,7 @@ class CaosQLExpression:
             selnode.targets = [caosql.ast.SelectExprNode(expr=caosql_tree)]
             caosql_tree = selnode
 
-        query_tree = self.transformer.transform(caosql_tree, aux_arg_types,
+        query_tree = self.transformer.transform(caosql_tree, arg_types,
                                                 module_aliases=self.module_aliases,
                                                 anchors=anchors)
         """LOG [caos.query] Caos tree:
