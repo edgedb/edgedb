@@ -724,6 +724,10 @@ class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
 
             result = qlast.TypeCastNode(expr=self._process_expr(context, expr.expr), type=typ)
 
+        elif isinstance(expr, tree.ast.NoneTest):
+            arg = self._process_expr(context, expr.expr)
+            result = qlast.NoneTestNode(expr=arg)
+
         else:
             assert False, "Unexpected expression type: %r" % expr
 

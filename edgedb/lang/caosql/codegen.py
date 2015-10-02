@@ -465,3 +465,7 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         self.write('.')
         self.write(node.name)
         self.write(']')
+
+    def visit_NoneTestNode(self, node):
+        self.visit(node.expr)
+        self.write(' IS None')
