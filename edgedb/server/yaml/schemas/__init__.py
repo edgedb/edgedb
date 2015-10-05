@@ -15,7 +15,7 @@ from .semantics import Semantics
 from .delta import Delta
 
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 
 
 class Semantics(Semantics, CachingSchema):
