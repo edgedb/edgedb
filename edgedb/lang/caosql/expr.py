@@ -65,7 +65,8 @@ class CaosQLExpression:
         return self.transformer.transform_fragment(tree, (), anchors=anchors, location=location)
 
     @debug.debug
-    def transform_expr(self, expr, anchors=None, arg_types=None):
+    def transform_expr(self, expr, anchors=None, arg_types=None,
+                                   security_context=None):
         """LOG [caos.query] CaosQL query:
         print(expr)
         """
@@ -82,9 +83,11 @@ class CaosQLExpression:
             selnode.targets = [caosql.ast.SelectExprNode(expr=caosql_tree)]
             caosql_tree = selnode
 
-        query_tree = self.transformer.transform(caosql_tree, arg_types,
-                                                module_aliases=self.module_aliases,
-                                                anchors=anchors)
+        query_tree = self.transformer.transform(
+                        caosql_tree, arg_types,
+                        module_aliases=self.module_aliases,
+                        anchors=anchors, security_context=security_context)
+
         """LOG [caos.query] Caos tree:
         from metamagic.utils import markup
         markup.dump(query_tree)

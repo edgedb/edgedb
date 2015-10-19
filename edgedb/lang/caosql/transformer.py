@@ -40,6 +40,8 @@ class ParseContextLevel(object):
                 self.subgraphs_map = {}
                 self.cge_map = prevlevel.cge_map.copy()
                 self.weak_path = None
+                self.apply_access_control_rewrite = \
+                        prevlevel.apply_access_control_rewrite
             else:
                 self.graph = prevlevel.graph
                 self.pathvars = prevlevel.pathvars
@@ -57,6 +59,8 @@ class ParseContextLevel(object):
                 self.subgraphs_map = prevlevel.subgraphs_map
                 self.cge_map = prevlevel.cge_map
                 self.weak_path = prevlevel.weak_path
+                self.apply_access_control_rewrite = \
+                        prevlevel.apply_access_control_rewrite
         else:
             self.graph = None
             self.pathvars = {}
@@ -74,6 +78,7 @@ class ParseContextLevel(object):
             self.subgraphs_map = {}
             self.cge_map = {}
             self.weak_path = None
+            self.apply_access_control_rewrite = False
 
     def genalias(self, hint=None):
         if hint is None:
@@ -746,19 +751,27 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         self.module_aliases = module_aliases
         self.parser = caosql_parser.CaosQLParser()
 
-    def _init_context(self, arg_types, module_aliases, anchors):
+    def _init_context(self, arg_types, module_aliases, anchors,
+                            *, security_context=None):
         self.context = context = ParseContext()
         self.context.current.proto_schema = self.proto_schema
         self.context.current.module_aliases = module_aliases or self.module_aliases
+
         if self.context.current.module_aliases:
             self.context.current.namespaces.update(self.context.current.module_aliases)
 
         if anchors:
             self._populate_anchors(context, anchors)
+
+        if security_context:
+            self.context.current.apply_access_control_rewrite = True
+
         return context
 
-    def transform(self, caosql_tree, arg_types, module_aliases=None, anchors=None):
-        context = self._init_context(arg_types, module_aliases, anchors)
+    def transform(self, caosql_tree, arg_types, module_aliases=None,
+                        anchors=None, security_context=None):
+        context = self._init_context(arg_types, module_aliases, anchors,
+                                     security_context=security_context)
 
         if isinstance(caosql_tree, qlast.SelectQueryNode):
             stree = self._transform_select(context, caosql_tree, arg_types)
