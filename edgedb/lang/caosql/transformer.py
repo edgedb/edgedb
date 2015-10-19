@@ -84,7 +84,10 @@ class ParseContextLevel(object):
         else:
             self.aliascnt[hint] += 1
 
-        alias = hint + str(self.aliascnt[hint])
+        alias = hint
+        number = self.aliascnt[hint]
+        if number > 1:
+            alias += str(number)
 
         return alias
 
@@ -312,7 +315,10 @@ class CaosqlExprShortener:
             try:
                 alias = modmap[module]
             except KeyError:
-                _, _, mtail = module.rpartition('.')
+                mhead, _, mtail = module.rpartition('.')
+                if mtail == 'objects' and mhead:
+                    # schemas are commonly in the form <module>.objects
+                    mhead, _, mtail = mhead.rpartition('.')
                 alias = context.current.genalias(hint=mtail)
                 context.current.namespaces[alias] = module
 

@@ -130,12 +130,16 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
 
     def visit_SelectQueryNode(self, node):
         if node.namespaces:
-            self.write('USING ')
+            self.write('USING')
+            self.new_lines = 1
+            self.indentation += 1
             for i, ns in enumerate(node.namespaces):
                 if i > 0:
-                    self.write(', ')
+                    self.write(',')
+                    self.new_lines = 1
                 self.visit(ns)
-            self.write(' ')
+            self.new_lines = 1
+            self.indentation -= 1
 
         if node.op:
             # Upper level set operation node (UNION/INTERSECT)
@@ -151,33 +155,60 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         else:
             self._visit_cges(node.cges)
 
-            self.write('SELECT ')
+            self.write('SELECT')
+            self.new_lines = 1
+            self.indentation += 1
             for i, e in enumerate(node.targets):
                 if i > 0:
-                    self.write(', ')
+                    self.write(',')
+                    self.new_lines = 1
                 self.visit(e)
+            self.new_lines = 1
+            self.indentation -= 1
             if node.where:
-                self.write(' WHERE ')
+                self.write('WHERE')
+                self.new_lines = 1
+                self.indentation += 1
                 self.visit(node.where)
+                self.new_lines = 1
+                self.indentation -= 1
             if node.groupby:
-                self.write(' GROUP BY ')
+                self.write('GROUP BY')
+                self.new_lines = 1
+                self.indentation += 1
                 for i, e in enumerate(node.groupby):
                     if i > 0:
-                        self.write(', ')
+                        self.write(',')
+                        self.new_lines = 1
                     self.visit(e)
+                self.new_lines = 1
+                self.indentation -= 1
 
         if node.orderby:
-            self.write(' ORDER BY ')
+            self.write('ORDER BY')
+            self.new_lines = 1
+            self.indentation += 1
             for i, e in enumerate(node.orderby):
                 if i > 0:
-                    self.write(', ')
+                    self.write(',')
+                    self.new_lines = 1
                 self.visit(e)
+            self.new_lines = 1
+            self.indentation -= 1
         if node.offset is not None:
-            self.write(' OFFSET ')
+            self.write('OFFSET')
+            self.new_lines = 1
+            self.indentation += 1
             self.visit(node.offset)
+            self.indentation -= 1
+            self.new_lines = 1
         if node.limit is not None:
-            self.write(' LIMIT ')
+            self.write('LIMIT')
+            self.new_lines = 1
+            self.indentation += 1
             self.visit(node.limit)
+            self.indentation -= 1
+            self.new_lines = 1
 
     def visit_NamespaceDeclarationNode(self, node):
         self.write(node.namespace)
