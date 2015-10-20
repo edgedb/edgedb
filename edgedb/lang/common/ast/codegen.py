@@ -15,20 +15,25 @@ class SourceGenerator(NodeVisitor):
     `node_to_source` function.
     """
 
-    def __init__(self, indent_with=' '*4, add_line_information=False):
+    def __init__(self, indent_with=' '*4, add_line_information=False,
+                       pretty=True):
         self.result = []
         self.indent_with = indent_with
         self.add_line_information = add_line_information
         self.indentation = 0
         self.new_lines = 0
         self.current_line = 1
+        self.pretty = pretty
 
     def write(self, x):
         if self.new_lines:
-            if self.result:
+            if self.result and self.pretty:
                 self.current_line += self.new_lines
                 self.result.append('\n' * self.new_lines)
-            self.result.append(self.indent_with * self.indentation)
+            if self.pretty:
+                self.result.append(self.indent_with * self.indentation)
+            else:
+                self.result.append(' ')
             self.new_lines = 0
         self.result.append(x)
 
@@ -39,7 +44,8 @@ class SourceGenerator(NodeVisitor):
             self.new_lines = 1
 
     @classmethod
-    def to_source(cls, node, indent_with=' '*4, add_line_information=False):
-        generator = cls(indent_with, add_line_information)
+    def to_source(cls, node, indent_with=' '*4, add_line_information=False,
+                             pretty=True):
+        generator = cls(indent_with, add_line_information, pretty=pretty)
         generator.visit(node)
         return ''.join(generator.result)
