@@ -26,7 +26,6 @@ from importkit.import_ import get_object
 from metamagic.utils.algos import topological, persistent_hash
 from metamagic.utils.debug import debug
 from importkit import yaml
-from metamagic.utils.lang import protoschema as lang_protoschema
 from metamagic.utils.nlang import morphology
 from metamagic.utils import datastructures, markup
 
@@ -38,6 +37,7 @@ from metamagic.caos import proto
 from metamagic.caos import delta as base_delta
 from metamagic.caos import debug as caos_debug
 from metamagic.caos import error as caos_error
+from metamagic.caos import protoschema as lang_protoschema
 
 from metamagic.caos.caosql import transformer as caosql_transformer
 from metamagic.caos.caosql import codegen as caosql_codegen

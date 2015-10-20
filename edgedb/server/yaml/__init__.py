@@ -23,8 +23,6 @@ from importkit import yaml
 from importkit.import_ import get_object
 
 from metamagic.utils import lang
-from metamagic.utils.lang import protoschema as lang_protoschema
-from metamagic.utils.lang.yaml import protoschema as yaml_protoschema
 from metamagic.utils.lang.yaml.struct import MixedStructMeta
 from metamagic.utils.nlang import morphology
 from metamagic.utils.algos.persistent_hash import persistent_hash
@@ -32,6 +30,7 @@ from metamagic.utils.algos import topological
 from metamagic.utils.datastructures import xvalue, OrderedSet, typed
 
 from metamagic import caos
+from metamagic.caos import protoschema as lang_protoschema
 from metamagic.caos import proto
 from metamagic.caos import backends
 from metamagic.caos import delta as base_delta
@@ -41,6 +40,7 @@ from metamagic.caos.caosql import expr as caosql_expr
 from metamagic.caos.caosql import errors as caosql_exc
 
 from . import delta
+from . import protoschema as yaml_protoschema
 
 
 class Expression:
