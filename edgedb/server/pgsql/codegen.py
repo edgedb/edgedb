@@ -46,15 +46,17 @@ class SQLSourceGeneratorError(sx_errors.MetamagicError):
 
 
 class SQLSourceGenerator(codegen.SourceGenerator):
-    def __init__(self, indent_with=' '*4, add_line_information=False):
-        super().__init__(indent_with, add_line_information)
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
         self.param_index = {}
 
     @classmethod
-    def to_source(cls, node, indent_with=' '*4, add_line_information=False):
+    def to_source(cls, node, indent_with=' '*4, add_line_information=False,
+                       pretty=True):
         try:
             return super().to_source(node, indent_with=indent_with,
-                                           add_line_information=add_line_information)
+                                     add_line_information=add_line_information,
+                                     pretty=pretty)
         except SQLSourceGeneratorError as e:
             ctx = SQLSourceGeneratorContext(node)
             sx_errors._add_context(e, ctx)
