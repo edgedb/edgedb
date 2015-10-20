@@ -1907,10 +1907,6 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
     def _resolve_ptr(self, context, near_endpoint, ptr_name, direction,
                            ptr_type=caos_types.ProtoLink, target=None):
-        sources = []
-        inbound = []
-        outbound = []
-
         ptr_module, ptr_nqname = ptr_name
 
         if ptr_module:
