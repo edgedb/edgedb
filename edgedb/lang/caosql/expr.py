@@ -42,7 +42,7 @@ class CaosQLExpression:
     def normalize_refs(self, expr, module_aliases=None):
         tree = self.parser.parse(expr)
         tree = self.transformer.normalize_refs(tree, module_aliases=module_aliases)
-        return codegen.CaosQLSourceGenerator.to_source(tree)
+        return codegen.CaosQLSourceGenerator.to_source(tree, pretty=False)
 
     def normalize_tree(self, tree, module_aliases=None, anchors=None, inline_anchors=False):
         if not isinstance(tree, caosql_ast.StatementNode):
@@ -58,7 +58,7 @@ class CaosQLExpression:
     def normalize_expr(self, expr, module_aliases=None, anchors=None):
         tree = self.parser.parse(expr)
         tree, caos_tree = self.normalize_tree(tree, module_aliases=module_aliases, anchors=anchors)
-        return codegen.CaosQLSourceGenerator.to_source(tree), caos_tree
+        return codegen.CaosQLSourceGenerator.to_source(tree, pretty=False), caos_tree
 
     def transform_expr_fragment(self, expr, anchors=None, location=None):
         tree = self.parser.parse(expr)
@@ -108,7 +108,7 @@ class CaosQLExpression:
         visitor = _PrependSource(source, self.proto_schema, self.module_aliases)
         visitor.visit(tree)
 
-        expr = codegen.CaosQLSourceGenerator.to_source(tree)
+        expr = codegen.CaosQLSourceGenerator.to_source(tree, pretty=False)
         return expr, tree
 
     def check_source_atomic_expr(self, tree, source):
