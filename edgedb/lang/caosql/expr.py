@@ -55,17 +55,6 @@ class CaosQLExpression:
 
         return tree
 
-    def process_concept_expr(self, expr, concept):
-        tree = self.parser.parse(expr)
-        context = transformer.ParseContext()
-        context.current.location = 'selector'
-        return self.transformer._process_expr(context, tree)
-
-    def normalize_refs(self, expr, module_aliases=None):
-        tree = self.parser.parse(expr)
-        tree = self.transformer.normalize_refs(tree, module_aliases=module_aliases)
-        return codegen.CaosQLSourceGenerator.to_source(tree, pretty=False)
-
     def normalize_tree(self, tree, module_aliases=None, anchors=None, inline_anchors=False):
         if not isinstance(tree, caosql_ast.StatementNode):
             selnode = caosql_ast.SelectQueryNode()
@@ -84,7 +73,8 @@ class CaosQLExpression:
 
     def transform_expr_fragment(self, expr, anchors=None, location=None):
         tree = self.parser.parse(expr)
-        return self.transformer.transform_fragment(tree, (), anchors=anchors, location=location)
+        return self.transformer.transform_fragment(
+                        tree, (), anchors=anchors, location=location)
 
     @debug.debug
     def transform_expr(self, expr, anchors=None, arg_types=None,
@@ -111,13 +101,6 @@ class CaosQLExpression:
         """
 
         return query_tree
-
-    def get_path_targets(self, expr, session, anchors=None):
-        if not self.path_resolver:
-            self.path_resolver = caos_transformer.PathResolver()
-        ctree = self.transform_expr_fragment(expr, anchors=anchors)
-        targets = self.path_resolver.resolve_path(ctree, session)
-        return targets
 
     def normalize_source_expr(self, expr, source):
         tree = self.parser.parse(expr)

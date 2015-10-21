@@ -799,12 +799,6 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
 
         return stree
 
-    def normalize_refs(self, caosql_tree, module_aliases):
-        self.context = context = ParseContext()
-        self.context.current.proto_schema = self.proto_schema
-        self.context.current.module_aliases = module_aliases or self.module_aliases
-        return self._normalize_refs(context, caosql_tree)
-
     def _populate_anchors(self, context, anchors):
         for anchor, proto in anchors.items():
             if isinstance(proto, caos_types.ProtoNode):
@@ -1209,68 +1203,6 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
                 return expr
             else:
                 return None
-
-    def _normalize_refs(self, context, expr):
-        if isinstance(expr, qlast.SelectQueryNode):
-            for attr in ('targets', 'groupby', 'orderby'):
-                items = getattr(expr, attr)
-                if items:
-                    for item in items:
-                        self._normalize_refs(context, item)
-
-            if expr.where:
-                self._normalize_refs(context, expr.where)
-
-        elif isinstance(expr, qlast.SelectExprNode):
-            self._normalize_refs(context, expr.expr)
-
-        elif isinstance(expr, qlast.SortExprNode):
-            self._normalize_refs(context, expr.path)
-
-        elif isinstance(expr, qlast.UnaryOpNode):
-            self._normalize_refs(context, expr.operand)
-
-        elif isinstance(expr, qlast.BinOpNode):
-            self._normalize_refs(context, expr.left)
-            self._normalize_refs(context, expr.right)
-
-        elif isinstance(expr, qlast.PathNode):
-            for node in expr.steps:
-                self._normalize_refs(context, node)
-
-        elif isinstance(expr, qlast.PathStepNode):
-            if expr.expr != 'self':
-                expr.namespace = context.current.module_aliases.get(expr.namespace, expr.namespace)
-
-        elif isinstance(expr, qlast.LinkExprNode):
-            self._normalize_refs(context, expr.expr)
-
-        elif isinstance(expr, qlast.LinkNode):
-            if expr.namespace:
-                expr.namespace = context.current.module_aliases.get(expr.namespace, expr.namespace)
-
-        elif isinstance(expr, qlast.LinkPropExprNode):
-            pass
-
-        elif isinstance(expr, qlast.ConstantNode):
-            pass
-
-        elif isinstance(expr, qlast.SequenceNode):
-            for e in expr.elements:
-                self._normalize_refs(context, e)
-
-        elif isinstance(expr, qlast.FunctionCallNode):
-            for arg in expr.args:
-                self._normalize_refs(context, arg)
-
-        elif isinstance(expr, qlast.PrototypeRefNode):
-            pass
-
-        else:
-            assert False, "Unexpected expr: %s" % expr
-
-        return expr
-
 
     def _process_expr(self, context, expr):
         node = None
