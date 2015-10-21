@@ -33,6 +33,28 @@ class CaosQLExpression:
     def parse_expr(self, expr):
         return self.parser.parse(expr)
 
+    def get_statement_tree(self, expr):
+        tree = self.parse_expr(expr)
+
+        if not isinstance(tree, caosql_ast.StatementNode):
+            selnode = caosql_ast.SelectQueryNode()
+            selnode.targets = [caosql_ast.SelectExprNode(expr=tree)]
+            tree = selnode
+
+        if self.module_aliases:
+            nses = []
+            for alias, module in self.module_aliases.items():
+                decl = caosql_ast.NamespaceDeclarationNode(namespace=module,
+                                                           alias=alias)
+                nses.append(decl)
+
+            if tree.namespaces is None:
+                tree.namespaces = nses
+            else:
+                tree.namespaces.extend(nses)
+
+        return tree
+
     def process_concept_expr(self, expr, concept):
         tree = self.parser.parse(expr)
         context = transformer.ParseContext()
@@ -71,17 +93,12 @@ class CaosQLExpression:
         print(expr)
         """
 
-        caosql_tree = self.parser.parse(expr)
+        caosql_tree = self.get_statement_tree(expr)
 
         """LOG [caos.query] CaosQL tree:
         from metamagic.utils import markup
         markup.dump(caosql_tree)
         """
-
-        if not isinstance(caosql_tree, caosql.ast.StatementNode):
-            selnode = caosql.ast.SelectQueryNode()
-            selnode.targets = [caosql.ast.SelectExprNode(expr=caosql_tree)]
-            caosql_tree = selnode
 
         query_tree = self.transformer.transform(
                         caosql_tree, arg_types,
