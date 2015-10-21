@@ -12,6 +12,7 @@ import numbers
 
 from metamagic.caos import types as caos_types
 from metamagic.caos.tree.transformer import TreeTransformer
+from metamagic.caos.tree import utils as ir_utils
 from metamagic.caos.backends import query as backend_query
 
 from metamagic.utils import ast
@@ -294,7 +295,7 @@ class CaosToPythonTransformer(TreeTransformer):
             result = py_ast.PyCall(func=func, args=args)
 
         elif isinstance(expr, caos_ast.TypeCast):
-            expr_type = self.get_expr_type(expr.expr, context.proto_schema)
+            expr_type = ir_utils.infer_type(expr.expr, context.proto_schema)
             result = self._cast(context, self._process_expr(expr.expr, context),
                                 expr_type, expr.type)
 

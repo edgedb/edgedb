@@ -9,8 +9,9 @@
 from metamagic import caos
 from metamagic.caos import proto
 from metamagic.caos.tree import ast as tree_ast
-from metamagic.caos.caosql import expr as caosql_expr
+from metamagic.caos.tree import utils as ir_utils
 from metamagic.caos.caosql import codegen as caosql_codegen
+from metamagic.caos.caosql import utils as caosql_utils
 
 from metamagic.utils import ast
 
@@ -26,18 +27,18 @@ class ConstraintsSchema:
     @classmethod
     def _parse_constraint_expr(cls, schema, module_aliases, expr, subject,
                                     inline_anchors=False):
-        ce = caosql_expr.CaosQLExpression(schema, module_aliases)
+        ir, caosql_tree, _ = caosql_utils.normalize_tree(
+                                    expr, schema,
+                                    module_aliases=module_aliases,
+                                    anchors={'subject': subject},
+                                    inline_anchors=inline_anchors)
 
-        tree, caosql_tree, _ = ce.normalize_tree(
-                                expr, module_aliases=module_aliases,
-                                anchors={'subject': subject},
-                                inline_anchors=inline_anchors)
+        arg_types = ir_utils.infer_arg_types(ir, schema)
 
-        arg_types = ce.infer_arg_types(tree, schema)
-
-        sel = tree.selector
+        sel = ir.selector
         if len(sel) != 1:
-            raise ValueError('invalid constraint expression: must be a simple expression')
+            msg = 'invalid constraint expression: must be a simple expression'
+            raise ValueError(msg)
 
         caos_tree = sel[0].expr
 
@@ -117,8 +118,8 @@ class ConstraintsSchema:
 
                     exprparams[pn] = param
 
-            ce = caosql_expr.CaosQLExpression(schema, {})
-            ce.inline_constants(caosql_tree, exprparams, all_arg_types)
+            caosql_utils.inline_constants(caosql_tree, exprparams,
+                                          all_arg_types)
 
             constraint.errmessage = constraint.errmessage.format(subject='{subject}', **fmtparams)
 

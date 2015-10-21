@@ -13,6 +13,7 @@ import re
 
 from metamagic.utils import ast, markup
 from metamagic.caos import caosql, tree
+from metamagic.caos.tree import utils as ir_utils
 from metamagic.caos import types as caos_types
 from metamagic.caos import name as caos_name
 from metamagic.caos import utils as caos_utils
@@ -717,7 +718,7 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                     args[1] = pgsql.ast.TypeCastNode(expr=args[1],
                                                      type=pgsql.ast.TypeNode(name='int'))
                 if len(args) > 2:
-                    arg0_type = self.get_expr_type(expr.args[0], schema)
+                    arg0_type = ir_utils.infer_type(expr.args[0], schema)
                     arg0_type = pg_types.pg_type_from_atom(schema, arg0_type)
                     args[2] = pgsql.ast.TypeCastNode(expr=args[2],
                                                      type=pgsql.ast.TypeNode(name=arg0_type))
@@ -855,7 +856,8 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
 
             elif expr.name == 'getitem':
                 is_string = False
-                arg_type = self.get_expr_type(expr.args[0], context.current.proto_schema)
+                arg_type = ir_utils.infer_type(
+                                expr.args[0], context.current.proto_schema)
 
                 if isinstance(arg_type, caos_types.ProtoAtom):
                     b = arg_type.get_topmost_base(context.current.proto_schema, top_prototype=True)
@@ -878,7 +880,8 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                 zero = pgsql.ast.ConstantNode(value=0)
 
                 is_string = False
-                arg_type = self.get_expr_type(expr.args[0], context.current.proto_schema)
+                arg_type = ir_utils.infer_type(
+                                expr.args[0], context.current.proto_schema)
 
                 if isinstance(arg_type, caos_types.ProtoAtom):
                     b = arg_type.get_topmost_base(context.current.proto_schema, top_prototype=True)
@@ -2515,7 +2518,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                     if isinstance(right.expr, pgsql.ast.SequenceNode):
                         right.expr = pgsql.ast.ArrayNode(elements=right.expr.elements)
                     elif right.type == 'text[]':
-                        left_type = self.get_expr_type(expr.left, context.current.proto_schema)
+                        left_type = ir_utils.infer_type(
+                                        expr.left, context.current.proto_schema)
                         if isinstance(left_type, caos_types.ProtoNode):
                             if isinstance(left_type, caos_types.ProtoConcept):
                                 left_type = left_type.pointers['metamagic.caos.builtins.id'].target
@@ -2567,8 +2571,10 @@ class CaosTreeTransformer(CaosExprTransformer):
                         context.current.query.having = left
                         result = right
                     else:
-                        left_type = self.get_expr_type(expr.left, context.current.proto_schema)
-                        right_type = self.get_expr_type(expr.right, context.current.proto_schema)
+                        left_type = ir_utils.infer_type(
+                                        expr.left, context.current.proto_schema)
+                        right_type = ir_utils.infer_type(
+                                        expr.right, context.current.proto_schema)
 
                         if left_type and right_type:
                             if isinstance(left_type, caos_types.ProtoNode):

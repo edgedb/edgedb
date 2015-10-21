@@ -15,6 +15,7 @@ from metamagic.caos import utils as caos_utils
 from metamagic.caos.utils import LinearPath
 from metamagic.caos import types as caos_types
 from metamagic.caos.tree import ast as caos_ast
+from metamagic.caos.tree import utils as ir_utils
 
 from metamagic.utils.algos import boolean
 from metamagic.utils import datastructures, ast, debug, markup
@@ -358,17 +359,18 @@ class TreeTransformer:
                     anchors = {'self': expr.source.concept}
                     self._rewrite_with_caosql_expr(expr, caosql_expr, anchors)
 
-    def _rewrite_with_caosql_expr(self, expr, caosql, anchors):
-        from metamagic.caos.caosql import expr as caosql_expr
-        cexpr = caosql_expr.CaosQLExpression(proto_schema=self.context.current.proto_schema)
+    def _rewrite_with_caosql_expr(self, expr, caosql_expr, anchors):
+        from metamagic.caos import caosql
 
-        expr_tree = cexpr.transform_expr_fragment(caosql, anchors=anchors)
+        schema = self.context.current.proto_schema
+        ir = caosql.compile_fragment_to_ir(caosql_expr, schema,
+                                           anchors=anchors)
 
         node = expr.source
         rewrite_target = expr.target
 
         path_id = LinearPath([node.concept])
-        nodes = ast.find_children(expr_tree,
+        nodes = ast.find_children(ir,
                                   lambda n: isinstance(n, caos_ast.EntitySet) and n.id == path_id)
 
         for expr_node in nodes:
@@ -381,18 +383,18 @@ class TreeTransformer:
 
         self.context.current.graph.replace_refs([rewrite_target], expr_ref, deep=True)
 
-        if not isinstance(expr_tree, caos_ast.GraphExpr):
-            expr_tree = caos_ast.GraphExpr(
+        if not isinstance(ir, caos_ast.GraphExpr):
+            ir = caos_ast.GraphExpr(
                 selector = [
-                    caos_ast.SelectorExpr(expr=expr_tree, name=ptrname)
+                    caos_ast.SelectorExpr(expr=ir, name=ptrname)
                 ]
             )
 
-        expr_tree.referrers.append('exists')
-        expr_tree.referrers.append('generator')
+        ir.referrers.append('exists')
+        ir.referrers.append('generator')
 
-        self.context.current.graph.subgraphs.add(expr_tree)
-        expr_ref.ref = expr_tree
+        self.context.current.graph.subgraphs.add(ir)
+        expr_ref.ref = ir
 
     def apply_rewrites(self, expr):
         """Apply rewrites from policies
@@ -1116,11 +1118,11 @@ class TreeTransformer:
 
 
     def build_paths_index(self, graph):
-        paths = self.extract_paths(graph, reverse=True, resolve_arefs=False,
-                                   recurse_subqueries=1, all_fragments=True)
+        paths = ir_utils.extract_paths(graph, reverse=True, resolve_arefs=False,
+                                       recurse_subqueries=1, all_fragments=True)
 
         if isinstance(paths, caos_ast.PathCombination):
-            self.flatten_path_combination(paths, recursive=True)
+            ir_utils.flatten_path_combination(paths, recursive=True)
             paths = paths.paths
         else:
             paths = [paths]
@@ -1170,11 +1172,12 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.GraphExpr):
             paths = self.build_paths_index(expr)
 
-            subpaths = self.extract_paths(expr, reverse=True, resolve_arefs=False,
-                                          recurse_subqueries=2, all_fragments=True)
+            subpaths = ir_utils.extract_paths(
+                            expr, reverse=True, resolve_arefs=False,
+                            recurse_subqueries=2, all_fragments=True)
 
             if isinstance(subpaths, caos_ast.PathCombination):
-                self.flatten_path_combination(subpaths, recursive=True)
+                ir_utils.flatten_path_combination(subpaths, recursive=True)
                 subpaths = subpaths.paths
             else:
                 subpaths = {subpaths}
@@ -1221,7 +1224,7 @@ class TreeTransformer:
         return expr
 
     def postprocess_expr(self, expr):
-        paths = self.extract_paths(expr, reverse=True)
+        paths = ir_utils.extract_paths(expr, reverse=True)
 
         if paths:
             if isinstance(paths, caos_ast.PathCombination):
@@ -1267,12 +1270,9 @@ class TreeTransformer:
         else:
             assert False, "Unexpexted expression: %s" % expr
 
-    @classmethod
-    def _is_weak_op(self, op):
-        return op in (ast.ops.OR, ast.ops.IN, ast.ops.NOT_IN)
-
     def is_weak_op(self, op):
-        return self._is_weak_op(op) or self.context.current.location != 'generator'
+        return ir_utils.is_weak_op(op) \
+                or self.context.current.location != 'generator'
 
     def merge_paths(self, expr):
         if isinstance(expr, caos_ast.AtomicRefExpr):
@@ -1383,15 +1383,15 @@ class TreeTransformer:
                 #
                 paths = []
                 for arg in args:
-                    path = self.extract_paths(arg, reverse=True)
+                    path = ir_utils.extract_paths(arg, reverse=True)
                     if path:
                         paths.append(path)
                 for sortexpr in expr.agg_sort:
-                    path = self.extract_paths(sortexpr, reverse=True)
+                    path = ir_utils.extract_paths(sortexpr, reverse=True)
                     if path:
                         paths.append(path)
                 for partition_expr in expr.partition:
-                    path = self.extract_paths(partition_expr, reverse=True)
+                    path = ir_utils.extract_paths(partition_expr, reverse=True)
                     if path:
                         paths.append(path)
                 e = caos_ast.Conjunction(paths=frozenset(paths))
@@ -1425,30 +1425,13 @@ class TreeTransformer:
 
         return expr
 
-    @classmethod
-    def flatten_path_combination(cls, expr, recursive=False):
-        paths = set()
-        for path in expr.paths:
-            if isinstance(path, expr.__class__) or \
-                        (recursive and isinstance(path, caos_ast.PathCombination)):
-                if recursive:
-                    cls.flatten_path_combination(path, recursive=True)
-                    paths.update(path.paths)
-                else:
-                    paths.update(path.paths)
-            else:
-                paths.add(path)
-
-        expr.paths = frozenset(paths)
-        return expr
-
     def flatten_and_unify_path_combination(self, expr, deep=False, merge_filters=False):
         ##
         # Flatten nested disjunctions and conjunctions since they are associative
         #
         assert isinstance(expr, caos_ast.PathCombination)
 
-        self.flatten_path_combination(expr)
+        ir_utils.flatten_path_combination(expr)
 
         if deep:
             newpaths = set()
@@ -1475,7 +1458,7 @@ class TreeTransformer:
         result = None
 
         while mypaths and not result:
-            result = self.extract_paths(mypaths.pop(), reverse)
+            result = ir_utils.extract_paths(mypaths.pop(), reverse)
 
         return self._unify_paths(result, mypaths, mode, reverse, merge_filters)
 
@@ -1484,7 +1467,7 @@ class TreeTransformer:
         mypaths = set(paths)
 
         while mypaths:
-            path = self.extract_paths(mypaths.pop(), reverse)
+            path = ir_utils.extract_paths(mypaths.pop(), reverse)
 
             if not path or result is path:
                 continue
@@ -1821,7 +1804,7 @@ class TreeTransformer:
                     left_set.conjunction = self.intersect_paths(left_set.conjunction,
                                                                 disjunction, merge_filters)
 
-                    self.flatten_path_combination(left_set.conjunction)
+                    ir_utils.flatten_path_combination(left_set.conjunction)
 
                     if len(left_set.conjunction.paths) == 1:
                         first_conj = next(iter(left_set.conjunction.paths))
@@ -1863,7 +1846,7 @@ class TreeTransformer:
         result.update(right)
 
         if len(result.paths) > 1:
-            self.flatten_path_combination(result)
+            ir_utils.flatten_path_combination(result)
             self.unify_paths(result.paths, mode=result.__class__, reverse=False,
                              merge_filters=merge_filters)
             result.paths = frozenset(p for p in result.paths)
@@ -2025,206 +2008,6 @@ class TreeTransformer:
 
     def fixup_refs(self, refs, newref):
         caos_ast.Base.fixup_refs(refs, newref)
-
-    @classmethod
-    def extract_paths(cls, path, reverse=False, resolve_arefs=True, recurse_subqueries=0,
-                                 all_fragments=False, extract_subgraph_refs=False):
-        if isinstance(path, caos_ast.GraphExpr):
-            if recurse_subqueries <= 0:
-                return None
-            else:
-                paths = set()
-
-                recurse_subqueries -= 1
-
-                if path.generator:
-                    normalized = cls.extract_paths(path.generator, reverse, resolve_arefs,
-                                                   recurse_subqueries, all_fragments,
-                                                   extract_subgraph_refs)
-                    if normalized:
-                        paths.add(normalized)
-
-                for part in ('selector', 'grouper', 'sorter'):
-                    e = getattr(path, part)
-                    if e:
-                        for p in e:
-                            normalized = cls.extract_paths(p, reverse, resolve_arefs,
-                                                           recurse_subqueries,
-                                                           all_fragments,
-                                                           extract_subgraph_refs)
-                            if normalized:
-                                paths.add(normalized)
-
-                if path.set_op:
-                    for arg in (path.set_op_larg, path.set_op_rarg):
-                        normalized = cls.extract_paths(arg, reverse, resolve_arefs,
-                                                       recurse_subqueries, all_fragments,
-                                                       extract_subgraph_refs)
-                        if normalized:
-                            paths.add(normalized)
-
-                if len(paths) == 1:
-                    return next(iter(paths))
-                elif len(paths) == 0:
-                    return None
-                else:
-                    result = caos_ast.Disjunction(paths=frozenset(paths))
-                    return cls.flatten_path_combination(result)
-
-        elif isinstance(path, caos_ast.SubgraphRef):
-            if not recurse_subqueries and extract_subgraph_refs:
-                return path
-            else:
-                return cls.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries,
-                                         all_fragments, extract_subgraph_refs)
-
-        elif isinstance(path, caos_ast.SelectorExpr):
-            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries,
-                                     all_fragments, extract_subgraph_refs)
-
-        elif isinstance(path, caos_ast.SortExpr):
-            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries,
-                                     all_fragments, extract_subgraph_refs)
-
-        elif isinstance(path, (caos_ast.EntitySet, caos_ast.InlineFilter, caos_ast.AtomicRef)):
-            if isinstance(path, (caos_ast.InlineFilter, caos_ast.AtomicRef)) and \
-                                                    (resolve_arefs or reverse):
-                result = path.ref
-            else:
-                result = path
-
-            if isinstance(result, caos_ast.EntitySet):
-                if reverse:
-                    paths = []
-                    paths.append(result)
-
-                    while result.rlink:
-                        result = result.rlink.source
-                        paths.append(result)
-
-                    if len(paths) == 1 or not all_fragments:
-                        result = paths[-1]
-                    else:
-                        result = caos_ast.Disjunction(paths=frozenset(paths))
-
-            return result
-
-        elif isinstance(path, caos_ast.InlinePropFilter):
-            return cls.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries,
-                                     all_fragments, extract_subgraph_refs)
-
-        elif isinstance(path, caos_ast.LinkPropRef):
-            if resolve_arefs or reverse:
-                return cls.extract_paths(path.ref, reverse, resolve_arefs, recurse_subqueries,
-                                         all_fragments, extract_subgraph_refs)
-            else:
-                return path
-
-        elif isinstance(path, caos_ast.EntityLink):
-            if reverse:
-                result = path
-                if path.source:
-                    result = path.source
-                    while result.rlink:
-                        result = result.rlink.source
-            else:
-                result = path
-            return result
-
-        elif isinstance(path, caos_ast.PathCombination):
-            result = set()
-            for p in path.paths:
-                normalized = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries,
-                                               all_fragments, extract_subgraph_refs)
-                if normalized:
-                    result.add(normalized)
-            if len(result) == 1:
-                return next(iter(result))
-            elif len(result) == 0:
-                return None
-            else:
-                return cls.flatten_path_combination(path.__class__(paths=frozenset(result)))
-
-        elif isinstance(path, caos_ast.BinOp):
-            combination = caos_ast.Disjunction if cls._is_weak_op(path.op) else caos_ast.Conjunction
-
-            paths = set()
-            for p in (path.left, path.right):
-                normalized = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries,
-                                               all_fragments, extract_subgraph_refs)
-                if normalized:
-                    paths.add(normalized)
-
-            if len(paths) == 1:
-                return next(iter(paths))
-            elif len(paths) == 0:
-                return None
-            else:
-                return cls.flatten_path_combination(combination(paths=frozenset(paths)))
-
-        elif isinstance(path, caos_ast.UnaryOp):
-            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries,
-                                     all_fragments, extract_subgraph_refs)
-
-        elif isinstance(path, caos_ast.ExistPred):
-            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries,
-                                     all_fragments, extract_subgraph_refs)
-
-        elif isinstance(path, caos_ast.TypeCast):
-            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries,
-                                     all_fragments, extract_subgraph_refs)
-
-        elif isinstance(path, caos_ast.NoneTest):
-            return cls.extract_paths(path.expr, reverse, resolve_arefs, recurse_subqueries,
-                                     all_fragments, extract_subgraph_refs)
-
-        elif isinstance(path, caos_ast.FunctionCall):
-            paths = set()
-            for p in path.args:
-                p = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries,
-                                      all_fragments, extract_subgraph_refs)
-                if p:
-                    paths.add(p)
-
-            for p in path.agg_sort:
-                p = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries,
-                                      all_fragments, extract_subgraph_refs)
-                if p:
-                    paths.add(p)
-
-            for p in path.partition:
-                p = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries,
-                                      all_fragments, extract_subgraph_refs)
-                if p:
-                    paths.add(p)
-
-            if len(paths) == 1:
-                return next(iter(paths))
-            elif len(paths) == 0:
-                return None
-            else:
-                return caos_ast.Conjunction(paths=frozenset(paths))
-
-        elif isinstance(path, (caos_ast.Sequence, caos_ast.Record)):
-            paths = set()
-            for p in path.elements:
-                p = cls.extract_paths(p, reverse, resolve_arefs, recurse_subqueries,
-                                      all_fragments, extract_subgraph_refs)
-                if p:
-                    paths.add(p)
-
-            if len(paths) == 1:
-                return next(iter(paths))
-            elif len(paths) == 0:
-                return None
-            else:
-                return caos_ast.Disjunction(paths=frozenset(paths))
-
-        elif isinstance(path, caos_ast.Constant):
-            return None
-
-        else:
-            assert False, 'unexpected node "%r"' % path
 
     @classmethod
     def get_query_schema_scope(cls, tree):
@@ -2570,8 +2353,9 @@ class TreeTransformer:
             else:
                 return caos_ast.BinOp(left=left, op=operation, right=right)
 
-        left_paths = self.extract_paths(left, reverse=False, resolve_arefs=False,
-                                              extract_subgraph_refs=True)
+        left_paths = ir_utils.extract_paths(
+                        left, reverse=False, resolve_arefs=False,
+                        extract_subgraph_refs=True)
 
         if isinstance(left_paths, caos_ast.Path):
             # If both left and right operands are references to atoms of the same node,
@@ -2679,8 +2463,9 @@ class TreeTransformer:
                 if not result:
                     result = newbinop(left, right, uninline=True)
             else:
-                right_paths = self.extract_paths(right, reverse=False, resolve_arefs=False,
-                                                        extract_subgraph_refs=True)
+                right_paths = ir_utils.extract_paths(
+                                    right, reverse=False, resolve_arefs=False,
+                                    extract_subgraph_refs=True)
 
                 if self.is_constant(right):
                     paths = set()
@@ -2867,7 +2652,8 @@ class TreeTransformer:
         elif isinstance(expr, caos_ast.Constant):
             result = caos_ast.Constant(expr=caos_ast.UnaryOp(expr=expr, op=operator))
         else:
-            paths = self.extract_paths(expr, reverse=False, resolve_arefs=False)
+            paths = ir_utils.extract_paths(expr, reverse=False,
+                                           resolve_arefs=False)
             exprs = self.get_multipath(paths)
             arefs = self.check_atomic_disjunction(exprs, caos_ast.AtomicRef)
             proprefs = self.check_atomic_disjunction(exprs, caos_ast.LinkPropRef)
@@ -2895,118 +2681,11 @@ class TreeTransformer:
 
         return expr
 
-    def get_expr_type(self, expr, schema):
-        if isinstance(expr, caos_ast.MetaRef):
-            result = schema.get('metamagic.caos.builtins.str')
-
-        elif isinstance(expr, caos_ast.AtomicRefSimple):
-            if isinstance(expr.ref, caos_ast.PathCombination):
-                targets = [t.concept for t in expr.ref.paths]
-                concept = caos_utils.get_prototype_nearest_common_ancestor(targets)
-            else:
-                concept = expr.ref.concept
-
-            ptr = concept.resolve_pointer(schema, expr.name,
-                                          look_in_children=True)
-            if not ptr:
-                msg = ('[{source}].[{link_name}] does not '
-                       'resolve to any known path')
-                msg = msg.format(source=concept.name, link_name=expr.name)
-
-            result = ptr.target
-
-        elif isinstance(expr, caos_ast.LinkPropRefSimple):
-            if isinstance(expr.ref, caos_ast.PathCombination):
-                targets = [t.link_proto for t in expr.ref.paths]
-                link = caos_utils.get_prototype_nearest_common_ancestor(targets)
-            else:
-                link = expr.ref.link_proto
-
-            prop = link.getptr(schema, expr.name)
-            assert prop, '"%s" is not a property of "%s"' % (expr.name, link.name)
-            result = prop.target
-
-        elif isinstance(expr, caos_ast.BaseRefExpr):
-            result = self.get_expr_type(expr.expr, schema)
-
-        elif isinstance(expr, caos_ast.Record):
-            result = expr.concept
-
-        elif isinstance(expr, caos_ast.FunctionCall):
-            argtypes = tuple(self.get_expr_type(arg, schema) for arg in expr.args)
-            result = caos_types.TypeRules.get_result(expr.name, argtypes, schema)
-
-            if result is None:
-                fcls = caos_types.FunctionMeta.get_function_class(expr.name)
-                if fcls:
-                    signature = fcls.get_signature(argtypes, schema=schema)
-                    if signature and signature[2]:
-                        if isinstance(signature[2], tuple):
-                            result = (signature[2][0], schema.get(signature[2][1]))
-                        else:
-                            result = schema.get(signature[2])
-
-        elif isinstance(expr, caos_ast.Constant):
-            if expr.expr:
-                result = self.get_expr_type(expr.expr, schema)
-            else:
-                result = expr.type
-
-        elif isinstance(expr, caos_ast.BinOp):
-            if isinstance(expr.op, (ast.ops.ComparisonOperator,
-                                    ast.ops.EquivalenceOperator,
-                                    ast.ops.MembershipOperator)):
-                result = schema.get('metamagic.caos.builtins.bool')
-            else:
-                left_type = self.get_expr_type(expr.left, schema)
-                right_type = self.get_expr_type(expr.right, schema)
-                result = caos_types.TypeRules.get_result(expr.op, (left_type, right_type), schema)
-                if result is None:
-                    result = caos_types.TypeRules.get_result((expr.op, 'reversed'),
-                                                             (right_type, left_type), schema)
-
-        elif isinstance(expr, caos_ast.UnaryOp):
-            operand_type = self.get_expr_type(expr.expr, schema)
-            result = caos_types.TypeRules.get_result(expr.op, (operand_type,), schema)
-
-        elif isinstance(expr, caos_ast.EntitySet):
-            result = expr.concept
-
-        elif isinstance(expr, caos_ast.PathCombination):
-            if expr.paths:
-                result = self.get_expr_type(next(iter(expr.paths)), schema)
-            else:
-                result = None
-
-        elif isinstance(expr, caos_ast.TypeCast):
-            result = expr.type
-
-        elif isinstance(expr, caos_ast.SubgraphRef):
-            subgraph = expr.ref
-            if len(subgraph.selector) == 1:
-                result = self.get_expr_type(subgraph.selector[0].expr, schema)
-            else:
-                result = None
-
-        elif isinstance(expr, caos_ast.ExistPred):
-            result = schema.get('metamagic.caos.builtins.bool')
-
-        else:
-            result = None
-
-        if result is not None:
-            allowed = (caos_types.ProtoObject, caos_types.PrototypeClass)
-            assert isinstance(result, allowed) or \
-                   (isinstance(result, (tuple, list)) and isinstance(result[1], allowed)), \
-                   "get_expr_type({!r}) retured {!r} instead of a prototype".format(expr, result)
-
-        return result
-
     def get_selector_types(self, selector, schema):
         result = collections.OrderedDict()
 
         for i, selexpr in enumerate(selector):
-            expr_type = self.get_expr_type(selexpr.expr, schema)
+            expr_type = ir_utils.infer_type(selexpr.expr, schema)
 
             if isinstance(selexpr.expr, caos_ast.Constant):
                 expr_kind = 'constant'

@@ -16,7 +16,6 @@ from metamagic.caos import name as caos_name
 from metamagic.caos import utils as caos_utils
 from metamagic.caos.caosql import ast as qlast
 from metamagic.caos.caosql import errors
-from metamagic.caos.caosql import parser as caosql_parser
 from metamagic.utils import ast
 
 
@@ -756,7 +755,6 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
     def __init__(self, proto_schema, module_aliases=None):
         self.proto_schema = proto_schema
         self.module_aliases = module_aliases
-        self.parser = caosql_parser.CaosQLParser()
 
     def _init_context(self, arg_types, module_aliases, anchors,
                             *, security_context=None):

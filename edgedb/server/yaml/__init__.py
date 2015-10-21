@@ -36,8 +36,8 @@ from metamagic.caos import backends
 from metamagic.caos import delta as base_delta
 from metamagic.caos import objects
 from metamagic.caos import schema as caos_schema
-from metamagic.caos.caosql import expr as caosql_expr
 from metamagic.caos.caosql import errors as caosql_exc
+from metamagic.caos.caosql import utils as caosql_utils
 
 from . import delta
 from . import protoschema as yaml_protoschema
@@ -1122,8 +1122,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
 
     def process_data(self, data, localschema):
-        self.caosql_expr = caosql_expr.CaosQLExpression(localschema, localschema.modules)
-
         self.collect_atoms(data, localschema)
         self.collect_attributes(data, localschema)
 
@@ -1200,8 +1198,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
         for link in links:
             link.materialize(localschema)
-
-        csql_expr = caosql_expr.CaosQLExpression(localschema)
 
         for concept in concepts:
             concept.setdefaults()
@@ -1882,8 +1878,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
         links = OrderedSet(filter(lambda l: l.name.module == self.module.name, links))
 
-        csql_expr = caosql_expr.CaosQLExpression(localschema)
-
         try:
             for link in links:
                 self.normalize_pointer_defaults(link, localschema)
@@ -2050,20 +2044,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         return target
 
 
-    def _normalize_source_constraints(self, source, constraints):
-        for constraint in constraints:
-            module_aliases = self._get_obj_module_aliases(constraint)
-
-            vals = set()
-
-            for value in constraint.values:
-                expr = self.caosql_expr.normalize_expr(value, module_aliases,
-                                                       anchors={'self': source})
-                vals.add(expr)
-
-            constraint.values = vals
-
-
     def _normalize_link_target_name(self, link_fqname, targets, localschema):
         if len(targets) == 1:
             return targets[0]
@@ -2080,8 +2060,9 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
 
     def normalize_index_expr(self, expr, concept, localschema):
-        return self.caosql_expr.normalize_expr(
-                expr, anchors={'self': concept}, inline_anchors=True)
+        return caosql_utils.normalize_expr(
+                    expr, localschema,
+                    anchors={'self': concept}, inline_anchors=True)
 
 
     def normalize_pointer_defaults(self, source, localschema):
@@ -2102,13 +2083,14 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                         for alias, module in def_context.document.imports.items():
                             module_aliases[alias] = module.__name__
 
-                        tree, _, value = self.caosql_expr.normalize_tree(
-                            default.value, module_aliases,
-                            anchors={'self': source})
+                        ir, _, value = caosql_utils.normalize_tree(
+                                            default.value, localschema,
+                                            module_aliases=module_aliases,
+                                            anchors={'self': source})
 
-                        first = list(tree.result_types.values())[0][0]
+                        first = list(ir.result_types.values())[0][0]
 
-                        if (len(tree.result_types) > 1
+                        if (len(ir.result_types) > 1
                                 or not isinstance(first, caos.types.ProtoNode)
                                 or (link.target is not None and not first.issubclass(link.target))):
 

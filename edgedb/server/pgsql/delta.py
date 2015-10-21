@@ -15,7 +15,7 @@ import re
 from metamagic import caos
 from metamagic.caos import proto
 from metamagic.caos import delta as delta_cmds
-from metamagic.caos.caosql import expr as caosql_expr
+from metamagic.caos import caosql
 from metamagic.caos import objects as caos_objects
 from metamagic.caos.objects import geo as geo_objects
 
@@ -1067,9 +1067,11 @@ class CreateSourceIndex(SourceIndexCommand, adapts=delta_cmds.CreateSourceIndex)
         if not source:
             source = context.get(delta_cmds.ConceptCommandContext)
         table_name = common.get_table_name(source.proto, catenate=False)
-        proc = caosql_expr.CaosQLExpression(meta)
-        expr = proc.transform_expr_fragment(index.expr, location='selector')
-        sql_tree = transformer.SimpleExprTransformer().transform(expr, meta, local=True)
+        ir = caosql.compile_fragment_to_ir(index.expr, meta,
+                                           location='selector')
+
+        ircompiler = transformer.SimpleExprTransformer()
+        sql_tree = ircompiler.transform(ir, meta, local=True)
         sql_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
         if isinstance(sql_tree, pg_ast.SequenceNode):
             # Trim the parentheses to avoid PostgreSQL choking on double parentheses.

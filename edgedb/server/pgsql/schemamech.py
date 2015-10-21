@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2013 Sprymix Inc.
+# Copyright (c) 2008-2015 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -14,7 +14,8 @@ from metamagic import caos
 from metamagic.caos import proto
 from metamagic.caos.tree import ast as caos_ast
 from metamagic.caos.tree import astexpr as caos_astexpr
-from metamagic.caos.caosql import expr as caosql_expr
+from metamagic.caos.tree import utils as ir_utils
+from metamagic.caos import caosql
 from metamagic.caos.caosql import transformer as caosql_transformer
 
 from metamagic.utils import ast
@@ -209,12 +210,10 @@ class ConstraintMech:
     def schema_constraint_to_backend_constraint(cls, subject, constraint, schema):
         assert constraint.subject is not None
 
-        cexpr = caosql_expr.CaosQLExpression(schema)
+        ir = caosql.compile_to_ir(constraint.finalexpr, schema,
+                                  anchors={'subject': subject})
 
-        caosql = constraint.finalexpr
-        tree = cexpr.transform_expr(caosql, anchors={'subject': subject})
-
-        terminal_refs = cexpr.get_terminal_references(tree)
+        terminal_refs = ir_utils.get_terminal_references(ir)
 
         ref_tables = cls._get_ref_storage_info(schema, terminal_refs)
 
@@ -228,7 +227,7 @@ class ConstraintMech:
 
         link_bias = ref_tables and next(iter(ref_tables.values()))[0][3].table_type == 'link'
 
-        unique_expr_refs = cls._get_unique_refs(tree)
+        unique_expr_refs = cls._get_unique_refs(ir)
 
         pg_constr_data = {
             'subject_db_name': subject_db_name,
@@ -247,7 +246,7 @@ class ConstraintMech:
             pg_constr_data['type'] = 'unique'
             pg_constr_data['subject_db_name'] = subject_db_name
         else:
-            exprdata = cls._caosql_ref_to_pg_constr(subject, tree, schema,
+            exprdata = cls._caosql_ref_to_pg_constr(subject, ir, schema,
                                                     link_bias)
             exprs.append(exprdata)
 
