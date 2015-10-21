@@ -956,21 +956,22 @@ class CaosqlTreeTransformer(tree.transformer.TreeTransformer):
         context.current.location = 'top'
 
         # Merge selector and sorter disjunctions first
-        paths = [s.expr for s in graph.selector] + [s.expr for s in graph.sorter] + \
+        paths = [s.expr for s in graph.selector] + \
+                [s.expr for s in graph.sorter] + \
                 [s for s in graph.grouper]
         union = tree.ast.Disjunction(paths=frozenset(paths))
-        self.flatten_and_unify_path_combination(union, deep=True, merge_filters=True)
+        self.flatten_and_unify_path_combination(union, deep=True,
+                                                merge_filters=True)
 
         # Merge the resulting disjunction with generator conjunction
         if graph.generator:
             paths = [graph.generator] + list(union.paths)
-        else:
-            paths = union.paths
-        union = tree.ast.Disjunction(paths=frozenset(paths))
-        self.flatten_and_unify_path_combination(union, deep=True, merge_filters=True)
+            union = tree.ast.Disjunction(paths=frozenset(paths))
+            self.flatten_and_unify_path_combination(union, deep=True,
+                                                    merge_filters=True)
 
-        # Reorder aggregate expressions so that all of them appear as the first sub-tree in
-        # the generator expression.
+        # Reorder aggregate expressions so that all of them appear as the
+        # first sub-tree in the generator expression.
         #
         if graph.generator:
             self.reorder_aggregates(graph.generator)
