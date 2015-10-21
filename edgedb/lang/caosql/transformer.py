@@ -337,10 +337,17 @@ class ReverseParseContext:
 
 
 class CaosqlReverseTransformer(tree.transformer.TreeTransformer):
-    def transform(self, caos_tree, inline_anchors=False):
+    def transform(self, caos_tree, inline_anchors=False, return_statement=False):
         context = ReverseParseContext()
         context.inline_anchors = inline_anchors
-        return self._process_expr(context, caos_tree)
+        caosql_tree = self._process_expr(context, caos_tree)
+
+        if return_statement and not isinstance(caosql_tree, qlast.StatementNode):
+            selnode = qlast.SelectQueryNode()
+            selnode.targets = [qlast.SelectExprNode(expr=caosql_tree)]
+            caosql_tree = selnode
+
+        return caosql_tree
 
     def _pathspec_from_record(self, context, expr):
         pathspec = []

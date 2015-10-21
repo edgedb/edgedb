@@ -1875,6 +1875,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         reverse_transformer = transformer.PgSQLExprTransformer()
         reverse_caosql_transformer = caosql_transformer.CaosqlReverseTransformer()
+        codegen = caosql_codegen.CaosQLSourceGenerator
 
         g = {}
 
@@ -1894,9 +1895,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 tabidx = indexes.get(table_name)
                 if tabidx:
                     for index in tabidx:
-                        caos_tree = reverse_transformer.transform(index, meta, link)
-                        caosql_tree = reverse_caosql_transformer.transform(caos_tree)
-                        expr = caosql_codegen.CaosQLSourceGenerator.to_source(caosql_tree)
+                        caos_tree = reverse_transformer.transform(
+                                        index, meta, link)
+                        caosql_tree = reverse_caosql_transformer.transform(
+                                        caos_tree, return_statement=True)
+                        expr = codegen.to_source(caosql_tree, pretty=False)
                         link.add_index(proto.SourceIndex(expr=expr))
             elif link.atomic():
                 ptr_stor_info = types.get_pointer_storage_info(meta, link)
@@ -2189,6 +2192,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         reverse_transformer = transformer.PgSQLExprTransformer()
         reverse_caosql_transformer = caosql_transformer.CaosqlReverseTransformer()
+        codegen = caosql_codegen.CaosQLSourceGenerator
 
         g = {}
         for concept in meta(type='concept'):
@@ -2206,9 +2210,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             tabidx = indexes.get(table_name)
             if tabidx:
                 for index in tabidx:
-                    caos_tree = reverse_transformer.transform(index, meta, concept)
-                    caosql_tree = reverse_caosql_transformer.transform(caos_tree)
-                    expr = caosql_codegen.CaosQLSourceGenerator.to_source(caosql_tree)
+                    caos_tree = reverse_transformer.transform(
+                                    index, meta, concept)
+                    caosql_tree = reverse_caosql_transformer.transform(
+                                    caos_tree, return_statement=True)
+                    expr = codegen.to_source(caosql_tree, pretty=False)
                     concept.add_index(proto.SourceIndex(expr=expr))
 
 

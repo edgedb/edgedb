@@ -28,13 +28,9 @@ class CaosQLExpression:
         self.proto_schema = proto_schema
         self.transformer = transformer.CaosqlTreeTransformer(proto_schema, module_aliases)
         self.reverse_transformer = transformer.CaosqlReverseTransformer()
-        self.path_resolver = None
-
-    def parse_expr(self, expr):
-        return self.parser.parse(expr)
 
     def get_statement_tree(self, expr):
-        tree = self.parse_expr(expr)
+        tree = self.parser.parse(expr)
 
         if not isinstance(tree, caosql_ast.StatementNode):
             selnode = caosql_ast.SelectQueryNode()
@@ -55,21 +51,27 @@ class CaosQLExpression:
 
         return tree
 
-    def normalize_tree(self, tree, module_aliases=None, anchors=None, inline_anchors=False):
-        if not isinstance(tree, caosql_ast.StatementNode):
-            selnode = caosql_ast.SelectQueryNode()
-            selnode.targets = [caosql_ast.SelectExprNode(expr=tree)]
-            tree = selnode
+    def normalize_tree(self, expr, module_aliases=None, anchors=None,
+                                   inline_anchors=False):
+        caosql_tree = self.get_statement_tree(expr)
+        caos_tree = self.transformer.transform(
+                        caosql_tree, (), module_aliases=module_aliases,
+                        anchors=anchors)
+        caosql_tree = self.reverse_transformer.transform(
+                        caos_tree, inline_anchors=inline_anchors)
 
-        caos_tree = self.transformer.transform(tree, (), module_aliases=module_aliases,
-                                                         anchors=anchors)
-        caosql_tree = self.reverse_transformer.transform(caos_tree, inline_anchors=inline_anchors)
-        return caosql_tree, caos_tree
+        source = codegen.CaosQLSourceGenerator.to_source(
+                        caosql_tree, pretty=False)
 
-    def normalize_expr(self, expr, module_aliases=None, anchors=None):
-        tree = self.parser.parse(expr)
-        tree, caos_tree = self.normalize_tree(tree, module_aliases=module_aliases, anchors=anchors)
-        return codegen.CaosQLSourceGenerator.to_source(tree, pretty=False), caos_tree
+        return caos_tree, caosql_tree, source
+
+    def normalize_expr(self, expr, module_aliases=None, anchors=None,
+                                   inline_anchors=False):
+        _, _, source = self.normalize_tree(
+            expr, module_aliases=module_aliases, anchors=anchors,
+            inline_anchors=inline_anchors)
+
+        return source
 
     def transform_expr_fragment(self, expr, anchors=None, location=None):
         tree = self.parser.parse(expr)
@@ -101,31 +103,6 @@ class CaosQLExpression:
         """
 
         return query_tree
-
-    def normalize_source_expr(self, expr, source):
-        tree = self.parser.parse(expr)
-
-        visitor = _PrependSource(source, self.proto_schema, self.module_aliases)
-        visitor.visit(tree)
-
-        expr = codegen.CaosQLSourceGenerator.to_source(tree, pretty=False)
-        return expr, tree
-
-    def check_source_atomic_expr(self, tree, source):
-        context = transformer.ParseContext()
-        context.current.location = 'selector'
-        processed = self.transformer._process_expr(context, tree)
-
-        ok = isinstance(processed, caos_ast.BaseRef) \
-             or (isinstance(processed, caos_ast.Disjunction) and
-                 isinstance(list(processed.paths)[0], caos_ast.BaseRef))
-
-        if not ok:
-            msg = "invalid link reference"
-            details = "Expression must only contain references to local atoms"
-            raise errors.CaosQLReferenceError(msg, details=details)
-
-        return processed
 
     def get_source_references(self, tree):
         result = []
@@ -226,92 +203,3 @@ class CaosQLExpression:
                 value = caosql_ast.SequenceNode(elements=elements)
 
             constant.value = value
-
-
-class _PrependSource(ast.visitor.NodeVisitor):
-    def __init__(self, source, schema, module_aliases):
-        self.source = source
-        self.schema = schema
-        self.module_aliases = module_aliases
-
-    def visit_PathNode(self, node):
-        step = node.steps[0]
-
-        if step.namespace:
-            name = caos.Name(name=step.expr, module=step.namespace)
-        else:
-            name = step.expr
-
-        if isinstance(self.source, caos.types.ProtoLink):
-            type = proto.LinkProperty
-            strtype = 'property'
-        else:
-            type = proto.Link
-            strtype = 'link'
-
-        prototype = self.schema.get(name, None)
-
-        if not prototype:
-            prototype = self.schema.get(name, type=type, module_aliases=self.module_aliases)
-
-        if not isinstance(prototype, self.source.__class__.get_canonical_class()):
-
-            pointer_node = caosql_ast.LinkNode(name=prototype.name.name,
-                                               namespace=prototype.name.module,
-                                               type=strtype)
-
-            if isinstance(self.source, caos.types.ProtoLink):
-                link = caosql_ast.LinkPropExprNode(expr=pointer_node)
-            else:
-                link = caosql_ast.LinkExprNode(expr=pointer_node)
-
-            source = self.source.get_pointer_origin(prototype.name, farthest=True)
-            source = caosql_ast.PathStepNode(expr=source.name.name, namespace=source.name.module)
-            node.steps[0] = source
-            node.steps.insert(1, link)
-            offset = 2
-        else:
-            offset = 0
-
-        steps = []
-        for step in node.steps[offset:]:
-            steps.append(self.visit(step))
-        node.steps[offset:] = steps
-        return node
-
-    def visit_PathStepNode(self, node):
-        if node.namespace:
-            name = caos.Name(name=node.expr, module=node.namespace)
-        else:
-            name = node.expr
-
-        if isinstance(self.source, caos.types.ProtoLink):
-            type = proto.LinkProperty
-        else:
-            type = proto.Link
-
-        prototype = self.schema.get(name, type=type, module_aliases=self.module_aliases)
-
-        node.expr = prototype.name.name
-        node.namespace = prototype.name.module
-        return node
-
-    def visit_LinkExprNode(self, node):
-        expr = self.visit(node.expr)
-
-        if isinstance(self.source, caos.types.ProtoLink):
-            node = caosql_ast.LinkPropExprNode(expr=expr)
-
-        return node
-
-    def visit_LinkNode(self, node):
-        if node.namespace:
-            name = caos.Name(name=node.name, module=node.namespace)
-        else:
-            name = node.expr
-
-        prototype = self.schema.get(name, module_aliases=self.module_aliases)
-
-        node.name = prototype.name.name
-        node.namespace = prototype.name.module
-        return node

@@ -28,13 +28,12 @@ class ConstraintsSchema:
                                     inline_anchors=False):
         ce = caosql_expr.CaosQLExpression(schema, module_aliases)
 
-        caosql_tree = ce.parser.parse(expr)
-        caosql_tree, tree = ce.normalize_tree(caosql_tree, module_aliases=module_aliases,
-                                                           anchors={'subject': subject},
-                                                           inline_anchors=inline_anchors)
+        tree, caosql_tree, _ = ce.normalize_tree(
+                                expr, module_aliases=module_aliases,
+                                anchors={'subject': subject},
+                                inline_anchors=inline_anchors)
 
         arg_types = ce.infer_arg_types(tree, schema)
-
 
         sel = tree.selector
         if len(sel) != 1:

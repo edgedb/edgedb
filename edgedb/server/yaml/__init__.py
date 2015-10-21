@@ -1217,14 +1217,10 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
         for concept in concepts:
             for index in concept.own_indexes:
-                expr, tree = self.normalize_index_expr(index.expr, concept, localschema)
+                expr = self.normalize_index_expr(index.expr, concept, localschema)
                 index.expr = expr
-                index.tree = tree
 
             try:
-                for index in concept.own_indexes:
-                    csql_expr.check_source_atomic_expr(index.tree, concept)
-
                 self.normalize_pointer_defaults(concept, localschema)
 
             except caosql_exc.CaosQLReferenceError as e:
@@ -1835,8 +1831,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             self.read_properties_for_link(link, localschema)
 
             for index in link._indexes:
-                expr, tree = self.normalize_index_expr(index.expr, link, localschema)
-                idx = proto.SourceIndex(expr, tree=tree)
+                expr = self.normalize_index_expr(index.expr, link, localschema)
+                idx = proto.SourceIndex(expr)
                 context = lang_context.SourceContext.from_object(index)
                 lang_context.SourceContext.register_object(idx, context)
                 link.add_index(idx)
@@ -1890,9 +1886,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
         try:
             for link in links:
-                for index in link.own_indexes:
-                    csql_expr.check_source_atomic_expr(index.tree, link)
-
                 self.normalize_pointer_defaults(link, localschema)
 
                 constraints = getattr(link, '_constraints', ())
@@ -2064,8 +2057,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             vals = set()
 
             for value in constraint.values:
-                expr, _ = self.caosql_expr.normalize_expr(value, module_aliases,
-                                                          anchors={'self': source})
+                expr = self.caosql_expr.normalize_expr(value, module_aliases,
+                                                       anchors={'self': source})
                 vals.add(expr)
 
             constraint.values = vals
@@ -2087,8 +2080,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
 
     def normalize_index_expr(self, expr, concept, localschema):
-        expr, tree = self.caosql_expr.normalize_source_expr(expr, concept)
-        return expr, tree
+        return self.caosql_expr.normalize_expr(
+                expr, anchors={'self': concept}, inline_anchors=True)
 
 
     def normalize_pointer_defaults(self, source, localschema):
@@ -2109,9 +2102,9 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                         for alias, module in def_context.document.imports.items():
                             module_aliases[alias] = module.__name__
 
-                        value, tree = self.caosql_expr.normalize_expr(default.value,
-                                                                      module_aliases,
-                                                                      anchors={'self': source})
+                        tree, _, value = self.caosql_expr.normalize_tree(
+                            default.value, module_aliases,
+                            anchors={'self': source})
 
                         first = list(tree.result_types.values())[0][0]
 
