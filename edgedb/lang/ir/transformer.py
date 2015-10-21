@@ -1988,13 +1988,6 @@ class TreeTransformer:
             our_id[-1] = None
 
 
-        """LOG [caos.graph.merge] MATCH PREFIXES
-        print(' ' * self.nest, our, other, ignore_filters)
-        print(' ' * self.nest, '   PATHS: ', our_id)
-        print(' ' * self.nest, '      *** ', other_id)
-        print(' ' * self.nest, '       EQ ', our_id == other_id)
-        """
-
         ok = ((our_node is None and other_node is None) or
               (our_node is not None and other_node is not None and
                 (our_id == other_id
@@ -2004,6 +1997,19 @@ class TreeTransformer:
                                          and not other_node.conjunction.paths))))
               and (not link or (link.link_proto == other_link.link_proto
                                 and link.direction == other_link.direction)))
+
+        """LOG [caos.graph.merge] MATCH PREFIXES
+        print(' ' * self.nest, our, other, ignore_filters)
+        print(' ' * self.nest, '   PATHS: ', our_id)
+        print(' ' * self.nest, '      *** ', other_id)
+        print(' ' * self.nest, 'PATHVARS: ', our_node.pathvar if our_node is not None else None)
+        print(' ' * self.nest, '      *** ', other_node.pathvar if other_node is not None else None)
+        print(' ' * self.nest, '    LINK: ', link.link_proto if link else None)
+        print(' ' * self.nest, '      *** ', other_link.link_proto if other_link else None)
+        print(' ' * self.nest, '     DIR: ', link.direction if link else None)
+        print(' ' * self.nest, '      *** ', other_link.direction if other_link else None)
+        print(' ' * self.nest, '      EQ: ', ok)
+        """
 
         if ok:
             if other_link:
