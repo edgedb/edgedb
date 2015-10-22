@@ -52,7 +52,7 @@ from metamagic.caos.backends.pgsql import driver
 from . import datasources
 from .datasources import introspection
 
-from .transformer import CaosTreeTransformer
+from .transformer import IRCompiler
 
 from . import ast as pg_ast
 from . import astexpr
@@ -285,7 +285,7 @@ class CaosQLAdapter:
     def __init__(self, session):
         self.session = session
         self.connection = session.get_connection()
-        self.transformer = CaosTreeTransformer()
+        self.transformer = IRCompiler()
         self.current_portal = None
 
     def transform(self, query, scrolling_cursor=False, context=None, *, proto_schema,
@@ -1873,7 +1873,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def order_links(self, meta):
         indexes = self.read_indexes()
 
-        reverse_transformer = transformer.PgSQLExprTransformer()
+        reverse_transformer = transformer.Decompiler()
         reverse_caosql_transformer = caosql_transformer.CaosqlReverseTransformer()
         codegen = caosql_codegen.CaosQLSourceGenerator
 
@@ -2190,7 +2190,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def order_concepts(self, meta):
         indexes = self.read_indexes()
 
-        reverse_transformer = transformer.PgSQLExprTransformer()
+        reverse_transformer = transformer.Decompiler()
         reverse_caosql_transformer = caosql_transformer.CaosqlReverseTransformer()
         codegen = caosql_codegen.CaosQLSourceGenerator
 

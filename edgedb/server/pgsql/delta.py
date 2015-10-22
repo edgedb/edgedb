@@ -1070,7 +1070,7 @@ class CreateSourceIndex(SourceIndexCommand, adapts=delta_cmds.CreateSourceIndex)
         ir = caosql.compile_fragment_to_ir(index.expr, meta,
                                            location='selector')
 
-        ircompiler = transformer.SimpleExprTransformer()
+        ircompiler = transformer.SimpleIRCompiler()
         sql_tree = ircompiler.transform(ir, meta, local=True)
         sql_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
         if isinstance(sql_tree, pg_ast.SequenceNode):

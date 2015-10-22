@@ -151,8 +151,9 @@ class ConstraintMech:
 
     @classmethod
     def _caosql_ref_to_pg_constr(cls, subject, tree, schema, link_bias):
-        tf = transformer.SimpleExprTransformer()
-        sql_tree = tf.transform(tree, protoschema=schema, local=True, link_bias=link_bias)
+        ircompiler = transformer.SimpleIRCompiler()
+        sql_tree = ircompiler.transform(tree, protoschema=schema,
+                                        local=True, link_bias=link_bias)
 
         is_multicol = isinstance(tree, irast.Sequence)
 

@@ -232,7 +232,7 @@ class TransformerContextWrapper(object):
             self.context.pop()
 
 
-class PgSQLExprTransformer(ast.visitor.NodeVisitor):
+class Decompiler(ast.visitor.NodeVisitor):
     def transform(self, tree, schema, local_to_source=None):
         context = TransformerContext()
         context.current.source = local_to_source
@@ -304,7 +304,7 @@ class PgSQLExprTransformer(ast.visitor.NodeVisitor):
         return irast.FunctionCall(name=fname, args=args)
 
 
-class CaosExprTransformer:
+class IRCompilerBase:
     def _table_from_concept(self, context, concept, node, parent_cte):
         if concept.is_virtual:
             # Virtual concepts are represented as a UNION of selects from their children,
@@ -1183,7 +1183,7 @@ class CaosExprTransformer:
         return result
 
 
-class SimpleExprTransformer(CaosExprTransformer):
+class SimpleIRCompiler(IRCompilerBase):
     def transform(self, expr, protoschema, local=False, link_bias=False):
         context = TransformerContext()
         context.current.local = local
@@ -1195,7 +1195,9 @@ class SimpleExprTransformer(CaosExprTransformer):
                                        or (expr.op and expr.op != 'select') \
                                        or len(expr.selector) > 1)
             if not is_simple:
-                raise ValueError("SimpleExprTransformer can only transform single SELECT expressions")
+                msg = "SimpleIRCompiler can only transform single " + \
+                      "SELECT statements."
+                raise ValueError(msg)
 
             expr = expr.selector[0].expr
 
@@ -1293,7 +1295,7 @@ class SimpleExprTransformer(CaosExprTransformer):
         return result
 
 
-class CaosTreeTransformer(CaosExprTransformer):
+class IRCompiler(IRCompilerBase):
     @debug
     def transform(self, query, backend, proto_schema, output_format=None):
         try:
