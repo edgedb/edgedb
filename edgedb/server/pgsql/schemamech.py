@@ -16,7 +16,6 @@ from metamagic.caos.ir import ast as irast
 from metamagic.caos.ir import astexpr as irastexpr
 from metamagic.caos.ir import utils as ir_utils
 from metamagic.caos import caosql
-from metamagic.caos.caosql import transformer as caosql_transformer
 
 from metamagic.utils import ast
 from metamagic.utils import datastructures

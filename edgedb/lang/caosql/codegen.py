@@ -500,3 +500,6 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
     def visit_NoneTestNode(self, node):
         self.visit(node.expr)
         self.write(' IS None')
+
+
+generate_source = CaosQLSourceGenerator.to_source

@@ -10,7 +10,7 @@ from metamagic import caos
 from metamagic.caos import proto
 from metamagic.caos.ir import ast as irast
 from metamagic.caos.ir import utils as ir_utils
-from metamagic.caos.caosql import codegen as caosql_codegen
+from metamagic.caos import caosql
 from metamagic.caos.caosql import utils as caosql_utils
 
 from metamagic.utils import ast
@@ -49,7 +49,7 @@ class ConstraintsSchema:
         subject = cls._dummy_subject()
         caosql_tree, tree, arg_types = cls._parse_constraint_expr(schema, module_aliases, expr,
                                                                   subject)
-        expr = caosql_codegen.CaosQLSourceGenerator.to_source(caosql_tree)
+        expr = caosql.generate_source(caosql_tree, pretty=False)
         ### XXX: check that expr has boolean result
         return expr
 
@@ -57,7 +57,7 @@ class ConstraintsSchema:
     def normalize_constraint_subject_expr(cls, schema, module_aliases, expr):
         subject = cls._dummy_subject()
         caosql_tree, _, _ = cls._parse_constraint_expr(schema, module_aliases, expr, subject)
-        expr = caosql_codegen.CaosQLSourceGenerator.to_source(caosql_tree)
+        expr = caosql.generate_source(caosql_tree, pretty=False)
         return expr
 
     @classmethod
@@ -123,7 +123,7 @@ class ConstraintsSchema:
 
             constraint.errmessage = constraint.errmessage.format(subject='{subject}', **fmtparams)
 
-        text = caosql_codegen.CaosQLSourceGenerator.to_source(caosql_tree)
+        text = caosql.generate_source(caosql_tree, pretty=False)
 
         constraint.localfinalexpr = text
         constraint.finalexpr = text

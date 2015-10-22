@@ -12,8 +12,9 @@ from metamagic.utils import ast
 
 from . import ast as qlast
 from . import codegen
+from . import compiler
+from . import decompiler
 from . import parser
-from . import transformer
 
 
 def inline_constants(caosql_tree, values, types):
@@ -33,17 +34,12 @@ def inline_constants(caosql_tree, values, types):
 
 def normalize_tree(expr, schema, *, module_aliases=None, anchors=None,
                                     inline_anchors=False):
-    trans = transformer.CaosqlTreeTransformer(schema, module_aliases)
-    revtrans = transformer.CaosqlReverseTransformer()
+    ir = compiler.compile_to_ir(expr, schema,
+                                module_aliases=module_aliases,
+                                anchors=anchors)
+    caosql_tree = decompiler.decompile_ir(ir, inline_anchors=inline_anchors)
 
-    caosql_tree = parser.parse(expr, module_aliases)
-    ir = trans.transform(
-                    caosql_tree, (), module_aliases=module_aliases,
-                    anchors=anchors)
-    caosql_tree = revtrans.transform(ir, inline_anchors=inline_anchors)
-
-    source = codegen.CaosQLSourceGenerator.to_source(
-                    caosql_tree, pretty=False)
+    source = codegen.generate_source(caosql_tree, pretty=False)
 
     return ir, caosql_tree, source
 

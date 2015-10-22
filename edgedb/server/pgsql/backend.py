@@ -39,8 +39,7 @@ from metamagic.caos import debug as caos_debug
 from metamagic.caos import error as caos_error
 from metamagic.caos import protoschema as lang_protoschema
 
-from metamagic.caos.caosql import transformer as caosql_transformer
-from metamagic.caos.caosql import codegen as caosql_codegen
+from metamagic.caos import caosql
 
 from metamagic.caos.backends import query as backend_query
 from metamagic.caos.backends.pgsql import common
@@ -1874,8 +1873,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         indexes = self.read_indexes()
 
         reverse_transformer = transformer.Decompiler()
-        reverse_caosql_transformer = caosql_transformer.CaosqlReverseTransformer()
-        codegen = caosql_codegen.CaosQLSourceGenerator
 
         g = {}
 
@@ -1897,9 +1894,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     for index in tabidx:
                         caos_tree = reverse_transformer.transform(
                                         index, meta, link)
-                        caosql_tree = reverse_caosql_transformer.transform(
+                        caosql_tree = caosql.decompile_ir(
                                         caos_tree, return_statement=True)
-                        expr = codegen.to_source(caosql_tree, pretty=False)
+                        expr = caosql.generate_source(caosql_tree, pretty=False)
                         link.add_index(proto.SourceIndex(expr=expr))
             elif link.atomic():
                 ptr_stor_info = types.get_pointer_storage_info(meta, link)
@@ -2191,8 +2188,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         indexes = self.read_indexes()
 
         reverse_transformer = transformer.Decompiler()
-        reverse_caosql_transformer = caosql_transformer.CaosqlReverseTransformer()
-        codegen = caosql_codegen.CaosQLSourceGenerator
 
         g = {}
         for concept in meta(type='concept'):
@@ -2210,11 +2205,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             tabidx = indexes.get(table_name)
             if tabidx:
                 for index in tabidx:
-                    caos_tree = reverse_transformer.transform(
+                    ir_tree = reverse_transformer.transform(
                                     index, meta, concept)
-                    caosql_tree = reverse_caosql_transformer.transform(
-                                    caos_tree, return_statement=True)
-                    expr = codegen.to_source(caosql_tree, pretty=False)
+                    caosql_tree = caosql.decompile_ir(
+                                    ir_tree, return_statement=True)
+                    expr = caosql.generate_source(caosql_tree, pretty=False)
                     concept.add_index(proto.SourceIndex(expr=expr))
 
 

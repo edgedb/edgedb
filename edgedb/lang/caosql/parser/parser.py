@@ -8,9 +8,11 @@
 
 from metamagic.utils import ast, parsing, debug
 
-from metamagic.caos.caosql.parser.errors import CaosQLSyntaxError
-from metamagic.caos.caosql import ast as qlast, CaosQLQueryError
 from metamagic.caos import types as caos_types
+
+from metamagic.caos.caosql import ast as qlast
+from metamagic.caos.caosql.errors import CaosQLQueryError
+from metamagic.caos.caosql.parser.errors import CaosQLSyntaxError
 
 from . import lexer
 
