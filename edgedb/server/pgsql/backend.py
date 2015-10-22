@@ -560,26 +560,26 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                 self.read_modules(self.meta)
                 self.read_attributes(self.meta)
-                self.read_pointer_cascade_actions(self.meta)
-                self.read_pointer_cascade_events(self.meta)
+                self.read_actions(self.meta)
+                self.read_events(self.meta)
                 self.read_atoms(self.meta)
                 self.read_concepts(self.meta)
                 self.read_links(self.meta)
                 self.read_link_properties(self.meta)
                 self.read_computables(self.meta)
-                self.read_pointer_cascade_policies(self.meta)
+                self.read_policies(self.meta)
                 self.read_attribute_values(self.meta)
                 self.read_constraints(self.meta)
 
                 self.order_attributes(self.meta)
-                self.order_pointer_cascade_actions(self.meta)
-                self.order_pointer_cascade_events(self.meta)
+                self.order_actions(self.meta)
+                self.order_events(self.meta)
                 self.order_atoms(self.meta)
                 self.order_computables(self.meta)
                 self.order_link_properties(self.meta)
                 self.order_links(self.meta)
                 self.order_concepts(self.meta)
-                self.order_pointer_cascade_policies(self.meta)
+                self.order_policies(self.meta)
 
                 self.free_resources()
 
@@ -591,13 +591,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     @debug
     def process_delta(self, delta, meta, session=None):
-        """LOG [caos.delta.plan] PgSQL Delta Plan
-            markup.dump(delta)
-        """
         delta = self.adapt_delta(delta)
         connection = session.get_connection() if session else self.connection
         context = delta_cmds.CommandContext(connection, session=session)
         delta.apply(meta, context)
+        """LOG [caos.delta.plan] PgSQL Delta Plan
+            markup.dump(delta)
+        """
         return delta
 
 
@@ -2079,61 +2079,86 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             meta.add(attribute)
 
 
-    def read_pointer_cascade_actions(self, meta):
-        ptr_cascade_actions_ds = datasources.meta.cascades.CascadeActions(self.connection)
-        ptr_cascade_actions = ptr_cascade_actions_ds.fetch()
+    def read_actions(self, meta):
+        actions_ds = datasources.meta.policy.Actions(self.connection)
+        actions = actions_ds.fetch()
 
-        for r in ptr_cascade_actions:
+        for r in actions:
             name = caos.name.Name(r['name'])
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
 
-            action = proto.PointerCascadeAction(name=name, title=title, description=description)
+            action = proto.Action(name=name, title=title,
+                                  description=description)
             meta.add(action)
 
 
-    def order_pointer_cascade_actions(self, meta):
+    def order_actions(self, meta):
         pass
 
 
-    def read_pointer_cascade_events(self, meta):
-        ptr_cascade_events_ds = datasources.meta.cascades.CascadeEvents(self.connection)
-        ptr_cascade_events = ptr_cascade_events_ds.fetch()
+    def read_events(self, meta):
+        events_ds = datasources.meta.policy.Events(self.connection)
+        events = events_ds.fetch()
 
-        for r in ptr_cascade_events:
+        basemap = {}
+
+        for r in events:
             name = caos.name.Name(r['name'])
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
-            allowed_actions = [meta.get(a, type=proto.PointerCascadeAction)
-                               for a in r['allowed_actions']]
-            allowed_actions = proto.PointerCascadeActionSet(allowed_actions)
+            if r['allowed_actions'] is None:
+                allowed_actions = None
+            else:
+                allowed_actions = [meta.get(a, type=proto.Action)
+                                   for a in r['allowed_actions']]
 
-            event = proto.PointerCascadeEvent(name=name, title=title, description=description,
-                                              allowed_actions=allowed_actions)
+            if r['base']:
+                bases = tuple(caos.Name(b) for b in r['base'])
+            elif name != 'metamagic.caos.builtins.event':
+                bases = (caos.Name('metamagic.caos.builtins.event'),)
+            else:
+                bases = tuple()
+
+            basemap[name] = bases
+
+            event = proto.Event(name=name, title=title, description=description,
+                                allowed_actions=allowed_actions)
             meta.add(event)
 
+        for event in meta(type='event'):
+            try:
+                bases = basemap[event.name]
+            except KeyError:
+                pass
+            else:
+                event.bases = [meta.get(b) for b in bases]
 
-    def order_pointer_cascade_events(self, meta):
+        for event in meta(type='event'):
+            event.acquire_ancestor_inheritance(meta)
+
+
+    def order_events(self, meta):
         pass
 
 
-    def read_pointer_cascade_policies(self, meta):
-        ptr_cascade_policies_ds = datasources.meta.cascades.CascadePolicies(self.connection)
-        ptr_cascade_policies = ptr_cascade_policies_ds.fetch()
+    def read_policies(self, meta):
+        policies_ds = datasources.meta.policy.Policies(self.connection)
+        policies = policies_ds.fetch()
 
-        for r in ptr_cascade_policies:
+        for r in policies:
             name = caos.name.Name(r['name'])
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
-            policy = proto.PointerCascadePolicy(name=name, title=title, description=description,
-                                                subject=meta.get(r['subject']),
-                                                event=meta.get(r['event']),
-                                                action=meta.get(r['action']),
-                                                category=r['category'])
+            policy = proto.Policy(name=name, title=title, description=description,
+                                  subject=meta.get(r['subject']),
+                                  event=meta.get(r['event']),
+                                  actions=[meta.get(a) for a in r['actions']])
             meta.add(policy)
+            policy.subject.add_policy(policy)
 
 
-    def order_pointer_cascade_policies(self, meta):
+    def order_policies(self, meta):
         pass
 
     def get_type_attributes(self, type_name, connection=None, cache='auto'):

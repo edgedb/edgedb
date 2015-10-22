@@ -42,6 +42,7 @@ mapping:
                 sequence:
                     - &DELTA
                       type: class
+                      fallback: metamagic.caos.backends.yaml.delta.Ghost
                       fields:
                         "ops":
                             type: seq

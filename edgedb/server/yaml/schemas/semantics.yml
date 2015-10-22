@@ -214,13 +214,13 @@ mapping:
                     "extends":
                         *BASES
 
-    "cascade-actions":
+    "actions":
         type: map
         default: {}
         mapping:
-            =: # name of a cascade action
+            =: # name of an action
                 type: map
-                object: metamagic.caos.backends.yaml.PointerCascadeAction
+                object: metamagic.caos.backends.yaml.Action
                 required: yes
                 mapping:
                     "title":
@@ -229,13 +229,13 @@ mapping:
                     "description":
                         type: str
 
-    "cascade-events":
+    "events":
         type: map
         default: {}
         mapping:
-            =: # name of a cascade event
+            =: # name of an event
                 type: map
-                object: metamagic.caos.backends.yaml.PointerCascadeEvent
+                object: metamagic.caos.backends.yaml.Event
                 required: yes
                 mapping:
                     "title":
@@ -245,12 +245,15 @@ mapping:
                         type: str
 
                     "extends":
-                        type: str
+                        *BASES
+
+                    "abstract":
+                        type: bool
 
                     "allowed-actions":
                         type: choice
-                        required: yes
-                        object: metamagic.caos.backends.yaml.PointerCascadeActionSet
+                        required: no
+                        object: metamagic.caos.backends.yaml.ActionSet
                         choice:
                             - type: str
                             - type: seq
@@ -305,17 +308,11 @@ mapping:
                         enum: ["first-item", "set"]
                         default: null
 
-                    "cascades": &CASCADES
+                    "policy": &POLICY
                         type: map
                         mapping:
-                            =:
-                                type: choice
-                                choice:
-                                    - type: str
-                                    - type: map
-                                      mapping:
-                                        =:
-                                            type: str
+                            =: #event
+                                type: str # action
 
                     "properties":
                         type: map
@@ -433,8 +430,8 @@ mapping:
                                                   *CONSTRAINTS
                                               "abstract-constraints":
                                                   *CONSTRAINTS
-                                              "cascades":
-                                                  *CASCADES
+                                              "policy":
+                                                  *POLICY
                                               "comparison":
                                                   type: str
                                                   enum: [cidirect, fuzzy]
@@ -501,8 +498,8 @@ mapping:
                     =:
                         type: map
                         mapping:
-                            "cascades":
-                                *CASCADES
+                            "policy":
+                                *POLICY
 
             "concepts":
                 type: map
@@ -518,5 +515,5 @@ mapping:
                                     =:
                                         type: map
                                         mapping:
-                                            "cascades":
-                                                *CASCADES
+                                            "policy":
+                                                *POLICY

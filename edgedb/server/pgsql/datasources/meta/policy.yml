@@ -1,0 +1,98 @@
+##
+# Copyright (c) 2012 Sprymix Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+%SCHEMA metamagic.caos.datasources.schemas.Sql
+%NAME Actions
+---
+params:
+    name:
+        type: str
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+            a.id           AS id,
+            a.name         AS name,
+            a.title        AS title,
+            a.description  AS description
+        FROM
+            caos.action a
+        WHERE
+            %(name)s::text IS NULL OR a.name LIKE %(name)s::text
+...
+
+
+%SCHEMA metamagic.caos.datasources.schemas.Sql
+%NAME Events
+---
+params:
+    name:
+        type: str
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+            e.id           AS id,
+            e.name         AS name,
+            e.base         AS base,
+            e.title        AS title,
+            e.description  AS description,
+            (SELECT
+                    array_agg(a.name)
+                FROM
+                    (SELECT
+                        unnest(ev.allowed_actions) AS a_id
+                     FROM
+                        caos.event ev
+                     WHERE
+                        ev.id = e.id) ev_a
+                    INNER JOIN caos.action a ON ev_a.a_id = a.id
+            )               AS allowed_actions
+        FROM
+            caos.event e
+        WHERE
+            %(name)s::text IS NULL OR e.name LIKE %(name)s::text
+...
+
+
+%SCHEMA metamagic.caos.datasources.schemas.Sql
+%NAME Policies
+---
+params:
+    name:
+        type: str
+
+filters:
+    - format: dict
+
+source: |
+    SELECT
+            p.id           AS id,
+            p.name         AS name,
+            p.title        AS title,
+            p.description  AS description,
+            o.name         AS subject,
+            e.name         AS event,
+            (SELECT
+                array_agg(a.name)
+             FROM
+                caos.action a
+             WHERE
+                a.id = any(p.actions)
+            )              AS actions
+        FROM
+            caos.policy p
+            INNER JOIN caos.metaobject o ON o.id = p.subject
+            INNER JOIN caos.event e ON e.id = p.event
+        WHERE
+            %(name)s::text IS NULL OR p.name LIKE %(name)s::text
+...

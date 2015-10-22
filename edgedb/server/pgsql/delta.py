@@ -40,7 +40,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 24
+BACKEND_FORMAT_VERSION = 25
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -91,6 +91,27 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeC
         super().__init__(**kwargs)
         self._type_mech = schemamech.TypeMech()
 
+    def _serialize_refs(self, value):
+        if isinstance(value, caos.proto.PrototypeRef):
+            result = value.prototype_name
+
+        elif isinstance(value, proto.PrototypeOrNativeClassRefList):
+            result = []
+
+            for v in value:
+                if isinstance(v, proto.PrototypeRef):
+                    result.append(v.prototype_name)
+                else:
+                    result.append(v.class_name)
+
+        elif isinstance(value, (proto.PrototypeSet, proto.PrototypeList)):
+            result = [v.prototype_name for v in value]
+
+        else:
+            result = value
+
+        return result
+
     def fill_record(self, schema, rec=None, obj=None):
         updates = {}
 
@@ -103,33 +124,8 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeC
                 if name == 'bases':
                     name = 'base'
 
-                # XXX: for backwards compatibility, should convert the delta code
-                #      to expect objects in 'source' and 'target' fields of pointers,
-                if isinstance(value[0], caos.proto.PrototypeRef):
-                    v0 = value[0].prototype_name
-                elif isinstance(value[0], proto.PrototypeOrNativeClassRefList):
-                    v0 = []
-
-                    for v in value[0]:
-                        if isinstance(v, proto.PrototypeRef):
-                            v0.append(v.prototype_name)
-                        else:
-                            v0.append(v.class_name)
-                else:
-                    v0 = value[0]
-
-                if isinstance(value[1], caos.proto.PrototypeRef):
-                    v1 = value[1].prototype_name
-                elif isinstance(value[1], proto.PrototypeOrNativeClassRefList):
-                    v1 = []
-
-                    for v in value[1]:
-                        if isinstance(v, proto.PrototypeRef):
-                            v1.append(v.prototype_name)
-                        else:
-                            v1.append(v.class_name)
-                else:
-                    v1 = value[1]
+                v0 = self._serialize_refs(value[0])
+                v1 = self._serialize_refs(value[1])
 
                 updates[name] = (v0, v1)
                 if hasattr(myrec, name):
@@ -1295,93 +1291,85 @@ class DeleteConcept(ConceptMetaCommand, adapts=delta_cmds.DeleteConcept):
         return concept
 
 
-class PointerCascadeActionCommand:
-    table = deltadbops.PointerCascadeActionTable()
+class ActionCommand:
+    table = deltadbops.ActionTable()
 
 
-class CreatePointerCascadeAction(CreateNamedPrototype,
-                                 PointerCascadeActionCommand,
-                                 adapts=delta_cmds.CreatePointerCascadeAction):
+class CreateAction(CreateNamedPrototype,
+                                 ActionCommand,
+                                 adapts=delta_cmds.CreateAction):
     pass
 
 
-class RenamePointerCascadeAction(RenameNamedPrototype,
-                                 PointerCascadeActionCommand,
-                                 adapts=delta_cmds.RenamePointerCascadeAction):
+class RenameAction(RenameNamedPrototype,
+                                 ActionCommand,
+                                 adapts=delta_cmds.RenameAction):
     pass
 
 
-class AlterPointerCascadeAction(AlterNamedPrototype,
-                                PointerCascadeActionCommand,
-                                adapts=delta_cmds.AlterPointerCascadeAction):
+class AlterAction(AlterNamedPrototype,
+                                ActionCommand,
+                                adapts=delta_cmds.AlterAction):
     pass
 
 
-class DeletePointerCascadeAction(DeleteNamedPrototype,
-                                 PointerCascadeActionCommand,
-                                 adapts=delta_cmds.DeletePointerCascadeAction):
+class DeleteAction(DeleteNamedPrototype,
+                                 ActionCommand,
+                                 adapts=delta_cmds.DeleteAction):
     pass
 
 
-class PointerCascadeEventCommand(metaclass=CommandMeta):
-    table = deltadbops.PointerCascadeEventTable()
+class EventCommand(metaclass=CommandMeta):
+    table = deltadbops.EventTable()
 
     def fill_record(self, schema, rec=None, obj=None):
         rec, updates = super().fill_record(schema, rec=rec, obj=obj)
 
         if rec:
-            acts = updates.get('allowed_actions')
-            if acts:
-                actions = []
-
-                for action in acts[1]:
-                    if isinstance(action, proto.PrototypeRef):
-                        name = action.prototype_name
-                    else:
-                        name = action.name
-
-                    actions.append(name)
-
+            actions = updates.get('allowed_actions')
+            if actions:
                 rec.allowed_actions = dbops.Query(
-                    '(SELECT array_agg(id) FROM caos.metaobject WHERE name = any($1::text[]))',
-                    [actions], type='integer[]')
+                    '''(SELECT array_agg(id)
+                        FROM caos.metaobject
+                        WHERE name = any($1::text[]))''',
+                    [actions[1]], type='integer[]')
 
         return rec, updates
 
 
-class CreatePointerCascadeEvent(PointerCascadeEventCommand,
+class CreateEvent(EventCommand,
                                 CreateNamedPrototype,
-                                adapts=delta_cmds.CreatePointerCascadeEvent):
+                                adapts=delta_cmds.CreateEvent):
     pass
 
 
-class RenamePointerCascadeEvent(PointerCascadeEventCommand,
+class RenameEvent(EventCommand,
                                 RenameNamedPrototype,
-                                adapts=delta_cmds.RenamePointerCascadeEvent):
+                                adapts=delta_cmds.RenameEvent):
     pass
 
 
-class RebasePointerCascadeEvent(PointerCascadeEventCommand,
+class RebaseEvent(EventCommand,
                                 RebaseNamedPrototype,
-                                adapts=delta_cmds.RebasePointerCascadeEvent):
+                                adapts=delta_cmds.RebaseEvent):
     pass
 
 
-class AlterPointerCascadeEvent(PointerCascadeEventCommand,
+class AlterEvent(EventCommand,
                                AlterNamedPrototype,
-                               adapts=delta_cmds.AlterPointerCascadeEvent):
+                               adapts=delta_cmds.AlterEvent):
     pass
 
 
-class DeletePointerCascadeEvent(PointerCascadeEventCommand,
+class DeleteEvent(EventCommand,
                                 DeleteNamedPrototype,
-                                adapts=delta_cmds.DeletePointerCascadeEvent):
+                                adapts=delta_cmds.DeleteEvent):
     pass
 
 
-class PointerCascadePolicyCommand(metaclass=CommandMeta):
-    table = deltadbops.PointerCascadePolicyTable()
-    op_priority = 1
+class PolicyCommand(metaclass=CommandMeta):
+    table = deltadbops.PolicyTable()
+    op_priority = 2
 
     def fill_record(self, schema, rec=None, obj=None):
         rec, updates = super().fill_record(schema, rec=rec, obj=obj)
@@ -1399,36 +1387,38 @@ class PointerCascadePolicyCommand(metaclass=CommandMeta):
                     '(SELECT id FROM caos.metaobject WHERE name = $1)',
                     [event[1]], type='integer')
 
-            action = updates.get('action')
-            if action:
-                rec.action = dbops.Query(
-                    '(SELECT id FROM caos.metaobject WHERE name = $1)',
-                    [action[1]], type='integer')
+            actions = updates.get('actions')
+            if actions:
+                rec.actions = dbops.Query(
+                    '''(SELECT array_agg(id)
+                        FROM caos.metaobject
+                        WHERE name = any($1::text[]))''',
+                    [actions[1]], type='integer[]')
 
         return rec, updates
 
 
-class CreatePointerCascadePolicy(PointerCascadePolicyCommand,
+class CreatePolicy(PolicyCommand,
                                  CreateNamedPrototype,
-                                 adapts=delta_cmds.CreatePointerCascadePolicy):
+                                 adapts=delta_cmds.CreatePolicy):
     pass
 
 
-class RenamePointerCascadePolicy(PointerCascadePolicyCommand,
+class RenamePolicy(PolicyCommand,
                                  RenameNamedPrototype,
-                                 adapts=delta_cmds.RenamePointerCascadePolicy):
+                                 adapts=delta_cmds.RenamePolicy):
     pass
 
 
-class AlterPointerCascadePolicy(PointerCascadePolicyCommand,
+class AlterPolicy(PolicyCommand,
                                 AlterNamedPrototype,
-                                adapts=delta_cmds.AlterPointerCascadePolicy):
+                                adapts=delta_cmds.AlterPolicy):
     pass
 
 
-class DeletePointerCascadePolicy(PointerCascadePolicyCommand,
+class DeletePolicy(PolicyCommand,
                                  DeleteNamedPrototype,
-                                 adapts=delta_cmds.DeletePointerCascadePolicy):
+                                 adapts=delta_cmds.DeletePolicy):
     pass
 
 
@@ -1724,7 +1714,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
 
         if create_children:
             for l_descendant in link.descendants(meta):
-                if not l_descendant.generic():
+                if cls.has_table(l_descendant, meta):
                     lc = LinkMetaCommand._create_table(l_descendant, meta, context,
                             conditional=True, create_bases=False,
                             create_children=False)
@@ -2645,14 +2635,19 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
                                          neg_conditions=[dbops.TableExists(name=constrtable.name)],
                                          priority=-1))
 
+        actiontable = deltadbops.ActionTable()
+        self.pgops.add(dbops.CreateTable(table=actiontable,
+                                         neg_conditions=[dbops.TableExists(name=actiontable.name)],
+                                         priority=-1))
+
+        eventtable = deltadbops.EventTable()
+        self.pgops.add(dbops.CreateTable(table=eventtable,
+                                         neg_conditions=[dbops.TableExists(name=eventtable.name)],
+                                         priority=-1))
+
         policytable = deltadbops.PolicyTable()
         self.pgops.add(dbops.CreateTable(table=policytable,
                                          neg_conditions=[dbops.TableExists(name=policytable.name)],
-                                         priority=-1))
-
-        eventpolicytable = deltadbops.EventPolicyTable()
-        self.pgops.add(dbops.CreateTable(table=eventpolicytable,
-                                         neg_conditions=[dbops.TableExists(name=eventpolicytable.name)],
                                          priority=-1))
 
         atomtable = deltadbops.AtomTable()
@@ -2678,21 +2673,6 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
         computabletable = deltadbops.ComputableTable()
         self.pgops.add(dbops.CreateTable(table=computabletable,
                                          neg_conditions=[dbops.TableExists(name=computabletable.name)],
-                                         priority=-1))
-
-        ptrcascadeactiontable = deltadbops.PointerCascadeActionTable()
-        self.pgops.add(dbops.CreateTable(table=ptrcascadeactiontable,
-                                         neg_conditions=[dbops.TableExists(name=ptrcascadeactiontable.name)],
-                                         priority=-1))
-
-        ptrcascadeeventtable = deltadbops.PointerCascadeEventTable()
-        self.pgops.add(dbops.CreateTable(table=ptrcascadeeventtable,
-                                         neg_conditions=[dbops.TableExists(name=ptrcascadeeventtable.name)],
-                                         priority=-1))
-
-        ptrcascadepolicytable = deltadbops.PointerCascadePolicyTable()
-        self.pgops.add(dbops.CreateTable(table=ptrcascadepolicytable,
-                                         neg_conditions=[dbops.TableExists(name=ptrcascadepolicytable.name)],
                                          priority=-1))
 
         entity_modstat_type = deltadbops.EntityModStatType()
@@ -3186,17 +3166,17 @@ class UpgradeBackend(MetaCommand):
         cg.add_command(dbops.CreateTable(table=eventpolicytable,
                                          neg_conditions=[dbops.TableExists(name=eventpolicytable.name)]))
 
-        ptrcascadeactiontable = deltadbops.PointerCascadeActionTable()
-        cg.add_command(dbops.CreateTable(table=ptrcascadeactiontable,
-                                         neg_conditions=[dbops.TableExists(name=ptrcascadeactiontable.name)]))
+        actiontable = deltadbops.ActionTable()
+        cg.add_command(dbops.CreateTable(table=actiontable,
+                                         neg_conditions=[dbops.TableExists(name=actiontable.name)]))
 
-        ptrcascadeeventtable = deltadbops.PointerCascadeEventTable()
-        cg.add_command(dbops.CreateTable(table=ptrcascadeeventtable,
-                                         neg_conditions=[dbops.TableExists(name=ptrcascadeeventtable.name)]))
+        eventtable = deltadbops.EventTable()
+        cg.add_command(dbops.CreateTable(table=eventtable,
+                                         neg_conditions=[dbops.TableExists(name=eventtable.name)]))
 
-        ptrcascadepolicytable = deltadbops.PointerCascadePolicyTable()
-        cg.add_command(dbops.CreateTable(table=ptrcascadepolicytable,
-                                         neg_conditions=[dbops.TableExists(name=ptrcascadepolicytable.name)]))
+        policytable = deltadbops.PolicyTable()
+        cg.add_command(dbops.CreateTable(table=policytable,
+                                         neg_conditions=[dbops.TableExists(name=policytable.name)]))
 
         cg.execute(context)
 
@@ -4015,6 +3995,38 @@ class UpgradeBackend(MetaCommand):
                         rng.add_command(create)
 
                         cg.add_command(rng)
+
+        cg.execute(context)
+
+    def update_to_version_25(self, context):
+        r"""\
+        Backend format 25 migrates to new policy tables
+        """
+
+        cg = dbops.CommandGroup()
+        cg.add_command(dbops.DropTable(name=('caos', 'pointer_cascade_policy')))
+        cg.add_command(dbops.DropTable(name=('caos', 'pointer_cascade_event')))
+        cg.add_command(dbops.DropTable(name=('caos', 'pointer_cascade_action')))
+        cg.add_command(dbops.DropTable(name=('caos', 'event_policy')))
+
+        alter = dbops.AlterTable(('caos', 'policy'))
+
+        catcol = dbops.Column(name='category', type='text')
+        alter.add_command(dbops.AlterTableDropColumn(catcol))
+
+        eventcol = dbops.Column(name='event', type='integer')
+        alter.add_command(dbops.AlterTableAddColumn(eventcol))
+
+        actcol = dbops.Column(name='actions', type='integer[]')
+        alter.add_command(dbops.AlterTableAddColumn(actcol))
+
+        cg.add_command(alter)
+
+        actiontable = deltadbops.ActionTable()
+        cg.add_command(dbops.CreateTable(table=actiontable))
+
+        eventtable = deltadbops.EventTable()
+        cg.add_command(dbops.CreateTable(table=eventtable))
 
         cg.execute(context)
 

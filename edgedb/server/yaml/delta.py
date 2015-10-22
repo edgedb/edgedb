@@ -6,8 +6,10 @@
 ##
 
 
+import collections.abc
+
 from importkit import yaml
-from importkit.import_ import get_object
+from importkit.import_ import get_object, ObjectImportError
 from importkit import context as lang_context
 
 from metamagic import caos
@@ -76,41 +78,58 @@ class CommandMeta(type(yaml.Object), type(delta.Command), MixedStructMeta):
 
 class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
     def adapt_value(self, field, value):
-        if (isinstance(value, str) and isinstance(field.type[0], caos.types.PrototypeClass)
-                                   and hasattr(field.type[0], 'name')):
-            value = caos.name.Name(value)
-            value = proto.PrototypeRef(prototype_name=value)
+        FieldType = field.type[0]
+        Name = caos.name.Name
+
+        if (isinstance(value, str)
+                and isinstance(FieldType, caos.types.PrototypeClass)
+                and hasattr(FieldType, 'name')):
+            value = proto.PrototypeRef(prototype_name=Name(value))
 
         elif isinstance(value, proto.PrototypeRef) \
-                                and isinstance(field.type[0], caos.types.PrototypeClass):
+                and isinstance(FieldType, caos.types.PrototypeClass):
             pass
 
-        elif issubclass(field.type[0], typed.AbstractTypedMapping) \
-                and issubclass(field.type[0].valuetype, (caos.proto.PrototypeOrNativeClass,
-                                                         caos.types.ProtoObject)):
-            vals = {}
+        elif issubclass(FieldType, typed.AbstractTypedMapping) \
+                and issubclass(FieldType.valuetype,
+                               (caos.proto.PrototypeOrNativeClass,
+                                caos.types.ProtoObject)):
 
+            ElementType = FieldType.valuetype
+            RefType = ElementType.ref_type
+
+            vals = {}
             for k, v in value.items():
                 if isinstance(v, str):
-                    v = caos.name.Name(v)
-                    ref_type = field.type[0].valuetype.ref_type
-                    v = ref_type(prototype_name=v)
+                    v = RefType(prototype_name=Name(v))
+                elif (isinstance(v, proto.PrototypeRef)
+                            and not isinstance(v, RefType)):
+                    v = RefType(prototype_name=Name(v.prototype_name))
                 vals[k] = v
-            value = field.type[0](vals)
 
-        elif issubclass(field.type[0], (typed.AbstractTypedSequence, typed.AbstractTypedSet)) \
-                and issubclass(field.type[0].type, (caos.proto.PrototypeOrNativeClass,
-                                                    caos.types.ProtoObject)):
+            value = FieldType(vals)
+
+        elif (issubclass(FieldType, (typed.AbstractTypedSequence,
+                                    typed.AbstractTypedSet))
+                and issubclass(FieldType.type,
+                               (caos.proto.PrototypeOrNativeClass,
+                                caos.types.ProtoObject))):
+
+            ElementType = field.type[0].type
+            RefType = ElementType.ref_type
+
+            is_named = issubclass(ElementType, caos.proto.NamedPrototype)
 
             vals = []
             for v in value:
-                if (isinstance(v, str) and
-                    issubclass(field.type[0].type, caos.proto.NamedPrototype)):
-                    v = caos.name.Name(v)
-                    ref_type = field.type[0].type.ref_type
-                    v = ref_type(prototype_name=v)
+                if isinstance(v, str) and is_named:
+                    v = RefType(prototype_name=Name(v))
+                elif (isinstance(v, proto.PrototypeRef)
+                            and not isinstance(v, RefType)):
+                    v = RefType(prototype_name=Name(v.prototype_name))
                 vals.append(v)
-            value = field.type[0](vals)
+
+            value = FieldType(vals)
 
         else:
             value = MixedStructMeta.adapt_value(field, value)
@@ -214,6 +233,18 @@ class PrototypeCommand(Command, adapts=delta.PrototypeCommand):
         return super().__sx_setstate__(data)
 
 
+class Ghost(PrototypeCommand, adapts=delta.Ghost):
+    def __sx_setstate__(self, data):
+        prototype_class = data.get('prototype_class')
+        if prototype_class:
+            try:
+                get_object(prototype_class)
+            except ObjectImportError:
+                data['prototype_class'] = 'metamagic.caos.proto.BasePrototype'
+
+        return super().__sx_setstate__(data)
+
+
 class NamedPrototypeCommand(PrototypeCommand, adapts=delta.NamedPrototypeCommand):
     def __sx_setstate__(self, data):
         data['prototype_name'] = caos.Name(data['prototype_name'])
@@ -262,23 +293,54 @@ class AlterNamedPrototype(NamedPrototypeCommand, adapts=delta.AlterNamedPrototyp
 
 
 class AlterPrototypeProperty(Command, adapts=delta.AlterPrototypeProperty):
+    @staticmethod
+    def _is_derived_ref(value):
+        return (isinstance(value, caos.proto.PrototypeRef) and
+                type(value) is not caos.proto.PrototypeRef)
+
     @classmethod
-    def __sx_getstate__(cls, data):
-        if isinstance(data.old_value, set):
-            old_value = list(data.old_value)
-        else:
-            old_value = data.old_value
+    def _reduce_refs(cls, value):
+        if isinstance(value, (typed.AbstractTypedSequence,
+                              typed.AbstractTypedSet)):
+            result = []
+            for item in value:
+                if cls._is_derived_ref(item):
+                    item = caos.proto.PrototypeRef(
+                                prototype_name=item.prototype_name)
+                result.append(item)
 
-        if isinstance(data.new_value, set):
-            new_value = list(data.new_value)
-        else:
-            new_value = data.new_value
+        elif isinstance(value, typed.AbstractTypedMapping):
+            result = {}
+            for key, item in value.items():
+                if cls._is_derived_ref(item):
+                    item = caos.proto.PrototypeRef(
+                                prototype_name=item.prototype_name)
+                result[key] = item
 
-        result = {
-            data.property: [old_value, new_value]
-        }
+        elif cls._is_derived_ref(value):
+            result = caos.proto.PrototypeRef(
+                            prototype_name=value.prototype_name)
+
+        else:
+            result = value
 
         return result
+
+    @classmethod
+    def _normalize_value(cls, value):
+        # Make sure derived object refs do not leak out.
+        # This is possible when a delta is unserialized and then
+        # serialized back.
+        value = cls._reduce_refs(value)
+
+        return value
+
+    @classmethod
+    def __sx_getstate__(cls, data):
+        old_value = cls._normalize_value(data.old_value)
+        new_value = cls._normalize_value(data.new_value)
+
+        return {data.property: [old_value, new_value]}
 
 
 class DeleteNamedPrototype(NamedPrototypeCommand, adapts=delta.DeleteNamedPrototype):
@@ -444,55 +506,55 @@ class DeleteConcept(DeleteNamedPrototype, adapts=delta.DeleteConcept):
     pass
 
 
-class CreatePointerCascadeAction(CreateNamedPrototype, adapts=delta.CreatePointerCascadeAction):
+class CreateAction(CreateNamedPrototype, adapts=delta.CreateAction):
     pass
 
 
-class RenamePointerCascadeAction(RenameNamedPrototype, adapts=delta.RenamePointerCascadeAction):
+class RenameAction(RenameNamedPrototype, adapts=delta.RenameAction):
     pass
 
 
-class AlterPointerCascadeAction(AlterNamedPrototype, adapts=delta.AlterPointerCascadeAction):
+class AlterAction(AlterNamedPrototype, adapts=delta.AlterAction):
     pass
 
 
-class DeletePointerCascadeAction(DeleteNamedPrototype, adapts=delta.DeletePointerCascadeAction):
+class DeleteAction(DeleteNamedPrototype, adapts=delta.DeleteAction):
     pass
 
 
-class CreatePointerCascadeEvent(CreateNamedPrototype, adapts=delta.CreatePointerCascadeEvent):
+class CreateEvent(CreateNamedPrototype, adapts=delta.CreateEvent):
     pass
 
 
-class RenamePointerCascadeEvent(RenameNamedPrototype, adapts=delta.RenamePointerCascadeEvent):
+class RenameEvent(RenameNamedPrototype, adapts=delta.RenameEvent):
     pass
 
 
-class RebasePointerCascadeEvent(RebaseNamedPrototype, adapts=delta.RebasePointerCascadeEvent):
+class RebaseEvent(RebaseNamedPrototype, adapts=delta.RebaseEvent):
     pass
 
 
-class AlterPointerCascadeEvent(AlterNamedPrototype, adapts=delta.AlterPointerCascadeEvent):
+class AlterEvent(AlterNamedPrototype, adapts=delta.AlterEvent):
     pass
 
 
-class DeletePointerCascadeEvent(DeleteNamedPrototype, adapts=delta.DeletePointerCascadeEvent):
+class DeleteEvent(DeleteNamedPrototype, adapts=delta.DeleteEvent):
     pass
 
 
-class CreatePointerCascadePolicy(CreateNamedPrototype, adapts=delta.CreatePointerCascadePolicy):
+class CreatePolicy(CreateNamedPrototype, adapts=delta.CreatePolicy):
     pass
 
 
-class RenamePointerCascadePolicy(RenameNamedPrototype, adapts=delta.RenamePointerCascadePolicy):
+class RenamePolicy(RenameNamedPrototype, adapts=delta.RenamePolicy):
     pass
 
 
-class AlterPointerCascadePolicy(AlterNamedPrototype, adapts=delta.AlterPointerCascadePolicy):
+class AlterPolicy(AlterNamedPrototype, adapts=delta.AlterPolicy):
     pass
 
 
-class DeletePointerCascadePolicy(DeleteNamedPrototype, adapts=delta.DeletePointerCascadePolicy):
+class DeletePolicy(DeleteNamedPrototype, adapts=delta.DeletePolicy):
     pass
 
 
