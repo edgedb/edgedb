@@ -11,8 +11,8 @@ from metamagic.caos import proto
 from metamagic.utils import ast
 from metamagic.utils.ast import match as astmatch
 
-from . import ast as caos_ast
-from  . import astmatch as caos_astmatch
+from . import ast as irast
+from . import astmatch as irastmatch
 
 
 class ExistsConjunctionExpr:
@@ -22,19 +22,19 @@ class ExistsConjunctionExpr:
     def get_pattern(self):
         if self.pattern is None:
             # Basic NOT EXISTS (blah) expression
-            nex_expr = caos_astmatch.UnaryOp(
-                expr = caos_astmatch.ExistPred(
-                    expr = astmatch.group('expr', caos_astmatch.Base())
+            nex_expr = irastmatch.UnaryOp(
+                expr = irastmatch.ExistPred(
+                    expr = astmatch.group('expr', irastmatch.Base())
                 ),
 
                 op = ast.ops.NOT
             )
 
             # A logical conjunction of unique constraint expressions
-            binop = caos_astmatch.BinOp(op=ast.ops.AND)
+            binop = irastmatch.BinOp(op=ast.ops.AND)
 
             # A RefExpr node containing an unique constraint expression
-            refexpr = caos_astmatch.BaseRefExpr()
+            refexpr = irastmatch.BaseRefExpr()
 
             # A unique constraint expression can be either one of the
             # three above

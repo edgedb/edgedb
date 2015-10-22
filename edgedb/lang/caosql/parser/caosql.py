@@ -14,7 +14,7 @@ from metamagic.utils import parsing
 from . import keywords
 from .errors import CaosQLSyntaxError
 from metamagic.caos.caosql import ast as qlast, CaosQLQueryError
-from metamagic.caos.tree import ast as caos_ast
+from metamagic.caos.ir import ast as irast
 from metamagic.caos import types as caos_types
 
 
@@ -939,7 +939,7 @@ class Expr(Nonterm):
         elif op == '<=':
             op = ast.ops.LE
         elif op == '@@':
-            op = caos_ast.SEARCH
+            op = irast.SEARCH
         elif op == '~':
             op = qlast.REMATCH
         elif op == '~*':
@@ -969,20 +969,20 @@ class Expr(Nonterm):
 
     def reduce_Expr_LIKE_Expr(self, *kids):
         "%reduce Expr LIKE Expr"
-        self.val = qlast.BinOpNode(left=kids[0].val, op=caos_ast.LIKE, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=irast.LIKE, right=kids[2].val)
 
     def reduce_Expr_NOT_LIKE_Expr(self, *kids):
         "%reduce Expr NOT LIKE Expr"
-        val = qlast.BinOpNode(left=kids[0].val, op=caos_ast.LIKE, right=kids[2].val)
+        val = qlast.BinOpNode(left=kids[0].val, op=irast.LIKE, right=kids[2].val)
         self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=val)
 
     def reduce_Expr_ILIKE_Expr(self, *kids):
         "%reduce Expr ILIKE Expr"
-        self.val = qlast.BinOpNode(left=kids[0].val, op=caos_ast.ILIKE, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=irast.ILIKE, right=kids[2].val)
 
     def reduce_Expr_NOT_ILIKE_Expr(self, *kids):
         "%reduce Expr NOT ILIKE Expr"
-        val = qlast.BinOpNode(left=kids[0].val, op=caos_ast.ILIKE, right=kids[2].val)
+        val = qlast.BinOpNode(left=kids[0].val, op=irast.ILIKE, right=kids[2].val)
         self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=val)
 
     def reduce_Expr_IS_NONE(self, *kids):

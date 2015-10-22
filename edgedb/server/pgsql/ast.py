@@ -9,7 +9,7 @@
 import weakref
 
 from metamagic.utils import datastructures, ast
-from metamagic.caos.tree import ast as tree_ast
+from metamagic.caos.ir import ast as irast
 
 
 class Base(ast.AST):
@@ -229,23 +229,23 @@ UNION = PgSQLSetOperator('UNION')
 INTERSECT = PgSQLSetOperator('INTERSECT')
 EXCEPT = PgSQLSetOperator('EXCEPT')
 
-class SortOrder(tree_ast.SortOrder):
+class SortOrder(irast.SortOrder):
     _map = {
-        tree_ast.SortAsc: 'SortAsc',
-        tree_ast.SortDesc: 'SortDesc',
-        tree_ast.SortDefault: 'SortDefault'
+        irast.SortAsc: 'SortAsc',
+        irast.SortDesc: 'SortDesc',
+        irast.SortDefault: 'SortDefault'
     }
 
-SortAsc = SortOrder(tree_ast.SortAsc)
-SortDesc = SortOrder(tree_ast.SortDesc)
-SortDefault = SortOrder(tree_ast.SortDefault)
+SortAsc = SortOrder(irast.SortAsc)
+SortDesc = SortOrder(irast.SortDesc)
+SortDefault = SortOrder(irast.SortDefault)
 
 
-class NullsOrder(tree_ast.NonesOrder):
+class NullsOrder(irast.NonesOrder):
     _map = {
-        tree_ast.NonesFirst: 'NonesFirst',
-        tree_ast.NonesLast: 'NonesLast'
+        irast.NonesFirst: 'NonesFirst',
+        irast.NonesLast: 'NonesLast'
     }
 
-NullsFirst = NullsOrder(tree_ast.NonesFirst)
-NullsLast = NullsOrder(tree_ast.NonesLast)
+NullsFirst = NullsOrder(irast.NonesFirst)
+NullsLast = NullsOrder(irast.NonesLast)

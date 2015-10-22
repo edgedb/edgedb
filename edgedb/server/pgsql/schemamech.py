@@ -12,9 +12,9 @@ import re
 
 from metamagic import caos
 from metamagic.caos import proto
-from metamagic.caos.tree import ast as caos_ast
-from metamagic.caos.tree import astexpr as caos_astexpr
-from metamagic.caos.tree import utils as ir_utils
+from metamagic.caos.ir import ast as irast
+from metamagic.caos.ir import astexpr as irastexpr
+from metamagic.caos.ir import utils as ir_utils
 from metamagic.caos import caosql
 from metamagic.caos.caosql import transformer as caosql_transformer
 
@@ -74,7 +74,7 @@ class ConstraintMech:
         # Check if the expression is not exists(<arg>) [and not exists (<arg>)...]
         expr = tree.selector[0].expr
 
-        astexpr = caos_astexpr.ExistsConjunctionExpr()
+        astexpr = irastexpr.ExistsConjunctionExpr()
         refs = astexpr.match(expr)
 
         if refs is None:
@@ -83,8 +83,8 @@ class ConstraintMech:
             all_refs = []
             for ref in refs:
                 # Unnest sequences in refs
-                if (isinstance(ref, caos_ast.BaseRefExpr)
-                            and isinstance(ref.expr, caos_ast.Sequence)):
+                if (isinstance(ref, irast.BaseRefExpr)
+                            and isinstance(ref.expr, irast.Sequence)):
                     all_refs.append(ref.expr)
                 else:
                     all_refs.append(ref)
@@ -98,16 +98,16 @@ class ConstraintMech:
 
         ref_ptrs = {}
         for ref in refs:
-            if isinstance(ref, caos_ast.LinkPropRef):
+            if isinstance(ref, irast.LinkPropRef):
                 ptr = ref.ptr_proto
                 src = ref.ref.link_proto
-            elif isinstance(ref, caos_ast.AtomicRef):
+            elif isinstance(ref, irast.AtomicRef):
                 ptr = ref.ptr_proto if ref.ptr_proto else ref.rlink.link_proto
                 src = ref.ref
-            elif isinstance(ref, caos_ast.EntityLink):
+            elif isinstance(ref, irast.EntityLink):
                 ptr = ref.link_proto
                 src = ptr.source.concept if ptr.source else None
-            elif isinstance(ref, caos_ast.EntitySet):
+            elif isinstance(ref, irast.EntitySet):
                 ptr = ref.rlink.link_proto
                 src = ref.rlink.source.concept
             else:
@@ -154,7 +154,7 @@ class ConstraintMech:
         tf = transformer.SimpleExprTransformer()
         sql_tree = tf.transform(tree, protoschema=schema, local=True, link_bias=link_bias)
 
-        is_multicol = isinstance(tree, caos_ast.Sequence)
+        is_multicol = isinstance(tree, irast.Sequence)
 
         # Determine if the sequence of references are all simple refs, not
         # expressions.  This influences the type of Postgres constraint used.

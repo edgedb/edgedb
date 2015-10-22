@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2008-2013 Sprymix Inc.
+# Copyright (c) 2008-2015 Sprymix Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -11,21 +11,45 @@ import itertools
 import functools
 import re
 
-from metamagic.utils import ast, markup
-from metamagic.caos import caosql, tree
-from metamagic.caos.tree import utils as ir_utils
+from metamagic import exceptions as base_err
+
+from metamagic.caos import caosql
+from metamagic.caos.ir import ast as irast
+from metamagic.caos.ir import utils as ir_utils
 from metamagic.caos import types as caos_types
 from metamagic.caos import name as caos_name
 from metamagic.caos import utils as caos_utils
 from metamagic.caos.backends import pgsql
 from metamagic.caos.backends.pgsql import common, session as pg_session, driver as pg_driver
 from metamagic.caos.backends.pgsql import types as pg_types
+
+from metamagic.utils import ast, markup
 from metamagic.utils.debug import debug
 from metamagic.utils.datastructures import OrderedSet
-from metamagic import exceptions as base_err
 
 
 from . import types
+
+
+class IRCompilerError(base_err.MetamagicError):
+    pass
+
+
+class IRCompilerInternalError(IRCompilerError):
+    pass
+
+
+class IRCompilerErrorContext(markup.MarkupExceptionContext):
+    title = 'Caos PgSQL IR Compiler Error Context'
+
+    def __init__(self, tree):
+        super().__init__()
+        self.tree = tree
+
+    @classmethod
+    def as_markup(cls, self, *, ctx):
+        tree = markup.serialize(self.tree, ctx=ctx)
+        return markup.elements.lang.ExceptionContext(title=self.title, body=[tree])
 
 
 class Alias(str):
@@ -41,7 +65,7 @@ class Alias(str):
     __iadd__ = __add__
 
 
-class TransformerContextLevel(object):
+class TransformerContextLevel:
     def __init__(self, prevlevel=None, mode=None):
         if prevlevel is not None:
             self.argmap = prevlevel.argmap
@@ -229,15 +253,15 @@ class PgSQLExprTransformer(ast.visitor.NodeVisitor):
         if isinstance(expr, pgsql.ast.BinOpNode):
             left = self._process_expr(context, expr.left)
             right = self._process_expr(context, expr.right)
-            result = tree.ast.BinOp(left=left, op=expr.op, right=right)
+            result = irast.BinOp(left=left, op=expr.op, right=right)
 
         elif isinstance(expr, pgsql.ast.FieldRefNode):
             if context.current.source:
                 if isinstance(context.current.source, caos_types.ProtoConcept):
                     id = caos_utils.LinearPath([context.current.source])
                     pointer, source = context.current.attmap[expr.field]
-                    entset = tree.ast.EntitySet(id=id, concept=source)
-                    result = tree.ast.AtomicRefSimple(ref=entset, name=pointer)
+                    entset = irast.EntitySet(id=id, concept=source)
+                    result = irast.AtomicRefSimple(ref=entset, name=pointer)
                 else:
                     if context.current.source.generic():
                         name = context.current.attmap[expr.field][0]
@@ -254,13 +278,13 @@ class PgSQLExprTransformer(ast.visitor.NodeVisitor):
 
                     id = caos_utils.LinearPath([None])
                     id.add(context.current.source, caos_types.OutboundDirection, None)
-                    entlink = tree.ast.EntityLink(link_proto=context.current.source)
-                    result = tree.ast.LinkPropRefSimple(ref=entlink, name=name, id=id)
+                    entlink = irast.EntityLink(link_proto=context.current.source)
+                    result = irast.LinkPropRefSimple(ref=entlink, name=name, id=id)
             else:
                 assert False
 
         elif isinstance(expr, pgsql.ast.RowExprNode):
-            result = tree.ast.Sequence(elements=[self._process_expr(context, e) for e in expr.args])
+            result = irast.Sequence(elements=[self._process_expr(context, e) for e in expr.args])
 
         elif isinstance(expr, pgsql.ast.FunctionCallNode):
             result = self._process_function(context, expr)
@@ -277,10 +301,10 @@ class PgSQLExprTransformer(ast.visitor.NodeVisitor):
         else:
             raise ValueError('unexpected function: {}'.format(expr.name))
 
-        return tree.ast.FunctionCall(name=fname, args=args)
+        return irast.FunctionCall(name=fname, args=args)
 
 
-class CaosExprTransformer(tree.transformer.TreeTransformer):
+class CaosExprTransformer:
     def _table_from_concept(self, context, concept, node, parent_cte):
         if concept.is_virtual:
             # Virtual concepts are represented as a UNION of selects from their children,
@@ -288,7 +312,7 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
             #
             idptr = caos_name.Name('metamagic.caos.builtins.id')
             idcol = common.caos_name_to_pg_name(idptr)
-            atomrefs = {idptr: tree.ast.AtomicRefSimple(ref=node, name=idptr)}
+            atomrefs = {idptr: irast.AtomicRefSimple(ref=node, name=idptr)}
             atomrefs.update({f.name: f for f in node.atomrefs})
 
             cols = [(aref, common.caos_name_to_pg_name(aref)) for aref in atomrefs]
@@ -310,11 +334,11 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                 for aname, colname in cols:
                     if aname in c.pointers:
                         aref = atomrefs[aname]
-                        if isinstance(aref, tree.ast.AtomicRefSimple):
+                        if isinstance(aref, irast.AtomicRefSimple):
                             selexpr = pgsql.ast.FieldRefNode(table=table, field=colname,
                                                              origin=table, origin_field=colname)
 
-                        elif isinstance(aref, tree.ast.SubgraphRef):
+                        elif isinstance(aref, irast.SubgraphRef):
                             # Result of a rewrite
 
                             subquery = self._process_expr(context, aref.ref, parent_cte)
@@ -498,11 +522,11 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
             link_proto = context.current.proto_schema.get('metamagic.caos.builtins.link')
 
         for ptr in link_proto.get_special_pointers():
-            proprefs[ptr] = tree.ast.LinkPropRefSimple(ref=link_node, name=ptr)
+            proprefs[ptr] = irast.LinkPropRefSimple(ref=link_node, name=ptr)
 
         if not link_proto.generic() and link_proto.atomic():
             atom_target = caos_name.Name("metamagic.caos.builtins.target@atom")
-            proprefs[atom_target] = tree.ast.LinkPropRefSimple(ref=link_node, name=atom_target)
+            proprefs[atom_target] = irast.LinkPropRefSimple(ref=link_node, name=atom_target)
 
         proprefs.update({f.name: f for f in link_node.proprefs})
 
@@ -534,13 +558,13 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                 ptr_direction = caos_types.OutboundDirection
                 ptr_target = None
 
-                if isinstance(e, tree.ast.MetaRef):
+                if isinstance(e, irast.MetaRef):
                     ptr_name = e.name
                     testref = element
-                elif isinstance(e, tree.ast.BaseRef):
+                elif isinstance(e, irast.BaseRef):
                     ptr_name = e.ptr_proto.normal_name()
                     ptr_target = e.ptr_proto.target
-                elif isinstance(e, (tree.ast.Record, tree.ast.SubgraphRef)):
+                elif isinstance(e, (irast.Record, irast.SubgraphRef)):
                     ptr_name = e.rlink.link_proto.normal_name()
                     ptr_direction = e.rlink.direction or caos_types.OutboundDirection
                     if ptr_direction == caos_types.OutboundDirection:
@@ -567,7 +591,7 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                 else:
                     attr_name = ptr_name
 
-                    if (isinstance(e, tree.ast.MetaRef)
+                    if (isinstance(e, irast.MetaRef)
                             and context.current.output_format == caos_types.JsonOutputFormat):
                         attr_name = '$sxcls{}$'.format(attr_name)
 
@@ -995,29 +1019,29 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
 
         cols = None
 
-        if isinstance(vector, tree.ast.EntitySet):
+        if isinstance(vector, irast.EntitySet):
             refs = [(r, r.ptr_proto.search.weight) for r in self._text_search_refs(context, vector)]
 
-        elif isinstance(vector, tree.ast.Sequence):
+        elif isinstance(vector, irast.Sequence):
             refs = []
 
             for r in vector.elements:
-                if isinstance(r, tree.ast.BaseRef):
+                if isinstance(r, irast.BaseRef):
                     refs.append((r, r.ptr_proto.search.weight))
-                elif (isinstance(r, tree.ast.FunctionCall)
+                elif (isinstance(r, irast.FunctionCall)
                         and r.name == ('search', 'weight')):
                     refs.append((r.args[0], r.args[1]))
                 else:
                     msg = 'unexpected element in search vector: %r'.format(r)
                     raise ValueError(msg)
 
-        elif isinstance(vector, tree.ast.AtomicRef):
+        elif isinstance(vector, irast.AtomicRef):
             link = vector.ref.concept.getptr(context.current.proto_schema, vector.name)
-            ref = tree.ast.AtomicRefSimple(ref=vector.ref, name=vector.name, ptr_proto=link)
+            ref = irast.AtomicRefSimple(ref=vector.ref, name=vector.name, ptr_proto=link)
             refs = [(ref, ref.ptr_proto.search.weight)]
 
-        elif isinstance(vector, tree.ast.LinkPropRef):
-            ref = tree.ast.LinkPropRefSimple(ref=vector.ref, name=vector.name,
+        elif isinstance(vector, irast.LinkPropRef):
+            ref = irast.LinkPropRefSimple(ref=vector.ref, name=vector.name,
                                              ptr_proto=vector.ptr_proto)
             refs = [(ref, caos_types.SearchWeight_A)]
 
@@ -1031,7 +1055,7 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
                 ref = pgsql.ast.FunctionCallNode(name='to_tsvector',
                                                  args=[text_search_conf_ref, ref])
 
-                if isinstance(weight, tree.ast.Constant):
+                if isinstance(weight, irast.Constant):
                     weight_const = self._process_expr(context, weight)
                 else:
                     weight_const = pgsql.ast.ConstantNode(value=weight)
@@ -1119,16 +1143,16 @@ class CaosExprTransformer(tree.transformer.TreeTransformer):
         return result
 
     def _process_typecast(self, context, expr, cte=None):
-        if isinstance(expr.expr, tree.ast.BinOp) and \
+        if isinstance(expr.expr, irast.BinOp) and \
                                     isinstance(expr.expr.op, (ast.ops.ComparisonOperator,
                                                               ast.ops.EquivalenceOperator)):
             expr_type = bool
-        elif isinstance(expr.expr, tree.ast.BaseRefExpr) and \
-                    isinstance(expr.expr.expr, tree.ast.BinOp) and \
+        elif isinstance(expr.expr, irast.BaseRefExpr) and \
+                    isinstance(expr.expr.expr, irast.BinOp) and \
                     isinstance(expr.expr.expr.op, (ast.ops.ComparisonOperator,
                                                    ast.ops.EquivalenceOperator)):
             expr_type = bool
-        elif isinstance(expr.expr, tree.ast.Constant):
+        elif isinstance(expr.expr, irast.Constant):
             expr_type = expr.expr.type
         else:
             expr_type = None
@@ -1166,7 +1190,7 @@ class SimpleExprTransformer(CaosExprTransformer):
         context.current.proto_schema = protoschema
         context.current.link_bias = link_bias
 
-        if isinstance(expr, tree.ast.GraphExpr):
+        if isinstance(expr, irast.GraphExpr):
             is_simple = not (expr.generator or expr.grouper or expr.sorter \
                                        or (expr.op and expr.op != 'select') \
                                        or len(expr.selector) > 1)
@@ -1179,16 +1203,16 @@ class SimpleExprTransformer(CaosExprTransformer):
         return qtree
 
     def _process_expr(self, context, expr, cte=None):
-        if isinstance(expr, tree.ast.BinOp):
+        if isinstance(expr, irast.BinOp):
             left = self._process_expr(context, expr.left)
             right = self._process_expr(context, expr.right)
             result = pgsql.ast.BinOpNode(left=left, op=expr.op, right=right)
 
-        elif isinstance(expr, tree.ast.UnaryOp):
+        elif isinstance(expr, irast.UnaryOp):
             operand = self._process_expr(context, expr.expr)
             result = pgsql.ast.UnaryOpNode(op=expr.op, operand=operand)
 
-        elif isinstance(expr, tree.ast.EntitySet):
+        elif isinstance(expr, irast.EntitySet):
             if isinstance(expr.concept, caos_types.ProtoAtom):
                 field_name = common.caos_name_to_pg_name(expr.concept.name)
                 result = pgsql.ast.FieldRefNode(table=None, field=field_name, origin=None,
@@ -1196,10 +1220,10 @@ class SimpleExprTransformer(CaosExprTransformer):
             else:
                 raise ValueError('unexpected EntitySet subject: {!r}'.format(expr.concept))
 
-        elif isinstance(expr, tree.ast.AtomicRefExpr):
+        elif isinstance(expr, irast.AtomicRefExpr):
             result = self._process_expr(context, expr.expr)
 
-        elif isinstance(expr, tree.ast.AtomicRefSimple):
+        elif isinstance(expr, irast.AtomicRefSimple):
             field_name = common.caos_name_to_pg_name(expr.name)
 
             if not context.current.local:
@@ -1210,10 +1234,10 @@ class SimpleExprTransformer(CaosExprTransformer):
                 result = pgsql.ast.FieldRefNode(table=None, field=field_name, origin=None,
                                                 origin_field=field_name)
 
-        elif isinstance(expr, tree.ast.LinkPropRefExpr):
+        elif isinstance(expr, irast.LinkPropRefExpr):
             result = self._process_expr(context, expr.expr)
 
-        elif isinstance(expr, tree.ast.LinkPropRefSimple):
+        elif isinstance(expr, irast.LinkPropRefSimple):
             proto_schema = context.current.proto_schema
 
             link_stor_info = types.get_pointer_storage_info(proto_schema, expr.ptr_proto,
@@ -1242,7 +1266,7 @@ class SimpleExprTransformer(CaosExprTransformer):
                     result = pgsql.ast.FieldRefNode(table=None, field=field_name, origin=None,
                                                     origin_field=field_name)
 
-        elif isinstance(expr, tree.ast.Disjunction):
+        elif isinstance(expr, irast.Disjunction):
             variants = [self._process_expr(context, path) for path in expr.paths]
 
             if len(variants) == 1:
@@ -1250,17 +1274,17 @@ class SimpleExprTransformer(CaosExprTransformer):
             else:
                 result = pgsql.ast.FunctionCallNode(name='coalesce', args=variants)
 
-        elif isinstance(expr, tree.ast.Sequence):
+        elif isinstance(expr, irast.Sequence):
             elements = [self._process_expr(context, e) for e in expr.elements]
             result = pgsql.ast.SequenceNode(elements=elements)
 
-        elif isinstance(expr, tree.ast.Constant):
+        elif isinstance(expr, irast.Constant):
             result = self._process_constant(context, expr)
 
-        elif isinstance(expr, tree.ast.FunctionCall):
+        elif isinstance(expr, irast.FunctionCall):
             result = self._process_function(context, expr, None)
 
-        elif isinstance(expr, tree.ast.TypeCast):
+        elif isinstance(expr, irast.TypeCast):
             result = self._process_typecast(context, expr, cte)
 
         else:
@@ -1301,8 +1325,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 args = [e.args[0]]
             except (AttributeError, IndexError):
                 args = []
-            err = tree.transformer.InternalTreeTransformerError(*args)
-            err_ctx = tree.transformer.TreeTransformerExceptionContext(tree=query)
+            err = IRCompilerInternalError(*args)
+            err_ctx = IRCompilerErrorContext(tree=query)
             base_err._replace_context(err, err_ctx)
             raise err from e
 
@@ -1326,6 +1350,19 @@ class CaosTreeTransformer(CaosExprTransformer):
 
     def _dump(self, tree):
         markup.dump(tree)
+
+    def extend_binop(self, binop, *exprs, op=ast.ops.AND, reversed=False, cls=irast.BinOp):
+        exprs = list(exprs)
+        binop = binop or exprs.pop(0)
+
+        for expr in exprs:
+            if expr is not binop:
+                if reversed:
+                    binop = cls(right=binop, op=op, left=expr)
+                else:
+                    binop = cls(left=binop, op=op, right=expr)
+
+        return binop
 
     def _transform_tree(self, context, graph):
         context.current.query.subquery_referrers = graph.referrers
@@ -1400,7 +1437,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             # we need just the origin table.  Thus, use a dummy CTE here and repace the op's
             # fromexpr with a direct reference to a table
             #
-            if isinstance(graph.optarget, tree.ast.LinkPropRefSimple):
+            if isinstance(graph.optarget, irast.LinkPropRefSimple):
                 prop = graph.optarget
 
                 # Cannot call _relation_from_link here as DELETE/UPDATE only work on
@@ -1425,12 +1462,12 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                 filter = idref
 
-            elif isinstance(graph.optarget, tree.ast.AtomicRefSimple):
+            elif isinstance(graph.optarget, irast.AtomicRefSimple):
                 # Singular atom delete op translates into source table update
                 query = pgsql.ast.UpdateQueryNode()
                 op_is_update = True
-                opvalues = [tree.ast.UpdateExpr(expr=graph.optarget,
-                                                value=tree.ast.Constant(value=None))]
+                opvalues = [irast.UpdateExpr(expr=graph.optarget,
+                                                value=irast.Constant(value=None))]
 
                 query.fromexpr = self._relation_from_concepts(context, graph.optarget.ref, query)
 
@@ -1465,7 +1502,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 #
                 context.current.unwind_rlinks = False
 
-                if isinstance(graph.optarget, (tree.ast.LinkPropRefSimple, tree.ast.AtomicRefSimple)):
+                if isinstance(graph.optarget, (irast.LinkPropRefSimple, irast.AtomicRefSimple)):
                     idexpr = pgsql.ast.SelectExprNode(expr=idref, alias='linkid')
                     query.targets.append(idexpr)
 
@@ -1507,7 +1544,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                 target = query.targets[0].expr
                 filter_ref = None
 
-                if isinstance(graph.selector[0].expr, tree.ast.Record):
+                if isinstance(graph.selector[0].expr, irast.Record):
                     # Unpack the expression generated by Record tranlation
                     # to avoid the an unregistered record type exception
                     # from Postgres.  The cols will be re-wrapped by the (.*)
@@ -1542,8 +1579,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                     inner_query.where = self.extend_binop(inner_query.where,
                                                 cond, cls=pgsql.ast.BinOpNode)
 
-            if isinstance(graph.selector[0].expr, (tree.ast.AtomicRefSimple,
-                                                   tree.ast.LinkPropRefSimple)):
+            if isinstance(graph.selector[0].expr, (irast.AtomicRefSimple,
+                                                   irast.LinkPropRefSimple)):
                 # Cast atom refs to the base type in aggregate expressions, since
                 # PostgreSQL does not create array types for custom domains and will
                 # fail to process a query with custom domains appearing as array elements.
@@ -1557,7 +1594,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             args = []
 
             for arg in graph.aggregate_result.args:
-                if isinstance(arg, tree.ast.Constant):
+                if isinstance(arg, irast.Constant):
                     arg = self._process_expr(context, arg, query)
                 else:
                     arg = target
@@ -1690,10 +1727,10 @@ class CaosTreeTransformer(CaosExprTransformer):
         if recurse_link.direction == caos_types.InboundDirection:
             parent_end, child_end = child_end, parent_end
 
-        parent_propref = tree.ast.AtomicRefSimple(name=idptr, ref=parent_end)
+        parent_propref = irast.AtomicRefSimple(name=idptr, ref=parent_end)
         parent_ref = self._process_expr(context, parent_propref, query)
 
-        child_propref = tree.ast.AtomicRefSimple(name=idptr, ref=child_end)
+        child_propref = irast.AtomicRefSimple(name=idptr, ref=child_end)
         child_ref = self._process_expr(context, child_propref, query)
 
         sort_exprs = {}
@@ -1823,7 +1860,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         for subgraph in subgraphs:
             # Put subqueries into the target list
             #
-            subgraph_ref = tree.ast.SubgraphRef(ref=subgraph)
+            subgraph_ref = irast.SubgraphRef(ref=subgraph)
             subquery = self._process_expr(context, subgraph_ref)
             refname = subquery.targets[0].alias
 
@@ -2142,13 +2179,13 @@ class CaosTreeTransformer(CaosExprTransformer):
             True if the expression represents a universal set, False otherwise.
         """
 
-        if isinstance(expr, tree.ast.PathCombination):
+        if isinstance(expr, irast.PathCombination):
             if len(expr.paths) == 1:
                 expr = next(iter(expr.paths))
             else:
                 expr = None
 
-        if isinstance(expr, tree.ast.EntitySet):
+        if isinstance(expr, irast.EntitySet):
             return expr.concept.name == 'metamagic.caos.builtins.BaseObject'
 
         return False
@@ -2163,14 +2200,14 @@ class CaosTreeTransformer(CaosExprTransformer):
             True if the expression represents a set of entities, False otherwise.
         """
 
-        return isinstance(expr, (tree.ast.PathCombination, tree.ast.EntitySet))
+        return isinstance(expr, (irast.PathCombination, irast.EntitySet))
 
     def get_cte_fieldref_for_set(self, context, caos_node, link_name, meta=False, map=None):
         """Return FieldRef node corresponding to the specified atom or meta value set.
 
         Arguments:
             - context: Current context
-            - caos_node: A tree.ast.EntitySet node
+            - caos_node: A irast.EntitySet node
             - field_name: The name of the atomic link of entities represented by caos_node
             - meta: If True, field_name is a reference to concept metadata instead of the
                     atom data. Default: False.
@@ -2245,7 +2282,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
     def _text_search_refs(self, context, vector):
         for link_name, link in vector.concept.get_searchable_links():
-            yield tree.ast.AtomicRefSimple(ref=vector, name=link_name, ptr_proto=link)
+            yield irast.AtomicRefSimple(ref=vector, name=link_name, ptr_proto=link)
 
     def _build_text_search_conf_map_cte(self, context):
         code_map = [
@@ -2288,7 +2325,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             pgsql.ast.SelectExprNode(expr=pgsql.ast.FieldRefNode(field='confname'))
         ])
 
-        lang_arg = self._process_constant(context, tree.ast.Constant(index='__context_lang'))
+        lang_arg = self._process_constant(context, irast.Constant(index='__context_lang'))
 
         code_conv_union = pgsql.ast.CTENode(alias='text_search_conf_map', op=pgsql.ast.UNION)
 
@@ -2325,13 +2362,13 @@ class CaosTreeTransformer(CaosExprTransformer):
         return code_conv_union
 
     def _is_subquery(self, path):
-        return isinstance(path, (tree.ast.ExistPred, tree.ast.GraphExpr)) \
-               or (isinstance(path, tree.ast.UnaryOp) and isinstance(path.expr, tree.ast.ExistPred))
+        return isinstance(path, (irast.ExistPred, irast.GraphExpr)) \
+               or (isinstance(path, irast.UnaryOp) and isinstance(path.expr, irast.ExistPred))
 
     def _path_weight(self, path):
         if self._is_subquery(path):
             return 2
-        elif isinstance(path, tree.ast.BinOp) and \
+        elif isinstance(path, irast.BinOp) and \
                 (self._is_subquery(path.left) or self._is_subquery(path.right)):
             return 2
         else:
@@ -2344,11 +2381,11 @@ class CaosTreeTransformer(CaosExprTransformer):
     def _process_expr(self, context, expr, cte=None):
         result = None
 
-        if isinstance(expr, tree.ast.GraphExpr):
+        if isinstance(expr, irast.GraphExpr):
             with context(TransformerContext.SUBQUERY):
                 result = self._transform_tree(context, expr)
 
-        elif isinstance(expr, tree.ast.SubgraphRef):
+        elif isinstance(expr, irast.SubgraphRef):
             subgraph = expr.ref
 
             try:
@@ -2396,7 +2433,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                     self._inject_relation(context, context.current.query, explicit_cte)
 
-        elif isinstance(expr, tree.ast.Disjunction):
+        elif isinstance(expr, irast.Disjunction):
             #context.current.append_graphs = True
             sorted_paths = self._sort_paths(expr.paths)
             variants = [self._process_expr(context, path, cte) for path in sorted_paths]
@@ -2411,7 +2448,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             else:
                 result = pgsql.ast.IgnoreNode()
 
-        elif isinstance(expr, tree.ast.Conjunction):
+        elif isinstance(expr, irast.Conjunction):
             sorted_paths = self._sort_paths(expr.paths)
             variants = [self._process_expr(context, path, cte) for path in sorted_paths]
             variants = [v for v in variants if v and not isinstance(v, pgsql.ast.IgnoreNode)]
@@ -2426,12 +2463,12 @@ class CaosTreeTransformer(CaosExprTransformer):
             else:
                 result = pgsql.ast.IgnoreNode()
 
-        elif isinstance(expr, tree.ast.InlineFilter):
+        elif isinstance(expr, irast.InlineFilter):
             self._process_expr(context, expr.ref, cte)
             result = pgsql.ast.IgnoreNode()
 
-        elif isinstance(expr, tree.ast.InlinePropFilter):
-            if (expr.ref.target and isinstance(expr.ref.target, tree.ast.EntitySet)
+        elif isinstance(expr, irast.InlinePropFilter):
+            if (expr.ref.target and isinstance(expr.ref.target, irast.EntitySet)
                             and not isinstance(expr.ref.target.concept, caos_types.ProtoAtom)):
                 entityset = expr.ref.target
             else:
@@ -2440,7 +2477,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             self._process_expr(context, entityset, cte)
             result = pgsql.ast.IgnoreNode()
 
-        elif isinstance(expr, tree.ast.EntitySet):
+        elif isinstance(expr, irast.EntitySet):
             if context.current.unwind_rlinks:
                 root = self.get_caos_path_root(expr)
             else:
@@ -2456,8 +2493,8 @@ class CaosTreeTransformer(CaosExprTransformer):
                 for callback in callbacks:
                     callback(expr)
 
-        elif isinstance(expr, tree.ast.EntityLink):
-            if (expr.target and isinstance(expr.target, tree.ast.EntitySet)
+        elif isinstance(expr, irast.EntityLink):
+            if (expr.target and isinstance(expr.target, irast.EntitySet)
                             and not isinstance(expr.target.concept, caos_types.ProtoAtom)):
                 self._process_expr(context, expr.target, cte)
             else:
@@ -2465,7 +2502,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
             result = pgsql.ast.IgnoreNode()
 
-        elif isinstance(expr, tree.ast.BinOp):
+        elif isinstance(expr, irast.BinOp):
             left_is_universal_set = self.is_universal_set(expr.left)
 
             if not left_is_universal_set:
@@ -2487,25 +2524,25 @@ class CaosTreeTransformer(CaosExprTransformer):
                     assert False, "Unsupported universal set expression"
             else:
                 if expr.op in (ast.ops.IN, ast.ops.NOT_IN) \
-                        and isinstance(expr.right, tree.ast.Constant) \
-                        and isinstance(expr.right.expr, tree.ast.Sequence):
+                        and isinstance(expr.right, irast.Constant) \
+                        and isinstance(expr.right.expr, irast.Sequence):
                     with context(TransformerContext.NEW_TRANSPARENT):
                         context.current.sequence_is_array = True
                         right = self._process_expr(context, expr.right, cte)
                 else:
                     right = self._process_expr(context, expr.right, cte)
 
-            if isinstance(expr.op, tree.ast.TextSearchOperator):
+            if isinstance(expr.op, irast.TextSearchOperator):
                 vector, query = self._text_search_args(context, expr.left, expr.right,
-                                                       extended=expr.op == tree.ast.SEARCHEX)
-                result = pgsql.ast.BinOpNode(left=vector, right=query, op=tree.ast.SEARCH)
+                                                       extended=expr.op == irast.SEARCHEX)
+                result = pgsql.ast.BinOpNode(left=vector, right=query, op=irast.SEARCH)
             else:
                 context.current.append_graphs = False
 
                 cte = cte or context.current.query
 
                 if expr.op in (ast.ops.IN, ast.ops.NOT_IN) and \
-                                                    isinstance(expr.right, tree.ast.Constant):
+                                                    isinstance(expr.right, irast.Constant):
                     # "expr IN $CONST" translates into "expr = any($CONST)"
                     # and "expr NOT IN $CONST" translates into "expr != all($CONST)"
                     if expr.op == ast.ops.IN:
@@ -2532,7 +2569,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                     op = expr.op
 
                 # Fold constant ops into the inner query filter.
-                if isinstance(expr.left, tree.ast.Constant) and isinstance(right, pgsql.ast.IgnoreNode):
+                if isinstance(expr.left, irast.Constant) and isinstance(right, pgsql.ast.IgnoreNode):
                     if expr.op == ast.ops.OR:
                         cte.fromlist[0].expr.where_weak = self.extend_predicate(cte.fromlist[0].expr.where_weak,
                                                                                 left, op)
@@ -2541,7 +2578,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                                                   left, op)
                     left = pgsql.ast.IgnoreNode()
 
-                elif isinstance(expr.right, tree.ast.Constant) and isinstance(left, pgsql.ast.IgnoreNode):
+                elif isinstance(expr.right, irast.Constant) and isinstance(left, pgsql.ast.IgnoreNode):
                     if expr.op == ast.ops.OR:
                         cte.fromlist[0].expr.where_weak = self.extend_predicate(cte.fromlist[0].expr.where_weak,
                                                                                 right, op)
@@ -2614,21 +2651,21 @@ class CaosTreeTransformer(CaosExprTransformer):
                                                      aggregates=op_aggregates,
                                                      strong=expr.strong)
 
-        elif isinstance(expr, tree.ast.UnaryOp):
+        elif isinstance(expr, irast.UnaryOp):
             operand = self._process_expr(context, expr.expr, cte)
             result = pgsql.ast.UnaryOpNode(op=expr.op, operand=operand)
 
-        elif isinstance(expr, tree.ast.NoneTest):
+        elif isinstance(expr, irast.NoneTest):
             operand = self._process_expr(context, expr.expr, cte)
             result = pgsql.ast.NullTestNode(expr=operand)
 
-        elif isinstance(expr, tree.ast.Constant):
+        elif isinstance(expr, irast.Constant):
             result = self._process_constant(context, expr)
 
-        elif isinstance(expr, tree.ast.TypeCast):
+        elif isinstance(expr, irast.TypeCast):
             result = self._process_typecast(context, expr)
 
-        elif isinstance(expr, tree.ast.Sequence):
+        elif isinstance(expr, irast.Sequence):
             elements = [self._process_expr(context, e, cte) for e in expr.elements]
             if expr.is_array:
                 result = pgsql.ast.ArrayNode(elements=elements)
@@ -2639,19 +2676,19 @@ class CaosTreeTransformer(CaosExprTransformer):
                     elements.insert(0, pgsql.ast.ConstantNode(value=pg_driver.FREEFORM_RECORD_ID))
                 result = pgsql.ast.RowExprNode(args=elements)
 
-        elif isinstance(expr, tree.ast.Record):
+        elif isinstance(expr, irast.Record):
             result = self._process_record(context, expr, cte)
 
-        elif isinstance(expr, tree.ast.FunctionCall):
+        elif isinstance(expr, irast.FunctionCall):
             result = self._process_function(context, expr, cte)
 
-        elif isinstance(expr, tree.ast.AtomicRefExpr):
+        elif isinstance(expr, irast.AtomicRefExpr):
             result = self._process_expr(context, expr.expr, cte)
 
-        elif isinstance(expr, tree.ast.LinkPropRefExpr):
+        elif isinstance(expr, irast.LinkPropRefExpr):
             result = self._process_expr(context, expr.expr, cte)
 
-        elif isinstance(expr, (tree.ast.AtomicRefSimple, tree.ast.MetaRef)):
+        elif isinstance(expr, (irast.AtomicRefSimple, irast.MetaRef)):
             self._process_expr(context, expr.ref, cte)
 
             if context.current.local_atom_expr_source is not None:
@@ -2660,7 +2697,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                     raise ValueError(msg)
 
             ref = expr.ref
-            if isinstance(ref, tree.ast.Disjunction):
+            if isinstance(ref, irast.Disjunction):
                 datarefs = ref.paths
             else:
                 datarefs = [ref]
@@ -2668,7 +2705,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             fieldrefs = []
 
             for ref in datarefs:
-                is_metaref = isinstance(expr, tree.ast.MetaRef)
+                is_metaref = isinstance(expr, irast.MetaRef)
                 ref = self.get_cte_fieldref_for_set(context, ref, expr.name, is_metaref)
                 fieldrefs.append(ref)
 
@@ -2689,7 +2726,7 @@ class CaosTreeTransformer(CaosExprTransformer):
             if context.current.local_atom_expr_source is not None:
                 result.table = None
 
-        elif isinstance(expr, tree.ast.LinkPropRefSimple):
+        elif isinstance(expr, irast.LinkPropRefSimple):
             self._process_expr(context, expr.ref, cte)
 
             link = expr.ref
@@ -2739,7 +2776,7 @@ class CaosTreeTransformer(CaosExprTransformer):
                     lang = pgsql.ast.IdentNode(name='C')
                     result = pgsql.ast.CollateClauseNode(expr=result, collation_name=lang)
 
-        elif isinstance(expr, tree.ast.ExistPred):
+        elif isinstance(expr, irast.ExistPred):
             with context(TransformerContext.NEW_TRANSPARENT):
                 context.current.direct_subquery_ref = True
                 context.current.ignore_cardinality = 'recursive'
@@ -3196,9 +3233,9 @@ class CaosTreeTransformer(CaosExprTransformer):
 
             parent_expr = caos_path_tip.filter.parent
 
-            if isinstance(parent_expr, tree.ast.InlineFilter):
+            if isinstance(parent_expr, irast.InlineFilter):
                 expr = parent_expr.parent
-                if isinstance(expr, tree.ast.BinOp):
+                if isinstance(expr, irast.BinOp):
                     weak_filter = expr.op in (ast.ops.OR, ast.ops.IN, ast.ops.NOT_IN)
 
             context.push()
@@ -3322,12 +3359,12 @@ class CaosTreeTransformer(CaosExprTransformer):
         sql_path = sql_path_tip
 
         for link in conjunction.paths:
-            if isinstance(link, tree.ast.EntityLink):
+            if isinstance(link, irast.EntityLink):
                 item_cte = cte
 
                 cardinality_ok = self._check_join_cardinality(context, link)
 
-                link_target = link.target if isinstance(link.target, tree.ast.EntitySet) else None
+                link_target = link.target if isinstance(link.target, irast.EntitySet) else None
 
                 if cardinality_ok:
                     sql_path = self.caos_path_to_sql_path(context, item_cte, parent_cte,
@@ -3358,10 +3395,10 @@ class CaosTreeTransformer(CaosExprTransformer):
         sql_paths = []
 
         for link in disjunction.paths:
-            if isinstance(link, tree.ast.EntityLink):
+            if isinstance(link, irast.EntityLink):
                 item_cte = cte
 
-                link_target = link.target if isinstance(link.target, tree.ast.EntitySet) else None
+                link_target = link.target if isinstance(link.target, irast.EntitySet) else None
 
                 if self._check_join_cardinality(context, link):
                     sql_path = self.caos_path_to_sql_path(context, item_cte, sql_path_tip,
@@ -3385,7 +3422,7 @@ class CaosTreeTransformer(CaosExprTransformer):
 
                         self._process_path(context, item_cte, sql_path, link_target, weak=True)
 
-            elif isinstance(link, tree.ast.Conjunction):
+            elif isinstance(link, irast.Conjunction):
                 sql_path = self._process_conjunction(context, cte, sql_path_tip,
                                                      caos_path_tip, link, None, weak=True)
                 sql_paths.append(sql_path)
@@ -3401,16 +3438,16 @@ class CaosTreeTransformer(CaosExprTransformer):
         return result
 
     def _process_path(self, context, root_cte, sql_path_tip, caos_path_tip, weak=False):
-        if not sql_path_tip and isinstance(caos_path_tip, tree.ast.EntitySet):
+        if not sql_path_tip and isinstance(caos_path_tip, irast.EntitySet):
             # Bootstrap the SQL path
             sql_path_tip = self.caos_path_to_sql_path(context, root_cte,
                                                       step_cte=None, caos_path_tip=caos_path_tip,
                                                       sql_path_tip=None, link=None)
 
-        if isinstance(caos_path_tip, tree.ast.Disjunction):
+        if isinstance(caos_path_tip, irast.Disjunction):
             disjunction = caos_path_tip
             conjunction = None
-        elif isinstance(caos_path_tip, tree.ast.Conjunction):
+        elif isinstance(caos_path_tip, irast.Conjunction):
             disjunction = None
             conjunction = caos_path_tip
         else:
@@ -3423,7 +3460,7 @@ class CaosTreeTransformer(CaosExprTransformer):
         if conjunction and conjunction.paths:
             sql_path_tip = self._process_conjunction(context, root_cte, sql_path_tip, caos_path_tip,
                                                               conjunction, sql_path_tip, weak)
-            if isinstance(caos_path_tip, tree.ast.EntitySet):
+            if isinstance(caos_path_tip, irast.EntitySet):
                 # Path conjunction works as a strong filter and, thus, the CTE corresponding
                 # to the given Caos node must only be referenced with those conjunctions
                 # included.
@@ -3433,13 +3470,13 @@ class CaosTreeTransformer(CaosExprTransformer):
 
 
         if disjunction and disjunction.paths:
-            if isinstance(caos_path_tip, tree.ast.EntitySet):
+            if isinstance(caos_path_tip, irast.EntitySet):
                 result = self._process_disjunction(context, root_cte, sql_path_tip, caos_path_tip,
                                                    disjunction)
             else:
                 sql_paths = []
                 for link in disjunction.paths:
-                    if isinstance(link, (tree.ast.EntitySet, tree.ast.PathCombination)):
+                    if isinstance(link, (irast.EntitySet, irast.PathCombination)):
                         sql_path = self._process_path(context, root_cte, None, link)
                         sql_paths.append(sql_path)
                     else:

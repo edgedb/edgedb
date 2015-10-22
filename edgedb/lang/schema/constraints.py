@@ -8,8 +8,8 @@
 
 from metamagic import caos
 from metamagic.caos import proto
-from metamagic.caos.tree import ast as tree_ast
-from metamagic.caos.tree import utils as ir_utils
+from metamagic.caos.ir import ast as irast
+from metamagic.caos.ir import utils as ir_utils
 from metamagic.caos.caosql import codegen as caosql_codegen
 from metamagic.caos.caosql import utils as caosql_utils
 

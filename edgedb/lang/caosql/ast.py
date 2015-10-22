@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.caos.tree import ast as tree_ast
+from metamagic.caos.ir import ast as irast
 from metamagic.utils import ast
 
 
@@ -117,7 +117,7 @@ class NoneTestNode(ast.AST): __fields = ['expr']
 class CaosQLOperator(ast.ops.Operator):
     pass
 
-class CaosQLMatchOperator(CaosQLOperator, tree_ast.CaosMatchOperator):
+class CaosQLMatchOperator(CaosQLOperator, irast.CaosMatchOperator):
     pass
 
 LIKE = CaosQLMatchOperator('~~')
@@ -135,26 +135,26 @@ IS_OF = CaosQLOperator('IS OF')
 IS_NOT_OF = CaosQLOperator('IS NOT OF')
 
 
-class SortOrder(tree_ast.SortOrder):
+class SortOrder(irast.SortOrder):
     _map = {
-        tree_ast.SortAsc: 'SortAsc',
-        tree_ast.SortDesc: 'SortDesc',
-        tree_ast.SortDefault: 'SortDefault'
+        irast.SortAsc: 'SortAsc',
+        irast.SortDesc: 'SortDesc',
+        irast.SortDefault: 'SortDefault'
     }
 
-SortAsc = SortOrder(tree_ast.SortAsc)
-SortDesc = SortOrder(tree_ast.SortDesc)
-SortDefault = SortOrder(tree_ast.SortDefault)
+SortAsc = SortOrder(irast.SortAsc)
+SortDesc = SortOrder(irast.SortDesc)
+SortDefault = SortOrder(irast.SortDefault)
 
 
-class NonesOrder(tree_ast.NonesOrder):
+class NonesOrder(irast.NonesOrder):
     _map = {
-        tree_ast.NonesFirst: 'NonesFirst',
-        tree_ast.NonesLast: 'NonesLast'
+        irast.NonesFirst: 'NonesFirst',
+        irast.NonesLast: 'NonesLast'
     }
 
-NonesFirst = NonesOrder(tree_ast.NonesFirst)
-NonesLast = NonesOrder(tree_ast.NonesLast)
+NonesFirst = NonesOrder(irast.NonesFirst)
+NonesLast = NonesOrder(irast.NonesLast)
 
 
 class SetOperator(CaosQLOperator):
