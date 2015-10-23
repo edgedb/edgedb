@@ -1481,7 +1481,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def order_atoms(self, meta):
         for atom in meta(type='atom'):
-            atom.acquire_parent_data(meta)
+            atom.acquire_ancestor_inheritance(meta)
 
 
     def read_constraints(self, meta):
@@ -1537,7 +1537,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                           args=args)
 
             if subject:
-                subject.add_constraint(constraint, meta)
+                subject.add_constraint(constraint)
 
             meta.add(constraint)
 
@@ -1866,7 +1866,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 link.bases = [meta.get(b) for b in bases]
 
         for link in meta(type='link'):
-            link.acquire_parent_data(meta)
+            link.acquire_ancestor_inheritance(meta)
 
 
     def order_links(self, meta):
@@ -1884,7 +1884,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         topological.normalize(g, merger=proto.Link.merge, context=meta)
 
         for link in meta(type='link'):
-            link.materialize(meta)
+            link.finalize(meta)
 
         for link in meta(type='link'):
             if link.generic():
@@ -1958,7 +1958,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             prop.target = target
 
             if source:
-                prop.acquire_parent_data(meta)
+                prop.acquire_ancestor_inheritance(meta)
                 source.add_pointer(prop)
 
             meta.add(prop)
@@ -2198,7 +2198,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         topological.normalize(g, merger=proto.Concept.merge, context=meta)
 
         for concept in meta(type='concept'):
-            concept.materialize(meta)
+            concept.finalize(meta)
 
             table_name = common.get_table_name(concept, catenate=False)
 
@@ -2324,7 +2324,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if typeconv:
                 name, _ = typeconv
                 atom = meta.get(name)
-                atom.acquire_parent_data(meta)
+                atom.acquire_ancestor_inheritance(meta)
 
         assert atom
         return atom

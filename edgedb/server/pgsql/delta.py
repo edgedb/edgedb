@@ -966,8 +966,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         if isinstance(source, caos.types.ProtoConcept) \
                         or source_ctx.op.has_table(source, meta):
 
-            source.acquire_parent_data(meta)
-            orig_source.acquire_parent_data(meta)
+            source.acquire_ancestor_inheritance(meta)
+            orig_source.acquire_ancestor_inheritance(meta)
 
             created_ptrs = set()
             for ptr in source_ctx.op(ptr_cmd):
@@ -1829,7 +1829,7 @@ class RebaseLink(LinkMetaCommand, adapts=delta_cmds.RebaseLink):
         result = delta_cmds.RebaseLink.apply(self, meta, context)
         LinkMetaCommand.apply(self, meta, context)
 
-        result.acquire_parent_data(meta)
+        result.acquire_ancestor_inheritance(meta)
 
         link_ctx = context.get(delta_cmds.LinkCommandContext)
         source = link_ctx.proto

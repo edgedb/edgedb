@@ -655,13 +655,13 @@ class Concept(Prototype, adapts=proto.Concept):
     def process_index_expr(self, index):
         return index
 
-    def materialize(self, meta):
+    def finalize(self, meta):
         indexes = set()
         for index in self.indexes:
             indexes.add(self.process_index_expr(index))
         self.indexes = indexes
 
-        proto.Concept.materialize(self, meta)
+        proto.Concept.finalize(self, meta)
 
 
 class SourceIndex(LangObject, adapts=proto.SourceIndex, ignore_aliases=True):
@@ -1180,7 +1180,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 delattr(atom, '_yml_workattrs')
 
         for atom in atoms:
-            atom.materialize(localschema)
+            atom.finalize(localschema)
 
         for prop in linkprops:
             prop.setdefaults()
@@ -1197,7 +1197,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 delattr(link, '_yml_workattrs')
 
         for link in links:
-            link.materialize(localschema)
+            link.finalize(localschema)
 
         for concept in concepts:
             concept.setdefaults()
@@ -1209,7 +1209,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
         for concept in concepts:
             self.normalize_pointer_defaults(concept, localschema)
-            concept.materialize(localschema)
+            concept.finalize(localschema)
 
         for concept in concepts:
             for index in concept.own_indexes:
@@ -1690,7 +1690,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             # in a merge of it's subject.
             #
             self._add_proto(localschema, c)
-            subject.add_constraint(c, localschema)
+            subject.add_constraint(c)
 
 
     def read_link_properties(self, data, localschema):
