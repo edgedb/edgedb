@@ -179,7 +179,10 @@ class TypedList(AbstractTypedSequence, collections.UserList, type=None):
         return iter(self.data)
 
     def __setitem__(self, i, item):
-        self._check_item(item)
+        if isinstance(i, slice):
+            self._check_items(item)
+        else:
+            self._check_item(item)
         self.data[i] = item
 
     def __add__(self, other):
