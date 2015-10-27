@@ -32,6 +32,7 @@ from metamagic.utils.datastructures import xvalue, OrderedSet, typed
 from metamagic import caos
 from metamagic.caos import protoschema as lang_protoschema
 from metamagic.caos import proto
+from metamagic.caos import types as caos_types
 from metamagic.caos import backends
 from metamagic.caos import delta as base_delta
 from metamagic.caos import objects
@@ -41,11 +42,6 @@ from metamagic.caos.caosql import utils as caosql_utils
 
 from . import delta
 from . import protoschema as yaml_protoschema
-
-
-class Expression:
-    def __init__(self, expr):
-        self.expr = expr
 
 
 class MetaError(yaml_protoschema.SchemaError, caos.MetaError):
@@ -189,6 +185,13 @@ class StrLangObject(LangObject):
     @classmethod
     def __sx_getnewargs__(cls, context, data):
         return (data,)
+
+
+class ExpressionText(StrLangObject, adapts=caos.types.ExpressionText,
+                                    ignore_aliases=True):
+    @classmethod
+    def __sx_getstate__(cls, data):
+        return pyyaml.ScalarNode('!expr', str(data), style='literal')
 
 
 class LinkMapping(StrLangObject, adapts=caos.types.LinkMapping, ignore_aliases=True):
@@ -337,31 +340,33 @@ class Prototype(LangObject, adapts=proto.Prototype, metaclass=PrototypeMeta):
     pass
 
 
-class DefaultSpec(LangObject, adapts=proto.DefaultSpec, ignore_aliases=True):
-    @classmethod
-    def resolve(cls, data):
-        if isinstance(data, dict) and 'query' in data:
-            return QueryDefaultSpec
+class DefaultSpecList(AbstractTypedCollection, adapts=proto.DefaultSpecList,
+                      type=object):
+    def __sx_setstate__(self, data):
+        context = lang_context.SourceContext.from_object(self)
+
+        if data is None:
+            default = []
+        elif not isinstance(data, list):
+            default = [data]
         else:
-            return LiteralDefaultSpec
+            default = data
 
+        for i, element in enumerate(default):
+            if isinstance(element, dict):
+                # backwards compatibility
+                element = ExpressionText(element['query'])
+                default[i] = element
 
-class LiteralDefaultSpec(DefaultSpec, adapts=proto.LiteralDefaultSpec):
-    def __sx_setstate__(self, data):
-        proto.LiteralDefaultSpec.__init__(self, data)
+            if isinstance(element, ExpressionText):
+                lang_context.SourceContext.register_object(
+                    element, context)
 
-    @classmethod
-    def __sx_getstate__(cls, data):
-        return data.value
-
-
-class QueryDefaultSpec(DefaultSpec, adapts=proto.QueryDefaultSpec):
-    def __sx_setstate__(self, data):
-        proto.QueryDefaultSpec.__init__(self, data['query'])
+        proto.DefaultSpecList.__init__(self, default)
 
     @classmethod
     def __sx_getstate__(cls, data):
-        return {'query': str(data.value)}
+        return list(data)
 
 
 class Attribute(LangObject, adapts=proto.Attribute):
@@ -551,14 +556,12 @@ default_name = None
 
 class Atom(Prototype, adapts=proto.Atom):
     def __sx_setstate__(self, data):
-        default = data['default']
-        if default and not isinstance(default, list):
-            default = [default]
-
         proto.Atom.__init__(self, name=default_name,
-                            default=default, title=data['title'],
-                            description=data['description'], is_abstract=data['abstract'],
-                            is_final=data['final'], _setdefaults_=False, _relaxrequired_=True)
+                            default=data['default'], title=data['title'],
+                            description=data['description'],
+                            is_abstract=data['abstract'],
+                            is_final=data['final'],
+                            _setdefaults_=False, _relaxrequired_=True)
         self._attributes = data.get('attributes')
         self._constraints = data.get('constraints')
         self._bases = [data['extends']]
@@ -810,35 +813,39 @@ class LinkPropertyDef(Prototype, proto.LinkProperty):
 
 class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
     def __sx_setstate__(self, data):
-        if isinstance(data, str):
+        if isinstance(data, ExpressionText):
+            context = lang_context.SourceContext.from_object(self)
+            lang_context.SourceContext.register_object(data, context)
+            proto.LinkProperty.__init__(self, _setdefaults_=False,
+                                              _relaxrequired_=True,
+                                              default=[data],
+                                              readonly=True)
+
+        elif isinstance(data, str):
             proto.LinkProperty.__init__(self, name=default_name,
-                                              _setdefaults_=False, _relaxrequired_=True)
+                                              _setdefaults_=False,
+                                              _relaxrequired_=True)
             self._target = data
             self._yml_workattrs = {'_target'}
-
-        elif isinstance(data, Expression):
-            deflt = proto.QueryDefaultSpec(data.expr)
-            context = lang_context.SourceContext.from_object(self)
-            lang_context.SourceContext.register_object(deflt, context)
-            proto.LinkProperty.__init__(self, _setdefaults_=False, _relaxrequired_=True,
-                                              default=[deflt], readonly=True)
 
         else:
             atom_name, info = next(iter(data.items()))
 
-            default = info['default']
-            if default and not isinstance(default, list):
-                default = [default]
-
             proto.LinkProperty.__init__(self, name=default_name,
-                                        title=info['title'], description=info['description'],
-                                        readonly=info['readonly'], default=default,
-                                        loading=info['loading'], required=info['required'],
-                                        _setdefaults_=False, _relaxrequired_=True)
+                                        title=info['title'],
+                                        description=info['description'],
+                                        readonly=info['readonly'],
+                                        default=info['default'],
+                                        loading=info['loading'],
+                                        required=info['required'],
+                                        _setdefaults_=False,
+                                        _relaxrequired_=True)
             self._constraints = info.get('constraints')
             self._abstract_constraints = info.get('abstract-constraints')
             self._target = atom_name
-            self._yml_workattrs = {'_constraints', '_abstract_constraints', '_target'}
+            self._yml_workattrs = {
+                '_constraints', '_abstract_constraints', '_target'
+            }
 
     @classmethod
     def __sx_getstate__(cls, data):
@@ -870,12 +877,10 @@ class LinkProperty(Prototype, adapts=proto.LinkProperty, ignore_aliases=True):
 
 class LinkPropertyProps(Prototype, proto.LinkProperty):
     def __sx_setstate__(self, data):
-        default = data['default']
-        if default and not isinstance(default, list):
-            default = [default]
-
-        proto.LinkProperty.__init__(self, name=default_name, default=default,
-                                    _setdefaults_=False, _relaxrequired_=True)
+        proto.LinkProperty.__init__(self, name=default_name,
+                                    default=data['default'],
+                                    _setdefaults_=False,
+                                    _relaxrequired_=True)
 
 
 class LinkDef(Prototype, adapts=proto.Link):
@@ -885,18 +890,16 @@ class LinkDef(Prototype, adapts=proto.Link):
             if not isinstance(extends, list):
                 extends = [extends]
 
-        default = data['default']
-        if default and not isinstance(default, list):
-            default = [default]
-
         proto.Link.__init__(self, name=default_name,
-                            title=data['title'], description=data['description'],
-                            is_abstract=data.get('abstract'), is_final=data.get('final'),
+                            title=data['title'],
+                            description=data['description'],
+                            is_abstract=data.get('abstract'),
+                            is_final=data.get('final'),
                             readonly=data.get('readonly'),
                             mapping=data.get('mapping'),
                             exposed_behaviour=data.get('exposed_behaviour'),
                             loading=data.get('loading'),
-                            default=default,
+                            default=data.get('default'),
                             _setdefaults_=False, _relaxrequired_=True)
 
         self._bases = extends
@@ -1020,21 +1023,20 @@ class SpecializedLink(LangObject):
     def __sx_setstate__(self, data):
         context = lang_context.SourceContext.from_object(self)
 
-        if isinstance(data, (str, list)):
+        if isinstance(data, ExpressionText):
+            context = lang_context.SourceContext.from_object(self)
+            lang_context.SourceContext.register_object(data, context)
+            link = proto.Link(_setdefaults_=False, _relaxrequired_=True,
+                              default=[data], readonly=True)
+            lang_context.SourceContext.register_object(link, context)
+            self.link = link
+
+        elif isinstance(data, (str, list)):
             link = proto.Link(source=None, target=None, name=default_name, _setdefaults_=False,
                               _relaxrequired_=True)
             lang_context.SourceContext.register_object(link, context)
             link._targets = (data,) if isinstance(data, str) else data
             link._yml_workattrs = {'_targets'}
-            self.link = link
-
-        elif isinstance(data, Expression):
-            deflt = proto.QueryDefaultSpec(data.expr)
-            context = lang_context.SourceContext.from_object(self)
-            lang_context.SourceContext.register_object(deflt, context)
-            link = proto.Link(_setdefaults_=False, _relaxrequired_=True,
-                              default=[deflt], readonly=True)
-            lang_context.SourceContext.register_object(link, context)
             self.link = link
 
         elif isinstance(data, dict):
@@ -1047,18 +1049,18 @@ class SpecializedLink(LangObject):
             if not isinstance(targets, tuple):
                 targets = (targets,)
 
-            default = info['default']
-            if default and not isinstance(default, list):
-                default = [default]
-
+            context = lang_context.SourceContext.from_object(self)
             props = info['properties']
 
-            link = proto.Link(name=default_name, target=None, mapping=info['mapping'],
+            link = proto.Link(name=default_name, target=None,
+                              mapping=info['mapping'],
                               exposed_behaviour=info['exposed_behaviour'],
-                              required=info['required'], title=info['title'],
-                              description=info['description'], readonly=info['readonly'],
+                              required=info['required'],
+                              title=info['title'],
+                              description=info['description'],
+                              readonly=info['readonly'],
                               loading=info['loading'],
-                              default=default,
+                              default=info['default'],
                               _setdefaults_=False, _relaxrequired_=True)
 
             search = info.get('search')
@@ -1219,20 +1221,19 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 delattr(concept, '_yml_workattrs')
 
         for concept in concepts:
-            self.normalize_pointer_defaults(concept, localschema)
-            concept.finalize(localschema)
-
-        for concept in concepts:
-            for index in concept.own_indexes:
-                expr = self.normalize_index_expr(index.expr, concept, localschema)
-                index.expr = expr
-
             try:
                 self.normalize_pointer_defaults(concept, localschema)
 
             except caosql_exc.CaosQLReferenceError as e:
                 concept_context = lang_context.SourceContext.from_object(concept)
                 raise MetaError(e.args[0], context=concept_context) from e
+
+            concept.finalize(localschema)
+
+        for concept in concepts:
+            for index in concept.own_indexes:
+                expr = self.normalize_index_expr(index.expr, concept, localschema)
+                index.expr = expr
 
         # Link meterialization might have produced new atoms
         for atom in localschema(type=caos.proto.Atom):
@@ -2077,57 +2078,65 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
 
     def normalize_pointer_defaults(self, source, localschema):
-        for link in source.own_pointers.values():
-            if link.default:
-                for default in link.default:
-                    if isinstance(default, proto.QueryDefaultSpec):
-                        def_context = lang_context.SourceContext.from_object(default)
+        for ptr in source.own_pointers.values():
+            if not ptr.default:
+                continue
 
-                        if (def_context is None or
-                            def_context.document.module.__name__
-                                != self.module.name):
-                            # This default is from another module, and
-                            # so is already normalized.
-                            continue
+            defaults = []
+            for default in ptr.default:
+                if not isinstance(default, caos_types.ExpressionText):
+                    defaults.append(default)
+                else:
+                    def_context = lang_context.SourceContext.from_object(default)
 
-                        module_aliases = {None: str(def_context.document.import_context)}
-                        for alias, module in def_context.document.imports.items():
-                            module_aliases[alias] = module.__name__
+                    if (def_context is None or
+                        def_context.document.module.__name__
+                            != self.module.name):
+                        # This default is from another module, and
+                        # so is already normalized.
+                        continue
 
-                        ir, _, value = caosql_utils.normalize_tree(
-                                            default.value, localschema,
-                                            module_aliases=module_aliases,
-                                            anchors={'self': source})
+                    module_aliases = {None: str(def_context.document.import_context)}
+                    for alias, module in def_context.document.imports.items():
+                        module_aliases[alias] = module.__name__
 
-                        first = list(ir.result_types.values())[0][0]
+                    ir, _, value = caosql_utils.normalize_tree(
+                                        default, localschema,
+                                        module_aliases=module_aliases,
+                                        anchors={'self': source})
 
-                        if (len(ir.result_types) > 1
-                                or not isinstance(first, caos.types.ProtoNode)
-                                or (link.target is not None and not first.issubclass(link.target))):
+                    first = list(ir.result_types.values())[0][0]
 
-                            raise MetaError(('default value query must yield a '
-                                             'single-column result of type "%s"') %
-                                             link.target.name, context=def_context)
+                    if (len(ir.result_types) > 1
+                            or not isinstance(first, caos.types.ProtoNode)
+                            or (ptr.target is not None
+                                    and not first.issubclass(ptr.target))):
 
-                        if link.is_pure_computable():
-                            # Pure computable without explicit target.
-                            # Fixup link target and target property.
-                            link.target = first
-                            link.is_atom = isinstance(first, proto.Atom)
+                        raise MetaError(('default value query must yield a '
+                                         'single-column result of type "%s"') %
+                                         ptr.target.name, context=def_context)
 
-                            if isinstance(link, proto.Link):
-                                pname = caos.name.Name('metamagic.caos.builtins.target')
-                                tgt_prop = link.pointers[pname]
-                                tgt_prop.target = first
+                    if ptr.is_pure_computable():
+                        # Pure computable without explicit target.
+                        # Fixup pointer target and target property.
+                        ptr.target = first
+                        ptr.is_atom = isinstance(first, proto.Atom)
 
-                        if not isinstance(link.target, caos.types.ProtoAtom):
-                            if link.mapping not in (caos.types.ManyToOne, caos.types.ManyToMany):
-                                raise MetaError('concept links with query defaults ' \
-                                                'must have either a "*1" or "**" mapping',
-                                                 context=def_context)
+                        if isinstance(ptr, proto.Link):
+                            pname = caos.name.Name('metamagic.caos.builtins.target')
+                            tgt_prop = ptr.pointers[pname]
+                            tgt_prop.target = first
 
-                        default.value = value
-                link.normalize_defaults()
+                    if not isinstance(ptr.target, caos.types.ProtoAtom):
+                        if ptr.mapping not in (caos.types.ManyToOne, caos.types.ManyToMany):
+                            raise MetaError('concept links with query defaults ' \
+                                            'must have either a "*1" or "**" mapping',
+                                             context=def_context)
+
+                    defaults.append(caos.types.ExpressionText(value))
+
+            ptr.default = defaults
+            ptr.normalize_defaults()
 
 
     def order_concepts(self, localschema):
@@ -2295,9 +2304,9 @@ class EntityShell2(LangObject, adapts=caos.concept.EntityShell2,
             clsname, target = next(iter(data.items()))
             target._construct(clsname)
 
-        elif isinstance(data, Expression):
+        elif isinstance(data, ExpressionText):
             target = caos.concept.EntityShell()
-            target.entity = self._process_expr(data.expr)
+            target.entity = self._process_expr(data)
 
         else:
             target = data

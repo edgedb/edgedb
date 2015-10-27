@@ -328,12 +328,12 @@ class TreeTransformer:
             if isinstance(expr, irast.EntityLink):
                 if type == 'computable' and expr.link_proto.is_pure_computable():
                     deflt = expr.link_proto.default[0]
-                    if isinstance(deflt, caos_types.LiteralDefaultSpec):
-                        caosql_expr = "'" + str(deflt.value).replace("'", "''") + "'"
+                    if isinstance(deflt, caos_types.ExpressionText):
+                        caosql_expr = deflt
+                    else:
+                        caosql_expr = "'" + str(deflt).replace("'", "''") + "'"
                         target_type = expr.link_proto.target.name
                         caosql_expr = 'CAST ({} AS [{}])'.format(caosql_expr, target_type)
-                    else:
-                        caosql_expr = deflt.value
 
                     anchors = {'self': expr.source.concept}
                     self._rewrite_with_caosql_expr(expr, caosql_expr, anchors)

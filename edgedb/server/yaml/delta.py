@@ -7,6 +7,7 @@
 
 
 from metamagic import caos
+from metamagic.caos import types as caos_types
 from metamagic.caos import delta, proto
 from metamagic.utils import datastructures
 from metamagic.utils.datastructures import typed
@@ -101,7 +102,8 @@ class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
 
             vals = []
             for v in value:
-                if isinstance(v, str):
+                if (isinstance(v, str) and
+                    issubclass(field.type[0].type, caos.proto.NamedPrototype)):
                     v = caos.name.Name(v)
                     ref_type = field.type[0].type.ref_type
                     v = ref_type(prototype_name=v)
@@ -275,18 +277,15 @@ class DeleteNamedPrototype(NamedPrototypeCommand, adapts=delta.DeleteNamedProtot
     pass
 
 
+# NOTE: Deprecated. For delta compatibility.
 class AlterDefault(Command, adapts=delta.AlterDefault):
     def __sx_setstate__(self, data):
-        adapter = yaml.ObjectMeta.get_adapter(proto.DefaultSpec)
-        assert adapter, 'could not find YAML adapter for proto.DefaultSpec'
-
         for f in ('old_value', 'new_value'):
             if data[f]:
-                val = []
+                val = proto.DefaultSpecList()
                 for spec in data[f]:
-                    d = spec
-                    spec = adapter.resolve(spec)(spec)
-                    spec.__sx_setstate__(d)
+                    if isinstance(spec, dict):
+                        spec = caos_types.ExpressionText(spec['query'])
                     val.append(spec)
                 data[f] = val
 

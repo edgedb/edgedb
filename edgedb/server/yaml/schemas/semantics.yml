@@ -127,16 +127,16 @@ mapping:
 
                     "default": &DEFAULT
                         type: choice
+                        object: metamagic.caos.backends.yaml.DefaultSpecList
                         choice:
                             - &DEFAULT_ITEM
                               type: choice
                               choice:
                                 - type: scalar
-                                  object: metamagic.caos.backends.yaml.LiteralDefaultSpec
                                   required: true
 
+                                # query: <expr> form is deprecated
                                 - type: map
-                                  object: metamagic.caos.backends.yaml.QueryDefaultSpec
                                   max-length: 1
                                   min-length: 1
                                   mapping:

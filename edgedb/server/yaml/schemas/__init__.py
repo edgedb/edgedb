@@ -11,12 +11,23 @@ from importkit.yaml.schema import CachingSchema
 from metamagic.caos import proto as caos_proto
 from metamagic.caos import protoschema
 
-from .. import Expression
+from .. import ExpressionText
 from .semantics import Semantics
 from .delta import Delta
 
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
+
+
+class Delta(Delta):
+    @classmethod
+    def get_tags(cls):
+        return {
+            '!expr': (
+                ['tag:yaml.org,2002:str'],
+                lambda loader, node: ExpressionText(node.value)
+            )
+        }
 
 
 class Semantics(Semantics, CachingSchema):
@@ -47,6 +58,6 @@ class Semantics(Semantics, CachingSchema):
         return {
             '!expr': (
                 ['tag:yaml.org,2002:str'],
-                lambda loader, node: Expression(node.value)
+                lambda loader, node: ExpressionText(node.value)
             )
         }

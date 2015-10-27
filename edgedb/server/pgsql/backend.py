@@ -10,6 +10,7 @@ import bisect
 import collections
 import importlib
 import itertools
+import json
 import os
 import pickle
 import re
@@ -25,7 +26,6 @@ from metamagic.utils import ast
 from importkit.import_ import get_object
 from metamagic.utils.algos import topological, persistent_hash
 from metamagic.utils.debug import debug
-from importkit import yaml
 from metamagic.utils.nlang import morphology
 from metamagic.utils import datastructures, markup
 
@@ -34,6 +34,7 @@ from metamagic.caos import objects as caos_objects
 
 from metamagic.caos import backends
 from metamagic.caos import proto
+from metamagic.caos import types as caos_types
 from metamagic.caos import delta as base_delta
 from metamagic.caos import debug as caos_debug
 from metamagic.caos import error as caos_error
@@ -1573,20 +1574,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def unpack_default(self, value):
-        value = next(iter(yaml.Language.load(value)))
-
         result = []
-        for item in value:
-            # XXX: This implicitly relies on yaml backend to be loaded, since
-            # adapter for DefaultSpec is defined there.
-            adapter = yaml.ObjectMeta.get_adapter(proto.DefaultSpec)
-            assert adapter, "could not find YAML adapter for proto.DefaultSpec"
-            data = item
-            item = adapter.resolve(item)(item)
-            item.__sx_setstate__(data)
+        values = json.loads(value)
+        for val in values:
+            if val['type'] == 'expr':
+                item = caos_types.ExpressionText(val['value'])
+            else:
+                item = val['value']
             result.append(item)
         return result
-
 
     def interpret_search_index(self, index_name, index_expression):
         m = self.search_idx_name_re.match(index_name)
@@ -1739,7 +1735,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def verify_ptr_const_defaults(self, meta, ptr_name, target_atom, tab_default, schema_defaults):
         if schema_defaults:
-            ld = list(filter(lambda d: isinstance(d, proto.LiteralDefaultSpec), schema_defaults))
+            ld = list(filter(lambda d: not isinstance(d, caos_types.ExpressionText), schema_defaults))
         else:
             ld = ()
 
@@ -1768,7 +1764,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                        'there are no literal defaults for the link') % ptr_name
             raise caos.MetaError(msg, details=details)
 
-        schema_value = typ(ld[0].value)
+        schema_value = typ(ld[0])
 
         if schema_value != table_default:
             msg = 'internal metadata inconsistency'

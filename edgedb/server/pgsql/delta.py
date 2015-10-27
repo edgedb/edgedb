@@ -16,12 +16,14 @@ from metamagic import caos
 from metamagic.caos import proto
 from metamagic.caos import delta as delta_cmds
 from metamagic.caos import caosql
+from metamagic.caos import types as caos_types
 from metamagic.caos import objects as caos_objects
 from metamagic.caos.objects import geo as geo_objects
 
+from metamagic import json
+
 from metamagic.utils import datastructures
 from metamagic.utils.debug import debug
-from importkit import yaml
 from metamagic.utils.algos.persistent_hash import persistent_hash
 from metamagic.utils import markup
 from importkit.import_ import get_object
@@ -37,7 +39,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 22
+BACKEND_FORMAT_VERSION = 23
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -151,9 +153,16 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeC
 
         return rec, updates
 
-    def pack_default(self, alter_default):
-        if alter_default.new_value is not None:
-            return yaml.Language.dump(alter_default.new_value)
+    def pack_default(self, value):
+        if value is not None:
+            vals = []
+            for item in value:
+                if isinstance(item, caos_types.ExpressionText):
+                    valtype = 'expr'
+                else:
+                    valtype = 'literal'
+                vals.append({'type': valtype, 'value': item})
+            result = json.dumps(vals)
         else:
             result = None
         return result
@@ -186,7 +195,8 @@ class CreateNamedPrototype(NamedPrototypeMetaCommand):
     def apply(self, meta, context):
         obj = self.__class__.get_adaptee().apply(self, meta, context)
         NamedPrototypeMetaCommand.apply(self, meta, context)
-        self.create_object(meta, obj)
+        updates = self.create_object(meta, obj)
+        self.updates = updates
         return obj
 
 
@@ -209,7 +219,7 @@ class AlterNamedPrototype(NamedPrototypeMetaCommand):
     def apply(self, meta, context):
         obj = self.__class__.get_adaptee().apply(self, meta, context)
         NamedPrototypeMetaCommand.apply(self, meta, context)
-        self.update(meta, context)
+        self.updates = self.update(meta, context)
         return obj
 
 
@@ -223,14 +233,6 @@ class DeleteNamedPrototype(NamedPrototypeMetaCommand):
 
 class AlterPrototypeProperty(MetaCommand, adapts=delta_cmds.AlterPrototypeProperty):
     pass
-
-
-class AlterDefault(MetaCommand, adapts=delta_cmds.AlterDefault):
-    def apply(self, meta, context):
-        result = delta_cmds.AlterDefault.apply(self, meta, context)
-        MetaCommand.apply(self, meta, context)
-
-        return result
 
 
 class AttributeCommand:
@@ -462,11 +464,11 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
             if rec.base:
                 rec.base = str(rec.base[0])
 
-        default = list(self(delta_cmds.AlterDefault))
+        default = updates.get('default')
         if default:
             if not rec:
                 rec = self.table.record()
-            rec.default = self.pack_default(default[0])
+            rec.default = self.pack_default(default[1])
 
         return rec, updates
 
@@ -553,19 +555,18 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
             seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
             self.pgops.add(dbops.CreateSequence(name=seq_name))
 
-        default = list(self(delta_cmds.AlterDefault))
-
+        default = updates.get('default')
         if default:
-            default = default[0]
-            if len(default.new_value) > 0 and \
-                                    isinstance(default.new_value[0], proto.LiteralDefaultSpec):
+            default = default[1]
+            if len(default) > 0 and \
+                not isinstance(default[0], caos_types.ExpressionText):
                 # We only care to support literal defaults here.  Supporting
                 # defaults based on queries has no sense on the database level
-                # since the database forbids queries for DEFAULT and pre-calculating
-                # the value does not make sense either since the whole point of
-                # query defaults is for them to be dynamic.
-                self.pgops.add(dbops.AlterDomainAlterDefault(name=new_domain_name,
-                                                             default=default.new_value[0].value))
+                # since the database forbids queries for DEFAULT and pre-
+                # calculating the value does not make sense either since the
+                # whole point of query defaults is for them to be dynamic.
+                self.pgops.add(dbops.AlterDomainAlterDefault(
+                    name=new_domain_name, default=default[0]))
 
         return atom
 
@@ -636,15 +637,16 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
 
         if type_intent != 'drop':
             if updates:
-                default_delta = list(op(delta_cmds.AlterDefault))
+                default_delta = updates.get('default')
                 if default_delta:
-                    default_delta = default_delta[0]
+                    default_delta = default_delta[1]
 
-                    if not default_delta.new_value or \
-                       not isinstance(default_delta.new_value[0], proto.LiteralDefaultSpec):
+                    if not default_delta or \
+                           isinstance(default_delta[0],
+                                      caos_types.ExpressionText):
                         new_default = None
                     else:
-                        new_default = default_delta.new_value[0].value
+                        new_default = default_delta[0]
 
                     adad = dbops.AlterDomainAlterDefault(name=domain_name, default=new_default)
                     op.pgops.add(adad)
@@ -851,10 +853,10 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 continue
 
             default = None
-            ld = list(filter(lambda i: isinstance(i, proto.LiteralDefaultSpec),
+            ld = list(filter(lambda i: not isinstance(i, caos_types.ExpressionText),
                              pointer.default))
             if ld:
-                default = ld[0].value
+                default = ld[0]
 
             if default is not None:
                 alter_table = self.get_alter_table(context, priority=3, contained=True)
@@ -1461,11 +1463,11 @@ class PointerMetaCommand(MetaCommand):
                 else:
                     rec.base = tuple(str(b) for b in rec.base)
 
-        default = list(self(delta_cmds.AlterDefault))
+        default = updates.get('default')
         if default:
             if not rec:
                 rec = self.table.record()
-            rec.default = self.pack_default(default[0])
+            rec.default = self.pack_default(default[1])
 
         return rec, updates
 
@@ -1511,35 +1513,35 @@ class PointerMetaCommand(MetaCommand):
             col = dbops.Column(name=column_name, type='text')
             alter_table.add_operation(dbops.AlterTableDropColumn(col))
 
-    def get_pointer_default(self, pointer, meta, context):
-        default = list(self(delta_cmds.AlterDefault))
+    def get_pointer_default(self, link, meta, context):
+        default = self.updates.get('default')
         default_value = None
 
         if default:
-            default = default[0]
-            if default.new_value:
-                ld = list(filter(lambda i: isinstance(i, proto.LiteralDefaultSpec),
-                                 default.new_value))
+            default = default[1]
+            if default:
+                ld = list(filter(lambda i: not isinstance(i, caos_types.ExpressionText),
+                                 default))
                 if ld:
-                    default_value = postgresql.string.quote_literal(str(ld[0].value))
+                    default_value = postgresql.string.quote_literal(str(ld[0]))
 
         return default_value
 
     def alter_pointer_default(self, pointer, meta, context):
-        default = list(self(delta_cmds.AlterDefault))
+        default = self.updates.get('default')
         if default:
-            default = default[0]
+            default = default[1]
 
             new_default = None
             have_new_default = True
 
-            if not default.new_value:
+            if not default:
                 new_default = None
             else:
-                ld = list(filter(lambda i: isinstance(i, proto.LiteralDefaultSpec),
-                                 default.new_value))
+                ld = list(filter(lambda i: not isinstance(i, caos_types.ExpressionText),
+                                 default))
                 if ld:
-                    new_default = ld[0].value
+                    new_default = ld[0]
                 else:
                     have_new_default = False
 
@@ -1758,6 +1760,11 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
         #
         self.provide_table(link, meta, context)
 
+        concept = context.get(delta_cmds.ConceptCommandContext)
+        if not concept or not concept.proto.is_virtual:
+            rec, updates = self.record_metadata(link, None, meta, context)
+            self.updates = updates
+
         if not link.generic():
             ptr_stor_info = types.get_pointer_storage_info(meta, link, resolve_type=False)
 
@@ -1787,8 +1794,8 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
 
         concept = context.get(delta_cmds.ConceptCommandContext)
         if not concept or not concept.proto.is_virtual:
-            rec, updates = self.record_metadata(link, None, meta, context)
-            self.pgops.add(dbops.Insert(table=self.table, records=[rec], priority=1))
+            self.pgops.add(dbops.Insert(table=self.table, records=[rec],
+                                        priority=1))
 
         if (not link.generic() and link.mapping != caos.types.ManyToMany
                                and not concept.proto.is_virtual):
@@ -1850,6 +1857,7 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
 
         with context(delta_cmds.LinkCommandContext(self, link)):
             rec, updates = self.record_metadata(link, old_link, meta, context)
+            self.updates = updates
 
             self.provide_table(link, meta, context)
 
@@ -1985,6 +1993,10 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
         else:
             generic_link = None
 
+        with context(delta_cmds.LinkPropertyCommandContext(self, property)):
+            rec, updates = self.record_metadata(property, None, meta, context)
+            self.updates = updates
+
         if link and self.has_table(link.proto, meta):
             link.op.provide_table(link.proto, meta, context)
             alter_table = link.op.get_alter_table(context)
@@ -2006,9 +2018,6 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
 
                 cmd = dbops.AlterTableAddColumn(col)
                 alter_table.add_operation((cmd, None, (cond,)))
-
-        with context(delta_cmds.LinkPropertyCommandContext(self, property)):
-            rec, updates = self.record_metadata(property, None, meta, context)
 
         concept = context.get(delta_cmds.ConceptCommandContext)
         if not concept or not concept.proto.is_virtual:
@@ -2038,6 +2047,7 @@ class AlterLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.AlterLinkProp
 
         with context(delta_cmds.LinkPropertyCommandContext(self, prop)):
             rec, updates = self.record_metadata(prop, old_prop, meta, context)
+            self.updates = updates
 
             if rec:
                 self.pgops.add(dbops.Update(table=self.table, record=rec,
@@ -3614,9 +3624,9 @@ class UpgradeBackend(MetaCommand):
                     item.__sx_setstate__(data)
                     result.append(item)
 
-                for item in result:
-                    if isinstance(item, proto.QueryDefaultSpec):
-                        item.value = re.sub(r'(\w+):(\w+)\(', '\\1::\\2(', item.value)
+                for i, item in enumerate(result):
+                    if isinstance(item, caos_types.ExpressionText):
+                        result[i] = re.sub(r'(\w+):(\w+)\(', '\\1::\\2(', item)
 
                 newdefault = yaml.Language.dump(result)
 
@@ -3713,10 +3723,59 @@ class UpgradeBackend(MetaCommand):
                     neg_conditions=[dbops.TableExists(name=table.name)]))
         cg.execute(context)
 
+    def update_to_version_23(self, context):
+        r"""\
+        Backend format 23 migrates default format
+        """
+
+        from importkit import yaml
+
+        cg = dbops.CommandGroup()
+
+        def _update_defaults(obj_list, table):
+            for r in obj_list:
+                if r['default']:
+                    value = next(iter(yaml.Language.load(r['default'])))
+
+                    result = []
+                    for item in value:
+                        if isinstance(item, dict):
+                            valtype = 'expr'
+                            val = item['query']
+                        else:
+                            valtype = 'literal'
+                            val = item
+
+                        result.append({
+                            'type': valtype,
+                            'value': val
+                        })
+
+                    newdefault = json.dumps(result)
+
+                    if newdefault.lower() != r['default'].lower():
+                        rec = table.record()
+                        rec.default = newdefault
+                        condition = [('id', r['id'])]
+                        cg.add_command(dbops.Update(table=table, record=rec,
+                                                    condition=condition))
+
+        links_list = datasources.meta.links.ConceptLinks(context.db).fetch()
+        _update_defaults(links_list, deltadbops.LinkTable())
+
+        props_list = datasources.meta.links.LinkProperties(context.db).fetch()
+        _update_defaults(props_list, deltadbops.LinkPropertyTable())
+
+        atoms_list = datasources.meta.atoms.AtomList(context.db).fetch()
+        _update_defaults(atoms_list, deltadbops.AtomTable())
+
+        cg.execute(context)
+
     @classmethod
     def update_backend_info(cls):
         backendinfotable = deltadbops.BackendInfoTable()
         record = backendinfotable.record()
         record.format_version = BACKEND_FORMAT_VERSION
         condition = [('format_version', '<', BACKEND_FORMAT_VERSION)]
-        return dbops.Merge(table=backendinfotable, record=record, condition=condition)
+        return dbops.Merge(table=backendinfotable, record=record,
+                           condition=condition)
