@@ -130,10 +130,17 @@ class AbstractTypedCollection(yaml.Object, metaclass=TypedCollectionMeta,
 
     @classmethod
     def __sx_getstate__(cls, data):
-        if isinstance(data, typed.AbstractTypedMapping):
-            return dict(data)
-        else:
-            return [item.name for item in data]
+        raise NotImplementedError
+
+
+class PrototypeDict(AbstractTypedCollection, adapts=proto.PrototypeDict,
+                                             type=proto.BasePrototype):
+    def __sx_setstate__(self, data):
+        proto.PrototypeDict.__init__(self, data)
+
+    @classmethod
+    def __sx_getstate__(cls, data):
+        return dict(data.items())
 
 
 class ArgDict(AbstractTypedCollection, adapts=proto.ArgDict,
@@ -692,15 +699,17 @@ class PointerCascadeAction(LangObject, adapts=proto.PointerCascadeAction):
         return result
 
 
-class PointerCascadeActionSet(AbstractTypedCollection, adapts=proto.PointerCascadeActionSet,
-                                                       type=proto.PointerCascadeAction):
+class PointerCascadeActionSet(AbstractTypedCollection,
+                              adapts=proto.PointerCascadeActionSet,
+                              type=proto.PointerCascadeAction):
     def __sx_setstate__(self, data):
         if not isinstance(data, list):
             data = (data,)
 
         items = []
         for name in data:
-            item = proto.PointerCascadeAction(_setdefaults_=False, _relaxrequired_=True)
+            item = proto.PointerCascadeAction(_setdefaults_=False,
+                                              _relaxrequired_=True)
             item._name = name
             items.append(item)
 
@@ -708,7 +717,9 @@ class PointerCascadeActionSet(AbstractTypedCollection, adapts=proto.PointerCasca
 
     @classmethod
     def __sx_getstate__(cls, data):
-        return [item.name for item in data]
+        # prototype_name here is for PrototypeRefs, which will
+        # appear in partial schema loads, such as with delta loads.
+        return [getattr(item, 'prototype_name', item.name) for item in data]
 
 
 class PointerCascadeEvent(LangObject, adapts=proto.PointerCascadeEvent):

@@ -64,7 +64,7 @@ class DeltaSet(yaml.Object, adapts=delta.DeltaSet):
 
     @classmethod
     def __sx_getstate__(cls, data):
-        return {d.id: d for d in data.deltas}
+        return {int(d.id): d for d in data.deltas}
 
 
 class CommandMeta(type(yaml.Object), type(delta.Command), MixedStructMeta):
@@ -551,7 +551,7 @@ class DeleteLinkProperty(DeleteNamedPrototype, adapts=delta.DeleteLinkProperty):
     pass
 
 
-class CreateLinkSearchConfiguration(LinkSearchConfigurationCommand, CreatePrototype,
+class CreateLinkSearchConfiguration(LinkSearchConfigurationCommand,
                                     adapts=delta.CreateLinkSearchConfiguration):
     pass
 
