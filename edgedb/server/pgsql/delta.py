@@ -34,12 +34,13 @@ from metamagic.caos.backends.pgsql import dbops, deltadbops, features
 from . import ast as pg_ast
 from . import codegen
 from . import datasources
+from . import parser
 from . import schemamech
 from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 23
+BACKEND_FORMAT_VERSION = 24
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -708,7 +709,7 @@ class UpdateSearchIndexes(MetaCommand):
                                               columns=columns)
 
                 cond = dbops.IndexExists(index_name=(table_name[0], index_name))
-                op = dbops.DropIndex(index_name=(table_name[0], index_name), conditions=(cond,))
+                op = dbops.DropIndex(index, conditions=(cond,))
                 self.pgops.add(op)
                 op = dbops.CreateIndex(index=index)
                 self.pgops.add(op)
@@ -814,18 +815,6 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
     def search_index_delete(self, host, pointer, meta, context):
         if self.update_search_indexes is None:
             self.update_search_indexes = UpdateSearchIndexes(host)
-
-    def adjust_indexes(self, meta, context, source):
-        source_context = context.get(delta_cmds.LinkCommandContext)
-        if not source_context:
-            source_context = context.get(delta_cmds.ConceptCommandContext)
-        source_table = common.get_table_name(source_context.proto, catenate=False)
-        for index in source_context.proto.indexes:
-            old_name = SourceIndexCommand.get_index_name(source_context.original_proto, index)
-            new_name = SourceIndexCommand.get_index_name(source_context.proto, index)
-
-            self.pgops.add(dbops.RenameIndex(old_name=(source_table[0], old_name),
-                                             new_name=new_name))
 
     @classmethod
     def get_source_and_pointer_ctx(cls, meta, context):
@@ -1057,11 +1046,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
 
 class SourceIndexCommand(PrototypeMetaCommand):
-    @classmethod
-    def get_index_name(cls, host, index):
-        index_name = '%s_%s_reg_idx' % (host.name, persistent_hash(index.expr))
-        index_name = common.caos_name_to_pg_name(index_name)
-        return index_name
+    pass
 
 
 class CreateSourceIndex(SourceIndexCommand, adapts=delta_cmds.CreateSourceIndex):
@@ -1084,9 +1069,39 @@ class CreateSourceIndex(SourceIndexCommand, adapts=delta_cmds.CreateSourceIndex)
             # since it expects only a single set around the column list.
             #
             sql_expr = sql_expr[1:-1]
-        index_name = self.get_index_name(source.proto, index)
-        pg_index = dbops.Index(name=index_name, table_name=table_name, expr=sql_expr, unique=False)
+        index_name = '{}_reg_idx'.format(index.name)
+        pg_index = dbops.Index(name=index_name, table_name=table_name,
+                               expr=sql_expr, unique=False,
+                               inherit=True,
+                               metadata={'schemaname': index.name})
         self.pgops.add(dbops.CreateIndex(pg_index, priority=3))
+
+        return index
+
+
+class RenameSourceIndex(SourceIndexCommand, adapts=delta_cmds.RenameSourceIndex):
+    def apply(self, meta, context):
+        index = delta_cmds.RenameSourceIndex.apply(self, meta, context)
+        SourceIndexCommand.apply(self, meta, context)
+
+        subject = context.get(delta_cmds.LinkCommandContext)
+        if not subject:
+            subject = context.get(delta_cmds.ConceptCommandContext)
+        orig_table_name = common.get_table_name(subject.original_proto,
+                                                catenate=False)
+
+        index_ctx = context.get(delta_cmds.SourceIndexCommandContext)
+        new_index_name = '{}_reg_idx'.format(index.name)
+
+        orig_idx = index_ctx.original_proto
+        orig_idx_name = '{}_reg_idx'.format(orig_idx.name)
+        orig_pg_idx = dbops.Index(name=orig_idx_name,
+                                  table_name=orig_table_name,
+                                  inherit=True,
+                                  metadata={'schemaname': index.name})
+
+        rename = dbops.RenameIndex(orig_pg_idx, new_name=new_index_name)
+        self.pgops.add(rename)
 
         return index
 
@@ -1112,9 +1127,12 @@ class DeleteSourceIndex(SourceIndexCommand, adapts=delta_cmds.DeleteSourceIndex)
             # the indexes are dropped automatically in this case.
             #
             table_name = common.get_table_name(source.proto, catenate=False)
-            index_name = self.get_index_name(source.proto, index)
-            index_exists = dbops.IndexExists((table_name[0], index_name))
-            self.pgops.add(dbops.DropIndex((table_name[0], index_name), priority=3,
+            index_name = '{}_reg_idx'.format(index.name)
+            index = dbops.Index(name=index_name, table_name=table_name,
+                                inherit=True)
+            index_exists = dbops.IndexExists((table_name[0],
+                                              index.name_in_catalog))
+            self.pgops.add(dbops.DropIndex(index, priority=3,
                                            conditions=(index_exists,)))
 
         return index
@@ -1221,9 +1239,6 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
                     alter_table.name, old_name=old_constr_name,
                                       new_name=new_constr_name)
         self.pgops.add(rc)
-
-        # Indexes
-        self.adjust_indexes(meta, context, proto)
 
         self.table_name = common.concept_name_to_table_name(self.new_name, catenate=False)
 
@@ -1827,9 +1842,6 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
 
             self.rename(meta, context, self.prototype_name, self.new_name, obj=result)
             link_cmd.op.table_name = common.link_name_to_table_name(self.new_name, catenate=False)
-
-            # Indexes
-            self.adjust_indexes(meta, context, result)
         else:
             link_cmd = context.get(delta_cmds.LinkCommandContext)
 
@@ -2300,9 +2312,10 @@ class DropMappingIndexes(MetaCommand):
         group = dbops.CommandGroup(conditions=(table_exists,), priority=3)
 
         for idx_name in idx_names:
+            idx = dbops.Index(name=idx_name, table_name=table_name)
             fq_idx_name = (table_name[0], idx_name)
             index_exists = dbops.IndexExists(fq_idx_name)
-            drop = dbops.DropIndex(fq_idx_name, conditions=(index_exists,), priority=3)
+            drop = dbops.DropIndex(idx, conditions=(index_exists,), priority=3)
             group.add_command(drop)
 
         self.pgops.add(group)
@@ -2324,7 +2337,9 @@ class UpdateMappingIndexes(MetaCommand):
                            ''', re.X)
         self.schema_exists = dbops.SchemaExists(name='caos')
 
-    def interpret_index(self, index_name, index_predicate, link_map):
+    def interpret_index(self, index, link_map):
+        index_name = index.name
+        index_predicate = index.predicate
         m = self.idx_name_re.match(index_name)
         if not m:
             raise caos.MetaError('could not interpret index %s' % index_name)
@@ -2349,9 +2364,10 @@ class UpdateMappingIndexes(MetaCommand):
 
         return mapping, links
 
-    def interpret_indexes(self, indexes, link_map):
-        for idx_name, idx_pred in zip(indexes['index_names'], indexes['index_predicates']):
-            yield idx_name, self.interpret_index(idx_name, idx_pred, link_map)
+    def interpret_indexes(self, table_name, indexes, link_map):
+        for idx_data in indexes:
+            idx = dbops.Index.from_introspection(table_name, idx_data)
+            yield idx.name, self.interpret_index(idx, link_map)
 
     def _group_indexes(self, indexes):
         """Group indexes by link name"""
@@ -2372,8 +2388,13 @@ class UpdateMappingIndexes(MetaCommand):
             link_map = context._get_link_map(reverse=True)
             index_ds = datasources.introspection.tables.TableIndexes(db)
             indexes = {}
-            for row in index_ds.fetch(schema_pattern='caos%', index_pattern='%_link_mapping_idx'):
-                indexes[tuple(row['table_name'])] = self.interpret_indexes(row, link_map)
+            idx_data = index_ds.fetch(schema_pattern='caos%',
+                                      index_pattern='%_link_mapping_idx')
+            for row in idx_data:
+                table_name = tuple(row['table_name'])
+                indexes[table_name] = self.interpret_indexes(table_name,
+                                                             row['indexes'],
+                                                             link_map)
         else:
             link_map = {}
             indexes = {}
@@ -3778,6 +3799,222 @@ class UpgradeBackend(MetaCommand):
 
         atoms_list = datasources.meta.atoms.AtomList(context.db).fetch()
         _update_defaults(atoms_list, deltadbops.AtomTable())
+
+        cg.execute(context)
+
+    def update_to_version_24(self, context):
+        r"""\
+        Backend format 24 migrates indexes to named objects
+        """
+
+        from metamagic.utils import ast
+
+        cg = dbops.CommandGroup()
+
+        inheritance = datasources.introspection.tables.TableInheritance(context.db)
+        concept_list = datasources.meta.concepts.ConceptList(context.db).fetch()
+
+        tables = {}
+        concepts = {}
+        concept_mros = {}
+
+        for concept in concept_list:
+            table_name = common.concept_name_to_table_name(
+                            caos.Name(concept['name']), catenate=False)
+            tables[table_name] = concept
+            concepts[concept['name']] = concept
+
+        def table_inheritance(table_name, schema_name):
+            clslist = inheritance.fetch(table_name=table_name,
+                                        schema_name=schema_name,
+                                        max_depth=1)
+            return tuple(i[:2] for i in clslist[1:])
+
+        def concept_bases(table_name, schema_name):
+            bases = []
+
+            for table in table_inheritance(table_name, schema_name):
+                base = tables[table[:2]]
+                bases.append(base['name'])
+
+            return tuple(bases)
+
+        def _merge_mro(clsname, mros):
+            result = []
+
+            while True:
+                nonempty = [mro for mro in mros if mro]
+                if not nonempty:
+                    return result
+
+                for mro in nonempty:
+                    candidate = mro[0]
+                    tails = [m for m in nonempty
+                             if id(candidate) in {id(c) for c in m[1:]}]
+                    if not tails:
+                        break
+                else:
+                    # Could not find consistent MRO, should not happen
+                    msg = "Could not find consistent MRO for {!r}".format(clsname)
+                    assert False, msg
+
+                result.append(candidate)
+
+                for mro in nonempty:
+                    if mro[0] is candidate:
+                        del mro[0]
+
+            return result
+
+        def _get_mro(concept):
+            mros = [[concept['name']]]
+            bases = concept['base']
+
+            for base in bases:
+                mros.append(_get_mro(concepts[base]))
+
+            return _merge_mro(concept['name'], mros)
+
+        def _get_new_index_name(subject_name, expr):
+            index_name = '{}.autoidx_{:x}'.format(
+                            subject_name, persistent_hash(expr))
+
+            index_name = Idx.generate_specialized_name(subject_name,
+                                                       index_name)
+
+            index_name = caos.Name(name=index_name,
+                                   module=subject_name.module)
+
+            index_name_full = '{}_reg_idx'.format(index_name)
+
+            return index_name, index_name_full
+
+        def _get_old_index_name(subject_name, expr):
+            index_name_full = '{}_{}_reg_idx'.format(
+                                subject_name, persistent_hash(expr))
+
+            return common.caos_name_to_pg_name(index_name_full)
+
+
+        for table_name, concept in tables.items():
+            concept['base'] = concept_bases(table_name[1], table_name[0])
+
+        for concept_name, concept in concepts.items():
+            concept_mros[concept_name] = _get_mro(concept)
+
+        index_ds = datasources.introspection.tables.TableIndexes(context.db)
+        idx_data = index_ds.fetch(
+                        schema_pattern='caos%',
+                        index_pattern='%_reg_idx',
+                        table_list=['{}.{}'.format(*t) for t in tables])
+
+        link_ds = datasources.meta.links.ConceptLinks(context.db)
+        links = link_ds.fetch()
+
+        link_name_map = {common.caos_name_to_pg_name(l['name']): l['name']
+                         for l in links if l['target'] is None}
+
+        link_subclasses = {}
+
+        for link in links:
+            if link['target'] is None:
+                continue
+
+            base = link['base'][0]
+
+            try:
+                lsc = link_subclasses[base]
+            except KeyError:
+                lsc = link_subclasses[base] = {}
+
+            lsc[link['source']] = link
+
+        sql_parser = parser.PgSQLParser()
+        Idx = caos.proto.SourceIndex
+
+        indexes = {}
+        for row in idx_data:
+            table_name = tuple(row['table_name'])
+            concept = tables[table_name]
+            subject_name = caos.Name(concept['name'])
+            subject_mro = concept_mros[subject_name]
+            subject_mro_set = set(subject_mro)
+
+            for index_data in row['indexes']:
+                pg_index = dbops.Index.from_introspection(
+                                table_name, index_data)
+
+                sql_expr = pg_index.expr
+                if not sql_expr:
+                    cols = (common.quote_ident(c) for c in pg_index.columns)
+                    sql_expr = '(' + ', '.join(cols) + ')'
+
+                sql_tree = sql_parser.parse(sql_expr)
+                is_fieldref = lambda n: isinstance(n, pg_ast.FieldRefNode)
+                field_refs = ast.find_children(sql_tree, is_fieldref)
+                if is_fieldref(sql_tree):
+                    field_refs.append(sql_tree)
+
+                annotated_frefs = []
+                possible_srcs = []
+
+                for field_ref in field_refs:
+                    link_name = link_name_map[field_ref.field]
+                    spec_links = link_subclasses[link_name]
+
+                    annotated_frefs.append((field_ref.field, link_name))
+                    possible_srcs.append(set(spec_links) & subject_mro_set)
+
+                for src_combination in itertools.product(*possible_srcs):
+                    caosql_expr = sql_expr
+
+                    for i, (col, ptr_name) in enumerate(annotated_frefs):
+                        src = src_combination[i]
+                        ptr_ref = '[{}].[{}]'.format(src, ptr_name)
+                        qcol = '"{}"'.format(col)
+                        caosql_expr = caosql_expr.replace(qcol, ptr_ref)
+
+                    if len(field_refs) == 1:
+                        # strip parentheses
+                        caosql_expr = caosql_expr[1:-1]
+
+                    old_index_names = []
+
+                    old_index_names.append(
+                        _get_old_index_name(subject_name, caosql_expr))
+
+                    caosql_expr = 'SELECT {}'.format(caosql_expr)
+                    old_index_names.append(
+                        _get_old_index_name(subject_name, caosql_expr))
+
+                    new_index_name_schema, new_index_name_db = \
+                        _get_new_index_name(subject_name, caosql_expr)
+
+                    index = dbops.Index(
+                                new_index_name_db,
+                                table_name=table_name,
+                                inherit=True,
+                                expr=pg_index.expr,
+                                unique=pg_index.unique,
+                                columns=pg_index.columns,
+                                metadata={'schemaname': new_index_name_schema})
+
+                    for old_index_name in old_index_names:
+                        old_index_fqn = (table_name[0], old_index_name)
+                        old_index = dbops.Index(old_index_name,
+                                                table_name=table_name)
+
+                        cond = dbops.IndexExists(old_index_fqn)
+
+                        rng = dbops.CommandGroup(conditions=[cond])
+
+                        drop = dbops.DropIndex(old_index)
+                        rng.add_command(drop)
+
+                        create = dbops.CreateIndex(index)
+                        rng.add_command(create)
+
+                        cg.add_command(rng)
 
         cg.execute(context)
 

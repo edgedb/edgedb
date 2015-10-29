@@ -1586,64 +1586,80 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             result.append(item)
         return result
 
-    def interpret_search_index(self, index_name, index_expression):
-        m = self.search_idx_name_re.match(index_name)
+
+    def interpret_search_index(self, index):
+        m = self.search_idx_name_re.match(index.name)
         if not m:
-            raise caos.MetaError('could not interpret index {}'.format(index_name))
+            msg = 'could not interpret index {}'.format(index.name)
+            raise caos.MetaError(msg)
 
         language = m.group('language')
         index_class = m.group('index_class')
 
-        tree = self.parser.parse(index_expression)
+        tree = self.parser.parse(index.expr)
         columns = self.search_idx_expr.match(tree)
 
         if columns is None:
-            msg = 'could not interpret index {!r}'.format(str(index_name))
+            msg = 'could not interpret index {!r}'.format(str(index.name))
             details = 'Could not match expression:\n{}'.format(markup.dumps(tree))
             hint = 'Take a look at the matching pattern and adjust'
             raise caos.MetaError(msg, details=details, hint=hint)
 
         return index_class, language, columns
 
-    def interpret_search_indexes(self, indexes):
-        for idx_name, idx_expr in zip(indexes['index_names'], indexes['index_expressions']):
-            yield self.interpret_search_index(idx_name, idx_expr)
+
+    def interpret_search_indexes(self, table_name, indexes):
+        for idx_data in indexes:
+            index = dbops.Index.from_introspection(table_name, idx_data)
+            yield self.interpret_search_index(index)
 
 
     def read_search_indexes(self):
         indexes = {}
         index_ds = datasources.introspection.tables.TableIndexes(self.connection)
-        for row in index_ds.fetch(schema_pattern='caos%', index_pattern='%_search_idx'):
-            tabidx = indexes[tuple(row['table_name'])] = {}
+        idx_data = index_ds.fetch(schema_pattern='caos%',
+                                  index_pattern='%_search_idx')
 
-            for index_class, language, columns in self.interpret_search_indexes(row):
+        for row in idx_data:
+            table_name = tuple(row['table_name'])
+            tabidx = indexes[table_name] = {}
+
+            si = self.interpret_search_indexes(table_name, row['indexes'])
+
+            for index_class, language, columns in si:
                 for column_name, column_config in columns.items():
                     idx = tabidx.setdefault(column_name, {})
-                    idx[(index_class, column_config[0])] = caos.types.LinkSearchWeight(column_config[1])
+                    idx[(index_class, column_config[0])] = \
+                        caos.types.LinkSearchWeight(column_config[1])
 
         return indexes
 
 
-    def interpret_index(self, index_cols, index_expression):
+    def interpret_index(self, index):
+        index_expression = index.expr
+
         if not index_expression:
-            index_expression = '(%s)' % ', '.join(common.quote_ident(c) for c in index_cols)
+            index_expression = '(%s)' % ', '.join(common.quote_ident(c) for
+                                                  c in index.columns)
 
-        tree = self.parser.parse(index_expression)
-
-        return tree
+        return self.parser.parse(index_expression)
 
 
-    def interpret_indexes(self, indexes):
-        for cols, expr in zip(indexes['index_columns'], indexes['index_expressions']):
-            cols = cols.split('~~~~')
-            yield self.interpret_index(cols, expr)
-
+    def interpret_indexes(self, table_name, indexes):
+         for idx_data in indexes:
+            idx = dbops.Index.from_introspection(table_name, idx_data)
+            yield idx, self.interpret_index(idx)
 
     def read_indexes(self):
         indexes = {}
         index_ds = datasources.introspection.tables.TableIndexes(self.connection)
-        for row in index_ds.fetch(schema_pattern='caos%', index_pattern='%_reg_idx'):
-            indexes[tuple(row['table_name'])] = set(self.interpret_indexes(row))
+        idx_data = index_ds.fetch(schema_pattern='caos%',
+                                  index_pattern='%_reg_idx')
+
+        for row in idx_data:
+            table_name = tuple(row['table_name'])
+            indexes[table_name] = set(self.interpret_indexes(table_name,
+                                                             row['indexes']))
 
         return indexes
 
@@ -1890,13 +1906,20 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 table_name = common.get_table_name(link, catenate=False)
                 tabidx = indexes.get(table_name)
                 if tabidx:
-                    for index in tabidx:
+                    for index, index_sql in tabidx:
+                        if index.get_metadata('ddl:inherited'):
+                            continue
+
                         caos_tree = sql_decompiler.transform(
-                                        index, link)
+                                        index_sql, link)
                         caosql_tree = caosql.decompile_ir(
                                         caos_tree, return_statement=True)
                         expr = caosql.generate_source(caosql_tree, pretty=False)
-                        link.add_index(proto.SourceIndex(expr=expr))
+                        schema_name = index.get_metadata('schemaname')
+                        index = proto.SourceIndex(name=caos.Name(schema_name),
+                                                  subject=link, expr=expr)
+                        link.add_index(index)
+                        meta.add(index)
             elif link.atomic():
                 ptr_stor_info = types.get_pointer_storage_info(
                                     link, schema=meta)
@@ -2204,13 +2227,21 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             tabidx = indexes.get(table_name)
             if tabidx:
-                for index in tabidx:
+                for index, index_sql in tabidx:
+                    if index.get_metadata('ddl:inherited'):
+                        continue
+
                     ir_tree = sql_decompiler.transform(
-                                    index, concept)
+                                    index_sql, concept)
                     caosql_tree = caosql.decompile_ir(
                                     ir_tree, return_statement=True)
                     expr = caosql.generate_source(caosql_tree, pretty=False)
-                    concept.add_index(proto.SourceIndex(expr=expr))
+                    schema_name = index.get_metadata('schemaname')
+                    index = proto.SourceIndex(name=caos.Name(schema_name),
+                                              subject=concept,
+                                              expr=expr)
+                    concept.add_index(index)
+                    meta.add(index)
 
 
     def normalize_domain_descr(self, d):

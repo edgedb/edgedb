@@ -412,6 +412,10 @@ class CreateSourceIndex(SourceIndexCommand, adapts=delta.CreateSourceIndex):
     pass
 
 
+class RenameSourceIndex(SourceIndexCommand, adapts=delta.RenameSourceIndex):
+    pass
+
+
 class AlterSourceIndex(SourceIndexCommand, adapts=delta.AlterSourceIndex):
     pass
 

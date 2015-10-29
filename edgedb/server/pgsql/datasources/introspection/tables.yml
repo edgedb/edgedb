@@ -217,42 +217,97 @@ params:
     table_pattern:
         type: str
         default: null
+    table_list:
+        type: list
+        default: null
     index_pattern:
         type: str
         default: null
-
+    inheritable_only:
+        type: bool
+        default: false
+    include_inherited:
+        type: bool
+        default: false
 filters:
     - format: dict
 
 source: |
-        SELECT
-                i.table_name                            AS table_name,
-                array_agg(i.index_name)::text[]         AS index_names,
-                array_agg(i.index_predicate)::text[]    AS index_predicates,
-                array_agg(i.index_expression)::text[]   AS index_expressions,
-                array_agg(i.index_columns)              AS index_columns
-        FROM
+    SELECT
+        i.table_name                            AS table_name,
+        array_agg((
+            i.index_name,
+            i.index_is_unique,
+            i.index_predicate,
+            i.index_expression,
+            i.index_columns,
+            i.index_metadata
+        ))                                      AS indexes
+    FROM
+        (SELECT
+            *
+         FROM
             (SELECT
-                    ARRAY[ns.nspname, c.relname]                AS table_name,
-                    ic.relname::text                            AS index_name,
-                    pg_get_expr(i.indpred, i.indrelid)::text    AS index_predicate,
-                    pg_get_expr(i.indexprs, i.indrelid)::text   AS index_expression,
-                    string_agg(ia.attname::text, '~~~~' ORDER BY ia.attnum) AS index_columns
-                FROM
-                    pg_class AS c
-                    INNER JOIN pg_namespace AS ns ON ns.oid = c.relnamespace
-                    INNER JOIN pg_index AS i ON i.indrelid = c.oid
-                    INNER JOIN pg_class AS ic ON i.indexrelid = ic.oid
-                    LEFT JOIN pg_attribute AS ia ON ia.attrelid = i.indexrelid
-                WHERE
-                    (%(schema_pattern)s::text IS NULL OR ns.nspname LIKE %(schema_pattern)s::text)
-                    AND (%(table_pattern)s::text IS NULL OR c.relname LIKE %(table_pattern)s::text)
-                    AND (%(index_pattern)s::text IS NULL OR ic.relname LIKE %(index_pattern)s::text)
+                ARRAY[ns.nspname, c.relname]                AS table_name,
+                ic.relname::text                            AS index_name,
+                i.indisunique                               AS index_is_unique,
+                pg_get_expr(i.indpred, i.indrelid)::text    AS index_predicate,
+                pg_get_expr(i.indexprs, i.indrelid)::text   AS index_expression,
+
+                (SELECT
+                    array_agg(ia.attname ORDER BY ia.attnum)
+                 FROM
+                    pg_attribute AS ia
+                 WHERE
+                    ia.attrelid = i.indexrelid
                     AND (ia.attnum IS NULL OR ia.attnum >= 1)
-                GROUP BY
-                    table_name, index_name, index_predicate, index_expression) AS i
-            GROUP BY
-                i.table_name
+                )                                           AS index_columns,
+
+                (SELECT
+                    substr(cmt.description, 5)::json
+                 FROM
+                    pg_description AS cmt
+                 WHERE
+                    cmt.objoid = i.indexrelid
+                    AND cmt.classoid = 'pg_class'::regclass
+                    AND substr(cmt.description, 1, 4) = '$CMR'
+                )                                           AS index_metadata
+
+             FROM
+                pg_class AS c
+                INNER JOIN pg_namespace AS ns ON ns.oid = c.relnamespace
+                INNER JOIN pg_index AS i ON i.indrelid = c.oid
+                INNER JOIN pg_class AS ic ON i.indexrelid = ic.oid
+
+             WHERE
+                (%(schema_pattern)s::text IS NULL
+                    OR ns.nspname LIKE %(schema_pattern)s::text)
+                AND (%(table_pattern)s::text IS NULL
+                    OR c.relname LIKE %(table_pattern)s::text)
+                AND (%(table_list)s::text[] IS NULL
+                    OR ns.nspname || '.' || c.relname =
+                                        any(%(table_list)s::text[]))
+                AND (%(index_pattern)s::text IS NULL
+                    OR ic.relname LIKE %(index_pattern)s::text)
+            ) AS q
+
+         WHERE
+            (NOT %(inheritable_only)s::bool
+                OR (index_metadata IS NOT NULL
+                    AND (index_metadata->>'ddl:inherit')::bool))
+            AND (
+                %(include_inherited)s
+                OR (
+                    index_metadata IS NULL
+                    OR NOT coalesce((index_metadata->>'ddl:inherited')::bool,
+                                    false)
+                )
+            )
+
+        ) AS i
+
+    GROUP BY
+        i.table_name
 ...
 
 

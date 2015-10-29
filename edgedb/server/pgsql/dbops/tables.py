@@ -11,6 +11,8 @@ import postgresql.string
 from metamagic.utils import datastructures
 
 from .. import common
+from ..datasources import introspection
+
 from . import base
 from . import composites
 from . import constraints
@@ -60,6 +62,12 @@ class Table(composites.CompositeDBObject):
     @property
     def oid_type(self):
         return 'regclass'
+
+
+class InheritableTableObject(base.InheritableDBObject):
+    @property
+    def name_in_catalog(self):
+        return self.name
 
 
 class Column(base.DBObject):
@@ -226,6 +234,20 @@ class CreateTable(ddl.SchemaObjectOperation):
         return code
 
 
+class CreateTableDDLTriggerMixin:
+    """Utility mixin to provide functions to propagate inherited objects"""
+
+    @classmethod
+    def apply_inheritance(cls, context, op, list_inherited_objects,
+                                            CreateObject):
+        objects = list_inherited_objects(
+                        context.db, op.table.name, op.table.bases)
+        if objects:
+            cmd = base.CommandGroup()
+            cmd.add_commands(CreateObject(obj) for obj in objects)
+            return cmd
+
+
 class AlterTableBaseMixin:
     def __init__(self, name, contained=False, **kwargs):
         self.name = name
@@ -262,6 +284,57 @@ class AlterTable(AlterTableBaseMixin, ddl.DDLOperation, base.CompositeCommandGro
         self.ops = self.commands
 
     add_operation = base.CompositeCommandGroup.add_command
+
+
+class AlterTableDDLTriggerMixin:
+    """Utility mixin to provide functions to propagate inherited objects"""
+
+    @classmethod
+    def apply_inheritance(cls, context, op, list_inherited_objects,
+                                            CreateObject, DropObject):
+        dropped_parents = []
+        added_parents = []
+        ops = []
+
+        for cmd in op.commands:
+            if isinstance(cmd, (tuple, list)):
+                cmd = cmd[0]
+
+            if isinstance(cmd, AlterTableAddParent):
+                added_parents.append(cmd.parent_name)
+            elif isinstance(cmd, AlterTableDropParent):
+                dropped_parents.append(cmd.parent_name)
+
+        if dropped_parents:
+            objects_to_drop = list_inherited_objects(
+                                context.db, op.name, dropped_parents)
+        else:
+            objects_to_drop = []
+
+        if added_parents:
+            objects_to_add = list_inherited_objects(
+                                context.db, op.name, added_parents)
+        else:
+            objects_to_add = []
+
+        if objects_to_drop:
+            for obj in objects_to_drop:
+                obj = obj.copy()
+                obj.table_name = op.name
+                ops.append(DropObject(obj))
+
+        if objects_to_add:
+            for obj in objects_to_add:
+                obj = obj.copy()
+                obj.table_name = op.name
+                ops.append(CreateObject(obj))
+
+        if ops:
+            grp = base.CommandGroup()
+            grp.add_commands(ops)
+            return grp
+        else:
+            return None
 
 
 class AlterTableAddParent(AlterTableFragment):
@@ -435,3 +508,116 @@ class AlterTableRenameColumn(composites.AlterCompositeRenameAttribute, AlterTabl
 class DropTable(ddl.SchemaObjectOperation):
     def code(self, context):
         return 'DROP TABLE %s' % common.qname(*self.name)
+
+
+class CreateInheritableTableObject(ddl.CreateObject):
+    """Base creation operation class for objects with managed inheritance"""
+
+    def __init__(self, object, **kwargs):
+        super().__init__(**kwargs)
+        self.object = object
+
+    def extra(self, context):
+        ops = super().extra(context)
+
+        if self.object.inherit:
+            if ops is None:
+                ops = []
+
+            # Propagate object to all current descendants.
+            # Future descendants will receive the object via
+            # a corresponding DDL trigger.
+            #
+            ds = introspection.tables.TableDescendants(context.db)
+            descendants = ds.fetch(schema_name=self.object.table_name[0],
+                                   table_name=self.object.table_name[1],
+                                   max_depth=1)
+
+            for dschema, dname, *_ in descendants:
+                obj = self.object.copy()
+                obj.table_name = (dschema, dname)
+                obj.add_metadata('ddl:inherited', True)
+                ops.append(self.__class__(obj, conditional=True))
+
+        return ops
+
+    def __repr__(self):
+        return '<{mod}.{cls} {object!r}>' \
+                .format(mod=self.__class__.__module__,
+                        cls=self.__class__.__name__,
+                        object=self.object)
+
+
+class RenameInheritableTableObject(ddl.RenameObject):
+    """Base rename operation class for objects with managed inheritance"""
+
+    def __init__(self, object, *, new_name, **kwargs):
+        super().__init__(**kwargs)
+        self.object = object
+        self.new_name = new_name
+
+    def extra(self, context):
+        ops = super().extra(context)
+
+        if self.object.inherit:
+            if ops is None:
+                ops = []
+
+            # Propagate object rename to all current descendants.
+            #
+            ds = introspection.tables.TableDescendants(context.db)
+            descendants = ds.fetch(schema_name=self.object.table_name[0],
+                                   table_name=self.object.table_name[1],
+                                   max_depth=1)
+
+            for dschema, dname, *_ in descendants:
+                obj = self.object.copy()
+                obj.table_name = (dschema, dname)
+                obj.add_metadata('ddl:inherited', True)
+                rename = self.__class__(obj, new_name=self.new_name,
+                                        conditional=True)
+                ops.append(rename)
+
+        return ops
+
+    def __repr__(self):
+        return '<{mod}.{cls} {object!r} TO {new_name}>' \
+                .format(mod=self.__class__.__module__,
+                        cls=self.__class__.__name__,
+                        object=self.object,
+                        new_name=self.new_name)
+
+
+class DropInheritableTableObject(ddl.DDLOperation):
+    """Base drop operation class for objects with managed inheritance"""
+
+    def __init__(self, object, **kwargs):
+        super().__init__(**kwargs)
+        self.object = object
+
+    def extra(self, context):
+        ops = super().extra(context)
+
+        if self.object.inherit:
+            if ops is None:
+                ops = []
+
+            # Propagate object drop to all current descendants.
+            #
+            ds = introspection.tables.TableDescendants(context.db)
+            descendants = ds.fetch(schema_name=self.object.table_name[0],
+                                   table_name=self.object.table_name[1],
+                                   max_depth=1)
+
+            for dschema, dname, *_ in descendants:
+                obj = self.object.copy()
+                obj.table_name = (dschema, dname)
+                ops.append(self.__class__(obj, conditional=True))
+
+        return ops
+
+    def __repr__(self):
+        return '<{mod}.{cls} {object!r}>' \
+                .format(mod=self.__class__.__module__,
+                        cls=self.__class__.__name__,
+                        object=self.object)

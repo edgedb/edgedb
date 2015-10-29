@@ -618,7 +618,7 @@ class Concept(Prototype, adapts=proto.Concept):
                                _setdefaults_=False, _relaxrequired_=True)
         self._bases = extends
         self._links = data.get('links', {})
-        self._indexes = data.get('indexes') or ()
+        self._indexes = list((data.get('indexes') or {}).items())
         self._constraints = data.get('constraints')
         self._abstract_constraints = data.get('abstract-constraints')
         self._yml_workattrs = {'_links', '_indexes', '_bases', '_constraints',
@@ -655,28 +655,18 @@ class Concept(Prototype, adapts=proto.Concept):
                 result['links'][ptr_name] = {key: ptr}
 
         if data.indexes:
-            result['indexes'] = list(sorted(data.indexes, key=lambda i: i.expr))
+            result['indexes'] = dict(data.local_indexes)
 
         if data.local_constraints:
             result['constraints'] = dict(data.local_constraints)
 
         return result
 
-    def process_index_expr(self, index):
-        return index
-
-    def finalize(self, meta):
-        indexes = set()
-        for index in self.indexes:
-            indexes.add(self.process_index_expr(index))
-        self.indexes = indexes
-
-        proto.Concept.finalize(self, meta)
-
 
 class SourceIndex(LangObject, adapts=proto.SourceIndex, ignore_aliases=True):
     def __sx_setstate__(self, data):
-        proto.SourceIndex.__init__(self, expr=data)
+        proto.SourceIndex.__init__(self, expr=data, _setdefaults_=False,
+                                                    _relaxrequired_=True)
 
     @classmethod
     def __sx_getstate__(cls, data):
@@ -904,7 +894,7 @@ class LinkDef(Prototype, adapts=proto.Link):
 
         self._bases = extends
         self._properties = data['properties']
-        self._indexes = data.get('indexes') or ()
+        self._indexes = list((data.get('indexes') or {}).items())
         self._cascades = data.get('cascades')
         self._yml_workattrs = {'_properties', '_indexes', '_cascades', '_bases'}
 
@@ -958,7 +948,7 @@ class LinkDef(Prototype, adapts=proto.Link):
             result['search'] = data.search
 
         if data.indexes:
-            result['indexes'] = list(sorted(data.indexes, key=lambda i: i.expr))
+            result['indexes'] = dict(data.local_indexes)
 
         return result
 
@@ -1166,6 +1156,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         cascade_events = OrderedSet(self.order_cascade_events(localschema))
         cascade_actions = OrderedSet(self.order_cascade_actions(localschema))
         attribute_values = OrderedSet(self.order_attribute_values(localschema))
+        indexes = OrderedSet(self.order_indexes(localschema))
 
         constraints.update(self.collect_derived_constraints(localschema))
         self.finalize_constraints(constraints, localschema)
@@ -1194,6 +1185,9 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
         for atom in atoms:
             atom.finalize(localschema)
+
+        for index in indexes:
+            index.setdefaults()
 
         for prop in linkprops:
             prop.setdefaults()
@@ -1231,7 +1225,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             concept.finalize(localschema)
 
         for concept in concepts:
-            for index in concept.own_indexes:
+            for index in concept.local_indexes.values():
                 expr = self.normalize_index_expr(index.expr, concept, localschema)
                 index.expr = expr
 
@@ -1267,7 +1261,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         # Arrange prototypes in the resulting schema according to determined topological order.
         localschema.reorder(itertools.chain(attributes, attribute_values, cascade_actions,
                                             cascade_events, constraints, atoms, linkprops,
-                                            links, concepts, cascade_policy))
+                                            indexes, links, concepts, cascade_policy))
 
 
     def get_proto_schema_class(self):
@@ -1344,6 +1338,10 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
     def order_attribute_values(self, localschema):
         return self.module('attribute-value')
+
+
+    def order_indexes(self, localschema):
+        return self.module('index')
 
 
     def read_cascade_actions(self, data, localschema):
@@ -1807,6 +1805,19 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
             link.add_pointer(property)
 
+    def _collect_indexes_for_subject(self, subject, indexes, localschema):
+        for index_name, index in indexes:
+            index_name = subject.name + '.' + index_name
+            local_name = index.__class__.generate_specialized_name(
+                                            subject.name, index_name)
+            index.name = caos.name.Name(name=local_name,
+                                        module=self.module.name)
+            index.expr = self.normalize_index_expr(index.expr, subject,
+                                                   localschema)
+            index.subject = subject
+            subject.add_index(index)
+            self._add_proto(localschema, index)
+
     def _create_base_link(self, link, link_qname, localschema, type=None):
         type = type or proto.Link
 
@@ -1837,13 +1848,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
         for link in self.module('link'):
             self.read_properties_for_link(link, localschema)
-
-            for index in link._indexes:
-                expr = self.normalize_index_expr(index.expr, link, localschema)
-                idx = proto.SourceIndex(expr)
-                context = lang_context.SourceContext.from_object(index)
-                lang_context.SourceContext.register_object(idx, context)
-                link.add_index(idx)
 
     def order_links(self, localschema):
         g = {}
@@ -1894,14 +1898,20 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             for link in links:
                 self.normalize_pointer_defaults(link, localschema)
 
+                indexes = getattr(link, '_indexes', None)
+                if indexes:
+                    self._collect_indexes_for_subject(
+                            link, indexes, localschema)
+
                 constraints = getattr(link, '_constraints', ())
                 if constraints:
-                    self._collect_constraints_for_subject(link, constraints, localschema)
+                    self._collect_constraints_for_subject(
+                            link, constraints, localschema)
 
                 aconstraints = getattr(link, '_abstract_constraints', ())
                 if aconstraints:
-                    self._collect_constraints_for_subject(link, aconstraints, localschema,
-                                                          abstract=True)
+                    self._collect_constraints_for_subject(
+                            link, aconstraints, localschema, abstract=True)
 
         except caosql_exc.CaosQLReferenceError as e:
             context = lang_context.SourceContext.from_object(index)
@@ -2024,16 +2034,20 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 self._read_properties_for_link(link, props, localschema)
 
         for concept in self.module('concept'):
-            for index in getattr(concept, '_indexes', ()):
-                concept.add_index(index)
+            indexes = getattr(concept, '_indexes', ())
+            if indexes:
+                self._collect_indexes_for_subject(concept, indexes,
+                                                  localschema)
 
             constraints = getattr(concept, '_constraints', ())
             if constraints:
-                self._collect_constraints_for_subject(concept, constraints, localschema)
+                self._collect_constraints_for_subject(concept, constraints,
+                                                      localschema)
 
             aconstraints = getattr(concept, '_abstract_constraints', ())
             if aconstraints:
-                self._collect_constraints_for_subject(concept, aconstraints, localschema,
+                self._collect_constraints_for_subject(concept, aconstraints,
+                                                      localschema,
                                                       abstract=True)
 
 

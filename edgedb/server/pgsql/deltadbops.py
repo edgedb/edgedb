@@ -474,7 +474,7 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
 
         rn_ins_trigger = dbops.AlterTriggerRenameTo(
                             ins_trigger,
-                            new_trigger_name=new_ins_trg_name)
+                            new_name=new_ins_trg_name)
 
 
         upd_trigger_name = common.caos_name_to_pg_name(cname + '_updtrigger')
@@ -487,7 +487,7 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
 
         rn_upd_trigger = dbops.AlterTriggerRenameTo(
                             upd_trigger,
-                            new_trigger_name=new_upd_trg_name)
+                            new_name=new_upd_trg_name)
 
         return (rn_ins_trigger, rn_upd_trigger)
 

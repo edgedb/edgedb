@@ -360,10 +360,11 @@ mapping:
 
                     "indexes":
                         &INDEXES
-                        type: seq
-                        sequence:
-                            - type: str
-                              object: metamagic.caos.backends.yaml.SourceIndex
+                        type: map
+                        mapping:
+                            =:
+                                type: str
+                                object: metamagic.caos.backends.yaml.SourceIndex
 
 
     "concepts":

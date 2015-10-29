@@ -94,8 +94,8 @@ class SchemaObjectOperation(DDLOperation):
 
 
 class Comment(DDLOperation):
-    def __init__(self, object, text, *, conditions=None, neg_conditions=None, priority=0):
-        super().__init__()
+    def __init__(self, object, text, **kwargs):
+        super().__init__(**kwargs)
 
         self.object = object
         self.text = text
@@ -143,7 +143,7 @@ class GetMetadata(base.Command):
         return result
 
 
-class UpdateMetadata(DDLOperation):
+class PutMetadata(DDLOperation):
     def __init__(self, object, metadata, **kwargs):
         super().__init__(**kwargs)
         self.object = object
@@ -152,12 +152,7 @@ class UpdateMetadata(DDLOperation):
     def _execute(self, context, code, vars):
         db = context.db
 
-        metadata = GetMetadata(self.object).execute(context)
-
-        if metadata is None:
-            metadata = {}
-
-        metadata.update(self.metadata)
+        metadata = self.metadata
         desc = '$CMR{}'.format(json.dumps(metadata))
 
         object_type = self.object.get_type()
@@ -170,3 +165,98 @@ class UpdateMetadata(DDLOperation):
         result = base.Query(code).execute(context)
 
         return result
+
+    def __repr__(self):
+        return '<{mod}.{cls} {object!r} {metadata!r}>' \
+                .format(mod=self.__class__.__module__,
+                        cls=self.__class__.__name__,
+                        object=self.object,
+                        metadata=self.metadata)
+
+
+class SetMetadata(PutMetadata):
+    def _execute(self, context, code, vars):
+        db = context.db
+
+        metadata = self.metadata
+        desc = '$CMR{}'.format(json.dumps(metadata))
+
+        object_type = self.object.get_type()
+        object_id = self.object.get_id()
+
+        code = 'COMMENT ON {type} {id} IS {text}'.format(
+                    type=object_type, id=object_id,
+                    text=postgresql.string.quote_literal(desc))
+
+        result = base.Query(code).execute(context)
+
+        return result
+
+
+class UpdateMetadata(PutMetadata):
+    def _execute(self, context, code, vars):
+        db = context.db
+
+        metadata = GetMetadata(self.object).execute(context)
+
+        if metadata is None:
+            metadata = {}
+
+        metadata.update(self.metadata)
+
+        desc = '$CMR{}'.format(json.dumps(metadata))
+
+        object_type = self.object.get_type()
+        object_id = self.object.get_id()
+
+        code = 'COMMENT ON {type} {id} IS {text}'.format(
+                    type=object_type, id=object_id,
+                    text=postgresql.string.quote_literal(desc))
+
+        result = base.Query(code).execute(context)
+
+        return result
+
+
+class CreateObject(DDLOperation):
+    def extra(self, context):
+        ops = super().extra(context)
+
+        if self.object.metadata:
+            if ops is None:
+                ops = []
+
+            mdata = SetMetadata(self.object, self.object.metadata)
+            ops.append(mdata)
+
+        return ops
+
+
+class RenameObject(DDLOperation):
+    def extra(self, context):
+        ops = super().extra(context)
+
+        if self.object.metadata:
+            if ops is None:
+                ops = []
+
+            obj = self.object.copy()
+            obj.name = self.new_name
+            mdata = UpdateMetadata(obj, obj.metadata)
+            ops.append(mdata)
+
+        return ops
+
+
+class AlterObject(DDLOperation):
+    def extra(self, context):
+        ops = super().extra(context)
+
+        if self.object.metadata:
+            if ops is None:
+                ops = []
+
+            mdata = UpdateMetadata(self.object, self.object.metadata)
+            ops.append(mdata)
+
+        return ops

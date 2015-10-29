@@ -6,8 +6,21 @@
 ##
 
 
+import base64
+import hashlib
+
 from metamagic.utils import markup
 from metamagic.utils.debug import debug
+
+
+def pack_name(name, prefix_length=0):
+    """Pack a potentially long name into Postgres' 63 char limit"""
+
+    name = str(name)
+    if len(name) > 63 - prefix_length:
+        hash = base64.b64encode(hashlib.md5(name.encode()).digest()).decode().rstrip('=')
+        name = name[:prefix_length] + hash + ':' + name[-(63 - prefix_length - 1 - len(hash)):]
+    return name
 
 
 @markup.serializer.serializer(method='as_markup')
@@ -310,4 +323,28 @@ class Default(metaclass=DefaultMeta):
 
 
 class DBObject:
-    pass
+    def __init__(self, *, metadata=None):
+        self.metadata = metadata
+
+    def add_metadata(self, key, value):
+        if self.metadata is None:
+            self.metadata = {}
+
+        self.metadata[key] = value
+
+    def get_metadata(self, key):
+        if self.metadata is None:
+            return None
+        else:
+            return self.metadata.get(key)
+
+
+class InheritableDBObject(DBObject):
+    def __init__(self, *, inherit=False, **kwargs):
+        super().__init__(**kwargs)
+        if inherit:
+            self.add_metadata('ddl:inherit', inherit)
+
+    @property
+    def inherit(self):
+        return self.get_metadata('ddl:inherit') or False
