@@ -10,10 +10,40 @@ import importlib
 import os
 import re
 
+import importkit
+
 from metamagic.caos.backends import deltarepo
 from metamagic.caos import delta as base_delta
 
 from importkit import yaml
+
+
+class DeltaImportContext(importkit.ImportContext):
+    def __new__(cls, name, *, loader=None, compat_mode=False):
+        result = super().__new__(cls, name, loader=loader)
+        result.compat_mode = compat_mode
+        return result
+
+    def __init__(self, name, *, loader=None, compat_mode=False):
+        super().__init__(name, loader=loader)
+
+    @classmethod
+    def from_parent(cls, name, parent):
+        if parent and isinstance(parent, DeltaImportContext):
+            result = cls(name, loader=parent.loader,
+                               compat_mode=parent.compat_mode)
+        else:
+            result = cls(name)
+        return result
+
+    @classmethod
+    def copy(cls, name, other):
+        if isinstance(other, DeltaImportContext):
+            result = cls(other, loader=other.loader,
+                                compat_mode=other.compat_mode)
+        else:
+            result = cls(other)
+        return result
 
 
 class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
@@ -21,9 +51,10 @@ class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
         self.deltas = self._find_deltas_package(module)
         self.modhash = id
 
-    def load_delta(self, id):
+    def load_delta(self, id, compat_mode=False):
         modname = self.get_delta_module_path(id)
-        mod = importlib.import_module(modname)
+        import_context = DeltaImportContext(modname, compat_mode=compat_mode)
+        mod = importlib.import_module(import_context)
         return next(iter(mod.deltas))
 
     def load_delta_from_data(self, data):

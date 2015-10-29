@@ -6,13 +6,15 @@
 ##
 
 
+from importkit import yaml
+from importkit.import_ import get_object
+from importkit import context as lang_context
+
 from metamagic import caos
 from metamagic.caos import types as caos_types
 from metamagic.caos import delta, proto
 from metamagic.utils import datastructures
 from metamagic.utils.datastructures import typed
-from importkit import yaml
-from importkit.import_ import get_object
 from metamagic.utils.lang.yaml.struct import MixedStructMeta
 
 
@@ -145,7 +147,13 @@ class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
             if v is not None:
                 fields[f] = self.adapt_value(fdesc, v)
 
-        delta.Command.__init__(self, **fields)
+        # compat_mode is set when deltas are loaded in repo upgrade context.
+        # In this case, we need to relax struct validation requirements
+        context = lang_context.SourceContext.from_object(self)
+        icontext = context.document.import_context
+        compat_mode = getattr(icontext, 'compat_mode', False)
+
+        delta.Command.__init__(self, _relaxrequired_=compat_mode, **fields)
         self.ops = datastructures.OrderedSet(data['ops'])
 
         if data['properties']:

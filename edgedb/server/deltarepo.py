@@ -11,7 +11,7 @@ from metamagic.caos import proto, delta
 
 class MetaDeltaRepository:
 
-    def load_delta(self, id):
+    def load_delta(self, id, compat_mode=False):
         raise NotImplementedError
 
     def delta_ref_to_id(self, ref):
@@ -33,10 +33,10 @@ class MetaDeltaRepository:
     def write_delta_set(self, delta_set):
         raise NotImplementedError
 
-    def get_delta(self, id='HEAD'):
+    def get_delta(self, id='HEAD', compat_mode=False):
         id = self.resolve_delta_ref(id)
         if id:
-            return self.load_delta(id)
+            return self.load_delta(id, compat_mode=compat_mode)
         else:
             return None
 
@@ -48,19 +48,21 @@ class MetaDeltaRepository:
                                   take_closest_snapshot=take_closest_snapshot)
         return delta.DeltaSet(deltas)
 
-    def walk_deltas(self, end_rev, start_rev, reverse=False, take_closest_snapshot=False):
+    def walk_deltas(self, end_rev, start_rev, reverse=False,
+                                   take_closest_snapshot=False,
+                                   compat_mode=False):
         current_rev = end_rev
 
         if not reverse:
             while current_rev and current_rev != start_rev:
-                delta = self.load_delta(current_rev)
+                delta = self.load_delta(current_rev, compat_mode=compat_mode)
                 yield delta
                 current_rev = delta.parent_id
         else:
             deltas = []
 
             while current_rev and current_rev != start_rev:
-                delta = self.load_delta(current_rev)
+                delta = self.load_delta(current_rev, compat_mode=compat_mode)
                 deltas.append(delta)
                 if delta.snapshot is not None and take_closest_snapshot:
                     break
@@ -73,10 +75,11 @@ class MetaDeltaRepository:
                       new_format_ver=delta.Delta.CURRENT_FORMAT_VERSION):
 
         if end_rev is None:
-            end_rev = self.get_delta(id='HEAD').id
+            end_rev = self.get_delta(id='HEAD', compat_mode=True).id
 
         context = delta.DeltaUpgradeContext(delta.Delta.CURRENT_FORMAT_VERSION)
-        for d in self.walk_deltas(end_rev, start_rev, reverse=True):
+        for d in self.walk_deltas(end_rev, start_rev, reverse=True,
+                                                      compat_mode=True):
             d.upgrade(context)
             self.write_delta(d)
 

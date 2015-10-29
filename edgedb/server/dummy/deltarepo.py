@@ -24,7 +24,7 @@ class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
         for d in dset.deltas:
             self.write_delta(d)
 
-    def load_delta(self, delta_id):
+    def load_delta(self, delta_id, compat_mode=False):
         return self.deltas[delta_id]
 
     def delta_ref_to_id(self, ref):
