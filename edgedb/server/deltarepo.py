@@ -77,21 +77,12 @@ class MetaDeltaRepository:
         if end_rev is None:
             end_rev = self.get_delta(id='HEAD', compat_mode=True).id
 
+        schema = proto.ProtoSchema()
+
         context = delta.DeltaUpgradeContext(delta.Delta.CURRENT_FORMAT_VERSION)
         for d in self.walk_deltas(end_rev, start_rev, reverse=True,
                                                       compat_mode=True):
-            d.upgrade(context)
-            self.write_delta(d)
-
-        self.update_checksums()
-
-    def update_checksums(self):
-        start_rev = None
-        end_rev = self.get_delta(id='HEAD').id
-
-        schema = proto.ProtoSchema()
-
-        for d in self.walk_deltas(end_rev, start_rev, reverse=True):
+            d.upgrade(context, schema)
             d.apply(schema)
             d.checksum = schema.get_checksum()
             self.write_delta(d)
