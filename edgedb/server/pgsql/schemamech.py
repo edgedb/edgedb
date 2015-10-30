@@ -115,7 +115,8 @@ class ConstraintMech:
             ref_ptrs[ref] = (ptr, src)
 
         for ref, (ptr, src) in ref_ptrs.items():
-            ptr_info = types.get_pointer_storage_info(schema, ptr, source=src, resolve_type=False)
+            ptr_info = types.get_pointer_storage_info(
+                            ptr, source=src, resolve_type=False)
 
             # See if any of the refs are hosted in pointer tables and others are not...
             if ptr_info.table_type == 'link':
@@ -129,8 +130,9 @@ class ConstraintMech:
         if link_biased and concept_biased:
             for ref in concept_biased.copy():
                 ptr, src = ref_ptrs[ref]
-                ptr_info = types.get_pointer_storage_info(schema, ptr, source=src,
-                                                          resolve_type=False, link_bias=True)
+                ptr_info = types.get_pointer_storage_info(
+                                ptr, source=src, resolve_type=False,
+                                link_bias=True)
 
                 if ptr_info.table_type == 'link':
                     link_biased[ref] = ptr_info
@@ -513,7 +515,8 @@ class TypeMech:
                 if pointer_name == 'metamagic.caos.builtins.linkid':
                     continue
 
-                ptr_stor_info = types.get_pointer_storage_info(proto_schema, pointer)
+                ptr_stor_info = types.get_pointer_storage_info(
+                                    pointer, schema=proto_schema)
 
                 if ptr_stor_info.column_name == 'metamagic.caos.builtins.target':
                     continue

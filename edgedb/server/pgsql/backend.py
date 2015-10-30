@@ -881,7 +881,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             targets.append(common.qname('l', common.caos_name_to_pg_name(prop_name)))
 
         source_col = common.caos_name_to_pg_name('metamagic.caos.builtins.source')
-        ptr_stor_info = types.get_pointer_storage_info(session.proto_schema, proto_link)
+        ptr_stor_info = types.get_pointer_storage_info(
+                            proto_link, schema=session.proto_schema)
 
         query = '''SELECT
                        {targets}
@@ -1182,7 +1183,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             return
 
         source_col = common.caos_name_to_pg_name('metamagic.caos.builtins.source')
-        target_ptr_stor_info = types.get_pointer_storage_info(session.proto_schema, link_proto)
+        target_ptr_stor_info = types.get_pointer_storage_info(
+                                    link_proto, schema=session.proto_schema)
         target_col = target_ptr_stor_info.column_name
 
         table = self._type_mech.get_table(link_cls.__sx_prototype__, session.proto_schema)
@@ -1669,7 +1671,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def read_pointer_target_column(self, meta, pointer, constraints_cache):
-        ptr_stor_info = types.get_pointer_storage_info(meta, pointer, resolve_type=False)
+        ptr_stor_info = types.get_pointer_storage_info(
+                            pointer, schema=meta, resolve_type=False)
         cols = self._type_mech.get_table_columns(ptr_stor_info.table_name,
                                                  connection=self.connection)
 
@@ -1868,7 +1871,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def order_links(self, meta):
         indexes = self.read_indexes()
 
-        reverse_transformer = transformer.Decompiler()
+        sql_decompiler = transformer.Decompiler()
 
         g = {}
 
@@ -1888,14 +1891,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 tabidx = indexes.get(table_name)
                 if tabidx:
                     for index in tabidx:
-                        caos_tree = reverse_transformer.transform(
-                                        index, meta, link)
+                        caos_tree = sql_decompiler.transform(
+                                        index, link)
                         caosql_tree = caosql.decompile_ir(
                                         caos_tree, return_statement=True)
                         expr = caosql.generate_source(caosql_tree, pretty=False)
                         link.add_index(proto.SourceIndex(expr=expr))
             elif link.atomic():
-                ptr_stor_info = types.get_pointer_storage_info(meta, link)
+                ptr_stor_info = types.get_pointer_storage_info(
+                                    link, schema=meta)
                 cols = self._type_mech.get_table_columns(ptr_stor_info.table_name,
                                                          connection=self.connection)
                 col = cols[ptr_stor_info.column_name]
@@ -2183,7 +2187,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def order_concepts(self, meta):
         indexes = self.read_indexes()
 
-        reverse_transformer = transformer.Decompiler()
+        sql_decompiler = transformer.Decompiler()
 
         g = {}
         for concept in meta(type='concept'):
@@ -2201,8 +2205,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             tabidx = indexes.get(table_name)
             if tabidx:
                 for index in tabidx:
-                    ir_tree = reverse_transformer.transform(
-                                    index, meta, concept)
+                    ir_tree = sql_decompiler.transform(
+                                    index, concept)
                     caosql_tree = caosql.decompile_ir(
                                     ir_tree, return_statement=True)
                     expr = caosql.generate_source(caosql_tree, pretty=False)

@@ -865,8 +865,10 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                                                                              default=default))
 
     def adjust_pointer_storage(self, orig_pointer, pointer, meta, context):
-        old_ptr_stor_info = types.get_pointer_storage_info(meta, orig_pointer)
-        new_ptr_stor_info = types.get_pointer_storage_info(meta, pointer)
+        old_ptr_stor_info = types.get_pointer_storage_info(
+                                orig_pointer, schema=meta)
+        new_ptr_stor_info = types.get_pointer_storage_info(
+                                pointer, schema=meta)
 
         old_target = orig_pointer.target
         new_target = pointer.target
@@ -986,7 +988,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
             for added_ptr in added_inh_ptrs - created_ptrs:
                 ptr = source.pointers[added_ptr]
-                ptr_stor_info = types.get_pointer_storage_info(meta, ptr)
+                ptr_stor_info = types.get_pointer_storage_info(
+                                    ptr, schema=meta)
 
                 if ptr_stor_info.table_type == 'concept':
                     col = dbops.Column(name=ptr_stor_info.column_name,
@@ -1011,7 +1014,8 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
                     for dropped_ptr in dropped_ptrs:
                         ptr = orig_source.pointers[dropped_ptr]
-                        ptr_stor_info = types.get_pointer_storage_info(meta, ptr)
+                        ptr_stor_info = types.get_pointer_storage_info(
+                                            ptr, schema=meta)
 
                         if ptr_stor_info.table_type == 'concept':
                             col = dbops.Column(name=ptr_stor_info.column_name,
@@ -1554,7 +1558,7 @@ class PointerMetaCommand(MetaCommand):
                                                                              default=new_default))
 
     def get_columns(self, pointer, meta, default=None):
-        ptr_stor_info = types.get_pointer_storage_info(meta, pointer)
+        ptr_stor_info = types.get_pointer_storage_info(pointer, schema=meta)
         return [dbops.Column(name=ptr_stor_info.column_name,
                              type=ptr_stor_info.column_type,
                              required=pointer.required,
@@ -1577,7 +1581,8 @@ class PointerMetaCommand(MetaCommand):
                     old_col_name = common.caos_name_to_pg_name(old_name)
                     new_col_name = common.caos_name_to_pg_name(new_name)
 
-                    ptr_stor_info = types.get_pointer_storage_info(meta, pointer)
+                    ptr_stor_info = types.get_pointer_storage_info(
+                                        pointer, schema=meta)
 
                     is_a_column = (
                         (ptr_stor_info.table_type == 'concept'
@@ -1614,7 +1619,8 @@ class PointerMetaCommand(MetaCommand):
             else:
                 for l in link.children(meta):
                     if not l.generic():
-                        ptr_stor_info = types.get_pointer_storage_info(meta, l, resolve_type=False)
+                        ptr_stor_info = types.get_pointer_storage_info(
+                                            l, resolve_type=False)
                         if ptr_stor_info.table_type == 'link':
                             return True
 
@@ -1657,7 +1663,8 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
             except KeyError:
                 pass
             else:
-                tgt_ptr = types.get_pointer_storage_info(meta, tgt_prop)
+                tgt_ptr = types.get_pointer_storage_info(
+                                tgt_prop, schema=meta)
                 columns.append(dbops.Column(name=tgt_ptr.column_name,
                                             type=tgt_ptr.column_type))
 
@@ -1766,7 +1773,8 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
             self.updates = updates
 
         if not link.generic():
-            ptr_stor_info = types.get_pointer_storage_info(meta, link, resolve_type=False)
+            ptr_stor_info = types.get_pointer_storage_info(
+                                link, resolve_type=False)
 
             concept = context.get(delta_cmds.ConceptCommandContext)
             assert concept, "Link command must be run in Concept command context"
@@ -1885,8 +1893,10 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
             if not link.generic():
                 self.adjust_pointer_storage(old_link, link, meta, context)
 
-                old_ptr_stor_info = types.get_pointer_storage_info(meta, old_link)
-                ptr_stor_info = types.get_pointer_storage_info(meta, link)
+                old_ptr_stor_info = types.get_pointer_storage_info(
+                                        old_link, schema=meta)
+                ptr_stor_info = types.get_pointer_storage_info(
+                                    link, schema=meta)
                 if (old_ptr_stor_info.table_type == 'concept'
                         and ptr_stor_info.table_type == 'concept'
                         and link.required != self.old_link.required):
@@ -1910,7 +1920,7 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
         LinkMetaCommand.apply(self, meta, context)
 
         if not result.generic():
-            ptr_stor_info = types.get_pointer_storage_info(meta, result)
+            ptr_stor_info = types.get_pointer_storage_info(result, schema=meta)
             concept = context.get(delta_cmds.ConceptCommandContext)
 
             name = result.normal_name()

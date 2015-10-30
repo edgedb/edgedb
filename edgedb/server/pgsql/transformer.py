@@ -233,10 +233,9 @@ class TransformerContextWrapper(object):
 
 
 class Decompiler(ast.visitor.NodeVisitor):
-    def transform(self, tree, schema, local_to_source=None):
+    def transform(self, tree, local_to_source=None):
         context = TransformerContext()
         context.current.source = local_to_source
-        context.current.proto_schema = schema
 
         if local_to_source:
             context.current.attmap = {}
@@ -266,9 +265,9 @@ class Decompiler(ast.visitor.NodeVisitor):
                     if context.current.source.generic():
                         name = context.current.attmap[expr.field][0]
                     else:
-                        ptr_info = pg_types.get_pointer_storage_info(context.current.proto_schema,
-                                                                     context.current.source,
-                                                                     resolve_type=False)
+                        ptr_info = pg_types.get_pointer_storage_info(
+                                        context.current.source,
+                                        resolve_type=False)
 
                         if ptr_info.table_type == 'concept':
                             # Singular pointer promoted into source table
@@ -1242,9 +1241,10 @@ class SimpleIRCompiler(IRCompilerBase):
         elif isinstance(expr, irast.LinkPropRefSimple):
             proto_schema = context.current.proto_schema
 
-            link_stor_info = types.get_pointer_storage_info(proto_schema, expr.ptr_proto,
-                                                            resolve_type=False,
-                                                            link_bias=context.current.link_bias)
+            link_stor_info = types.get_pointer_storage_info(
+                                expr.ptr_proto,
+                                resolve_type=False,
+                                link_bias=context.current.link_bias)
 
             if link_stor_info.table_type == "concept":
                 field_name = link_stor_info.column_name
@@ -2739,7 +2739,7 @@ class IRCompiler(IRCompilerBase):
                 cteref = local_ref_map[expr.ref.link_proto]
 
                 proto_schema = context.current.proto_schema
-                stor_info = types.get_pointer_storage_info(proto_schema, expr.ptr_proto,
+                stor_info = types.get_pointer_storage_info(expr.ptr_proto,
                                                            resolve_type=False)
                 colname = stor_info.column_name
                 fieldref = pgsql.ast.FieldRefNode(table=cteref, field=colname,
@@ -3259,8 +3259,8 @@ class IRCompiler(IRCompilerBase):
                 link_proto = link.link_proto
 
                 proto_schema = context.current.proto_schema
-                prop_stor_info = types.get_pointer_storage_info(proto_schema, propref.ptr_proto,
-                                                                resolve_type=False)
+                prop_stor_info = types.get_pointer_storage_info(
+                                        propref.ptr_proto, resolve_type=False)
                 colname = prop_stor_info.column_name
 
                 fieldref = pgsql.ast.FieldRefNode(table=map_rel, field=colname,

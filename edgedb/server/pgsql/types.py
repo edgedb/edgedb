@@ -179,6 +179,10 @@ class PointerStorageInfo:
     def __new__(cls, proto_schema, pointer, source=None, resolve_type=True, link_bias=False):
         is_prop = isinstance(pointer, caos.types.ProtoLinkProperty)
 
+        if resolve_type and proto_schema is None:
+            msg = 'PointerStorageInfo needs a schema to resolve column_type'
+            raise ValueError(msg)
+
         if source is None:
             source = pointer.source
 
@@ -219,8 +223,8 @@ class PointerStorageInfo:
                             self.table_type, self.column_name, self.column_type, id(self))
 
 
-def get_pointer_storage_info(proto_schema, pointer, source=None, resolve_type=True,
-                                                                 link_bias=False):
+def get_pointer_storage_info(pointer, *, schema=None, source=None,
+                                         resolve_type=True, link_bias=False):
     assert not pointer.generic(), "only specialized pointers can be stored"
-    return PointerStorageInfo(proto_schema, pointer, source=source,
-                                            resolve_type=resolve_type, link_bias=link_bias)
+    return PointerStorageInfo(schema, pointer, source=source,
+                              resolve_type=resolve_type, link_bias=link_bias)
