@@ -2424,7 +2424,9 @@ class TreeTransformer:
 
                     result = self.path_from_set(paths)
 
-                elif isinstance(op, irast.TextSearchOperator):
+                elif (isinstance(op, irast.TextSearchOperator) and
+                        all(isinstance(p, irast.EntitySet)
+                            for p in left_exprs.paths)):
                     paths = set()
                     for p in left_exprs.paths:
                         searchable = list(p.concept.get_searchable_links())
