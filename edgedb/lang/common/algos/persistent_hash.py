@@ -9,6 +9,7 @@
 """Persistent hash implementation for builtin types."""
 
 
+import abc
 import contextlib
 import decimal
 from hashlib import md5
@@ -127,3 +128,29 @@ class persistent_hash(int):
             yield bucket
         finally:
             cls._hash_memory.pop()
+
+
+_NoneType = type(None)
+_hashables = (_NoneType, str, bool, int, float, decimal.Decimal, tuple,
+              frozenset, UUID)
+
+
+class PersistentlyHashable(metaclass=abc.ABCMeta):
+    __slots__ = ()
+
+    @abc.abstractmethod
+    def persistent_hash(self):
+        return 0
+
+    @classmethod
+    def __subclasshook__(cls, C):
+        if cls is PersistentlyHashable:
+            for B in C.__mro__:
+                if issubclass(B, _hashables):
+                    return True
+
+                if 'persistent_hash' in B.__dict__:
+                    if B.__dict__['persistent_hash']:
+                        return True
+                    break
+        return NotImplemented
