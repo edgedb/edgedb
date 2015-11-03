@@ -30,6 +30,9 @@ mapping:
                 type: str
                 required: yes
 
+            "checksum_details":
+                type: any
+
             "comment":
                 type: str
 

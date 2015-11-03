@@ -680,13 +680,24 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                     expected_schema = source_deltarepo.get_schema(d)
 
-                    raise base_delta.DeltaChecksumError('failed to apply schema delta'
-                                                        'checksums do not match',
-                                                        details=details, hint=hint,
-                                                        schema1=expected_schema,
-                                                        schema2=introspected_schema,
-                                                        schema1_title='Expected Schema',
-                                                        schema2_title='Schema in Backend')
+                    delta_checksums = introspected_checksums = None
+
+                    """LOG [caos.delta.recordchecksums]
+                    delta_checksums = d.checksum_details
+                    introspected_checksums = \
+                        introspected_schema.get_checksum_details()
+                    """
+
+                    raise base_delta.DeltaChecksumError(
+                            'could not apply schema delta'
+                            'checksums do not match',
+                            details=details, hint=hint,
+                            schema1=expected_schema,
+                            schema2=introspected_schema,
+                            schema1_title='Expected Schema',
+                            schema2_title='Schema in Backend',
+                            checksums1=delta_checksums,
+                            checksums2=introspected_checksums)
 
             self._update_repo(session, deltas)
 
