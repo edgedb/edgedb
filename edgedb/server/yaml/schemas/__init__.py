@@ -16,7 +16,7 @@ from .semantics import Semantics
 from .delta import Delta
 
 
-SCHEMA_VERSION = 8
+SCHEMA_VERSION = 9
 
 
 class Delta(Delta):
