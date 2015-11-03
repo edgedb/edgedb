@@ -6,6 +6,8 @@
 ##
 
 
+import collections
+
 from metamagic.utils.functional import hybridmethod
 from .marker import Void
 
@@ -98,6 +100,9 @@ class StructMeta(type):
                 fields.update(parent.get_ownfields())
 
         cls._fields = fields
+        cls._sorted_fields = collections.OrderedDict(
+            sorted(fields.items(), key=lambda e: e[0])
+        )
         setattr(cls, '{}.{}_fields'.format(cls.__module__, cls.__name__), myfields)
         return cls
 
@@ -107,8 +112,8 @@ class StructMeta(type):
     def get_field(cls, name):
         return cls._fields[name]
 
-    def get_fields(cls):
-        return cls._fields
+    def get_fields(cls, sorted=False):
+        return cls._sorted_fields if sorted else cls._fields
 
     def get_ownfields(cls):
         return getattr(cls, '{}.{}_fields'.format(cls.__module__, cls.__name__))
