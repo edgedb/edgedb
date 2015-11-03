@@ -106,8 +106,9 @@ class CaosQLOptimizer:
     def _process_expr(self, context, expr):
         if isinstance(expr, qlast.SelectQueryNode):
             if expr.namespaces:
-                context.current.namespaces.update(
-                    (ns.alias, ns.namespace) for ns in expr.namespaces)
+                for ns in expr.namespaces:
+                    context.current.namespaces[ns.alias] = ns.namespace
+                    context.current.aliascnt[ns.alias] = 1
 
             if expr.where:
                 self._process_expr(context, expr.where)
