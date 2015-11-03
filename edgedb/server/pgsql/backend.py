@@ -1437,8 +1437,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             domain_name = common.atom_name_to_domain_name(name, catenate=False)
             domain = domains.get(domain_name)
 
-            if atom_data['default']:
-                atom_data['default'] = self.unpack_default(row['default'])
+            atom_data['default'] = self.unpack_default(row['default'])
 
             basemap[name] = atom_data['base']
 
@@ -1577,13 +1576,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def unpack_default(self, value):
         result = []
-        values = json.loads(value)
-        for val in values:
-            if val['type'] == 'expr':
-                item = caos_types.ExpressionText(val['value'])
-            else:
-                item = val['value']
-            result.append(item)
+        if value is not None:
+            values = json.loads(value)
+            for val in values:
+                if val['type'] == 'expr':
+                    item = caos_types.ExpressionText(val['value'])
+                else:
+                    item = val['value']
+                result.append(item)
         return result
 
 
@@ -1819,8 +1819,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             source = meta.get(r['source']) if r['source'] else None
             link_search = None
 
-            if r['default']:
-                r['default'] = self.unpack_default(r['default'])
+            r['default'] = self.unpack_default(r['default'])
 
             required = r['required']
 
@@ -1949,7 +1948,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             description = r['description']
             source = meta.get(r['source']) if r['source'] else None
 
-            default = self.unpack_default(r['default']) if r['default'] else None
+            default = self.unpack_default(r['default'])
 
             required = r['required']
             target = None
