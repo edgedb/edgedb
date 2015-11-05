@@ -1895,7 +1895,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if link.bases:
                 g[link.name]['merge'].extend(b.name for b in link.bases)
 
-        topological.normalize(g, merger=proto.Link.merge, context=meta)
+        topological.normalize(g, merger=proto.Link.merge, schema=meta)
 
         for link in meta(type='link'):
             link.finalize(meta)
@@ -2002,7 +2002,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if prop.bases:
                 g[prop.name]['merge'].extend(b.name for b in prop.bases)
 
-        topological.normalize(g, merger=proto.LinkProperty.merge, context=meta)
+        topological.normalize(g, merger=proto.LinkProperty.merge, schema=meta)
 
         for prop in meta(type='link_property'):
             if not prop.generic() and prop.source.generic():
@@ -2242,7 +2242,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if concept.bases:
                 g[concept.name]["merge"].extend(b.name for b in concept.bases)
 
-        topological.normalize(g, merger=proto.Concept.merge, context=meta)
+        topological.normalize(g, merger=proto.Concept.merge, schema=meta)
 
         for concept in meta(type='concept'):
             concept.finalize(meta)

@@ -1322,7 +1322,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     if base.name.module != self.module.name:
                         g[base.name] = {"item": base, "merge": [], "deps": []}
 
-        objs = topological.normalize(g, merger=objmerger, context=localschema)
+        objs = topological.normalize(g, merger=objmerger, schema=localschema)
         return OrderedSet(filter(lambda obj: obj.name.module == self.module.name, objs))
 
 
@@ -1415,7 +1415,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 g[event.name]['merge'].extend(b.name for b in event.bases)
 
         atoms = topological.normalize(g, merger=proto.Event.merge,
-                                      context=localschema)
+                                         schema=localschema)
         return list(filter(lambda a: a.name.module == self.module.name, atoms))
 
 
@@ -1581,7 +1581,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                         if atom_base.name.module != self.module.name:
                             g[atom_base.name] = {"item": atom_base, "merge": [], "deps": []}
 
-        atoms = topological.normalize(g, merger=proto.Atom.merge, context=localschema)
+        atoms = topological.normalize(g, merger=proto.Atom.merge,
+                                         schema=localschema)
         return OrderedSet(filter(lambda a: a.name.module == self.module.name, atoms))
 
     def collect_constraints(self, data, localschema):
@@ -1714,7 +1715,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             except KeyError:
                 constr[constraint.bases[0].name] = constraint
             else:
-                constraint.merge(prev, context=localschema, local=True)
+                constraint.merge(prev, schema=localschema, local=True)
                 constr[constraint.bases[0].name] = constraint
 
         for c in constr.values():
@@ -1758,7 +1759,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                     if base.name.module != self.module.name:
                         g[base.name] = {"item": base, "merge": [], "deps": []}
 
-        p = topological.normalize(g, merger=proto.LinkProperty.merge, context=localschema)
+        p = topological.normalize(g, merger=proto.LinkProperty.merge,
+                                     schema=localschema)
         return list(filter(lambda p: p.name.module == self.module.name, p))
 
 
@@ -1909,7 +1911,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 g[link.name]['merge'].extend(b.name for b in link.bases)
 
         try:
-            links = topological.normalize(g, merger=proto.Link.merge, context=localschema)
+            links = topological.normalize(g, merger=proto.Link.merge,
+                                             schema=localschema)
         except caos.MetaError as e:
             if e.context:
                 raise MetaError(e.msg, hint=e.hint, details=e.details, context=e.context.context) from e
@@ -1941,7 +1944,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             raise MetaError(e.args[0], context=context) from e
 
         try:
-            links = topological.normalize(g, merger=proto.Link.merge_policy, context=localschema)
+            links = topological.normalize(g, merger=proto.Link.merge_policy,
+                                             schema=localschema)
         except caos.MetaError as e:
             if e.context:
                 raise MetaError(e.msg, hint=e.hint, details=e.details, context=e.context.context) from e
@@ -2196,9 +2200,10 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                         g[base.name] = {"item": base, "merge": [], "deps": []}
                 g[concept.name]["merge"].extend(b.name for b in concept.bases)
 
+        ordered = topological.normalize(g, merger=proto.Concept.merge,
+                                           schema=localschema)
         concepts = list(filter(lambda c: c.name.module == self.module.name,
-                               topological.normalize(g, merger=proto.Concept.merge,
-                                                     context=localschema)))
+                               ordered))
 
         return concepts
 
