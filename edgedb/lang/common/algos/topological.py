@@ -71,9 +71,8 @@ def sort(graph, return_record=False, root_only=False):
         return (graph[item]["item"] for item in sorted)
 
 
-def normalize(graph, merger, context=None):
+def normalize(graph, merger, **merger_kwargs):
     merged = OrderedDict()
-    merger_kwargs = {'context': context} if context is not None else {}
 
     for name, item in sort(graph, return_record=True):
         merge = item.get("merge")
