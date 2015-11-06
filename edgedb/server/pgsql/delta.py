@@ -1959,34 +1959,6 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
         return result
 
 
-class CreateLinkSet(PrototypeMetaCommand, adapts=delta_cmds.CreateLinkSet):
-    def apply(self, meta, context=None):
-        result = delta_cmds.CreateLinkSet.apply(self, meta, context)
-        PrototypeMetaCommand.apply(self, meta, context)
-        return result
-
-
-class RenameLinkSet(PrototypeMetaCommand, adapts=delta_cmds.RenameLinkSet):
-    def apply(self, meta, context=None):
-        result = delta_cmds.RenameLinkSet.apply(self, meta, context)
-        PrototypeMetaCommand.apply(self, meta, context)
-        return result
-
-
-class AlterLinkSet(PrototypeMetaCommand, adapts=delta_cmds.AlterLinkSet):
-    def apply(self, meta, context=None):
-        result = delta_cmds.AlterLinkSet.apply(self, meta, context)
-        PrototypeMetaCommand.apply(self, meta, context)
-        return result
-
-
-class DeleteLinkSet(PrototypeMetaCommand, adapts=delta_cmds.DeleteLinkSet):
-    def apply(self, meta, context=None):
-        result = delta_cmds.DeleteLinkSet.apply(self, meta, context)
-        PrototypeMetaCommand.apply(self, meta, context)
-        return result
-
-
 class LinkPropertyMetaCommand(NamedPrototypeMetaCommand, PointerMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -2118,90 +2090,6 @@ class DeleteLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.DeleteLinkPr
         self.pgops.add(dbops.Delete(table=self.table, condition=[('name', str(property.name))]))
 
         return property
-
-
-class ComputableMetaCommand(NamedPrototypeMetaCommand, PointerMetaCommand):
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-        self.table = deltadbops.ComputableTable()
-
-    def record_metadata(self, pointer, old_pointer, meta, context):
-        rec, updates = self.fill_record(meta)
-
-        if rec:
-            host = self.get_host(meta, context)
-
-            source = updates.get('source')
-            if source:
-                source = source[1]
-            elif host:
-                source = host.proto.name
-
-            if source:
-                rec.source_id = dbops.Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
-                                            [str(source)], type='integer')
-
-            target = updates.get('target')
-            if target:
-                rec.target_id = dbops.Query('(SELECT id FROM caos.metaobject WHERE name = $1)',
-                                            [str(target[1])],
-                                            type='integer')
-
-        return rec, updates
-
-
-class CreateComputable(ComputableMetaCommand, adapts=delta_cmds.CreateComputable):
-    def apply(self, meta, context):
-        computable = delta_cmds.CreateComputable.apply(self, meta, context)
-        ComputableMetaCommand.apply(self, meta, context)
-
-        source = self.get_host(meta, context)
-
-        with context(self.context_class(self, computable)):
-            rec, updates = self.record_metadata(computable, None, meta, context)
-
-        self.pgops.add(dbops.Insert(table=self.table, records=[rec], priority=2))
-
-        return computable
-
-
-class RenameComputable(ComputableMetaCommand, adapts=delta_cmds.RenameComputable):
-    def apply(self, meta, context=None):
-        result = delta_cmds.RenameComputable.apply(self, meta, context)
-        ComputableMetaCommand.apply(self, meta, context)
-
-        rec = self.table.record()
-        rec.name = str(self.new_name)
-        self.pgops.add(dbops.Update(table=self.table, record=rec,
-                                    condition=[('name', str(self.prototype_name))], priority=1))
-
-        return result
-
-
-class AlterComputable(ComputableMetaCommand, adapts=delta_cmds.AlterComputable):
-    def apply(self, meta, context=None):
-        self.old_computable = old_computable = meta.get(self.prototype_name, type=self.prototype_class).copy()
-        computable = delta_cmds.AlterComputable.apply(self, meta, context)
-        ComputableMetaCommand.apply(self, meta, context)
-
-        with context(self.context_class(self, computable)):
-            rec, updates = self.record_metadata(computable, old_computable, meta, context)
-
-            if rec:
-                self.pgops.add(dbops.Update(table=self.table, record=rec,
-                                            condition=[('name', str(computable.name))], priority=1))
-
-        return computable
-
-
-class DeleteComputable(ComputableMetaCommand, adapts=delta_cmds.DeleteComputable):
-    def apply(self, meta, context=None):
-        computable = delta_cmds.DeleteComputable.apply(self, meta, context)
-        ComputableMetaCommand.apply(self, meta, context)
-
-        self.pgops.add(dbops.Delete(table=self.table, condition=[('name', str(computable.name))]))
-
-        return computable
 
 
 class LinkSearchConfigurationMetaCommand(PrototypeMetaCommand):

@@ -929,6 +929,19 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         else:
             return {}
 
+    def _get_id_constraint(self, proto_schema):
+        BObj = proto_schema.get('metamagic.caos.builtins.BaseObject')
+        BObj_id = BObj.pointers['metamagic.caos.builtins.id']
+        unique = proto_schema.get('metamagic.caos.builtins.unique')
+
+        name = proto.Constraint.generate_specialized_name(
+                BObj_id.name, unique.name)
+        name = caos.Name(name=name, module='metamagic.caos.builtins')
+        constraint = proto.Constraint(name=name, bases=[unique],
+                                      subject=BObj_id)
+        constraint.acquire_ancestor_inheritance(proto_schema)
+
+        return constraint
 
     def _interpret_db_error(self, proto_schema, connection, err, source,
                                                                  pointer=None):
@@ -979,8 +992,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 msg = 'unique link constraint violation'
                 pointer = getattr(source.__class__, 'metamagic.caos.builtins.id').as_link()
                 errcls = caos.error.PointerConstraintUniqueViolationError
-                constraint = proto.PointerConstraintUnique(['metamagic.caos.builtins.id'])
-                return errcls(msg=msg, source=source, pointer=pointer, constraint=constraint)
+                constraint = self._get_id_constraint(proto_schema)
+                return errcls(msg=msg, source=source, pointer=pointer,
+                              constraint=constraint)
         else:
             return caos.error.UninterpretedStorageError(err.message)
 

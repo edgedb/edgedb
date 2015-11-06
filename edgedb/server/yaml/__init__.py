@@ -415,10 +415,6 @@ class AttributeValue(LangObject, ignore_aliases=True, adapts=proto.AttributeValu
         return data.value
 
 
-class AtomConstraint(LangObject, ignore_aliases=True):
-    pass
-
-
 class Constraint(LangObject, adapts=proto.Constraint):
     def __sx_setstate__(self, data):
         if isinstance(data, dict):
@@ -486,86 +482,6 @@ class Constraint(LangObject, adapts=proto.Constraint):
 
         return result
 
-
-class AtomConstraintMinLength(AtomConstraint, adapts=proto.AtomConstraintMinLength):
-    def __sx_setstate__(self, data):
-        proto.AtomConstraintMinLength.__init__(self, data['min-length'])
-
-    @classmethod
-    def __sx_getstate__(cls, data):
-        return {'min-length': data.value}
-
-
-class AtomConstraintMinValue(AtomConstraint, adapts=proto.AtomConstraintMinValue):
-    def __sx_setstate__(self, data):
-        proto.AtomConstraintMinValue.__init__(self, data['min-value'])
-
-    @classmethod
-    def __sx_getstate__(cls, data):
-        return {'min-value': data.value}
-
-
-class AtomConstraintMinExValue(AtomConstraint, adapts=proto.AtomConstraintMinExValue):
-    def __sx_setstate__(self, data):
-        proto.AtomConstraintMinExValue.__init__(self, data['min-value-ex'])
-
-    @classmethod
-    def __sx_getstate__(cls, data):
-        return {'min-value-ex': data.value}
-
-
-class AtomConstraintMaxLength(AtomConstraint, adapts=proto.AtomConstraintMaxLength):
-    def __sx_setstate__(self, data):
-        proto.AtomConstraintMaxLength.__init__(self, data['max-length'])
-
-    @classmethod
-    def __sx_getstate__(cls, data):
-        return {'max-length': data.value}
-
-
-class AtomConstraintMaxValue(AtomConstraint, adapts=proto.AtomConstraintMaxValue):
-    def __sx_setstate__(self, data):
-        proto.AtomConstraintMaxValue.__init__(self, data['max-value'])
-
-    @classmethod
-    def __sx_getstate__(cls, data):
-        return {'max-value': data.value}
-
-
-class AtomConstraintMaxExValue(AtomConstraint, adapts=proto.AtomConstraintMaxExValue):
-    def __sx_setstate__(self, data):
-        proto.AtomConstraintMaxValue.__init__(self, data['max-value-ex'])
-
-    @classmethod
-    def __sx_getstate__(cls, data):
-        return {'max-value-ex': data.value}
-
-
-class AtomConstraintExpr(AtomConstraint, adapts=proto.AtomConstraintExpr):
-    def __sx_setstate__(self, data):
-        proto.AtomConstraintExpr.__init__(self, [data['expr'].strip(' \n')])
-
-    @classmethod
-    def __sx_getstate__(cls, data):
-        return {'expr': next(iter(data.values))}
-
-
-class AtomConstraintEnum(AtomConstraint, adapts=proto.AtomConstraintEnum):
-    def __sx_setstate__(self, data):
-        proto.AtomConstraintEnum.__init__(self, data['enum'])
-
-    @classmethod
-    def __sx_getstate__(cls, data):
-        return {'enum': list(data.values)}
-
-
-class AtomConstraintRegExp(AtomConstraint, adapts=proto.AtomConstraintRegExp):
-    def __sx_setstate__(self, data):
-        proto.AtomConstraintRegExp.__init__(self, [data['regexp']])
-
-    @classmethod
-    def __sx_getstate__(self, data):
-        return {'regexp': next(iter(data.values))}
 
 default_name = None
 
@@ -970,38 +886,6 @@ class LinkDef(Prototype, adapts=proto.Link):
         return result
 
 
-class Computable(Prototype, adapts=proto.Computable):
-    def __sx_setstate__(self, data):
-        if isinstance(data, str):
-            data = {'expression': data}
-
-        proto.Computable.__init__(self, expression=data.get('expression'),
-                                  name=default_name, source=None,
-                                  title=data.get('title'),
-                                  description=data.get('description'),
-                                  _setdefaults_=False,
-                                  _relaxrequired_=True)
-
-    @classmethod
-    def __sx_getstate__(cls, data):
-        result = {}
-
-        result['expression'] = data.expression
-        return result
-
-
-class PointerConstraint(LangObject, adapts=proto.PointerConstraint, ignore_aliases=True):
-    @classmethod
-    def __sx_getstate__(cls, data):
-        return {cls.constraint_name: next(iter(data.values))}
-
-
-class PointerConstraintUnique(PointerConstraint, adapts=proto.PointerConstraintUnique):
-    def __sx_setstate__(self, data):
-        values = {data[self.__class__.constraint_name]}
-        proto.PointerConstraintUnique.__init__(self, values)
-
-
 class LinkSearchConfiguration(LangObject, adapts=proto.LinkSearchConfiguration, ignore_aliases=True):
     def __sx_setstate__(self, data):
         if isinstance(data, bool):
@@ -1077,12 +961,6 @@ class SpecializedLink(LangObject):
             lang_context.SourceContext.register_object(link, context)
 
             link._constraints = info.get('constraints')
-            if link._constraints:
-                for constraint in link._constraints:
-                    if isinstance(constraint, proto.PointerConstraintUnique):
-                        if list(constraint.values)[0] == True:
-                            constraint.values = {"self.target"}
-
             link._abstract_constraints = info.get('abstract-constraints')
             link._properties = props
             link._targets = targets
@@ -1264,12 +1142,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
         # Concept meterialization might have produced new specialized links
         for link in localschema(type=caos.proto.Link):
-            if link.name.module != self.module.name:
-                self._add_foreign_proto(link)
-            else:
-                links.add(link)
-
-        for link in localschema(type=caos.proto.Computable):
             if link.name.module != self.module.name:
                 self._add_foreign_proto(link)
             else:
@@ -2190,7 +2062,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 if not isinstance(link.source, proto.Prototype):
                     link.source = localschema.get(link.source)
 
-                if not isinstance(link, proto.Computable) and link.source.name == concept.name:
+                if link.source.name == concept.name:
                     if isinstance(link.target, proto.Atom):
                         link.is_atom = True
 

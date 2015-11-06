@@ -244,6 +244,10 @@ class Ghost(PrototypeCommand, adapts=delta.Ghost):
 
         return super().__sx_setstate__(data)
 
+    @classmethod
+    def get_yaml_validator_config(cls):
+        return {'=': {'type': 'any'}}
+
 
 class NamedPrototypeCommand(PrototypeCommand, adapts=delta.NamedPrototypeCommand):
     def __sx_setstate__(self, data):
@@ -374,31 +378,11 @@ class ConstraintCommand(PrototypeCommand, adapts=delta.ConstraintCommand):
     pass
 
 
-class AtomConstraintCommand(PrototypeCommand, adapts=delta.AtomConstraintCommand):
-    pass
-
-
 class SourceIndexCommand(PrototypeCommand, adapts=delta.SourceIndexCommand):
     pass
 
 
-class PointerConstraintCommand(PrototypeCommand, adapts=delta.PointerConstraintCommand):
-    pass
-
-
 class LinkSearchConfigurationCommand(PrototypeCommand, adapts=delta.LinkSearchConfigurationCommand):
-    pass
-
-
-class CreateAtomConstraint(AtomConstraintCommand, CreateSimplePrototype, adapts=delta.CreateAtomConstraint):
-    pass
-
-
-class AlterAtomConstraint(AtomConstraintCommand, CreateSimplePrototype, adapts=delta.AlterAtomConstraint):
-    pass
-
-
-class DeleteAtomConstraint(AtomConstraintCommand, adapts=delta.DeleteAtomConstraint):
     pass
 
 
@@ -558,23 +542,6 @@ class DeletePolicy(DeleteNamedPrototype, adapts=delta.DeletePolicy):
     pass
 
 
-class CreateLinkSet(CreateNamedPrototype, adapts=delta.CreateLinkSet):
-    pass
-
-
-class RenameLinkSet(RenameNamedPrototype, adapts=delta.RenameLinkSet):
-    pass
-
-
-class AlterLinkSet(AlterNamedPrototype, adapts=delta.AlterLinkSet):
-    pass
-
-
-class DeleteLinkSet(DeleteNamedPrototype, adapts=delta.DeleteLinkSet):
-    pass
-
-
-
 class CreateLink(CreateNamedPrototype, adapts=delta.CreateLink):
     pass
 
@@ -592,15 +559,6 @@ class AlterLink(AlterNamedPrototype, adapts=delta.AlterLink):
 
 
 class DeleteLink(DeleteNamedPrototype, adapts=delta.DeleteLink):
-    pass
-
-
-class CreatePointerConstraint(PointerConstraintCommand, CreateSimplePrototype,
-                           adapts=delta.CreatePointerConstraint):
-    pass
-
-
-class DeletePointerConstraint(PointerConstraintCommand, adapts=delta.DeletePointerConstraint):
     pass
 
 
@@ -636,20 +594,4 @@ class AlterLinkSearchConfiguration(LinkSearchConfigurationCommand,
 
 class DeleteLinkSearchConfiguration(LinkSearchConfigurationCommand,
                                     adapts=delta.DeleteLinkSearchConfiguration):
-    pass
-
-
-class CreateComputable(CreateNamedPrototype, adapts=delta.CreateComputable):
-    pass
-
-
-class RenameComputable(RenameNamedPrototype, adapts=delta.RenameComputable):
-    pass
-
-
-class AlterComputable(AlterNamedPrototype, adapts=delta.AlterComputable):
-    pass
-
-
-class DeleteComputable(DeleteNamedPrototype, adapts=delta.DeleteComputable):
     pass
