@@ -71,7 +71,6 @@ source: |
             l.required,
             l.title,
             l.description,
-            l.is_atom,
             l.is_abstract,
             l.is_final,
             l.readonly,

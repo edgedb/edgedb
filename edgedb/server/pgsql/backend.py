@@ -1830,8 +1830,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
+
             source = meta.get(r['source']) if r['source'] else None
-            link_search = None
+            target = meta.get(r['target']) if r['target'] else None
 
             r['default'] = self.unpack_default(r['default'])
 
@@ -1844,23 +1845,26 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             basemap[name] = bases
 
-            link = proto.Link(name=name, source=source,
+            link = proto.Link(name=name, source=source, target=target,
                               mapping=caos.types.LinkMapping(r['mapping']),
                               exposed_behaviour=exposed_behaviour,
                               required=required,
                               title=title, description=description,
                               is_abstract=r['is_abstract'],
                               is_final=r['is_final'],
-                              is_atom=r['is_atom'],
                               readonly=r['readonly'],
                               loading=loading,
                               default=r['default'])
 
-            if r['source_id'] and r['is_atom']:
-                target, required = self.read_pointer_target_column(meta, link, None)
+            link_search = None
 
-                concept_schema, concept_table = common.concept_name_to_table_name(source.name,
-                                                                                  catenate=False)
+            if isinstance(target, proto.Atom):
+                target, required = self.read_pointer_target_column(
+                                            meta, link, None)
+
+                concept_schema, concept_table = \
+                    common.concept_name_to_table_name(source.name,
+                                                      catenate=False)
 
                 indexes = concept_indexes.get((concept_schema, concept_table))
 
@@ -1868,12 +1872,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     col_search_index = indexes.get(bases[0])
                     if col_search_index:
                         weight = col_search_index[('default', 'english')]
-                        link_search = proto.LinkSearchConfiguration(weight=weight)
-            else:
-                target = meta.get(r['target']) if r['target'] else None
-
-            if not r['source_id']:
-                link.is_atom = None
+                        link_search = proto.LinkSearchConfiguration(
+                                        weight=weight)
 
             link.target = target
 

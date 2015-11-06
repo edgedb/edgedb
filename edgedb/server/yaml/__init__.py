@@ -1767,9 +1767,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             if link.target and not isinstance(link.target, proto.Prototype):
                 link.target = localschema.get(link.target)
 
-            if link.target:
-                link.is_atom = isinstance(link.target, proto.Atom)
-
             policies = getattr(link, '_policy', {})
 
             if policies:
@@ -2033,7 +2030,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                         # Pure computable without explicit target.
                         # Fixup pointer target and target property.
                         ptr.target = first
-                        ptr.is_atom = isinstance(first, proto.Atom)
 
                         if isinstance(ptr, proto.Link):
                             pname = caos.name.Name('metamagic.caos.builtins.target')
@@ -2061,10 +2057,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             for link_name, link in concept.pointers.items():
                 if not isinstance(link.source, proto.Prototype):
                     link.source = localschema.get(link.source)
-
-                if link.source.name == concept.name:
-                    if isinstance(link.target, proto.Atom):
-                        link.is_atom = True
 
             if concept.bases:
                 for base in concept.bases:

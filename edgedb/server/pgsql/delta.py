@@ -40,7 +40,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 25
+BACKEND_FORMAT_VERSION = 26
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -3915,6 +3915,19 @@ class UpgradeBackend(MetaCommand):
 
         eventtable = deltadbops.EventTable()
         cg.add_command(dbops.CreateTable(table=eventtable))
+
+        cg.execute(context)
+
+    def update_to_version_26(self, context):
+        r"""\
+        Backend format 26 drops link.is_atom
+        """
+
+        cg = dbops.CommandGroup()
+        alter = dbops.AlterTable(('caos', 'link'))
+        isatomcol = dbops.Column(name='is_atom', type='bool')
+        alter.add_command(dbops.AlterTableDropColumn(isatomcol))
+        cg.add_command(alter)
 
         cg.execute(context)
 
