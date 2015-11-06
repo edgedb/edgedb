@@ -1587,7 +1587,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             except KeyError:
                 constr[constraint.bases[0].name] = constraint
             else:
-                constraint.merge(prev, schema=localschema, local=True)
+                constraint.merge(prev, schema=localschema)
+                constraint.merge_localexprs(prev, schema=localschema)
                 constr[constraint.bases[0].name] = constraint
 
         for c in constr.values():
@@ -1811,14 +1812,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         except caosql_exc.CaosQLReferenceError as e:
             context = lang_context.SourceContext.from_object(index)
             raise MetaError(e.args[0], context=context) from e
-
-        try:
-            links = topological.normalize(g, merger=proto.Link.merge_policy,
-                                             schema=localschema)
-        except caos.MetaError as e:
-            if e.context:
-                raise MetaError(e.msg, hint=e.hint, details=e.details, context=e.context.context) from e
-            raise
 
         return OrderedSet(filter(lambda l: l.name.module == self.module.name, links))
 
