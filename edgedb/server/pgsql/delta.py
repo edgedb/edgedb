@@ -1800,6 +1800,12 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
                 if default_value is not None:
                     self.alter_pointer_default(link, meta, context)
 
+                search = self.updates.get('search')
+                if search:
+                    search_conf = search[1]
+                    concept.op.search_index_add(concept.proto, link,
+                                                meta, context)
+
         if link.generic():
             self.affirm_pointer_defaults(link, meta, context)
 
@@ -1906,6 +1912,20 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
                     column_name = common.caos_name_to_pg_name(link.normal_name())
                     alter_table.add_operation(dbops.AlterTableAlterColumnNull(column_name=column_name,
                                                                               null=not link.required))
+
+                search = self.updates.get('search')
+                if search:
+                    concept = context.get(delta_cmds.ConceptCommandContext)
+                    search_conf = search[1]
+                    if search[0] and search[1]:
+                        concept.op.search_index_alter(concept.proto, link,
+                                                      meta, context)
+                    elif search[1]:
+                        concept.op.search_index_add(concept.proto, link,
+                                                    meta, context)
+                    else:
+                        concept.op.search_index_delete(concept.proto, link,
+                                                       meta, context)
 
             if isinstance(link.target, caos.types.ProtoAtom):
                 self.alter_pointer_default(link, meta, context)
@@ -2090,59 +2110,6 @@ class DeleteLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.DeleteLinkPr
         self.pgops.add(dbops.Delete(table=self.table, condition=[('name', str(property.name))]))
 
         return property
-
-
-class LinkSearchConfigurationMetaCommand(PrototypeMetaCommand):
-    pass
-
-
-class CreateLinkSearchConfiguration(LinkSearchConfigurationMetaCommand,
-                                    adapts=delta_cmds.CreateLinkSearchConfiguration):
-    def apply(self, meta, context=None):
-        config = delta_cmds.CreateLinkSearchConfiguration.apply(self, meta, context)
-        LinkSearchConfigurationMetaCommand.apply(self, meta, context)
-
-        link = context.get(delta_cmds.LinkCommandContext)
-        assert link, "Link search configuration command must be run in Link command context"
-
-        concept = context.get(delta_cmds.ConceptCommandContext)
-        assert concept, "Link search configuration command must be run in Concept command context"
-
-        concept.op.search_index_add(concept.proto, link.proto, meta, context)
-
-        return config
-
-
-class AlterLinkSearchConfiguration(LinkSearchConfigurationMetaCommand,
-                                   adapts=delta_cmds.AlterLinkSearchConfiguration):
-    def apply(self, meta, context=None):
-        delta_cmds.AlterLinkSearchConfiguration.apply(self, meta, context)
-        LinkSearchConfigurationMetaCommand.apply(self, meta, context)
-
-        link = context.get(delta_cmds.LinkCommandContext)
-        assert link, "Link search configuration command must be run in Link command context"
-
-        concept = context.get(delta_cmds.ConceptCommandContext)
-        assert concept, "Link search configuration command must be run in Concept command context"
-
-        concept.op.search_index_alter(concept.proto, link.proto, meta, context)
-
-
-class DeleteLinkSearchConfiguration(LinkSearchConfigurationMetaCommand,
-                                    adapts=delta_cmds.DeleteLinkSearchConfiguration):
-    def apply(self, meta, context=None):
-        config = delta_cmds.DeleteLinkSearchConfiguration.apply(self, meta, context)
-        LinkSearchConfigurationMetaCommand.apply(self, meta, context)
-
-        link = context.get(delta_cmds.LinkCommandContext)
-        assert link, "Link search configuration command must be run in Link command context"
-
-        concept = context.get(delta_cmds.ConceptCommandContext)
-        assert concept, "Link search configuration command must be run in Concept command context"
-
-        concept.op.search_index_delete(concept.proto, link.proto, meta, context)
-
-        return config
 
 
 class CreateMappingIndexes(MetaCommand):

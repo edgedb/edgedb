@@ -382,10 +382,6 @@ class SourceIndexCommand(PrototypeCommand, adapts=delta.SourceIndexCommand):
     pass
 
 
-class LinkSearchConfigurationCommand(PrototypeCommand, adapts=delta.LinkSearchConfigurationCommand):
-    pass
-
-
 class CreateAttribute(AttributeCommand, adapts=delta.CreateAttribute):
     pass
 
@@ -579,19 +575,4 @@ class AlterLinkProperty(AlterNamedPrototype, adapts=delta.AlterLinkProperty):
 
 
 class DeleteLinkProperty(DeleteNamedPrototype, adapts=delta.DeleteLinkProperty):
-    pass
-
-
-class CreateLinkSearchConfiguration(LinkSearchConfigurationCommand,
-                                    adapts=delta.CreateLinkSearchConfiguration):
-    pass
-
-
-class AlterLinkSearchConfiguration(LinkSearchConfigurationCommand,
-                                   adapts=delta.AlterLinkSearchConfiguration):
-    pass
-
-
-class DeleteLinkSearchConfiguration(LinkSearchConfigurationCommand,
-                                    adapts=delta.DeleteLinkSearchConfiguration):
     pass
