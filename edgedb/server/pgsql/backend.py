@@ -591,11 +591,14 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     @debug
     def process_delta(self, delta, meta, session=None):
+        """LOG [caos.delta.plan] Delta Plan
+            markup.dump(delta)
+        """
         delta = self.adapt_delta(delta)
         connection = session.get_connection() if session else self.connection
         context = delta_cmds.CommandContext(connection, session=session)
         delta.apply(meta, context)
-        """LOG [caos.delta.plan] PgSQL Delta Plan
+        """LOG [caos.delta.plan.pgsql] PgSQL Delta Plan
             markup.dump(delta)
         """
         return delta
