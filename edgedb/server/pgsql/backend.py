@@ -1721,7 +1721,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def _get_pointer_column_target(self, meta, source, pointer_name, col):
-        derived_atom_name = proto.Atom.gen_atom_name(source, pointer_name)
         if col['column_type_schema'] == 'pg_catalog':
             col_type_schema = common.caos_module_name_to_schema_name('metamagic.caos.builtins')
             col_type = col['column_type_formatted']
@@ -1735,15 +1734,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             atom_default = None
 
         target = self.atom_from_pg_type(col_type, col_type_schema,
-                                        atom_default, meta,
-                                        caos.Name(name=derived_atom_name,
-                                                  module=source.name.module))
+                                        atom_default, meta)
 
         return target, col['column_required']
 
 
     def _get_pointer_attribute_target(self, meta, source, pointer_name, attr):
-        derived_atom_name = proto.Atom.gen_atom_name(source, pointer_name)
         if attr['attribute_type_schema'] == 'pg_catalog':
             col_type_schema = common.caos_module_name_to_schema_name('metamagic.caos.builtins')
             col_type = attr['attribute_type_formatted']
@@ -1762,9 +1758,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             target = meta.get(source_name)
         else:
             target = self.atom_from_pg_type(col_type, col_type_schema,
-                                            atom_default, meta,
-                                            caos.Name(name=derived_atom_name,
-                                                      module=source.name.module))
+                                            atom_default, meta)
 
         return target, attr['attribute_required']
 
@@ -2371,7 +2365,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return None
 
 
-    def atom_from_pg_type(self, type_expr, atom_schema, atom_default, meta, derived_name):
+    def atom_from_pg_type(self, type_expr, atom_schema, atom_default, meta):
 
         typname, typmods = self.parse_pg_type(type_expr)
         if isinstance(typname, tuple):
@@ -2386,9 +2380,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             atom = meta.get(atom_name, None)
         else:
             atom = None
-
-        if not atom:
-            atom = meta.get(derived_name, None)
 
         if not atom:
 
