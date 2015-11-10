@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2010 Sprymix Inc.
+# Copyright (c) 2010 MagicStack Inc.
 # All rights reserved.
 #
 # See LICENSE for details.

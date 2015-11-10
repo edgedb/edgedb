@@ -1,5 +1,5 @@
 ##
-# Copyright (c) 2011-2012 Sprymix Inc.
+# Copyright (c) 2011-2012 MagicStack Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
@@ -37,7 +37,7 @@ _FAVICON = ('data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABAAAAAQCAYAAAAf8/9hA
 
 _HTML_TPL_START = '''<!DOCTYPE html>
 <!--
-Copyright (c) 2011 Sprymix Inc.
+Copyright (c) 2011 MagicStack Inc.
 All rights reserved.
 -->
 

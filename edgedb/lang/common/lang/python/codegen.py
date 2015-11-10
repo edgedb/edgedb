@@ -1,5 +1,5 @@
 ##
-# Portions Copyright (c) 2008-2010 Sprymix Inc.
+# Portions Copyright (c) 2008-2010 MagicStack Inc.
 # Portions Copyright (c) 2008 Armin Ronacher.
 # All rights reserved.
 #
@@ -10,7 +10,7 @@
 #    * Redistributions in binary form must reproduce the above copyright
 #      notice, this list of conditions and the following disclaimer in the
 #      documentation and/or other materials provided with the distribution.
-#    * Neither the name of Sprymix Inc. nor the names of its contributors
+#    * Neither the name of MagicStack Inc. nor the names of its contributors
 #      may be used to endorse or promote products derived from this software
 #      without specific prior written permission.
 #
