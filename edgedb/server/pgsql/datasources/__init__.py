@@ -7,5 +7,5 @@
 
 
 from . import introspection
-from . import meta
+from . import schema
 from . import deltalog

@@ -2204,20 +2204,20 @@ class IRCompiler(IRCompilerBase):
 
         return isinstance(expr, (irast.PathCombination, irast.EntitySet))
 
-    def get_cte_fieldref_for_set(self, context, caos_node, link_name, meta=False, map=None):
-        """Return FieldRef node corresponding to the specified atom or meta value set.
+    def get_cte_fieldref_for_set(self, context, caos_node, link_name, schema=False, map=None):
+        """Return FieldRef node corresponding to the specified atom or schema value set.
 
         Arguments:
             - context: Current context
             - caos_node: A irast.EntitySet node
             - field_name: The name of the atomic link of entities represented by caos_node
-            - meta: If True, field_name is a reference to concept metadata instead of the
+            - schema: If True, field_name is a reference to concept metadata instead of the
                     atom data. Default: False.
             - map: Optional AtomicRef->FieldRef mapping to look search in.  If not specified,
                    the global map from the current context will be considered.
 
         Return:
-            A pgsql.ast.FieldRef node representing a set of atom/meta values for the specified,
+            A pgsql.ast.FieldRef node representing a set of atom/schema values for the specified,
             caos_node and field_name.
         """
 
@@ -2229,7 +2229,7 @@ class IRCompiler(IRCompilerBase):
         field_name = common.caos_name_to_pg_name(link_name)
         ref = None
 
-        ref_key = ('meta', link_name) if meta else link_name
+        ref_key = ('schema', link_name) if schema else link_name
 
         try:
             # First, check if we have a local map with direct table references.
@@ -2240,7 +2240,7 @@ class IRCompiler(IRCompilerBase):
             #
             ref = cte_refs.get(ref_key)
         else:
-            if meta and field_name == 'id':
+            if schema and field_name == 'id':
                 field_name = 'concept_id'
 
             if isinstance(ref_table, list):
@@ -2264,7 +2264,7 @@ class IRCompiler(IRCompilerBase):
         if isinstance(ref, pgsql.ast.SelectExprNode):
             ref = ref.expr
 
-        if context.current.in_aggregate and not meta:
+        if context.current.in_aggregate and not schema:
             # Cast atom refs to the base type in aggregate expressions, since
             # PostgreSQL does not create array types for custom domains and
             # will fail to process a query with custom domains appearing as
@@ -3198,7 +3198,7 @@ class IRCompiler(IRCompilerBase):
                     metaref_name = metaref
                     srctable = datatable
 
-                ref_map[('meta', metaref)] = srctable
+                ref_map[('schema', metaref)] = srctable
 
                 fieldref = pgsql.ast.FieldRefNode(table=srctable, field=metaref_name,
                                                   origin=srctable, origin_field=metaref_name)
@@ -3213,17 +3213,17 @@ class IRCompiler(IRCompilerBase):
 
                 alias = context.current.genalias(hint=metaref_name)
                 selectnode = pgsql.ast.SelectExprNode(expr=fieldref,
-                                                      alias=step_cte.alias + ('_meta_' + alias))
+                                                      alias=step_cte.alias + ('_schema_' + alias))
                 step_cte.targets.append(selectnode)
-                step_cte.concept_node_map[caos_path_tip][('meta', metaref)] = selectnode
+                step_cte.concept_node_map[caos_path_tip][('schema', metaref)] = selectnode
 
                 ##
-                # Record meta references in the global map in case they have to be pulled up later
+                # Record schema references in the global map in case they have to be pulled up later
                 #
                 refexpr = pgsql.ast.FieldRefNode(table=step_cte, field=selectnode.alias,
                                                  origin=srctable, origin_field=metaref_name)
                 selectnode = pgsql.ast.SelectExprNode(expr=refexpr, alias=selectnode.alias)
-                context.current.concept_node_map[caos_path_tip][('meta', metaref)] = selectnode
+                context.current.concept_node_map[caos_path_tip][('schema', metaref)] = selectnode
 
         if caos_path_tip and caos_path_tip.filter:
             ##
@@ -3603,7 +3603,7 @@ class IRCompiler(IRCompilerBase):
                 if len(concept_filter) == 0:
                     pass
                 else:
-                    concept_name_ref = query.concept_node_map[sqlpath.caosnode].get(('meta', 'name'))
+                    concept_name_ref = query.concept_node_map[sqlpath.caosnode].get(('schema', 'name'))
                     if not concept_name_ref:
                         datatable = pgsql.ast.TableNode(name='metaobject',
                                                         schema='caos',
@@ -3611,7 +3611,7 @@ class IRCompiler(IRCompilerBase):
                                                         alias=context.current.genalias(hint='metaobject'))
                         query.fromlist.append(pgsql.ast.FromExprNode(expr=datatable))
 
-                        left = query.concept_node_map[sqlpath.caosnode][('meta', 'id')]
+                        left = query.concept_node_map[sqlpath.caosnode][('schema', 'id')]
                         right = pgsql.ast.FieldRefNode(table=datatable, field='id')
                         whereexpr = pgsql.ast.BinOpNode(op='=', left=left.expr, right=right)
                         query.where = self.extend_predicate(query.where, whereexpr)

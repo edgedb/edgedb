@@ -130,7 +130,7 @@ def reduce_datasource(cls, restore=_restore_datasource):
     bases = tuple('{}.{}'.format(b.__module__, b.__name__) for b in cls.__bases__)
     mro = type(cls).__mro__
     for metacls in mro:
-        if not issubclass(metacls, lang_meta.Object):
+        if not issubclass(metacls, lang_schema.Object):
             break
     else:
         raise TypeError('{!r} is not a field component class')

@@ -2367,9 +2367,9 @@ class Backend(backends.MetaBackend):
 
         return module
 
-    def getmeta(self):
+    def getschema(self):
         return self._schema
 
-    def dump_meta(self, meta):
+    def dump_schema(self, schema):
         prologue = '%SCHEMA metamagic.caos.backends.yaml.schemas.Semantics\n---\n'
-        return prologue + yaml.Language.dump(meta)
+        return prologue + yaml.Language.dump(schema)

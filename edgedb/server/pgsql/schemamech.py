@@ -42,7 +42,7 @@ class ConstraintMech:
     def init_cache(self, connection):
         self._constraints_cache = self._populate_constraint_cache(connection)
 
-    def invalidate_meta_cache(self):
+    def invalidate_schema_cache(self):
         self._constraints_cache = None
 
     def _populate_constraint_cache(self, connection):
@@ -411,7 +411,7 @@ class TypeMech:
         self._column_cache = None
         self._table_cache = None
 
-    def invalidate_meta_cache(self):
+    def invalidate_schema_cache(self):
         self._column_cache = None
         self._table_cache = None
 

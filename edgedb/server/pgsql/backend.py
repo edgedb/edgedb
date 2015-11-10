@@ -374,7 +374,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.backend_info = None
         self.modules = None
 
-        self.meta = proto.ProtoSchema()
+        self.schema = proto.ProtoSchema()
 
         self.connection_pool = pool.ConnectionPool(connector, backend=self)
         self.async_connection_pool = pool.ConnectionPool(async_connector, backend=self)
@@ -426,7 +426,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             with connection.xact():
                 self.upgrade_backend(connection)
                 self._read_and_init_features(connection)
-                self.getmeta()
+                self.getschema()
         else:
             self._read_and_init_features(connection)
 
@@ -465,7 +465,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                                                        include_arrays=False)
         records = {(t['schema'], t['name']): t for t in records}
 
-        links_list = datasources.meta.links.ConceptLinks(self.connection).fetch()
+        links_list = datasources.schema.links.ConceptLinks(self.connection).fetch()
         links_list = collections.OrderedDict((caos.Name(r['name']), r) for r in links_list)
 
         table_id_to_proto_name_cache = {}
@@ -483,7 +483,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                                                        table_pattern='%_data')
         tables = {(t['schema'], t['name']): t for t in tables}
 
-        concept_list = datasources.meta.concepts.ConceptList(self.connection).fetch()
+        concept_list = datasources.schema.concepts.ConceptList(self.connection).fetch()
         concept_list = collections.OrderedDict((caos.Name(row['name']), row) for row in concept_list)
 
         for name, row in concept_list.items():
@@ -511,7 +511,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                                                            domain_name='%_domain')
         domains = {(d['schema'], d['name']): self.normalize_domain_descr(d) for d in domains}
 
-        atom_list = datasources.meta.atoms.AtomList(self.connection).fetch()
+        atom_list = datasources.schema.atoms.AtomList(self.connection).fetch()
 
         domain_to_atom_map = {}
 
@@ -553,51 +553,51 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         gc.collect()
 
 
-    def getmeta(self):
-        if not self.meta.modules:
+    def getschema(self):
+        if not self.schema.modules:
             if self.backend_info['initialized']:
                 self._init_introspection_cache()
 
-                self.read_modules(self.meta)
-                self.read_attributes(self.meta)
-                self.read_actions(self.meta)
-                self.read_events(self.meta)
-                self.read_atoms(self.meta)
-                self.read_concepts(self.meta)
-                self.read_links(self.meta)
-                self.read_link_properties(self.meta)
-                self.read_computables(self.meta)
-                self.read_policies(self.meta)
-                self.read_attribute_values(self.meta)
-                self.read_constraints(self.meta)
+                self.read_modules(self.schema)
+                self.read_attributes(self.schema)
+                self.read_actions(self.schema)
+                self.read_events(self.schema)
+                self.read_atoms(self.schema)
+                self.read_concepts(self.schema)
+                self.read_links(self.schema)
+                self.read_link_properties(self.schema)
+                self.read_computables(self.schema)
+                self.read_policies(self.schema)
+                self.read_attribute_values(self.schema)
+                self.read_constraints(self.schema)
 
-                self.order_attributes(self.meta)
-                self.order_actions(self.meta)
-                self.order_events(self.meta)
-                self.order_atoms(self.meta)
-                self.order_computables(self.meta)
-                self.order_link_properties(self.meta)
-                self.order_links(self.meta)
-                self.order_concepts(self.meta)
-                self.order_policies(self.meta)
+                self.order_attributes(self.schema)
+                self.order_actions(self.schema)
+                self.order_events(self.schema)
+                self.order_atoms(self.schema)
+                self.order_computables(self.schema)
+                self.order_link_properties(self.schema)
+                self.order_links(self.schema)
+                self.order_concepts(self.schema)
+                self.order_policies(self.schema)
 
                 self.free_resources()
 
-        return self.meta
+        return self.schema
 
 
     def adapt_delta(self, delta):
         return delta_cmds.CommandMeta.adapt(delta)
 
     @debug
-    def process_delta(self, delta, meta, session=None):
+    def process_delta(self, delta, schema, session=None):
         """LOG [caos.delta.plan] Delta Plan
             markup.dump(delta)
         """
         delta = self.adapt_delta(delta)
         connection = session.get_connection() if session else self.connection
         context = delta_cmds.CommandContext(connection, session=session)
-        delta.apply(meta, context)
+        delta.apply(schema, context)
         """LOG [caos.delta.plan.pgsql] PgSQL Delta Plan
             markup.dump(delta)
         """
@@ -616,7 +616,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         else:
             deltas = [delta]
 
-        proto_schema = self.getmeta()
+        proto_schema = self.getschema()
 
         with session.transaction():
             old_conn = self.connection
@@ -663,10 +663,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 # Run postprocess pass
                 delta.call_hook(session, stage='postprocess', hook='main')
 
-                self.invalidate_meta_cache()
+                self.invalidate_schema_cache()
 
                 try:
-                    introspected_schema = self.getmeta()
+                    introspected_schema = self.getschema()
                 except caos.MetaError as e:
                     msg = 'failed to verify metadata after applying delta {:032x} to data backend'
                     msg = msg.format(d.id)
@@ -679,7 +679,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                'applying delta "%x".' % (d.checksum, introspected_checksum, d.id))
                     hint = 'This usually indicates a bug in backend delta adapter.'
 
-                    expected_schema = source_deltarepo.get_meta(d)
+                    expected_schema = source_deltarepo.get_schema(d)
 
                     raise base_delta.DeltaChecksumError('failed to apply schema delta'
                                                         'checksums do not match',
@@ -724,16 +724,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         dbops.Merge(table, record=rec, condition=condition).execute(context)
 
 
-    def invalidate_meta_cache(self):
-        self.meta = proto.ProtoSchema()
+    def invalidate_schema_cache(self):
+        self.schema = proto.ProtoSchema()
         self.backend_info = self.read_backend_info()
         self.features = self.read_features(self.connection)
         self.invalidate_transient_cache()
 
 
     def invalidate_transient_cache(self):
-        self._constr_mech.invalidate_meta_cache()
-        self._type_mech.invalidate_meta_cache()
+        self._constr_mech.invalidate_schema_cache()
+        self._type_mech.invalidate_schema_cache()
 
         self.link_cache.clear()
         self.link_property_cache.clear()
@@ -1133,7 +1133,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def get_link_map(self, session):
         if not self.link_cache:
-            cl_ds = datasources.meta.links.ConceptLinks(session.get_connection())
+            cl_ds = datasources.schema.links.ConceptLinks(session.get_connection())
 
             for row in cl_ds.fetch():
                 self.link_cache[row['name']] = row['id']
@@ -1143,7 +1143,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def get_link_property_map(self, session):
         if not self.link_property_cache:
-            cl_ds = datasources.meta.links.LinkProperties(session.get_connection())
+            cl_ds = datasources.schema.links.LinkProperties(session.get_connection())
 
             for row in cl_ds.fetch():
                 self.link_property_cache[row['name']] = row['id']
@@ -1155,7 +1155,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         connection = session.get_connection() if session is not None else self.connection
 
         if not self.concept_cache or force_reload:
-            cl_ds = datasources.meta.concepts.ConceptList(connection)
+            cl_ds = datasources.schema.concepts.ConceptList(connection)
 
             for row in cl_ds.fetch():
                 self.concept_cache[row['name']] = row['id']
@@ -1334,7 +1334,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return CaosQLAdapter(session)
 
 
-    def read_modules(self, meta):
+    def read_modules(self, schema):
         schemas = introspection.schemas.SchemasList(self.connection).fetch(schema_name='caos%')
         schemas = {s['name'] for s in schemas if not s['name'].startswith('caos_aux_')}
 
@@ -1343,7 +1343,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         module_index_exists = cond.execute(context)
 
         if 'caos' in schemas and module_index_exists:
-            modules = datasources.meta.modules.ModuleList(self.connection).fetch()
+            modules = datasources.schema.modules.ModuleList(self.connection).fetch()
             modules = {m['schema_name']: {'name': m['name'], 'imports': m['imports']}
                        for m in modules}
 
@@ -1370,12 +1370,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             for module in modules.values():
                 mod = caos.proto.ProtoModule(name=module['name'],
                                              imports=frozenset(module['imports'] or ()))
-                self.meta.add_module(mod)
+                self.schema.add_module(mod)
                 mods.append(mod)
 
             for mod in mods:
                 for imp_name in mod.imports:
-                    if not self.meta.has_module(imp_name):
+                    if not self.schema.has_module(imp_name):
                         # Must be a foreign module, import it directly
                         try:
                             impmod = importlib.import_module(imp_name)
@@ -1385,12 +1385,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         # Again, it must not be a schema module
                         assert not isinstance(impmod, lang_protoschema.SchemaModule)
 
-                        self.meta.add_module(impmod)
+                        self.schema.add_module(impmod)
 
 
     def read_features(self, connection):
         try:
-            features = datasources.meta.features.FeatureList(connection).fetch()
+            features = datasources.schema.features.FeatureList(connection).fetch()
             return {f['name']: f['class_name'] for f in features}
         except (postgresql.exceptions.SchemaNameError, postgresql.exceptions.UndefinedTableError):
             return {}
@@ -1398,7 +1398,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def read_backend_info(self):
         try:
-            info = datasources.meta.backend_info.BackendInfo(self.connection).fetch()[0]
+            info = datasources.schema.backend_info.BackendInfo(self.connection).fetch()[0]
             info['initialized'] = True
             return info
         except (postgresql.exceptions.SchemaNameError, postgresql.exceptions.UndefinedTableError):
@@ -1421,7 +1421,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 }
 
 
-    def read_atoms(self, meta):
+    def read_atoms(self, schema):
         domains = introspection.domains.DomainsList(self.connection).fetch(schema_name='caos%',
                                                                            domain_name='%_domain')
         domains = {(d['schema'], d['name']): self.normalize_domain_descr(d) for d in domains}
@@ -1432,7 +1432,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
         seen_seqs = set()
 
-        atom_list = datasources.meta.atoms.AtomList(self.connection).fetch()
+        atom_list = datasources.schema.atoms.AtomList(self.connection).fetch()
 
         basemap = {}
 
@@ -1466,22 +1466,22 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                               is_final=atom_data['is_final'],
                               attributes=atom_data['attributes'])
 
-            meta.add(atom)
+            schema.add(atom)
 
-        for atom in meta('atom'):
+        for atom in schema('atom'):
             try:
                 basename = basemap[atom.name]
             except KeyError:
                 pass
             else:
-                base = meta.get(caos.Name(basename), include_pyobjects=True)
+                base = schema.get(caos.Name(basename), include_pyobjects=True)
 
                 if not isinstance(base, caos.types.ProtoAtom):
                     base = caos.proto.NativeClassRef(class_name=basename)
 
                 atom.bases = [base]
 
-        for atom in meta('atom'):
+        for atom in schema('atom'):
             if atom.issubclass(caos_objects.sequence.Sequence):
                 seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
                 if seq_name not in seqs:
@@ -1498,13 +1498,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             raise caos.MetaError(msg, details=details)
 
 
-    def order_atoms(self, meta):
-        for atom in meta(type='atom'):
-            atom.acquire_ancestor_inheritance(meta)
+    def order_atoms(self, schema):
+        for atom in schema(type='atom'):
+            atom.acquire_ancestor_inheritance(schema)
 
 
-    def read_constraints(self, meta):
-        constraints_list = datasources.meta.constraints.Constraints(self.connection).fetch()
+    def read_constraints(self, schema):
+        constraints_list = datasources.schema.constraints.Constraints(self.connection).fetch()
         constraints_list = collections.OrderedDict((caos.Name(r['name']), r)
                                                     for r in constraints_list)
 
@@ -1522,17 +1522,17 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
-            subject = meta.get(r['subject']) if r['subject'] else None
+            subject = schema.get(r['subject']) if r['subject'] else None
 
             basemap[name] = bases
 
             if r['paramtypes']:
-                paramtypes = {n: self.unpack_typeref(v, meta) for n, v in r['paramtypes'].items()}
+                paramtypes = {n: self.unpack_typeref(v, schema) for n, v in r['paramtypes'].items()}
             else:
                 paramtypes = None
 
             if r['inferredparamtypes']:
-                inferredparamtypes = {n: self.unpack_typeref(v, meta)
+                inferredparamtypes = {n: self.unpack_typeref(v, schema)
                                       for n, v in r['inferredparamtypes'].items()}
             else:
                 inferredparamtypes = None
@@ -1558,21 +1558,21 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if subject:
                 subject.add_constraint(constraint)
 
-            meta.add(constraint)
+            schema.add(constraint)
 
-        for constraint in meta(type='constraint'):
+        for constraint in schema(type='constraint'):
             try:
                 bases = basemap[constraint.name]
             except KeyError:
                 pass
             else:
-                constraint.bases = [meta.get(b) for b in bases]
+                constraint.bases = [schema.get(b) for b in bases]
 
-        for constraint in meta(type='constraint'):
-            constraint.acquire_ancestor_inheritance(meta)
+        for constraint in schema(type='constraint'):
+            constraint.acquire_ancestor_inheritance(schema)
 
 
-    def order_constraints(self, meta):
+    def order_constraints(self, schema):
         pass
 
 
@@ -1703,9 +1703,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return value
 
 
-    def read_pointer_target_column(self, meta, pointer, constraints_cache):
+    def read_pointer_target_column(self, schema, pointer, constraints_cache):
         ptr_stor_info = types.get_pointer_storage_info(
-                            pointer, schema=meta, resolve_type=False)
+                            pointer, schema=schema, resolve_type=False)
         cols = self._type_mech.get_table_columns(ptr_stor_info.table_name,
                                                  connection=self.connection)
 
@@ -1717,10 +1717,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                        'is missing' % (pointer.normal_name(), pointer.source.name))
             raise caos.MetaError(msg, details=details)
 
-        return self._get_pointer_column_target(meta, pointer.source, pointer.normal_name(), col)
+        return self._get_pointer_column_target(schema, pointer.source, pointer.normal_name(), col)
 
 
-    def _get_pointer_column_target(self, meta, source, pointer_name, col):
+    def _get_pointer_column_target(self, schema, source, pointer_name, col):
         if col['column_type_schema'] == 'pg_catalog':
             col_type_schema = common.caos_module_name_to_schema_name('metamagic.caos.builtins')
             col_type = col['column_type_formatted']
@@ -1734,12 +1734,12 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             atom_default = None
 
         target = self.atom_from_pg_type(col_type, col_type_schema,
-                                        atom_default, meta)
+                                        atom_default, schema)
 
         return target, col['column_required']
 
 
-    def _get_pointer_attribute_target(self, meta, source, pointer_name, attr):
+    def _get_pointer_attribute_target(self, schema, source, pointer_name, attr):
         if attr['attribute_type_schema'] == 'pg_catalog':
             col_type_schema = common.caos_module_name_to_schema_name('metamagic.caos.builtins')
             col_type = attr['attribute_type_formatted']
@@ -1755,15 +1755,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         if attr['attribute_type_composite_id']:
             # composite record
             source_name = self.source_name_from_relid(attr['attribute_type_composite_id'])
-            target = meta.get(source_name)
+            target = schema.get(source_name)
         else:
             target = self.atom_from_pg_type(col_type, col_type_schema,
-                                            atom_default, meta)
+                                            atom_default, schema)
 
         return target, attr['attribute_required']
 
 
-    def verify_ptr_const_defaults(self, meta, ptr_name, target_atom, tab_default, schema_defaults):
+    def verify_ptr_const_defaults(self, schema, ptr_name, target_atom, tab_default, schema_defaults):
         if schema_defaults:
             ld = list(filter(lambda d: not isinstance(d, caos_types.ExpressionText), schema_defaults))
         else:
@@ -1778,7 +1778,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             else:
                 return
 
-        typ = target_atom.get_topmost_base(meta)
+        typ = target_atom.get_topmost_base(schema)
         default = self.interpret_constant(tab_default)
         table_default = typ(default)
 
@@ -1803,13 +1803,13 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             raise caos.MetaError(msg, details=details)
 
 
-    def read_links(self, meta):
+    def read_links(self, schema):
 
         link_tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
                                                                             table_pattern='%_link')
         link_tables = {(t['schema'], t['name']): t for t in link_tables}
 
-        links_list = datasources.meta.links.ConceptLinks(self.connection).fetch()
+        links_list = datasources.schema.links.ConceptLinks(self.connection).fetch()
         links_list = collections.OrderedDict((caos.Name(r['name']), r) for r in links_list)
 
         concept_indexes = self.read_search_indexes()
@@ -1828,8 +1828,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
 
-            source = meta.get(r['source']) if r['source'] else None
-            target = meta.get(r['target']) if r['target'] else None
+            source = schema.get(r['source']) if r['source'] else None
+            target = schema.get(r['target']) if r['target'] else None
 
             r['default'] = self.unpack_default(r['default'])
 
@@ -1857,7 +1857,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             if isinstance(target, proto.Atom):
                 target, required = self.read_pointer_target_column(
-                                            meta, link, None)
+                                            schema, link, None)
 
                 concept_schema, concept_table = \
                     common.concept_name_to_table_name(source.name,
@@ -1880,38 +1880,38 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if source:
                 source.add_pointer(link)
 
-            meta.add(link)
+            schema.add(link)
 
-        for link in meta(type='link'):
+        for link in schema(type='link'):
             try:
                 bases = basemap[link.name]
             except KeyError:
                 pass
             else:
-                link.bases = [meta.get(b) for b in bases]
+                link.bases = [schema.get(b) for b in bases]
 
-        for link in meta(type='link'):
-            link.acquire_ancestor_inheritance(meta)
+        for link in schema(type='link'):
+            link.acquire_ancestor_inheritance(schema)
 
 
-    def order_links(self, meta):
+    def order_links(self, schema):
         indexes = self.read_indexes()
 
         sql_decompiler = transformer.Decompiler()
 
         g = {}
 
-        for link in meta(type='link'):
+        for link in schema(type='link'):
             g[link.name] = {"item": link, "merge": [], "deps": []}
             if link.bases:
                 g[link.name]['merge'].extend(b.name for b in link.bases)
 
-        topological.normalize(g, merger=proto.Link.merge, schema=meta)
+        topological.normalize(g, merger=proto.Link.merge, schema=schema)
 
-        for link in meta(type='link'):
-            link.finalize(meta)
+        for link in schema(type='link'):
+            link.finalize(schema)
 
-        for link in meta(type='link'):
+        for link in schema(type='link'):
             if link.generic():
                 table_name = common.get_table_name(link, catenate=False)
                 tabidx = indexes.get(table_name)
@@ -1929,19 +1929,19 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         index = proto.SourceIndex(name=caos.Name(schema_name),
                                                   subject=link, expr=expr)
                         link.add_index(index)
-                        meta.add(index)
+                        schema.add(index)
             elif link.atomic():
                 ptr_stor_info = types.get_pointer_storage_info(
-                                    link, schema=meta)
+                                    link, schema=schema)
                 cols = self._type_mech.get_table_columns(ptr_stor_info.table_name,
                                                          connection=self.connection)
                 col = cols[ptr_stor_info.column_name]
-                self.verify_ptr_const_defaults(meta, link.name, link.target,
+                self.verify_ptr_const_defaults(schema, link.name, link.target,
                                                col['column_default'], link.default)
 
 
-    def read_link_properties(self, meta):
-        link_props = datasources.meta.links.LinkProperties(self.connection).fetch()
+    def read_link_properties(self, schema):
+        link_props = datasources.schema.links.LinkProperties(self.connection).fetch()
         link_props = collections.OrderedDict((caos.Name(r['name']), r) for r in link_props)
         basemap = {}
 
@@ -1957,7 +1957,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
-            source = meta.get(r['source']) if r['source'] else None
+            source = schema.get(r['source']) if r['source'] else None
 
             default = self.unpack_default(r['default'])
 
@@ -1980,7 +1980,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                            'metamagic.caos.builtins.source'}:
                 # The property is attached to a link, check out link table columns for
                 # target information.
-                target, required = self.read_pointer_target_column(meta, prop, None)
+                target, required = self.read_pointer_target_column(schema, prop, None)
             else:
                 if bases:
                     if bases[0] == 'metamagic.caos.builtins.target' and source is not None:
@@ -1991,54 +1991,54 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             prop.target = target
 
             if source:
-                prop.acquire_ancestor_inheritance(meta)
+                prop.acquire_ancestor_inheritance(schema)
                 source.add_pointer(prop)
 
-            meta.add(prop)
+            schema.add(prop)
 
-        for prop in meta('link_property'):
+        for prop in schema('link_property'):
             try:
                 bases = basemap[prop.name]
             except KeyError:
                 pass
             else:
-                prop.bases = [meta.get(b, type=proto.LinkProperty) for b in bases]
+                prop.bases = [schema.get(b, type=proto.LinkProperty) for b in bases]
 
 
-    def order_link_properties(self, meta):
+    def order_link_properties(self, schema):
         g = {}
 
-        for prop in meta(type='link_property'):
+        for prop in schema(type='link_property'):
             g[prop.name] = {"item": prop, "merge": [], "deps": []}
             if prop.bases:
                 g[prop.name]['merge'].extend(b.name for b in prop.bases)
 
-        topological.normalize(g, merger=proto.LinkProperty.merge, schema=meta)
+        topological.normalize(g, merger=proto.LinkProperty.merge, schema=schema)
 
-        for prop in meta(type='link_property'):
+        for prop in schema(type='link_property'):
             if not prop.generic() and prop.source.generic():
                 source_table_name = common.get_table_name(prop.source, catenate=False)
                 cols = self._type_mech.get_table_columns(source_table_name,
                                                          connection=self.connection)
                 col_name = common.caos_name_to_pg_name(prop.normal_name())
                 col = cols[col_name]
-                self.verify_ptr_const_defaults(meta, prop.name, prop.target,
+                self.verify_ptr_const_defaults(schema, prop.name, prop.target,
                                                col['column_default'], prop.default)
 
 
-    def read_computables(self, meta):
+    def read_computables(self, schema):
 
-        comp_list = datasources.meta.links.Computables(self.connection).fetch()
+        comp_list = datasources.schema.links.Computables(self.connection).fetch()
         comp_list = collections.OrderedDict((caos.Name(r['name']), r) for r in comp_list)
 
         for name, r in comp_list.items():
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
-            source = meta.get(r['source'])
-            target = meta.get(r['target'])
+            source = schema.get(r['source'])
+            target = schema.get(r['target'])
             expression = r['expression']
             is_local = r['is_local']
-            bases = [meta.get(proto.Pointer.normalize_name(name),
+            bases = [schema.get(proto.Pointer.normalize_name(name),
                               type=(proto.Link, proto.LinkProperty))]
 
             computable = proto.Computable(name=name, source=source, target=target,
@@ -2048,15 +2048,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                           bases=bases)
 
             source.add_pointer(computable)
-            meta.add(computable)
+            schema.add(computable)
 
 
-    def order_computables(self, meta):
+    def order_computables(self, schema):
         pass
 
 
-    def read_attributes(self, meta):
-        attributes_ds = datasources.meta.attributes.Attributes(self.connection)
+    def read_attributes(self, schema):
+        attributes_ds = datasources.schema.attributes.Attributes(self.connection)
         attributes = attributes_ds.fetch()
 
         for r in attributes:
@@ -2067,31 +2067,31 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             attribute = proto.Attribute(name=name, title=title, description=description,
                                         type=type)
-            meta.add(attribute)
+            schema.add(attribute)
 
 
-    def order_attributes(self, meta):
+    def order_attributes(self, schema):
         pass
 
 
-    def read_attribute_values(self, meta):
-        attributes_ds = datasources.meta.attributes.AttributeValues(self.connection)
+    def read_attribute_values(self, schema):
+        attributes_ds = datasources.schema.attributes.AttributeValues(self.connection)
         attributes = attributes_ds.fetch()
 
         for r in attributes:
             name = caos.name.Name(r['name'])
-            subject = meta.get(r['subject_name'])
-            attribute = meta.get(r['attribute_name'])
+            subject = schema.get(r['subject_name'])
+            attribute = schema.get(r['attribute_name'])
             value = pickle.loads(r['value'])
 
             attribute = proto.AttributeValue(name=name, subject=subject, attribute=attribute,
                                              value=value)
             subject.add_attribute(attribute)
-            meta.add(attribute)
+            schema.add(attribute)
 
 
-    def read_actions(self, meta):
-        actions_ds = datasources.meta.policy.Actions(self.connection)
+    def read_actions(self, schema):
+        actions_ds = datasources.schema.policy.Actions(self.connection)
         actions = actions_ds.fetch()
 
         for r in actions:
@@ -2101,15 +2101,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             action = proto.Action(name=name, title=title,
                                   description=description)
-            meta.add(action)
+            schema.add(action)
 
 
-    def order_actions(self, meta):
+    def order_actions(self, schema):
         pass
 
 
-    def read_events(self, meta):
-        events_ds = datasources.meta.policy.Events(self.connection)
+    def read_events(self, schema):
+        events_ds = datasources.schema.policy.Events(self.connection)
         events = events_ds.fetch()
 
         basemap = {}
@@ -2121,7 +2121,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             if r['allowed_actions'] is None:
                 allowed_actions = None
             else:
-                allowed_actions = [meta.get(a, type=proto.Action)
+                allowed_actions = [schema.get(a, type=proto.Action)
                                    for a in r['allowed_actions']]
 
             if r['base']:
@@ -2135,26 +2135,26 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             event = proto.Event(name=name, title=title, description=description,
                                 allowed_actions=allowed_actions)
-            meta.add(event)
+            schema.add(event)
 
-        for event in meta(type='event'):
+        for event in schema(type='event'):
             try:
                 bases = basemap[event.name]
             except KeyError:
                 pass
             else:
-                event.bases = [meta.get(b) for b in bases]
+                event.bases = [schema.get(b) for b in bases]
 
-        for event in meta(type='event'):
-            event.acquire_ancestor_inheritance(meta)
+        for event in schema(type='event'):
+            event.acquire_ancestor_inheritance(schema)
 
 
-    def order_events(self, meta):
+    def order_events(self, schema):
         pass
 
 
-    def read_policies(self, meta):
-        policies_ds = datasources.meta.policy.Policies(self.connection)
+    def read_policies(self, schema):
+        policies_ds = datasources.schema.policy.Policies(self.connection)
         policies = policies_ds.fetch()
 
         for r in policies:
@@ -2162,25 +2162,25 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
             policy = proto.Policy(name=name, title=title, description=description,
-                                  subject=meta.get(r['subject']),
-                                  event=meta.get(r['event']),
-                                  actions=[meta.get(a) for a in r['actions']])
-            meta.add(policy)
+                                  subject=schema.get(r['subject']),
+                                  event=schema.get(r['event']),
+                                  actions=[schema.get(a) for a in r['actions']])
+            schema.add(policy)
             policy.subject.add_policy(policy)
 
 
-    def order_policies(self, meta):
+    def order_policies(self, schema):
         pass
 
     def get_type_attributes(self, type_name, connection=None, cache='auto'):
         return self._type_mech.get_type_attributes(type_name, connection, cache)
 
-    def read_concepts(self, meta):
+    def read_concepts(self, schema):
         tables = introspection.tables.TableList(self.connection).fetch(schema_name='caos%',
                                                                        table_pattern='%_data')
         tables = {(t['schema'], t['name']): t for t in tables}
 
-        concept_list = datasources.meta.concepts.ConceptList(self.connection).fetch()
+        concept_list = datasources.schema.concepts.ConceptList(self.connection).fetch()
         concept_list = collections.OrderedDict((caos.Name(row['name']), row) for row in concept_list)
 
         visited_tables = set()
@@ -2224,15 +2224,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                     is_virtual=concept['is_virtual'],
                                     custombases=custombases)
 
-            meta.add(concept)
+            schema.add(concept)
 
-        for concept in meta('concept'):
+        for concept in schema('concept'):
             try:
                 bases = basemap[concept.name]
             except KeyError:
                 pass
             else:
-                concept.bases = [meta.get(b) for b in bases]
+                concept.bases = [schema.get(b) for b in bases]
 
         tabdiff = set(tables.keys()) - visited_tables
         if tabdiff:
@@ -2242,21 +2242,21 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             raise caos.MetaError(msg, details=details)
 
 
-    def order_concepts(self, meta):
+    def order_concepts(self, schema):
         indexes = self.read_indexes()
 
         sql_decompiler = transformer.Decompiler()
 
         g = {}
-        for concept in meta(type='concept'):
+        for concept in schema(type='concept'):
             g[concept.name] = {"item": concept, "merge": [], "deps": []}
             if concept.bases:
                 g[concept.name]["merge"].extend(b.name for b in concept.bases)
 
-        topological.normalize(g, merger=proto.Concept.merge, schema=meta)
+        topological.normalize(g, merger=proto.Concept.merge, schema=schema)
 
-        for concept in meta(type='concept'):
-            concept.finalize(meta)
+        for concept in schema(type='concept'):
+            concept.finalize(schema)
 
             table_name = common.get_table_name(concept, catenate=False)
 
@@ -2276,7 +2276,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                               subject=concept,
                                               expr=expr)
                     concept.add_index(index)
-                    meta.add(index)
+                    schema.add(index)
 
 
     def normalize_domain_descr(self, d):
@@ -2365,7 +2365,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return None
 
 
-    def atom_from_pg_type(self, type_expr, atom_schema, atom_default, meta):
+    def atom_from_pg_type(self, type_expr, atom_schema, atom_default, schema):
 
         typname, typmods = self.parse_pg_type(type_expr)
         if isinstance(typname, tuple):
@@ -2377,7 +2377,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         atom_name = self.domain_to_atom_map.get((atom_schema, domain_name))
 
         if atom_name:
-            atom = meta.get(atom_name, None)
+            atom = schema.get(atom_name, None)
         else:
             atom = None
 
@@ -2386,8 +2386,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             typeconv = self.pg_type_to_atom_name_and_constraints(typname, typmods)
             if typeconv:
                 name, _ = typeconv
-                atom = meta.get(name)
-                atom.acquire_ancestor_inheritance(meta)
+                atom = schema.get(name)
+                atom.acquire_ancestor_inheritance(schema)
 
         assert atom
         return atom

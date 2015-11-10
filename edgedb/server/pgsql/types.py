@@ -74,7 +74,7 @@ base_type_name_map_r = {
 }
 
 
-def get_atom_base(meta, atom):
+def get_atom_base(schema, atom):
     base = atom.bases[0]
 
     if isinstance(base, caos.types.ProtoAtom):
@@ -99,11 +99,11 @@ def get_atom_base(meta, atom):
     return base
 
 
-def pg_type_from_atom(meta, atom, topbase=False):
+def pg_type_from_atom(schema, atom, topbase=False):
     if topbase:
-        base = atom.get_topmost_base(meta, top_prototype=True)
+        base = atom.get_topmost_base(schema, top_prototype=True)
     else:
-        base = get_atom_base(meta, atom)
+        base = get_atom_base(schema, atom)
 
     if topbase:
         column_type = base_type_name_map.get(base.name)

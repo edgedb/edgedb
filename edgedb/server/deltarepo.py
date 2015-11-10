@@ -87,18 +87,18 @@ class MetaDeltaRepository:
             d.checksum = schema.get_checksum()
             self.write_delta(d)
 
-    def get_meta(self, delta_obj):
+    def get_schema(self, delta_obj):
         deltas = self.get_deltas(None, delta_obj.id, take_closest_snapshot=True)
-        meta = proto.ProtoSchema()
-        deltas.apply(meta)
-        return meta
+        schema = proto.ProtoSchema()
+        deltas.apply(schema)
+        return schema
 
-    def get_meta_at(self, ref):
+    def get_schema_at(self, ref):
         if ref is None:
             return proto.ProtoSchema()
         else:
             delta = self.load_delta(ref)
-            return self.get_meta(delta)
+            return self.get_schema(delta)
 
     def get_snapshot_at(self, ref):
         org_delta = self.get_delta(ref)
@@ -115,28 +115,28 @@ class MetaDeltaRepository:
 
         if isinstance(ref2, proto.ProtoSchema):
             v2 = None
-            v2_meta = ref2
+            v2_schema = ref2
         else:
             v2 = self.load_delta(ref2)
-            v2_meta = self.get_meta(v2)
+            v2_schema = self.get_schema(v2)
 
         if v1 is not None:
-            v1_meta = self.get_meta(v1)
+            v1_schema = self.get_schema(v1)
         else:
-            v1_meta = proto.ProtoSchema()
+            v1_schema = proto.ProtoSchema()
 
-        if v1 is None or v1.checksum != v2_meta.get_checksum():
-            delta = v2_meta.delta(v1_meta)
+        if v1 is None or v1.checksum != v2_schema.get_checksum():
+            delta = v2_schema.delta(v1_schema)
         else:
             delta = None
 
-        return v1, v1_meta, v2, v2_meta, delta
+        return v1, v1_schema, v2, v2_schema, delta
 
     def cumulative_delta(self, ref1, ref2):
         return self._cumulative_delta(ref1, ref2)[4]
 
     def calculate_delta(self, ref1, ref2, *, comment=None, preprocess=None, postprocess=None):
-        v1, v1_meta, v2, v2_meta, d = self._cumulative_delta(ref1, ref2)
+        v1, v1_schema, v2, v2_schema, d = self._cumulative_delta(ref1, ref2)
 
         if d is None and (preprocess is not None or postprocess is not None):
             d = delta.AlterRealm()
@@ -146,7 +146,7 @@ class MetaDeltaRepository:
             d.postprocess = postprocess
 
             parent_id = v1.id if v1 else None
-            checksum = v2_meta.get_checksum()
+            checksum = v2_schema.get_checksum()
 
             return delta.Delta(parent_id=parent_id, checksum=checksum,
                                comment=comment, deltas=[d],

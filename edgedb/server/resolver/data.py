@@ -12,9 +12,9 @@ from . import error
 
 class DataResolver(shell.BackendResolverHelper):
     def resolve(self, url):
-        meta, data = url.path.split(',', 1)
-        meta = meta.split(';')
-        mime_type = meta[0]
+        schema, data = url.path.split(',', 1)
+        schema = schema.split(';')
+        mime_type = schema[0]
 
         handler = shell.BackendResolverHelperMeta.get('data_mime_types', mime_type)
 

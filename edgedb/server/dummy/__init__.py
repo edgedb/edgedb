@@ -63,21 +63,21 @@ class Session(session.Session):
 class Backend(MetaBackend, DataBackend):
     def __init__(self, deltarepo):
         super().__init__(deltarepo())
-        self.meta = ProtoSchema()
+        self.schema = ProtoSchema()
 
     def apply_delta(self, delta, session, source_deltarepo):
         if isinstance(delta, DeltaSet):
             deltas = list(delta)
         else:
             deltas = [delta]
-        delta.apply(self.meta)
+        delta.apply(self.schema)
 
         for d in deltas:
             self.deltarepo.write_delta(d)
         self.deltarepo.update_delta_ref('HEAD', deltas[-1].id)
 
-    def getmeta(self):
-        return self.meta
+    def getschema(self):
+        return self.schema
 
     def get_session_pool(self, realm, async=False):
         return SessionPool(realm)
