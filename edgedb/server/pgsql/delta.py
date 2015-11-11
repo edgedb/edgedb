@@ -40,7 +40,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 26
+BACKEND_FORMAT_VERSION = 27
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -94,15 +94,6 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeC
     def _serialize_refs(self, value):
         if isinstance(value, caos.proto.PrototypeRef):
             result = value.prototype_name
-
-        elif isinstance(value, proto.PrototypeOrNativeClassRefList):
-            result = []
-
-            for v in value:
-                if isinstance(v, proto.PrototypeRef):
-                    result.append(v.prototype_name)
-                else:
-                    result.append(v.class_name)
 
         elif isinstance(value, (proto.PrototypeSet, proto.PrototypeList)):
             result = [v.prototype_name for v in value]
@@ -457,9 +448,16 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
 
     def fill_record(self, schema, rec=None, obj=None):
         rec, updates = super().fill_record(schema, rec, obj)
-        if rec:
-            if rec.base:
-                rec.base = str(rec.base[0])
+        base = updates.get('base')
+
+        if base:
+            if not rec:
+                rec = self.table.record()
+
+            if base[1]:
+                rec.base = str(base[1][0])
+            else:
+                rec.base = None
 
         default = updates.get('default')
         if default:
@@ -586,6 +584,11 @@ class RenameAtom(AtomMetaCommand, adapts=delta_cmds.RenameAtom):
             self.pgops.add(dbops.RenameSequence(name=seq_name, new_name=new_seq_name))
 
         return proto
+
+
+class RebaseAtom(AtomMetaCommand, adapts=delta_cmds.RebaseAtom):
+    # Rebase is taken care of in AlterAtom
+    pass
 
 
 class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
@@ -1138,12 +1141,6 @@ class ConceptMetaCommand(CompositePrototypeMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.table = deltadbops.ConceptTable()
-
-    def fill_record(self, schema, rec=None):
-        rec, updates = super().fill_record(schema, rec)
-        if rec and rec.custombases:
-            rec.custombases = tuple(str(b) for b in rec.custombases)
-        return rec, updates
 
 
 class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
@@ -3895,6 +3892,37 @@ class UpgradeBackend(MetaCommand):
         isatomcol = dbops.Column(name='is_atom', type='bool')
         alter.add_command(dbops.AlterTableDropColumn(isatomcol))
         cg.add_command(alter)
+
+        cg.execute(context)
+
+    def update_to_version_27(self, context):
+        r"""\
+        Backend format 27 drops concept.custombases
+        """
+
+        cg = dbops.CommandGroup()
+        alter = dbops.AlterTable(('caos', 'concept'))
+        custombases = dbops.Column(name='custombases', type='text[]')
+        alter.add_command(dbops.AlterTableDropColumn(custombases))
+        cg.add_command(alter)
+
+        atom_list = datasources.schema.atoms.AtomList(context.db).fetch()
+        known_atoms = {r['name'] for r in atom_list}
+
+        AT = deltadbops.AtomTable()
+
+        alter = dbops.AlterTable(('caos', 'atom'))
+        alter.add_command(dbops.AlterTableAlterColumnNull('base', True))
+        cg.add_command(alter)
+
+        for a in atom_list:
+            if a['base'] and a['base'] not in known_atoms:
+                rec = AT.record()
+                rec.base = None
+
+                condition = [('name', str(a['name']))]
+                cg.add_command(dbops.Update(table=AT, record=rec,
+                               condition=condition))
 
         cg.execute(context)
 

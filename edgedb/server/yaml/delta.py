@@ -86,14 +86,12 @@ class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
                 and hasattr(FieldType, 'name')):
             value = proto.PrototypeRef(prototype_name=Name(value))
 
-        elif isinstance(value, proto.PrototypeRef) \
-                and isinstance(FieldType, caos.types.PrototypeClass):
+        elif (isinstance(value, proto.PrototypeRef)
+                and isinstance(FieldType, caos.types.PrototypeClass)):
             pass
 
-        elif issubclass(FieldType, typed.AbstractTypedMapping) \
-                and issubclass(FieldType.valuetype,
-                               (caos.proto.PrototypeOrNativeClass,
-                                caos.types.ProtoObject)):
+        elif (issubclass(FieldType, typed.AbstractTypedMapping)
+                and issubclass(FieldType.valuetype, caos.types.ProtoObject)):
 
             ElementType = FieldType.valuetype
             RefType = ElementType.ref_type
@@ -111,9 +109,7 @@ class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
 
         elif (issubclass(FieldType, (typed.AbstractTypedSequence,
                                     typed.AbstractTypedSet))
-                and issubclass(FieldType.type,
-                               (caos.proto.PrototypeOrNativeClass,
-                                caos.types.ProtoObject))):
+                and issubclass(FieldType.type, caos.types.ProtoObject)):
 
             ElementType = field.type[0].type
             RefType = ElementType.ref_type
@@ -305,7 +301,8 @@ class AlterPrototypeProperty(Command, adapts=delta.AlterPrototypeProperty):
     @classmethod
     def _reduce_refs(cls, value):
         if isinstance(value, (typed.AbstractTypedSequence,
-                              typed.AbstractTypedSet)):
+                              typed.AbstractTypedSet,
+                              list, set)):
             result = []
             for item in value:
                 if cls._is_derived_ref(item):

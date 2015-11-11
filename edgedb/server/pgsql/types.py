@@ -75,9 +75,7 @@ base_type_name_map_r = {
 
 
 def get_atom_base(schema, atom):
-    base = atom.bases[0]
-
-    if isinstance(base, caos.types.ProtoAtom):
+    if atom.bases:
         # Base is another atom prototype, check if it is fundamental,
         # if not, then it is another domain.
         #
@@ -90,11 +88,7 @@ def get_atom_base(schema, atom):
         try:
             base = base_type_name_map[atom.name]
         except KeyError:
-            base_class = get_object(str(atom.bases[0].class_name))
-            base_type = getattr(base_class, 'adapts', None)
-            assert base_type, '"%s" is not in builtins and does not define "adapts" attribute' \
-                              % atom.bases[0].name
-            base = base_type_name_map[base_type]
+            base = 'text'
 
     return base
 

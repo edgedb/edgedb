@@ -845,7 +845,7 @@ class AtomTable(MetaObjectTable):
         self.bases = [('caos', 'metaobject')]
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='base', type='text', required=True),
+            dbops.Column(name='base', type='text'),
             dbops.Column(name='constraints', type='caos.hstore'),
             dbops.Column(name='default', type='text'),
             dbops.Column(name='attributes', type='caos.hstore')
@@ -866,7 +866,6 @@ class ConceptTable(MetaObjectTable):
         self.bases = [('caos', 'metaobject')]
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='custombases', type='text[]'),
             dbops.Column(name='is_virtual', type='boolean', required=True, default=False),
         ])
 

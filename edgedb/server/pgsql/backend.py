@@ -30,7 +30,6 @@ from metamagic.utils.nlang import morphology
 from metamagic.utils import datastructures, markup
 
 from metamagic import caos
-from metamagic.caos import objects as caos_objects
 
 from metamagic.caos import backends
 from metamagic.caos import proto
@@ -1456,7 +1455,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             atom_data['default'] = self.unpack_default(row['default'])
 
-            basemap[name] = atom_data['base']
+            if atom_data['base']:
+                basemap[name] = atom_data['base']
 
             atom = proto.Atom(name=name,
                               default=atom_data['default'],
@@ -1474,15 +1474,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             except KeyError:
                 pass
             else:
-                base = schema.get(caos.Name(basename), include_pyobjects=True)
+                atom.bases = [schema.get(caos.Name(basename))]
 
-                if not isinstance(base, caos.types.ProtoAtom):
-                    base = caos.proto.NativeClassRef(class_name=basename)
-
-                atom.bases = [base]
-
+        sequence = schema.get('metamagic.caos.builtins.sequence')
         for atom in schema('atom'):
-            if atom.issubclass(caos_objects.sequence.Sequence):
+            if atom.issubclass(sequence):
                 seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
                 if seq_name not in seqs:
                     msg = 'internal metadata incosistency'
@@ -2196,8 +2192,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                        'description': row['description'],
                        'is_abstract': row['is_abstract'],
                        'is_final': row['is_final'],
-                       'is_virtual': row['is_virtual'],
-                       'custombases': row['custombases']}
+                       'is_virtual': row['is_virtual']}
 
             table_name = common.concept_name_to_table_name(name, catenate=False)
             table = tables.get(table_name)
@@ -2215,14 +2210,11 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
                 basemap[name] = bases
 
-            custombases = [proto.NativeClassRef(class_name=b) for b in concept['custombases']]
-
             concept = proto.Concept(name=name, title=concept['title'],
                                     description=concept['description'],
                                     is_abstract=concept['is_abstract'],
                                     is_final=concept['is_final'],
-                                    is_virtual=concept['is_virtual'],
-                                    custombases=custombases)
+                                    is_virtual=concept['is_virtual'])
 
             schema.add(concept)
 

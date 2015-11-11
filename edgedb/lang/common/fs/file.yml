@@ -8,7 +8,6 @@
 
 %SCHEMA metamagic.caos.backends.yaml.schemas.Semantics
 %IMPORT metamagic.caos.extras AS extras
-%IMPORT metamagic.utils.fs._file AS _file
 ---
 
 links:
@@ -23,7 +22,7 @@ concepts:
 
     File:
         title: "File"
-        extends: [_file.File, extras.NamedObject]
+        extends: extras.NamedObject
 
         links:
             mimetype:

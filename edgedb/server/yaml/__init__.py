@@ -332,21 +332,6 @@ class SchemaType(LangObject, adapts=proto.SchemaType, ignore_aliases=True):
             return typename
 
 
-class PrototypeOrNativeClassRefList(AbstractTypedCollection,
-                                    adapts=proto.PrototypeOrNativeClassRefList,
-                                    type=proto.PrototypeOrNativeClass):
-    @classmethod
-    def __sx_getstate__(cls, data):
-        result = []
-
-        for item in data:
-            if isinstance(item, proto.Prototype):
-                item = item.name
-            result.append(item)
-
-        return result
-
-
 class PrototypeMeta(LangObjectMeta, MixedStructMeta):
     pass
 
@@ -495,7 +480,7 @@ class Atom(Prototype, adapts=proto.Atom):
                             _setdefaults_=False, _relaxrequired_=True)
         self._attributes = data.get('attributes')
         self._constraints = data.get('constraints')
-        self._bases = [data['extends']]
+        self._bases = [data['extends']] if data['extends'] else []
         self._yml_workattrs = {'_constraints', '_bases', '_attributes'}
 
     @classmethod
@@ -558,8 +543,7 @@ class Concept(Prototype, adapts=proto.Concept):
     @classmethod
     def __sx_getstate__(cls, data):
         result = {
-            'extends': list(itertools.chain((b.name for b in data.bases),
-                                            (b.class_name for b in data.custombases)))
+            'extends': [b.name for b in data.bases]
         }
 
         if data.title:
@@ -1166,17 +1150,13 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
 
     def _check_base(self, element, base_name, localschema):
-        base = localschema.get(base_name, type=element.__class__.get_canonical_class(),
-                               include_pyobjects=True, index_only=False)
-        if isinstance(base, caos.types.ProtoObject):
-            if base.is_final:
-                context = lang_context.SourceContext.from_object(element)
-                raise MetaError('"%s" is final and cannot be inherited from' % base.name,
-                                context=context)
-        else:
-            # Native class reference
-            base = caos.proto.NativeClassRef(class_name='{}.{}'.format(base.__module__,
-                                                                       base.__name__))
+        base = localschema.get(base_name,
+                               type=element.__class__.get_canonical_class(),
+                               index_only=False)
+        if base.is_final:
+            context = lang_context.SourceContext.from_object(element)
+            msg = '{!r} is final and cannot be inherited from'.format(base.name)
+            raise MetaError(msg, context=context)
 
         return base
 
@@ -1823,27 +1803,16 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
         for concept in self.module('concept'):
             bases = []
-            custombases = []
 
             if concept._bases:
                 for b in concept._bases:
                     base = self._check_base(concept, b, localschema)
-
-                    if isinstance(base, proto.NativeClassRef):
-                        base_cls = get_object(base.class_name)
-
-                        if not issubclass(base_cls, caos.concept.Concept):
-                            raise caos.MetaError('custom concept base classes must inherit from '
-                                                 'caos.concept.Concept: %s' % base.class_name)
-                        custombases.append(base)
-                    else:
-                        bases.append(base)
+                    bases.append(base)
 
             if not bases and concept.name != 'metamagic.caos.builtins.BaseObject':
                 bases.append(localschema.get('metamagic.caos.builtins.Object'))
 
             concept.bases = bases
-            concept.custombases = custombases
 
             for link_name, link in concept._links.items():
                 link = link.link
