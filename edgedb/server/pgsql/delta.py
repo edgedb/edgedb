@@ -979,7 +979,14 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 ptr_stor_info = types.get_pointer_storage_info(
                                     ptr, schema=schema)
 
-                if ptr_stor_info.table_type == 'concept':
+                is_a_column = (
+                    (ptr_stor_info.table_type == 'concept'
+                            and isinstance(source, proto.Concept))
+                    or (ptr_stor_info.table_type == 'link'
+                            and isinstance(source, proto.Link))
+                )
+
+                if is_a_column:
                     col = dbops.Column(name=ptr_stor_info.column_name,
                                        type=ptr_stor_info.column_type,
                                        required=ptr.required)
@@ -1005,7 +1012,14 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                         ptr_stor_info = types.get_pointer_storage_info(
                                             ptr, schema=schema)
 
-                        if ptr_stor_info.table_type == 'concept':
+                        is_a_column = (
+                            (ptr_stor_info.table_type == 'concept'
+                                    and isinstance(source, proto.Concept))
+                            or (ptr_stor_info.table_type == 'link'
+                                    and isinstance(source, proto.Link))
+                        )
+
+                        if is_a_column:
                             col = dbops.Column(name=ptr_stor_info.column_name,
                                                type=ptr_stor_info.column_type,
                                                required=ptr.required)
