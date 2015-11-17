@@ -292,12 +292,12 @@ class OptReturningClause(Nonterm):
 
 
 class SelectStmt(Nonterm):
+    @parsing.precedence(P_UMINUS)
     def reduce_SelectNoParens(self, *kids):
-        "%reduce SelectNoParens [P_UMINUS]"
         self.val = kids[0].val
 
+    @parsing.precedence(P_UMINUS)
     def reduce_SelectWithParens(self, *kids):
-        "%reduce SelectWithParens [P_UMINUS]"
         self.val = kids[0].val
 
 
@@ -752,8 +752,8 @@ class Expr(Nonterm):
     def reduce_FuncExpr(self, *kids):
         self.val = kids[0].val
 
+    @parsing.precedence(P_UMINUS)
     def reduce_SelectWithParens(self, *kids):
-        "%reduce SelectWithParens [P_UMINUS]"
         self.val = kids[0].val
 
     def reduce_EXISTS_SelectWithParens(self, *kids):
@@ -765,12 +765,12 @@ class Expr(Nonterm):
     def reduce_LPAREN_Sequence_RPAREN(self, *kids):
         self.val = kids[1].val
 
+    @parsing.precedence(P_UMINUS)
     def reduce_PLUS_Expr(self, *kids):
-        "%reduce PLUS Expr [P_UMINUS]"
         self.val = qlast.UnaryOpNode(op=ast.ops.UPLUS, operand=kids[1].val)
 
+    @parsing.precedence(P_UMINUS)
     def reduce_MINUS_Expr(self, *kids):
-        "%reduce MINUS Expr [P_UMINUS]"
         self.val = qlast.UnaryOpNode(op=ast.ops.UMINUS, operand=kids[1].val)
 
     def reduce_Expr_PLUS_Expr(self, *kids):
@@ -800,8 +800,8 @@ class Expr(Nonterm):
     def reduce_Expr_EQUALS_Expr(self, *kids):
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.EQ, right=kids[2].val)
 
+    @parsing.precedence(P_OP)
     def reduce_Expr_OP_Expr(self, *kids):
-        "%reduce Expr OP Expr [P_OP]"
         op = kids[1].val
         if op == '!=':
             op = ast.ops.NE
@@ -822,12 +822,12 @@ class Expr(Nonterm):
 
         self.val = qlast.BinOpNode(left=kids[0].val, op=op, right=kids[2].val)
 
+    @parsing.precedence(P_OP)
     def reduce_OP_Expr(self, *kids):
-        "%reduce OP Expr [P_OP]"
         self.val = qlast.UnaryOpNode(op=kids[0].val, operand=kids[1].val)
 
+    @parsing.precedence(P_POSTFIXOP)
     def reduce_Expr_OP(self, *kids):
-        "%reduce Expr OP [P_POSTFIXOP]"
         self.val = qlast.PostfixOpNode(op=kids[1].val, operand=kids[0].val)
 
     def reduce_Expr_AND_Expr(self, *kids):
@@ -860,12 +860,12 @@ class Expr(Nonterm):
         nt = qlast.NoneTestNode(expr=kids[0].val)
         self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=nt)
 
+    @parsing.precedence(P_IS)
     def reduce_Expr_IS_IsExpr(self, *kids):
-        "%reduce Expr IS IsExpr [P_IS]"
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IS, right=kids[2].val)
 
+    @parsing.precedence(P_IS)
     def reduce_Expr_IS_NOT_IsExpr(self, *kids):
-        "%reduce Expr IS NOT IsExpr [P_IS]"
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IS_NOT, right=kids[3].val)
 
     def reduce_Expr_IN_InExpr(self, *kids):
@@ -1003,8 +1003,8 @@ class PathStart(Nonterm):
                                   namespace=kids[0].val.module)
         self.val = qlast.PathNode(steps=[step], var=kids[1].val)
 
+    @parsing.precedence(P_PATHSTART)
     def reduce_NodeName(self, *kids):
-        "%reduce NodeName [P_PATHSTART]"
         self.val = qlast.PathStepNode(expr=kids[0].val.name,
                                       namespace=kids[0].val.module)
 
