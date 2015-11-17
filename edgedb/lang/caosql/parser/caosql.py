@@ -45,7 +45,8 @@ class P_NOT(Precedence, assoc='right', tokens=('NOT',)):
 class P_EQUALS(Precedence, assoc='right', tokens=('EQUALS',)):
     pass
 
-class P_ANGBRACKET(Precedence, assoc='nonassoc', tokens=('LANGBRACKET', 'RANGBRACKET')):
+class P_ANGBRACKET(Precedence, assoc='nonassoc',
+                               tokens=('LANGBRACKET', 'RANGBRACKET')):
     pass
 
 class P_LIKE_ILIKE(Precedence, assoc='nonassoc', tokens=('LIKE', 'ILIKE')):
@@ -199,7 +200,8 @@ def _gen_keyword_tokens():
     # Define keyword tokens
     for val, (token, typ) in keywords.caosql_keywords.items():
         clsname = 'T_%s' % token
-        cls = parsing.TokenMeta(clsname, (Token,), {'__module__': __name__}, token=token)
+        cls = parsing.TokenMeta(clsname, (Token,),
+                                {'__module__': __name__}, token=token)
         setattr(sys.modules[__name__], clsname, cls)
 _gen_keyword_tokens()
 
@@ -235,7 +237,8 @@ class Stmt(Nonterm):
 
 class UpdateStmt(Nonterm):
     def reduce_UpdateStmt(self, *kids):
-        "%reduce OptNsDecl UPDATE Path SET SetClauseList OptWhereClause OptReturningClause"
+        r"%reduce OptNsDecl UPDATE Path SET SetClauseList \
+                  OptWhereClause OptReturningClause"
         self.val = qlast.UpdateQueryNode(
             namespaces = kids[0].val,
             subject = kids[2].val,
@@ -319,7 +322,8 @@ class SelectNoParens(Nonterm):
 
         self.val = qry
 
-    def reduce_NsDecl_WithClause_SelectClause_OptSortClause_OptSelectLimit(self, *kids):
+    def reduce_NsDecl_WithClause_SelectClause_OptSortClause_OptSelectLimit(
+                                                                self, *kids):
         qry = kids[2].val
         qry.orderby = kids[3].val
         qry.offset = kids[4].val[0]
@@ -329,7 +333,8 @@ class SelectNoParens(Nonterm):
 
         self.val = qry
 
-    def reduce_WithClause_SelectClause_OptSortClause_OptSelectLimit(self, *kids):
+    def reduce_WithClause_SelectClause_OptSortClause_OptSelectLimit(
+                                                                self, *kids):
         qry = kids[1].val
         qry.orderby = kids[2].val
         qry.offset = kids[3].val[0]
@@ -381,7 +386,8 @@ class SelectClause(Nonterm):
 
 class SimpleSelect(Nonterm):
     def reduce_SelectStmt(self, *kids):
-        "%reduce SELECT OptDistinct SelectTargetList OptWhereClause OptGroupClause"
+        r"%reduce SELECT OptDistinct SelectTargetList \
+                  OptWhereClause OptGroupClause"
         self.val = qlast.SelectQueryNode(
                         distinct=kids[1].val,
                         targets=kids[2].val,
@@ -434,11 +440,12 @@ class NsDeclElList(Nonterm):
 
 class NsDeclEl(Nonterm):
     def reduce_FqName(self, *kids):
-        self.val = qlast.NamespaceDeclarationNode(namespace='.'.join(kids[0].val))
+        self.val = qlast.NamespaceDeclarationNode(
+                        namespace='.'.join(kids[0].val))
 
     def reduce_FqName_AS_NsAliasName(self, *kids):
-        self.val = qlast.NamespaceDeclarationNode(namespace='.'.join(kids[0].val),
-                                                  alias=kids[2].val)
+        self.val = qlast.NamespaceDeclarationNode(
+                        namespace='.'.join(kids[0].val), alias=kids[2].val)
 
 
 class OptDistinct(Nonterm):
@@ -499,7 +506,8 @@ class SelectPointerSpec(Nonterm):
             expr=qlast.LinkExprNode(expr=kids[1].val)
         )
 
-    def reduce_PointerSpecSetExpr_OptPointerRecursionSpec_OptSelectPathSpec(self, *kids):
+    def reduce_PointerSpecSetExpr_OptPointerRecursionSpec_OptSelectPathSpec(
+                                                    self, *kids):
         self.val = kids[0].val
         self.val.recurse = kids[1].val
         self.val.pathspec = kids[2].val
@@ -534,7 +542,8 @@ class QualifiedLinkedSetExpr(Nonterm):
 
 
 class TransformedLinkedSetExpr(Nonterm):
-    def reduce_QualifiedLinkedSetExpr_OptSortClause_OptSelectLimit(self, *kids):
+    def reduce_QualifiedLinkedSetExpr_OptSortClause_OptSelectLimit(
+                                                self, *kids):
         self.val = kids[0].val
         self.val.orderby = kids[1].val
         self.val.offset = kids[2].val[0]
@@ -583,7 +592,8 @@ class PointerGlobFilterList(Nonterm):
 
 class PointerGlobFilter(Nonterm):
     def reduce_LabelExpr_EQUALS_LabelExpr(self, *kids):
-        self.val = qlast.PointerGlobFilter(property=kids[0].val, value=kids[2].val)
+        self.val = qlast.PointerGlobFilter(property=kids[0].val,
+                                           value=kids[2].val)
 
     def reduce_ANY_LabelExpr(self, *kids):
         self.val = qlast.PointerGlobFilter(property=kids[1].val, any=True)
@@ -745,7 +755,8 @@ class Expr(Nonterm):
 
     def reduce_LPAREN_Expr_RPAREN_OptIndirection(self, *kids):
         if kids[3].val:
-            self.val = qlast.IndirectionNode(arg=kids[1].val, indirection=kids[3].val)
+            self.val = qlast.IndirectionNode(arg=kids[1].val,
+                                             indirection=kids[3].val)
         else:
             self.val = kids[1].val
 
@@ -774,31 +785,40 @@ class Expr(Nonterm):
         self.val = qlast.UnaryOpNode(op=ast.ops.UMINUS, operand=kids[1].val)
 
     def reduce_Expr_PLUS_Expr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.ADD, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.ADD,
+                                   right=kids[2].val)
 
     def reduce_Expr_MINUS_Expr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.SUB, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.SUB,
+                                   right=kids[2].val)
 
     def reduce_Expr_STAR_Expr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.MUL, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.MUL,
+                                   right=kids[2].val)
 
     def reduce_Expr_SLASH_Expr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.DIV, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.DIV,
+                                   right=kids[2].val)
 
     def reduce_Expr_PERCENT_Expr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.MOD, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.MOD,
+                                   right=kids[2].val)
 
     def reduce_Expr_STARSTAR_Expr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.POW, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.POW,
+                                   right=kids[2].val)
 
     def reduce_Expr_LANGBRACKET_Expr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.LT, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.LT,
+                                   right=kids[2].val)
 
     def reduce_Expr_RANGBRACKET_Expr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.GT, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.GT,
+                                   right=kids[2].val)
 
     def reduce_Expr_EQUALS_Expr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.EQ, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.EQ,
+                                   right=kids[2].val)
 
     @parsing.precedence(P_OP)
     def reduce_Expr_OP_Expr(self, *kids):
@@ -831,26 +851,32 @@ class Expr(Nonterm):
         self.val = qlast.PostfixOpNode(op=kids[1].val, operand=kids[0].val)
 
     def reduce_Expr_AND_Expr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.AND, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.AND,
+                                   right=kids[2].val)
 
     def reduce_Expr_OR_Expr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.OR, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.OR,
+                                   right=kids[2].val)
 
     def reduce_NOT_Expr(self, *kids):
         self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=kids[1].val)
 
     def reduce_Expr_LIKE_Expr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=irast.LIKE, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=irast.LIKE,
+                                   right=kids[2].val)
 
     def reduce_Expr_NOT_LIKE_Expr(self, *kids):
-        val = qlast.BinOpNode(left=kids[0].val, op=irast.LIKE, right=kids[2].val)
+        val = qlast.BinOpNode(left=kids[0].val, op=irast.LIKE,
+                              right=kids[2].val)
         self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=val)
 
     def reduce_Expr_ILIKE_Expr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=irast.ILIKE, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=irast.ILIKE,
+                                   right=kids[2].val)
 
     def reduce_Expr_NOT_ILIKE_Expr(self, *kids):
-        val = qlast.BinOpNode(left=kids[0].val, op=irast.ILIKE, right=kids[2].val)
+        val = qlast.BinOpNode(left=kids[0].val, op=irast.ILIKE,
+                              right=kids[2].val)
         self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=val)
 
     def reduce_Expr_IS_NONE(self, *kids):
@@ -862,17 +888,21 @@ class Expr(Nonterm):
 
     @parsing.precedence(P_IS)
     def reduce_Expr_IS_IsExpr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IS, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IS,
+                                   right=kids[2].val)
 
     @parsing.precedence(P_IS)
     def reduce_Expr_IS_NOT_IsExpr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IS_NOT, right=kids[3].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IS_NOT,
+                                   right=kids[3].val)
 
     def reduce_Expr_IN_InExpr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IN, right=kids[2].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.IN,
+                                   right=kids[2].val)
 
     def reduce_Expr_NOT_IN_InExpr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.NOT_IN, right=kids[3].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.NOT_IN,
+                                   right=kids[3].val)
 
 
 class Sequence(Nonterm):
@@ -1086,10 +1116,12 @@ class LinkExpr(Nonterm):
         self.val = kids[0].val
 
     def reduce_LinkExpr_AND_LinkExpr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.AND, right=kids[1].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.AND,
+                                   right=kids[1].val)
 
     def reduce_LinkExpr_OR_LinkExpr(self, *kids):
-        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.OR, right=kids[1].val)
+        self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.OR,
+                                   right=kids[1].val)
 
     def reduce_NOT_LinkExpr(self, *kids):
         self.val = qlast.UnaryOpNode(op=ast.ops.NOT, operand=kids[1].val)
@@ -1138,11 +1170,13 @@ class FuncApplication(Nonterm):
 
         if func_name == 'type':
             if len(args) != 1:
-                msg = 'type() takes exactly one argument, {} given'.format(len(args))
+                msg = 'type() takes exactly one argument, {} given' \
+                            .format(len(args))
                 raise CaosQLSyntaxError(msg)
             self.val = qlast.TypeRefNode(expr=args[0])
         else:
-            self.val = qlast.FunctionCallNode(func=func_name, args=args, agg_sort=kids[3].val)
+            self.val = qlast.FunctionCallNode(func=func_name, args=args,
+                                              agg_sort=kids[3].val)
 
 
 class FuncExpr(Nonterm):
@@ -1209,13 +1243,15 @@ class AnchorName(Nonterm):
 
 class FqNodeName(Nonterm):
     def reduce_FqName(self, *kids):
-        self.val = qlast.PrototypeRefNode(module='.'.join(kids[0].val[:-1]), name=kids[0].val[-1])
+        self.val = qlast.PrototypeRefNode(module='.'.join(kids[0].val[:-1]),
+                                          name=kids[0].val[-1])
 
 
 class AnyFqNodeName(Nonterm):
     # Fully-qualified node name permitting reserved keywords
     def reduce_AnyFqName(self, *kids):
-        self.val = qlast.PrototypeRefNode(module='.'.join(kids[0].val[:-1]), name=kids[0].val[-1])
+        self.val = qlast.PrototypeRefNode(module='.'.join(kids[0].val[:-1]),
+                                          name=kids[0].val[-1])
 
 
 class FqNodeNameList(Nonterm):
@@ -1231,7 +1267,8 @@ class NodeName(Nonterm):
         self.val = qlast.PrototypeRefNode(name=kids[0].val)
 
     def reduce_LBRACKET_AnyFqName_RBRACKET(self, *kids):
-        self.val = qlast.PrototypeRefNode(module='.'.join(kids[1].val[:-1]), name=kids[1].val[-1])
+        self.val = qlast.PrototypeRefNode(module='.'.join(kids[1].val[:-1]),
+                                          name=kids[1].val[-1])
 
 
 class FqName(Nonterm):
@@ -1336,9 +1373,11 @@ class KeywordMeta(parsing.NontermMeta):
         super().__init__(name, bases, dct)
 
 
-class UnreservedKeyword(Nonterm, metaclass=KeywordMeta, type=keywords.UNRESERVED_KEYWORD):
+class UnreservedKeyword(Nonterm, metaclass=KeywordMeta,
+                                 type=keywords.UNRESERVED_KEYWORD):
     pass
 
 
-class ReservedKeyword(Nonterm, metaclass=KeywordMeta, type=keywords.RESERVED_KEYWORD):
+class ReservedKeyword(Nonterm, metaclass=KeywordMeta,
+                               type=keywords.RESERVED_KEYWORD):
     pass
