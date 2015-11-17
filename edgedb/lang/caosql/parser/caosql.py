@@ -514,7 +514,7 @@ class PointerSpecSetExpr(Nonterm):
             expr=qlast.LinkExprNode(expr=kids[0].val)
         )
 
-    def reduce_TYPEINDIRECTION_SubpathNoParens(self, *kids):
+    def reduce_TYPEINDIRECTION_PathStepList(self, *kids):
         self.val = qlast.SelectTypeRefNode(
             attrs=kids[1].val
         )
@@ -988,12 +988,12 @@ class Path(Nonterm):
 
 
 class PathSteps(Nonterm):
-    def reduce_PathStart_OptSubpath(self, *kids):
+    def reduce_PathStart_OptPathStepList(self, *kids):
         self.val = [kids[0].val]
         if kids[1].val:
             self.val += kids[1].val
 
-    def reduce_FuncApplication_SubpathNoParens(self, *kids):
+    def reduce_FuncApplication_PathStepList(self, *kids):
         self.val = [kids[0].val] + kids[1].val
 
 
@@ -1009,28 +1009,12 @@ class PathStart(Nonterm):
                                       namespace=kids[0].val.module)
 
 
-class OptSubpath(Nonterm):
-    def reduce_SubpathNoParens(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_SubpathWithParens(self, *kids):
+class OptPathStepList(Nonterm):
+    def reduce_PathStepList(self, *kids):
         self.val = kids[0].val
 
     def reduce_empty(self, *kids):
         self.val = None
-
-
-class SubpathWithParens(Nonterm):
-    def reduce_LPAREN_SubpathNoParens_RPAREN(self, *kids):
-        self.val = kids[1].val
-
-    def reduce_LPAREN_SubpathWithParens_RPAREN(self, *kids):
-        self.val = kids[1].val
-
-
-class SubpathNoParens(Nonterm):
-    def reduce_PathStepList(self, *kids):
-        self.val = kids[0].val
 
 
 class PathStepList(Nonterm):
