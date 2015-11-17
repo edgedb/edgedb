@@ -87,11 +87,26 @@ class NontermMeta(type):
                     tokens = ['reduce', '<e>']
                 attr.__doc__ = r'%reduce {}'.format(' '.join(tokens[1:]))
 
+                prec = getattr(attr, '__parsing_precedence__', None)
+                if prec is not None:
+                    attr.__doc__ += ' [{}]'.format(prec)
+
         return result
 
 
 class Nonterm(parsing.Nonterm, metaclass=NontermMeta):
     pass
+
+
+
+def precedence(precedence):
+    """Decorator to set production precedence"""
+
+    def decorator(func):
+        func.__parsing_precedence__ = precedence.__name__
+        return func
+
+    return decorator
 
 
 class PrecedenceMeta(type):
