@@ -8,6 +8,7 @@
 
 import os
 import sys
+import types
 
 import parsing
 
@@ -76,6 +77,16 @@ class NontermMeta(type):
 
         if not result.__doc__:
             result.__doc__ = '%nonterm'
+
+        for name, attr in dct.items():
+            if (name.startswith('reduce_') and
+                    isinstance(attr, types.FunctionType) and
+                    attr.__doc__ is None):
+                tokens = name.split('_')
+                if name == 'reduce_empty':
+                    tokens = ['reduce', '<e>']
+                attr.__doc__ = r'%reduce {}'.format(' '.join(tokens[1:]))
+
         return result
 
 
