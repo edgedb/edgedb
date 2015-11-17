@@ -88,7 +88,7 @@ class CaosQLLexer(lexer.Lexer):
              next_state=STATE_KEEP,
              regexp=r'::'),
 
-        Rule(token='TYPE_INDIRECTION',
+        Rule(token='TYPEINDIRECTION',
              next_state=STATE_KEEP,
              regexp=r'__type__'),
 
