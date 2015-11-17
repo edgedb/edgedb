@@ -158,16 +158,10 @@ class T_AT(Token, lextoken='@'):
 class T_DOLLAR(Token, lextoken='$'):
     pass
 
-class T_CIRCUM(Token, lextoken='^'):
-    pass
-
 class T_STARSTAR(Token, lextoken='**'):
     pass
 
 class T_COLONEQUALS(Token):
-    pass
-
-class T_LANGBRACKET_RANGBRACKET(Token, lextoken='<>'):
     pass
 
 class T_LANGBRACKET(Token, lextoken='<'):
@@ -824,15 +818,6 @@ class OptIndirection(Nonterm):
         self.val = None
 
 
-class Indirection(Nonterm):
-    def reduce_OptIndirection_IndirectionEl(self, *kids):
-        "%reduce OptIndirection IndirectionEl"
-        if kids[0].val is not None:
-            self.val = kids[0].val + [kids[1].val]
-        else:
-            self.val = [kids[1].val]
-
-
 class Expr(Nonterm):
     # Path | Constant | '(' Expr ')' | FuncExpr | Sequence
     # | '+' Expr | '-' Expr | Expr '+' Expr | Expr '-' Expr
@@ -1422,13 +1407,6 @@ class FuncArgList(Nonterm):
         self.val = []
 
 
-class LinkPropName(Nonterm):
-    def reduce_NodeName(self, *kids):
-        "%reduce NodeName"
-        self.val = qlast.LinkNode(name=kids[0].val.name, namespace=kids[0].val.module,
-                                  type='property')
-
-
 class AnyFqLinkPropName(Nonterm):
     def reduce_AnyFqNodeName(self, *kids):
         "%reduce AnyFqNodeName"
@@ -1475,16 +1453,6 @@ class NodeName(Nonterm):
     def reduce_LBRACKET_AnyFqName_RBRACKET(self, *kids):
         "%reduce LBRACKET AnyFqName RBRACKET"
         self.val = qlast.PrototypeRefNode(module='.'.join(kids[1].val[:-1]), name=kids[1].val[-1])
-
-
-class NodeNameList(Nonterm):
-    def reduce_NodeName(self, *kids):
-        "%reduce NodeName"
-        self.val = [kids[0].val]
-
-    def reduce_NodeNameList_COMMA_NodeName(self, *kids):
-        "%reduce NodeNameList COMMA NodeName"
-        self.val = kids[0].val + [kids[2].val]
 
 
 class FqName(Nonterm):

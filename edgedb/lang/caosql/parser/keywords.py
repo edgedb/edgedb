@@ -23,7 +23,6 @@ caosql_keywords = {
     "exists": ("EXISTS", RESERVED_KEYWORD),
     "false": ("FALSE", RESERVED_KEYWORD),
     "first": ("FIRST", UNRESERVED_KEYWORD),
-    "full": ("FULL", TYPE_FUNC_NAME_KEYWORD),
     "group": ("GROUP", RESERVED_KEYWORD),
     "ilike": ("ILIKE", TYPE_FUNC_NAME_KEYWORD),
     "in": ("IN", RESERVED_KEYWORD),
