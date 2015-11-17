@@ -7,6 +7,7 @@
 
 
 import sys
+import types
 
 from metamagic.utils import ast
 from metamagic.utils import parsing
@@ -198,11 +199,17 @@ class T_TYPEINDIRECTION(Token):
 
 def _gen_keyword_tokens():
     # Define keyword tokens
+
+    mod = sys.modules[__name__]
+    def clsexec(ns):
+        ns['__module__'] = __name__
+        return ns
+
     for val, (token, typ) in keywords.caosql_keywords.items():
-        clsname = 'T_%s' % token
-        cls = parsing.TokenMeta(clsname, (Token,),
-                                {'__module__': __name__}, token=token)
-        setattr(sys.modules[__name__], clsname, cls)
+        clsname = 'T_{}'.format(token)
+        clskwds = dict(metaclass=parsing.TokenMeta, token=token)
+        cls = types.new_class(clsname, (Token,), clskwds, clsexec)
+        setattr(mod, clsname, cls)
 _gen_keyword_tokens()
 
 
