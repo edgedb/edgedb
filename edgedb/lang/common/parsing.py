@@ -22,8 +22,12 @@ from metamagic.utils import lexer
 class TokenMeta(type):
     token_map = {}
 
-    def __new__(mcls, name, bases, dct, *, token=None, lextoken=None):
+    def __new__(mcls, name, bases, dct, *, token=None, lextoken=None,
+                                           precedence_class=None):
         result = super().__new__(mcls, name, bases, dct)
+
+        if precedence_class is not None:
+            result._precedence_class = precedence_class
 
         if name == 'Token':
             return result
@@ -42,7 +46,18 @@ class TokenMeta(type):
         if not result.__doc__:
             doc = '%%token %s' % token
 
-            prec = sys.modules[mcls.__module__].PrecedenceMeta.for_token(token)
+            pcls = getattr(result, '_precedence_class', None)
+            if pcls is None:
+                try:
+                    pcls = sys.modules[mcls.__module__].PrecedenceMeta
+                except (KeyError, AttributeError):
+                    pass
+
+            if pcls is None:
+                msg = 'Precedence class is not set for {!r}'.format(mcls)
+                raise TypeError(msg)
+
+            prec = pcls.for_token(token)
             if prec:
                 doc += ' [%s]' % prec.__name__
 
@@ -50,7 +65,8 @@ class TokenMeta(type):
 
         return result
 
-    def __init__(cls, name, bases, dct, *, token=None, lextoken=None):
+    def __init__(cls, name, bases, dct, *, token=None, lextoken=None,
+                                           precedence_class=None):
         super().__init__(name, bases, dct)
 
     @classmethod
