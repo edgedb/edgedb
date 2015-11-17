@@ -6,21 +6,18 @@
 ##
 
 
-from metamagic.utils import ast, parsing, debug
+from metamagic.utils import parsing, debug
 
-from metamagic.caos import types as caos_types
-
-from metamagic.caos.caosql import ast as qlast
 from metamagic.caos.caosql.errors import CaosQLQueryError
 from metamagic.caos.caosql.parser.errors import CaosQLSyntaxError
 
-from . import lexer
+from .grammar import lexer
 
 
 class CaosQLParser(parsing.Parser):
     def get_parser_spec_module(self):
-        from . import caosql
-        return caosql
+        from .grammar import single
+        return single
 
     def get_debug(self):
         return 'caos.caosql.parser' in debug.channels

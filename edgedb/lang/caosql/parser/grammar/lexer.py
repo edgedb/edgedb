@@ -9,6 +9,7 @@
 import re
 
 from metamagic.utils import lexer
+
 from .keywords import caosql_keywords
 
 

@@ -1,307 +1,31 @@
 ##
-# Copyright (c) 2008-2012, 2014 MagicStack Inc.
+# Copyright (c) 2008-2015 MagicStack Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
 
-import sys
-import types
-
 from metamagic.utils import ast
 from metamagic.utils import parsing
 
-from . import keywords
-from .errors import CaosQLSyntaxError
-from metamagic.caos.caosql import ast as qlast, CaosQLQueryError
+from metamagic.caos.caosql import ast as qlast
 from metamagic.caos.ir import ast as irast
 from metamagic.caos import types as caos_types
 
+from ..errors import CaosQLSyntaxError
 
-##################
-# Precedence Rules
+from . import keywords
 
-class PrecedenceMeta(parsing.PrecedenceMeta):
-    pass
+from .precedence import *
+from .tokens import *
 
-class Precedence(parsing.Precedence, assoc='fail', metaclass=PrecedenceMeta):
-    pass
-
-class P_UNION_EXCEPT(Precedence, assoc='left', tokens=('UNION', 'EXCEPT')):
-    pass
-
-class P_INTERSECT(Precedence, assoc='left', tokens=('INTERSECT',)):
-    pass
-
-class P_OR(Precedence, assoc='left', tokens=('OR',)):
-    pass
-
-class P_AND(Precedence, assoc='left', tokens=('AND',)):
-    pass
-
-class P_NOT(Precedence, assoc='right', tokens=('NOT',)):
-    pass
-
-class P_EQUALS(Precedence, assoc='right', tokens=('EQUALS',)):
-    pass
-
-class P_ANGBRACKET(Precedence, assoc='nonassoc',
-                               tokens=('LANGBRACKET', 'RANGBRACKET')):
-    pass
-
-class P_LIKE_ILIKE(Precedence, assoc='nonassoc', tokens=('LIKE', 'ILIKE')):
-    pass
-
-class P_IN(Precedence, assoc='nonassoc', tokens=('IN',)):
-    pass
-
-class P_POSTFIXOP(Precedence, assoc='left'):
-    pass
-
-class P_IDENT(Precedence, assoc='nonassoc', tokens=('IDENT', 'PARTITION')):
-    pass
-
-class P_OP(Precedence, assoc='left', tokens=('OPERATOR', 'OP')):
-    pass
-
-class P_IS(Precedence, assoc='nonassoc', tokens=('IS', 'NONE')):
-    pass
-
-class P_ADD_OP(Precedence, assoc='left', tokens=('PLUS', 'MINUS')):
-    pass
-
-class P_MUL_OP(Precedence, assoc='left', tokens=('STAR', 'SLASH', 'PERCENT')):
-    pass
-
-class P_POW_OP(Precedence, assoc='left', tokens=('STARSTAR',)):
-    pass
-
-
-class P_UMINUS(Precedence, assoc='right'):
-    pass
-
-class P_PATHSTART(Precedence, assoc='nonassoc'):
-    pass
-
-class P_BRACKET(Precedence, assoc='left', tokens=('LBRACKET', 'RBRACKET')):
-    pass
-
-class P_PAREN(Precedence, assoc='left', tokens=('LPAREN', 'RPAREN')):
-    pass
-
-
-class P_DOT(Precedence, assoc='left', tokens=('DOT',)):
-    pass
-
-class P_AT(Precedence, assoc='left', tokens=('AT',)):
-    pass
-
-
-
-########
-# Tokens
-
-class TokenMeta(parsing.TokenMeta):
-    pass
-
-class Token(parsing.Token, metaclass=TokenMeta):
-    pass
-
-
-class T_DOT(Token, lextoken='.'):
-    pass
-
-class T_LBRACKET(Token, lextoken='['):
-    pass
-
-class T_RBRACKET(Token, lextoken=']'):
-    pass
-
-class T_LPAREN(Token, lextoken='('):
-    pass
-
-class T_RPAREN(Token, lextoken=')'):
-    pass
-
-class T_LBRACE(Token, lextoken='{'):
-    pass
-
-class T_RBRACE(Token, lextoken='}'):
-    pass
-
-class T_DOUBLECOLON(Token, lextoken='::'):
-    pass
-
-class T_COLON(Token, lextoken=':'):
-    pass
-
-class T_COMMA(Token, lextoken=','):
-    pass
-
-class T_PLUS(Token, lextoken='+'):
-    pass
-
-class T_MINUS(Token, lextoken='-'):
-    pass
-
-class T_STAR(Token, lextoken='*'):
-    pass
-
-class T_SLASH(Token, lextoken='/'):
-    pass
-
-class T_PERCENT(Token, lextoken='%'):
-    pass
-
-class T_AT(Token, lextoken='@'):
-    pass
-
-class T_DOLLAR(Token, lextoken='$'):
-    pass
-
-class T_STARSTAR(Token, lextoken='**'):
-    pass
-
-class T_COLONEQUALS(Token):
-    pass
-
-class T_LANGBRACKET(Token, lextoken='<'):
-    pass
-
-class T_RANGBRACKET(Token, lextoken='>'):
-    pass
-
-class T_EQUALS(Token, lextoken='='):
-    pass
-
-class T_ICONST(Token):
-    pass
-
-class T_FCONST(Token):
-    pass
-
-class T_SCONST(Token):
-    pass
-
-class T_IDENT(Token):
-    pass
-
-class T_OPERATOR(Token):
-    pass
-
-class T_OP(Token):
-    pass
-
-class T_TYPEINDIRECTION(Token):
-    pass
-
-
-def _gen_keyword_tokens():
-    # Define keyword tokens
-
-    mod = sys.modules[__name__]
-    def clsexec(ns):
-        ns['__module__'] = __name__
-        return ns
-
-    for val, (token, typ) in keywords.caosql_keywords.items():
-        clsname = 'T_{}'.format(token)
-        clskwds = dict(metaclass=parsing.TokenMeta, token=token)
-        cls = types.new_class(clsname, (Token,), clskwds, clsexec)
-        setattr(mod, clsname, cls)
-_gen_keyword_tokens()
-
-
-
-#############
-# Productions
 
 class Nonterm(parsing.Nonterm):
     pass
 
 
-class Result(Nonterm):
-    "%start"
-
-    def reduce_Stmt(self, expr):
-        self.val = expr.val
-
-    def reduce_Expr(self, expr):
-        self.val = expr.val
-
-
-class Stmt(Nonterm):
-    def reduce_SelectNoParens(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_UpdateStmt(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_DeleteStmt(self, *kids):
-        self.val = kids[0].val
-
-
-class UpdateStmt(Nonterm):
-    def reduce_UpdateStmt(self, *kids):
-        r"%reduce OptNsDecl UPDATE Path SET SetClauseList \
-                  OptWhereClause OptReturningClause"
-        self.val = qlast.UpdateQueryNode(
-            namespaces = kids[0].val,
-            subject = kids[2].val,
-            values = kids[4].val,
-            where = kids[5].val,
-            targets = kids[6].val
-        )
-
-
-class SetClauseList(Nonterm):
-    def reduce_SetClause(self, *kids):
-        "%reduce SetClause"
-        self.val = [kids[0].val]
-
-    def reduce_SetClauseList_COMMA_SetClause(self, *kids):
-        "%reduce SetClauseList COMMA SetClause"
-        self.val = kids[0].val + [kids[2].val]
-
-
-class SetClause(Nonterm):
-    def reduce_SetTarget_EQUALS_Expr(self, *kids):
-        "%reduce SetTarget EQUALS Expr"
-        self.val = qlast.UpdateExprNode(expr=kids[0].val, value=kids[2].val)
-
-
-class SetTarget(Nonterm):
-    def reduce_NodeName(self, *kids):
-        "%reduce NodeName"
-        self.val = kids[0].val
-
-
-class DeleteStmt(Nonterm):
-    def reduce_DeleteStmt(self, *kids):
-        "%reduce OptNsDecl DELETE Path OptWhereClause OptReturningClause"
-        self.val = qlast.DeleteQueryNode(
-            namespaces = kids[0].val,
-            subject = kids[2].val,
-            where = kids[3].val,
-            targets = kids[4].val
-        )
-
-
-class ReturningClause(Nonterm):
-    def reduce_RETURNING_SelectTargetList(self, *kids):
-        self.val = kids[1].val
-
-
-class OptReturningClause(Nonterm):
-    def reduce_ReturningClause(self, *kids):
-        self.val = kids[0].val
-
-    def reduce_empty(self, *kids):
-        self.val = None
-
-
-class SelectStmt(Nonterm):
+class SelectExpr(Nonterm):
     @parsing.precedence(P_UMINUS)
     def reduce_SelectNoParens(self, *kids):
         self.val = kids[0].val
@@ -379,7 +103,7 @@ class CgeList(Nonterm):
 
 
 class Cge(Nonterm):
-    def reduce_AnchorName_AS_LPAREN_SelectStmt_RPAREN(self, *kids):
+    def reduce_AnchorName_AS_LPAREN_SelectExpr_RPAREN(self, *kids):
         self.val = qlast.CGENode(expr=kids[3].val, alias=kids[0].val)
 
 
@@ -392,7 +116,7 @@ class SelectClause(Nonterm):
 
 
 class SimpleSelect(Nonterm):
-    def reduce_SelectStmt(self, *kids):
+    def reduce_Select(self, *kids):
         r"%reduce SELECT OptDistinct SelectTargetList \
                   OptWhereClause OptGroupClause"
         self.val = qlast.SelectQueryNode(
