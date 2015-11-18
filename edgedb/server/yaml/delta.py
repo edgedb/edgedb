@@ -13,6 +13,7 @@ from importkit.import_ import get_object, ObjectImportError
 from importkit import context as lang_context
 
 from metamagic import caos
+from metamagic.caos import caosql
 from metamagic.caos import types as caos_types
 from metamagic.caos import delta, proto
 from metamagic.utils import datastructures
@@ -39,6 +40,8 @@ class Delta(yaml.Object, adapts=delta.Delta, metaclass=DeltaMeta):
 
     @classmethod
     def __sx_getstate__(cls, data):
+        from metamagic.caos.backends import yaml as yaml_objs
+
         result = MixedStructMeta.__sx_getstate__(cls, data)
 
         result['id'] = '%x' % result['id']
@@ -46,18 +49,20 @@ class Delta(yaml.Object, adapts=delta.Delta, metaclass=DeltaMeta):
             result['parent_id'] = '%x' % result['parent_id']
         result['checksum'] = '%x' % result['checksum']
 
+        result['script'] = yaml_objs.ExpressionText('\n\n'.join(
+            cls.write_command(cmd) for cmd in data.deltas[0].ops
+        ))
+        del result['deltas']
+
         return result
 
-    """
     @classmethod
-    def get_yaml_validator_config(cls):
-        config = MixedStructMeta.get_yaml_validator_config(cls)
-
-        for f in ('id', 'parent_id', 'checksum'):
-            config[f]['type'] = 'str'
-
-        return config
-    """
+    def write_command(cls, cmd):
+        qltree = cmd.get_ast()
+        if qltree is not None:
+            return caosql.generate_source(caosql.optimize(qltree))
+        else:
+            return ''
 
 
 class DeltaSet(yaml.Object, adapts=delta.DeltaSet):

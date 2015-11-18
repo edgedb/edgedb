@@ -7,6 +7,7 @@
 
 
 from metamagic.caos.ir import ast as irast
+from metamagic.caos import types as caos_types
 from metamagic.utils import ast
 
 
@@ -59,6 +60,241 @@ class LinkPropExprNode(ast.AST): __fields = ['expr']
 class StatementNode(ast.AST):
     __fields = [('namespaces', list), ('aliases', list)]
 
+class PrototypeRefNode(ast.AST):
+    __fields = ['name', 'module']
+
+
+class PositionNode(ast.AST):
+    __fields = ['ref', 'position']
+
+
+class ExpressionTextNode(ast.AST):
+    __fields = ['expr']
+
+
+class DDLNode(ast.AST):
+    pass
+
+class CompositeDDLNode(StatementNode, DDLNode):
+    pass
+
+
+class AlterSchemaNode(ast.AST):
+    __fields = ['commands']
+
+
+class AlterAddInheritNode(DDLNode):
+    __fields = ['bases', 'position']
+
+
+class AlterDropInheritNode(DDLNode):
+    __fields = ['bases']
+
+
+class AlterTargetNode(DDLNode):
+    __fields = ['targets']
+
+
+class ObjectDDLNode(CompositeDDLNode):
+    __fields = ['namespaces', ('name', PrototypeRefNode), ('commands', list)]
+
+
+class CreateObjectNode(ObjectDDLNode):
+    pass
+
+
+class AlterObjectNode(ObjectDDLNode):
+    pass
+
+
+class DropObjectNode(ObjectDDLNode):
+    pass
+
+
+class CreateInheritingObjectNode(CreateObjectNode):
+    __fields = ['bases', 'is_abstract', 'is_final']
+
+
+class RenameNode(DDLNode):
+    __fields = [('new_name', PrototypeRefNode)]
+
+
+class CreateModuleNode(CreateObjectNode):
+    pass
+
+
+class AlterModuleNode(AlterObjectNode):
+    pass
+
+
+class DropModuleNode(DropObjectNode):
+    pass
+
+
+class CreateActionNode(CreateObjectNode):
+    pass
+
+
+class AlterActionNode(AlterObjectNode):
+    pass
+
+
+class DropActionNode(DropObjectNode):
+    pass
+
+
+class CreateEventNode(CreateInheritingObjectNode):
+    pass
+
+
+class AlterEventNode(AlterObjectNode):
+    pass
+
+
+class DropEventNode(DropObjectNode):
+    pass
+
+
+class CreateAttributeNode(CreateObjectNode):
+    __fields = ['type', 'constraint']
+
+
+class DropAttributeNode(DropObjectNode):
+    pass
+
+
+class CreateAtomNode(CreateInheritingObjectNode):
+    pass
+
+
+class AlterAtomNode(AlterObjectNode):
+    pass
+
+
+class DropAtomNode(DropObjectNode):
+    pass
+
+
+class CreateLinkPropertyNode(CreateInheritingObjectNode):
+    pass
+
+
+class AlterLinkPropertyNode(AlterObjectNode):
+    pass
+
+
+class DropLinkPropertyNode(DropObjectNode):
+    pass
+
+
+class CreateConcreteLinkPropertyNode(CreateObjectNode):
+    __fields = ['is_required', 'target']
+
+
+class AlterConcreteLinkPropertyNode(AlterObjectNode):
+    pass
+
+
+class DropConcreteLinkPropertyNode(AlterObjectNode):
+    pass
+
+
+class SetSpecialFieldNode(ast.AST):
+    __fields = ['name', 'value', ('as_expr', bool)]
+
+
+class CreateConceptNode(CreateInheritingObjectNode):
+    pass
+
+
+class AlterConceptNode(AlterObjectNode):
+    pass
+
+
+class DropConceptNode(DropObjectNode):
+    pass
+
+
+class CreateLinkNode(CreateInheritingObjectNode):
+    pass
+
+
+class AlterLinkNode(AlterObjectNode):
+    pass
+
+
+class DropLinkNode(DropObjectNode):
+    pass
+
+
+class CreateConcreteLinkNode(CreateInheritingObjectNode):
+    __fields = ['is_required', 'targets']
+
+
+class AlterConcreteLinkNode(AlterObjectNode):
+    pass
+
+
+class DropConcreteLinkNode(DropObjectNode):
+    pass
+
+
+class CreateConstraintNode(CreateInheritingObjectNode):
+    pass
+
+
+class AlterConstraintNode(AlterObjectNode):
+    pass
+
+
+class DropConstraintNode(DropObjectNode):
+    pass
+
+
+class CreateConcreteConstraintNode(CreateObjectNode):
+    __fields = ['args', 'is_abstract']
+
+
+class AlterConcreteConstraintNode(AlterObjectNode):
+    pass
+
+
+class DropConcreteConstraintNode(DropObjectNode):
+    pass
+
+
+class CreateLocalPolicyNode(CompositeDDLNode):
+    __fields = ['event', 'actions']
+
+
+class AlterLocalPolicyNode(CompositeDDLNode):
+    __fields = ['event', 'actions']
+
+
+class DropLocalPolicyNode(CompositeDDLNode):
+    __fields = ['event']
+
+
+class CreateIndexNode(CreateObjectNode):
+    __fields = ['expr']
+
+
+class DropIndexNode(DropObjectNode):
+    pass
+
+
+class CreateAttributeValueNode(CreateObjectNode):
+    __fields = ['value', ('as_expr', bool)]
+
+
+class AlterAttributeValueNode(AlterObjectNode):
+    __fields = ['value']
+
+
+class DropAttributeValueNode(DropObjectNode):
+    pass
+
+
 class SelectQueryNode(StatementNode):
     __fields = ['distinct', ('targets', list), 'where',
                 ('groupby', list), ('orderby', list), 'offset', 'limit',
@@ -110,9 +346,13 @@ class FromExprNode(ast.AST): __fields = ['expr', 'alias']
 
 class SequenceNode(ast.AST): __fields = [('elements', list)]
 
-class PrototypeRefNode(ast.AST): __fields = ['name', 'module']
+class MappingNode(ast.AST):
+    __fields = [('items', list)]
 
-class TypeCastNode(ast.AST): __fields = ['expr', 'type']
+class TypeNameNode(ast.AST):
+    __fields = [('maintype', str), ('subtype', ast.AST, None)]
+
+class TypeCastNode(ast.AST): __fields = ['expr', ('type', TypeNameNode)]
 
 class TypeRefNode(ast.AST): __fields = ['expr']
 
@@ -124,6 +364,11 @@ class CaosQLOperator(ast.ops.Operator):
 class CaosQLMatchOperator(CaosQLOperator, irast.CaosMatchOperator):
     pass
 
+AND = ast.ops.AND
+OR = ast.ops.OR
+NOT = ast.ops.NOT
+IN = ast.ops.IN
+NOT_IN = ast.ops.NOT_IN
 LIKE = CaosQLMatchOperator('~~')
 NOT_LIKE = CaosQLMatchOperator('!~~')
 ILIKE = CaosQLMatchOperator('~~*')
@@ -167,3 +412,17 @@ class SetOperator(CaosQLOperator):
 UNION = SetOperator('UNION')
 INTERSECT = SetOperator('INTERSECT')
 EXCEPT = SetOperator('EXCEPT')
+
+
+class Position(caos_types.StrSingleton):
+    _map = {
+        'AFTER': 'AFTER',
+        'BEFORE': 'BEFORE',
+        'FIRST': 'FIRST',
+        'LAST': 'LAST'
+    }
+
+AFTER = Position('AFTER')
+BEFORE = Position('BEFORE')
+FIRST = Position('FIRST')
+LAST = Position('LAST')

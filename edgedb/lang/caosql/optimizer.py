@@ -18,9 +18,11 @@ class ContextLevel:
             else:
                 self.aliascnt = prevlevel.aliascnt
                 self.namespaces = prevlevel.namespaces
+            self.deoptimize = prevlevel.deoptimize
         else:
             self.aliascnt = {}
             self.namespaces = {}
+            self.deoptimize = False
 
     def genalias(self, hint=None):
         if hint is None:
@@ -86,8 +88,9 @@ class ContextWrapper:
 
 
 class CaosQLOptimizer:
-    def transform(self, caosql_tree):
+    def transform(self, caosql_tree, deoptimize=False):
         context = Context()
+        context.current.deoptimize = deoptimize
         self._process_expr(context, caosql_tree)
 
         nses = []
@@ -211,6 +214,17 @@ class CaosQLOptimizer:
             self._process_expr(context, expr.expr)
             self._process_expr(context, expr.type)
 
+        elif isinstance(expr, qlast.TypeNameNode):
+            if '.' in expr.maintype:
+                module, _, name = expr.maintype.rpartition('.')
+                module = self._process_module_ref(context, module)
+                if module:
+                    expr.maintype = module + '.' + name
+                else:
+                    expr.maintype = name
+            if expr.subtype:
+                self._process_expr(context, expr.subtype)
+
         elif isinstance(expr, qlast.TypeRefNode):
             self._process_expr(context, expr.expr)
 
@@ -246,6 +260,69 @@ class CaosQLOptimizer:
             if expr.target:
                 self._process_expr(context, expr.target)
 
+        elif isinstance(expr, qlast.CreateModuleNode):
+            pass
+
+        elif isinstance(expr, qlast.ObjectDDLNode):
+            if expr.namespaces:
+                context.current.namespaces.update(
+                    (ns.alias, ns.namespace) for ns in expr.namespaces)
+
+            expr.name.module = self._process_module_ref(
+                                    context, expr.name.module,
+                                    strip_builtins=False)
+
+            if expr.commands:
+                for cmd in expr.commands:
+                    self._process_expr(context, cmd)
+
+            bases = getattr(expr, 'bases', None)
+
+            if bases:
+                for base in bases:
+                    base.module = self._process_module_ref(
+                                    context, base.module,
+                                    strip_builtins=False)
+
+            if isinstance(expr, qlast.CreateConcreteLinkNode):
+                for t in expr.targets:
+                    t.module = self._process_module_ref(
+                                    context, t.module,
+                                    strip_builtins=False)
+
+            elif isinstance(expr, qlast.CreateConcreteLinkPropertyNode):
+                expr.target.module = self._process_module_ref(
+                                        context, expr.target.module,
+                                        strip_builtins=False)
+
+        elif isinstance(expr, (qlast.CreateLocalPolicyNode,
+                               qlast.AlterLocalPolicyNode)):
+            expr.event.module = self._process_module_ref(
+                                        context, expr.event.module,
+                                        strip_builtins=False)
+            for action in expr.actions:
+                action.module = self._process_module_ref(
+                                        context, action.module,
+                                        strip_builtins=False)
+
+        elif isinstance(expr, qlast.AlterTargetNode):
+            for target in expr.targets:
+                target.module = self._process_module_ref(
+                                        context, target.module,
+                                        strip_builtins=False)
+
+        elif isinstance(expr, qlast.RenameNode):
+            expr.new_name.module = self._process_module_ref(
+                                        context, expr.new_name.module,
+                                        strip_builtins=False)
+
+        elif isinstance(expr, (qlast.AlterAddInheritNode,
+                               qlast.AlterDropInheritNode)):
+            for base in expr.bases:
+                base.module = self._process_module_ref(
+                                        context, base.module,
+                                        strip_builtins=False)
+
     def _process_pathspec(self, context, pathspec):
         for spec in pathspec:
             if isinstance(spec, qlast.SelectPathSpecNode):
@@ -262,24 +339,27 @@ class CaosQLOptimizer:
                     self._process_pathspec(context, spec.pathspec)
 
     def _process_module_ref(self, context, module, strip_builtins=True):
-        if module == 'metamagic.caos.builtins' and strip_builtins:
-            return None
-
-        if '.' in module:
-            modmap = {v: k for k, v in context.current.namespaces.items()}
-            try:
-                alias = modmap[module]
-            except KeyError:
-                mhead, _, mtail = module.rpartition('.')
-                if mtail == 'objects' and mhead:
-                    # schemas are commonly in the form <module>.objects
-                    mhead, _, mtail = mhead.rpartition('.')
-                alias = context.current.genalias(hint=mtail)
-                context.current.namespaces[alias] = module
-
-            return alias
+        if context.current.deoptimize:
+            return context.current.namespaces.get(module, module)
         else:
-            return module
+            if module == 'metamagic.caos.builtins' and strip_builtins:
+                return None
+
+            if '.' in module:
+                modmap = {v: k for k, v in context.current.namespaces.items()}
+                try:
+                    alias = modmap[module]
+                except KeyError:
+                    mhead, _, mtail = module.rpartition('.')
+                    if mtail == 'objects' and mhead:
+                        # schemas are commonly in the form <module>.objects
+                        mhead, _, mtail = mhead.rpartition('.')
+                    alias = context.current.genalias(hint=mtail)
+                    context.current.namespaces[alias] = module
+
+                return alias
+            else:
+                return module
 
 
 def optimize(caosql_tree):
@@ -287,3 +367,10 @@ def optimize(caosql_tree):
 
     optimizer = CaosQLOptimizer()
     return optimizer.transform(caosql_tree)
+
+
+def deoptimize(caosql_tree):
+    """Reverse optimizations on CaosQL AST tree"""
+
+    optimizer = CaosQLOptimizer()
+    return optimizer.transform(caosql_tree, deoptimize=True)

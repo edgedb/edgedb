@@ -83,8 +83,10 @@ class ConstraintsSchema:
         if not expr:
             raise ValueError('missing constraint expression in {!r}'.format(constraint.name))
 
-        caosql_tree, tree, arg_types = cls._parse_constraint_expr(schema, {}, constraint.expr,
-                                                                  subject)
+        caosql_tree, tree, arg_types = cls._parse_constraint_expr(
+                                          schema, {}, constraint.expr, subject)
+
+        constraint.expr = cls.normalize_constraint_expr(schema, {}, expr)
 
         if constraint.paramtypes:
             all_arg_types = arg_types.copy()

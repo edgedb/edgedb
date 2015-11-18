@@ -777,17 +777,21 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
             node = irast.ExistPred(expr=subquery)
 
         elif isinstance(expr, qlast.TypeCastNode):
-            if isinstance(expr.type, tuple):
-                typ = expr.type[1]
+            maintype = expr.type.maintype
+            subtype = expr.type.subtype
+
+            schema = context.current.proto_schema
+            aliases = context.current.namespaces
+
+            if subtype:
+                subtype = schema.get(subtype.maintype, module_aliases=aliases)
+                typ = (maintype, subtype)
             else:
-                typ = expr.type
+                maintype = schema.get(maintype, module_aliases=aliases)
+                typ = maintype
 
-            typ = context.current.proto_schema.get(typ, module_aliases=context.current.namespaces)
-
-            if isinstance(expr.type, tuple):
-                typ = (expr.type[0], typ)
-
-            node = irast.TypeCast(expr=self._process_expr(context, expr.expr), type=typ)
+            node = irast.TypeCast(expr=self._process_expr(context, expr.expr),
+                                  type=typ)
 
         elif isinstance(expr, qlast.IndirectionNode):
             node = self._process_expr(context, expr.arg)

@@ -73,12 +73,14 @@ class P_UMINUS(Precedence, assoc='right'):
 class P_PATHSTART(Precedence, assoc='nonassoc'):
     pass
 
+class P_BRACE(Precedence, assoc='left', tokens=('LBRACE', 'RBRACE')):
+    pass
+
 class P_BRACKET(Precedence, assoc='left', tokens=('LBRACKET', 'RBRACKET')):
     pass
 
 class P_PAREN(Precedence, assoc='left', tokens=('LPAREN', 'RPAREN')):
     pass
-
 
 class P_DOT(Precedence, assoc='left', tokens=('DOT',)):
     pass

@@ -379,17 +379,16 @@ class SchemaTableConstraint:
     def alter_ops(self, orig_constr):
         ops = dbops.CommandGroup()
 
-        if self._constraint.is_abstract != orig_constr._constraint.is_abstract:
-            tabconstr = self._table_constraint(self)
-            orig_tabconstr = self._table_constraint(orig_constr)
+        tabconstr = self._table_constraint(self)
+        orig_tabconstr = self._table_constraint(orig_constr)
 
-            alter_constr = deltadbops.AlterTableAlterInheritableConstraint(
-                                name=tabconstr.get_subject_name(quote=False),
-                                constraint=orig_tabconstr,
-                                new_constraint=tabconstr
-                           )
+        alter_constr = deltadbops.AlterTableAlterInheritableConstraint(
+                            name=tabconstr.get_subject_name(quote=False),
+                            constraint=orig_tabconstr,
+                            new_constraint=tabconstr
+                       )
 
-            ops.add_command(alter_constr)
+        ops.add_command(alter_constr)
 
         return ops
 

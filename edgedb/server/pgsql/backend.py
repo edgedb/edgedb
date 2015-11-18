@@ -618,8 +618,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             self.connection = session.get_connection()
 
             for d in deltas:
-                delta = d.deltas[0]
-
                 """LINE [caos.delta.apply] Applying delta
                     '{:032x}'.format(d.id)
                 """
@@ -627,36 +625,39 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 session.replace_schema(proto_schema)
 
                 # Run preprocess pass
-                delta.call_hook(session, stage='preprocess', hook='main')
+                d.call_hook(session, stage='preprocess', hook='main')
 
-                # Apply and adapt delta, build native delta plan
-                plan = self.process_delta(delta, proto_schema)
+                if d.deltas:
+                    delta = d.deltas[0]
 
-                proto_schema.clear_class_cache()
-                # Reinitialize the session with the mutated schema
-                session.replace_schema(proto_schema)
+                    # Apply and adapt delta, build native delta plan
+                    plan = self.process_delta(delta, proto_schema)
 
-                context = delta_cmds.CommandContext(session.get_connection(), session)
+                    proto_schema.clear_class_cache()
+                    # Reinitialize the session with the mutated schema
+                    session.replace_schema(proto_schema)
 
-                try:
-                    plan.execute(context)
-                except Exception as e:
-                    msg = 'failed to apply delta {:032x} to data backend'.format(d.id)
-                    self._raise_delta_error(msg, d, plan, e)
+                    context = delta_cmds.CommandContext(session.get_connection(), session)
 
-                # Invalidate transient structure caches
-                self.invalidate_transient_cache()
+                    try:
+                        plan.execute(context)
+                    except Exception as e:
+                        msg = 'failed to apply delta {:032x} to data backend'.format(d.id)
+                        self._raise_delta_error(msg, d, plan, e)
 
-                try:
-                    # Update introspection caches
-                    self._init_introspection_cache()
-                except caos.MetaError as e:
-                    msg = 'failed to verify metadata after applying delta {:032x} to data backend'
-                    msg = msg.format(d.id)
-                    self._raise_delta_error(msg, d, plan, e)
+                    # Invalidate transient structure caches
+                    self.invalidate_transient_cache()
+
+                    try:
+                        # Update introspection caches
+                        self._init_introspection_cache()
+                    except caos.MetaError as e:
+                        msg = 'failed to verify metadata after applying delta {:032x} to data backend'
+                        msg = msg.format(d.id)
+                        self._raise_delta_error(msg, d, plan, e)
 
                 # Run postprocess pass
-                delta.call_hook(session, stage='postprocess', hook='main')
+                d.call_hook(session, stage='postprocess', hook='main')
 
                 self.invalidate_schema_cache()
 

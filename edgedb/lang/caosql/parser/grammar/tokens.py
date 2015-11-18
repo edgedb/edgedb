@@ -51,6 +51,9 @@ class T_DOUBLECOLON(Token, lextoken='::'):
 class T_COLON(Token, lextoken=':'):
     pass
 
+class T_SEMICOLON(Token, lextoken=';'):
+    pass
+
 class T_COMMA(Token, lextoken=','):
     pass
 
@@ -111,6 +114,8 @@ class T_OP(Token):
 class T_TYPEINDIRECTION(Token):
     pass
 
+class T_LINKPROPERTY(Token):
+    pass
 
 def _gen_keyword_tokens():
     # Define keyword tokens

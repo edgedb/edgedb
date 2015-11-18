@@ -145,7 +145,7 @@ class ExpressionText(StrLangObject, adapts=caos.types.ExpressionText,
                                     ignore_aliases=True):
     @classmethod
     def __sx_getstate__(cls, data):
-        return pyyaml.ScalarNode('!expr', str(data), style='literal')
+        return pyyaml.ScalarNode('!expr', str(data), style='|')
 
 
 class LinkMapping(StrLangObject, adapts=caos.types.LinkMapping, ignore_aliases=True):
@@ -561,7 +561,7 @@ class Concept(Prototype, adapts=proto.Concept):
         if data.own_pointers:
             result['links'] = {}
             for ptr_name, ptr in data.own_pointers.items():
-                if isinstance(ptr.target, proto.Concept) and ptr.target.is_virtual:
+                if ptr.target is None or (isinstance(ptr.target, proto.Concept) and ptr.target.is_virtual):
                     # key = tuple(t.name for t in ptr.target._virtual_children)
                     key = 'virtual___'
                 else:
@@ -1867,6 +1867,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 target = proto.LinkProperty(name=target_pname,
                                             bases=[target_pbase],
                                             loading=caos.types.EagerLoading,
+                                            readonly=True,
                                             _setdefaults_=False, _relaxrequired_=True)
                 if link.target:
                     target._target = link.target.name
@@ -1877,6 +1878,8 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 source = proto.LinkProperty(name=source_pname,
                                             bases=[source_pbase],
                                             loading=caos.types.EagerLoading,
+                                            readonly=True,
+                                            required=True,
                                             _setdefaults_=False, _relaxrequired_=True)
                 source._target = link.source.name
 

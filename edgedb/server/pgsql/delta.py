@@ -161,12 +161,11 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeC
         return updates
 
     def update(self, schema, context):
-        orig_proto = self.original_proto
         updaterec, updates = self.fill_record(schema)
 
         if updaterec:
-            condition = [('name', str(orig_proto.name))]
-            self.pgops.add(dbops.Update(table=self.table, record=updaterec, condition=condition))
+            condition = [('name', str(self.proto.name))]
+            self.pgops.add(dbops.Update(table=self.table, record=updaterec, condition=condition, priority=self.op_priority))
 
         return updates
 
@@ -188,6 +187,22 @@ class CreateNamedPrototype(NamedPrototypeMetaCommand):
         return obj
 
 
+class CreateOrAlterNamedPrototype(NamedPrototypeMetaCommand):
+    def apply(self, schema, context):
+        existing = schema.get(self.prototype_name, None)
+
+        obj = self.__class__.get_adaptee().apply(self, schema, context)
+        self.proto = obj
+        NamedPrototypeMetaCommand.apply(self, schema, context)
+
+        if existing is None:
+            updates = self.create_object(schema, obj)
+            self.updates = updates
+        else:
+            self.updates = self.update(schema, context)
+        return obj
+
+
 class RenameNamedPrototype(NamedPrototypeMetaCommand):
     def apply(self, schema, context):
         obj = self.__class__.get_adaptee().apply(self, schema, context)
@@ -206,6 +221,7 @@ class RebaseNamedPrototype(NamedPrototypeMetaCommand):
 class AlterNamedPrototype(NamedPrototypeMetaCommand):
     def apply(self, schema, context):
         obj = self.__class__.get_adaptee().apply(self, schema, context)
+        self.proto = obj
         NamedPrototypeMetaCommand.apply(self, schema, context)
         self.updates = self.update(schema, context)
         return obj
@@ -289,7 +305,7 @@ class AttributeValueCommand(metaclass=CommandMeta):
 
 
 class CreateAttributeValue(AttributeValueCommand,
-                           CreateNamedPrototype,
+                           CreateOrAlterNamedPrototype,
                            adapts=delta_cmds.CreateAttributeValue):
     pass
 
@@ -345,7 +361,8 @@ class ConstraintCommand(metaclass=CommandMeta):
                     setattr(rec, ptn, pt)
 
             args = updates.get('args')
-            rec.args = pickle.dumps(dict(args[1])) if args and args[1] else None
+            if args:
+                rec.args = pickle.dumps(dict(args[1])) if args[1] else None
 
             # Write the original locally-defined expression
             # so that when the schema is introspected the
@@ -1162,10 +1179,9 @@ class ConceptMetaCommand(CompositePrototypeMetaCommand):
 class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
     def apply(self, schema, context=None):
         concept_props = self.get_struct_properties(include_old_value=False)
-        is_virtual = concept_props['is_virtual']
+        is_virtual = concept_props.get('is_virtual')
         if is_virtual:
-            raise ValueError(
-                    'virtual concepts are not supposed to be persisted')
+            return delta_cmds.CreateConcept.apply(self, schema, context)
 
         new_table_name = common.concept_name_to_table_name(
                             self.prototype_name, catenate=False)
@@ -1206,7 +1222,7 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
             dbops.AlterTableAddConstraint(constraint))
 
         bases = (common.concept_name_to_table_name(caos.Name(p), catenate=False)
-                 for p in fields['base'][1] if proto.Concept.is_prototype(schema, p))
+                 for p in fields['base'][1])
         concept_table.bases = list(bases)
 
         self.affirm_pointer_defaults(concept, schema, context)
@@ -1895,10 +1911,6 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
             if new_type:
                 if not isinstance(link.target, caos.types.ProtoObject):
                     link.target = schema.get(link.target)
-
-                op = deltadbops.CallDeltaHook(hook='exec_alter_link_target', stage='preprocess',
-                                              op=self, priority=1)
-                self.pgops.add(op)
 
             self.attach_alter_table(context)
 

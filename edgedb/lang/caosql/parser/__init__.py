@@ -6,14 +6,14 @@
 ##
 
 
-from .parser import CaosQLParser
+from .parser import CaosQLExpressionParser, CaosQLBlockParser
 from .errors import CaosQLSyntaxError
 
 from .. import ast as qlast
 
 
 def parse_fragment(expr):
-    parser = CaosQLParser()
+    parser = CaosQLExpressionParser()
     return parser.parse(expr)
 
 
@@ -37,3 +37,8 @@ def parse(expr, module_aliases=None):
             tree.namespaces.extend(nses)
 
     return tree
+
+
+def parse_block(expr):
+    parser = CaosQLBlockParser()
+    return parser.parse(expr)

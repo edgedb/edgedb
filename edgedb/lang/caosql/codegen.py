@@ -249,7 +249,21 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
             if i != count - 1:
                 self.write(', ')
 
+        if count == 1:
+            self.write(',')
+
         self.write(')')
+
+    def visit_MappingNode(self, node):
+        self.write('{')
+        for i, (key, value) in enumerate(node.items):
+            if i > 0:
+                self.write(', ')
+            self.visit(key)
+            self.write(': ')
+            self.visit(value)
+
+        self.write('}')
 
     def visit_PathNode(self, node):
         for i, e in enumerate(node.steps):
@@ -442,22 +456,7 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         self.write('CAST(')
         self.visit(node.expr)
         self.write(' AS ')
-        if isinstance(node.type, tuple):
-            if node.type[0] is list:
-                if '.' in node.type[1]:
-                    self.write('[')
-                self.write(node.type[1])
-                if '.' in node.type[1]:
-                    self.write(']')
-                self.write('[]')
-            else:
-                raise ValueError('unexpected collection type: {!r}'.format(node.type[0]))
-        else:
-            if '.' in node.type:
-                self.write('[')
-            self.write(node.type)
-            if '.' in node.type:
-                self.write(']')
+        self.visit(node.type)
         self.write(')')
 
     def visit_IndirectionNode(self, node):
@@ -482,15 +481,328 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         self.write(']')
 
     def visit_PrototypeRefNode(self, node):
-        self.write('[')
-        self.write(node.module)
-        self.write('.')
+        if node.module or '.' in node.name:
+            self.write('[')
+
+        if node.module:
+            self.write(node.module)
+            self.write('.')
+
         self.write(node.name)
-        self.write(']')
+
+        if node.module or '.' in node.name:
+            self.write(']')
 
     def visit_NoneTestNode(self, node):
         self.visit(node.expr)
         self.write(' IS None')
+
+    def visit_TypeNameNode(self, node):
+        if '.' in node.maintype:
+            self.write('[')
+        self.write(node.maintype)
+        if '.' in node.maintype:
+            self.write(']')
+        if node.subtype is not None:
+            self.write('<')
+            self.visit(node.subtype)
+            self.write('>')
+
+    # DDL nodes
+
+    def visit_ExpressionTextNode(self, node):
+        self.write('(', node.expr, ')')
+
+    def visit_PositionNode(self, node):
+        self.write(node.position)
+        if node.ref:
+            self.write(' ')
+            self.visit(node.ref)
+
+    def _ddl_visit_bases(self, node):
+        if node.bases:
+            self.write(' INHERITING ')
+            if len(node.bases) > 1:
+                self.write('(')
+            for i, base in enumerate(node.bases):
+                if i > 0:
+                    self.write(', ')
+                self.visit(base)
+
+            if len(node.bases) > 1:
+                self.write(')')
+
+    def _visit_CreateObjectNode(self, node, *object_keywords, after_name=None):
+        self._visit_namespaces(node)
+        self.write('CREATE', *object_keywords, delimiter=' ')
+        self.write(' ')
+        self.visit(node.name)
+        if after_name:
+            after_name()
+        if node.commands:
+            self.write(' {')
+            self.new_lines = 1
+            self.indentation += 1
+            for cmd in node.commands:
+                self.visit(cmd)
+                self.new_lines = 1
+            self.indentation -= 1
+            self.write('}')
+        self.new_lines = 1
+
+    def _visit_AlterObjectNode(self, node, *object_keywords, allow_short=True):
+        self._visit_namespaces(node)
+        self.write('ALTER', *object_keywords, delimiter=' ')
+        self.write(' ')
+        self.visit(node.name)
+        if node.commands:
+            if len(node.commands) == 1 and allow_short:
+                self.write(' ')
+                self.visit(node.commands[0])
+            else:
+                self.write(' {')
+                self.new_lines = 1
+                self.indentation += 1
+                for cmd in node.commands:
+                    self.visit(cmd)
+                    self.new_lines = 1
+                self.indentation -= 1
+                self.write('}')
+        self.new_lines = 1
+
+    def _visit_DropObjectNode(self, node, *object_keywords):
+        self._visit_namespaces(node)
+        self.write('DROP', *object_keywords, delimiter=' ')
+        self.write(' ')
+        self.visit(node.name)
+        if node.commands:
+            self.write(' {')
+            self.new_lines = 1
+            self.indentation += 1
+            for cmd in node.commands:
+                self.visit(cmd)
+                self.new_lines = 1
+            self.indentation -= 1
+            self.write('}')
+        self.new_lines = 1
+
+    def visit_RenameNode(self, node):
+        self.write('RENAME TO ')
+        self.visit(node.new_name)
+
+    def visit_SetSpecialFieldNode(self, node):
+        if node.value:
+            self.write('SET ')
+        else:
+            self.write('DROP ')
+
+        if node.name == 'is_abstract':
+            self.write('ABSTRACT')
+        elif node.name == 'is_final':
+            self.write('FINAL')
+        else:
+            raise CaosQLSourceGeneratorError(
+                    'unknown special field: {!r}'.format(node.name))
+
+    def visit_AlterAddInheritNode(self, node):
+        self.write('INHERIT ')
+        self.visit_list(node.bases)
+        if node.position is not None:
+            self.write(' ')
+            self.visit(node.position)
+
+    def visit_AlterDropInheritNode(self, node):
+        self.write('DROP INHERIT ')
+        self.visit_list(node.bases)
+
+    def visit_CreateModuleNode(self, node):
+        self._visit_CreateObjectNode(node, 'MODULE')
+
+    def visit_AlterModuleNode(self, node):
+        self._visit_AlterObjectNode(node, 'MODULE')
+
+    def visit_DropModuleNode(self, node):
+        self._visit_DropObjectNode(node, 'MODULE')
+
+    def visit_CreateActionNode(self, node):
+        after_name = lambda: self._ddl_visit_bases(node)
+        self._visit_CreateObjectNode(node, 'ACTION', after_name=after_name)
+
+    def visit_AlterActionNode(self, node):
+        self._visit_AlterObjectNode(node, 'ACTION')
+
+    def visit_DropActionNode(self, node):
+        self._visit_DropObjectNode(node, 'ACTION')
+
+    def visit_CreateEventNode(self, node):
+        after_name = lambda: self._ddl_visit_bases(node)
+        self._visit_CreateObjectNode(node, 'EVENT', after_name=after_name)
+
+    def visit_CreateAttributeNode(self, node):
+        def after_name():
+            self.write(' ')
+            self.visit(node.type)
+            if node.constraint is not None:
+                self.write(' WHERE ')
+                self.visit(node.constraint)
+
+        self._visit_CreateObjectNode(node, 'ATTRIBUTE', after_name=after_name)
+
+    def visit_DropAttributeNode(self, node):
+        self._visit_DropObjectNode(node, 'ATTRIBUTE')
+
+    def visit_CreateAttributeValueNode(self, node):
+        self.write('SET ')
+        self.visit(node.name)
+        if isinstance(node.value, caosql_ast.ExpressionTextNode) or node.as_expr:
+            self.write(' := ')
+        else:
+            self.write(' = ')
+        self.visit(node.value)
+
+    def visit_AlterAttributeValueNode(self, node):
+        self.write('SET ')
+        self.visit(node.name)
+        self.write(' = ')
+        self.visit(node.value)
+
+    def visit_DropAttributeValueNode(self, node):
+        self.write('DROP ATTRIBUTE ')
+        self.visit(node.name)
+
+    def visit_CreateConstraintNode(self, node):
+        after_name = lambda: self._ddl_visit_bases(node)
+        self._visit_CreateObjectNode(node, 'CONSTRAINT', after_name=after_name)
+
+    def visit_AlterConstraintNode(self, node):
+        self._visit_AlterObjectNode(node, 'CONSTRAINT')
+
+    def visit_DropConstraintNode(self, node):
+        self._visit_DropObjectNode(node, 'CONSTRAINT')
+
+    def visit_CreateConcreteConstraintNode(self, node):
+        keywords = []
+        if node.is_abstract:
+            keywords.append('ABSTRACT')
+        keywords.append('CONSTRAINT')
+        self._visit_CreateObjectNode(node, *keywords)
+
+    def visit_AlterConcreteConstraintNode(self, node):
+        self._visit_AlterObjectNode(node, 'CONSTRAINT', allow_short=False)
+
+    def visit_DropConcreteConstraintNode(self, node):
+        self._visit_DropObjectNode(node, 'CONSTRAINT')
+
+    def visit_CreateAtomNode(self, node):
+        keywords = []
+        if node.is_abstract:
+            keywords.append('ABSTRACT')
+        if node.is_final:
+            keywords.append('FINAL')
+        keywords.append('ATOM')
+
+        after_name = lambda: self._ddl_visit_bases(node)
+        self._visit_CreateObjectNode(node, *keywords, after_name=after_name)
+
+    def visit_AlterAtomNode(self, node):
+        self._visit_AlterObjectNode(node, 'ATOM')
+
+    def visit_DropAtomNode(self, node):
+        self._visit_DropObjectNode(node, 'ATOM')
+
+    def visit_CreateLinkPropertyNode(self, node):
+        self._visit_CreateObjectNode(node, 'LINK PROPERTY')
+
+    def visit_AlterLinkPropertyNode(self, node):
+        self._visit_AlterObjectNode(node, 'LINK PROPERTY')
+
+    def visit_DropLinkPropertyNode(self, node):
+        self._visit_DropObjectNode(node, 'LINK PROPERTY')
+
+    def visit_CreateConcreteLinkPropertyNode(self, node):
+        keywords = []
+
+        if node.is_required:
+            keywords.append('REQUIRED')
+        keywords.append('LINK PROPERTY')
+        def after_name():
+            self.write(' TO ')
+            self.visit(node.target)
+        self._visit_CreateObjectNode(node, *keywords, after_name=after_name)
+
+    def visit_AlterConcreteLinkPropertyNode(self, node):
+        self._visit_AlterObjectNode(node, 'LINK PROPERTY', allow_short=False)
+
+    def visit_DropConcreteLinkPropertyNode(self, node):
+        self._visit_DropObjectNode(node, 'LINK PROPERTY')
+
+    def visit_CreateLinkNode(self, node):
+        after_name = lambda: self._ddl_visit_bases(node)
+        self._visit_CreateObjectNode(node, 'LINK', after_name=after_name)
+
+    def visit_AlterLinkNode(self, node):
+        self._visit_AlterObjectNode(node, 'LINK')
+
+    def visit_DropLinkNode(self, node):
+        self._visit_DropObjectNode(node, 'LINK')
+
+    def visit_CreateConcreteLinkNode(self, node):
+        keywords = []
+
+        if node.is_required:
+            keywords.append('REQUIRED')
+        keywords.append('LINK')
+        def after_name():
+            self.write(' TO ')
+            self.visit_list(node.targets, newlines=False)
+        self._visit_CreateObjectNode(node, *keywords, after_name=after_name)
+
+    def visit_AlterConcreteLinkNode(self, node):
+        self._visit_AlterObjectNode(node, 'LINK', allow_short=False)
+
+    def visit_DropConcreteLinkNode(self, node):
+        self._visit_DropObjectNode(node, 'LINK')
+
+    def visit_AlterTargetNode(self, node):
+        self.write('ALTER TARGET ')
+        self.visit_list(node.targets, newlines=False)
+
+    def visit_CreateConceptNode(self, node):
+        keywords = []
+
+        if node.is_abstract:
+            keywords.append('ABSTRACT')
+        if node.is_final:
+            keywords.append('FINAL')
+        keywords.append('CONCEPT')
+
+        after_name = lambda: self._ddl_visit_bases(node)
+        self._visit_CreateObjectNode(node, *keywords, after_name=after_name)
+
+    def visit_AlterConceptNode(self, node):
+        self._visit_AlterObjectNode(node, 'CONCEPT')
+
+    def visit_DropConceptNode(self, node):
+        self._visit_DropObjectNode(node, 'CONCEPT')
+
+    def visit_CreateIndexNode(self, node):
+        after_name = lambda: self.write('(', node.expr, ')')
+        self._visit_CreateObjectNode(node, 'INDEX', after_name=after_name)
+
+    def visit_DropIndexNode(self, node):
+        self._visit_DropObjectNode(node, 'INDEX')
+
+    def visit_CreateLocalPolicyNode(self, node):
+        self.write('CREATE POLICY FOR ')
+        self.visit(node.event)
+        self.write(' TO ')
+        self.visit_list(node.actions)
+
+    def visit_AlterLocalPolicyNode(self, node):
+        self.write('ALTER POLICY FOR ')
+        self.visit(node.event)
+        self.write(' TO ')
+        self.visit_list(node.actions)
 
 
 generate_source = CaosQLSourceGenerator.to_source

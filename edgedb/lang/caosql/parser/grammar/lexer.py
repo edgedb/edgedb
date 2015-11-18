@@ -16,7 +16,6 @@ from .keywords import caosql_keywords
 __all__ = ('CaosQLLexer',)
 
 
-
 STATE_KEEP = 0
 STATE_BASE = 1
 
@@ -35,11 +34,12 @@ clean_string = re.compile(r"'(?:\s|\n)+'")
 
 Rule = lexer.Rule
 
+
 class CaosQLLexer(lexer.Lexer):
 
     start_state = STATE_BASE
 
-    NL = frozenset('NL')
+    NL = 'NL'
     MULTILINE_TOKENS = frozenset(('COMMENT', 'SCONST'))
     RE_FLAGS = re.X | re.M | re.I
 
@@ -192,3 +192,32 @@ class CaosQLLexer(lexer.Lexer):
             tok.value = clean_string.sub('', txt[1:-1].replace("''", "'"))
 
         return tok
+
+    def lex(self):
+        buffer = []
+
+        for tok in super().lex():
+            tok_type = tok.attrs['type']
+
+            if tok_type in {'WS', 'NL', 'COMMENT'}:
+                # Strip out whitespace and comments
+                pass
+            elif tok_type == 'LINK':
+                # Buffer in case this is LINK PROPERTY
+                if not buffer:
+                    buffer.append(tok)
+                else:
+                    yield tok
+            elif tok_type == 'PROPERTY':
+                prev_token = buffer[-1] if buffer else None
+                if prev_token and prev_token.attrs['type'] == 'LINK':
+                    tok = tok.__class__(prev_token.value + ' ' + tok.value)
+                    tok.attrs = prev_token.attrs.copy()
+                    tok.attrs['type'] = 'LINKPROPERTY'
+                    buffer.pop()
+                yield tok
+            else:
+                if buffer:
+                    yield from iter(buffer)
+                    buffer[:] = []
+                yield tok

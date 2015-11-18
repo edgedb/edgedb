@@ -420,11 +420,14 @@ class IRDecompiler(ir.transformer.TreeTransformer):
                 if expr.type[0] is not list:
                     raise ValueError('unexpected collection type: {!r}'.format(expr.type[0]))
 
-                typ = (expr.type[0], expr.type[1].name)
+                typ = qlast.TypeNameNode(
+                    maintype='list',
+                    subtype=qlast.TypeNameNode(maintype=expr.type[1].name))
             else:
-                typ = expr.type.name
+                typ = qlast.TypeNameNode(maintype=expr.type.name)
 
-            result = qlast.TypeCastNode(expr=self._process_expr(context, expr.expr), type=typ)
+            result = qlast.TypeCastNode(
+                        expr=self._process_expr(context, expr.expr), type=typ)
 
         elif isinstance(expr, irast.NoneTest):
             arg = self._process_expr(context, expr.expr)

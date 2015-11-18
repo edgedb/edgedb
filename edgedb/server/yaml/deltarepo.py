@@ -51,15 +51,11 @@ class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
         self.deltas = self._find_deltas_package(module)
         self.modhash = id
 
-    def load_delta(self, id, compat_mode=False):
+    def read_delta(self, id, compat_mode=False):
         modname = self.get_delta_module_path(id)
         import_context = DeltaImportContext(modname, compat_mode=compat_mode)
         mod = importlib.import_module(import_context)
         return next(iter(mod.deltas))
-
-    def load_delta_from_data(self, data):
-        delta = self.load_from_string(data)
-        return delta
 
     def write_delta_set(self, delta_set):
         path = self.get_delta_file_path(next(iter(delta_set.deltas)).id)

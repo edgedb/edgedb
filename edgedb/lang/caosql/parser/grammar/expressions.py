@@ -480,7 +480,7 @@ class OptIndirection(Nonterm):
 
 
 class Expr(Nonterm):
-    # Path | Constant | '(' Expr ')' | FuncExpr | Sequence
+    # Path | Constant | '(' Expr ')' | FuncExpr | Sequence | Mapping
     # | '+' Expr | '-' Expr | Expr '+' Expr | Expr '-' Expr
     # | Expr '*' Expr | Expr '/' Expr | Expr '%' Expr
     # | Expr '^' Expr | Expr '<' Expr | Expr '>' Expr
@@ -520,8 +520,11 @@ class Expr(Nonterm):
     def reduce_EXISTS_LPAREN_Expr_RPAREN(self, *kids):
         self.val = qlast.ExistsPredicateNode(expr=kids[2].val)
 
-    def reduce_LPAREN_Sequence_RPAREN(self, *kids):
-        self.val = kids[1].val
+    def reduce_Sequence(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_Mapping(self, *kids):
+        self.val = kids[0].val
 
     @parsing.precedence(P_UMINUS)
     def reduce_PLUS_Expr(self, *kids):
@@ -593,9 +596,9 @@ class Expr(Nonterm):
     def reduce_OP_Expr(self, *kids):
         self.val = qlast.UnaryOpNode(op=kids[0].val, operand=kids[1].val)
 
-    @parsing.precedence(P_POSTFIXOP)
-    def reduce_Expr_OP(self, *kids):
-        self.val = qlast.PostfixOpNode(op=kids[1].val, operand=kids[0].val)
+    # @parsing.precedence(P_POSTFIXOP)
+    # def reduce_Expr_OP(self, *kids):
+    #     self.val = qlast.PostfixOpNode(op=kids[1].val, operand=kids[0].val)
 
     def reduce_Expr_AND_Expr(self, *kids):
         self.val = qlast.BinOpNode(left=kids[0].val, op=ast.ops.AND,
@@ -653,8 +656,34 @@ class Expr(Nonterm):
 
 
 class Sequence(Nonterm):
-    def reduce_Expr_COMMA_ExprList(self, *kids):
-        self.val = qlast.SequenceNode(elements=[kids[0].val] + kids[2].val)
+    def reduce_LPAREN_Expr_COMMA_OptExprList_RPAREN(self, *kids):
+        self.val = qlast.SequenceNode(elements=[kids[1].val] + kids[3].val)
+
+
+class Mapping(Nonterm):
+    def reduce_LBRACE_MappingElementsList_RBRACE(self, *kids):
+        self.val = qlast.MappingNode(items=kids[1].val)
+
+
+class MappingElementsList(Nonterm):
+    def reduce_MappingElement(self, *kids):
+        self.val = [kids[0].val]
+
+    def reduce_MappingElementsList_COMMA_MappingElement(self, *kids):
+        self.val = kids[0].val + [kids[2].val]
+
+
+class MappingElement(Nonterm):
+    def reduce_BaseStringConstant_COLON_Expr(self, *kids):
+        self.val = (kids[0].val, kids[2].val)
+
+
+class OptExprList(Nonterm):
+    def reduce_ExprList(self, *kids):
+        self.val = kids[0].val
+
+    def reduce_empty(self, *kids):
+        self.val = []
 
 
 class ExprList(Nonterm):
@@ -1006,6 +1035,14 @@ class NodeName(Nonterm):
                                           name=kids[1].val[-1])
 
 
+class NodeNameList(Nonterm):
+    def reduce_NodeName(self, *kids):
+        self.val = [kids[0].val]
+
+    def reduce_NodeNameList_COMMA_NodeName(self, *kids):
+        self.val = kids[0].val + [kids[2].val]
+
+
 class FqName(Nonterm):
     def reduce_LabelExpr(self, *kids):
         self.val = [kids[0].val]
@@ -1056,10 +1093,11 @@ class AnyLabelExpr(Nonterm):
 
 class TypeName(Nonterm):
     def reduce_ArgName(self, *kids):
-        self.val = kids[0].val
+        self.val = qlast.TypeNameNode(maintype=kids[0].val)
 
-    def reduce_ArgName_LBRACKET_RBRACKET(self, *kids):
-        self.val = (list, kids[0].val)
+    def reduce_ArgName_LANGBRACKET_TypeName_RANGBRACKET(self, *kids):
+        self.val = qlast.TypeNameNode(maintype=kids[0].val,
+                                      subtype=kids[2].val)
 
 
 class ArgName(Nonterm):

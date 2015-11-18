@@ -14,11 +14,7 @@ from metamagic.caos.caosql.parser.errors import CaosQLSyntaxError
 from .grammar import lexer
 
 
-class CaosQLParser(parsing.Parser):
-    def get_parser_spec_module(self):
-        from .grammar import single
-        return single
-
+class CaosQLParserBase(parsing.Parser):
     def get_debug(self):
         return 'caos.caosql.parser' in debug.channels
 
@@ -28,9 +24,14 @@ class CaosQLParser(parsing.Parser):
     def get_lexer(self):
         return lexer.CaosQLLexer()
 
-    def process_lex_token(self, mod, tok):
-        tok_type = tok.attrs['type']
-        if tok_type in ('WS', 'NL', 'COMMENT'):
-            return None
 
-        return super().process_lex_token(mod, tok)
+class CaosQLExpressionParser(CaosQLParserBase):
+    def get_parser_spec_module(self):
+        from .grammar import single
+        return single
+
+
+class CaosQLBlockParser(CaosQLParserBase):
+    def get_parser_spec_module(self):
+        from .grammar import block
+        return block

@@ -6,14 +6,32 @@
 ##
 
 
-from metamagic.caos import proto, delta
+from metamagic.caos import caosql, proto, delta
 from metamagic.utils.debug import debug
 
 
 class MetaDeltaRepository:
 
-    def load_delta(self, id, compat_mode=False):
+    def read_delta(self, id, compat_mode=False):
         raise NotImplementedError
+
+    def load_delta(self, id, compat_mode=False):
+        d = self.read_delta(id, compat_mode=compat_mode)
+        if d.script:
+            delta_script = caosql.parse_block(d.script)
+
+            alter_realm = delta.AlterRealm()
+            context = delta.CommandContext()
+
+            with context(delta.RealmCommandContext(alter_realm)):
+                for ddl in delta_script:
+                    ddl = caosql.deoptimize(ddl)
+                    cmd = delta.Command.from_ast(ddl, context=context)
+                    alter_realm.add(cmd)
+
+            d.deltas = [alter_realm]
+
+        return d
 
     def delta_ref_to_id(self, ref):
         raise NotImplementedError
@@ -148,9 +166,6 @@ class MetaDeltaRepository:
             d = delta.AlterRealm()
 
         if d is not None:
-            d.preprocess = preprocess
-            d.postprocess = postprocess
-
             parent_id = v1.id if v1 else None
 
             checksum = v2_schema.get_checksum()
@@ -163,6 +178,8 @@ class MetaDeltaRepository:
             return delta.Delta(parent_id=parent_id, checksum=checksum,
                                checksum_details=checksum_details,
                                comment=comment, deltas=[d],
+                               preprocess=preprocess,
+                               postprocess=postprocess,
                                formatver=delta.Delta.CURRENT_FORMAT_VERSION)
         else:
             return None

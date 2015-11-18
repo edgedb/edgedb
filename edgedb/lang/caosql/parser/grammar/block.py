@@ -6,20 +6,28 @@
 ##
 
 
+from metamagic.utils.parsing import ListNonterm
+
 from .precedence import *
 from .tokens import *
 from .statements import *
 from .ddl import *
 
 
-class SingleStatementOrExpression(Nonterm):
-    "%start"
-
+class SingleStatement(Nonterm):
     def reduce_Stmt(self, expr):
         self.val = expr.val
 
     def reduce_DDLStmt(self, expr):
         self.val = expr.val
 
-    def reduce_Expr(self, expr):
-        self.val = expr.val
+
+class StatementList(ListNonterm, element=SingleStatement):
+    pass
+
+
+class StatementBlock(Nonterm):
+    "%start"
+
+    def reduce_StatementList(self, exprs):
+        self.val = exprs.val

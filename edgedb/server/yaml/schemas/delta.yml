@@ -39,9 +39,14 @@ mapping:
             "formatver":
                 type: int
 
+            "preprocess":
+                type: str
+
+            "postprocess":
+                type: str
+
             "deltas":
                 type: seq
-                required: yes
                 sequence:
                     - &DELTA
                       type: class
@@ -66,3 +71,6 @@ mapping:
 
             "snapshot":
                 *DELTA
+
+            "script":
+                type: str

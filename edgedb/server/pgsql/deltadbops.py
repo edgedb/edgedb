@@ -428,10 +428,9 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
 
         self._constraint = constraint
 
-    def create_constr_trigger(self, table_name, proc_name):
+    def create_constr_trigger(self, table_name, constraint, proc_name):
         cmds = []
 
-        constraint = self._constraint
         cname = constraint.raw_constraint_name()
 
         ins_trigger_name = common.caos_name_to_pg_name(cname + '_instrigger')
@@ -480,7 +479,6 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
                             ins_trigger,
                             new_name=new_ins_trg_name)
 
-
         upd_trigger_name = common.caos_name_to_pg_name(cname + '_updtrigger')
         new_upd_trg_name = common.caos_name_to_pg_name(ncname + '_updtrigger')
 
@@ -495,9 +493,7 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
 
         return (rn_ins_trigger, rn_upd_trigger)
 
-    def drop_constr_trigger(self, table_name):
-        constraint = self._constraint
-
+    def drop_constr_trigger(self, table_name, constraint):
         cname = constraint.raw_constraint_name()
 
         ins_trigger_name = common.caos_name_to_pg_name(cname + '_instrigger')
@@ -525,7 +521,7 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
         # Add the constraint normally to our table
         #
         my_alter = dbops.AlterTable(self.name)
-        add_constr = AlterTableAddMultiConstraint(constraint=self._constraint)
+        add_constr = AlterTableAddMultiConstraint(constraint=constraint)
         my_alter.add_command(add_constr)
 
         self.add_command(my_alter)
@@ -547,7 +543,8 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
             # Trigger inheritance will propagate and maintain
             # the trigger on current and future descendants.
             #
-            cr_trigger = self.create_constr_trigger(self.name, proc_name)
+            cr_trigger = self.create_constr_trigger(self.name, constraint,
+                                                    proc_name)
             self.add_commands(cr_trigger)
 
     def rename_constraint(self, old_constraint, new_constraint):
@@ -584,13 +581,18 @@ class AlterTableInheritableConstraintBase(dbops.AlterTableBaseMixin,
             # No longer abstract, create db structures
             self.create_constraint(new_constraint)
 
-        if not old_constraint.is_abstract and new_constraint.is_abstract:
+        elif not old_constraint.is_abstract and new_constraint.is_abstract:
             # Now abstract, drop db structures
             self.drop_constraint(new_constraint)
 
+        else:
+            # Some other modification, drop/create
+            self.drop_constraint(new_constraint)
+            self.create_constraint(new_constraint)
+
     def drop_constraint(self, constraint):
         if not constraint.is_natively_inherited():
-            self.add_commands(self.drop_constr_trigger(self.name))
+            self.add_commands(self.drop_constr_trigger(self.name, constraint))
 
             # Drop trigger function
             #
