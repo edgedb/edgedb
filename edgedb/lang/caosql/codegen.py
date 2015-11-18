@@ -21,6 +21,18 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
     def generic_visit(self, node):
         raise CaosQLSourceGeneratorError('No method to generate code for %s' % node.__class__.__name__)
 
+    def _visit_namespaces(self, node):
+        if node.namespaces:
+            self.write('USING')
+            self.indentation += 1
+            self.new_lines = 1
+            for i, ns in enumerate(node.namespaces):
+                if i > 0:
+                    self.write(', ')
+                self.visit(ns)
+            self.new_lines = 1
+            self.indentation -= 1
+
     def _visit_cges(self, cges):
         if cges:
             self.new_lines = 1
@@ -46,17 +58,7 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
     def visit_UpdateQueryNode(self, node):
-        if node.namespaces:
-            self.write('USING')
-            self.indentation += 1
-            self.new_lines = 1
-            for i, ns in enumerate(node.namespaces):
-                if i > 0:
-                    self.write(', ')
-                self.visit(ns)
-            self.new_lines = 1
-            self.indentation -= 1
-
+        self._visit_namespaces(node)
         self._visit_cges(node.cges)
 
         self.write('UPDATE')
@@ -103,13 +105,7 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.value)
 
     def visit_DeleteQueryNode(self, node):
-        if node.namespaces:
-            self.write('USING ')
-            for i, ns in enumerate(node.namespaces):
-                if i > 0:
-                    self.write(', ')
-                self.visit(ns)
-            self.write(' ')
+        self._visit_namespaces(node)
         self._visit_cges(node.cges)
         self.write('DELETE ')
         self.visit(node.subject)
@@ -129,17 +125,7 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         self.write(')')
 
     def visit_SelectQueryNode(self, node):
-        if node.namespaces:
-            self.write('USING')
-            self.new_lines = 1
-            self.indentation += 1
-            for i, ns in enumerate(node.namespaces):
-                if i > 0:
-                    self.write(',')
-                    self.new_lines = 1
-                self.visit(ns)
-            self.new_lines = 1
-            self.indentation -= 1
+        self._visit_namespaces(node)
 
         if node.op:
             # Upper level set operation node (UNION/INTERSECT)
