@@ -986,8 +986,7 @@ class EventTable(MetaObjectTable):
         self.bases = [('caos', 'metaobject')]
 
         self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='base', type='text[]'),
-            dbops.Column(name='allowed_actions', type='integer[]')
+            dbops.Column(name='base', type='text[]')
         ])
 
         self.constraints = set([

@@ -45,18 +45,7 @@ source: |
             e.name         AS name,
             e.base         AS base,
             e.title        AS title,
-            e.description  AS description,
-            (SELECT
-                    array_agg(a.name)
-                FROM
-                    (SELECT
-                        unnest(ev.allowed_actions) AS a_id
-                     FROM
-                        caos.event ev
-                     WHERE
-                        ev.id = e.id) ev_a
-                    INNER JOIN caos.action a ON ev_a.a_id = a.id
-            )               AS allowed_actions
+            e.description  AS description
         FROM
             caos.event e
         WHERE

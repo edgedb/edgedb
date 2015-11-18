@@ -637,7 +637,6 @@ class Event(LangObject, adapts=proto.Event):
 
         proto.Event.__init__(self, name=default_name, title=data['title'],
                                    description=data['description'],
-                                   allowed_actions=data['allowed-actions'] or [],
                                    _setdefaults_=False, _relaxrequired_=True)
         self._bases = extends
         self._yml_workattrs = {'_bases'}
@@ -654,9 +653,6 @@ class Event(LangObject, adapts=proto.Event):
 
         if data.description:
             result['description'] = data.description
-
-        result['allowed-actions'] = \
-            list(sorted(a.name for a in data.allowed_actions))
 
         return result
 
@@ -1226,15 +1222,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
     def read_events(self, data, localschema):
         for event_name, event in data['events'].items():
             event.name = caos.Name(name=event_name, module=self.module.name)
-
-            actions = proto.ActionSet()
-            for action in event.allowed_actions:
-                action = localschema.get(action._name, type=proto.Action,
-                                         index_only=False)
-                actions.add(action)
-
-            event.allowed_actions = actions
-
             self._add_proto(localschema, event)
 
         for event in self.module('event'):

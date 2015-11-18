@@ -250,15 +250,6 @@ mapping:
                     "abstract":
                         type: bool
 
-                    "allowed-actions":
-                        type: choice
-                        required: no
-                        object: metamagic.caos.backends.yaml.ActionSet
-                        choice:
-                            - type: str
-                            - type: seq
-                              sequence:
-                                - type: str
 
     "links":
         type: map

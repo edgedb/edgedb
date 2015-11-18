@@ -40,7 +40,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 27
+BACKEND_FORMAT_VERSION = 28
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -1332,20 +1332,6 @@ class DeleteAction(DeleteNamedPrototype,
 
 class EventCommand(metaclass=CommandMeta):
     table = deltadbops.EventTable()
-
-    def fill_record(self, schema, rec=None, obj=None):
-        rec, updates = super().fill_record(schema, rec=rec, obj=obj)
-
-        if rec:
-            actions = updates.get('allowed_actions')
-            if actions:
-                rec.allowed_actions = dbops.Query(
-                    '''(SELECT array_agg(id)
-                        FROM caos.metaobject
-                        WHERE name = any($1::text[]))''',
-                    [actions[1]], type='integer[]')
-
-        return rec, updates
 
 
 class CreateEvent(EventCommand,
@@ -3937,6 +3923,19 @@ class UpgradeBackend(MetaCommand):
                 condition = [('name', str(a['name']))]
                 cg.add_command(dbops.Update(table=AT, record=rec,
                                condition=condition))
+
+        cg.execute(context)
+
+    def update_to_version_28(self, context):
+        r"""\
+        Backend format 28 drops event.allowed_actions
+        """
+
+        cg = dbops.CommandGroup()
+        alter = dbops.AlterTable(('caos', 'event'))
+        col = dbops.Column(name='allowed_actions', type='int[]')
+        alter.add_command(dbops.AlterTableDropColumn(col))
+        cg.add_command(alter)
 
         cg.execute(context)
 

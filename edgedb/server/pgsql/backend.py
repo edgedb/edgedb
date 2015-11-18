@@ -2114,11 +2114,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             name = caos.name.Name(r['name'])
             title = self.hstore_to_word_combination(r['title'])
             description = r['description']
-            if r['allowed_actions'] is None:
-                allowed_actions = None
-            else:
-                allowed_actions = [schema.get(a, type=proto.Action)
-                                   for a in r['allowed_actions']]
 
             if r['base']:
                 bases = tuple(caos.Name(b) for b in r['base'])
@@ -2129,8 +2124,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             basemap[name] = bases
 
-            event = proto.Event(name=name, title=title, description=description,
-                                allowed_actions=allowed_actions)
+            event = proto.Event(name=name, title=title, description=description)
             schema.add(event)
 
         for event in schema(type='event'):
