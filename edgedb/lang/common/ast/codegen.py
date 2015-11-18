@@ -7,7 +7,10 @@
 ##
 
 
+import itertools
+
 from .visitor import NodeVisitor
+
 
 class SourceGenerator(NodeVisitor):
     """This visitor is able to transform a well formed syntax tree into python
@@ -25,7 +28,7 @@ class SourceGenerator(NodeVisitor):
         self.current_line = 1
         self.pretty = pretty
 
-    def write(self, x):
+    def write(self, *x, delimiter=None):
         if self.new_lines:
             if self.result and self.pretty:
                 self.current_line += self.new_lines
@@ -35,7 +38,17 @@ class SourceGenerator(NodeVisitor):
             else:
                 self.result.append(' ')
             self.new_lines = 0
-        self.result.append(x)
+        if delimiter:
+            self.result.append(x[0])
+            chain = itertools.chain.from_iterable
+            chunks = chain((delimiter, v) for v in x[1:])
+        else:
+            chunks = x
+
+        for chunk in chunks:
+            if chunk is None:
+                raise ValueError('invalid text chunk in codegen')
+            self.result.append(chunk)
 
     def newline(self, node=None, extra=0):
         self.new_lines = max(self.new_lines, 1 + extra)
