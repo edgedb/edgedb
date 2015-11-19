@@ -44,22 +44,23 @@ class SelectWithParens(Nonterm):
 
 
 class SelectNoParens(Nonterm):
-    def reduce_NsDecl_SelectClause_OptSortClause_OptSelectLimit(self, *kids):
+    def reduce_AliasBlock_SelectClause_OptSortClause_OptSelectLimit(
+                                                                self, *kids):
         qry = kids[1].val
         qry.orderby = kids[2].val
         qry.offset = kids[3].val[0]
         qry.limit = kids[3].val[1]
-        qry.namespaces = kids[0].val
+        (qry.namespaces, qry.aliases) = kids[0].val
 
         self.val = qry
 
-    def reduce_NsDecl_WithClause_SelectClause_OptSortClause_OptSelectLimit(
+    def reduce_AliasBlock_WithClause_SelectClause_OptSortClause_OptSelectLimit(
                                                                 self, *kids):
         qry = kids[2].val
         qry.orderby = kids[3].val
         qry.offset = kids[4].val[0]
         qry.limit = kids[4].val[1]
-        qry.namespaces = kids[0].val
+        (qry.namespaces, qry.aliases) = kids[0].val
         qry.cges = kids[1].val
 
         self.val = qry
@@ -103,7 +104,7 @@ class CgeList(Nonterm):
 
 
 class Cge(Nonterm):
-    def reduce_AnchorName_AS_LPAREN_SelectExpr_RPAREN(self, *kids):
+    def reduce_AliasName_AS_LPAREN_SelectExpr_RPAREN(self, *kids):
         self.val = qlast.CGENode(expr=kids[3].val, alias=kids[0].val)
 
 
@@ -148,35 +149,50 @@ class SimpleSelect(Nonterm):
         )
 
 
-class OptNsDecl(Nonterm):
-    def reduce_NsDecl(self, *kids):
+class OptAliasBlock(Nonterm):
+    def reduce_AliasBlock(self, *kids):
         self.val = kids[0].val
 
     def reduce_empty(self, *kids):
-        self.val = None
+        self.val = ([], [])
 
 
-class NsDecl(Nonterm):
-    def reduce_USING_NsDeclElList(self, *kids):
-        self.val = kids[1].val
+class AliasBlock(Nonterm):
+    def reduce_USING_AliasDeclList(self, *kids):
+        nsaliases = []
+        expraliases = []
+
+        for alias in kids[1].val:
+            if isinstance(alias, qlast.NamespaceAliasDeclNode):
+                nsaliases.append(alias)
+            else:
+                expraliases.append(alias)
+
+        self.val = (nsaliases, expraliases)
 
 
-class NsDeclElList(Nonterm):
-    def reduce_NsDeclEl(self, *kids):
+class AliasDeclList(Nonterm):
+    def reduce_AliasDecl(self, *kids):
         self.val = [kids[0].val]
 
-    def reduce_NsDeclElList_COMMA_NsDeclEl(self, *kids):
+    def reduce_AliasDeclList_COMMA_AliasDecl(self, *kids):
         self.val = kids[0].val + [kids[2].val]
 
 
-class NsDeclEl(Nonterm):
-    def reduce_FqName(self, *kids):
-        self.val = qlast.NamespaceDeclarationNode(
-                        namespace='.'.join(kids[0].val))
+class AliasDecl(Nonterm):
+    def reduce_NAMESPACE_FqName(self, *kids):
+        self.val = qlast.NamespaceAliasDeclNode(
+                        namespace='.'.join(kids[1].val))
 
-    def reduce_FqName_AS_NsAliasName(self, *kids):
-        self.val = qlast.NamespaceDeclarationNode(
-                        namespace='.'.join(kids[0].val), alias=kids[2].val)
+    def reduce_AliasName_COLONEQUALS_NAMESPACE_FqName(self, *kids):
+        self.val = qlast.NamespaceAliasDeclNode(
+                        alias=kids[0].val,
+                        namespace='.'.join(kids[3].val))
+
+    def reduce_AliasName_COLONEQUALS_Expr(self, *kids):
+        self.val = qlast.ExpressionAliasDeclNode(
+                        alias=kids[0].val,
+                        expr=kids[2].val)
 
 
 class OptDistinct(Nonterm):
@@ -759,11 +775,6 @@ class PathSteps(Nonterm):
 
 
 class PathStart(Nonterm):
-    def reduce_NodeName_Anchor(self, *kids):
-        step = qlast.PathStepNode(expr=kids[0].val.name,
-                                  namespace=kids[0].val.module)
-        self.val = qlast.PathNode(steps=[step], var=kids[1].val)
-
     @parsing.precedence(P_PATHSTART)
     def reduce_NodeName(self, *kids):
         self.val = qlast.PathStepNode(expr=kids[0].val.name,
@@ -787,22 +798,8 @@ class PathStepList(Nonterm):
 
 
 class PathStep(Nonterm):
-    def reduce_PathStepSimple_Anchor(self, *kids):
-        path = kids[0].val
-
-        if not isinstance(path, qlast.PathNode):
-            path = qlast.PathNode(steps=[path])
-        path.var = kids[1].val
-
-        self.val = path
-
     def reduce_PathStepSimple(self, *kids):
         self.val = kids[0].val
-
-
-class Anchor(Nonterm):
-    def reduce_LBRACE_AnchorName_RBRACE(self, *kids):
-        self.val = qlast.VarNode(name=kids[1].val)
 
 
 class PathStepSimple(Nonterm):
@@ -967,11 +964,6 @@ class AnyFqLinkPropName(Nonterm):
                                   type='property')
 
 
-class AnchorName(Nonterm):
-    def reduce_LabelExpr(self, *kids):
-        self.val = kids[0].val
-
-
 class FqNodeName(Nonterm):
     def reduce_FqName(self, *kids):
         self.val = qlast.PrototypeRefNode(module='.'.join(kids[0].val[:-1]),
@@ -1023,7 +1015,7 @@ class FqFuncName(Nonterm):
         self.val = (kids[0].val, kids[2].val)
 
 
-class NsAliasName(Nonterm):
+class AliasName(Nonterm):
     def reduce_IDENT(self, *kids):
         self.val = kids[0].val
 

@@ -28,7 +28,7 @@ def parse(expr, module_aliases=None):
     if module_aliases:
         nses = []
         for alias, module in module_aliases.items():
-            decl = qlast.NamespaceDeclarationNode(namespace=module, alias=alias)
+            decl = qlast.NamespaceAliasDeclNode(namespace=module, alias=alias)
             nses.append(decl)
 
         if tree.namespaces is None:

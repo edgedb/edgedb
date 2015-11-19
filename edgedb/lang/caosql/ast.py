@@ -42,7 +42,7 @@ class UnaryOpNode(ast.AST): __fields = ['op', 'operand']
 
 class PostfixOpNode(ast.AST): __fields = ['op', 'operand']
 
-class PathNode(ast.AST): __fields = [('steps', list), 'quantifier', 'var', 'lvar', 'pathspec']
+class PathNode(ast.AST): __fields = [('steps', list), 'quantifier', 'pathspec']
 
 class PathDisjunctionNode(ast.AST): __fields = ['left', 'right']
 
@@ -57,22 +57,22 @@ class LinkExprNode(ast.AST): __fields = ['expr']
 class LinkPropExprNode(ast.AST): __fields = ['expr']
 
 class StatementNode(ast.AST):
-    pass
+    __fields = [('namespaces', list), ('aliases', list)]
 
 class SelectQueryNode(StatementNode):
-    __fields = ['namespaces', 'distinct', ('targets', list), 'where',
+    __fields = ['distinct', ('targets', list), 'where',
                 ('groupby', list), ('orderby', list), 'offset', 'limit',
                 '_hash', ('cges', list), 'op', 'op_larg', 'op_rarg']
 
 class UpdateQueryNode(StatementNode):
-    __fields = ['namespaces', 'subject', 'where', ('values', list),
+    __fields = ['subject', 'where', ('values', list),
                 ('targets', list), ('cges', list)]
 
 class UpdateExprNode(ast.AST):
     __fields = ['expr', 'value']
 
 class DeleteQueryNode(StatementNode):
-    __fields = ['namespaces', 'subject', 'where',
+    __fields = ['subject', 'where',
                 ('targets', list), ('cges', list)]
 
 class SubqueryNode(ast.AST):
@@ -81,7 +81,11 @@ class SubqueryNode(ast.AST):
 class CGENode(ast.AST):
     __fields = ['expr', 'alias']
 
-class NamespaceDeclarationNode(ast.AST): __fields = ['namespace', 'alias']
+class NamespaceAliasDeclNode(ast.AST):
+    __fields = ['namespace', 'alias']
+
+class ExpressionAliasDeclNode(ast.AST):
+    __fields = ['expr', 'alias']
 
 class SortExprNode(ast.AST): __fields = ['path', 'direction', 'nones_order']
 

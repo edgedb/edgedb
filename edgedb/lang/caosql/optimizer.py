@@ -92,8 +92,8 @@ class CaosQLOptimizer:
 
         nses = []
         for alias, fq_name in context.current.namespaces.items():
-            decl = qlast.NamespaceDeclarationNode(namespace=fq_name,
-                                                  alias=alias)
+            decl = qlast.NamespaceAliasDeclNode(namespace=fq_name,
+                                                alias=alias)
             nses.append(decl)
 
         if caosql_tree.namespaces is not None:
@@ -105,10 +105,16 @@ class CaosQLOptimizer:
 
     def _process_expr(self, context, expr):
         if isinstance(expr, qlast.SelectQueryNode):
+            pathvars = {}
+
             if expr.namespaces:
                 for ns in expr.namespaces:
-                    context.current.namespaces[ns.alias] = ns.namespace
-                    context.current.aliascnt[ns.alias] = 1
+                    if isinstance(ns.namespace, str):
+                        context.current.namespaces[ns.alias] = ns.namespace
+                        context.current.aliascnt[ns.alias] = 1
+                    else:
+                        self._process_expr(context, ns.namespace)
+                        pathvars[ns.alias] = ns.namespace
 
             if expr.where:
                 self._process_expr(context, expr.where)

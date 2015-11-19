@@ -38,10 +38,11 @@ class SelectStmt(Nonterm):
 
 class UpdateStmt(Nonterm):
     def reduce_UpdateStmt(self, *kids):
-        r"%reduce OptNsDecl UPDATE Path SET SetClauseList \
+        r"%reduce OptAliasBlock UPDATE Path SET SetClauseList \
                   OptWhereClause OptReturningClause"
         self.val = qlast.UpdateQueryNode(
-            namespaces = kids[0].val,
+            namespaces = kids[0].val[0],
+            aliases = kids[0].val[1],
             subject = kids[2].val,
             values = kids[4].val,
             where = kids[5].val,
@@ -73,9 +74,10 @@ class SetTarget(Nonterm):
 
 class DeleteStmt(Nonterm):
     def reduce_DeleteStmt(self, *kids):
-        "%reduce OptNsDecl DELETE Path OptWhereClause OptReturningClause"
+        "%reduce OptAliasBlock DELETE Path OptWhereClause OptReturningClause"
         self.val = qlast.DeleteQueryNode(
-            namespaces = kids[0].val,
+            namespaces = kids[0].val[0],
+            aliases = kids[0].val[1],
             subject = kids[2].val,
             where = kids[3].val,
             targets = kids[4].val

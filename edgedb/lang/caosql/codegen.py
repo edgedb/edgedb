@@ -1,10 +1,12 @@
 ##
-# Copyright (c) 2008-2010 MagicStack Inc.
+# Copyright (c) 2008-2015 MagicStack Inc.
 # All rights reserved.
 #
 # See LICENSE for details.
 ##
 
+
+import itertools
 
 from metamagic.exceptions import MetamagicError
 from metamagic.utils.ast import codegen, AST
@@ -22,14 +24,11 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         raise CaosQLSourceGeneratorError('No method to generate code for %s' % node.__class__.__name__)
 
     def _visit_namespaces(self, node):
-        if node.namespaces:
+        if node.namespaces or node.aliases:
             self.write('USING')
             self.indentation += 1
             self.new_lines = 1
-            for i, ns in enumerate(node.namespaces):
-                if i > 0:
-                    self.write(', ')
-                self.visit(ns)
+            self.visit_list(itertools.chain(node.namespaces, node.aliases))
             self.new_lines = 1
             self.indentation -= 1
 
@@ -196,11 +195,17 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
             self.indentation -= 1
             self.new_lines = 1
 
-    def visit_NamespaceDeclarationNode(self, node):
-        self.write(node.namespace)
+    def visit_NamespaceAliasDeclNode(self, node):
         if node.alias:
-            self.write(' AS ')
             self.write(node.alias)
+            self.write(' := ')
+        self.write('NAMESPACE ')
+        self.write(node.namespace)
+
+    def visit_ExpressionAliasDeclNode(self, node):
+        self.write(node.alias)
+        self.write(' := ')
+        self.visit(node.expr)
 
     def visit_SelectExprNode(self, node):
         self.visit(node.expr)
@@ -252,11 +257,6 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
                 if not isinstance(e, caosql_ast.LinkPropExprNode):
                     self.write('.')
             self.visit(e)
-
-        if node.var:
-            self.write('{')
-            self.write(node.var.name)
-            self.write('}')
 
         if node.pathspec:
             self._visit_pathspec(node.pathspec)

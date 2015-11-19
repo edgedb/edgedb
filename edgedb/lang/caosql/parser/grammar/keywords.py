@@ -32,6 +32,7 @@ caosql_keywords = {
     "like": ("LIKE", TYPE_FUNC_NAME_KEYWORD),
     "limit": ("LIMIT", RESERVED_KEYWORD),
     "mod": ("MOD", RESERVED_KEYWORD),
+    "namespace": ("NAMESPACE", RESERVED_KEYWORD),
     "none": ("NONE", RESERVED_KEYWORD),
     "nones": ("NONES", RESERVED_KEYWORD),
     "not": ("NOT", RESERVED_KEYWORD),

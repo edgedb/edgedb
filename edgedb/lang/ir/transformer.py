@@ -2240,24 +2240,25 @@ class TreeTransformer:
         """
         pathdict = {}
         for ref in expr.paths:
-            # Check that refs in the operand are all atomic: non-atoms do not coerce
-            # to literals.
+            # Check that refs in the operand are all atomic: non-atoms do not
+            # coerce to literals.
             #
             if not isinstance(ref, typ):
                 return None
 
             if isinstance(ref, irast.AtomicRef):
-                ref_id = ref.ref.id
+                ref_id = ref.ref.get_id()
             else:
-                if not ref.id:
-                    if ref.ref.target or ref.ref.source:
-                        ref_id = ref.ref.target.id if ref.ref.target else ref.ref.source.id
+                if not ref.get_id():
+                    if ref.ref.target:
+                        ref_id = ref.ref.target.get_id()
+                    elif ref.ref.source:
+                        ref_id = ref.ref.source.get_id()
                     else:
                         ref_id = LinearPath([ref.ref.link_proto])
                 else:
-                    ref_id = ref.id
+                    ref_id = ref.get_id()
 
-            #assert not pathdict.get(ref_id)
             pathdict[ref_id] = ref
         return pathdict
 

@@ -262,9 +262,21 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
 
         graph = context.current.graph = irast.GraphExpr()
 
-        if caosql_tree.namespaces:
-            for ns in caosql_tree.namespaces:
-                context.current.namespaces[ns.alias] = ns.namespace
+        pathvars = context.current.pathvars
+        namespaces = context.current.namespaces
+
+        with context():
+            context.current.location = 'generator'
+
+            for alias_decl in caosql_tree.namespaces:
+                namespaces[alias_decl.alias] = alias_decl.namespace
+
+            for alias_decl in caosql_tree.aliases:
+                expr = self._process_expr(context, alias_decl.expr)
+                if isinstance(expr, irast.Path):
+                    expr.pathvar = alias_decl.alias
+
+                pathvars[alias_decl.alias] = expr
 
         if context.current.module_aliases:
             context.current.namespaces.update(context.current.module_aliases)
@@ -972,19 +984,10 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
         typeref = None
 
         for i, node in enumerate(path.steps):
-            pathvar = None
-            link_pathvar = None
-
             if isinstance(node, (qlast.PathNode, qlast.PathStepNode)):
                 if isinstance(node, qlast.PathNode):
                     if len(node.steps) > 1:
                         raise errors.CaosQLError('unsupported subpath expression')
-
-                    pathvar = node.var.name if node.var else None
-                    link_pathvar = node.lvar.name if node.lvar else None
-
-                    if pathvar in pathvars:
-                        raise errors.CaosQLError('duplicate path variable: %s' % pathvar)
 
                     tip = self._get_path_tip(node)
 
@@ -1040,15 +1043,11 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
                     step = irast.EntitySet()
                     step.concept = proto
                     step.id = caos_utils.LinearPath([step.concept])
-                    step.pathvar = pathvar
                     step.users.add(context.current.location)
                 else:
                     step = irast.EntityLink(link_proto=proto)
 
                 path_tip = step
-
-                if pathvar:
-                    pathvars[pathvar] = step
 
             elif isinstance(tip, qlast.TypeRefNode):
                 typeref = self._process_path(context, tip.expr)
@@ -1105,7 +1104,6 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
                                                target=target_set,
                                                direction=direction,
                                                link_proto=link_proto,
-                                               pathvar=link_pathvar,
                                                users={context.current.location})
 
                     path_tip.disjunction.update(link)
@@ -1126,7 +1124,6 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
                                                target=target_set,
                                                link_proto=link_proto,
                                                direction=direction,
-                                               pathvar=link_pathvar,
                                                users={context.current.location})
 
                     target_set.rlink = link
@@ -1153,12 +1150,6 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
                         link.target = atomref
 
                     path_tip = atomref
-
-                if pathvar:
-                    pathvars[pathvar] = path_tip
-
-                if link_pathvar:
-                    pathvars[link_pathvar] = link
 
             elif isinstance(tip, qlast.LinkPropExprNode) or tip_is_link:
                 # LinkExprNode
