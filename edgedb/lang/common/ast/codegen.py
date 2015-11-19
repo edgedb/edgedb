@@ -50,6 +50,13 @@ class SourceGenerator(NodeVisitor):
                 raise ValueError('invalid text chunk in codegen')
             self.result.append(chunk)
 
+    def visit_list(self, items):
+        for i, item in enumerate(items):
+            if i > 0:
+                self.write(',')
+                self.new_lines = 1
+            self.visit(item)
+
     def newline(self, node=None, extra=0):
         self.new_lines = max(self.new_lines, 1 + extra)
         if node is not None and self.add_line_information:
