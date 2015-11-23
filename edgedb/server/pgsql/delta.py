@@ -40,7 +40,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 29
+BACKEND_FORMAT_VERSION = 30
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -1161,54 +1161,62 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
     def apply(self, schema, context=None):
         concept_props = self.get_struct_properties(include_old_value=False)
         is_virtual = concept_props['is_virtual']
+        if is_virtual:
+            raise ValueError(
+                    'virtual concepts are not supposed to be persisted')
 
-        if not is_virtual:
-            new_table_name = common.concept_name_to_table_name(self.prototype_name, catenate=False)
-            self.table_name = new_table_name
-            concept_table = dbops.Table(name=new_table_name)
-            self.pgops.add(dbops.CreateTable(table=concept_table))
+        new_table_name = common.concept_name_to_table_name(
+                            self.prototype_name, catenate=False)
+        self.table_name = new_table_name
+        concept_table = dbops.Table(name=new_table_name)
+        self.pgops.add(dbops.CreateTable(table=concept_table))
 
-            alter_table = self.get_alter_table(context)
+        alter_table = self.get_alter_table(context)
 
         concept = delta_cmds.CreateConcept.apply(self, schema, context)
         ConceptMetaCommand.apply(self, schema, context)
 
         fields = self.create_object(schema, concept)
 
-        if not is_virtual:
-            constr_name = common.caos_name_to_pg_name(self.prototype_name + '.concept_id_check')
+        constr_name = common.caos_name_to_pg_name(
+                        self.prototype_name + '.concept_id_check')
 
-            constr_expr = dbops.Query("""
-                SELECT 'concept_id = ' || id FROM caos.concept WHERE name = $1
-            """, [concept.name], type='text')
+        constr_expr = dbops.Query("""
+            SELECT 'concept_id = ' || id FROM caos.concept WHERE name = $1
+        """, [concept.name], type='text')
 
-            cid_constraint = dbops.CheckConstraint(self.table_name, constr_name, constr_expr,
-                                                                                 inherit=False)
-            alter_table.add_operation(dbops.AlterTableAddConstraint(cid_constraint))
+        cid_constraint = dbops.CheckConstraint(
+                            self.table_name, constr_name, constr_expr,
+                            inherit=False)
+        alter_table.add_operation(
+            dbops.AlterTableAddConstraint(cid_constraint))
 
-            cid_col = dbops.Column(name='concept_id', type='integer', required=True)
+        cid_col = dbops.Column(name='concept_id', type='integer',
+                               required=True)
 
-            if concept.name == 'metamagic.caos.builtins.BaseObject':
-                alter_table.add_operation(dbops.AlterTableAddColumn(cid_col))
+        if concept.name == 'metamagic.caos.builtins.BaseObject':
+            alter_table.add_operation(dbops.AlterTableAddColumn(cid_col))
 
-            if not concept.is_virtual:
-                constraint = dbops.PrimaryKey(table_name=alter_table.name,
-                                              columns=['metamagic.caos.builtins.id'])
-                alter_table.add_operation(dbops.AlterTableAddConstraint(constraint))
+        constraint = dbops.PrimaryKey(
+                        table_name=alter_table.name,
+                        columns=['metamagic.caos.builtins.id'])
+        alter_table.add_operation(
+            dbops.AlterTableAddConstraint(constraint))
 
-            bases = (common.concept_name_to_table_name(caos.Name(p), catenate=False)
-                     for p in fields['base'][1] if proto.Concept.is_prototype(schema, p))
-            concept_table.bases = list(bases)
+        bases = (common.concept_name_to_table_name(caos.Name(p), catenate=False)
+                 for p in fields['base'][1] if proto.Concept.is_prototype(schema, p))
+        concept_table.bases = list(bases)
 
-            self.affirm_pointer_defaults(concept, schema, context)
+        self.affirm_pointer_defaults(concept, schema, context)
 
-            self.attach_alter_table(context)
+        self.attach_alter_table(context)
 
-            if self.update_search_indexes:
-                self.update_search_indexes.apply(schema, context)
-                self.pgops.add(self.update_search_indexes)
+        if self.update_search_indexes:
+            self.update_search_indexes.apply(schema, context)
+            self.pgops.add(self.update_search_indexes)
 
-            self.pgops.add(dbops.Comment(object=concept_table, text=self.prototype_name))
+        self.pgops.add(dbops.Comment(object=concept_table,
+                                     text=self.prototype_name))
 
         return concept
 
@@ -1770,9 +1778,8 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
         self.provide_table(link, schema, context)
 
         concept = context.get(delta_cmds.ConceptCommandContext)
-        if not concept or not concept.proto.is_virtual:
-            rec, updates = self.record_metadata(link, None, schema, context)
-            self.updates = updates
+        rec, updates = self.record_metadata(link, None, schema, context)
+        self.updates = updates
 
         if not link.generic():
             ptr_stor_info = types.get_pointer_storage_info(
@@ -1809,12 +1816,10 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
         self.attach_alter_table(context)
 
         concept = context.get(delta_cmds.ConceptCommandContext)
-        if not concept or not concept.proto.is_virtual:
-            self.pgops.add(dbops.Insert(table=self.table, records=[rec],
-                                        priority=1))
+        self.pgops.add(dbops.Insert(table=self.table, records=[rec],
+                                    priority=1))
 
-        if (not link.generic() and link.mapping != caos.types.ManyToMany
-                               and not concept.proto.is_virtual):
+        if not link.generic() and link.mapping != caos.types.ManyToMany:
             self.schedule_mapping_update(link, schema, context)
 
         return link
@@ -2021,11 +2026,10 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
                 alter_table.add_operation((cmd, None, (cond,)))
 
         concept = context.get(delta_cmds.ConceptCommandContext)
-        if not concept or not concept.proto.is_virtual:
-            # Priority is set to 2 to make sure that INSERT is run after the host link
-            # is INSERTed into caos.link.
-            #
-            self.pgops.add(dbops.Insert(table=self.table, records=[rec], priority=2))
+        # Priority is set to 2 to make sure that INSERT is run after the host link
+        # is INSERTed into caos.link.
+        #
+        self.pgops.add(dbops.Insert(table=self.table, records=[rec], priority=2))
 
         return property
 
@@ -3969,6 +3973,25 @@ class UpgradeBackend(MetaCommand):
 
                     create = dbops.CreateIndex(index)
                     cg.add_command(create)
+
+        cg.execute(context)
+
+    def update_to_version_30(self, context):
+        r"""\
+        Backend format 30 adds link.spectargets and drops concept.is_virtual
+        """
+
+        cg = dbops.CommandGroup()
+
+        alter = dbops.AlterTable(('caos', 'link'))
+        col = dbops.Column(name='spectargets', type='text[]')
+        alter.add_command(dbops.AlterTableAddColumn(col))
+        cg.add_command(alter)
+
+        alter = dbops.AlterTable(('caos', 'concept'))
+        col = dbops.Column(name='is_virtual', type='bool')
+        alter.add_command(dbops.AlterTableDropColumn(col))
+        cg.add_command(alter)
 
         cg.execute(context)
 

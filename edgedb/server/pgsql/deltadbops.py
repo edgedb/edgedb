@@ -865,10 +865,6 @@ class ConceptTable(MetaObjectTable):
 
         self.bases = [('caos', 'metaobject')]
 
-        self.__columns = datastructures.OrderedSet([
-            dbops.Column(name='is_virtual', type='boolean', required=True, default=False),
-        ])
-
         self.constraints = set([
             dbops.PrimaryKey(('caos', 'concept'), columns=('id',)),
             dbops.UniqueConstraint(('caos', 'concept'), columns=('name',))
@@ -886,6 +882,7 @@ class LinkTable(MetaObjectTable):
         self.__columns = datastructures.OrderedSet([
             dbops.Column(name='source_id', type='integer'),
             dbops.Column(name='target_id', type='integer'),
+            dbops.Column(name='spectargets', type='text[]'),
             dbops.Column(name='mapping', type='char(2)', required=True),
             dbops.Column(name='exposed_behaviour', type='text'),
             dbops.Column(name='required', type='boolean', required=True, default=False),

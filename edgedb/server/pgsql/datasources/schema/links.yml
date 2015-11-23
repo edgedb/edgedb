@@ -64,6 +64,7 @@ source: |
             sc.name AS source,
             l.target_id,
             tc.name AS target,
+            l.spectargets AS spectargets,
             l.name AS name,
             l.base AS base,
             l.mapping,

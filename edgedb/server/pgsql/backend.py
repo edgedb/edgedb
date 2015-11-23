@@ -486,10 +486,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         concept_list = collections.OrderedDict((caos.Name(row['name']), row) for row in concept_list)
 
         for name, row in concept_list.items():
-            if row['is_virtual']:
-                # Virtual concepts do not have tables
-                continue
-
             table_name = common.concept_name_to_table_name(name, catenate=False)
             table = tables.get(table_name)
 
@@ -1837,6 +1833,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
             source = schema.get(r['source']) if r['source'] else None
             target = schema.get(r['target']) if r['target'] else None
+            if r['spectargets']:
+                spectargets = [schema.get(t) for t in r['spectargets']]
+            else:
+                spectargets = None
 
             r['default'] = self.unpack_default(r['default'])
 
@@ -1850,6 +1850,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             basemap[name] = bases
 
             link = proto.Link(name=name, source=source, target=target,
+                              spectargets=spectargets,
                               mapping=caos.types.LinkMapping(r['mapping']),
                               exposed_behaviour=exposed_behaviour,
                               required=required,
@@ -1859,6 +1860,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                               readonly=r['readonly'],
                               loading=loading,
                               default=r['default'])
+
+            if spectargets:
+                # Multiple specified targets, target is a virtual derived object
+                target = link.create_common_target(schema, spectargets)
 
             link_search = None
 
@@ -2196,30 +2201,28 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                        'title': self.hstore_to_word_combination(row['title']),
                        'description': row['description'],
                        'is_abstract': row['is_abstract'],
-                       'is_final': row['is_final'],
-                       'is_virtual': row['is_virtual']}
+                       'is_final': row['is_final']}
 
             table_name = common.concept_name_to_table_name(name, catenate=False)
             table = tables.get(table_name)
 
-            if not table and not concept['is_virtual']:
+            if not table:
                 msg = 'internal metadata incosistency'
                 details = 'Record for concept "%s" exists but the table is missing' % name
                 raise caos.MetaError(msg, details=details)
 
             visited_tables.add(table_name)
 
-            if not concept['is_virtual']:
-                bases = self.pg_table_inheritance_to_bases(table['name'], table['schema'],
-                                                                          table_to_concept_map)
+            bases = self.pg_table_inheritance_to_bases(
+                            table['name'], table['schema'],
+                            table_to_concept_map)
 
-                basemap[name] = bases
+            basemap[name] = bases
 
             concept = proto.Concept(name=name, title=concept['title'],
                                     description=concept['description'],
                                     is_abstract=concept['is_abstract'],
-                                    is_final=concept['is_final'],
-                                    is_virtual=concept['is_virtual'])
+                                    is_final=concept['is_final'])
 
             schema.add(concept)
 

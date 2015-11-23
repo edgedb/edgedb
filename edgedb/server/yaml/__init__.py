@@ -1854,7 +1854,12 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
                 targets = getattr(link, '_targets', ())
 
                 if len(targets) > 1:
-                    link.target = self._create_link_target(concept, link, localschema)
+                    link.spectargets = proto.PrototypeSet(
+                        localschema.get(t) for t in targets
+                    )
+
+                    link.target = self._create_link_target(
+                                    concept, link, localschema)
                 elif targets:
                     link.target = localschema.get(link._target)
 
@@ -1897,15 +1902,17 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
 
 
     def _create_link_target(self, source, pointer, localschema):
-        targets = [localschema.get(t, type=proto.Concept) for t in pointer._targets]
+        targets = [localschema.get(t, type=proto.Concept)
+                   for t in pointer._targets]
 
-        target = localschema.get(pointer._target, default=None, type=proto.Concept,
-                                 index_only=False)
+        target = localschema.get(pointer._target, default=None,
+                                 type=proto.Concept, index_only=False)
         if target is None:
             target = pointer.get_common_target(localschema, targets)
+            target.is_derived = True
 
-            existing = localschema.get(target.name, default=None, type=proto.Concept,
-                                       index_only=False)
+            existing = localschema.get(target.name, default=None,
+                                       type=proto.Concept, index_only=False)
 
             if existing is None:
                 self._add_proto(localschema, target)
