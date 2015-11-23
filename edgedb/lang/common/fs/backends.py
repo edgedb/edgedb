@@ -234,25 +234,44 @@ class FSBackend(BaseFSBackend):
         if os.path.exists(alias):
             os.unlink(alias)
 
-    def get_file_path(self, bucket, id, filename=None):
+    def get_file_path(self, bucket, id, filename=None, realpath=False):
         if filename is not None:
             filename = self.escape_filename(filename)
         else:
             aem = getattr(bucket, 'allow_empty_names', False)
             if not aem:
                 raise ValueError('filename is required for this bucket')
-        return os.path.join(self.path, self._get_base_name(bucket, id,
-                                                           filename))
 
-    def get_file_pub_url(self, bucket, id, filename=None):
+        tail = self._get_base_name(bucket, id, filename)
+        path = os.path.join(self.path, tail)
+
+        if realpath:
+            path = os.path.realpath(path)
+
+        return path
+
+    def get_file_pub_url(self, bucket, id, filename=None, realpath=False):
         if filename is not None:
             filename = self.escape_filename(filename)
         else:
             aem = getattr(bucket, 'allow_empty_names', False)
             if not aem:
                 raise ValueError('filename is required for this bucket')
-        return os.path.join(self.pub_path, self._get_base_name(bucket, id,
-                                                               filename))
+
+        base = None
+
+        if realpath:
+            path = self.get_file_path(bucket, id, filename=filename,
+                                                  realpath=realpath)
+            if path.startswith(self.path):
+                base = path[len(self.path):]
+                if base.startswith('/'):
+                    base = base[1:]
+
+        if base is None:
+            base = self._get_base_name(bucket, id, filename)
+
+        return os.path.join(self.pub_path, base)
 
 
 class TemporaryFSBackend(FSBackend):

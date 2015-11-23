@@ -43,11 +43,11 @@ class BaseImplementation(abstract.Implementation, metaclass=ImplementationMeta):
         pass
 
     @abc.abstractclassmethod
-    def get_file_path(cls, bucket, id, filename=None):
+    def get_file_path(cls, bucket, id, filename=None, realpath=False):
         pass
 
     @abc.abstractclassmethod
-    def get_file_pub_url(cls, bucket, id, filename=None):
+    def get_file_pub_url(cls, bucket, id, filename=None, realpath=False):
         pass
 
     @abc.abstractclassmethod
@@ -124,13 +124,15 @@ class DefaultImplementation(BaseImplementation):
             yield_ (backend.delete_file(bucket, id, name=name))
 
     @classmethod
-    def get_file_pub_url(cls, bucket, id, filename=None):
+    def get_file_pub_url(cls, bucket, id, filename=None, realpath=False):
         assert id and isinstance(id, uuid.UUID)
         backends = cls._ensure_backends(bucket)
-        return backends[0].get_file_pub_url(bucket, id, filename)
+        return backends[0].get_file_pub_url(bucket, id, filename,
+                                            realpath=realpath)
 
     @classmethod
-    def get_file_path(cls, bucket, id, filename=None):
+    def get_file_path(cls, bucket, id, filename=None, realpath=False):
         assert id and isinstance(id, uuid.UUID)
         backends = cls._ensure_backends(bucket)
-        return backends[0].get_file_path(bucket, id, filename)
+        return backends[0].get_file_path(bucket, id, filename,
+                                         realpath=realpath)
