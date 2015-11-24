@@ -3934,7 +3934,8 @@ class UpgradeBackend(MetaCommand):
         cg = dbops.CommandGroup()
         alter = dbops.AlterTable(('caos', 'event'))
         col = dbops.Column(name='allowed_actions', type='int[]')
-        alter.add_command(dbops.AlterTableDropColumn(col))
+        cond = dbops.ColumnExists(('caos', 'event'), column_name=col.name)
+        alter.add_command((dbops.AlterTableDropColumn(col), (cond,), None))
         cg.add_command(alter)
 
         cg.execute(context)
