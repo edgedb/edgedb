@@ -661,26 +661,6 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
         elif isinstance(expr, qlast.PathNode):
             node = self._process_path(context, expr)
 
-            if not isinstance(node, irast.BaseRef):
-                if (context.current.location in
-                        {'sorter', 'optarget_shaper', 'opvalues'} \
-                            and not context.current.in_func_call):
-                    if context.current.location == 'sorter':
-                        loc = 'order()'
-                    elif context.current.location == 'grouper':
-                        loc = 'group()'
-                    else:
-                        if context.current.graph.op == 'update':
-                            loc = 'update()'
-                        elif context.current.graph.op == 'delete':
-                            loc = 'delete()'
-
-                        if context.current.location == 'optarget_shaper':
-                            loc += ' return list'
-
-                    err = 'unexpected reference to non-atom path in %s' % loc
-                    raise errors.CaosQLError(err)
-
             if (context.current.groupprefixes
                     and context.current.location in ('sorter', 'selector')\
                     and not context.current.in_aggregate):
