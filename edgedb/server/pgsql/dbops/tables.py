@@ -551,11 +551,6 @@ class CreateInheritableTableObject(ddl.CreateObject):
 class RenameInheritableTableObject(ddl.RenameObject):
     """Base rename operation class for objects with managed inheritance"""
 
-    def __init__(self, object, *, new_name, **kwargs):
-        super().__init__(**kwargs)
-        self.object = object
-        self.new_name = new_name
-
     def extra(self, context):
         ops = super().extra(context)
 

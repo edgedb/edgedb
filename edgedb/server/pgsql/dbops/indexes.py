@@ -63,6 +63,11 @@ class Index(tables.InheritableTableObject):
         if self.name_in_catalog != self.name:
             self.add_metadata('fullname', self.name)
 
+    def rename(self, new_name):
+        self.name = new_name
+        if self.name_in_catalog != self.name:
+            self.add_metadata('fullname', self.name)
+
     @property
     def name_in_catalog(self):
         if self.inherit:
@@ -212,13 +217,10 @@ class RenameIndex(tables.RenameInheritableTableObject):
                                              index.name_in_catalog)))
 
     def code(self, context):
-        new_index = self.object.copy()
-        new_index.name = self.new_name
-
         code = 'ALTER INDEX {} RENAME TO {}'.format(
                     common.qname(self.object.table_name[0],
                                  self.object.name_in_catalog),
-                    common.quote_ident(new_index.name_in_catalog))
+                    common.quote_ident(self.altered_object.name_in_catalog))
         return code
 
 
@@ -291,3 +293,35 @@ class DDLTriggerAlterTable(ddl.DDLTrigger, tables.AlterTableDDLTriggerMixin,
     def after(cls, context, op):
         return cls.apply_inheritance(context, op, cls.get_inherited_indexes,
                                      CreateIndex, DropIndex)
+
+
+class DDLTriggerAlterTableRename(ddl.DDLTrigger, DDLTriggerBase):
+    operations = tables.AlterTableRenameTo,
+
+    @classmethod
+    def after(cls, context, op):
+        ti = introspection.tables.TableIndexes(context.db)
+
+        idx_records = ti.fetch(table_list=(self.name,),
+                               inheritable_only=True,
+                               include_inherited=True)
+
+        ops = []
+        for row in idx_records:
+            for idx_data in row['indexes']:
+                orig_index = Index.from_introspection(self.name, idx_data)
+                renamed_index = orig_index.copy()
+                renamed_index.table_name = (self.name[0], self.new_name)
+
+                if orig_index.name_in_catalog != renamed_index.name_in_catalog:
+                    orig_name = (self.name[0], orig_index.name_in_catalog)
+                    new_name = renamed_index.name_in_catalog
+                    op = RenameIndexSimple(orig_name, new_name)
+                    ops.append(op)
+
+        if ops:
+            grp = base.CommandGroup()
+            grp.add_commands(ops)
+            return grp
+        else:
+            return None

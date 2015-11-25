@@ -40,7 +40,7 @@ from . import transformer
 from . import types
 
 
-BACKEND_FORMAT_VERSION = 28
+BACKEND_FORMAT_VERSION = 29
 
 
 class CommandMeta(delta_cmds.CommandMeta):
@@ -3937,6 +3937,38 @@ class UpgradeBackend(MetaCommand):
         cond = dbops.ColumnExists(('caos', 'event'), column_name=col.name)
         alter.add_command((dbops.AlterTableDropColumn(col), (cond,), None))
         cg.add_command(alter)
+
+        cg.execute(context)
+
+    def update_to_version_29(self, context):
+        r"""\
+        Backend format 29 fixes up some botched index renames
+        """
+
+        cg = dbops.CommandGroup()
+
+        inh_ds = datasources.introspection.tables.TableDescendants(context.db)
+        index_ds = datasources.introspection.tables.TableIndexes(context.db)
+        indexes = {}
+        idx_data = index_ds.fetch(schema_pattern='caos%',
+                                  index_pattern='%_reg_idx',
+                                  include_inherited=False)
+        for row in idx_data:
+            table_name = tuple(row['table_name'])
+            for idx_data in row['indexes']:
+                index = dbops.Index.from_introspection(
+                            table_name=table_name, index_data=idx_data)
+
+                proper_name = index.metadata.get('schemaname')
+                if proper_name:
+                    proper_name = '{}_reg_idx'.format(proper_name)
+                    index.rename(proper_name)
+
+                    drop = dbops.DropIndex(index)
+                    cg.add_command(drop)
+
+                    create = dbops.CreateIndex(index)
+                    cg.add_command(create)
 
         cg.execute(context)
 

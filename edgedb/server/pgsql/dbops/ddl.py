@@ -233,16 +233,22 @@ class CreateObject(DDLOperation):
 
 
 class RenameObject(DDLOperation):
+    def __init__(self, object, *, new_name, **kwargs):
+        super().__init__(**kwargs)
+        self.object = object
+        self.altered_object = object.copy()
+        self.altered_object.rename(new_name)
+        self.new_name = new_name
+
     def extra(self, context):
         ops = super().extra(context)
 
-        if self.object.metadata:
+        if self.altered_object.metadata:
             if ops is None:
                 ops = []
 
-            obj = self.object.copy()
-            obj.name = self.new_name
-            mdata = UpdateMetadata(obj, obj.metadata)
+            mdata = UpdateMetadata(self.altered_object,
+                                   self.altered_object.metadata)
             ops.append(mdata)
 
         return ops
