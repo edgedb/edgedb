@@ -266,13 +266,16 @@ class DDLTriggerBase:
         idx_records = ti.fetch(table_list=bases, inheritable_only=True,
                                                  include_inherited=True)
 
-        indexes = []
+        # Use a dictionary here to filter out any duplicates resulting
+        # from the inclusion of inherited indexes.
+        #
+        indexes = {}
         for row in idx_records:
             for idx_data in row['indexes']:
                 index = Index.from_introspection(table_name, idx_data)
-                indexes.append(index)
+                indexes[index.name] = index
 
-        return indexes
+        return list(indexes.values())
 
 
 class DDLTriggerCreateTable(ddl.DDLTrigger, tables.CreateTableDDLTriggerMixin,
