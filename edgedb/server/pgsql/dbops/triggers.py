@@ -230,6 +230,7 @@ class DDLTriggerBase:
         for row in trig_records:
             for r in row['triggers']:
                 trg = Trigger.from_introspection(table_name, r)
+                trg.add_metadata('ddl:inherited', True)
                 triggers.append(trg)
 
         return triggers

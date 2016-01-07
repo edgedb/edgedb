@@ -273,6 +273,7 @@ class DDLTriggerBase:
         for row in idx_records:
             for idx_data in row['indexes']:
                 index = Index.from_introspection(table_name, idx_data)
+                index.add_metadata('ddl:inherited', True)
                 indexes[index.name] = index
 
         return list(indexes.values())
