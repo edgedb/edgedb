@@ -747,6 +747,10 @@ class IRCompilerBase:
                                                      type=pgsql.ast.TypeNode(name=arg0_type))
             elif expr.name == ('window', 'rank'):
                 name = expr.name[1]
+            elif expr.name == ('window', 'max'):
+                name = expr.name[1]
+            elif expr.name == ('window', 'avg'):
+                name = expr.name[1]
             elif expr.name == ('window', 'ntile'):
                 args[0] = pgsql.ast.TypeCastNode(
                                 expr=args[0],
