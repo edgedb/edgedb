@@ -301,7 +301,8 @@ class EntitySet(Path):
                 ('origin', Path, None, False),
                 ('rlink', EntityLink, None, False),
                 ('atomrefs', set), ('metarefs', set), ('users', set),
-                ('joins', set, set, False)]
+                ('joins', set, set, False),
+                '_backend_rel_suffix']
 
     def __setattr__(self, name, value):
         super().__setattr__(name, value)

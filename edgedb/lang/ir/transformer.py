@@ -2006,7 +2006,8 @@ class TreeTransformer:
                                         users=path.users, joins=path.joins,
                                         rewrite_flags=path.rewrite_flags.copy(),
                                         anchor=path.anchor,
-                                        show_as_anchor=path.show_as_anchor)
+                                        show_as_anchor=path.show_as_anchor,
+                                        _backend_rel_suffix=path._backend_rel_suffix)
             rlink = path.rlink
 
             if connect_to_origin:
@@ -2058,7 +2059,8 @@ class TreeTransformer:
                                             concept=parent_path.concept,
                                             users=parent_path.users,
                                             joins=parent_path.joins,
-                                            rewrite_flags=parent_path.rewrite_flags.copy())
+                                            rewrite_flags=parent_path.rewrite_flags.copy(),
+                                            _backend_rel_suffix=parent_path._backend_rel_suffix)
                 parent.disjunction = irast.Disjunction(paths=frozenset((link,)))
 
                 if connect_to_origin:

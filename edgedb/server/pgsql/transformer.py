@@ -419,6 +419,9 @@ class IRCompilerBase:
         else:
             table_schema_name, table_name = common.concept_name_to_table_name(concept.name,
                                                                               catenate=False)
+            if node._backend_rel_suffix:
+                table_name += node._backend_rel_suffix
+
             relation = pgsql.ast.TableNode(name=table_name,
                                            schema=table_schema_name,
                                            concepts=frozenset({node.concept}),
