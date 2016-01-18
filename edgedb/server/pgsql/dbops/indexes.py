@@ -306,19 +306,19 @@ class DDLTriggerAlterTableRename(ddl.DDLTrigger, DDLTriggerBase):
     def after(cls, context, op):
         ti = introspection.tables.TableIndexes(context.db)
 
-        idx_records = ti.fetch(table_list=(self.name,),
+        idx_records = ti.fetch(table_list=[op.name[0] + '.' + op.new_name],
                                inheritable_only=True,
                                include_inherited=True)
 
         ops = []
         for row in idx_records:
             for idx_data in row['indexes']:
-                orig_index = Index.from_introspection(self.name, idx_data)
+                orig_index = Index.from_introspection(op.name, idx_data)
                 renamed_index = orig_index.copy()
-                renamed_index.table_name = (self.name[0], self.new_name)
+                renamed_index.table_name = (op.name[0], op.new_name)
 
                 if orig_index.name_in_catalog != renamed_index.name_in_catalog:
-                    orig_name = (self.name[0], orig_index.name_in_catalog)
+                    orig_name = (op.name[0], orig_index.name_in_catalog)
                     new_name = renamed_index.name_in_catalog
                     op = RenameIndexSimple(orig_name, new_name)
                     ops.append(op)
