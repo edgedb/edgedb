@@ -156,7 +156,7 @@ class SortExprNode(Base):
 
 class FunctionCallNode(Base):
     __fields = ['name', ('args', list), 'over', ('aggregates', bool), ('noparens', bool),
-                'agg_sort']
+                'agg_sort', 'agg_filter']
 
 class WindowDefNode(Base):
     __fields = ['partition', ('orderby', list), 'frame']

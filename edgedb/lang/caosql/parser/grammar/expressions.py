@@ -884,15 +884,26 @@ class LinkDirection(Nonterm):
         self.val = caos_types.OutboundDirection
 
 
+class OptFilterClause(Nonterm):
+    def reduce_FILTER_LPAREN_WhereClause_RPAREN(self, *kids):
+        self.val = kids[2].val
+
+    def reduce_empty(self, *kids):
+        self.val = None
+
+
 class FuncApplication(Nonterm):
     def reduce_CAST_LPAREN_Expr_AS_TypeName_RPAREN(self, *kids):
         self.val = qlast.TypeCastNode(expr=kids[2].val, type=kids[4].val)
 
-    def reduce_FqFuncName_LPAREN_FuncArgList_OptSortClause_RPAREN(self, *kids):
+    def reduce_FqFuncName_LPAREN_FuncArgList_OptSortClause_RPAREN_OptFilterClause(
+                                                        self, *kids):
         self.val = qlast.FunctionCallNode(func=kids[0].val, args=kids[2].val,
-                                          agg_sort=kids[3].val)
+                                          agg_sort=kids[3].val,
+                                          agg_filter=kids[5].val)
 
-    def reduce_IDENT_LPAREN_FuncArgList_OptSortClause_RPAREN(self, *kids):
+    def reduce_IDENT_LPAREN_FuncArgList_OptSortClause_RPAREN_OptFilterClause(
+                                                        self, *kids):
         func_name = kids[0].val
         args = kids[2].val
 
@@ -904,7 +915,8 @@ class FuncApplication(Nonterm):
             self.val = qlast.TypeRefNode(expr=args[0])
         else:
             self.val = qlast.FunctionCallNode(func=func_name, args=args,
-                                              agg_sort=kids[3].val)
+                                              agg_sort=kids[3].val,
+                                              agg_filter=kids[5].val)
 
 
 class FuncExpr(Nonterm):

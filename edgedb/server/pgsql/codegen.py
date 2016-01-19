@@ -445,6 +445,11 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         if node.args or not node.noparens:
             self.write(')')
 
+        if node.agg_filter:
+            self.write(' FILTER (WHERE ')
+            self.visit(node.agg_filter)
+            self.write(')')
+
         if node.over:
             self.write(' OVER (')
             if node.over.partition:

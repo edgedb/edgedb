@@ -736,6 +736,10 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
 
                     node.window = True
 
+                if expr.agg_filter:
+                    node.agg_filter = self._process_expr(context,
+                                                         expr.agg_filter)
+
                 node = self.process_function_call(node)
 
         elif isinstance(expr, qlast.PrototypeRefNode):

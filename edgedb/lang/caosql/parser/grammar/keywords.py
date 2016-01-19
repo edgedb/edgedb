@@ -22,6 +22,7 @@ caosql_keywords = {
     "except": ("EXCEPT", RESERVED_KEYWORD),
     "exists": ("EXISTS", RESERVED_KEYWORD),
     "false": ("FALSE", RESERVED_KEYWORD),
+    "filter": ("FILTER", UNRESERVED_KEYWORD),
     "first": ("FIRST", UNRESERVED_KEYWORD),
     "group": ("GROUP", RESERVED_KEYWORD),
     "ilike": ("ILIKE", TYPE_FUNC_NAME_KEYWORD),

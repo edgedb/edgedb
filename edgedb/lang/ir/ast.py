@@ -412,6 +412,7 @@ class FunctionCall(Expr):
                 ('aggregates', bool),
                 ('window', bool),
                 ('agg_sort', list),
+                'agg_filter',
                 ('partition', list)]
 
     def __init__(self, **kwargs):

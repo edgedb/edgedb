@@ -401,6 +401,11 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
 
         self.write(')')
 
+        if node.agg_filter:
+            self.write(' FILTER (WHERE ')
+            self.visit(node.agg_filter)
+            self.write(')')
+
         if node.window:
             self.write(' OVER (')
 

@@ -32,7 +32,7 @@ class NamedArgNode(ast.AST):
 
 class FunctionCallNode(ast.AST):
     __fields = ['func', ('args', list), ('agg_sort', list),
-                'window']
+                'agg_filter', 'window']
 
 class VarNode(ast.AST): __fields = ['name']
 class PathVarNode(VarNode): pass
