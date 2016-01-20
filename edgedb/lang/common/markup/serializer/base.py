@@ -18,6 +18,8 @@ from metamagic import exceptions
 from metamagic.utils.markup.format import xrepr
 from metamagic.utils import debug
 
+from . import settings
+
 
 #: Maximum level of nested structures that we can serialize.
 #: If we reach it - we'll just stop traversing the objects
@@ -56,6 +58,13 @@ class Context:
     def __init__(self, trim=True):
         self.reset()
         self.trim = trim
+        if settings.censor_sensitive_vars:
+            self.censor_set = set(settings.censor_list)
+        else:
+            self.censor_set = set()
+
+    def censored(self, key):
+        return key in self.censor_set
 
     def reset(self):
         self.memo = set()
@@ -300,6 +309,8 @@ def serialize_mapping(obj, *, ctx, trim_at=100):
     for cnt, (key, value) in enumerate(obj.items()):
         if not isinstance(key, str):
             key = repr(key)
+        if ctx.censored(key) and value is not None:
+            value = '********'
         map[key] = serialize(value, ctx=ctx)
         if trim and cnt >= trim_at:
             break
