@@ -28,7 +28,7 @@ pads = [[0x80]]
 maxlen = 0xFFFFFFFF / 8
 
 for i = 1; i < 70; i++ {
-    pads[i] = pads[i - 1].concat([0])
+    pads.push(pads[i - 1].concat([0]))
 }
 
 
