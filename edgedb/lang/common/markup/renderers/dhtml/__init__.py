@@ -94,7 +94,7 @@ class Renderer:
 
         scripts = ';\n'.join(scripts)
 
-        import metamagic.rendering.css
+        import metamagic.rendering.css.mmscss
         from . import styles
         rendered_styles = styles.__sx_css_source__
 

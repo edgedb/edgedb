@@ -39,7 +39,7 @@ html.mm-exception, html.mm-exception body:
 
 
 .metamagic-markup:
-    %from metamagic.rendering.css.extras.reset import reset
+    %from metamagic.rendering.css.mmscss.extras.reset import reset
     %merge reset
 
     font-family: Arial, Verdana, Helvetica, sans-serif
