@@ -308,6 +308,7 @@ class OptimizedFSBackend(ResourceFSBackend):
     compiled_module_name = config.cvalue('__compiled__', type=str)
     closure_compiler_executable = config.cvalue('closure-compiler', type=str)
     pretty_output = config.cvalue(False, type=bool)
+    logger = logging.getLogger('metamagic.utils.resource')
 
     def _get_file_hash(self, filename):
         md5 = hashlib.md5()
@@ -337,7 +338,12 @@ class OptimizedFSBackend(ResourceFSBackend):
                 f_out.writelines(f_in)
 
         stats = os.stat(name)
-        os.utime(output_gz, (stats.st_atime, stats.st_mtime))
+        try:
+            os.utime(output_gz, (stats.st_atime, stats.st_mtime))
+        except PermissionError as e:
+            # This happens when don't own the file.  Not fatal.
+            self.logger.warning('cannot set timestamp on gzipped resource',
+                                exc_info=e)
 
     def _optimize_js(self, mods, bucket, bucket_id, bucket_path,
                                                     bucket_pub_path):
