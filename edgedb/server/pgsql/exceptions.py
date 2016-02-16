@@ -16,7 +16,7 @@ from metamagic.utils import markup
 from importkit import context as lang_context
 
 
-class BackendError(caos_error.CaosError):
+class BackendError(caos_error.CaosBackendError):
     pass
 
 

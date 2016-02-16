@@ -22,6 +22,7 @@ from metamagic.caos import utils as caos_utils
 from metamagic.caos.backends import pgsql
 from metamagic.caos.backends.pgsql import common, session as pg_session, driver as pg_driver
 from metamagic.caos.backends.pgsql import types as pg_types
+from metamagic.caos.backends.pgsql import exceptions as pg_errors
 
 from metamagic.utils import ast, markup
 from metamagic.utils.debug import debug
@@ -31,7 +32,7 @@ from metamagic.utils.datastructures import OrderedSet
 from . import types
 
 
-class IRCompilerError(base_err.MetamagicError):
+class IRCompilerError(pg_errors.BackendError):
     pass
 
 
