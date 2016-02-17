@@ -107,7 +107,11 @@ class TracebackPoint(BaseObject):
 
             lineno = self.lineno
 
-            sourcelines = lines or linecache.getlines(self.filename, globals())
+            if not lines:
+                linecache.checkcache(self.filename)
+                sourcelines = linecache.getlines(self.filename, globals())
+            else:
+                sourcelines = lines
 
             lines = []
             line_numbers = []
