@@ -240,7 +240,8 @@ class CaosQLOptimizer:
         elif isinstance(expr, qlast.LinkNode):
             if expr.namespace:
                 expr.namespace = self._process_module_ref(
-                                    context, expr.namespace)
+                                    context, expr.namespace,
+                                    strip_builtins=(expr.direction != '<'))
 
             if expr.target:
                 self._process_expr(context, expr.target)
@@ -260,8 +261,8 @@ class CaosQLOptimizer:
                 if spec.pathspec:
                     self._process_pathspec(context, spec.pathspec)
 
-    def _process_module_ref(self, context, module):
-        if module == 'metamagic.caos.builtins':
+    def _process_module_ref(self, context, module, strip_builtins=True):
+        if module == 'metamagic.caos.builtins' and strip_builtins:
             return None
 
         if '.' in module:
