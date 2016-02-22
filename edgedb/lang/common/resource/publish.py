@@ -15,6 +15,7 @@ import os
 import logging
 import subprocess
 import tempfile
+import shutil
 import sys
 import re
 
@@ -171,6 +172,8 @@ class BaseResourceBackend(fs.backends.BaseFSBackend):
 
 
 class ResourceFSBackend(BaseResourceBackend):
+    symlink_files = config.cvalue(True, type=bool)
+
     def __init__(self, *, path, pub_path, **kwargs):
         super().__init__(path=path, **kwargs)
         self.pub_path = pub_path
@@ -264,7 +267,8 @@ class ResourceFSBackend(BaseResourceBackend):
 
         if os.path.exists(dest_path):
             if os.path.islink(dest_path):
-                if os.stat(dest_path).st_ino == os.stat(src_path).st_ino:
+                if (os.stat(dest_path).st_ino == os.stat(src_path).st_ino and
+                        self.symlink_files):
                     # same file
                     return
                 else:
@@ -275,13 +279,19 @@ class ResourceFSBackend(BaseResourceBackend):
                 if os.path.isfile(dest_path):
                     os.remove(dest_path)
                 else:
-                    os.rmdir(dest_path)
+                    shutil.rmtree(dest_path)
 
         elif os.path.islink(dest_path):
             # broken symlink
             os.unlink(dest_path)
 
-        os.symlink(src_path, dest_path)
+        if self.symlink_files:
+            os.symlink(src_path, dest_path)
+        else:
+            if os.path.isdir(src_path):
+                shutil.copytree(src_path, dest_path)
+            else:
+                shutil.copy2(src_path, dest_path)
 
     def _publish_virtual_resource(self, bucket_path, bucket_pub_path, resource):
         dest_path = os.path.join(bucket_path, resource.__sx_resource_get_public_path__())
