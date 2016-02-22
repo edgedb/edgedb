@@ -172,6 +172,7 @@ class BaseResourceBackend(fs.backends.BaseFSBackend):
 
 
 class ResourceFSBackend(BaseResourceBackend):
+    assume_built = config.cvalue(False, type=bool)
     symlink_files = config.cvalue(True, type=bool)
 
     def __init__(self, *, path, pub_path, **kwargs):
@@ -200,6 +201,9 @@ class ResourceFSBackend(BaseResourceBackend):
 
     @debug.debug
     def _publish_bucket(self, bucket, resources, bucket_id, bucket_path, bucket_pub_path):
+        if self.assume_built:
+            return
+
         for resource in resources:
             resource = call_publication_hooks(resource, bucket, self)
 
@@ -465,6 +469,9 @@ class OptimizedFSBackend(ResourceFSBackend):
             bucket.published.add(outmod)
 
     def _publish_bucket(self, bucket, resources, bucket_id, bucket_path, bucket_pub_path):
+        if self.assume_built:
+            return
+
         from metamagic.utils.lang.javascript import BaseJavaScriptModule
         from metamagic.rendering.css import BaseCSSModule, CSSMixinDerivative
 
