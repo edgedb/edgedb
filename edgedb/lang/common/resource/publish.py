@@ -201,9 +201,6 @@ class ResourceFSBackend(BaseResourceBackend):
 
     @debug.debug
     def _publish_bucket(self, bucket, resources, bucket_id, bucket_path, bucket_pub_path):
-        if self.assume_built:
-            return
-
         for resource in resources:
             resource = call_publication_hooks(resource, bucket, self)
 
@@ -213,12 +210,15 @@ class ResourceFSBackend(BaseResourceBackend):
                 """
                 continue
 
-            if isinstance(resource, AbstractFileSystemResource):
-                self._publish_fs_resource(bucket_path, bucket_pub_path, resource)
-            elif isinstance(resource, VirtualFile):
-                self._publish_virtual_resource(bucket_path, bucket_pub_path, resource)
-            else:
-                continue
+            if not self.assume_built:
+                if isinstance(resource, AbstractFileSystemResource):
+                    self._publish_fs_resource(bucket_path, bucket_pub_path,
+                                              resource)
+                elif isinstance(resource, VirtualFile):
+                    self._publish_virtual_resource(bucket_path, bucket_pub_path,
+                                                   resource)
+                else:
+                    continue
 
             """LINE [resource.publish] Published
             bucket.__name__, resource
@@ -359,14 +359,7 @@ class OptimizedFSBackend(ResourceFSBackend):
             self.logger.warning('cannot set timestamp on gzipped resource',
                                 exc_info=e)
 
-    def _optimize_js(self, mods, bucket, bucket_id, bucket_path,
-                                                    bucket_pub_path):
-
-        from metamagic.utils.lang.javascript import CompiledJavascriptModule
-
-        out_short_name = self._compiled_name(bucket, 'js')
-        out_name = os.path.abspath(os.path.join(bucket_path, out_short_name))
-
+    def _run_js_compressor(self, mods, bucket_path, out_short_name, out_name):
         command = []
 
         command.append('cd "{}";'.format(bucket_path))
@@ -409,6 +402,17 @@ class OptimizedFSBackend(ResourceFSBackend):
 
         if self.gzip_output:
             self._gzip_file(out_name)
+
+    def _optimize_js(self, mods, bucket, bucket_id, bucket_path,
+                                                    bucket_pub_path):
+
+        from metamagic.utils.lang.javascript import CompiledJavascriptModule
+
+        out_short_name = self._compiled_name(bucket, 'js')
+        out_name = os.path.abspath(os.path.join(bucket_path, out_short_name))
+
+        if not self.assume_built:
+            self._run_js_compressor(mods, bucket_path, out_short_name, out_name)
 
         hash = self._get_file_hash(out_name)
 
@@ -453,11 +457,12 @@ class OptimizedFSBackend(ResourceFSBackend):
             out_short_name = self._compiled_name(bucket, 'css', suffix=name_suffix)
             out_name = os.path.abspath(os.path.join(bucket_path, out_short_name))
 
-            with open(out_name, 'wt') as f:
-                f.write(compressed_part)
+            if not self.assume_built:
+                with open(out_name, 'wt') as f:
+                    f.write(compressed_part)
 
-            if self.gzip_output:
-                self._gzip_file(out_name)
+                if self.gzip_output:
+                    self._gzip_file(out_name)
 
             hash = self._get_file_hash(out_name)
 
@@ -469,9 +474,6 @@ class OptimizedFSBackend(ResourceFSBackend):
             bucket.published.add(outmod)
 
     def _publish_bucket(self, bucket, resources, bucket_id, bucket_path, bucket_pub_path):
-        if self.assume_built:
-            return
-
         from metamagic.utils.lang.javascript import BaseJavaScriptModule
         from metamagic.rendering.css import BaseCSSModule, CSSMixinDerivative
 
