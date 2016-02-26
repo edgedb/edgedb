@@ -82,6 +82,9 @@ class BaseImplementation(AbstractImplementation):
             meth = self._backend_method(backend, 'set')
             meth(key, pickled_value, expiry=expiry)
 
+    def setitem_wait(self, *args, **kwargs):
+        raise NotImplementedError
+
     def delitem(self, key):
         for backend in self._backends:
             meth = self._backend_method(backend, 'delete')

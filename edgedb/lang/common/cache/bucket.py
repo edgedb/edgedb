@@ -10,6 +10,7 @@ import time
 import functools
 from datetime import timedelta
 
+from metamagic import spin
 from metamagic.utils.algos import persistent_hash
 from metamagic.utils.functional import hybridmethod
 from metamagic.utils.debug import debug
@@ -176,6 +177,27 @@ class Bucket(abstract.Bucket, metaclass=BucketMeta):
                                                  self.__class__.__name__)):
 
             impl.setitem(hashed_key, value, expiry=expiry)
+
+    @spin.coroutine
+    @debug
+    def set_wait(self, key, value, expiry:(int, float, timedelta)=None):
+        impl = self._get_implementation()
+        if not impl:
+            return
+
+        '''LINE [cache] CACHE SET WAIT
+        self, '{!r:.40}'.format(key), expiry
+        '''
+
+        expiry = self._cast_expiry_to_seconds(expiry)
+        hashed_key = self._get_inst_key(key)
+
+        with tracepoints.if_tracing(cache_trace.CacheTracepoint,
+                                    info='set; bucket: {}.{}'
+                                         .format(self.__class__.__module__,
+                                                 self.__class__.__name__)):
+
+            yield impl.setitem_wait(hashed_key, value, expiry=expiry)
 
     def __setitem__(self, key, value):
         self.set(key, value)
