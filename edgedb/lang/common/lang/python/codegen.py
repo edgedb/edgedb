@@ -367,7 +367,10 @@ class BasePythonSourceGenerator(SourceGenerator):
             self.visit(arg)
         for keyword in node.keywords:
             write_comma()
-            self.write(keyword.arg + '=')
+            if keyword.arg is None:
+                self.write('**')
+            else:
+                self.write(keyword.arg + '=')
             self.visit(keyword.value)
         if node.starargs is not None:
             write_comma()
