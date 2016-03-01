@@ -190,7 +190,11 @@ fn _unpacker(format, data, metadata, ctx) {
     fn _decodeRecord(record) {
         result = {}
         recId = record.f1
-        recInfo = recordInfo[recId]
+        if isinstance(recId, String) {
+            recInfo = recordInfo[recId]
+        } else {
+            recInfo = null
+        }
 
         if recId == FREEFORM_RECORD_ID {
             result = []
