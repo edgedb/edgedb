@@ -1029,16 +1029,18 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                             op = dbops.AlterTableDropColumn(col)
                             alter_table_drop_ptr.add_command((op, (cond,), ()))
 
-            current_bases = list(datastructures.OrderedSet(b.name for b in orig_source.bases)
-                                                                             - dropped_bases)
+            current_bases = list(datastructures.OrderedSet(
+                                b.name for b in orig_source.bases)
+                                    - dropped_bases)
+
             new_bases = [b.name for b in source.bases]
-            for i, bn in enumerate(new_bases):
-                if i >= len(current_bases) or bn != current_bases[i]:
-                    break
 
-            old_base_order = current_bases[i:]
-            new_base_order = new_bases[i:]
+            unchanged_order = list(itertools.takewhile(
+                                    lambda x: x[0] == x[1],
+                                    zip(current_bases, new_bases)))
 
+            old_base_order = current_bases[len(unchanged_order):]
+            new_base_order = new_bases[len(unchanged_order):]
 
             if new_base_order:
                 table_name = nameconv(source.name, catenate=False)
