@@ -20,7 +20,6 @@ import time
 from metamagic import bootstrap
 from metamagic.utils.functional import decorate
 from metamagic.exceptions import MultiError
-from metamagic.utils import config, logging
 from metamagic.utils.datastructures import Void
 
 
@@ -230,40 +229,20 @@ def profiler(filename=None, sort='time'):
 
 
 @contextlib.contextmanager
-def debug_logger_on(logger_cls=logging.MetamagicLogHandler):
-    '''Context manager, that enables printing log messages to stdout
-    for the wrapped code'''
-
-    if not logger_cls._installed:
-        logger_cls.install()
-
-    handler = logger_cls._installed
-    if handler:
-        old_flag = handler._enabled
-        handler._enabled = True
-        try:
-            yield
-        finally:
-            handler._enabled = old_flag
-    else:
-        yield
-
-
-@contextlib.contextmanager
-def debug_logger_off(logger_cls=logging.MetamagicLogHandler):
+def debug_logger_off():
     '''Context manager, that disables printing log messages to stdout
     for the wrapped code'''
 
-    handler = logger_cls._installed
-    if handler:
-        old_flag = handler._enabled
-        handler._enabled = False
-        try:
-            yield
-        finally:
-            handler._enabled = old_flag
-    else:
+    old_val = logging.root.manager.disable
+
+    logger = logging.getLogger()
+    old_handlers = logger.handlers[:]
+    logger.handlers[:] = []
+
+    try:
         yield
+    finally:
+        logger.handlers[:] = old_handlers
 
 
 class BufferingLogHandler(logging.Handler):
@@ -283,12 +262,11 @@ class BufferingLogHandler(logging.Handler):
 
 @contextlib.contextmanager
 def custom_logger(handler):
-    logger_level = logging.getLogger().level
     logger = logging.getLogger()
-    logger.addHandler(handler)
 
     try:
         with debug_logger_off():
+            logger.addHandler(handler)
             yield
     finally:
         logger.removeHandler(handler)
@@ -306,20 +284,20 @@ def assert_logs(message_re, *, logger_re=None):
         AssertionError
     '''
 
-    logger = logging.getLogger()
-    logger_level = logger.level
-    logger.setLevel(logging.DEBUG)
-
-    handler = BufferingLogHandler(level=logging.DEBUG)
-    logger.addHandler(handler)
-
     msg_re = re.compile(message_re)
     lgr_re = None
     if logger_re is not None:
         lgr_re = re.compile(logger_re)
 
+    logger = logging.getLogger()
+    handler = BufferingLogHandler(level=logging.DEBUG)
+
     try:
+        logger_level = logger.level
+        logger.setLevel(logging.DEBUG)
+
         with debug_logger_off():
+            logger.addHandler(handler)
             yield
     finally:
         logger.removeHandler(handler)
