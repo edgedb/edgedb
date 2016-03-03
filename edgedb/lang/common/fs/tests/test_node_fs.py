@@ -26,8 +26,9 @@ class TestNodeFSSystem:
         assert not Bucket.get_backends()
         assert len(TestBucket.get_backends()) == 1
 
+        dirname = os.path.realpath(os.path.dirname(os.path.abspath(__file__)))
         b = TestBucket.get_backends()[0]
-        assert b.path == os.path.join(os.path.dirname(os.path.abspath(__file__)), 'foo')
+        assert b.path == os.path.join(dirname, 'foo')
         assert b.pub_path == '/a'
 
 
