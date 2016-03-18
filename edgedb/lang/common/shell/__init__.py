@@ -122,7 +122,6 @@ class MainCommand(CommandGroup, name='__main__'):
                                  '[auto, on, off]')
 
     def create_parser(self, parser):
-        parser.add_argument('--color', choices=('auto', 'on', 'off'), default=self.colorize)
         bootstrap.init_early_args(parser)
         return parser
 
