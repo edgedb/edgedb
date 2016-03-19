@@ -380,13 +380,10 @@ class OptimizedFSBackend(ResourceFSBackend):
             command.append('--create_source_map "{}"'.format(map_name))
 
         for mod in mods:
-            if is_standalone(mod):
+            if not is_standalone(mod):
                 # Skip modules marked as standalone
-                bucket.published.add(mod)
-            else:
                 path = mod.__sx_resource_get_public_path__()
                 command.append('--js "{}"'.format(path))
-
 
         command.append('--js_output_file "{}"'.format(out_short_name))
 
@@ -413,6 +410,10 @@ class OptimizedFSBackend(ResourceFSBackend):
 
         if not self.assume_built:
             self._run_js_compressor(mods, bucket_path, out_short_name, out_name)
+
+        for mod in mods:
+            if is_standalone(mod):
+                bucket.published.add(mod)
 
         hash = self._get_file_hash(out_name)
 
