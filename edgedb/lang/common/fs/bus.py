@@ -84,6 +84,8 @@ def upload(context, bucket:str, concept:str=None, fieldcls=None, config=None,
 
     form = yield context.multipart.parse()
     files = form.getlist('files')
+    if files is None:
+        files = form.getlist('files[]')
 
     if fieldcls:
         fieldcls = get_object(fieldcls)
