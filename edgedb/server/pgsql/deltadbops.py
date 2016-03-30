@@ -70,6 +70,9 @@ class ConstraintCommon:
         name = common.caos_name_to_pg_name(name)
         return common.quote_ident(name) if quote else name
 
+    def schema_constraint_name(self):
+        return self._constraint.name
+
     def raw_constraint_name(self):
         name = '{};{}'.format(self._constraint.name, 'schemaconstr')
         return name
@@ -197,10 +200,11 @@ class SchemaConstraintTableConstraint(ConstraintCommon, dbops.TableConstraint):
         return common.quote_ident(name) if quote else name
 
     def get_trigger_procname(self):
-        proc_name = self.raw_constraint_name() + '_trigproc'
-        proc_name = (self.get_subject_name(quote=False)[0],
-                     common.caos_name_to_pg_name(proc_name))
-        return proc_name
+        schema = common.caos_module_name_to_schema_name(
+            self.schema_constraint_name().module)
+        proc_name = common.caos_name_to_pg_name(
+            self.raw_constraint_name() + '_trigproc')
+        return schema, proc_name
 
     def get_trigger_condition(self):
         chunks = []

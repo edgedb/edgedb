@@ -55,6 +55,9 @@ class Trigger(tables.InheritableTableObject):
                       .format(granularity)
             raise ValueError(msg)
 
+    def rename(self, new_name):
+        self.name = new_name
+
     def get_type(self):
         return 'TRIGGER'
 
