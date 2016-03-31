@@ -58,7 +58,14 @@ class BaseClassAdapter(jplus.JPlusWebRuntimeAdapter):
         for base in cls.__bases__:
             if issubclass(base, self.base_class):
                 if base.__module__ != self.module.__name__:
-                    bases.append('{}.{}'.format(base.__module__, base.__name__))
+                    lang_runtimes.load_module_for_runtime(
+                        base.__module__, self.runtime)
+                    base_mod = sys.modules[base.__module__]
+                    is_compat = lang_runtimes.module_runtimes_compatible(
+                                    self.module, base_mod)
+                    if is_compat:
+                        bases.append(
+                            '{}.{}'.format(base.__module__, base.__name__))
                 else:
                     bases.append(base.__name__)
 
