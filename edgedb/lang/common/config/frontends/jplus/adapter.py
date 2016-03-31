@@ -17,7 +17,7 @@ from metamagic.utils.config.frontends import FrontendConfigModule
 
 
 MOD_TPL = '''\
-export {exports}
+{exports}
 
 
 {classes}
@@ -57,7 +57,11 @@ class FrontendConfigModuleAdapter(jplus.JPlusWebRuntimeAdapter,
                 classes.append(clstext)
                 exports.append(cls.__name__)
 
-        exportstext = ', '.join(exports)
+        if exports:
+            exportstext = 'export ' + ', '.join(exports)
+        else:
+            exportstext = ''
+
         jpsource = MOD_TPL.format(exports=exportstext,
                                   classes='\n\n'.join(classes))
 
