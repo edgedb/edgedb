@@ -6,7 +6,7 @@
 **/
 
 
-// %from metamagic.utils.lang.javascript import sx, ds, uuid
+// %from metamagic.utils.lang.javascript import sx, uuid
 
 
 (function(global) { 'use strict'; if (!sx.Markup) {
@@ -823,7 +823,7 @@ var js_id = 0,
 
 sx.Markup.Renderer.to_markup = function(obj, seen) {
     // initialize the seen map is needed
-    seen = seen || new sx.ds.Map();
+    seen = seen || new Map();
 
     var id = gen_js_id();
 

@@ -42,11 +42,7 @@ class FrontendConfigModuleAdapter(jplus.JPlusWebRuntimeAdapter,
         for cls in module.__dict__.values():
             if isinstance(cls, configurable.ConfigurableMeta):
                 if cls.__module__ != module.__name__:
-                    impmod = sys.modules[cls.__module__]
-                    if isinstance(impmod, FrontendConfigModule):
-                        # Another frontend config module, will be imported
-                        # instead.
-                        continue
+                    continue
 
                 cvars = []
 

@@ -7,7 +7,6 @@
 
 
 // %from . import sx_base
-// %from . import json
 
 
 (function(global) {
@@ -483,11 +482,7 @@
 
         json: {
             parse: (function() {
-                if (typeof JSON != 'undefined') {
-                    return JSON.parse;
-                } else {
-                    return global.sx_json_parse;
-                }
+                return JSON.parse;
             })()
         },
 

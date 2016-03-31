@@ -22,10 +22,6 @@ from importkit import meta as lang_meta, loader as lang_loader
 from importkit import runtimes as lang_runtimes
 from importkit.import_ import module as module_types, loader, utils as imp_utils
 
-# Don't remove the following import -- backwards compatibility
-from jplus.javascript import ast
-from . import codegen, parser
-
 
 class BaseJavaScriptModule(module_types.Module):
     pass
