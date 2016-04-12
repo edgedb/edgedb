@@ -76,7 +76,7 @@ class Dark256(StylesTable):
     tb_name = Style(color='#5f5f87', bold=True)
     tb_filename = Style()
     tb_lineno = Style()
-    tb_current_line = Style(color='#333', bold=True)
+    tb_current_line = Style(color='#fff', bold=True)
     tb_code = Style()
     tb_pos_caret = Style(color='white', bold=True)
 

@@ -420,19 +420,32 @@ class LangRenderer(BaseRenderer):
                 if element.lines and element.line_numbers:
                     for lineno, line in zip(element.line_numbers, element.lines):
                         if lineno == element.lineno:
+                            if element.context:
+                                stripped_spaces = 0
+                                stripped_line = line
+                            else:
+                                stripped_spaces = len(line) - len(line.lstrip())
+                                stripped_line = line.strip()
+
                             self.buffer.write('> ', style=self.styles.tb_current_line)
-                            self.buffer.write(line.strip() or '???', style=self.styles.tb_code)
+                            self.buffer.write(stripped_line or '???', style=self.styles.tb_code)
 
                             if element.colno:
                                 # Render column caret
-                                stripped_spaces = len(line) - len(line.lstrip())
                                 _caret_indent = ' ' * (element.colno + 1 - stripped_spaces)
                                 self.buffer.new_line()
                                 self.buffer.write(_caret_indent + '^',
                                                   style=self.styles.tb_pos_caret)
-                            break
+                                self.buffer.new_line()
+                            if not element.context:
+                                break
+                        elif element.context:
+                            self.buffer.write('| ', style=self.styles.code)
+                            self.buffer.write(line.rstrip(), style=self.styles.code)
+                            self.buffer.new_line()
                     else:
-                        self.buffer.write('???', style=self.styles.tb_code)
+                        if not element.context:
+                            self.buffer.write('???', style=self.styles.tb_code)
 
                 if element.locals:
                     self.buffer.new_line(2)

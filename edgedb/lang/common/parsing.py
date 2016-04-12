@@ -178,28 +178,104 @@ class ParserContext(lang_context.SourceContext, markup.MarkupExceptionContext):
     def as_markup(cls, self, *, ctx):
         me = markup.elements
 
-        prefix = '{} line={} col={}: '.format(self.name, self.start.line, self.start.column)
-        snippet, offset = self.get_line_snippet(self.start, max_length=80 - len(prefix))
-        errpos = ' ' * (len(prefix) + offset) + '^'
-        prefix += snippet + '\n'
-
         body = []
-        body.append(me.doc.Text(text=prefix))
-        body.append(me.doc.Text(text=errpos))
+
+        lines = []
+        line_numbers = []
+
+        if self.start.line > 1:
+            ctx_line, _ = self.get_line_snippet(self.start, offset=-1)
+            lines.append(ctx_line)
+            line_numbers.append(self.start.line - 1)
+
+        snippet, offset = self.get_line_snippet(self.start)
+        lines.append(snippet)
+        line_numbers.append(self.start.line)
+
+        try:
+            ctx_line, _ = self.get_line_snippet(self.start, offset=1)
+        except ValueError:
+            pass
+        else:
+            lines.append(ctx_line)
+            line_numbers.append(self.start.line + 1)
+
+        tbp = me.lang.TracebackPoint(
+            name=self.name, filename=self.name, lineno=self.start.line,
+            colno=self.start.column, lines=lines, line_numbers=line_numbers,
+            context=True)
+
+        body.append(tbp)
 
         return me.lang.ExceptionContext(title=self.title, body=body)
 
-    def get_line_snippet(self, point, max_length):
-        if point.line > 1:
-            linestart = self.buffer.rfind('\n', point.start.pointer)
-        else:
-            linestart = 0
+    def _find_line(self, point, offset=0):
+        if point.line == 0:
+            if offset < 0:
+                raise ValueError('not enough lines in buffer')
+            else:
+                return 0, len(self.buffer)
 
-        before = min(max_length // 2, point.pointer - linestart)
-        after = max_length - before
+        step = -1 if offset <= 0 else 1
+        find = self.buffer.rfind if offset <= 0 else self.buffer.find
+
+        offset += step
+
+        ptr = point.pointer
+
+        if offset <= 0:
+            start_end = (0, ptr)
+        else:
+            start_end = (ptr,)
+
+        while offset:
+            offset -= step
+
+            linestart = find('\n', *start_end)
+            if linestart == -1:
+                if offset:
+                    raise ValueError('not enough lines in buffer')
+                else:
+                    lineend = self.buffer.find('\n')
+                    if lineend == -1:
+                        lineend = len(self.buffer)
+                    return 0, lineend
+
+            ptr = linestart + step
+            if step == -1:
+                start_end = (0, ptr)
+            else:
+                start_end = (ptr,)
+
+        if step == -1:
+            linestart += 1
+            lineend = self.buffer.find('\n', linestart)
+            if lineend == -1:
+                lineend = len(self.buffer)
+        else:
+            lineend = linestart + 1
+            linestart = self.buffer.rfind('\n', 0, lineend - 1)
+            if linestart == -1:
+                linestart = 0
+            else:
+                linestart += 1
+
+        return linestart, lineend
+
+    def get_line_snippet(self, point, max_length=120, *, offset=0):
+        line_start, line_end = self._find_line(point, offset=offset)
+        line_len = line_end - line_start
+
+        if line_len > max_length:
+            before = min(max_length // 2, point.pointer - line_start)
+            after = max_length - before
+        else:
+            before = point.pointer - line_start
+            after = line_len - before
 
         start = point.pointer - before
         end = point.pointer + after
+
         return self.buffer[start:end], before
 
 
@@ -300,7 +376,7 @@ class Parser:
             self.parser.eoi()
 
         except parsing.SyntaxError as e:
-            raise self.get_exception(e, context=self.context()) from e
+            raise self.get_exception(e, context=self.context(tok)) from e
 
         return self.parser.start[0].val
 

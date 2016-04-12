@@ -91,6 +91,7 @@ class TracebackPoint(BaseObject):
     lineno = Field(int, default=None)
     colno = Field(int, default=None)
     address = Field(str, default=None)
+    context = Field(bool, default=False)
 
     lines = Field(typed.StrList, default=None, coerce=True)
     line_numbers = Field(typed.IntList, default=None, coerce=True)
