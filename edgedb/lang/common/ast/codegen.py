@@ -50,11 +50,14 @@ class SourceGenerator(NodeVisitor):
                 raise ValueError('invalid text chunk in codegen')
             self.result.append(chunk)
 
-    def visit_list(self, items):
+    def visit_list(self, items, *, newlines=True):
         for i, item in enumerate(items):
             if i > 0:
                 self.write(',')
-                self.new_lines = 1
+                if newlines:
+                    self.new_lines = 1
+                else:
+                    self.write(' ')
             self.visit(item)
 
     def newline(self, node=None, extra=0):
