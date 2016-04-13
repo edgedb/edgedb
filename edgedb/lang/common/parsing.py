@@ -88,24 +88,29 @@ class NontermMeta(type):
     def __new__(mcls, name, bases, dct):
         result = super().__new__(mcls, name, bases, dct)
 
-        if name == 'Nonterm':
+        if name == 'Nonterm' or name == 'ListNonterm':
             return result
 
         if not result.__doc__:
             result.__doc__ = '%nonterm'
 
-        for name, attr in dct.items():
+        for name, attr in result.__dict__.items():
             if (name.startswith('reduce_') and
                     isinstance(attr, types.FunctionType) and
                     attr.__doc__ is None):
                 tokens = name.split('_')
                 if name == 'reduce_empty':
                     tokens = ['reduce', '<e>']
-                attr.__doc__ = r'%reduce {}'.format(' '.join(tokens[1:]))
+
+                doc = r'%reduce {}'.format(' '.join(tokens[1:]))
 
                 prec = getattr(attr, '__parsing_precedence__', None)
                 if prec is not None:
-                    attr.__doc__ += ' [{}]'.format(prec)
+                    doc += ' [{}]'.format(prec)
+
+                a = lambda self, *args, meth=attr: meth(self, *args)
+                a.__doc__ = doc
+                setattr(result, name, a)
 
         return result
 
@@ -113,6 +118,60 @@ class NontermMeta(type):
 class Nonterm(parsing.Nonterm, metaclass=NontermMeta):
     pass
 
+
+class ListNontermMeta(NontermMeta):
+    def __new__(mcls, name, bases, dct, *, element, separator=None):
+        if name != 'ListNonterm':
+            if isinstance(separator, TokenMeta):
+                separator = separator._token
+
+            tokens = [name]
+            if separator:
+                tokens.append(separator)
+
+            if isinstance(element, TokenMeta):
+                element = element._token
+            elif isinstance(element, NontermMeta):
+                element = element.__name__
+
+            tokens.append(element)
+
+            prod = ListNonterm._reduce_list_separated if separator else \
+                        ListNonterm._reduce_list
+            dct['reduce_' + '_'.join(tokens)] = prod
+            dct['reduce_' + element] = ListNonterm._reduce_el
+
+        cls = super().__new__(mcls, name, bases, dct)
+        return cls
+
+    def __init__(cls, name, bases, dct, *, element, separator=None):
+        super().__init__(name, bases, dct)
+
+
+class ListNonterm(Nonterm, metaclass=ListNontermMeta, element=None):
+    def _reduce_list_separated(self, lst, sep, el):
+        if el.val is None:
+            tail = []
+        else:
+            tail = [el.val]
+
+        self.val = lst.val + tail
+
+    def _reduce_list(self, lst, el):
+        if el.val is None:
+            tail = []
+        else:
+            tail = [el.val]
+
+        self.val = lst.val + tail
+
+    def _reduce_el(self, el):
+        if el.val is None:
+            tail = []
+        else:
+            tail = [el.val]
+
+        self.val = tail
 
 
 def precedence(precedence):
