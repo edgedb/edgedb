@@ -176,6 +176,18 @@ class Struct(metaclass=StructMeta):
         self._check_init_argnames(kwargs)
         self._init_fields(_setdefaults_, _relaxrequired_, kwargs)
 
+    def __setstate__(self, state):
+        if isinstance(state, tuple) and len(state) == 2:
+            state, slotstate = state
+        else:
+            slotstate = None
+
+        if state:
+            self.update(**state)
+
+        if slotstate:
+            self.update(**slotstate)
+
     def update(self, *args, **kwargs):
         """Updates the field values from dict/iterable and `**kwargs` similarly to :py:meth:`dict.update()`"""
 
