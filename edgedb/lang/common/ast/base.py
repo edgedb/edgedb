@@ -69,6 +69,9 @@ class MetaAST(type):
 
         cls._fields = fields
 
+    def get_field(cls, name):
+        return cls._fields.get(name)
+
 
 class AST(object, metaclass=MetaAST):
     __fields = []
