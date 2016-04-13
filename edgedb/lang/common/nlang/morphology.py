@@ -43,6 +43,11 @@ def form(category, value):
         raise Exception('reference to an invalid grammatical category: %s' % category)
 
 
+def forms(mapping):
+    for k, v in mapping.items():
+        yield form(k, v)
+
+
 class GrammaticalCategory(object, metaclass=GrammaticalCategoryMeta):
     name = 'category'
 
@@ -91,6 +96,8 @@ class WordCombination(NaturalLanguageObject):
 
         if isinstance(value, str):
             value = {Singular(value)}
+        elif isinstance(value, dict):
+            value = forms(value)
 
         self.forms = {}
 
