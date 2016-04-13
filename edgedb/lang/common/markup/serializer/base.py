@@ -218,7 +218,7 @@ def serialize_exception(obj, *, ctx):
                         name='<parser>',
                         lineno=obj.lineno,
                         colno=obj.offset,
-                        filename=obj.filename)
+                        filename=obj.filename or '<buffer>')
             point.load_source()
             traceback.body[0].items.append(point)
 
