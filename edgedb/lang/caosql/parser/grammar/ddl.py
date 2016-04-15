@@ -72,6 +72,9 @@ class DDLStmt(Nonterm):
     def reduce_CreateLinkPropertyStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_AlterLinkPropertyStmt(self, *kids):
+        self.val = kids[0].val
+
     def reduce_DropLinkPropertyStmt(self, *kids):
         self.val = kids[0].val
 
@@ -582,6 +585,34 @@ class CreateLinkPropertyStmt(Nonterm):
             name=kids[3].val,
             bases=kids[4].val,
             commands=kids[5].val
+        )
+
+
+#
+# ALTER LINK PROPERTY
+#
+
+commands_block(
+    'AlterLinkProperty',
+    RenameStmt,
+    SetFieldStmt,
+    DropFieldStmt,
+    opt=False
+)
+
+
+class AlterLinkPropertyStmt(Nonterm):
+    def reduce_AlterLinkProperty(self, *kids):
+        r"""%reduce \
+            OptAliasBlock \
+            ALTER LINKPROPERTY NodeName \
+            AlterLinkPropertyCommandsBlock \
+        """
+        self.val = qlast.AlterLinkPropertyNode(
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            name=kids[3].val,
+            commands=kids[4].val
         )
 
 
