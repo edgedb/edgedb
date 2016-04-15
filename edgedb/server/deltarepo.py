@@ -7,6 +7,7 @@
 
 
 from metamagic.caos import caosql, proto, delta
+from metamagic.caos import schema as so
 from metamagic.utils.debug import debug
 
 
@@ -97,7 +98,7 @@ class MetaDeltaRepository:
         if end_rev is None:
             end_rev = self.get_delta(id='HEAD', compat_mode=True).id
 
-        schema = proto.ProtoSchema()
+        schema = so.ProtoSchema()
 
         context = delta.DeltaUpgradeContext(delta.Delta.CURRENT_FORMAT_VERSION)
         for d in self.walk_deltas(end_rev, start_rev, reverse=True,
@@ -112,13 +113,13 @@ class MetaDeltaRepository:
 
     def get_schema(self, delta_obj):
         deltas = self.get_deltas(None, delta_obj.id, take_closest_snapshot=True)
-        schema = proto.ProtoSchema()
+        schema = so.ProtoSchema()
         deltas.apply(schema)
         return schema
 
     def get_schema_at(self, ref):
         if ref is None:
-            return proto.ProtoSchema()
+            return so.ProtoSchema()
         else:
             delta = self.load_delta(ref)
             return self.get_schema(delta)
@@ -133,10 +134,10 @@ class MetaDeltaRepository:
         return snapshot
 
     def _cumulative_delta(self, ref1, ref2):
-        delta = None
+        d = None
         v1 = self.load_delta(ref1) if ref1 else None
 
-        if isinstance(ref2, proto.ProtoSchema):
+        if isinstance(ref2, so.ProtoSchema):
             v2 = None
             v2_schema = ref2
         else:
@@ -146,14 +147,14 @@ class MetaDeltaRepository:
         if v1 is not None:
             v1_schema = self.get_schema(v1)
         else:
-            v1_schema = proto.ProtoSchema()
+            v1_schema = so.ProtoSchema()
 
         if v1 is None or v1.checksum != v2_schema.get_checksum():
-            delta = v2_schema.delta(v1_schema)
+            d = delta.delta_schemas(v2_schema, v1_schema)
         else:
-            delta = None
+            d = None
 
-        return v1, v1_schema, v2, v2_schema, delta
+        return v1, v1_schema, v2, v2_schema, d
 
     def cumulative_delta(self, ref1, ref2):
         return self._cumulative_delta(ref1, ref2)[4]

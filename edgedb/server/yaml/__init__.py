@@ -30,13 +30,14 @@ from metamagic.utils.algos import topological
 from metamagic.utils.datastructures import xvalue, OrderedSet, typed
 
 from metamagic import caos
-from metamagic.caos import protoschema as lang_protoschema
+from metamagic.caos import schema as lang_protoschema
 from metamagic.caos import proto
 from metamagic.caos import types as caos_types
 from metamagic.caos import backends
 from metamagic.caos import delta as base_delta
 from metamagic.caos import objects
 from metamagic.caos import schema as caos_schema
+import metamagic.caos.schema.constraints
 from metamagic.caos.caosql import errors as caosql_exc
 from metamagic.caos.caosql import utils as caosql_utils
 
@@ -65,7 +66,7 @@ class LangObject(yaml.Object, metaclass=LangObjectMeta):
         return cls
 
 
-class ImportContext(yaml.Object, adapts=proto.ImportContext):
+class ImportContext(yaml.Object, adapts=lang_protoschema.ImportContext):
     @classmethod
     def __sx_getstate__(cls, data):
         return str(data)
@@ -1133,18 +1134,6 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             atoms, linkprops, indexes, links, concepts, policy))
 
 
-    def get_proto_schema_class(self):
-        return proto.ProtoSchema
-
-
-    def get_proto_module_class(self):
-        return proto.ProtoModule
-
-
-    def get_schema_name_class(self):
-        return caos.Name
-
-
     def _check_base(self, element, base_name, localschema):
         base = localschema.get(base_name,
                                type=element.__class__.get_canonical_class(),
@@ -2210,7 +2199,7 @@ class EntityShell2(LangObject, adapts=caos.concept.EntityShell2,
                     props[link_name, target] = lspec.attrs
 
 
-class ProtoSchema(LangObject, adapts=proto.ProtoSchema):
+class ProtoSchema(LangObject, adapts=lang_protoschema.ProtoSchema):
     @classmethod
     def __sx_getstate__(cls, data):
         result = {}

@@ -7,7 +7,7 @@
 
 
 from metamagic.caos.backends import MetaBackend, DataBackend
-from metamagic.caos.proto import ProtoSchema
+from metamagic.caos.schema import ProtoSchema
 from metamagic.caos.delta import DeltaSet
 from metamagic.caos import session
 

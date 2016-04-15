@@ -12,7 +12,7 @@ import types
 from importkit import context as lang_context
 from importkit import yaml
 
-from metamagic.caos import protoschema
+from metamagic.caos import schema as protoschema
 
 
 class SchemaError(protoschema.SchemaError):

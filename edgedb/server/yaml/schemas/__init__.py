@@ -8,8 +8,7 @@
 
 from importkit.yaml.schema import CachingSchema
 
-from metamagic.caos import proto as caos_proto
-from metamagic.caos import protoschema
+from metamagic.caos import schema as protoschema
 
 from .. import ExpressionText
 from .semantics import Semantics
@@ -32,21 +31,20 @@ class Delta(Delta):
 
 class Semantics(Semantics, CachingSchema):
     def get_import_context_class(self):
-        return caos_proto.ImportContext
+        return protoschema.ImportContext
 
     @classmethod
     def get_module_class(cls):
-        return caos_proto.SchemaModule
+        return protoschema.SchemaModule
 
     @classmethod
     def normalize_code(cls, module_data, imports):
         protomod = dict(module_data)['__sx_prototypes__']
-        schema = caos_proto.get_global_proto_schema()
+        schema = protoschema.get_global_proto_schema()
         protomod.normalize(imports)
 
     @classmethod
     def get_implicit_imports(cls):
-        # cls.get_module_class().get_schema_class().get_builtins_module()
         return ('metamagic.caos.builtins',)
 
     @classmethod

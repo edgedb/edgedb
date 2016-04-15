@@ -37,7 +37,7 @@ from metamagic.caos import types as caos_types
 from metamagic.caos import delta as base_delta
 from metamagic.caos import debug as caos_debug
 from metamagic.caos import error as caos_error
-from metamagic.caos import protoschema as lang_protoschema
+from metamagic.caos import schema as so
 
 from metamagic.caos import caosql
 
@@ -373,7 +373,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.backend_info = None
         self.modules = None
 
-        self.schema = proto.ProtoSchema()
+        self.schema = so.ProtoSchema()
 
         self.connection_pool = pool.ConnectionPool(connector, backend=self)
         self.async_connection_pool = pool.ConnectionPool(async_connector, backend=self)
@@ -732,7 +732,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
 
     def invalidate_schema_cache(self):
-        self.schema = proto.ProtoSchema()
+        self.schema = so.ProtoSchema()
         self.backend_info = self.read_backend_info()
         self.features = self.read_features(self.connection)
         self.invalidate_transient_cache()
@@ -1388,9 +1388,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                             impmod = importlib.import_module(imp_name)
                         except ImportError:
                             # Module has moved, create a dummy
-                            impmod = proto.DummyModule(imp_name)
+                            impmod = so.DummyModule(imp_name)
                         # Again, it must not be a schema module
-                        assert not isinstance(impmod, lang_protoschema.SchemaModule)
+                        assert not isinstance(impmod, so.SchemaModule)
 
                         self.schema.add_module(impmod)
 
