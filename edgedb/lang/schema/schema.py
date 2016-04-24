@@ -60,6 +60,33 @@ def drop_loaded_proto_schema(module_class, unload_modules=True):
         schema.clear()
 
 
+def populate_proto_modules(schema, module):
+    process_subimports = True
+
+    if not schema.has_module(module.__name__):
+        try:
+            proto_module = module.__sx_prototypes__
+        except AttributeError:
+            schema.add_module(module)
+            process_subimports = False
+        else:
+            schema.add_module(proto_module)
+
+    if process_subimports:
+        try:
+            subimports = module.__sx_imports__
+        except AttributeError:
+            pass
+        else:
+            for subimport in subimports:
+                submodule = sys.modules[subimport]
+                populate_proto_modules(schema, submodule)
+
+
+def get_global_proto_schema():
+    return get_loaded_proto_schema(SchemaModule)
+
+
 class SchemaModule(types.ModuleType):
     def __sx_finalize_load__(self):
         schema = get_loaded_proto_schema(self.__class__)
@@ -743,30 +770,3 @@ class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
 
     def __hash__(self):
         return self.get_checksum()
-
-
-def populate_proto_modules(schema, module):
-    process_subimports = True
-
-    if not schema.has_module(module.__name__):
-        try:
-            proto_module = module.__sx_prototypes__
-        except AttributeError:
-            schema.add_module(module)
-            process_subimports = False
-        else:
-            schema.add_module(proto_module)
-
-    if process_subimports:
-        try:
-            subimports = module.__sx_imports__
-        except AttributeError:
-            pass
-        else:
-            for subimport in subimports:
-                submodule = sys.modules[subimport]
-                populate_proto_modules(schema, submodule)
-
-
-def get_global_proto_schema():
-    return get_loaded_proto_schema(SchemaModule)
