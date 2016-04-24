@@ -17,7 +17,6 @@ import types
 import importkit
 from importkit.import_ import module as module_types
 
-from metamagic import caos
 from metamagic.caos import classfactory
 
 from metamagic.exceptions import MetamagicError
@@ -94,7 +93,7 @@ class SchemaModule(types.ModuleType):
 
         try:
             proto = self.__sx_prototypes__.get(protoname, nsname=nsname)
-        except self.__sx_prototypes__.get_schema_error():
+        except SchemaError:
             raise AttributeError('{!r} object has no attribute {!r}'.format(self, name))
 
         schema = get_loaded_proto_schema(self.__class__)
@@ -282,12 +281,6 @@ class ProtoSchemaIterator:
 
 
 class ProtoModule:
-    def get_schema_error(self):
-        return SchemaError
-
-    def get_import_context(self):
-        return ImportContext
-
     def get_object_key(self, obj):
         return obj.__class__.get_canonical_class(), obj.name
 
@@ -306,9 +299,6 @@ class ProtoModule:
 
         self.namespaces = {}
 
-        self.SchemaError = self.get_schema_error()
-        self.ImportContext = self.get_import_context()
-
     def copy(self):
         result = self.__class__()
         for obj in self:
@@ -317,7 +307,7 @@ class ProtoModule:
     def add(self, obj):
         ns = self.get_namespace(obj)
         if obj in ns:
-            raise self.SchemaError('object named "%s" is already present in the schema' % obj.name)
+            raise SchemaError('object named "%s" is already present in the schema' % obj.name)
 
         ns.add(obj)
 
@@ -341,7 +331,7 @@ class ProtoModule:
     def delete(self, obj):
         existing = self.discard(obj)
         if existing is None:
-            raise self.SchemaError('object "%s" is not present in the index' % obj.name)
+            raise SchemaError('object "%s" is not present in the index' % obj.name)
 
         return existing
 
@@ -372,7 +362,7 @@ class ProtoModule:
                     prototype = self.get(name, module_aliases=module_aliases,
                                          type=typ, include_pyobjects=include_pyobjects,
                                          index_only=index_only, default=None)
-                except self.SchemaError:
+                except SchemaError:
                     pass
                 else:
                     if prototype is not None:
@@ -384,7 +374,7 @@ class ProtoModule:
                                          type=None, include_pyobjects=include_pyobjects,
                                          index_only=index_only, default=None,
                                          nsname=nsname_)
-                except self.SchemaError:
+                except SchemaError:
                     pass
                 else:
                     if prototype is not None:
@@ -401,7 +391,7 @@ class ProtoModule:
                 type = type.get_canonical_class()
 
         if default is default_err:
-            default = self.SchemaError
+            default = SchemaError
 
         raise_ = None
 
@@ -554,16 +544,8 @@ class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
     """ProtoSchema is a collection of ProtoModules"""
 
     @classmethod
-    def get_schema_name(cls):
-        return caos.Name
-
-    @classmethod
     def get_builtins_module(cls):
         return 'metamagic.caos.builtins'
-
-    @classmethod
-    def get_schema_error(self):
-        return caos.MetaError
 
     def __init__(self):
         classfactory.ClassCache.__init__(self)
@@ -573,8 +555,6 @@ class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
         self.module_aliases = {}
         self.module_aliases_r = {}
 
-        self.SchemaName = self.get_schema_name()
-        self.SchemaError = self.get_schema_error()
         self.builtins_module = self.get_builtins_module()
 
         self._policy_schema = None
@@ -632,7 +612,7 @@ class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
         try:
             module = self.modules[obj.name.module]
         except KeyError as e:
-            raise self.SchemaError('module {} is not in this schema'.format(obj.name.module)) from e
+            raise SchemaError('module {} is not in this schema'.format(obj.name.module)) from e
 
         module.add(obj)
 
@@ -648,7 +628,7 @@ class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
         try:
             module = self.modules[obj.name.module]
         except KeyError as e:
-            raise self.SchemaError('module {} is not in this schema'.format(obj.name.module)) from e
+            raise SchemaError('module {} is not in this schema'.format(obj.name.module)) from e
 
         return module.delete(obj)
 
@@ -708,7 +688,7 @@ class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
             module = fq_module
 
         if default is default_err:
-            default = self.SchemaError
+            default = SchemaError
             default_raise = True
         else:
             if default is not None and \
