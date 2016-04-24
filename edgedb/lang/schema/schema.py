@@ -23,7 +23,7 @@ from metamagic.utils.datastructures.struct import MixedStruct, MixedStructMeta
 from metamagic.utils.datastructures import Void
 from metamagic.utils.algos.persistent_hash import persistent_hash
 
-from .error import SchemaError, NoPrototypeError
+from .error import SchemaError
 from . import name as schema_name
 
 
@@ -133,25 +133,6 @@ class ProtoObject(metaclass=PrototypeClass):
     @classmethod
     def get_canonical_class(cls):
         return cls
-
-    @classmethod
-    def _get_prototype(cls, obj):
-        try:
-            proto = object.__getattribute__(obj, '__sx_prototype__')
-        except AttributeError as e:
-            raise NoPrototypeError('{!r} does not have a valid prototype'.format(obj)) from e
-        else:
-            if not isinstance(proto, ProtoObject):
-                raise NoPrototypeError('{!r} does not have a valid prototype'.format(obj))
-        return proto
-
-    @classmethod
-    def is_prototype(cls, proto_schema, name):
-        if isinstance(name, ProtoObject):
-            return True
-        else:
-            obj = proto_schema.get(name, include_pyobjects=True, index_only=False)
-            return isinstance(obj, ProtoObject)
 
 
 class PrototypeMeta(PrototypeClass, MixedStructMeta):
