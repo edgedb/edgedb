@@ -45,3 +45,22 @@ class SchemaName(str):
     @staticmethod
     def is_qualified(name):
         return isinstance(name, SchemaName) or '.' in name
+
+
+def split_name(name):
+    if isinstance(name, SchemaName):
+        module = name.module
+        nqname = name.name
+    elif isinstance(name, tuple):
+        module = name[0]
+        nqname = name[1]
+        name = module + '.' + nqname if module else nqname
+    elif SchemaName.is_qualified(name):
+        name = SchemaName(name)
+        module = name.module
+        nqname = name.name
+    else:
+        module = None
+        nqname = name
+
+    return name, module, nqname
