@@ -6,8 +6,6 @@
 ##
 
 
-from metamagic.caos import proto
-
 from metamagic.utils.functional import adapter
 
 from metamagic.utils import ast

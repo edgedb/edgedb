@@ -9,13 +9,22 @@
 import collections
 import itertools
 
-from metamagic.caos import name as caos_name
 from metamagic.caos import error as caos_error
-from metamagic.caos import utils as caos_utils
-from metamagic.caos.utils import LinearPath
-from metamagic.caos import types as caos_types
+
 from metamagic.caos.ir import ast as irast
-from metamagic.caos.ir import utils as ir_utils
+from metamagic.caos.ir import utils as irutils
+from metamagic.caos.ir.utils import LinearPath
+
+from metamagic.caos.schema import atoms as s_atoms
+from metamagic.caos.schema import concepts as s_concepts
+from metamagic.caos.schema import expr as s_expr
+from metamagic.caos.schema import hooks as s_hooks
+from metamagic.caos.schema import links as s_links
+from metamagic.caos.schema import lproperties as s_lprops
+from metamagic.caos.schema import name as sn
+from metamagic.caos.schema import objects as s_obj
+from metamagic.caos.schema import pointers as s_pointers
+from metamagic.caos.schema import types as s_types
 
 from metamagic.utils.algos import boolean
 from metamagic.utils import datastructures, ast, debug, markup
@@ -305,7 +314,7 @@ class TreeTransformer:
         for source in sources:
             mro = source.get_mro()
 
-            mro = [cls for cls in mro if isinstance(cls, caos_types.ProtoObject)]
+            mro = [cls for cls in mro if isinstance(cls, s_obj.ProtoObject)]
 
             for proto in mro:
                 if ln:
@@ -314,7 +323,7 @@ class TreeTransformer:
                     key = proto.name
 
                 try:
-                    hooks = caos_types._rewrite_hooks[key, 'read', type]
+                    hooks = s_hooks._rewrite_hooks[key, 'read', type]
                 except KeyError:
                     pass
                 else:
@@ -332,7 +341,7 @@ class TreeTransformer:
             if isinstance(expr, irast.EntityLink):
                 if type == 'computable' and expr.link_proto.is_pure_computable():
                     deflt = expr.link_proto.default[0]
-                    if isinstance(deflt, caos_types.ExpressionText):
+                    if isinstance(deflt, s_expr.ExpressionText):
                         caosql_expr = deflt
                     else:
                         caosql_expr = "'" + str(deflt).replace("'", "''") + "'"
@@ -420,7 +429,7 @@ class TreeTransformer:
                                              type=schema.get('metamagic.caos.builtins.str'))
                     cvars['lang'] = 'en-US'
 
-                    propn = caos_name.Name('metamagic.caos.extras.l10n.lang')
+                    propn = sn.Name('metamagic.caos.extras.l10n.lang')
 
                     for langprop in expr.proprefs:
                         if langprop.name == propn:
@@ -570,7 +579,7 @@ class TreeTransformer:
 
             _new_visited_records = _visited_records.copy()
 
-            if isinstance(concept, caos_types.ProtoConcept):
+            if isinstance(concept, s_concepts.Concept):
                 _new_visited_records[concept] = rec
 
             if concept.is_virtual:
@@ -582,44 +591,48 @@ class TreeTransformer:
 
             if pathspec is not None:
                 must_have_links = (
-                    caos_name.Name('metamagic.caos.builtins.id'),
-                    caos_name.Name('metamagic.caos.builtins.mtime'),
-                    caos_name.Name('metamagic.caos.builtins.ctime')
+                    sn.Name('metamagic.caos.builtins.id'),
+                    sn.Name('metamagic.caos.builtins.mtime'),
+                    sn.Name('metamagic.caos.builtins.ctime')
                 )
 
-                recurse_links = {(l, caos_types.OutboundDirection):
+                recurse_links = {(l, s_pointers.PointerDirection.Outbound):
                                  irast.PtrPathSpec(ptr_proto=ptrs[l]) for l in must_have_links}
 
                 for ps in pathspec:
-                    if isinstance(ps.ptr_proto, caos_types.ProtoLink):
+                    if isinstance(ps.ptr_proto, s_links.Link):
                         recurse_links[ps.ptr_proto.normal_name(), ps.ptr_direction] = ps
 
-                    elif isinstance(ps.ptr_proto, caos_types.ProtoTypeProperty):
+                    elif isinstance(ps.ptr_proto, s_lprops.TypeProperty):
                         # metaref
                         recurse_metarefs.append(ps.ptr_proto.normal_name().name)
 
             if recurse_links is None:
-                recurse_links = {(pn, caos_types.OutboundDirection):
+                recurse_links = {(pn, s_pointers.PointerDirection.Outbound):
                                     irast.PtrPathSpec(ptr_proto=p)
                                     for pn, p in ptrs.items()
-                                        if p.get_loading_behaviour() == caos_types.EagerLoading and
+                                        if p.get_loading_behaviour() == s_pointers.PointerLoading.Eager and
                                            p.target not in _visited_records}
 
             for (link_name, link_direction), recurse_spec in recurse_links.items():
                 el = None
 
                 link = recurse_spec.ptr_proto
-                link_direction = recurse_spec.ptr_direction or caos_types.OutboundDirection
+                link_direction = recurse_spec.ptr_direction or s_pointers.PointerDirection.Outbound
 
                 root_link_proto = schema.get(link_name)
                 link_proto = link
 
-                if link_direction == caos_types.OutboundDirection:
+                if link_direction == s_pointers.PointerDirection.Outbound:
                     link_target_proto = link.target
-                    link_singular = link.mapping in {caos_types.OneToOne, caos_types.ManyToOne}
+                    link_singular = \
+                        link.mapping in {s_links.LinkMapping.OneToOne,
+                                         s_links.LinkMapping.ManyToOne}
                 else:
                     link_target_proto = link.source
-                    link_singular = link.mapping in {caos_types.OneToOne, caos_types.OneToMany}
+                    link_singular = \
+                        link.mapping in {s_links.LinkMapping.OneToOne,
+                                         s_links.LinkMapping.OneToMany}
 
                 if recurse_spec.target_proto is not None:
                     target_proto = recurse_spec.target_proto
@@ -707,7 +720,7 @@ class TreeTransformer:
                                                         direction=sortexpr.direction,
                                                         nones_order=sortexpr.nones_order))
 
-                if isinstance(target_proto, caos_types.ProtoAtom):
+                if isinstance(target_proto, s_atoms.Atom):
                     if link_singular:
                         if not reusing_target:
                             newstep = irast.AtomicRefSimple(ref=lref, name=link_name,
@@ -718,9 +731,9 @@ class TreeTransformer:
                             link_node.target = newstep
                             atomrefs.append(newstep)
                     else:
-                        ptr_name = caos_name.Name('metamagic.caos.builtins.target')
+                        ptr_name = sn.Name('metamagic.caos.builtins.target')
                         prop_id = LinearPath(ref.id)
-                        prop_id.add(root_link_proto, caos_types.OutboundDirection, None)
+                        prop_id.add(root_link_proto, s_pointers.PointerDirection.Outbound, None)
                         prop_proto = link.pointers[ptr_name]
                         newstep = irast.LinkPropRefSimple(name=ptr_name, id=full_path_id,
                                                              ptr_proto=prop_proto)
@@ -751,20 +764,20 @@ class TreeTransformer:
                 if link.has_user_defined_properties():
                     if recurse_spec.pathspec is not None:
                         must_have_props = (
-                            caos_name.Name('metamagic.caos.builtins.linkid'),
+                            sn.Name('metamagic.caos.builtins.linkid'),
                         )
 
                         recurse_props = {propn: irast.PtrPathSpec(ptr_proto=link.pointers[propn])
                                          for propn in must_have_props}
 
                         for ps in recurse_spec.pathspec:
-                            if (isinstance(ps.ptr_proto, caos_types.ProtoLinkProperty)
+                            if (isinstance(ps.ptr_proto, s_lprops.LinkProperty)
                                     and not ps.ptr_proto.is_endpoint_pointer()):
                                 recurse_props[ps.ptr_proto.normal_name()] = ps
                     else:
                         recurse_props = {pn: irast.PtrPathSpec(ptr_proto=p)
                                             for pn, p in link.pointers.items()
-                                                if p.get_loading_behaviour() == caos_types.EagerLoading
+                                                if p.get_loading_behaviour() == s_pointers.PointerLoading.Eager
                                                    and not p.is_endpoint_pointer()}
 
                     proprec = irast.Record(elements=prop_elements, concept=root_link_proto)
@@ -774,7 +787,7 @@ class TreeTransformer:
                             continue
 
                         prop_id = LinearPath(ref.id)
-                        prop_id.add(root_link_proto, caos_types.OutboundDirection, None)
+                        prop_id.add(root_link_proto, s_pointers.PointerDirection.Outbound, None)
                         prop_ref = irast.LinkPropRefSimple(name=prop_name, id=full_path_id,
                                                               ptr_proto=prop_proto,
                                                               ref=link_node)
@@ -881,11 +894,11 @@ class TreeTransformer:
             assert len(concepts) == 1
 
             ref = p if len(expr.paths) == 1 else expr
-            link_name = caos_name.Name('metamagic.caos.builtins.id')
+            link_name = sn.Name('metamagic.caos.builtins.id')
             link_proto = schema.get(link_name)
             target_proto = link_proto.target
             id = LinearPath(ref.id)
-            id.add(link_proto, caos_types.OutboundDirection, target_proto)
+            id.add(link_proto, s_pointers.PointerDirection.Outbound, target_proto)
             expr = irast.AtomicRefSimple(ref=ref, name=link_name, id=id, ptr_proto=link_proto)
 
         return expr
@@ -901,7 +914,7 @@ class TreeTransformer:
                     ptrspec.pathspec = []
 
                     for ptr in ptrspec.target_proto.pointers.values():
-                        if ptr.get_loading_behaviour() == caos_types.EagerLoading:
+                        if ptr.get_loading_behaviour() == s_pointers.PointerLoading.Eager:
                             ptrspec.pathspec.append(irast.PtrPathSpec(ptr_proto=ptr))
 
                 recspec = irast.PtrPathSpec(ptr_proto=ptrspec.ptr_proto,
@@ -1010,9 +1023,7 @@ class TreeTransformer:
         return binop
 
     def is_aggregated_expr(self, expr, deep=False):
-        agg = getattr(expr, 'aggregates', False) or \
-                   (isinstance(expr, caos_types.NodeClass) and \
-                        caos_utils.get_path_id(expr) in self.context.current.groupprefixes)
+        agg = getattr(expr, 'aggregates', False)
 
         if not agg and deep:
             return bool(list(ast.find_children(expr, lambda i: getattr(i, 'aggregates', None))))
@@ -1103,11 +1114,11 @@ class TreeTransformer:
 
 
     def build_paths_index(self, graph):
-        paths = ir_utils.extract_paths(graph, reverse=True, resolve_arefs=False,
+        paths = irutils.extract_paths(graph, reverse=True, resolve_arefs=False,
                                        recurse_subqueries=1, all_fragments=True)
 
         if isinstance(paths, irast.PathCombination):
-            ir_utils.flatten_path_combination(paths, recursive=True)
+            irutils.flatten_path_combination(paths, recursive=True)
             paths = paths.paths
         else:
             paths = [paths]
@@ -1157,12 +1168,12 @@ class TreeTransformer:
         elif isinstance(expr, irast.GraphExpr):
             paths = self.build_paths_index(expr)
 
-            subpaths = ir_utils.extract_paths(
+            subpaths = irutils.extract_paths(
                             expr, reverse=True, resolve_arefs=False,
                             recurse_subqueries=2, all_fragments=True)
 
             if isinstance(subpaths, irast.PathCombination):
-                ir_utils.flatten_path_combination(subpaths, recursive=True)
+                irutils.flatten_path_combination(subpaths, recursive=True)
                 subpaths = subpaths.paths
             else:
                 subpaths = {subpaths}
@@ -1209,7 +1220,7 @@ class TreeTransformer:
         return expr
 
     def postprocess_expr(self, expr):
-        paths = ir_utils.extract_paths(expr, reverse=True)
+        paths = irutils.extract_paths(expr, reverse=True)
 
         if paths:
             if isinstance(paths, irast.PathCombination):
@@ -1256,7 +1267,7 @@ class TreeTransformer:
             assert False, "Unexpexted expression: %s" % expr
 
     def is_weak_op(self, op):
-        return ir_utils.is_weak_op(op) \
+        return irutils.is_weak_op(op) \
                 or self.context.current.location != 'generator'
 
     def merge_paths(self, expr):
@@ -1373,18 +1384,18 @@ class TreeTransformer:
                 #
                 paths = []
                 for arg in args:
-                    path = ir_utils.extract_paths(arg, reverse=True)
+                    path = irutils.extract_paths(arg, reverse=True)
                     if path:
                         paths.append(path)
                 for sortexpr in expr.agg_sort:
-                    path = ir_utils.extract_paths(sortexpr, reverse=True)
+                    path = irutils.extract_paths(sortexpr, reverse=True)
                     if path:
                         paths.append(path)
                 if expr.agg_filter:
-                    paths.append(ir_utils.extract_paths(expr.agg_filter,
+                    paths.append(irutils.extract_paths(expr.agg_filter,
                                                         reverse=True))
                 for partition_expr in expr.partition:
-                    path = ir_utils.extract_paths(partition_expr, reverse=True)
+                    path = irutils.extract_paths(partition_expr, reverse=True)
                     if path:
                         paths.append(path)
                 e = irast.Conjunction(paths=frozenset(paths))
@@ -1427,7 +1438,7 @@ class TreeTransformer:
         #
         assert isinstance(expr, irast.PathCombination)
 
-        ir_utils.flatten_path_combination(expr)
+        irutils.flatten_path_combination(expr)
 
         if deep:
             newpaths = set()
@@ -1454,7 +1465,7 @@ class TreeTransformer:
         result = None
 
         while mypaths and not result:
-            result = ir_utils.extract_paths(mypaths.pop(), reverse)
+            result = irutils.extract_paths(mypaths.pop(), reverse)
 
         return self._unify_paths(result, mypaths, mode, reverse, merge_filters)
 
@@ -1463,7 +1474,7 @@ class TreeTransformer:
         mypaths = set(paths)
 
         while mypaths:
-            path = ir_utils.extract_paths(mypaths.pop(), reverse)
+            path = irutils.extract_paths(mypaths.pop(), reverse)
 
             if not path or result is path:
                 continue
@@ -1800,7 +1811,7 @@ class TreeTransformer:
                     left_set.conjunction = self.intersect_paths(left_set.conjunction,
                                                                 disjunction, merge_filters)
 
-                    ir_utils.flatten_path_combination(left_set.conjunction)
+                    irutils.flatten_path_combination(left_set.conjunction)
 
                     if len(left_set.conjunction.paths) == 1:
                         first_conj = next(iter(left_set.conjunction.paths))
@@ -1842,7 +1853,7 @@ class TreeTransformer:
         result.update(right)
 
         if len(result.paths) > 1:
-            ir_utils.flatten_path_combination(result)
+            irutils.flatten_path_combination(result)
             self.unify_paths(result.paths, mode=result.__class__, reverse=False,
                              merge_filters=merge_filters)
             result.paths = frozenset(p for p in result.paths)
@@ -1934,7 +1945,7 @@ class TreeTransformer:
             link = our
             our_node = our.target
             if our_node is None:
-                our_id = caos_utils.LinearPath(our.source.id)
+                our_id = irutils.LinearPath(our.source.id)
                 our_id.add(link.link_proto, link.direction, None)
                 our_node = our.source
             else:
@@ -1949,7 +1960,7 @@ class TreeTransformer:
             other_node = other.target
             if other_node is None:
                 other_node = other.source
-                other_id = caos_utils.LinearPath(other.source.id)
+                other_id = irutils.LinearPath(other.source.id)
                 other_id.add(other_link.link_proto, other_link.direction, None)
             else:
                 other_id = other_node.id
@@ -1959,11 +1970,11 @@ class TreeTransformer:
             other_id = other.id
 
         if our_id[-1] is None and other_id[-1] is not None:
-            other_id = caos_utils.LinearPath(other_id)
+            other_id = irutils.LinearPath(other_id)
             other_id[-1] = None
 
         if other_id[-1] is None and our_id[-1] is not None:
-            our_id = caos_utils.LinearPath(our_id)
+            our_id = irutils.LinearPath(our_id)
             our_id[-1] = None
 
 
@@ -2011,7 +2022,7 @@ class TreeTransformer:
 
         entity_paths = ast.find_children(tree, lambda i: isinstance(i, irast.EntitySet))
 
-        return list({p for p in entity_paths if isinstance(p.concept, caos_types.ProtoConcept)})
+        return list({p for p in entity_paths if isinstance(p.concept, s_concepts.Concept)})
 
     @classmethod
     def copy_path(cls, path: (irast.EntitySet, irast.EntityLink, irast.BaseRef),
@@ -2118,7 +2129,7 @@ class TreeTransformer:
                 cols = []
                 for link_name, link in ref.concept.get_searchable_links():
                     id = LinearPath(ref.id)
-                    id.add(link, caos_types.OutboundDirection, link.target)
+                    id.add(link, s_pointers.PointerDirection.Outbound, link.target)
                     cols.append(irast.AtomicRefSimple(ref=ref, name=link_name,
                                                          ptr_proto=link,
                                                          id=id))
@@ -2297,15 +2308,15 @@ class TreeTransformer:
         return not reversed and op in (ast.ops.IS, ast.ops.IS_NOT) and \
                 isinstance(left, irast.Path) and \
                 isinstance(right, irast.Constant) and \
-                (isinstance(right.type, caos_types.PrototypeClass)
+                (isinstance(right.type, s_obj.PrototypeClass)
                  or isinstance(right.type, tuple) and
-                    isinstance(right.type[1], caos_types.PrototypeClass))
+                    isinstance(right.type[1], s_obj.PrototypeClass))
 
     def is_concept_path(self, expr):
         if isinstance(expr, irast.PathCombination):
             return all(self.is_concept_path(p) for p in expr.paths)
         elif isinstance(expr, irast.EntitySet):
-            return isinstance(expr.concept, caos_types.ProtoConcept)
+            return isinstance(expr.concept, s_concepts.Concept)
         else:
             return False
 
@@ -2352,7 +2363,7 @@ class TreeTransformer:
             else:
                 return irast.BinOp(left=left, op=operation, right=right)
 
-        left_paths = ir_utils.extract_paths(
+        left_paths = irutils.extract_paths(
                         left, reverse=False, resolve_arefs=False,
                         extract_subgraph_refs=True)
 
@@ -2380,7 +2391,7 @@ class TreeTransformer:
 
                     right_exprs = self.get_multipath(right)
 
-                    id_col = caos_name.Name('metamagic.caos.builtins.id')
+                    id_col = sn.Name('metamagic.caos.builtins.id')
                     lrefs = [irast.AtomicRefSimple(ref=p, name=id_col)
                                 for p in left_exprs.paths]
                     rrefs = [irast.AtomicRefSimple(ref=p, name=id_col)
@@ -2418,7 +2429,7 @@ class TreeTransformer:
                     #       <const_id> IN <path>
                     #       <path> = <const_id>
 
-                    id_col = caos_name.Name('metamagic.caos.builtins.id')
+                    id_col = sn.Name('metamagic.caos.builtins.id')
 
                     # <Constant> IN <EntitySet> is interpreted as a membership
                     # check of entity with ID represented by Constant in the EntitySet,
@@ -2429,7 +2440,7 @@ class TreeTransformer:
                     else:
                         membership_op = op
 
-                    if isinstance(right.type, caos_types.ProtoConcept):
+                    if isinstance(right.type, s_concepts.Concept):
                         id_t = self.context.current.proto_schema.get('uuid')
                         const_filter = irast.Constant(value=right.value, index=right.index,
                                                          expr=right.expr, type=id_t)
@@ -2464,7 +2475,7 @@ class TreeTransformer:
                 if not result:
                     result = newbinop(left, right, uninline=True)
             else:
-                right_paths = ir_utils.extract_paths(
+                right_paths = irutils.extract_paths(
                                     right, reverse=False, resolve_arefs=False,
                                     extract_subgraph_refs=True)
 
@@ -2619,7 +2630,7 @@ class TreeTransformer:
                     if l.type == r.type:
                         result_type = l.type
                     else:
-                        result_type = caos_types.TypeRules.get_result(op, (l.type, r.type), schema)
+                        result_type = s_types.TypeRules.get_result(op, (l.type, r.type), schema)
                 result = irast.Constant(expr=newbinop(left, right), type=result_type)
 
         elif isinstance(left, irast.BinOp):
@@ -2653,7 +2664,7 @@ class TreeTransformer:
         elif isinstance(expr, irast.Constant):
             result = irast.Constant(expr=irast.UnaryOp(expr=expr, op=operator))
         else:
-            paths = ir_utils.extract_paths(expr, reverse=False,
+            paths = irutils.extract_paths(expr, reverse=False,
                                            resolve_arefs=False)
             exprs = self.get_multipath(paths)
             arefs = self.check_atomic_disjunction(exprs, irast.AtomicRef)
@@ -2686,7 +2697,7 @@ class TreeTransformer:
         result = collections.OrderedDict()
 
         for i, selexpr in enumerate(selector):
-            expr_type = ir_utils.infer_type(selexpr.expr, schema)
+            expr_type = irutils.infer_type(selexpr.expr, schema)
 
             if isinstance(selexpr.expr, irast.Constant):
                 expr_kind = 'constant'
@@ -2710,397 +2721,4 @@ class TreeTransformer:
                 expr_kind = 'expression'
             result[selexpr.name or str(i)] = (expr_type, expr_kind)
 
-        return result
-
-
-class PathResolverContextLevel:
-    def __init__(self, prevlevel=None):
-        self.include_filters = False
-        self.included_filters = set()
-        self.expr_root = None
-        self.path_shift = None
-
-        if prevlevel:
-            self.include_filters = prevlevel.include_filters
-            self.path_shift = prevlevel.path_shift
-            self.included_filters = prevlevel.included_filters
-
-
-class PathResolverContext:
-    def __init__(self):
-        self.stack = []
-        self.push()
-
-    def push(self, mode=None):
-        level = PathResolverContextLevel(self.current)
-        self.stack.append(level)
-
-        return level
-
-    def pop(self):
-        self.stack.pop()
-
-    def __call__(self, mode=None):
-        return PathResolverContextWrapper(self)
-
-    @property
-    def current(self):
-        if len(self.stack) > 0:
-            return self.stack[-1]
-        else:
-            return None
-
-
-class PathResolverContextWrapper:
-    def __init__(self, context):
-        self.context = context
-
-    def __enter__(self):
-        self.context.push()
-        return self.context
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        self.context.pop()
-
-
-
-class PathResolver(TreeTransformer):
-    def serialize_path(self, path, include_filters=False):
-        context = PathResolverContext()
-        context.current.include_filters = include_filters
-
-        return self._serialize_path(context, path)
-
-    def _collect_quals(self, context, path):
-        quals = []
-
-        if path.conjunction and path.conjunction.paths:
-            for ptr in path.conjunction.paths:
-                if (ptr.target and getattr(ptr.target, 'filter', None)
-                        and (ptr.target.origin or ptr.target) not in context.current.included_filters):
-                    qual = self._serialize_filter(context, ptr.target.filter)
-                    quals.append(qual)
-
-                    context.current.included_filters.add(ptr.target.origin or ptr.target)
-                    quals.extend(self._collect_quals(context, ptr.target))
-
-        return quals
-
-    def _serialize_path(self, context, path):
-        if path.rewrite_original is not None:
-            return self._serialize_path(context, path.rewrite_original)
-
-        if isinstance(path, irast.MetaRef):
-            source = self._serialize_path(context, path.ref)
-            result = ('getclassattr', source, path.name)
-
-        elif isinstance(path, irast.AtomicRefSimple):
-            source = self._serialize_path(context, path.ref)
-            result = ('getattr', source, path.name)
-
-        elif (isinstance(path, irast.AtomicRefExpr)
-                and path.ptr_proto is not None):
-            source = self._serialize_path(context, path.ref)
-            result = ('getattr', source, path.ptr_proto.normal_name())
-
-        elif isinstance(path, irast.LinkPropRefSimple):
-            if path.name == 'metamagic.caos.builtins.target':
-                result = self._serialize_link(context, path.ref)
-            else:
-                source = self._serialize_path(context, path.ref)
-                result = ('getattr', source, path.name)
-
-        elif isinstance(path, irast.EntitySet):
-            target = ('getcls', path.concept.name)
-
-            if context.current.include_filters:
-                quals = []
-
-                if path.filter:
-                    with context():
-                        context.current.expr_root = path
-                        context.current.include_filters = False
-                        context.current.included_filters.add(path.origin or path)
-                        quals.append(self._serialize_filter(context,
-                                                            path.filter))
-
-                if path.conjunction and path.conjunction.paths:
-                    with context():
-                        context.current.expr_root = path
-                        context.current.include_filters = False
-                        quals.extend(self._collect_quals(context, path))
-
-            if path.rlink and path != context.current.expr_root:
-                link_proto = path.rlink.link_proto
-                dir = path.rlink.direction
-                source = self._serialize_path(context, path.rlink.source)
-
-                result = ('step', source, target, link_proto.normal_name(), dir)
-            else:
-                result = target
-
-            if context.current.include_filters and quals:
-                qual = quals[0]
-                for right in quals[1:]:
-                    qual = ('binop', 'and', qual, right)
-                result = ('filter', result, qual)
-
-        elif isinstance(path, irast.EntityLink):
-            link = self._serialize_link(context, path)
-            result = ('as_link', link)
-
-        elif isinstance(path, irast.TypeCast):
-            result = self._serialize_path(context, path.expr)
-
-        elif isinstance(path, irast.Record):
-            for elem in path.elements:
-                if isinstance(elem, irast.BaseRef):
-                    result = self._serialize_path(context, elem.ref)
-                    break
-            else:
-                raise AssertionError('unexpected record structure: no atomrefs found')
-
-        elif isinstance(path, irast.Constant):
-            result = []
-
-        else:
-            raise TreeError('unexpected node: "%r"' % path)
-
-        return result
-
-    def _serialize_filter(self, context, expr):
-        if isinstance(expr, irast.BinOp):
-            left = self._serialize_filter(context, expr.left)
-            right = self._serialize_filter(context, expr.right)
-            result = ('binop', str(expr.op), left, right)
-
-        elif isinstance(expr, irast.AtomicRefSimple):
-            result = self._serialize_path(context, expr)
-
-        elif isinstance(expr, irast.Constant):
-            if expr.index is not None:
-                msg = 'filters in path expressions do not support symbolic vars'
-                raise ValueError(msg)
-
-            typ = str(expr.type.name) if expr.type else None
-            result = ('const', expr.value, typ)
-
-        elif isinstance(expr, irast.TypeCast):
-            cast_expr = self._serialize_filter(context, expr.expr)
-            typ = str(expr.type.name)
-            result = ('cast', cast_expr, typ)
-
-        else:
-            msg = 'unsupported node in path expression filter: {!r}'
-            raise ValueError(msg.format(expr))
-
-        return result
-
-
-    def _serialize_link(self, context, link):
-        source = self._serialize_path(context, link.source)
-        if link.direction == caos_types.OutboundDirection:
-            result = ('getattr', source, link.link_proto.normal_name())
-        else:
-            target = self._serialize_path(context, link.target)
-            result = ('step', source, target,
-                      link.link_proto.normal_name(), link.direction)
-
-        return result
-
-    def unserialize_path(self, script, class_factory):
-        return self._exec_cmd(script, class_factory)
-
-    def _exec_cmd(self, cmd, class_factory):
-        from metamagic.caos import expr as caos_expr
-
-        cmd, *args = cmd
-
-        if cmd == 'getattr':
-
-            sources = []
-            src = self._exec_cmd(args[0], class_factory)
-            ptr = args[1]
-            result = getattr(src, ptr)
-
-        elif cmd == 'getclassattr':
-            result = []
-
-            if args[1] == 'id':
-                atom_name = 'metamagic.caos.builtins.int'
-            else:
-                atom_name = 'metamagic.caos.builtins.str'
-
-            source = self._exec_cmd(args[0], class_factory)
-            result = getattr(caos_expr.type(source), args[1])
-
-        elif cmd == 'step':
-            source = self._exec_cmd(args[0], class_factory)
-            target = self._exec_cmd(args[1], class_factory)
-
-            result = caos_utils.create_path_step(
-                        class_factory, source, target, args[2], args[3])
-
-        elif cmd == 'getcls':
-            result = class_factory.get_class(args[0])
-
-        elif cmd == 'as_link':
-            source = self._exec_cmd(args[0], class_factory)
-            result = source.as_link()
-
-        elif cmd == 'filter':
-            result = self._exec_cmd(args[0], class_factory)
-
-        else:
-            msg = 'unexpected path resolver command: "{}"'.format(cmd)
-            raise TreeError(msg)
-
-        return result
-
-    def convert_to_entity_path(self, script, path_shift):
-        context = PathResolverContext()
-        context.current.path_shift = path_shift
-        return self._convert_to_entity_path(context, script)
-
-    def _convert_to_entity_path(self, context, cmd):
-        cmd, *args = cmd
-
-        if cmd == 'getattr':
-            source = self._convert_to_entity_path(context, args[0])
-            ptr = args[1]
-            result = ('follow', source, ptr, caos_types.OutboundDirection)
-
-        elif cmd == 'getclassattr':
-            source = self._convert_to_entity_path(context, args[0])
-            result = ('getclassattr', source, args[1])
-
-        elif cmd == 'step':
-            source = self._convert_to_entity_path(context, args[0])
-
-            if context.current.path_shift > 0:
-                result = source
-                context.current.path_shift -= 1
-            else:
-                pointer = args[2]
-                direction = args[3]
-                target = args[1][1]
-                result = ('follow', source, pointer, direction, target)
-
-        elif cmd == 'getcls':
-            result = ('this',)
-
-        elif cmd == 'as_link':
-            source = self._convert_to_entity_path(context, args[0])
-            result = ('as_link', source)
-
-        elif cmd == 'filter':
-            source = self._convert_to_entity_path(context, args[0])
-            qual = self._convert_to_entity_path(context, args[1])
-            result = ('filter', source, qual)
-
-        elif cmd == 'binop':
-            op = args[0]
-            left = self._convert_to_entity_path(context, args[1])
-            right = self._convert_to_entity_path(context, args[2])
-            result = ('binop', op, left, right)
-
-        elif cmd == 'const':
-            result = (cmd,) + tuple(args)
-
-        elif cmd == 'cast':
-            cast_expr = self._convert_to_entity_path(context, args[0])
-            result = (cmd, cast_expr) + tuple(args[1:])
-
-        else:
-            msg = 'unexpected path resolver command: "{}"'.format(cmd)
-            raise TreeError(msg)
-
-        return result
-
-    def resolve_path(self, tree, class_factory=None):
-        targets = list(self._resolve_path(tree, class_factory))
-        assert len(targets) <= 1
-        return targets[0]
-
-    def _resolve_path(self, path, class_factory):
-        if path.rewrite_original is not None:
-            return self._resolve_path(path.rewrite_original, class_factory)
-
-        if isinstance(path, irast.Disjunction):
-            result = set()
-
-            for path in path.paths:
-                result.update(self._resolve_path(path, class_factory))
-
-        elif isinstance(path, irast.MetaRef):
-            import metamagic.caos.expr as caos_expr
-            expr = self._resolve_path(path.ref, class_factory)
-
-            if path.name == 'id':
-                atom_name = 'metamagic.caos.builtins.int'
-            else:
-                atom_name = 'metamagic.caos.builtins.str'
-
-            result = []
-
-            for e in expr:
-                result.append(getattr(caos_expr.type(e), path.name))
-
-        elif isinstance(path, irast.AtomicRefSimple):
-            expr = self._resolve_path(path.ref, class_factory)
-            result = (getattr(e, path.name) for e in expr)
-
-        elif isinstance(path, irast.AtomicRefExpr) and path.ptr_proto is not None:
-            expr = self._resolve_path(path.ref, class_factory)
-            result = (getattr(e, path.ptr_proto.normal_name()) for e in expr)
-
-        elif isinstance(path, irast.LinkPropRefSimple):
-            expr = self._resolve_path(path.ref, class_factory)
-            result = (getattr(e, path.name) for e in expr)
-
-        elif isinstance(path, irast.EntitySet):
-            result = class_factory.get_class(path.concept.name)
-
-            if path.rlink:
-                result = self._step_from_link(path.rlink, result, class_factory)
-            else:
-                result = (result,)
-
-        elif isinstance(path, irast.EntityLink):
-            link = path
-            link_proto = link.link_proto
-            source = self._resolve_path(link.source, class_factory)
-            target = next(iter(self._resolve_path(link.target, class_factory)))
-            result = []
-
-            for e in source:
-                target = e.follow(link_proto.normal_name(), link.direction, targets=target)
-                result.append(target.as_link())
-
-        elif isinstance(path, irast.TypeCast):
-            result = self._resolve_path(path.expr, class_factory)
-
-        elif isinstance(path, irast.Record):
-            for elem in path.elements:
-                if isinstance(elem, irast.BaseRef):
-                    result = self._resolve_path(elem.ref, class_factory)
-                    break
-            else:
-                raise AssertionError('unexpected record structure: no atomrefs found')
-
-        elif isinstance(path, irast.Constant):
-            result = ()
-
-        else:
-            raise TreeError('unexpected node: "%r"' % path)
-
-        return result
-
-    def _step_from_link(self, link, target, class_factory):
-        link_proto = link.link_proto
-        dir = link.direction
-        source = self._resolve_path(link.source, class_factory)
-        result = (caos_utils.create_path_step(class_factory, expr, target,
-                                              link_proto.normal_name(),
-                                              dir) for expr in source)
         return result

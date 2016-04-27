@@ -8,15 +8,21 @@
 """CaosQL to IR compiler"""
 
 
-import collections
 import itertools
-import operator
 
-from metamagic.caos import types as caos_types
-from metamagic.caos import ir
 from metamagic.caos.ir import ast as irast
-from metamagic.caos import name as caos_name
-from metamagic.caos import utils as caos_utils
+from metamagic.caos.ir import transformer as irtransformer
+from metamagic.caos.ir import utils as irutils
+
+from metamagic.caos.schema import atoms as s_atoms
+from metamagic.caos.schema import concepts as s_concepts
+from metamagic.caos.schema import links as s_links
+from metamagic.caos.schema import lproperties as s_lprops
+from metamagic.caos.schema import name as sn
+from metamagic.caos.schema import objects as s_obj
+from metamagic.caos.schema import pointers as s_pointers
+from metamagic.caos.schema import types as s_types
+
 from metamagic.caos.caosql import ast as qlast
 from metamagic.caos.caosql import errors
 from metamagic.caos.caosql import parser
@@ -148,7 +154,7 @@ class ParseContextWrapper(object):
         self.context.pop()
 
 
-class CaosQLCompiler(ir.transformer.TreeTransformer):
+class CaosQLCompiler(irtransformer.TreeTransformer):
     def __init__(self, proto_schema, module_aliases=None):
         self.proto_schema = proto_schema
         self.module_aliases = module_aliases
@@ -203,19 +209,19 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
 
     def _populate_anchors(self, context, anchors):
         for anchor, proto in anchors.items():
-            if isinstance(proto, caos_types.ProtoNode):
+            if isinstance(proto, s_obj.ProtoNode):
                 step = irast.EntitySet()
                 step.concept = proto
-                step.id = caos_utils.LinearPath([step.concept])
+                step.id = irutils.LinearPath([step.concept])
                 step.anchor = anchor
                 step.show_as_anchor = anchor
                 # XXX
                 # step.users =
-            elif isinstance(proto, caos_types.ProtoLink):
+            elif isinstance(proto, s_links.Link):
                 if proto.source:
                     src = irast.EntitySet()
                     src.concept = proto.source
-                    src.id = caos_utils.LinearPath([src.concept])
+                    src.id = irutils.LinearPath([src.concept])
                 else:
                     src = None
 
@@ -226,26 +232,26 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
                 if src:
                     src.disjunction.update(step)
 
-            elif isinstance(proto, caos_types.ProtoLinkProperty):
+            elif isinstance(proto, s_lprops.LinkProperty):
                 ptr_name = proto.normal_name()
 
                 if proto.source.source:
                     src = irast.EntitySet()
                     src.concept = proto.source.source
-                    src.id = caos_utils.LinearPath([src.concept])
+                    src.id = irutils.LinearPath([src.concept])
                 else:
                     src = None
 
                 link = irast.EntityLink(link_proto=proto.source, source=src,
-                                           direction=caos_types.OutboundDirection)
+                                           direction=s_pointers.PointerDirection.Outbound)
 
                 if src:
                     src.disjunction.update(link)
-                    pref_id = caos_utils.LinearPath(src.id)
+                    pref_id = irutils.LinearPath(src.id)
                 else:
-                    pref_id = caos_utils.LinearPath([])
+                    pref_id = irutils.LinearPath([])
 
-                pref_id.add(proto.source, caos_types.OutboundDirection, proto.target)
+                pref_id.add(proto.source, s_pointers.PointerDirection.Outbound, proto.target)
 
                 step = irast.LinkPropRefSimple(name=ptr_name, ref=link, id=pref_id,
                                                   ptr_proto=proto)
@@ -418,7 +424,7 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
         tgt = graph.optarget = self._process_select_where(
                                 context, caosql_tree.subject)
 
-        idname = caos_name.Name('metamagic.caos.builtins.id')
+        idname = sn.Name('metamagic.caos.builtins.id')
         idref = irast.AtomicRefSimple(
                     name=idname, ref=tgt,
                     ptr_proto=tgt.concept.pointers[idname])
@@ -546,7 +552,7 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
         if (isinstance(tgt, irast.LinkPropRefSimple)
                 and tgt.name == 'metamagic.caos.builtins.target'):
 
-            idpropname = caos_name.Name('metamagic.caos.builtins.linkid')
+            idpropname = sn.Name('metamagic.caos.builtins.linkid')
             idprop_proto = tgt.ref.link_proto.pointers[idpropname]
             idref = irast.LinkPropRefSimple(name=idpropname,
                                                ref=tgt.ref,
@@ -557,7 +563,7 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
             graph.selector.append(selexpr)
 
         elif isinstance(tgt, irast.AtomicRefSimple):
-            idname = caos_name.Name('metamagic.caos.builtins.id')
+            idname = sn.Name('metamagic.caos.builtins.id')
             idref = irast.AtomicRefSimple(name=idname, ref=tgt.ref,
                                              ptr_proto=tgt.ptr_proto)
             tgt.ref.atomrefs.add(idref)
@@ -565,7 +571,7 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
             graph.selector.append(selexpr)
 
         else:
-            idname = caos_name.Name('metamagic.caos.builtins.id')
+            idname = sn.Name('metamagic.caos.builtins.id')
             idref = irast.AtomicRefSimple(
                         name=idname, ref=tgt,
                         ptr_proto=tgt.concept.pointers[idname])
@@ -651,9 +657,9 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
             if isinstance(expr.op, ast.ops.EquivalenceOperator) \
                     and isinstance(left, irast.Record) \
                     and isinstance(right, irast.Constant) \
-                    and (isinstance(right.type, caos_types.PrototypeClass) or
+                    and (isinstance(right.type, s_obj.PrototypeClass) or
                          isinstance(right.type, tuple) and
-                         isinstance(right.type[1], caos_types.PrototypeClass)):
+                         isinstance(right.type[1], s_obj.PrototypeClass)):
                 left = left.elements[0].ref
 
             node = self.process_binop(left, right, expr.op)
@@ -744,11 +750,11 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
 
         elif isinstance(expr, qlast.PrototypeRefNode):
             if expr.module:
-                name = caos_name.Name(name=expr.name, module=expr.module)
+                name = sn.Name(name=expr.name, module=expr.module)
             else:
                 name = expr.name
             node = self.proto_schema.get(name=name, module_aliases=context.current.namespaces,
-                                         type=caos_types.ProtoNode)
+                                         type=s_obj.ProtoNode)
 
             node = irast.Constant(value=(node,), type=(list, node.__class__))
 
@@ -824,11 +830,11 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
         if expr.index is not None:
             type = self.arg_types.get(expr.index)
             if type is not None:
-                type = caos_types.normalize_type(type, self.proto_schema)
+                type = s_types.normalize_type(type, self.proto_schema)
             node = irast.Constant(value=expr.value, index=expr.index, type=type)
             context.current.arguments[expr.index] = type
         else:
-            type = caos_types.normalize_type(expr.value.__class__, self.proto_schema)
+            type = s_types.normalize_type(expr.value.__class__, self.proto_schema)
             node = irast.Constant(value=expr.value, index=expr.index, type=type)
 
         return node
@@ -847,7 +853,7 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
                             continue
 
                         if ptrspec_flt.property == 'loading':
-                            value = caos_types.PointerLoading(ptrspec_flt.value)
+                            value = s_pointers.PointerLoading(ptrspec_flt.value)
                             ptrspec_flt = (lambda p: p.get_loading_behaviour(), value)
                         else:
                             msg = 'invalid pointer property in pointer glob: {!r}'. \
@@ -885,7 +891,7 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
 
                 node = irast.PtrPathSpec(
                             ptr_proto=type_prop,
-                            ptr_direction=caos_types.OutboundDirection,
+                            ptr_direction=s_pointers.PointerDirection.Outbound,
                             target_proto=type_prop.target,
                             trigger=irast.ExplicitPathSpecTrigger())
 
@@ -901,17 +907,17 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
                         raise errors.CaosQLError(msg)
 
                     ptrsource = rlink_proto
-                    ptrtype = caos_types.ProtoLinkProperty
+                    ptrtype = s_lprops.LinkProperty
                 else:
                     ptrsource = source
-                    ptrtype = caos_types.ProtoLink
+                    ptrtype = s_links.Link
 
                 if lexpr.target is not None:
                     target_name = (lexpr.target.module, lexpr.target.name)
                 else:
                     target_name = None
 
-                ptr_direction = lexpr.direction or caos_types.OutboundDirection
+                ptr_direction = lexpr.direction or s_pointers.PointerDirection.Outbound
                 ptr = self._resolve_ptr(context, ptrsource, ptrname,
                                         ptr_direction, ptr_type=ptrtype,
                                         target=target_name)
@@ -1027,10 +1033,10 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
                 proto = self._normalize_concept(
                             context, tip.expr, tip.namespace)
 
-                if isinstance(proto, caos_types.ProtoNode):
+                if isinstance(proto, s_obj.ProtoNode):
                     step = irast.EntitySet()
                     step.concept = proto
-                    step.id = caos_utils.LinearPath([step.concept])
+                    step.id = irutils.LinearPath([step.concept])
                     step.users.add(context.current.location)
                 else:
                     step = irast.EntityLink(link_proto=proto)
@@ -1060,7 +1066,7 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
 
                 if isinstance(link_expr, qlast.LinkNode):
                     direction = (link_expr.direction
-                                    or caos_types.OutboundDirection)
+                                    or s_pointers.PointerDirection.Outbound)
                     if link_expr.target:
                         link_target = self._normalize_concept(
                                             context, link_expr.target.name,
@@ -1080,10 +1086,10 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
                 gen_link_proto = self.proto_schema.get(
                                     link_proto.normal_name())
 
-                if isinstance(target, caos_types.ProtoConcept):
+                if isinstance(target, s_concepts.Concept):
                     target_set = irast.EntitySet()
                     target_set.concept = target
-                    target_set.id = caos_utils.LinearPath(path_tip.id)
+                    target_set.id = irutils.LinearPath(path_tip.id)
                     target_set.id.add(link_proto, direction,
                                       target_set.concept)
                     target_set.users.add(context.current.location)
@@ -1100,10 +1106,10 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
 
                     path_tip = target_set
 
-                elif isinstance(target, caos_types.ProtoAtom):
+                elif isinstance(target, s_atoms.Atom):
                     target_set = irast.EntitySet()
                     target_set.concept = target
-                    target_set.id = caos_utils.LinearPath(path_tip.id)
+                    target_set.id = irutils.LinearPath(path_tip.id)
                     target_set.id.add(link_proto, direction,
                                       target_set.concept)
                     target_set.users.add(context.current.location)
@@ -1116,11 +1122,11 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
 
                     target_set.rlink = link
 
-                    atomref_id = caos_utils.LinearPath(path_tip.id)
+                    atomref_id = irutils.LinearPath(path_tip.id)
                     atomref_id.add(link_proto, direction, target)
 
                     if not link_proto.singular():
-                        ptr_name = caos_name.Name(
+                        ptr_name = sn.Name(
                                         'metamagic.caos.builtins.target')
                         ptr_proto = link_proto.pointers[ptr_name]
                         atomref = irast.LinkPropRefSimple(
@@ -1175,8 +1181,8 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
                         elif isinstance(path_tip, irast.EntityLink):
                             link = path_tip
                             link_proto = link.link_proto
-                            id = caos_utils.LinearPath([None])
-                            id.add(link_proto, caos_types.OutboundDirection, None)
+                            id = irutils.LinearPath([None])
+                            id.add(link_proto, s_pointers.PointerDirection.Outbound, None)
                         else:
                             link = path_tip.rlink
                             link_proto = link.link_proto
@@ -1184,8 +1190,8 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
 
                         prop_proto = self._resolve_ptr(
                             context, link_proto, prop_name,
-                            caos_types.OutboundDirection,
-                            ptr_type=caos_types.ProtoLinkProperty)
+                            s_pointers.PointerDirection.Outbound,
+                            ptr_type=s_lprops.LinkProperty)
 
                         propref = irast.LinkPropRefSimple(
                             name=prop_proto.normal_name(),
@@ -1202,8 +1208,8 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
             # complement it to target ref
             link_proto = path_tip.link_proto
 
-            pref_id = caos_utils.LinearPath(path_tip.source.id)
-            pref_id.add(link_proto, caos_types.OutboundDirection,
+            pref_id = irutils.LinearPath(path_tip.source.id)
+            pref_id.add(link_proto, s_pointers.PointerDirection.Outbound,
                         link_proto.target)
             ptr_proto = link_proto.pointers['metamagic.caos.builtins.target']
             ptr_name = ptr_proto.normal_name()
@@ -1220,11 +1226,11 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
         return path_tip
 
     def _resolve_ptr(self, context, near_endpoint, ptr_name, direction,
-                           ptr_type=caos_types.ProtoLink, target=None):
+                           ptr_type=s_links.Link, target=None):
         ptr_module, ptr_nqname = ptr_name
 
         if ptr_module:
-            ptr_fqname = caos_name.Name(module=ptr_module, name=ptr_nqname)
+            ptr_fqname = sn.Name(module=ptr_module, name=ptr_nqname)
             modaliases = context.current.namespaces
             pointer = self.proto_schema.get(ptr_fqname,
                                             module_aliases=modaliases,
@@ -1233,7 +1239,7 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
         else:
             pointer_name = ptr_fqname = ptr_nqname
 
-        if target is not None and not isinstance(target, caos_types.ProtoNode):
+        if target is not None and not isinstance(target, s_obj.ProtoNode):
             target_name = '.'.join(filter(None, target))
             modaliases = context.current.namespaces
             target = self.proto_schema.get(target_name,
@@ -1271,7 +1277,7 @@ class CaosQLCompiler(ir.transformer.TreeTransformer):
             concept = self.proto_schema.get(name='metamagic.caos.builtins.BaseObject')
         else:
             if namespace:
-                name = caos_name.Name(name=concept, module=namespace)
+                name = sn.Name(name=concept, module=namespace)
             else:
                 name = concept
             concept = self.proto_schema.get(name=name, module_aliases=context.current.namespaces)

@@ -9,8 +9,8 @@
 import collections
 
 from metamagic.caos import types as caos_types
-from metamagic.caos import ir
 from metamagic.caos.ir import ast as irast
+from metamagic.caos.ir import transformer as irtransformer
 from metamagic.caos.caosql import ast as qlast
 
 from metamagic.utils import ast
@@ -20,7 +20,7 @@ class IRDecompilerContext:
     pass
 
 
-class IRDecompiler(ir.transformer.TreeTransformer):
+class IRDecompiler(irtransformer.TreeTransformer):
     def transform(self, caos_tree, inline_anchors=False, return_statement=False):
         context = IRDecompilerContext()
         context.inline_anchors = inline_anchors

@@ -8,7 +8,6 @@
 
 import builtins
 import collections
-import re
 import sys
 import types
 
@@ -18,12 +17,11 @@ from importkit.import_ import module as module_types
 from metamagic.caos import classfactory
 
 from metamagic.exceptions import MetamagicError
-from metamagic.utils.datastructures import OrderedSet
-from metamagic.utils.datastructures.struct import MixedStruct, MixedStructMeta
 from metamagic.utils.datastructures import Void
 from metamagic.utils.algos.persistent_hash import persistent_hash
 
 from .error import SchemaError
+from . import modules as schema_module
 from . import name as schema_name
 
 
@@ -118,280 +116,8 @@ class SchemaModule(types.ModuleType):
         return ProtoSchema
 
 
-default_err = object()
-
-
-class PrototypeClass(type):
-    pass
-
-
 class ObjectClass(type):
     pass
-
-
-class ProtoObject(metaclass=PrototypeClass):
-    @classmethod
-    def get_canonical_class(cls):
-        return cls
-
-
-class PrototypeMeta(PrototypeClass, MixedStructMeta):
-    pass
-
-
-class Prototype(MixedStruct, ProtoObject, metaclass=PrototypeMeta):
-    pass
-
-
-class ProtoSchemaIterator:
-    def __init__(self, index, type, include_derived=False):
-        self.index = index
-        self.type = type
-        self.include_derived = include_derived
-
-        sourceset = self.index.index
-
-        if type is not None:
-            if isinstance(type, PrototypeClass):
-                type = type._type
-
-            itertype = index.index_by_type.get(type)
-
-            if itertype:
-                sourceset = itertype
-            else:
-                sourceset = OrderedSet()
-
-        filtered = self.filter_set(sourceset)
-        self.iter = iter(filtered)
-
-    def filter_set(self, sourceset):
-        filtered = sourceset
-        if not self.include_derived:
-            filtered -= self.index.index_derived
-        return filtered
-
-    def __iter__(self):
-        return self
-
-    def __next__(self):
-        result = self.index.get_object_by_key(next(self.iter))
-        return result
-
-
-class ProtoModule:
-    def get_object_key(self, obj):
-        return obj.__class__.get_canonical_class(), obj.name
-
-    def get_object_by_key(self, key):
-        cls, name = key
-        obj = self.lookup_qname(name)
-        assert obj, 'Could not find "%s" object named "%s"' % (cls, name)
-        return obj
-
-    def __init__(self, name):
-        self.name = name
-        self.index = OrderedSet()
-        self.index_by_name = collections.OrderedDict()
-        self.index_by_type = {}
-        self.index_derived = OrderedSet()
-
-    def copy(self):
-        result = self.__class__()
-        for obj in self:
-            result.add(obj.copy())
-
-    def add(self, obj):
-        if obj in self:
-            err = '{!r} is already present in the schema'.format(obj.name)
-            raise SchemaError(err)
-
-        self.index_by_name[obj.name] = obj
-
-        key = self.get_object_key(obj)
-        self.index.add(key)
-
-        idx_by_type = self.index_by_type.setdefault(obj._type, OrderedSet())
-        idx_by_type.add(key)
-
-        key = self.get_object_key(obj)
-
-        if getattr(obj, 'is_derived', None):
-            self.index_derived.add(key)
-
-    def discard(self, obj):
-        existing = self.index_by_name.pop(obj.name, None)
-        if existing is not None:
-            self._delete(existing)
-        return existing
-
-    def delete(self, obj):
-        existing = self.discard(obj)
-        if existing is None:
-            raise SchemaError('object "%s" is not present in the index' % obj.name)
-
-        return existing
-
-    def replace(self, obj):
-        existing = self.discard(obj)
-        if existing:
-            self._delete(existing)
-        self.add(obj)
-
-    def _delete(self, obj):
-        key = self.get_object_key(obj)
-        self.index.remove(key)
-        self.index_by_type[obj.__class__._type].remove(key)
-        self.index_derived.discard(key)
-
-    def lookup_qname(self, name):
-        return self.index_by_name.get(name)
-
-    def get(self, name, default=default_err, module_aliases=None, type=None,
-                  include_pyobjects=False, index_only=True,
-                  implicit_builtins=True):
-
-        fail_cause = None
-
-        if isinstance(type, tuple):
-            for typ in type:
-                try:
-                    prototype = self.get(name, module_aliases=module_aliases,
-                                         type=typ,
-                                         include_pyobjects=include_pyobjects,
-                                         index_only=index_only, default=None)
-                except SchemaError:
-                    pass
-                else:
-                    if prototype is not None:
-                        return prototype
-        else:
-            prototype = None
-
-            fq_name = '{}.{}'.format(self.name, name)
-            prototype = self.lookup_qname(fq_name)
-
-            if type is not None and issubclass(type, ProtoObject):
-                type = type.get_canonical_class()
-
-        if default is default_err:
-            default = SchemaError
-
-        raise_ = None
-
-        if prototype is None:
-            if default is not None:
-                raise_ = (isinstance(default, Exception) or
-                            (isinstance(default, builtins.type) and
-                             issubclass(default, Exception)))
-
-            if raise_:
-                msg = 'reference to non-existent schema prototype: {}.{}'. \
-                        format(self.name, name)
-                if fail_cause is not None:
-                    raise default(msg) from fail_cause
-                else:
-                    raise default(msg)
-            else:
-                prototype = default
-
-        if (type is not None and isinstance(prototype, ProtoObject) and
-                                 not isinstance(prototype, type)):
-            if default is not None:
-                raise_ = (isinstance(default, Exception) or
-                          (isinstance(default, builtins.type) and
-                           issubclass(default, Exception)))
-            if raise_:
-                if isinstance(type, tuple):
-                    typname = ' or '.join(typ.__name__ for typ in type)
-                else:
-                    typname = type.__name__
-
-                msg = '{} exists but is not {}'.format(name, typname)
-
-                if fail_cause is not None:
-                    raise default(msg) from fail_cause
-                else:
-                    raise default(msg)
-            else:
-                prototype = default
-        return prototype
-
-    def match(self, name, module_aliases=None, type=None):
-        name, module, nqname = schema_name.split_name(name)
-
-        result = []
-
-        if '%' in nqname:
-            module = self.resolve_module(module, module_aliases)
-            if not module:
-                return None
-
-            pattern = re.compile(re.escape(nqname).replace('\%', '.*'))
-            index = self.index_by_name
-
-            for name, obj in index.items():
-                if pattern.match(name):
-                    if type and isinstance(obj, type):
-                        result.append(obj)
-
-        else:
-            result = self.get(name, module_aliases=module_aliases, type=type,
-                              default=None)
-            if result:
-                result = [result]
-
-        return result
-
-    def reorder(self, new_order):
-        name_order = [self.get_object_key(p) for p in new_order]
-
-        # The new_order may be partial, as the most common source
-        # is schema enumeration, which may filter out certain objects.
-        #
-        def sortkey(item):
-            try:
-                return name_order.index(item)
-            except ValueError:
-                return -1
-
-        self.index = OrderedSet(sorted(self.index, key=sortkey))
-        for typeindex in self.index_by_type.values():
-            sortedindex = sorted(typeindex, key=sortkey)
-            typeindex.clear()
-            typeindex.update(sortedindex)
-
-    def __contains__(self, obj):
-        return obj in self.index
-
-    def __iter__(self):
-        return ProtoSchemaIterator(self, None)
-
-    def __call__(self, type=None, include_derived=False):
-        return ProtoSchemaIterator(self, type, include_derived=include_derived)
-
-    def normalize(self, imports):
-        "Revert reference reductions made by __getstate__ methods of prototypes"
-
-        modules = {m.__name__: m.__sx_prototypes__ for m in imports
-                   if hasattr(m, '__sx_prototypes__')}
-
-        modules[self.name] = self
-
-        objects = {}
-
-        _resolve = lambda name: modules[name.module].get(name.name)
-        for obj in self(include_derived=True):
-            obj._finalize_setstate(objects, _resolve)
-
-    def get_checksum(self):
-        if self.index:
-            objects = frozenset(self)
-            checksum = persistent_hash(str(persistent_hash(objects)))
-        else:
-            checksum = persistent_hash(None)
-
-        return checksum
 
 
 class DummyModule(types.ModuleType):
@@ -430,7 +156,7 @@ class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
         :param str alias: An optional alias for this module to use when resolving names
         """
 
-        if isinstance(proto_module, ProtoModule):
+        if isinstance(proto_module, schema_module.ProtoModule):
             name = proto_module.name
             self.modules[name] = proto_module
         else:
@@ -532,7 +258,7 @@ class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
 
         return aliased
 
-    def get(self, name, default=default_err, module_aliases=None, type=None,
+    def get(self, name, default=SchemaError, module_aliases=None, type=None,
                   include_pyobjects=False, index_only=True,
                   implicit_builtins=True):
 
@@ -549,16 +275,13 @@ class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
         if fq_module is not None:
             module = fq_module
 
-        if default is default_err:
-            default = SchemaError
+        if default is not None and \
+                (isinstance(default, Exception) or
+                 (isinstance(default, builtins.type) and
+                  issubclass(default, Exception))):
             default_raise = True
         else:
-            if default is not None and \
-                    (isinstance(default, Exception) or \
-                     (isinstance(default, builtins.type) and issubclass(default, Exception))):
-                default_raise = True
-            else:
-                default_raise = False
+            default_raise = False
 
         errmsg = 'reference to a non-existent schema prototype: {}'.format(name)
 
@@ -599,7 +322,7 @@ class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
                 else:
                     return default
 
-        if isinstance(proto_module, ProtoModule):
+        if isinstance(proto_module, schema_module.ProtoModule):
             if default_raise:
                 try:
                     result = proto_module.get(nqname, default=default,
@@ -689,14 +412,13 @@ class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
         return {c.name for c in filter(flt, self(proto._type))}
 
     def get_root_class(self, cls):
-        from metamagic import caos
-        import metamagic.caos.types
+        from . import concepts, lproperties, links
 
-        if issubclass(cls, caos.types.ProtoConcept):
+        if issubclass(cls, concepts.Concept):
             name = 'metamagic.caos.builtins.BaseObject'
-        elif issubclass(cls, caos.types.ProtoLink):
+        elif issubclass(cls, links.Link):
             name = 'metamagic.caos.builtins.link'
-        elif issubclass(cls, caos.types.ProtoLinkProperty):
+        elif issubclass(cls, lproperties.LinkProperty):
             name = 'metamagic.caos.builtins.link_property'
         else:
             assert False, 'get_root_class: unexpected object type: %r' % type
@@ -708,10 +430,10 @@ class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
         return proto(self)
 
     def get_event_policy(self, subject_proto, event_proto):
-        from metamagic.caos import proto
+        from . import policy as spol
 
         if self._policy_schema is None:
-            self._policy_schema = proto.PolicySchema()
+            self._policy_schema = spol.PolicySchema()
 
             for policy in self('policy'):
                 self._policy_schema.add(policy)

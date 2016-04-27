@@ -11,9 +11,11 @@ import weakref
 
 from metamagic.exceptions import MetamagicError
 from metamagic.utils import ast
-from metamagic.caos import name as caos_name
-from metamagic.caos import types as caos_types
 from metamagic.utils.datastructures import typed
+
+from metamagic.caos.schema import enum as s_enum
+from metamagic.caos.schema import name as sn
+from metamagic.caos.schema import objects as so
 
 
 class ASTError(MetamagicError):
@@ -183,7 +185,7 @@ class AtomicRef(BaseRef):
 
 
 class AtomicRefSimple(AtomicRef):
-    __fields = [('name', caos_name.Name, None)]
+    __fields = [('name', sn.Name, None)]
 
 
 class BaseRefExpr(Path):
@@ -225,7 +227,7 @@ class LinkPropRef(BaseRef):
 
 
 class LinkPropRefSimple(LinkPropRef):
-    __fields = [('name', caos_name.Name, None)]
+    __fields = [('name', sn.Name, None)]
 
 
 class LinkPropRefExpr(LinkPropRef, BaseRefExpr):
@@ -294,7 +296,7 @@ class AtomicRefSet(typed.TypedSet, type=AtomicRef):
 
 
 class EntitySet(Path):
-    __fields = [('concept', caos_types.ProtoNode), 'atom',
+    __fields = [('concept', so.ProtoNode), 'atom',
                 'filter',
                 ('conjunction', Conjunction),
                 ('disjunction', Disjunction),
@@ -350,7 +352,7 @@ class Constant(Base):
             else:
                 item_type = type
 
-            if not isinstance(item_type, (caos_types.ProtoObject, caos_types.PrototypeClass)):
+            if not isinstance(item_type, (so.ProtoObject, so.PrototypeClass)):
                 raise ASTError(('unexpected constant type representation, '
                                 'expected ProtoObject, got "%r"') % (type,))
 
@@ -377,26 +379,22 @@ class InlinePropFilter(Base): __fields  = ['expr', 'ref']
 class ExistPred(Expr): __fields = ['expr', 'outer']
 class AtomicExistPred(ExistPred): pass
 
-class SortOrder(caos_types.StrSingleton):
-    _map = {
-        'ASC': 'SortAsc',
-        'DESC': 'SortDesc',
-        'SORT_DEFAULT': 'SortDefault'
-    }
 
-SortAsc = SortOrder('ASC')
-SortDesc = SortOrder('DESC')
+class SortOrder(s_enum.StrEnum):
+    Asc = 'ASC'
+    Desc = 'DESC'
+
+SortAsc = SortOrder.Asc
+SortDesc = SortOrder.Desc
 SortDefault = SortAsc
 
 
-class NonesOrder(caos_types.StrSingleton):
-    _map = {
-        'first': 'NonesFirst',
-        'last': 'NonesLast'
-    }
+class NonesOrder(s_enum.StrEnum):
+    First = 'first'
+    Last = 'last'
 
-NonesFirst = NonesOrder('first')
-NonesLast = NonesOrder('last')
+NonesFirst = NonesOrder.First
+NonesLast = NonesOrder.Last
 
 
 class SortExpr(Base):

@@ -9,7 +9,7 @@
 from metamagic.caos.backends import deltarepo
 from metamagic.utils.datastructures import OrderedIndex
 
-from metamagic.caos import delta as delta_cmds
+from metamagic.caos.schema import delta as sd
 
 
 class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
@@ -36,7 +36,7 @@ class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
             try:
                 return deltas[deltas.index(ref.ref) - ref.offset]
             except IndexError:
-                raise delta_cmds.DeltaRefError('unknown revision: %s' % ref)
+                raise sd.DeltaRefError('unknown revision: %s' % ref)
 
     def update_delta_ref(self, ref, id):
         self.refs[ref] = id

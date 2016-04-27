@@ -1,0 +1,240 @@
+##
+# Copyright (c) 2008-2016 MagicStack Inc.
+# All rights reserved.
+#
+# See LICENSE for details.
+##
+
+
+from metamagic.utils.functional import hybridmethod
+
+from metamagic.caos.caosql import ast as qlast
+
+from . import attributes
+from . import constraints
+from . import delta as sd
+from . import expr
+from . import inheriting
+from . import name as sn
+from . import named
+from . import objects as so
+from . import primary
+from . import types
+
+
+class AtomCommandContext(sd.PrototypeCommandContext,
+                         attributes.AttributeSubjectCommandContext,
+                         constraints.ConsistencySubjectCommandContext):
+    def __setattr__(self, name, value):
+        super().__setattr__(name, value)
+        if (name == 'proto' and value is not None
+                and value.__class__.__name__ != 'Atom'):
+            assert False, value
+
+
+class AtomCommand(sd.PrototypeCommand):
+    context_class = AtomCommandContext
+
+    @classmethod
+    def _get_prototype_class(cls):
+        return Atom
+
+
+class CreateAtom(named.CreateNamedPrototype, AtomCommand):
+    astnode = qlast.CreateAtomNode
+
+    @classmethod
+    def _cmd_tree_from_ast(cls, astnode, context):
+        cmd = super()._cmd_tree_from_ast(astnode, context)
+
+        for sub in cmd(sd.AlterPrototypeProperty):
+            if sub.property == 'default':
+                sub.new_value = [sub.new_value]
+
+        if astnode.is_abstract:
+            cmd.add(sd.AlterPrototypeProperty(
+                property='is_abstract',
+                new_value=True
+            ))
+
+        if astnode.is_final:
+            cmd.add(sd.AlterPrototypeProperty(
+                property='is_final',
+                new_value=True
+            ))
+
+        return cmd
+
+    def _apply_fields_ast(self, context, node):
+        super()._apply_fields_ast(context, node)
+
+        for op in self(attributes.AttributeValueCommand):
+            self._append_subcmd_ast(node, op, context)
+
+        for op in self(constraints.ConstraintCommand):
+            self._append_subcmd_ast(node, op, context)
+
+    def _apply_field_ast(self, context, node, op):
+        if op.property == 'default':
+            if op.new_value:
+                op.new_value = op.new_value[0]
+                super()._apply_field_ast(context, node, op)
+        else:
+            super()._apply_field_ast(context, node, op)
+
+    def apply(self, schema, context=None):
+        context = context or sd.CommandContext()
+
+        result = super().apply(schema, context)
+
+        with context(AtomCommandContext(self, result)):
+            result.acquire_ancestor_inheritance(schema)
+
+            for op in self(attributes.AttributeValueCommand):
+                op.apply(schema, context=context)
+
+            for op in self(constraints.ConstraintCommand):
+                op.apply(schema, context=context)
+
+        return result
+
+
+class RenameAtom(named.RenameNamedPrototype, AtomCommand):
+    pass
+
+
+class RebaseAtom(inheriting.RebaseNamedPrototype, AtomCommand):
+    pass
+
+
+class AlterAtom(named.AlterNamedPrototype, AtomCommand):
+    astnode = qlast.AlterAtomNode
+
+    def _apply_fields_ast(self, context, node):
+        super()._apply_fields_ast(context, node)
+
+        for op in self(attributes.AttributeValueCommand):
+            self._append_subcmd_ast(node, op, context)
+
+        for op in self(constraints.ConstraintCommand):
+            self._append_subcmd_ast(node, op, context)
+
+    def apply(self, schema, context=None):
+        context = context or sd.CommandContext()
+
+        with context(AtomCommandContext(self, None)):
+            atom = super().apply(schema, context)
+
+            for op in self(attributes.AttributeValueCommand):
+                op.apply(schema, context=context)
+
+            for op in self(constraints.ConstraintCommand):
+                op.apply(schema, context)
+
+            for op in self(inheriting.RebaseNamedPrototype):
+                op.apply(schema, context)
+
+        return atom
+
+
+class DeleteAtom(named.DeleteNamedPrototype, AtomCommand):
+    astnode = qlast.DropAtomNode
+
+    def apply(self, schema, context=None):
+        context = context or sd.CommandContext()
+        atom = super().apply(schema, context)
+
+        with context(AtomCommandContext(self, atom)):
+            for op in self(attributes.AttributeValueCommand):
+                op.apply(schema, context=context)
+
+            for op in self(constraints.ConstraintCommand):
+                op.apply(schema, context)
+
+        return atom
+
+
+class Atom(primary.Prototype, constraints.ConsistencySubject,
+           attributes.AttributeSubject, so.ProtoNode):
+    _type = 'atom'
+
+    default = so.Field(expr.ExpressionList, default=expr.ExpressionList,
+                       coerce=True, compcoef=0.909)
+
+    delta_driver = sd.DeltaDriver(
+        create=CreateAtom,
+        alter=AlterAtom,
+        rebase=RebaseAtom,
+        rename=RenameAtom,
+        delete=DeleteAtom
+    )
+
+    def _get_deps(self):
+        deps = super()._get_deps()
+
+        if self.constraints:
+            N = sn.Name
+
+            # Add dependency on all built-in atoms unconditionally
+            deps.add(N(module='metamagic.caos.builtins', name='str'))
+            deps.add(N(module='metamagic.caos.builtins', name='bytes'))
+            deps.add(N(module='metamagic.caos.builtins', name='int'))
+            deps.add(N(module='metamagic.caos.builtins', name='float'))
+            deps.add(N(module='metamagic.caos.builtins', name='decimal'))
+            deps.add(N(module='metamagic.caos.builtins', name='bool'))
+            deps.add(N(module='metamagic.caos.builtins', name='uuid'))
+
+            for constraint in self.constraints.values():
+                for ptypes in (constraint.paramtypes,
+                               constraint.inferredparamtypes):
+                    if ptypes:
+                        for ptype in ptypes.values():
+                            if isinstance(ptype, so.Collection):
+                                ptype = ptype.element_type
+
+                            if ptype is not self:
+                                if isinstance(ptype, so.PrototypeRef):
+                                    if ptype.prototype_name != self.name:
+                                        deps.add(ptype.prototype_name)
+                                else:
+                                    deps.add(ptype.name)
+
+        return deps
+
+    def get_topmost_base(self, schema, top_prototype=False):
+        base = self
+        while base.bases:
+            base = base.bases[0]
+        if top_prototype:
+            return base
+        else:
+            return types.BaseTypeMeta.get_implementation(base.name)
+
+    def get_metaclass(self, schema):
+        from metamagic.caos.atom import AtomMeta
+
+        base = self.get_topmost_base(schema)
+        if issubclass(type(base), AtomMeta):
+            metaclass = type(base)
+        else:
+            metaclass = AtomMeta
+        return metaclass
+
+    @hybridmethod
+    def copy(scope, obj=None):
+        if isinstance(scope, type):
+            cls = scope
+        else:
+            obj = scope
+            cls = obj.__class__
+
+        result = super(Atom, scope).copy(obj)
+        result.default = obj.default[:]
+        return result
+
+    def coerce(self, value, schema):
+        base = self.get_topmost_base(schema)
+        if not isinstance(value, base):
+            return base(value)
+        else:
+            return value

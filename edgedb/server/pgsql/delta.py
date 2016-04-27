@@ -12,13 +12,25 @@ import pickle
 import postgresql.string
 import re
 
-from metamagic import caos
-from metamagic.caos import proto
-from metamagic.caos import delta as delta_cmds
 from metamagic.caos import caosql
-from metamagic.caos import types as caos_types
-from metamagic.caos import objects as caos_objects
-from metamagic.caos.objects import geo as geo_objects
+
+from metamagic.caos.schema import attributes as s_attrs
+from metamagic.caos.schema import atoms as s_atoms
+from metamagic.caos.schema import concepts as s_concepts
+from metamagic.caos.schema import constraints as s_constr
+from metamagic.caos.schema import delta as sd
+from metamagic.caos.schema import error as s_err
+from metamagic.caos.schema import expr as s_expr
+from metamagic.caos.schema import indexes as s_indexes
+from metamagic.caos.schema import links as s_links
+from metamagic.caos.schema import lproperties as s_lprops
+from metamagic.caos.schema import modules as s_mod
+from metamagic.caos.schema import name as sn
+from metamagic.caos.schema import named as s_named
+from metamagic.caos.schema import objects as s_obj
+from metamagic.caos.schema import pointers as s_pointers
+from metamagic.caos.schema import policy as s_policy
+from metamagic.caos.schema import realm as s_realm
 
 from metamagic import json
 
@@ -43,11 +55,11 @@ from . import types
 BACKEND_FORMAT_VERSION = 30
 
 
-class CommandMeta(delta_cmds.CommandMeta):
+class CommandMeta(sd.CommandMeta):
     pass
 
 
-class MetaCommand(delta_cmds.Command, metaclass=CommandMeta):
+class MetaCommand(sd.Command, metaclass=CommandMeta):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.pgops = datastructures.OrderedSet()
@@ -74,17 +86,17 @@ class MetaCommand(delta_cmds.Command, metaclass=CommandMeta):
         return node
 
 
-class CommandGroupAdapted(MetaCommand, adapts=delta_cmds.CommandGroup):
+class CommandGroupAdapted(MetaCommand, adapts=sd.CommandGroup):
     def apply(self, schema, context):
-        delta_cmds.CommandGroup.apply(self, schema, context)
+        sd.CommandGroup.apply(self, schema, context)
         MetaCommand.apply(self, schema, context)
 
 
-class PrototypeMetaCommand(MetaCommand, delta_cmds.PrototypeCommand):
+class PrototypeMetaCommand(MetaCommand, sd.PrototypeCommand):
     pass
 
 
-class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeCommand):
+class NamedPrototypeMetaCommand(PrototypeMetaCommand, s_named.NamedPrototypeCommand):
     op_priority = 0
 
     def __init__(self, **kwargs):
@@ -92,10 +104,10 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeC
         self._type_mech = schemamech.TypeMech()
 
     def _serialize_refs(self, value):
-        if isinstance(value, caos.proto.PrototypeRef):
+        if isinstance(value, s_obj.PrototypeRef):
             result = value.prototype_name
 
-        elif isinstance(value, (proto.PrototypeSet, proto.PrototypeList)):
+        elif isinstance(value, (s_obj.PrototypeSet, s_obj.PrototypeList)):
             result = [v.prototype_name for v in value]
 
         else:
@@ -145,7 +157,7 @@ class NamedPrototypeMetaCommand(PrototypeMetaCommand, delta_cmds.NamedPrototypeC
         if value is not None:
             vals = []
             for item in value:
-                if isinstance(item, caos_types.ExpressionText):
+                if isinstance(item, s_expr.ExpressionText):
                     valtype = 'expr'
                 else:
                     valtype = 'literal'
@@ -235,7 +247,7 @@ class DeleteNamedPrototype(NamedPrototypeMetaCommand):
         return obj
 
 
-class AlterPrototypeProperty(MetaCommand, adapts=delta_cmds.AlterPrototypeProperty):
+class AlterPrototypeProperty(MetaCommand, adapts=sd.AlterPrototypeProperty):
     pass
 
 
@@ -255,25 +267,25 @@ class AttributeCommand:
 
 class CreateAttribute(AttributeCommand,
                       CreateNamedPrototype,
-                      adapts=delta_cmds.CreateAttribute):
+                      adapts=s_attrs.CreateAttribute):
     pass
 
 
 class RenameAttribute(AttributeCommand,
                       RenameNamedPrototype,
-                      adapts=delta_cmds.RenameAttribute):
+                      adapts=s_attrs.RenameAttribute):
     pass
 
 
 class AlterAttribute(AttributeCommand,
                      AlterNamedPrototype,
-                     adapts=delta_cmds.AlterAttribute):
+                     adapts=s_attrs.AlterAttribute):
     pass
 
 
 class DeleteAttribute(AttributeCommand,
                       DeleteNamedPrototype,
-                      adapts=delta_cmds.DeleteAttribute):
+                      adapts=s_attrs.DeleteAttribute):
     pass
 
 
@@ -306,25 +318,25 @@ class AttributeValueCommand(metaclass=CommandMeta):
 
 class CreateAttributeValue(AttributeValueCommand,
                            CreateOrAlterNamedPrototype,
-                           adapts=delta_cmds.CreateAttributeValue):
+                           adapts=s_attrs.CreateAttributeValue):
     pass
 
 
 class RenameAttributeValue(AttributeValueCommand,
                            RenameNamedPrototype,
-                           adapts=delta_cmds.RenameAttributeValue):
+                           adapts=s_attrs.RenameAttributeValue):
     pass
 
 
 class AlterAttributeValue(AttributeValueCommand,
                           AlterNamedPrototype,
-                          adapts=delta_cmds.AlterAttributeValue):
+                          adapts=s_attrs.AlterAttributeValue):
     pass
 
 
 class DeleteAttributeValue(AttributeValueCommand,
                            DeleteNamedPrototype,
-                           adapts=delta_cmds.DeleteAttributeValue):
+                           adapts=s_attrs.DeleteAttributeValue):
     pass
 
 
@@ -347,10 +359,10 @@ class ConstraintCommand(metaclass=CommandMeta):
                 if paramtypes:
                     pt = {}
                     for k, v in paramtypes[1].items():
-                        if isinstance(v, proto.Set):
+                        if isinstance(v, s_obj.Set):
                             if v.element_type:
                                 v = 'set<{}>'.format(v.element_type.prototype_name)
-                        elif isinstance(v, proto.PrototypeRef):
+                        elif isinstance(v, s_obj.PrototypeRef):
                             v = v.prototype_name
                         else:
                             msg = 'unexpected type in constraint paramtypes: {}'.format(v)
@@ -374,7 +386,7 @@ class ConstraintCommand(metaclass=CommandMeta):
 
 
 class CreateConstraint(ConstraintCommand, CreateNamedPrototype,
-                       adapts=delta_cmds.CreateConstraint):
+                       adapts=s_constr.CreateConstraint):
     def apply(self, protoschema, context):
         constraint = super().apply(protoschema, context)
 
@@ -392,9 +404,9 @@ class CreateConstraint(ConstraintCommand, CreateNamedPrototype,
 
 
 class RenameConstraint(ConstraintCommand, RenameNamedPrototype,
-                       adapts=delta_cmds.RenameConstraint):
+                       adapts=s_constr.RenameConstraint):
     def apply(self, protoschema, context):
-        constr_ctx = context.get(delta_cmds.ConstraintCommandContext)
+        constr_ctx = context.get(s_constr.ConstraintCommandContext)
         assert constr_ctx
         orig_constraint = constr_ctx.original_proto
         schemac_to_backendc = schemamech.ConstraintMech.schema_constraint_to_backend_constraint
@@ -416,7 +428,7 @@ class RenameConstraint(ConstraintCommand, RenameNamedPrototype,
 
 
 class AlterConstraint(ConstraintCommand, AlterNamedPrototype,
-                      adapts=delta_cmds.AlterConstraint):
+                      adapts=s_constr.AlterConstraint):
     def apply(self, protoschema, context):
         constraint = super().apply(protoschema, context)
 
@@ -441,7 +453,7 @@ class AlterConstraint(ConstraintCommand, AlterNamedPrototype,
 
 
 class DeleteConstraint(ConstraintCommand, DeleteNamedPrototype,
-                       adapts=delta_cmds.DeleteConstraint):
+                       adapts=s_constr.DeleteConstraint):
     def apply(self, protoschema, context):
         constraint = super().apply(protoschema, context)
 
@@ -462,6 +474,14 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self.table = deltadbops.AtomTable()
+
+    def is_sequence(self, schema, atom):
+        seq = schema.get('metamagic.caos.builtins.sequence', default=None)
+        return seq is not None and atom.issubclass(seq)
+
+    def is_geometry(self, schema, atom):
+        base = atom.get_topmost_base(schema, top_prototype=True)
+        return base.name.module == 'metamagic.caos.geo'
 
     def fill_record(self, schema, rec=None, obj=None):
         rec, updates = super().fill_record(schema, rec, obj)
@@ -521,7 +541,7 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
             self.pgops.add(dbops.CreateDomain(name=domain_name, base=base))
 
         for host_proto, item_proto in users:
-            if isinstance(item_proto, proto.Link):
+            if isinstance(item_proto, s_links.Link):
                 name = item_proto.normal_name()
             else:
                 name = item_proto.name
@@ -542,18 +562,18 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
             self.pgops.add(dbops.DropDomain(domain_name))
 
 
-class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
+class CreateAtom(AtomMetaCommand, adapts=s_atoms.CreateAtom):
     def apply(self, schema, context=None):
-        atom = delta_cmds.CreateAtom.apply(self, schema, context)
+        atom = s_atoms.CreateAtom.apply(self, schema, context)
         AtomMetaCommand.apply(self, schema, context)
 
-        if atom.issubclass(geo_objects.Geometry):
-            schema = dbops.CreateSchema(name='caos_aux_feat_gis')
+        if self.is_geometry(schema, atom):
+            gis_schema = dbops.CreateSchema(name='caos_aux_feat_gis')
             feat = deltadbops.EnableFeature(feature=features.GisFeature())
 
             cond = dbops.TypeExists(('caos_aux_feat_gis', 'geography'))
             cmd = dbops.CommandGroup(neg_conditions=[cond])
-            cmd.add_commands([schema, feat])
+            cmd.add_commands([gis_schema, feat])
             self.pgops.add(cmd)
 
         new_domain_name = common.atom_name_to_domain_name(atom.name, catenate=False)
@@ -563,7 +583,7 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
 
         self.pgops.add(dbops.CreateDomain(name=new_domain_name, base=base))
 
-        if atom.issubclass(caos_objects.sequence.Sequence):
+        if self.is_sequence(schema, atom):
             seq_name = common.atom_name_to_sequence_name(atom.name, catenate=False)
             self.pgops.add(dbops.CreateSequence(name=seq_name))
 
@@ -571,7 +591,7 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
         if default:
             default = default[1]
             if len(default) > 0 and \
-                not isinstance(default[0], caos_types.ExpressionText):
+                not isinstance(default[0], s_expr.ExpressionText):
                 # We only care to support literal defaults here.  Supporting
                 # defaults based on queries has no sense on the database level
                 # since the database forbids queries for DEFAULT and pre-
@@ -583,9 +603,9 @@ class CreateAtom(AtomMetaCommand, adapts=delta_cmds.CreateAtom):
         return atom
 
 
-class RenameAtom(AtomMetaCommand, adapts=delta_cmds.RenameAtom):
+class RenameAtom(AtomMetaCommand, adapts=s_atoms.RenameAtom):
     def apply(self, schema, context=None):
-        proto = delta_cmds.RenameAtom.apply(self, schema, context)
+        proto = s_atoms.RenameAtom.apply(self, schema, context)
         AtomMetaCommand.apply(self, schema, context)
 
         domain_name = common.atom_name_to_domain_name(self.prototype_name, catenate=False)
@@ -594,7 +614,7 @@ class RenameAtom(AtomMetaCommand, adapts=delta_cmds.RenameAtom):
         self.pgops.add(dbops.RenameDomain(name=domain_name, new_name=new_domain_name))
         self.rename(schema, context, self.prototype_name, self.new_name)
 
-        if proto.issubclass(caos_objects.sequence.Sequence):
+        if self.is_sequence(schema, proto):
             seq_name = common.atom_name_to_sequence_name(self.prototype_name, catenate=False)
             new_seq_name = common.atom_name_to_sequence_name(self.new_name, catenate=False)
 
@@ -603,15 +623,15 @@ class RenameAtom(AtomMetaCommand, adapts=delta_cmds.RenameAtom):
         return proto
 
 
-class RebaseAtom(AtomMetaCommand, adapts=delta_cmds.RebaseAtom):
+class RebaseAtom(AtomMetaCommand, adapts=s_atoms.RebaseAtom):
     # Rebase is taken care of in AlterAtom
     pass
 
 
-class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
+class AlterAtom(AtomMetaCommand, adapts=s_atoms.AlterAtom):
     def apply(self, schema, context=None):
         old_atom = schema.get(self.prototype_name).copy()
-        new_atom = delta_cmds.AlterAtom.apply(self, schema, context)
+        new_atom = s_atoms.AlterAtom.apply(self, schema, context)
         AtomMetaCommand.apply(self, schema, context)
 
         updaterec, updates = self.fill_record(schema)
@@ -659,8 +679,7 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
                     default_delta = default_delta[1]
 
                     if not default_delta or \
-                           isinstance(default_delta[0],
-                                      caos_types.ExpressionText):
+                           isinstance(default_delta[0], s_expr.ExpressionText):
                         new_default = None
                     else:
                         new_default = default_delta[0]
@@ -669,14 +688,14 @@ class AlterAtom(AtomMetaCommand, adapts=delta_cmds.AlterAtom):
                     op.pgops.add(adad)
 
 
-class DeleteAtom(AtomMetaCommand, adapts=delta_cmds.DeleteAtom):
+class DeleteAtom(AtomMetaCommand, adapts=s_atoms.DeleteAtom):
     def apply(self, schema, context=None):
-        atom = delta_cmds.DeleteAtom.apply(self, schema, context)
+        atom = s_atoms.DeleteAtom.apply(self, schema, context)
         AtomMetaCommand.apply(self, schema, context)
 
         link = None
         if context:
-            link = context.get(delta_cmds.LinkCommandContext)
+            link = context.get(s_links.LinkCommandContext)
 
         ops = link.op.pgops if link else self.pgops
 
@@ -688,7 +707,7 @@ class DeleteAtom(AtomMetaCommand, adapts=delta_cmds.DeleteAtom):
         ops.add(dbops.Delete(table=deltadbops.AtomTable(),
                              condition=[('name', str(self.prototype_name))]))
 
-        if atom.issubclass(caos_objects.sequence.Sequence):
+        if self.is_sequence(schema, atom):
             seq_name = common.atom_name_to_sequence_name(self.prototype_name, catenate=False)
             self.pgops.add(dbops.DropSequence(name=seq_name))
 
@@ -705,7 +724,7 @@ class UpdateSearchIndexes(MetaCommand):
         return common.caos_name_to_pg_name(name)
 
     def apply(self, schema, context):
-        if isinstance(self.host, caos.types.ProtoConcept):
+        if isinstance(self.host, s_concepts.Concept):
             columns = []
 
             names = sorted(self.host.pointers.keys())
@@ -800,7 +819,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
     def rename(self, schema, context, old_name, new_name, obj=None):
         super().rename(schema, context, old_name, new_name)
 
-        if obj is not None and isinstance(obj, caos.types.ProtoLink):
+        if obj is not None and isinstance(obj, s_links.Link):
             old_table_name = common.link_name_to_table_name(old_name, catenate=False)
             new_table_name = common.link_name_to_table_name(new_name, catenate=False)
         else:
@@ -835,15 +854,15 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
     @classmethod
     def get_source_and_pointer_ctx(cls, schema, context):
         if context:
-            concept = context.get(delta_cmds.ConceptCommandContext)
-            link = context.get(delta_cmds.LinkCommandContext)
+            concept = context.get(s_concepts.ConceptCommandContext)
+            link = context.get(s_links.LinkCommandContext)
         else:
             concept = link = None
 
         if concept:
             source, pointer = concept, link
         elif link:
-            property = context.get(delta_cmds.LinkPropertyCommandContext)
+            property = context.get(s_lprops.LinkPropertyCommandContext)
             source, pointer = link, property
         else:
             source = pointer = None
@@ -858,7 +877,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 continue
 
             default = None
-            ld = list(filter(lambda i: not isinstance(i, caos_types.ExpressionText),
+            ld = list(filter(lambda i: not isinstance(i, s_expr.ExpressionText),
                              pointer.default))
             if ld:
                 default = ld[0]
@@ -878,7 +897,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         old_target = orig_pointer.target
         new_target = pointer.target
 
-        source_ctx = context.get(delta_cmds.ConceptCommandContext)
+        source_ctx = context.get(s_concepts.ConceptCommandContext)
         source_proto = source_ctx.proto
         source_op = source_ctx.op
 
@@ -887,14 +906,14 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
         if old_target.name != new_target.name \
                                 or old_ptr_stor_info.table_type != new_ptr_stor_info.table_type:
 
-            for op in self(delta_cmds.AtomCommand):
-                for rename in op(delta_cmds.RenameAtom):
+            for op in self(s_atoms.AtomCommand):
+                for rename in op(s_atoms.RenameAtom):
                     if old_target.name == rename.prototype_name \
                                         and new_target.name == rename.new_name:
                         # Our target alter is a mere rename
                         type_change_ok = True
 
-                if isinstance(op, delta_cmds.CreateAtom):
+                if isinstance(op, s_atoms.CreateAtom):
                     if op.prototype_name == new_target.name:
                         # CreateAtom will take care of everything for us
                         type_change_ok = True
@@ -945,7 +964,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
             else:
                 if old_target != new_target and not type_change_ok:
-                    if isinstance(old_target, caos.types.ProtoAtom):
+                    if isinstance(old_target, s_atoms.Atom):
                         AlterAtom.alter_atom(self, schema, context, old_target,
                                                                   new_target, in_place=False)
 
@@ -956,23 +975,23 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                         alter_table.add_operation(alter_type)
 
     def apply_base_delta(self, orig_source, source, schema, context):
-        realm = context.get(delta_cmds.RealmCommandContext)
+        realm = context.get(s_realm.RealmCommandContext)
         orig_source.bases = [realm.op._renames.get(b, b) for b in orig_source.bases]
 
         dropped_bases = {b.name for b in orig_source.bases} - {b.name for b in source.bases}
 
-        if isinstance(source, caos.types.ProtoConcept):
+        if isinstance(source, s_concepts.Concept):
             nameconv = common.concept_name_to_table_name
-            source_ctx = context.get(delta_cmds.ConceptCommandContext)
-            ptr_cmd = delta_cmds.CreateLink
+            source_ctx = context.get(s_concepts.ConceptCommandContext)
+            ptr_cmd = s_links.CreateLink
         else:
             nameconv = common.link_name_to_table_name
-            source_ctx = context.get(delta_cmds.LinkCommandContext)
-            ptr_cmd = delta_cmds.CreateLinkProperty
+            source_ctx = context.get(s_links.LinkCommandContext)
+            ptr_cmd = s_lprops.CreateLinkProperty
 
         alter_table = source_ctx.op.get_alter_table(context, force_new=True)
 
-        if isinstance(source, caos.types.ProtoConcept) \
+        if isinstance(source, s_concepts.Concept) \
                         or source_ctx.op.has_table(source, schema):
 
             source.acquire_ancestor_inheritance(schema)
@@ -998,9 +1017,9 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
                 is_a_column = (
                     (ptr_stor_info.table_type == 'concept'
-                            and isinstance(source, proto.Concept))
+                            and isinstance(source, s_concepts.Concept))
                     or (ptr_stor_info.table_type == 'link'
-                            and isinstance(source, proto.Link))
+                            and isinstance(source, s_links.Link))
                 )
 
                 if is_a_column:
@@ -1015,7 +1034,7 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 alter_table_drop_parent = source_ctx.op.get_alter_table(context, force_new=True)
 
                 for dropped_base in dropped_bases:
-                    parent_table_name = nameconv(caos.name.Name(dropped_base), catenate=False)
+                    parent_table_name = nameconv(sn.Name(dropped_base), catenate=False)
                     op = dbops.AlterTableDropParent(parent_name=parent_table_name)
                     alter_table_drop_parent.add_operation(op)
 
@@ -1031,9 +1050,9 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
 
                         is_a_column = (
                             (ptr_stor_info.table_type == 'concept'
-                                    and isinstance(source, proto.Concept))
+                                    and isinstance(source, s_concepts.Concept))
                             or (ptr_stor_info.table_type == 'link'
-                                    and isinstance(source, proto.Link))
+                                    and isinstance(source, s_links.Link))
                         )
 
                         if is_a_column:
@@ -1065,13 +1084,13 @@ class CompositePrototypeMetaCommand(NamedPrototypeMetaCommand):
                 alter_table_add_parent = source_ctx.op.get_alter_table(context, force_new=True)
 
                 for base in old_base_order:
-                    parent_table_name = nameconv(caos.name.Name(base), catenate=False)
+                    parent_table_name = nameconv(sn.Name(base), catenate=False)
                     cond = dbops.TableInherits(table_name, parent_table_name)
                     op = dbops.AlterTableDropParent(parent_name=parent_table_name)
                     alter_table_drop_parent.add_operation((op, [cond], None))
 
                 for added_base in new_base_order:
-                    parent_table_name = nameconv(caos.name.Name(added_base), catenate=False)
+                    parent_table_name = nameconv(sn.Name(added_base), catenate=False)
                     cond = dbops.TableInherits(table_name, parent_table_name)
                     op = dbops.AlterTableAddParent(parent_name=parent_table_name)
                     alter_table_add_parent.add_operation((op, None, [cond]))
@@ -1081,14 +1100,14 @@ class SourceIndexCommand(PrototypeMetaCommand):
     pass
 
 
-class CreateSourceIndex(SourceIndexCommand, adapts=delta_cmds.CreateSourceIndex):
+class CreateSourceIndex(SourceIndexCommand, adapts=s_indexes.CreateSourceIndex):
     def apply(self, schema, context=None):
-        index = delta_cmds.CreateSourceIndex.apply(self, schema, context)
+        index = s_indexes.CreateSourceIndex.apply(self, schema, context)
         SourceIndexCommand.apply(self, schema, context)
 
-        source = context.get(delta_cmds.LinkCommandContext)
+        source = context.get(s_links.LinkCommandContext)
         if not source:
-            source = context.get(delta_cmds.ConceptCommandContext)
+            source = context.get(s_concepts.ConceptCommandContext)
         table_name = common.get_table_name(source.proto, catenate=False)
         ir = caosql.compile_fragment_to_ir(index.expr, schema,
                                            location='selector')
@@ -1111,18 +1130,18 @@ class CreateSourceIndex(SourceIndexCommand, adapts=delta_cmds.CreateSourceIndex)
         return index
 
 
-class RenameSourceIndex(SourceIndexCommand, adapts=delta_cmds.RenameSourceIndex):
+class RenameSourceIndex(SourceIndexCommand, adapts=s_indexes.RenameSourceIndex):
     def apply(self, schema, context):
-        index = delta_cmds.RenameSourceIndex.apply(self, schema, context)
+        index = s_indexes.RenameSourceIndex.apply(self, schema, context)
         SourceIndexCommand.apply(self, schema, context)
 
-        subject = context.get(delta_cmds.LinkCommandContext)
+        subject = context.get(s_links.LinkCommandContext)
         if not subject:
-            subject = context.get(delta_cmds.ConceptCommandContext)
+            subject = context.get(s_concepts.ConceptCommandContext)
         orig_table_name = common.get_table_name(subject.original_proto,
                                                 catenate=False)
 
-        index_ctx = context.get(delta_cmds.SourceIndexCommandContext)
+        index_ctx = context.get(s_indexes.SourceIndexCommandContext)
         new_index_name = '{}_reg_idx'.format(index.name)
 
         orig_idx = index_ctx.original_proto
@@ -1138,23 +1157,23 @@ class RenameSourceIndex(SourceIndexCommand, adapts=delta_cmds.RenameSourceIndex)
         return index
 
 
-class AlterSourceIndex(SourceIndexCommand, adapts=delta_cmds.AlterSourceIndex):
+class AlterSourceIndex(SourceIndexCommand, adapts=s_indexes.AlterSourceIndex):
     def apply(self, schema, context=None):
-        result = delta_cmds.AlterSourceIndex.apply(self, schema, context)
+        result = s_indexes.AlterSourceIndex.apply(self, schema, context)
         SourceIndexCommand.apply(self, schema, context)
         return result
 
 
-class DeleteSourceIndex(SourceIndexCommand, adapts=delta_cmds.DeleteSourceIndex):
+class DeleteSourceIndex(SourceIndexCommand, adapts=s_indexes.DeleteSourceIndex):
     def apply(self, schema, context=None):
-        index = delta_cmds.DeleteSourceIndex.apply(self, schema, context)
+        index = s_indexes.DeleteSourceIndex.apply(self, schema, context)
         SourceIndexCommand.apply(self, schema, context)
 
-        source = context.get(delta_cmds.LinkCommandContext)
+        source = context.get(s_links.LinkCommandContext)
         if not source:
-            source = context.get(delta_cmds.ConceptCommandContext)
+            source = context.get(s_concepts.ConceptCommandContext)
 
-        if not isinstance(source.op, delta_cmds.DeleteNamedPrototype):
+        if not isinstance(source.op, s_named.DeleteNamedPrototype):
             # We should not drop indexes when the host is being dropped since
             # the indexes are dropped automatically in this case.
             #
@@ -1176,12 +1195,12 @@ class ConceptMetaCommand(CompositePrototypeMetaCommand):
         self.table = deltadbops.ConceptTable()
 
 
-class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
+class CreateConcept(ConceptMetaCommand, adapts=s_concepts.CreateConcept):
     def apply(self, schema, context=None):
         concept_props = self.get_struct_properties(include_old_value=False)
         is_virtual = concept_props.get('is_virtual')
         if is_virtual:
-            return delta_cmds.CreateConcept.apply(self, schema, context)
+            return s_concepts.CreateConcept.apply(self, schema, context)
 
         new_table_name = common.concept_name_to_table_name(
                             self.prototype_name, catenate=False)
@@ -1191,7 +1210,7 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
 
         alter_table = self.get_alter_table(context)
 
-        concept = delta_cmds.CreateConcept.apply(self, schema, context)
+        concept = s_concepts.CreateConcept.apply(self, schema, context)
         ConceptMetaCommand.apply(self, schema, context)
 
         fields = self.create_object(schema, concept)
@@ -1221,7 +1240,7 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
         alter_table.add_operation(
             dbops.AlterTableAddConstraint(constraint))
 
-        bases = (common.concept_name_to_table_name(caos.Name(p), catenate=False)
+        bases = (common.concept_name_to_table_name(sn.Name(p), catenate=False)
                  for p in fields['base'][1])
         concept_table.bases = list(bases)
 
@@ -1239,15 +1258,15 @@ class CreateConcept(ConceptMetaCommand, adapts=delta_cmds.CreateConcept):
         return concept
 
 
-class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
+class RenameConcept(ConceptMetaCommand, adapts=s_concepts.RenameConcept):
     def apply(self, schema, context=None):
-        proto = delta_cmds.RenameConcept.apply(self, schema, context)
+        proto = s_concepts.RenameConcept.apply(self, schema, context)
         ConceptMetaCommand.apply(self, schema, context)
 
-        concept = context.get(delta_cmds.ConceptCommandContext)
+        concept = context.get(s_concepts.ConceptCommandContext)
         assert concept
 
-        realm = context.get(delta_cmds.RealmCommandContext)
+        realm = context.get(s_realm.RealmCommandContext)
         assert realm
 
         realm.op._renames[concept.original_proto] = proto
@@ -1280,12 +1299,12 @@ class RenameConcept(ConceptMetaCommand, adapts=delta_cmds.RenameConcept):
         return proto
 
 
-class RebaseConcept(ConceptMetaCommand, adapts=delta_cmds.RebaseConcept):
+class RebaseConcept(ConceptMetaCommand, adapts=s_concepts.RebaseConcept):
     def apply(self, schema, context):
-        result = delta_cmds.RebaseConcept.apply(self, schema, context)
+        result = s_concepts.RebaseConcept.apply(self, schema, context)
         ConceptMetaCommand.apply(self, schema, context)
 
-        concept_ctx = context.get(delta_cmds.ConceptCommandContext)
+        concept_ctx = context.get(s_concepts.ConceptCommandContext)
         source = concept_ctx.proto
         orig_source = concept_ctx.original_proto
         self.apply_base_delta(orig_source, source, schema, context)
@@ -1293,10 +1312,10 @@ class RebaseConcept(ConceptMetaCommand, adapts=delta_cmds.RebaseConcept):
         return result
 
 
-class AlterConcept(ConceptMetaCommand, adapts=delta_cmds.AlterConcept):
+class AlterConcept(ConceptMetaCommand, adapts=s_concepts.AlterConcept):
     def apply(self, schema, context=None):
         self.table_name = common.concept_name_to_table_name(self.prototype_name, catenate=False)
-        concept = delta_cmds.AlterConcept.apply(self, schema, context=context)
+        concept = s_concepts.AlterConcept.apply(self, schema, context=context)
         ConceptMetaCommand.apply(self, schema, context)
 
         updaterec, updates = self.fill_record(schema)
@@ -1314,11 +1333,11 @@ class AlterConcept(ConceptMetaCommand, adapts=delta_cmds.AlterConcept):
         return concept
 
 
-class DeleteConcept(ConceptMetaCommand, adapts=delta_cmds.DeleteConcept):
+class DeleteConcept(ConceptMetaCommand, adapts=s_concepts.DeleteConcept):
     def apply(self, schema, context=None):
         old_table_name = common.concept_name_to_table_name(self.prototype_name, catenate=False)
 
-        concept = delta_cmds.DeleteConcept.apply(self, schema, context)
+        concept = s_concepts.DeleteConcept.apply(self, schema, context)
         ConceptMetaCommand.apply(self, schema, context)
 
         self.delete(schema, context, concept)
@@ -1334,25 +1353,25 @@ class ActionCommand:
 
 class CreateAction(CreateNamedPrototype,
                                  ActionCommand,
-                                 adapts=delta_cmds.CreateAction):
+                                 adapts=s_policy.CreateAction):
     pass
 
 
 class RenameAction(RenameNamedPrototype,
                                  ActionCommand,
-                                 adapts=delta_cmds.RenameAction):
+                                 adapts=s_policy.RenameAction):
     pass
 
 
 class AlterAction(AlterNamedPrototype,
                                 ActionCommand,
-                                adapts=delta_cmds.AlterAction):
+                                adapts=s_policy.AlterAction):
     pass
 
 
 class DeleteAction(DeleteNamedPrototype,
                                  ActionCommand,
-                                 adapts=delta_cmds.DeleteAction):
+                                 adapts=s_policy.DeleteAction):
     pass
 
 
@@ -1362,31 +1381,31 @@ class EventCommand(metaclass=CommandMeta):
 
 class CreateEvent(EventCommand,
                                 CreateNamedPrototype,
-                                adapts=delta_cmds.CreateEvent):
+                                adapts=s_policy.CreateEvent):
     pass
 
 
 class RenameEvent(EventCommand,
                                 RenameNamedPrototype,
-                                adapts=delta_cmds.RenameEvent):
+                                adapts=s_policy.RenameEvent):
     pass
 
 
 class RebaseEvent(EventCommand,
                                 RebaseNamedPrototype,
-                                adapts=delta_cmds.RebaseEvent):
+                                adapts=s_policy.RebaseEvent):
     pass
 
 
 class AlterEvent(EventCommand,
                                AlterNamedPrototype,
-                               adapts=delta_cmds.AlterEvent):
+                               adapts=s_policy.AlterEvent):
     pass
 
 
 class DeleteEvent(EventCommand,
                                 DeleteNamedPrototype,
-                                adapts=delta_cmds.DeleteEvent):
+                                adapts=s_policy.DeleteEvent):
     pass
 
 
@@ -1423,25 +1442,25 @@ class PolicyCommand(metaclass=CommandMeta):
 
 class CreatePolicy(PolicyCommand,
                                  CreateNamedPrototype,
-                                 adapts=delta_cmds.CreatePolicy):
+                                 adapts=s_policy.CreatePolicy):
     pass
 
 
 class RenamePolicy(PolicyCommand,
                                  RenameNamedPrototype,
-                                 adapts=delta_cmds.RenamePolicy):
+                                 adapts=s_policy.RenamePolicy):
     pass
 
 
 class AlterPolicy(PolicyCommand,
                                 AlterNamedPrototype,
-                                adapts=delta_cmds.AlterPolicy):
+                                adapts=s_policy.AlterPolicy):
     pass
 
 
 class DeletePolicy(PolicyCommand,
                                  DeleteNamedPrototype,
-                                 adapts=delta_cmds.DeletePolicy):
+                                 adapts=s_policy.DeletePolicy):
     pass
 
 
@@ -1457,10 +1476,10 @@ class PointerMetaCommand(MetaCommand):
 
     def get_host(self, schema, context):
         if context:
-            link = context.get(delta_cmds.LinkCommandContext)
-            if link and isinstance(self, delta_cmds.LinkPropertyCommand):
+            link = context.get(s_links.LinkCommandContext)
+            if link and isinstance(self, s_lprops.LinkPropertyCommand):
                 return link
-            concept = context.get(delta_cmds.ConceptCommandContext)
+            concept = context.get(s_concepts.ConceptCommandContext)
             if concept:
                 return concept
 
@@ -1490,7 +1509,7 @@ class PointerMetaCommand(MetaCommand):
                                             type='integer')
 
             if rec.base:
-                if isinstance(rec.base, caos.Name):
+                if isinstance(rec.base, sn.Name):
                     rec.base = str(rec.base)
                 else:
                     rec.base = tuple(str(b) for b in rec.base)
@@ -1507,16 +1526,16 @@ class PointerMetaCommand(MetaCommand):
 
         dropped_atom = None
 
-        for op in self(delta_cmds.AtomCommand):
-            for rename in op(delta_cmds.RenameAtom):
+        for op in self(s_atoms.AtomCommand):
+            for rename in op(s_atoms.RenameAtom):
                 if old_type == rename.prototype_name and new_type == rename.new_name:
                     # Our target alter is a mere rename
                     return
-            if isinstance(op, delta_cmds.CreateAtom):
+            if isinstance(op, s_atoms.CreateAtom):
                 if op.prototype_name == new_type:
                     # CreateAtom will take care of everything for us
                     return
-            elif isinstance(op, delta_cmds.DeleteAtom):
+            elif isinstance(op, s_atoms.DeleteAtom):
                 if op.prototype_name == old_type:
                     # The former target atom might as well have been dropped
                     dropped_atom = op.old_prototype
@@ -1525,14 +1544,14 @@ class PointerMetaCommand(MetaCommand):
         assert old_target
         new_target = schema.get(new_type)
 
-        alter_table = context.get(delta_cmds.ConceptCommandContext).op.get_alter_table(context,
+        alter_table = context.get(s_concepts.ConceptCommandContext).op.get_alter_table(context,
                                                                                        priority=1)
         column_name = common.caos_name_to_pg_name(ptr.normal_name())
 
-        if isinstance(new_target, caos.types.ProtoAtom):
+        if isinstance(new_target, s_atoms.Atom):
             target_type = types.pg_type_from_atom(schema, new_target)
 
-            if isinstance(old_target, caos.types.ProtoAtom):
+            if isinstance(old_target, s_atoms.Atom):
                 AlterAtom.alter_atom(self, schema, context, old_target, new_target, in_place=False)
                 alter_type = dbops.AlterTableAlterColumnType(column_name, target_type)
                 alter_table.add_operation(alter_type)
@@ -1552,7 +1571,7 @@ class PointerMetaCommand(MetaCommand):
         if default:
             default = default[1]
             if default:
-                ld = list(filter(lambda i: not isinstance(i, caos_types.ExpressionText),
+                ld = list(filter(lambda i: not isinstance(i, s_expr.ExpressionText),
                                  default))
                 if ld:
                     default_value = postgresql.string.quote_literal(str(ld[0]))
@@ -1570,7 +1589,7 @@ class PointerMetaCommand(MetaCommand):
             if not default:
                 new_default = None
             else:
-                ld = list(filter(lambda i: not isinstance(i, caos_types.ExpressionText),
+                ld = list(filter(lambda i: not isinstance(i, s_expr.ExpressionText),
                                  default))
                 if ld:
                     new_default = ld[0]
@@ -1614,9 +1633,9 @@ class PointerMetaCommand(MetaCommand):
 
                     is_a_column = (
                         (ptr_stor_info.table_type == 'concept'
-                                and isinstance(host.proto, proto.Concept))
+                                and isinstance(host.proto, s_concepts.Concept))
                         or (ptr_stor_info.table_type == 'link'
-                                and isinstance(host.proto, proto.Link))
+                                and isinstance(host.proto, s_links.Link))
                     )
 
                     if is_a_column:
@@ -1704,7 +1723,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
             bases = []
 
             for parent in link.bases:
-                if isinstance(parent, caos.types.ProtoObject):
+                if isinstance(parent, s_obj.ProtoObject):
                     if create_bases:
                         bc = cls._create_table(parent, schema, context,
                                                conditional=True,
@@ -1761,7 +1780,7 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
 
     def schedule_mapping_update(self, link, schema, context):
         if self.has_table(link, schema):
-            mapping_indexes = context.get(delta_cmds.RealmCommandContext).op.update_mapping_indexes
+            mapping_indexes = context.get(s_realm.RealmCommandContext).op.update_mapping_indexes
             ops = mapping_indexes.links.get(link.name)
             if not ops:
                 mapping_indexes.links[link.name] = ops = []
@@ -1769,16 +1788,16 @@ class LinkMetaCommand(CompositePrototypeMetaCommand, PointerMetaCommand):
             self.pgops.add(ScheduleLinkMappingUpdate())
 
     def cancel_mapping_update(self, link, schema, context):
-        mapping_indexes = context.get(delta_cmds.RealmCommandContext).op.update_mapping_indexes
+        mapping_indexes = context.get(s_realm.RealmCommandContext).op.update_mapping_indexes
         mapping_indexes.links.pop(link.name, None)
         self.pgops.add(CancelLinkMappingUpdate())
 
 
-class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
+class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
     def apply(self, schema, context=None):
         # Need to do this early, since potential table alters triggered by sub-commands
         # need this.
-        link = delta_cmds.CreateLink.apply(self, schema, context)
+        link = s_links.CreateLink.apply(self, schema, context)
         self.table_name = common.get_table_name(link, catenate=False)
         LinkMetaCommand.apply(self, schema, context)
 
@@ -1795,7 +1814,7 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
         #
         self.provide_table(link, schema, context)
 
-        concept = context.get(delta_cmds.ConceptCommandContext)
+        concept = context.get(s_concepts.ConceptCommandContext)
         rec, updates = self.record_metadata(link, None, schema, context)
         self.updates = updates
 
@@ -1803,7 +1822,7 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
             ptr_stor_info = types.get_pointer_storage_info(
                                 link, resolve_type=False)
 
-            concept = context.get(delta_cmds.ConceptCommandContext)
+            concept = context.get(s_concepts.ConceptCommandContext)
             assert concept, "Link command must be run in Concept command context"
 
             if ptr_stor_info.table_type == 'concept':
@@ -1833,19 +1852,19 @@ class CreateLink(LinkMetaCommand, adapts=delta_cmds.CreateLink):
 
         self.attach_alter_table(context)
 
-        concept = context.get(delta_cmds.ConceptCommandContext)
+        concept = context.get(s_concepts.ConceptCommandContext)
         self.pgops.add(dbops.Insert(table=self.table, records=[rec],
                                     priority=1))
 
-        if not link.generic() and link.mapping != caos.types.ManyToMany:
+        if not link.generic() and link.mapping != s_links.LinkMapping.ManyToMany:
             self.schedule_mapping_update(link, schema, context)
 
         return link
 
 
-class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
+class RenameLink(LinkMetaCommand, adapts=s_links.RenameLink):
     def apply(self, schema, context=None):
-        result = delta_cmds.RenameLink.apply(self, schema, context)
+        result = s_links.RenameLink.apply(self, schema, context)
         LinkMetaCommand.apply(self, schema, context)
 
         self.rename_pointer(result, schema, context, self.prototype_name, self.new_name)
@@ -1853,13 +1872,13 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
         self.attach_alter_table(context)
 
         if result.generic():
-            link_cmd = context.get(delta_cmds.LinkCommandContext)
+            link_cmd = context.get(s_links.LinkCommandContext)
             assert link_cmd
 
             self.rename(schema, context, self.prototype_name, self.new_name, obj=result)
             link_cmd.op.table_name = common.link_name_to_table_name(self.new_name, catenate=False)
         else:
-            link_cmd = context.get(delta_cmds.LinkCommandContext)
+            link_cmd = context.get(s_links.LinkCommandContext)
 
             if self.has_table(result, schema):
                 self.rename(schema, context, self.prototype_name, self.new_name, obj=result)
@@ -1867,14 +1886,14 @@ class RenameLink(LinkMetaCommand, adapts=delta_cmds.RenameLink):
         return result
 
 
-class RebaseLink(LinkMetaCommand, adapts=delta_cmds.RebaseLink):
+class RebaseLink(LinkMetaCommand, adapts=s_links.RebaseLink):
     def apply(self, schema, context):
-        result = delta_cmds.RebaseLink.apply(self, schema, context)
+        result = s_links.RebaseLink.apply(self, schema, context)
         LinkMetaCommand.apply(self, schema, context)
 
         result.acquire_ancestor_inheritance(schema)
 
-        link_ctx = context.get(delta_cmds.LinkCommandContext)
+        link_ctx = context.get(s_links.LinkCommandContext)
         source = link_ctx.proto
 
         orig_source = link_ctx.original_proto
@@ -1885,13 +1904,13 @@ class RebaseLink(LinkMetaCommand, adapts=delta_cmds.RebaseLink):
         return result
 
 
-class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
+class AlterLink(LinkMetaCommand, adapts=s_links.AlterLink):
     def apply(self, schema, context=None):
         self.old_link = old_link = schema.get(self.prototype_name).copy()
-        link = delta_cmds.AlterLink.apply(self, schema, context)
+        link = s_links.AlterLink.apply(self, schema, context)
         LinkMetaCommand.apply(self, schema, context)
 
-        with context(delta_cmds.LinkCommandContext(self, link)):
+        with context(s_links.LinkCommandContext(self, link)):
             rec, updates = self.record_metadata(link, old_link, schema, context)
             self.updates = updates
 
@@ -1902,14 +1921,14 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
                                             condition=[('name', str(link.name))], priority=1))
 
             new_type = None
-            for op in self(delta_cmds.AlterPrototypeProperty):
+            for op in self(sd.AlterPrototypeProperty):
                 if op.property == 'target':
                     new_type = op.new_value.prototype_name if op.new_value is not None else None
                     old_type = op.old_value.prototype_name if op.old_value is not None else None
                     break
 
             if new_type:
-                if not isinstance(link.target, caos.types.ProtoObject):
+                if not isinstance(link.target, s_obj.ProtoObject):
                     link.target = schema.get(link.target)
 
             self.attach_alter_table(context)
@@ -1924,14 +1943,14 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
                 if (old_ptr_stor_info.table_type == 'concept'
                         and ptr_stor_info.table_type == 'concept'
                         and link.required != self.old_link.required):
-                    alter_table = context.get(delta_cmds.ConceptCommandContext).op.get_alter_table(context)
+                    alter_table = context.get(s_concepts.ConceptCommandContext).op.get_alter_table(context)
                     column_name = common.caos_name_to_pg_name(link.normal_name())
                     alter_table.add_operation(dbops.AlterTableAlterColumnNull(column_name=column_name,
                                                                               null=not link.required))
 
                 search = self.updates.get('search')
                 if search:
-                    concept = context.get(delta_cmds.ConceptCommandContext)
+                    concept = context.get(s_concepts.ConceptCommandContext)
                     search_conf = search[1]
                     if search[0] and search[1]:
                         concept.op.search_index_alter(concept.proto, link,
@@ -1943,7 +1962,7 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
                         concept.op.search_index_delete(concept.proto, link,
                                                        schema, context)
 
-            if isinstance(link.target, caos.types.ProtoAtom):
+            if isinstance(link.target, s_atoms.Atom):
                 self.alter_pointer_default(link, schema, context)
 
             if not link.generic() and old_link.mapping != link.mapping:
@@ -1952,14 +1971,14 @@ class AlterLink(LinkMetaCommand, adapts=delta_cmds.AlterLink):
         return link
 
 
-class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
+class DeleteLink(LinkMetaCommand, adapts=s_links.DeleteLink):
     def apply(self, schema, context=None):
-        result = delta_cmds.DeleteLink.apply(self, schema, context)
+        result = s_links.DeleteLink.apply(self, schema, context)
         LinkMetaCommand.apply(self, schema, context)
 
         if not result.generic():
             ptr_stor_info = types.get_pointer_storage_info(result, schema=schema)
-            concept = context.get(delta_cmds.ConceptCommandContext)
+            concept = context.get(s_concepts.ConceptCommandContext)
 
             name = result.normal_name()
 
@@ -1986,7 +2005,7 @@ class DeleteLink(LinkMetaCommand, adapts=delta_cmds.DeleteLink):
                                        conditions=[condition]))
         self.cancel_mapping_update(result, schema, context)
 
-        if not result.generic() and result.mapping != caos.types.ManyToMany:
+        if not result.generic() and result.mapping != s_links.LinkMapping.ManyToMany:
             self.schedule_mapping_update(result, schema, context)
 
         self.pgops.add(dbops.Delete(table=self.table,
@@ -2001,19 +2020,19 @@ class LinkPropertyMetaCommand(NamedPrototypeMetaCommand, PointerMetaCommand):
         self.table = deltadbops.LinkPropertyTable()
 
 
-class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkProperty):
+class CreateLinkProperty(LinkPropertyMetaCommand, adapts=s_lprops.CreateLinkProperty):
     def apply(self, schema, context):
-        property = delta_cmds.CreateLinkProperty.apply(self, schema, context)
+        property = s_lprops.CreateLinkProperty.apply(self, schema, context)
         LinkPropertyMetaCommand.apply(self, schema, context)
 
-        link = context.get(delta_cmds.LinkCommandContext)
+        link = context.get(s_links.LinkCommandContext)
 
         if link:
             generic_link = link.proto if link.proto.generic() else link.proto.bases[0]
         else:
             generic_link = None
 
-        with context(delta_cmds.LinkPropertyCommandContext(self, property)):
+        with context(s_lprops.LinkPropertyCommandContext(self, property)):
             rec, updates = self.record_metadata(property, None, schema, context)
             self.updates = updates
 
@@ -2039,7 +2058,7 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
                 cmd = dbops.AlterTableAddColumn(col)
                 alter_table.add_operation((cmd, None, (cond,)))
 
-        concept = context.get(delta_cmds.ConceptCommandContext)
+        concept = context.get(s_concepts.ConceptCommandContext)
         # Priority is set to 2 to make sure that INSERT is run after the host link
         # is INSERTed into caos.link.
         #
@@ -2048,9 +2067,9 @@ class CreateLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.CreateLinkPr
         return property
 
 
-class RenameLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.RenameLinkProperty):
+class RenameLinkProperty(LinkPropertyMetaCommand, adapts=s_lprops.RenameLinkProperty):
     def apply(self, schema, context=None):
-        result = delta_cmds.RenameLinkProperty.apply(self, schema, context)
+        result = s_lprops.RenameLinkProperty.apply(self, schema, context)
         LinkPropertyMetaCommand.apply(self, schema, context)
 
         self.rename_pointer(result, schema, context, self.prototype_name, self.new_name)
@@ -2058,13 +2077,13 @@ class RenameLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.RenameLinkPr
         return result
 
 
-class AlterLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.AlterLinkProperty):
+class AlterLinkProperty(LinkPropertyMetaCommand, adapts=s_lprops.AlterLinkProperty):
     def apply(self, schema, context=None):
         self.old_prop = old_prop = schema.get(self.prototype_name, type=self.prototype_class).copy()
-        prop = delta_cmds.AlterLinkProperty.apply(self, schema, context)
+        prop = s_lprops.AlterLinkProperty.apply(self, schema, context)
         LinkPropertyMetaCommand.apply(self, schema, context)
 
-        with context(delta_cmds.LinkPropertyCommandContext(self, prop)):
+        with context(s_lprops.LinkPropertyCommandContext(self, prop)):
             rec, updates = self.record_metadata(prop, old_prop, schema, context)
             self.updates = updates
 
@@ -2072,11 +2091,11 @@ class AlterLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.AlterLinkProp
                 self.pgops.add(dbops.Update(table=self.table, record=rec,
                                             condition=[('name', str(prop.name))], priority=1))
 
-            if isinstance(prop.target, caos.types.ProtoAtom) and \
-                    isinstance(self.old_prop.target, caos.types.ProtoAtom) and \
+            if isinstance(prop.target, s_atoms.Atom) and \
+                    isinstance(self.old_prop.target, s_atoms.Atom) and \
                     prop.required != self.old_prop.required:
 
-                src_ctx = context.get(delta_cmds.LinkCommandContext)
+                src_ctx = context.get(s_links.LinkCommandContext)
                 src_op = src_ctx.op
                 alter_table = src_op.get_alter_table(context, priority=5)
                 column_name = common.caos_name_to_pg_name(prop.normal_name())
@@ -2090,7 +2109,7 @@ class AlterLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.AlterLinkProp
                                                                           null=not prop.required))
 
             new_type = None
-            for op in self(delta_cmds.AlterPrototypeProperty):
+            for op in self(sd.AlterPrototypeProperty):
                 if op.property == 'target' and prop.normal_name() not in \
                                 {'metamagic.caos.builtins.source', 'metamagic.caos.builtins.target'}:
                     new_type = op.new_value.prototype_name if op.new_value is not None else None
@@ -2105,12 +2124,12 @@ class AlterLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.AlterLinkProp
         return prop
 
 
-class DeleteLinkProperty(LinkPropertyMetaCommand, adapts=delta_cmds.DeleteLinkProperty):
+class DeleteLinkProperty(LinkPropertyMetaCommand, adapts=s_lprops.DeleteLinkProperty):
     def apply(self, schema, context=None):
-        property = delta_cmds.DeleteLinkProperty.apply(self, schema, context)
+        property = s_lprops.DeleteLinkProperty.apply(self, schema, context)
         LinkPropertyMetaCommand.apply(self, schema, context)
 
-        link = context.get(delta_cmds.LinkCommandContext)
+        link = context.get(s_links.LinkCommandContext)
 
         if link:
             alter_table = link.op.get_alter_table(context)
@@ -2132,17 +2151,17 @@ class CreateMappingIndexes(MetaCommand):
         super().__init__()
 
         key = str(table_name[1])
-        if mapping == caos.types.OneToOne:
+        if mapping == s_links.LinkMapping.OneToOne:
             # Each source can have only one target and
             # each target can have only one source
             sides = ('metamagic.caos.builtins.source', 'metamagic.caos.builtins.target')
 
-        elif mapping == caos.types.OneToMany:
+        elif mapping == s_links.LinkMapping.OneToMany:
             # Each target can have only one source, but
             # one source can have many targets
             sides = ('metamagic.caos.builtins.target',)
 
-        elif mapping == caos.types.ManyToOne:
+        elif mapping == s_links.LinkMapping.ManyToOne:
             # Each source can have only one target, but
             # one target can have many sources
             sides = ('metamagic.caos.builtins.source',)
@@ -2202,13 +2221,13 @@ class UpdateMappingIndexes(MetaCommand):
         index_predicate = index.predicate
         m = self.idx_name_re.match(index_name)
         if not m:
-            raise caos.MetaError('could not interpret index %s' % index_name)
+            raise s_err.SchemaError('could not interpret index %s' % index_name)
 
         mapping = m.group('mapping')
 
         m = self.idx_pred_re.match(index_predicate)
         if not m:
-            raise caos.MetaError('could not interpret index %s predicate: %s' % \
+            raise s_err.SchemaError('could not interpret index %s predicate: %s' % \
                                  (index_name, index_predicate))
 
         link_type_ids = (int(i) for i in re.split('\D+', m.group('type_ids') or m.group('type_id')))
@@ -2260,10 +2279,13 @@ class UpdateMappingIndexes(MetaCommand):
             indexes = {}
 
         for link_name, ops in self.links.items():
-            table_name = common.link_name_to_table_name(link_name, catenate=False)
+            table_name = common.link_name_to_table_name(
+                link_name, catenate=False)
 
-            new_indexes = {k: [] for k in caos.types.LinkMapping.values()}
-            alter_indexes = {k: [] for k in caos.types.LinkMapping.values()}
+            new_indexes = {k: [] for k in
+                           s_links.LinkMapping.__members__.values()}
+            alter_indexes = {k: [] for k in
+                             s_links.LinkMapping.__members__.values()}
 
             existing = indexes.get(table_name)
 
@@ -2343,7 +2365,7 @@ class UpdateMappingIndexes(MetaCommand):
                                                               altlinks))
 
 
-class CommandContext(delta_cmds.CommandContext):
+class CommandContext(sd.CommandContext):
     def __init__(self, db, session=None):
         super().__init__()
         self.db = db
@@ -2368,10 +2390,10 @@ class CommandContext(delta_cmds.CommandContext):
         return link_map
 
 
-class CreateModule(CompositePrototypeMetaCommand, adapts=delta_cmds.CreateModule):
+class CreateModule(CompositePrototypeMetaCommand, adapts=s_mod.CreateModule):
     def apply(self, schema, context):
         CompositePrototypeMetaCommand.apply(self, schema, context)
-        module = delta_cmds.CreateModule.apply(self, schema, context)
+        module = s_mod.CreateModule.apply(self, schema, context)
 
         module_name = module.name
         schema_name = common.caos_module_name_to_schema_name(module_name)
@@ -2392,10 +2414,10 @@ class CreateModule(CompositePrototypeMetaCommand, adapts=delta_cmds.CreateModule
         return module
 
 
-class AlterModule(CompositePrototypeMetaCommand, adapts=delta_cmds.AlterModule):
+class AlterModule(CompositePrototypeMetaCommand, adapts=s_mod.AlterModule):
     def apply(self, schema, context):
         self.table = deltadbops.ModuleTable()
-        module = delta_cmds.AlterModule.apply(self, schema, context=context)
+        module = s_mod.AlterModule.apply(self, schema, context=context)
         CompositePrototypeMetaCommand.apply(self, schema, context)
 
         updaterec, updates = self.fill_record(schema)
@@ -2409,10 +2431,10 @@ class AlterModule(CompositePrototypeMetaCommand, adapts=delta_cmds.AlterModule):
         return module
 
 
-class DeleteModule(CompositePrototypeMetaCommand, adapts=delta_cmds.DeleteModule):
+class DeleteModule(CompositePrototypeMetaCommand, adapts=s_mod.DeleteModule):
     def apply(self, schema, context):
         CompositePrototypeMetaCommand.apply(self, schema, context)
-        module = delta_cmds.DeleteModule.apply(self, schema, context)
+        module = s_mod.DeleteModule.apply(self, schema, context)
 
         module_name = module.name
         schema_name = common.caos_module_name_to_schema_name(module_name)
@@ -2428,7 +2450,7 @@ class DeleteModule(CompositePrototypeMetaCommand, adapts=delta_cmds.DeleteModule
         return module
 
 
-class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
+class AlterRealm(MetaCommand, adapts=s_realm.AlterRealm):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
         self._renames = {}
@@ -2557,7 +2579,7 @@ class AlterRealm(MetaCommand, adapts=delta_cmds.AlterRealm):
 
         self.update_mapping_indexes = UpdateMappingIndexes()
 
-        delta_cmds.AlterRealm.apply(self, schema, context)
+        s_realm.AlterRealm.apply(self, schema, context)
         MetaCommand.apply(self, schema)
 
         self.update_mapping_indexes.apply(schema, context)
@@ -2747,11 +2769,11 @@ class UpgradeBackend(MetaCommand):
                 target = row['target_name']
 
                 if hash_ is not None:
-                    new_name = caos.types.ProtoPointer._generate_specialized_name(hash_, base)
+                    new_name = s_pointers.Pointer._generate_specialized_name(hash_, base)
                 else:
-                    new_name = caos.types.ProtoPointer.generate_specialized_name(source, target,
+                    new_name = s_pointers.Pointer.generate_specialized_name(source, target,
                                                                                  base)
-                new_name = caos.name.Name(name=new_name, module=caos.name.Name(source).module)
+                new_name = sn.Name(name=new_name, module=sn.Name(source).module)
 
                 rec = table.record()
                 rec.name = new_name
@@ -2788,7 +2810,7 @@ class UpgradeBackend(MetaCommand):
         Backend format 7 renames source_id and target_id in link tables into link property cols.
         """
 
-        tabname = common.link_name_to_table_name(caos.Name('metamagic.caos.builtins.link'),
+        tabname = common.link_name_to_table_name(sn.Name('metamagic.caos.builtins.link'),
                                                  catenate=False)
         src_col = common.caos_name_to_pg_name('metamagic.caos.builtins.source')
         tgt_col = common.caos_name_to_pg_name('metamagic.caos.builtins.target')
@@ -2838,7 +2860,7 @@ class UpgradeBackend(MetaCommand):
         links_by_generic_name = {}
 
         for lname, link in links_by_name.items():
-            genname = caos.types.ProtoPointer.normalize_name(lname)
+            genname = s_pointers.Pointer.normalize_name(lname)
             try:
                 l = links_by_generic_name[genname]
             except KeyError:
@@ -2864,7 +2886,7 @@ class UpgradeBackend(MetaCommand):
         commands = {}
 
         for concept in concept_list:
-            cname = caos.Name(concept['name'])
+            cname = sn.Name(concept['name'])
             table_name = common.concept_name_to_table_name(cname, catenate=False)
             record_name = common.concept_name_to_record_name(cname, catenate=False)
 
@@ -2899,17 +2921,17 @@ class UpgradeBackend(MetaCommand):
 
                 spec_links = links_by_generic_name[link['name']]
 
-                loading = caos.types.EagerLoading
+                loading = s_pointers.PointerLoading.Eager
 
                 for spec_link in spec_links:
-                    ld = caos.types.PointerLoading(spec_link['loading']) \
+                    ld = s_pointers.PointerLoading(spec_link['loading']) \
                                      if spec_link['loading'] else None
 
-                    if ld == caos.types.LazyLoading:
-                        loading = caos.types.LazyLoading
+                    if ld == s_pointers.PointerLoading.Lazy:
+                        loading = s_pointers.PointerLoading.Lazy
                         break
 
-                if loading != caos.types.EagerLoading:
+                if loading != s_pointers.PointerLoading.Eager:
                     continue
 
                 col = dbops.Column(name=col['column_name'],
@@ -2935,8 +2957,8 @@ class UpgradeBackend(MetaCommand):
 
             concept = concepts[link['source_id']]
 
-            cname = caos.Name(concept['name'])
-            generic_link_name = caos.Name(link['base'][0])
+            cname = sn.Name(concept['name'])
+            generic_link_name = sn.Name(link['base'][0])
 
             record_name = common.concept_name_to_record_name(cname, catenate=False)
             table_name = common.concept_name_to_table_name(cname, catenate=False)
@@ -2964,8 +2986,8 @@ class UpgradeBackend(MetaCommand):
                     atom_links_w_table.append((link, col))
 
         for link, link_col in atom_links_w_table:
-            new_table_name = common.link_name_to_table_name(caos.Name(link['name']), catenate=False)
-            base_table_name = common.link_name_to_table_name(caos.Name(link['base'][0]),
+            new_table_name = common.link_name_to_table_name(sn.Name(link['name']), catenate=False)
+            base_table_name = common.link_name_to_table_name(sn.Name(link['base'][0]),
                                                              catenate=False)
 
             constraints = []
@@ -3069,7 +3091,7 @@ class UpgradeBackend(MetaCommand):
         commands = {}
 
         for concept in concept_list:
-            cname = caos.Name(concept['name'])
+            cname = sn.Name(concept['name'])
             record_name = common.concept_name_to_record_name(cname, catenate=False)
 
             try:
@@ -3089,9 +3111,9 @@ class UpgradeBackend(MetaCommand):
         Backend format 13 adds linkid property to all links.
         """
 
-        ltab = common.link_name_to_table_name(caos.Name('metamagic.caos.builtins.link'),
+        ltab = common.link_name_to_table_name(sn.Name('metamagic.caos.builtins.link'),
                                               catenate=False)
-        colname = common.caos_name_to_pg_name(caos.Name('metamagic.caos.builtins.linkid'))
+        colname = common.caos_name_to_pg_name(sn.Name('metamagic.caos.builtins.linkid'))
         cond = dbops.ColumnExists(table_name=ltab, column_name=colname)
 
         cmdgroup = dbops.CommandGroup(neg_conditions=(cond,))
@@ -3215,7 +3237,7 @@ class UpgradeBackend(MetaCommand):
         crename = constr_mech.rename_unique_constraint_trigger
 
         concept_list = datasources.schema.concepts.ConceptList(context.db).fetch()
-        concept_list = collections.OrderedDict((caos.Name(row['name']), row) for row in concept_list)
+        concept_list = collections.OrderedDict((sn.Name(row['name']), row) for row in concept_list)
 
         tables = {common.concept_name_to_table_name(n, catenate=False): c \
                                                                 for n, c in concept_list.items()}
@@ -3223,7 +3245,7 @@ class UpgradeBackend(MetaCommand):
         for src_tab, tab_constraints in ptr_constr.items():
             for ptr_name, ptr_constraints in tab_constraints.items():
                 for ptr_constraint in ptr_constraints:
-                    src_name = caos.name.Name(tables[src_tab]['name'])
+                    src_name = sn.Name(tables[src_tab]['name'])
                     orig_constr = cconv(ptr_constraint, src_name, src_tab, ptr_name)
                     new_constr = orig_constr.copy()
 
@@ -3269,10 +3291,10 @@ class UpgradeBackend(MetaCommand):
                     cmd.add_command(dbops.AlterTableDropParent((bt_schema, bt_name)))
                     cmdgroup.add_command(cmd)
 
-        ltab = common.link_name_to_table_name(caos.Name('semantix.caos.builtins.link'),
+        ltab = common.link_name_to_table_name(sn.Name('semantix.caos.builtins.link'),
                                               catenate=False)
-        colname = common.caos_name_to_pg_name(caos.Name('semantix.caos.builtins.source'))
-        new_colname = common.caos_name_to_pg_name(caos.Name('metamagic.caos.builtins.source'))
+        colname = common.caos_name_to_pg_name(sn.Name('semantix.caos.builtins.source'))
+        new_colname = common.caos_name_to_pg_name(sn.Name('metamagic.caos.builtins.source'))
         rename_column = dbops.AlterTableRenameColumn(ltab, colname, new_colname)
         cmdgroup.add_command(rename_column)
 
@@ -3280,8 +3302,8 @@ class UpgradeBackend(MetaCommand):
                                                                         type='text'))
         cmdgroup.add_command(dbops.Comment(tabcol, 'metamagic.caos.builtins.source'))
 
-        colname = common.caos_name_to_pg_name(caos.Name('semantix.caos.builtins.target'))
-        new_colname = common.caos_name_to_pg_name(caos.Name('metamagic.caos.builtins.target'))
+        colname = common.caos_name_to_pg_name(sn.Name('semantix.caos.builtins.target'))
+        new_colname = common.caos_name_to_pg_name(sn.Name('metamagic.caos.builtins.target'))
         rename_column = dbops.AlterTableRenameColumn(ltab, colname, new_colname)
         cmdgroup.add_command(rename_column)
 
@@ -3350,7 +3372,7 @@ class UpgradeBackend(MetaCommand):
             if concept['is_virtual']:
                 continue
 
-            cname = caos.name.Name(concept['name'])
+            cname = sn.Name(concept['name'])
             ctabname = common.concept_name_to_table_name(cname, catenate=False)
             table_exists = dbops.TableExists(ctabname)
             alter_table = dbops.AlterTable(ctabname, conditions=[table_exists])
@@ -3371,7 +3393,7 @@ class UpgradeBackend(MetaCommand):
         """
 
         links_list = datasources.schema.links.ConceptLinks(context.db).fetch()
-        links_list = collections.OrderedDict((caos.Name(r['name']), r) for r in links_list)
+        links_list = collections.OrderedDict((sn.Name(r['name']), r) for r in links_list)
 
         index_ds = datasources.introspection.tables.TableIndexes(context.db)
         indexes = {}
@@ -3387,7 +3409,7 @@ class UpgradeBackend(MetaCommand):
             if not r['source'] or r['is_atom']:
                 continue
 
-            base_name = caos.Name(r['base'][0])
+            base_name = sn.Name(r['base'][0])
             base_r = links_list[base_name]
 
             print('        {} ---{}--> {}'.format(r['source'], base_name, r['target']))
@@ -3427,8 +3449,8 @@ class UpgradeBackend(MetaCommand):
             lgroup.add_command(ins)
             lgroup.add_command(delete)
 
-            mapping = caos.types.LinkMapping(r['mapping'])
-            base_mapping = caos.types.LinkMapping(base_r['mapping'])
+            mapping = s_pointers.PointerMapping(r['mapping'])
+            base_mapping = s_pointers.PointerMapping(base_r['mapping'])
 
             cmi = CreateMappingIndexes(my_table, mapping, (link_name,))
             lgroup.add_commands(cmi.pgops)
@@ -3451,7 +3473,7 @@ class UpgradeBackend(MetaCommand):
                 continue
 
             if mapping_indexes:
-                mapping = caos.types.LinkMapping(r['mapping'])
+                mapping = s_pointers.PointerMapping(r['mapping'])
                 dmi = DropMappingIndexes(mapping_indexes, my_table, mapping)
                 cmdgroup.add_commands(dmi.pgops)
 
@@ -3506,7 +3528,7 @@ class UpgradeBackend(MetaCommand):
                     result.append(item)
 
                 for i, item in enumerate(result):
-                    if isinstance(item, caos_types.ExpressionText):
+                    if isinstance(item, s_expr.ExpressionText):
                         result[i] = re.sub(r'(\w+):(\w+)\(', '\\1::\\2(', item)
 
                 newdefault = yaml.Language.dump(result)
@@ -3543,7 +3565,7 @@ class UpgradeBackend(MetaCommand):
             if concept['is_virtual']:
                 continue
 
-            cname = caos.name.Name(concept['name'])
+            cname = sn.Name(concept['name'])
             ctabname = common.concept_name_to_table_name(cname, catenate=False)
 
             # Name autogenerated by Postgres, non-unique
@@ -3670,7 +3692,7 @@ class UpgradeBackend(MetaCommand):
 
         for concept in concept_list:
             table_name = common.concept_name_to_table_name(
-                            caos.Name(concept['name']), catenate=False)
+                            sn.Name(concept['name']), catenate=False)
             tables[table_name] = concept
             concepts[concept['name']] = concept
 
@@ -3732,7 +3754,7 @@ class UpgradeBackend(MetaCommand):
             index_name = Idx.generate_specialized_name(subject_name,
                                                        index_name)
 
-            index_name = caos.Name(name=index_name,
+            index_name = sn.Name(name=index_name,
                                    module=subject_name.module)
 
             index_name_full = '{}_reg_idx'.format(index_name)
@@ -3780,13 +3802,13 @@ class UpgradeBackend(MetaCommand):
             lsc[link['source']] = link
 
         sql_parser = parser.PgSQLParser()
-        Idx = caos.proto.SourceIndex
+        Idx = s_indexes.SourceIndex
 
         indexes = {}
         for row in idx_data:
             table_name = tuple(row['table_name'])
             concept = tables[table_name]
-            subject_name = caos.Name(concept['name'])
+            subject_name = sn.Name(concept['name'])
             subject_mro = concept_mros[subject_name]
             subject_mro_set = set(subject_mro)
 

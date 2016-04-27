@@ -6,10 +6,11 @@
 ##
 
 
-from metamagic.caos import types as caos_types
-from metamagic.caos import utils as caos_utils
-
 from metamagic.utils import ast
+
+from metamagic.caos.schema import objects as s_obj
+from metamagic.caos.schema import types as s_types
+from metamagic.caos.schema import utils as s_utils
 
 from . import ast as irast
 
@@ -47,10 +48,10 @@ def infer_arg_types(ir, schema):
             typ = infer_type(expr, schema)
 
         elif isinstance(binop.op, ast.ops.MembershipOperator) and not reversed:
-            from metamagic.caos import proto
+            from metamagic.caos.schema import objects as s_obj
 
             elem_type = infer_type(expr, schema)
-            typ = proto.Set(element_type=elem_type)
+            typ = s_obj.Set(element_type=elem_type)
 
         elif isinstance(binop.op, ast.ops.BooleanOperator):
             typ = schema.get('metamagic.caos.builtins.bool')
@@ -84,7 +85,7 @@ def infer_type(ir, schema):
     elif isinstance(ir, irast.AtomicRefSimple):
         if isinstance(ir.ref, irast.PathCombination):
             targets = [t.concept for t in ir.ref.paths]
-            concept = caos_utils.get_prototype_nearest_common_ancestor(targets)
+            concept = s_utils.get_prototype_nearest_common_ancestor(targets)
         else:
             concept = ir.ref.concept
 
@@ -101,7 +102,7 @@ def infer_type(ir, schema):
     elif isinstance(ir, irast.LinkPropRefSimple):
         if isinstance(ir.ref, irast.PathCombination):
             targets = [t.link_proto for t in ir.ref.paths]
-            link = caos_utils.get_prototype_nearest_common_ancestor(targets)
+            link = s_utils.get_prototype_nearest_common_ancestor(targets)
         else:
             link = ir.ref.link_proto
 
@@ -117,10 +118,10 @@ def infer_type(ir, schema):
 
     elif isinstance(ir, irast.FunctionCall):
         argtypes = tuple(infer_type(arg, schema) for arg in ir.args)
-        result = caos_types.TypeRules.get_result(ir.name, argtypes, schema)
+        result = s_types.TypeRules.get_result(ir.name, argtypes, schema)
 
         if result is None:
-            fcls = caos_types.FunctionMeta.get_function_class(ir.name)
+            fcls = s_types.FunctionMeta.get_function_class(ir.name)
             if fcls:
                 signature = fcls.get_signature(argtypes, schema=schema)
                 if signature and signature[2]:
@@ -143,16 +144,16 @@ def infer_type(ir, schema):
         else:
             left_type = infer_type(ir.left, schema)
             right_type = infer_type(ir.right, schema)
-            result = caos_types.TypeRules.get_result(
+            result = s_types.TypeRules.get_result(
                             ir.op, (left_type, right_type), schema)
             if result is None:
-                result = caos_types.TypeRules.get_result(
+                result = s_types.TypeRules.get_result(
                             (ir.op, 'reversed'),
                             (right_type, left_type), schema)
 
     elif isinstance(ir, irast.UnaryOp):
         operand_type = infer_type(ir.expr, schema)
-        result = caos_types.TypeRules.get_result(
+        result = s_types.TypeRules.get_result(
                             ir.op, (operand_type,), schema)
 
     elif isinstance(ir, irast.EntitySet):
@@ -181,7 +182,7 @@ def infer_type(ir, schema):
         result = None
 
     if result is not None:
-        allowed = (caos_types.ProtoObject, caos_types.PrototypeClass)
+        allowed = (s_obj.ProtoObject, s_obj.PrototypeClass)
         assert (isinstance(result, allowed) or
                 (isinstance(result, (tuple, list)) and
                  isinstance(result[1], allowed))), \
@@ -459,3 +460,91 @@ def extract_paths(path, reverse=False, resolve_arefs=True, recurse_subqueries=0,
 
     else:
         assert False, 'unexpected node "%r"' % path
+
+
+class LinearPath(list):
+    """
+    Denotes a linear path in the graph.  The path is considered linear if it does not have
+    branches and is in the form <concept> <link> <concept> <link> ... <concept>
+    """
+
+    def __eq__(self, other):
+        if not isinstance(other, LinearPath):
+            return NotImplemented
+
+        if len(other) != len(self):
+            return False
+        elif len(self) == 0:
+            return True
+
+        if self[0] != other[0]:
+            return False
+
+        for i in range(1, len(self) - 1, 2):
+            if self[i] != other[i]:
+                break
+            if self[i + 1] != other[i + 1]:
+                break
+        else:
+            return True
+        return False
+
+    def add(self, link, direction, target):
+        if not link.generic():
+            link = link.bases[0]
+        self.append((link, direction))
+        self.append(target)
+
+    def __hash__(self):
+        return hash(tuple(self))
+
+    def __str__(self):
+        if not self:
+            return ''
+
+        result = '%s' % self[0].name
+
+        for i in range(1, len(self) - 1, 2):
+            link = self[i][0].name
+            if self[i + 1]:
+                if isinstance(self[i + 1], tuple):
+                    concept = '%s(%s)' % (self[i + 1][0].name, self[i + 1][1])
+                else:
+                    concept = self[i + 1].name
+            else:
+                concept = 'NONE'
+            result += '[%s%s]%s' % (self[i][1], link, concept)
+        return result
+
+
+def walk_path_towards_root(expr, trail):
+    step = expr
+    while step is not None:
+        link = step.as_link()
+        if link is not None:
+            link_proto = link.__sx_prototype__
+            direction = step._class_metadata.link_direction
+            trail.add(link_proto, direction, link.source.__sx_prototype__)
+            step = link.source
+        else:
+            step = None
+
+
+def get_path_id(node, join=None):
+    """Return a LinearPath by walking the given expression's link chain
+    """
+
+    path = LinearPath()
+
+    concept = node.__sx_prototype__
+
+    path.append(concept)
+    walk_path_towards_root(node, path)
+
+    if join:
+        joinpoint = join(path[-1].name)
+        walk_path_towards_root(joinpoint, path)
+
+    # Since we walked backwards, the final path needs to be reversed
+    path.reverse()
+    return path

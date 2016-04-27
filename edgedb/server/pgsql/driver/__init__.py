@@ -182,8 +182,10 @@ class TypeIO(pq3.TypeIO):
                         assert data['value'] is not None
                         data = xvalue(data['value'], **data['attrs'])
 
-                    elif record_info.proto_class == 'metamagic.caos.proto.Concept':
-                        data = session.backend.entity_from_row(session, record_info, data)
+                    elif (record_info.proto_class and
+                                    'Concept' in record_info.proto_class):
+                        data = session.backend.entity_from_row(
+                            session, record_info, data)
 
                 return data
 

@@ -46,6 +46,8 @@ class SchemaName(str):
     def is_qualified(name):
         return isinstance(name, SchemaName) or '.' in name
 
+Name = SchemaName
+
 
 def split_name(name):
     if isinstance(name, SchemaName):

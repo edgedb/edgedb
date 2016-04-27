@@ -8,7 +8,7 @@
 
 from metamagic.caos.backends import MetaBackend, DataBackend
 from metamagic.caos.schema import ProtoSchema
-from metamagic.caos.delta import DeltaSet
+from metamagic.caos.schema import delta as sd
 from metamagic.caos import session
 
 
@@ -66,7 +66,7 @@ class Backend(MetaBackend, DataBackend):
         self.schema = ProtoSchema()
 
     def apply_delta(self, delta, session, source_deltarepo):
-        if isinstance(delta, DeltaSet):
+        if isinstance(delta, sd.DeltaSet):
             deltas = list(delta)
         else:
             deltas = [delta]

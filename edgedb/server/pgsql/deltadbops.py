@@ -12,27 +12,22 @@ related to the Caos schema."""
 
 import re
 import postgresql.installation
-from postgresql.string import quote_literal as pg_ql
-from postgresql.string import quote_ident_if_needed as pg_quote_if_needed
 
-from metamagic import caos
-from metamagic.caos import proto
-from metamagic.caos import delta as delta_cmds
+from metamagic.caos.schema import delta as sd
+from metamagic.caos.schema import objects as s_obj
 
 from metamagic.utils import datastructures
 from metamagic.utils import functional
-from metamagic.utils.algos.persistent_hash import persistent_hash
 
 from metamagic.caos.backends.pgsql import common, Config
 from metamagic.caos.backends.pgsql import dbops
-from metamagic.caos.backends.pgsql.datasources import introspection
 from metamagic.caos.backends.pgsql.dbops import catalogs as pg_catalogs
 
 
-class SchemaDBObjectMeta(functional.Adapter, type(proto.Prototype)):
+class SchemaDBObjectMeta(functional.Adapter, type(s_obj.BasePrototype)):
     def __init__(cls, name, bases, dct, *, adapts=None):
         functional.Adapter.__init__(cls, name, bases, dct, adapts=adapts)
-        type(proto.Prototype).__init__(cls, name, bases, dct)
+        type(s_obj.BasePrototype).__init__(cls, name, bases, dct)
 
 
 class SchemaDBObject(metaclass=SchemaDBObjectMeta):
@@ -43,7 +38,7 @@ class SchemaDBObject(metaclass=SchemaDBObjectMeta):
     @classmethod
     def get_canonical_class(cls):
         for base in cls.__bases__:
-            if issubclass(base, caos.types.ProtoObject) and not issubclass(base, SchemaDBObject):
+            if issubclass(base, s_obj.ProtoObject) and not issubclass(base, SchemaDBObject):
                 return base
 
         return cls
@@ -60,7 +55,7 @@ class CallDeltaHook(dbops.Command):
     def execute(self, context):
         try:
             self.op.call_hook(context.session, stage=self.stage, hook=self.hook)
-        except delta_cmds.DeltaHookNotFoundError:
+        except sd.DeltaHookNotFoundError:
             pass
 
 

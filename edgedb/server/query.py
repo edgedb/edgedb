@@ -8,7 +8,7 @@
 
 import collections
 
-from metamagic.caos import types as caos_types
+from metamagic.caos.schema import objects as s_obj
 
 
 class Query:
@@ -37,7 +37,7 @@ class Query:
         result = self._describe_output()
 
         for field, (expr_type, expr_kind) in tuple(result.items()):
-            if expr_type is None: # XXX get_expr_type
+            if expr_type is None:  # XXX get_expr_type
                 continue
 
             result[field] = (session.schema.get(expr_type), expr_kind)
@@ -51,19 +51,19 @@ class Query:
         result = self._describe_arguments()
 
         for field, expr_type in tuple(result.items()):
-            if expr_type is None: # XXX get_expr_type
+            if expr_type is None:  # XXX get_expr_type
                 continue
 
             if isinstance(expr_type, tuple):
                 if expr_type[1] == 'type':
-                    expr_typ = caos_types.ProtoObject
+                    expr_typ = s_obj.ProtoObject
                 else:
                     expr_typ = session.schema.get(expr_type[1])
 
                 expr_type = (expr_type[0], expr_typ)
             else:
                 if expr_type[1] == 'type':
-                    expr_type = caos_types.ProtoObject
+                    expr_type = s_obj.ProtoObject
                 else:
                     expr_type = session.schema.get(expr_type)
 

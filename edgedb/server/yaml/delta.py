@@ -6,26 +6,38 @@
 ##
 
 
-import collections.abc
-
 from importkit import yaml
 from importkit.import_ import get_object, ObjectImportError
 from importkit import context as lang_context
 
-from metamagic import caos
 from metamagic.caos import caosql
-from metamagic.caos import types as caos_types
-from metamagic.caos import delta, proto
+
+from metamagic.caos.schema import atoms as s_atoms
+from metamagic.caos.schema import attributes as s_attrs
+from metamagic.caos.schema import concepts as s_concepts
+from metamagic.caos.schema import constraints as s_constr
+from metamagic.caos.schema import delta as sd
+from metamagic.caos.schema import indexes as s_indexes
+from metamagic.caos.schema import inheriting as s_inheriting
+from metamagic.caos.schema import links as s_links
+from metamagic.caos.schema import lproperties as s_lprops
+from metamagic.caos.schema import modules as s_mod
+from metamagic.caos.schema import name as sn
+from metamagic.caos.schema import named as s_named
+from metamagic.caos.schema import objects as s_obj
+from metamagic.caos.schema import policy as s_policy
+from metamagic.caos.schema import realm as s_realm
+
 from metamagic.utils import datastructures
 from metamagic.utils.datastructures import typed
 from metamagic.utils.lang.yaml.struct import MixedStructMeta
 
 
-class DeltaMeta(type(yaml.Object), delta.DeltaMeta, MixedStructMeta):
+class DeltaMeta(type(yaml.Object), sd.DeltaMeta, MixedStructMeta):
     pass
 
 
-class Delta(yaml.Object, adapts=delta.Delta, metaclass=DeltaMeta):
+class Delta(yaml.Object, adapts=sd.Delta, metaclass=DeltaMeta):
     def __sx_setstate__(self, data):
         fields = {}
         for f, fdesc in type(self)._fields.items():
@@ -65,38 +77,38 @@ class Delta(yaml.Object, adapts=delta.Delta, metaclass=DeltaMeta):
             return ''
 
 
-class DeltaSet(yaml.Object, adapts=delta.DeltaSet):
+class DeltaSet(yaml.Object, adapts=sd.DeltaSet):
     def items(self):
         return (('deltas', self),)
 
     def __sx_setstate__(self, data):
-        delta.DeltaSet.__init__(self, data.values())
+        sd.DeltaSet.__init__(self, data.values())
 
     @classmethod
     def __sx_getstate__(cls, data):
         return {int(d.id): d for d in data.deltas}
 
 
-class CommandMeta(type(yaml.Object), type(delta.Command), MixedStructMeta):
+class CommandMeta(type(yaml.Object), type(sd.Command), MixedStructMeta):
     pass
 
 
-class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
+class Command(yaml.Object, adapts=sd.Command, metaclass=CommandMeta):
     def adapt_value(self, field, value):
         FieldType = field.type[0]
-        Name = caos.name.Name
+        Name = sn.Name
 
         if (isinstance(value, str)
-                and isinstance(FieldType, caos.types.PrototypeClass)
+                and isinstance(FieldType, s_obj.PrototypeClass)
                 and hasattr(FieldType, 'name')):
-            value = proto.PrototypeRef(prototype_name=Name(value))
+            value = s_obj.PrototypeRef(prototype_name=Name(value))
 
-        elif (isinstance(value, proto.PrototypeRef)
-                and isinstance(FieldType, caos.types.PrototypeClass)):
+        elif (isinstance(value, s_obj.PrototypeRef)
+                and isinstance(FieldType, s_obj.PrototypeClass)):
             pass
 
         elif (issubclass(FieldType, typed.AbstractTypedMapping)
-                and issubclass(FieldType.valuetype, caos.types.ProtoObject)):
+                and issubclass(FieldType.valuetype, s_obj.ProtoObject)):
 
             ElementType = FieldType.valuetype
             RefType = ElementType.ref_type
@@ -105,7 +117,7 @@ class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
             for k, v in value.items():
                 if isinstance(v, str):
                     v = RefType(prototype_name=Name(v))
-                elif (isinstance(v, proto.PrototypeRef)
+                elif (isinstance(v, s_obj.PrototypeRef)
                             and not isinstance(v, RefType)):
                     v = RefType(prototype_name=Name(v.prototype_name))
                 vals[k] = v
@@ -114,18 +126,18 @@ class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
 
         elif (issubclass(FieldType, (typed.AbstractTypedSequence,
                                     typed.AbstractTypedSet))
-                and issubclass(FieldType.type, caos.types.ProtoObject)):
+                and issubclass(FieldType.type, s_obj.ProtoObject)):
 
             ElementType = field.type[0].type
             RefType = ElementType.ref_type
 
-            is_named = issubclass(ElementType, caos.proto.NamedPrototype)
+            is_named = issubclass(ElementType, s_named.NamedPrototype)
 
             vals = []
             for v in value:
                 if isinstance(v, str) and is_named:
                     v = RefType(prototype_name=Name(v))
-                elif (isinstance(v, proto.PrototypeRef)
+                elif (isinstance(v, s_obj.PrototypeRef)
                             and not isinstance(v, RefType)):
                     v = RefType(prototype_name=Name(v.prototype_name))
                 vals.append(v)
@@ -147,7 +159,7 @@ class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
         result = {}
         if data.ops:
             for op in data:
-                if isinstance(op, delta.AlterPrototypeProperty):
+                if isinstance(op, sd.AlterPrototypeProperty):
                     if 'properties' not in result:
                         result['properties'] = []
                     result['properties'].append(op)
@@ -173,7 +185,7 @@ class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
         icontext = context.document.import_context
         compat_mode = getattr(icontext, 'compat_mode', False)
 
-        delta.Command.__init__(self, _relaxrequired_=compat_mode, **fields)
+        sd.Command.__init__(self, _relaxrequired_=compat_mode, **fields)
         self.ops = datastructures.OrderedSet(data['ops'])
 
         if data['properties']:
@@ -197,16 +209,16 @@ class Command(yaml.Object, adapts=delta.Command, metaclass=CommandMeta):
                         if new_value is not None:
                             new_value = self.adapt_value(field, new_value)
 
-                    self.ops.add(delta.AlterPrototypeProperty(property=prop_name,
+                    self.ops.add(sd.AlterPrototypeProperty(property=prop_name,
                                                               old_value=old_value,
                                                               new_value=new_value))
 
 
-class AlterRealm(Command, adapts=delta.AlterRealm):
+class AlterRealm(Command, adapts=s_realm.AlterRealm):
     pass
 
 
-class PrototypeCommand(Command, adapts=delta.PrototypeCommand):
+class PrototypeCommand(Command, adapts=sd.PrototypeCommand):
     @classmethod
     def represent_command(cls, data):
         result = super().represent_command(data)
@@ -227,21 +239,21 @@ class PrototypeCommand(Command, adapts=delta.PrototypeCommand):
                     if prop_name == 'base':
                         if prop_values[1]:
                             if isinstance(prop_values[1], tuple):
-                                prop_values[1] = tuple(caos.Name(n) for n in prop_values[1])
+                                prop_values[1] = tuple(sn.Name(n) for n in prop_values[1])
                             else:
-                                prop_values[1] = caos.Name(prop_values[1])
+                                prop_values[1] = sn.Name(prop_values[1])
 
         return super().__sx_setstate__(data)
 
 
-class Ghost(PrototypeCommand, adapts=delta.Ghost):
+class Ghost(PrototypeCommand, adapts=sd.Ghost):
     def __sx_setstate__(self, data):
         prototype_class = data.get('prototype_class')
         if prototype_class:
             try:
                 get_object(prototype_class)
             except ObjectImportError:
-                data['prototype_class'] = 'metamagic.caos.proto.BasePrototype'
+                data['prototype_class'] = 'metamagic.caos.schema.objects.BasePrototype'
 
         return super().__sx_setstate__(data)
 
@@ -250,30 +262,30 @@ class Ghost(PrototypeCommand, adapts=delta.Ghost):
         return {'=': {'type': 'any'}}
 
 
-class NamedPrototypeCommand(PrototypeCommand, adapts=delta.NamedPrototypeCommand):
+class NamedPrototypeCommand(PrototypeCommand, adapts=s_named.NamedPrototypeCommand):
     def __sx_setstate__(self, data):
-        data['prototype_name'] = caos.Name(data['prototype_name'])
+        data['prototype_name'] = sn.Name(data['prototype_name'])
         return super().__sx_setstate__(data)
 
 
 
-class CreateModule(NamedPrototypeCommand, adapts=delta.CreateModule):
+class CreateModule(NamedPrototypeCommand, adapts=s_mod.CreateModule):
     pass
 
 
-class AlterModule(NamedPrototypeCommand, adapts=delta.AlterModule):
+class AlterModule(NamedPrototypeCommand, adapts=s_mod.AlterModule):
     pass
 
 
-class DeleteModule(NamedPrototypeCommand, adapts=delta.DeleteModule):
+class DeleteModule(NamedPrototypeCommand, adapts=s_mod.DeleteModule):
     pass
 
 
-class CreatePrototype(PrototypeCommand, adapts=delta.CreatePrototype):
+class CreatePrototype(PrototypeCommand, adapts=sd.CreatePrototype):
     pass
 
 
-class CreateSimplePrototype(CreatePrototype, adapts=delta.CreateSimplePrototype):
+class CreateSimplePrototype(CreatePrototype, adapts=sd.CreateSimplePrototype):
     @classmethod
     def represent_command(cls, data):
         result = super().represent_command(data)
@@ -281,27 +293,27 @@ class CreateSimplePrototype(CreatePrototype, adapts=delta.CreateSimplePrototype)
         return result
 
 
-class CreateNamedPrototype(NamedPrototypeCommand, adapts=delta.CreateNamedPrototype):
+class CreateNamedPrototype(NamedPrototypeCommand, adapts=s_named.CreateNamedPrototype):
     pass
 
 
-class RenameNamedPrototype(NamedPrototypeCommand, adapts=delta.RenameNamedPrototype):
+class RenameNamedPrototype(NamedPrototypeCommand, adapts=s_named.RenameNamedPrototype):
     pass
 
 
-class RebaseNamedPrototype(NamedPrototypeCommand, adapts=delta.RebaseNamedPrototype):
+class RebaseNamedPrototype(NamedPrototypeCommand, adapts=s_inheriting.RebaseNamedPrototype):
     pass
 
 
-class AlterNamedPrototype(NamedPrototypeCommand, adapts=delta.AlterNamedPrototype):
+class AlterNamedPrototype(NamedPrototypeCommand, adapts=s_named.AlterNamedPrototype):
     pass
 
 
-class AlterPrototypeProperty(Command, adapts=delta.AlterPrototypeProperty):
+class AlterPrototypeProperty(Command, adapts=sd.AlterPrototypeProperty):
     @staticmethod
     def _is_derived_ref(value):
-        return (isinstance(value, caos.proto.PrototypeRef) and
-                type(value) is not caos.proto.PrototypeRef)
+        return (isinstance(value, s_obj.PrototypeRef) and
+                type(value) is not s_obj.PrototypeRef)
 
     @classmethod
     def _reduce_refs(cls, value):
@@ -311,7 +323,7 @@ class AlterPrototypeProperty(Command, adapts=delta.AlterPrototypeProperty):
             result = []
             for item in value:
                 if cls._is_derived_ref(item):
-                    item = caos.proto.PrototypeRef(
+                    item = s_obj.PrototypeRef(
                                 prototype_name=item.prototype_name)
                 result.append(item)
 
@@ -319,12 +331,12 @@ class AlterPrototypeProperty(Command, adapts=delta.AlterPrototypeProperty):
             result = {}
             for key, item in value.items():
                 if cls._is_derived_ref(item):
-                    item = caos.proto.PrototypeRef(
+                    item = s_obj.PrototypeRef(
                                 prototype_name=item.prototype_name)
                 result[key] = item
 
         elif cls._is_derived_ref(value):
-            result = caos.proto.PrototypeRef(
+            result = s_obj.PrototypeRef(
                             prototype_name=value.prototype_name)
 
         else:
@@ -349,232 +361,217 @@ class AlterPrototypeProperty(Command, adapts=delta.AlterPrototypeProperty):
         return {data.property: [old_value, new_value]}
 
 
-class DeleteNamedPrototype(NamedPrototypeCommand, adapts=delta.DeleteNamedPrototype):
+class DeleteNamedPrototype(NamedPrototypeCommand, adapts=s_named.DeleteNamedPrototype):
     pass
 
 
-# NOTE: Deprecated. For delta compatibility.
-class AlterDefault(Command, adapts=delta.AlterDefault):
-    def __sx_setstate__(self, data):
-        for f in ('old_value', 'new_value'):
-            if data[f]:
-                val = proto.DefaultSpecList()
-                for spec in data[f]:
-                    if isinstance(spec, dict):
-                        spec = caos_types.ExpressionText(spec['query'])
-                    val.append(spec)
-                data[f] = val
-
-        super().__sx_setstate__(data)
-
-
-class AttributeCommand(PrototypeCommand, adapts=delta.AttributeCommand):
+class AttributeCommand(PrototypeCommand, adapts=s_attrs.AttributeCommand):
     pass
 
 
-class AttributeValueCommand(PrototypeCommand, adapts=delta.AttributeValueCommand):
+class AttributeValueCommand(PrototypeCommand, adapts=s_attrs.AttributeValueCommand):
     pass
 
 
-class ConstraintCommand(PrototypeCommand, adapts=delta.ConstraintCommand):
+class ConstraintCommand(PrototypeCommand, adapts=s_constr.ConstraintCommand):
     pass
 
 
-class SourceIndexCommand(PrototypeCommand, adapts=delta.SourceIndexCommand):
+class SourceIndexCommand(PrototypeCommand, adapts=s_indexes.SourceIndexCommand):
     pass
 
 
-class CreateAttribute(AttributeCommand, adapts=delta.CreateAttribute):
+class CreateAttribute(AttributeCommand, adapts=s_attrs.CreateAttribute):
     pass
 
 
-class RenameAttribute(AttributeCommand, adapts=delta.RenameAttribute):
+class RenameAttribute(AttributeCommand, adapts=s_attrs.RenameAttribute):
     pass
 
 
-class AlterAttribute(AttributeCommand, adapts=delta.AlterAttribute):
+class AlterAttribute(AttributeCommand, adapts=s_attrs.AlterAttribute):
     pass
 
 
-class DeleteAttribute(AttributeCommand, adapts=delta.DeleteAttribute):
+class DeleteAttribute(AttributeCommand, adapts=s_attrs.DeleteAttribute):
     pass
 
 
-class CreateAttributeValue(AttributeValueCommand, adapts=delta.CreateAttributeValue):
+class CreateAttributeValue(AttributeValueCommand, adapts=s_attrs.CreateAttributeValue):
     pass
 
 
-class RenameAttributeValue(AttributeValueCommand, adapts=delta.RenameAttributeValue):
+class RenameAttributeValue(AttributeValueCommand, adapts=s_attrs.RenameAttributeValue):
     pass
 
 
-class AlterAttributeValue(AttributeValueCommand, adapts=delta.AlterAttributeValue):
+class AlterAttributeValue(AttributeValueCommand, adapts=s_attrs.AlterAttributeValue):
     pass
 
 
-class DeleteAttributeValue(AttributeValueCommand, adapts=delta.DeleteAttributeValue):
+class DeleteAttributeValue(AttributeValueCommand, adapts=s_attrs.DeleteAttributeValue):
     pass
 
 
-class CreateConstraint(ConstraintCommand, adapts=delta.CreateConstraint):
+class CreateConstraint(ConstraintCommand, adapts=s_constr.CreateConstraint):
     pass
 
 
-class RenameConstraint(ConstraintCommand, adapts=delta.RenameConstraint):
+class RenameConstraint(ConstraintCommand, adapts=s_constr.RenameConstraint):
     pass
 
 
-class AlterConstraint(ConstraintCommand, adapts=delta.AlterConstraint):
+class AlterConstraint(ConstraintCommand, adapts=s_constr.AlterConstraint):
     pass
 
 
-class DeleteConstraint(ConstraintCommand, adapts=delta.DeleteConstraint):
+class DeleteConstraint(ConstraintCommand, adapts=s_constr.DeleteConstraint):
     pass
 
 
-class CreateAtom(CreateNamedPrototype, adapts=delta.CreateAtom):
+class CreateAtom(CreateNamedPrototype, adapts=s_atoms.CreateAtom):
     pass
 
 
-class RenameAtom(RenameNamedPrototype, adapts=delta.RenameAtom):
+class RenameAtom(RenameNamedPrototype, adapts=s_atoms.RenameAtom):
     pass
 
 
-class RebaseAtom(RebaseNamedPrototype, adapts=delta.RebaseAtom):
+class RebaseAtom(RebaseNamedPrototype, adapts=s_atoms.RebaseAtom):
     pass
 
 
-class AlterAtom(AlterNamedPrototype, adapts=delta.AlterAtom):
+class AlterAtom(AlterNamedPrototype, adapts=s_atoms.AlterAtom):
     pass
 
 
-class DeleteAtom(DeleteNamedPrototype, adapts=delta.DeleteAtom):
+class DeleteAtom(DeleteNamedPrototype, adapts=s_atoms.DeleteAtom):
     pass
 
 
-class CreateSourceIndex(SourceIndexCommand, adapts=delta.CreateSourceIndex):
+class CreateSourceIndex(SourceIndexCommand, adapts=s_indexes.CreateSourceIndex):
     pass
 
 
-class RenameSourceIndex(SourceIndexCommand, adapts=delta.RenameSourceIndex):
+class RenameSourceIndex(SourceIndexCommand, adapts=s_indexes.RenameSourceIndex):
     pass
 
 
-class AlterSourceIndex(SourceIndexCommand, adapts=delta.AlterSourceIndex):
+class AlterSourceIndex(SourceIndexCommand, adapts=s_indexes.AlterSourceIndex):
     pass
 
 
-class DeleteSourceIndex(SourceIndexCommand, adapts=delta.DeleteSourceIndex):
+class DeleteSourceIndex(SourceIndexCommand, adapts=s_indexes.DeleteSourceIndex):
     pass
 
 
-class CreateConcept(CreateNamedPrototype, adapts=delta.CreateConcept):
+class CreateConcept(CreateNamedPrototype, adapts=s_concepts.CreateConcept):
     pass
 
 
-class RenameConcept(RenameNamedPrototype, adapts=delta.RenameConcept):
+class RenameConcept(RenameNamedPrototype, adapts=s_concepts.RenameConcept):
     pass
 
 
-class RebaseConcept(RebaseNamedPrototype, adapts=delta.RebaseConcept):
+class RebaseConcept(RebaseNamedPrototype, adapts=s_concepts.RebaseConcept):
     pass
 
 
-class AlterConcept(AlterNamedPrototype, adapts=delta.AlterConcept):
+class AlterConcept(AlterNamedPrototype, adapts=s_concepts.AlterConcept):
     pass
 
 
-class DeleteConcept(DeleteNamedPrototype, adapts=delta.DeleteConcept):
+class DeleteConcept(DeleteNamedPrototype, adapts=s_concepts.DeleteConcept):
     pass
 
 
-class CreateAction(CreateNamedPrototype, adapts=delta.CreateAction):
+class CreateAction(CreateNamedPrototype, adapts=s_policy.CreateAction):
     pass
 
 
-class RenameAction(RenameNamedPrototype, adapts=delta.RenameAction):
+class RenameAction(RenameNamedPrototype, adapts=s_policy.RenameAction):
     pass
 
 
-class AlterAction(AlterNamedPrototype, adapts=delta.AlterAction):
+class AlterAction(AlterNamedPrototype, adapts=s_policy.AlterAction):
     pass
 
 
-class DeleteAction(DeleteNamedPrototype, adapts=delta.DeleteAction):
+class DeleteAction(DeleteNamedPrototype, adapts=s_policy.DeleteAction):
     pass
 
 
-class CreateEvent(CreateNamedPrototype, adapts=delta.CreateEvent):
+class CreateEvent(CreateNamedPrototype, adapts=s_policy.CreateEvent):
     pass
 
 
-class RenameEvent(RenameNamedPrototype, adapts=delta.RenameEvent):
+class RenameEvent(RenameNamedPrototype, adapts=s_policy.RenameEvent):
     pass
 
 
-class RebaseEvent(RebaseNamedPrototype, adapts=delta.RebaseEvent):
+class RebaseEvent(RebaseNamedPrototype, adapts=s_policy.RebaseEvent):
     pass
 
 
-class AlterEvent(AlterNamedPrototype, adapts=delta.AlterEvent):
+class AlterEvent(AlterNamedPrototype, adapts=s_policy.AlterEvent):
     pass
 
 
-class DeleteEvent(DeleteNamedPrototype, adapts=delta.DeleteEvent):
+class DeleteEvent(DeleteNamedPrototype, adapts=s_policy.DeleteEvent):
     pass
 
 
-class CreatePolicy(CreateNamedPrototype, adapts=delta.CreatePolicy):
+class CreatePolicy(CreateNamedPrototype, adapts=s_policy.CreatePolicy):
     pass
 
 
-class RenamePolicy(RenameNamedPrototype, adapts=delta.RenamePolicy):
+class RenamePolicy(RenameNamedPrototype, adapts=s_policy.RenamePolicy):
     pass
 
 
-class AlterPolicy(AlterNamedPrototype, adapts=delta.AlterPolicy):
+class AlterPolicy(AlterNamedPrototype, adapts=s_policy.AlterPolicy):
     pass
 
 
-class DeletePolicy(DeleteNamedPrototype, adapts=delta.DeletePolicy):
+class DeletePolicy(DeleteNamedPrototype, adapts=s_policy.DeletePolicy):
     pass
 
 
-class CreateLink(CreateNamedPrototype, adapts=delta.CreateLink):
+class CreateLink(CreateNamedPrototype, adapts=s_links.CreateLink):
     pass
 
 
-class RenameLink(RenameNamedPrototype, adapts=delta.RenameLink):
+class RenameLink(RenameNamedPrototype, adapts=s_links.RenameLink):
     pass
 
 
-class RebaseLink(RebaseNamedPrototype, adapts=delta.RebaseLink):
+class RebaseLink(RebaseNamedPrototype, adapts=s_links.RebaseLink):
     pass
 
 
-class AlterLink(AlterNamedPrototype, adapts=delta.AlterLink):
+class AlterLink(AlterNamedPrototype, adapts=s_links.AlterLink):
     pass
 
 
-class DeleteLink(DeleteNamedPrototype, adapts=delta.DeleteLink):
+class DeleteLink(DeleteNamedPrototype, adapts=s_links.DeleteLink):
     pass
 
 
-class CreateLinkProperty(CreateNamedPrototype, adapts=delta.CreateLinkProperty):
+class CreateLinkProperty(CreateNamedPrototype, adapts=s_lprops.CreateLinkProperty):
     pass
 
 
-class RenameLinkProperty(RenameNamedPrototype, adapts=delta.RenameLinkProperty):
+class RenameLinkProperty(RenameNamedPrototype, adapts=s_lprops.RenameLinkProperty):
     pass
 
 
-class RebaseLinkProperty(RebaseNamedPrototype, adapts=delta.RebaseLinkProperty):
+class RebaseLinkProperty(RebaseNamedPrototype, adapts=s_lprops.RebaseLinkProperty):
     pass
 
 
-class AlterLinkProperty(AlterNamedPrototype, adapts=delta.AlterLinkProperty):
+class AlterLinkProperty(AlterNamedPrototype, adapts=s_lprops.AlterLinkProperty):
     pass
 
 
-class DeleteLinkProperty(DeleteNamedPrototype, adapts=delta.DeleteLinkProperty):
+class DeleteLinkProperty(DeleteNamedPrototype, adapts=s_lprops.DeleteLinkProperty):
     pass

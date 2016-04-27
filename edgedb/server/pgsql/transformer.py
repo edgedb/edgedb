@@ -14,11 +14,18 @@ import re
 from metamagic import exceptions as base_err
 
 from metamagic.caos import caosql
+
 from metamagic.caos.ir import ast as irast
-from metamagic.caos.ir import utils as ir_utils
-from metamagic.caos import types as caos_types
-from metamagic.caos import name as caos_name
-from metamagic.caos import utils as caos_utils
+from metamagic.caos.ir import utils as irutils
+
+from metamagic.caos.schema import atoms as s_atoms
+from metamagic.caos.schema import concepts as s_concepts
+from metamagic.caos.schema import links as s_links
+from metamagic.caos.schema import name as sn
+from metamagic.caos.schema import objects as s_obj
+from metamagic.caos.schema import pointers as s_pointers
+from metamagic.caos.schema import utils as s_utils
+
 from metamagic.caos.backends import pgsql
 from metamagic.caos.backends.pgsql import common, session as pg_session, driver as pg_driver
 from metamagic.caos.backends.pgsql import types as pg_types
@@ -27,7 +34,6 @@ from metamagic.caos.backends.pgsql import exceptions as pg_errors
 from metamagic.utils import ast, markup
 from metamagic.utils.debug import debug
 from metamagic.utils.datastructures import OrderedSet
-
 
 from . import types
 
@@ -257,8 +263,8 @@ class Decompiler(ast.visitor.NodeVisitor):
 
         elif isinstance(expr, pgsql.ast.FieldRefNode):
             if context.current.source:
-                if isinstance(context.current.source, caos_types.ProtoConcept):
-                    id = caos_utils.LinearPath([context.current.source])
+                if isinstance(context.current.source, s_concepts.Concept):
+                    id = irutils.LinearPath([context.current.source])
                     pointer, source = context.current.attmap[expr.field]
                     entset = irast.EntitySet(id=id, concept=source)
                     result = irast.AtomicRefSimple(ref=entset, name=pointer)
@@ -272,12 +278,12 @@ class Decompiler(ast.visitor.NodeVisitor):
 
                         if ptr_info.table_type == 'concept':
                             # Singular pointer promoted into source table
-                            name = caos_name.Name('metamagic.caos.builtins.target')
+                            name = sn.Name('metamagic.caos.builtins.target')
                         else:
                             name = context.current.attmap[expr.field][0]
 
-                    id = caos_utils.LinearPath([None])
-                    id.add(context.current.source, caos_types.OutboundDirection, None)
+                    id = irutils.LinearPath([None])
+                    id.add(context.current.source, s_pointers.PointerDirection.Outbound, None)
                     entlink = irast.EntityLink(link_proto=context.current.source)
                     result = irast.LinkPropRefSimple(ref=entlink, name=name, id=id)
             else:
@@ -310,7 +316,7 @@ class IRCompilerBase:
             # Virtual concepts are represented as a UNION of selects from their children,
             # which is, for most purposes, equivalent to SELECTing from a parent table.
             #
-            idptr = caos_name.Name('metamagic.caos.builtins.id')
+            idptr = sn.Name('metamagic.caos.builtins.id')
             idcol = common.caos_name_to_pg_name(idptr)
             atomrefs = {idptr: irast.AtomicRefSimple(ref=node, name=idptr)}
             atomrefs.update({f.name: f for f in node.atomrefs})
@@ -322,7 +328,7 @@ class IRCompilerBase:
             union_list = []
             children = frozenset(concept.children(schema))
 
-            inhmap = caos_utils.get_full_inheritance_map(schema, children)
+            inhmap = s_utils.get_full_inheritance_map(schema, children)
 
             coltypes = {}
 
@@ -528,7 +534,7 @@ class IRCompilerBase:
             proprefs[ptr] = irast.LinkPropRefSimple(ref=link_node, name=ptr)
 
         if not link_proto.generic() and link_proto.atomic():
-            atom_target = caos_name.Name("metamagic.caos.builtins.target@atom")
+            atom_target = sn.Name("metamagic.caos.builtins.target@atom")
             proprefs[atom_target] = irast.LinkPropRefSimple(ref=link_node, name=atom_target)
 
         proprefs.update({f.name: f for f in link_node.proprefs})
@@ -550,7 +556,7 @@ class IRCompilerBase:
                 element = self._process_expr(context, e, cte)
                 my_elements.append(element)
 
-            if context.current.output_format == caos_types.JsonOutputFormat:
+            if context.current.output_format == 'json':
                 attribute_map = ['t', 'p']
             else:
                 attribute_map = ['value', 'attrs']
@@ -558,7 +564,7 @@ class IRCompilerBase:
         else:
             for e in expr.elements:
                 element = self._process_expr(context, e, cte)
-                ptr_direction = caos_types.OutboundDirection
+                ptr_direction = s_pointers.PointerDirection.Outbound
                 ptr_target = None
 
                 if isinstance(e, irast.MetaRef):
@@ -569,14 +575,14 @@ class IRCompilerBase:
                     ptr_target = e.ptr_proto.target
                 elif isinstance(e, (irast.Record, irast.SubgraphRef)):
                     ptr_name = e.rlink.link_proto.normal_name()
-                    ptr_direction = e.rlink.direction or caos_types.OutboundDirection
-                    if ptr_direction == caos_types.OutboundDirection:
+                    ptr_direction = e.rlink.direction or s_pointers.PointerDirection.Outbound
+                    if ptr_direction == s_pointers.PointerDirection.Outbound:
                         ptr_target = e.rlink.link_proto.target
                     else:
                         ptr_target = e.rlink.link_proto.source
 
-                if isinstance(ptr_name, caos_name.Name):
-                    if (ptr_direction == caos_types.InboundDirection
+                if isinstance(ptr_name, sn.Name):
+                    if (ptr_direction == s_pointers.PointerDirection.Inbound
                             and ptr_target.is_virtual and ptr_target.is_derived):
                         ptr_origins = set()
 
@@ -588,14 +594,14 @@ class IRCompilerBase:
 
                         virtuals_map[ptr_target.name + '::' + ptr_name] = tuple(ptr_origins)
 
-                    attr_name = caos_types.PointerVector(name=ptr_name.name, module=ptr_name.module,
+                    attr_name = s_pointers.PointerVector(name=ptr_name.name, module=ptr_name.module,
                                                          direction=ptr_direction,
                                                          target=ptr_target.name)
                 else:
                     attr_name = ptr_name
 
                     if (isinstance(e, irast.MetaRef)
-                            and context.current.output_format == caos_types.JsonOutputFormat):
+                            and context.current.output_format == 'json'):
                         attr_name = '$sxcls{}$'.format(attr_name)
 
                 attribute_map.append(attr_name)
@@ -750,7 +756,7 @@ class IRCompilerBase:
                     args[1] = pgsql.ast.TypeCastNode(expr=args[1],
                                                      type=pgsql.ast.TypeNode(name='int'))
                 if len(args) > 2:
-                    arg0_type = ir_utils.infer_type(expr.args[0], schema)
+                    arg0_type = irutils.infer_type(expr.args[0], schema)
                     arg0_type = pg_types.pg_type_from_atom(schema, arg0_type)
                     args[2] = pgsql.ast.TypeCastNode(expr=args[2],
                                                      type=pgsql.ast.TypeNode(name=arg0_type))
@@ -892,10 +898,10 @@ class IRCompilerBase:
 
             elif expr.name == 'getitem':
                 is_string = False
-                arg_type = ir_utils.infer_type(
+                arg_type = irutils.infer_type(
                                 expr.args[0], context.current.proto_schema)
 
-                if isinstance(arg_type, caos_types.ProtoAtom):
+                if isinstance(arg_type, s_atoms.Atom):
                     b = arg_type.get_topmost_base(context.current.proto_schema, top_prototype=True)
                     is_string = b.name == 'metamagic.caos.builtins.str'
 
@@ -916,10 +922,10 @@ class IRCompilerBase:
                 zero = pgsql.ast.ConstantNode(value=0)
 
                 is_string = False
-                arg_type = ir_utils.infer_type(
+                arg_type = irutils.infer_type(
                                 expr.args[0], context.current.proto_schema)
 
-                if isinstance(arg_type, caos_types.ProtoAtom):
+                if isinstance(arg_type, s_atoms.Atom):
                     b = arg_type.get_topmost_base(context.current.proto_schema, top_prototype=True)
                     is_string = b.name == 'metamagic.caos.builtins.str'
 
@@ -1056,7 +1062,7 @@ class IRCompilerBase:
         elif isinstance(vector, irast.LinkPropRef):
             ref = irast.LinkPropRefSimple(ref=vector.ref, name=vector.name,
                                              ptr_proto=vector.ptr_proto)
-            refs = [(ref, caos_types.SearchWeight_A)]
+            refs = [(ref, s_links.LinkSearchWeight.A)]
 
         else:
             assert False, "unexpected node type: %r" % vector
@@ -1092,16 +1098,16 @@ class IRCompilerBase:
 
     def _process_constant(self, context, expr):
         if expr.type:
-            if isinstance(expr.type, caos_types.ProtoAtom):
+            if isinstance(expr.type, s_atoms.Atom):
                 const_type = types.pg_type_from_atom(context.current.proto_schema, expr.type, topbase=True)
-            elif isinstance(expr.type, caos_types.ProtoConcept):
+            elif isinstance(expr.type, s_concepts.Concept):
                 const_type = 'record'
             elif isinstance(expr.type, tuple):
                 item_type = expr.type[1]
-                if isinstance(item_type, caos_types.ProtoAtom):
+                if isinstance(item_type, s_atoms.Atom):
                     item_type = types.pg_type_from_atom(context.current.proto_schema, item_type, topbase=True)
                     const_type = '%s[]' % item_type
-                elif isinstance(item_type, caos_types.ProtoConcept):
+                elif isinstance(item_type, s_concepts.Concept):
                     item_type = 'record'
                     const_type = '%s[]' % item_type
                 else:
@@ -1127,10 +1133,10 @@ class IRCompilerBase:
                 index = expr.index
                 data_backend = context.current.backend
 
-                if isinstance(value, caos_types.ProtoConcept):
+                if isinstance(value, s_concepts.Concept):
                     classes = (value,)
                 elif isinstance(value, tuple) and value and \
-                                                    isinstance(value[0], caos_types.ProtoConcept):
+                                                    isinstance(value[0], s_concepts.Concept):
                     classes = value
                 else:
                     classes = None
@@ -1228,7 +1234,7 @@ class SimpleIRCompiler(IRCompilerBase):
             result = pgsql.ast.UnaryOpNode(op=expr.op, operand=operand)
 
         elif isinstance(expr, irast.EntitySet):
-            if isinstance(expr.concept, caos_types.ProtoAtom):
+            if isinstance(expr.concept, s_atoms.Atom):
                 field_name = common.caos_name_to_pg_name(expr.concept.name)
                 result = pgsql.ast.FieldRefNode(table=None, field=field_name, origin=None,
                                                 origin_field=field_name)
@@ -1666,7 +1672,7 @@ class IRCompiler(IRCompilerBase):
                 child_end = recurse_link.source
                 parent_end = recurse_link.target
 
-                if recurse_link.direction == caos_types.InboundDirection:
+                if recurse_link.direction == s_pointers.PointerDirection.Inbound:
                     parent_end, child_end = child_end, parent_end
 
                 proto_class = child_end.concept.get_canonical_class()
@@ -1675,7 +1681,7 @@ class IRCompiler(IRCompilerBase):
                 recptr_name = recurse_link.link_proto.normal_name()
                 recptr_direction = recurse_link.direction
 
-                recursive_attr = caos_types.PointerVector(name=recptr_name.name,
+                recursive_attr = s_pointers.PointerVector(name=recptr_name.name,
                                                           module=recptr_name.module,
                                                           direction=recptr_direction,
                                                           target=child_end.concept.name)
@@ -1732,7 +1738,7 @@ class IRCompiler(IRCompilerBase):
         return wrapper
 
     def _generate_recursive_query(self, context, query, recurse_link, recurse_depth):
-        idptr = caos_name.Name('metamagic.caos.builtins.id')
+        idptr = sn.Name('metamagic.caos.builtins.id')
 
         child_end = recurse_link.source
         parent_end = recurse_link.target
@@ -1740,7 +1746,7 @@ class IRCompiler(IRCompilerBase):
         if recurse_depth is not None:
             recurse_depth = self._process_constant(context, recurse_depth)
 
-        if recurse_link.direction == caos_types.InboundDirection:
+        if recurse_link.direction == s_pointers.PointerDirection.Inbound:
             parent_end, child_end = child_end, parent_end
 
         parent_propref = irast.AtomicRefSimple(name=idptr, ref=parent_end)
@@ -2143,7 +2149,7 @@ class IRCompiler(IRCompilerBase):
             pgexpr = self._process_expr(context, expr.expr, query)
             selexprs.append((pgexpr, alias))
 
-        if (context.current.output_format == caos_types.JsonOutputFormat
+        if (context.current.output_format == 'json'
                                         and not context.current.in_subquery):
             elems = []
             for pgexpr, alias in selexprs:
@@ -2485,7 +2491,7 @@ class IRCompiler(IRCompilerBase):
 
         elif isinstance(expr, irast.InlinePropFilter):
             if (expr.ref.target and isinstance(expr.ref.target, irast.EntitySet)
-                            and not isinstance(expr.ref.target.concept, caos_types.ProtoAtom)):
+                            and not isinstance(expr.ref.target.concept, s_atoms.Atom)):
                 entityset = expr.ref.target
             else:
                 entityset = expr.ref.source
@@ -2511,7 +2517,7 @@ class IRCompiler(IRCompilerBase):
 
         elif isinstance(expr, irast.EntityLink):
             if (expr.target and isinstance(expr.target, irast.EntitySet)
-                            and not isinstance(expr.target.concept, caos_types.ProtoAtom)):
+                            and not isinstance(expr.target.concept, s_atoms.Atom)):
                 self._process_expr(context, expr.target, cte)
             else:
                 self._process_expr(context, expr.source, cte)
@@ -2571,10 +2577,10 @@ class IRCompiler(IRCompilerBase):
                     if isinstance(right.expr, pgsql.ast.SequenceNode):
                         right.expr = pgsql.ast.ArrayNode(elements=right.expr.elements)
                     elif right.type == 'text[]':
-                        left_type = ir_utils.infer_type(
+                        left_type = irutils.infer_type(
                                         expr.left, context.current.proto_schema)
-                        if isinstance(left_type, caos_types.ProtoNode):
-                            if isinstance(left_type, caos_types.ProtoConcept):
+                        if isinstance(left_type, s_obj.ProtoNode):
+                            if isinstance(left_type, s_concepts.Concept):
                                 left_type = left_type.pointers['metamagic.caos.builtins.id'].target
                             left_type = types.pg_type_from_atom(context.current.proto_schema,
                                                                 left_type, topbase=True)
@@ -2624,30 +2630,30 @@ class IRCompiler(IRCompilerBase):
                         context.current.query.having = left
                         result = right
                     else:
-                        left_type = ir_utils.infer_type(
+                        left_type = irutils.infer_type(
                                         expr.left, context.current.proto_schema)
-                        right_type = ir_utils.infer_type(
+                        right_type = irutils.infer_type(
                                         expr.right, context.current.proto_schema)
 
                         if left_type and right_type:
-                            if isinstance(left_type, caos_types.ProtoNode):
-                                if isinstance(left_type, caos_types.ProtoConcept):
+                            if isinstance(left_type, s_obj.ProtoNode):
+                                if isinstance(left_type, s_concepts.Concept):
                                     left_type = left_type.pointers['metamagic.caos.builtins.id'].target
                                 left_type = types.pg_type_from_atom(context.current.proto_schema,
                                                                     left_type, topbase=True)
-                            elif not isinstance(left_type, caos_types.ProtoObject) and \
+                            elif not isinstance(left_type, s_obj.ProtoObject) and \
                                         (not isinstance(left_type, tuple) or \
-                                         not isinstance(left_type[1], caos_types.ProtoObject)):
+                                         not isinstance(left_type[1], s_obj.ProtoObject)):
                                 left_type = common.py_type_to_pg_type(left_type)
 
-                            if isinstance(right_type, caos_types.ProtoNode):
-                                if isinstance(right_type, caos_types.ProtoConcept):
+                            if isinstance(right_type, s_obj.ProtoNode):
+                                if isinstance(right_type, s_concepts.Concept):
                                     right_type = right_type.pointers['metamagic.caos.builtins.id'].target
                                 right_type = types.pg_type_from_atom(context.current.proto_schema,
                                                                     right_type, topbase=True)
-                            elif not isinstance(right_type, caos_types.ProtoObject) and \
+                            elif not isinstance(right_type, s_obj.ProtoObject) and \
                                         (not isinstance(right_type, tuple) or \
-                                         not isinstance(right_type[1], caos_types.ProtoObject)):
+                                         not isinstance(right_type[1], s_obj.ProtoObject)):
                                 right_type = common.py_type_to_pg_type(right_type)
 
                             if left_type in ('text', 'varchar') and \
@@ -2688,7 +2694,7 @@ class IRCompiler(IRCompilerBase):
             elif getattr(context.current, 'sequence_is_array', False):
                 result = pgsql.ast.SequenceNode(elements=elements)
             else:
-                if context.current.output_format == caos_types.JsonOutputFormat:
+                if context.current.output_format == 'json':
                     elements.insert(0, pgsql.ast.ConstantNode(value=pg_driver.FREEFORM_RECORD_ID))
                 result = pgsql.ast.RowExprNode(args=elements)
 
@@ -2926,7 +2932,7 @@ class IRCompiler(IRCompilerBase):
 
         if link is not None:
             lp = link.link_proto
-            if (isinstance(lp.target, caos_types.ProtoAtom)
+            if (isinstance(lp.target, s_atoms.Atom)
                     and lp.singular() and not lp.has_user_defined_properties()):
                 return
 
@@ -2953,7 +2959,7 @@ class IRCompiler(IRCompilerBase):
 
         id_field = common.caos_name_to_pg_name('metamagic.caos.builtins.id')
 
-        if caos_path_tip and isinstance(caos_path_tip.concept, caos_types.ProtoConcept):
+        if caos_path_tip and isinstance(caos_path_tip.concept, s_concepts.Concept):
             concept_table = self._relation_from_concepts(context, caos_path_tip, step_cte)
 
             bond = pgsql.ast.FieldRefNode(table=concept_table, field=id_field,
@@ -3008,7 +3014,7 @@ class IRCompiler(IRCompilerBase):
             forward_bond = self._join_condition(context, valent_bond, source_ref, op='=')
             backward_bond = self._join_condition(context, valent_bond, target_ref, op='=')
 
-            if link.direction == caos_types.InboundDirection:
+            if link.direction == s_pointers.PointerDirection.Inbound:
                 map_join_cond = backward_bond
             else:
                 map_join_cond = forward_bond
@@ -3046,7 +3052,7 @@ class IRCompiler(IRCompilerBase):
                                                          origin=concept_table,
                                                          origin_field=id_field)
 
-                if link.direction == caos_types.InboundDirection:
+                if link.direction == s_pointers.PointerDirection.Inbound:
                     map_tgt_ref = source_ref
                 else:
                     map_tgt_ref = target_ref
@@ -3086,7 +3092,7 @@ class IRCompiler(IRCompilerBase):
                 #
                 self._pull_fieldrefs(context, step_cte, sql_path_tip)
 
-        if caos_path_tip and isinstance(caos_path_tip.concept, caos_types.ProtoConcept):
+        if caos_path_tip and isinstance(caos_path_tip.concept, s_concepts.Concept):
             # Process references to atoms.
             #
             atomrefs = {'metamagic.caos.builtins.id'} | {f.name for f in caos_path_tip.atomrefs}
@@ -3184,7 +3190,7 @@ class IRCompiler(IRCompilerBase):
             metarefs = {'id'} | {f.name for f in caos_path_tip.metarefs}
 
             if len(metarefs) > 1:
-                if isinstance(caos_path_tip.concept, caos_types.ProtoConcept):
+                if isinstance(caos_path_tip.concept, s_concepts.Concept):
                     metatable = 'concept'
                 else:
                     msg ='unexpected path tip type when resolving metarefs: {}' \
@@ -3308,7 +3314,7 @@ class IRCompiler(IRCompilerBase):
         if is_root:
             step_cte.fromlist.append(fromnode)
 
-        if caos_path_tip and isinstance(caos_path_tip.concept, caos_types.ProtoConcept):
+        if caos_path_tip and isinstance(caos_path_tip.concept, s_concepts.Concept):
             step_cte._source_graph = caos_path_tip
 
             has_bonds = step_cte.bonds(caos_path_tip.id)
@@ -3363,10 +3369,10 @@ class IRCompiler(IRCompilerBase):
 
         cardinality_ok = context.current.ignore_cardinality or \
                          target_outside_generator or link_outside_generator or \
-                         (link.direction == caos_types.OutboundDirection and
-                          link_proto.mapping in (caos_types.OneToOne, caos_types.ManyToOne)) or \
-                         (link.direction == caos_types.InboundDirection and
-                          link_proto.mapping in (caos_types.OneToOne, caos_types.OneToMany))
+                         (link.direction == s_pointers.PointerDirection.Outbound and
+                          link_proto.mapping in (s_links.LinkMapping.OneToOne, s_links.LinkMapping.ManyToOne)) or \
+                         (link.direction == s_pointers.PointerDirection.Inbound and
+                          link_proto.mapping in (s_links.LinkMapping.OneToOne, s_links.LinkMapping.OneToMany))
 
         return cardinality_ok
 

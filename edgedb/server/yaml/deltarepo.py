@@ -12,8 +12,8 @@ import re
 
 import importkit
 
+from metamagic.caos.schema import delta as sd
 from metamagic.caos.backends import deltarepo
-from metamagic.caos import delta as base_delta
 
 from importkit import yaml
 
@@ -86,7 +86,7 @@ class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
                     break
                 id = delta.parent_id
                 if not id:
-                    raise base_delta.DeltaRefError('unknown revision: %s' % ref)
+                    raise sd.DeltaRefError('unknown revision: %s' % ref)
 
         return id
 
@@ -139,9 +139,9 @@ class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
             return mod
 
     def dump_delta(self, delta):
-        delta_obj = base_delta.Delta(parent_id=None, comment=None, checksum=0, deltas=[delta],
-                                     formatver=base_delta.Delta.CURRENT_FORMAT_VERSION)
-        delta_set = base_delta.DeltaSet([delta_obj])
+        delta_obj = sd.Delta(parent_id=None, comment=None, checksum=0, deltas=[delta],
+                                     formatver=sd.Delta.CURRENT_FORMAT_VERSION)
+        delta_set = sd.DeltaSet([delta_obj])
         return self.dump_delta_set(delta_set)
 
     def dump_delta_set(self, delta_set):

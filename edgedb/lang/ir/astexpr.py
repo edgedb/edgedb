@@ -6,8 +6,6 @@
 ##
 
 
-from metamagic.caos import proto
-
 from metamagic.utils import ast
 from metamagic.utils.ast import match as astmatch
 
@@ -56,4 +54,3 @@ class ExistsConjunctionExpr:
             return [mg.node for mg in m.expr]
         else:
             return None
-

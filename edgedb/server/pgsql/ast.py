@@ -229,23 +229,11 @@ UNION = PgSQLSetOperator('UNION')
 INTERSECT = PgSQLSetOperator('INTERSECT')
 EXCEPT = PgSQLSetOperator('EXCEPT')
 
-class SortOrder(irast.SortOrder):
-    _map = {
-        irast.SortAsc: 'SortAsc',
-        irast.SortDesc: 'SortDesc',
-        irast.SortDefault: 'SortDefault'
-    }
 
-SortAsc = SortOrder(irast.SortAsc)
-SortDesc = SortOrder(irast.SortDesc)
-SortDefault = SortOrder(irast.SortDefault)
+SortAsc = irast.SortAsc
+SortDesc = irast.SortDesc
+SortDefault = irast.SortDefault
 
 
-class NullsOrder(irast.NonesOrder):
-    _map = {
-        irast.NonesFirst: 'NonesFirst',
-        irast.NonesLast: 'NonesLast'
-    }
-
-NullsFirst = NullsOrder(irast.NonesFirst)
-NullsLast = NullsOrder(irast.NonesLast)
+NullsFirst = irast.NonesFirst
+NullsLast = irast.NonesLast

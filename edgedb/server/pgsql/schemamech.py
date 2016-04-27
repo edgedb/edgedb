@@ -8,29 +8,26 @@
 
 import collections
 import itertools
-import re
 
-from metamagic import caos
-from metamagic.caos import proto
 from metamagic.caos.ir import ast as irast
 from metamagic.caos.ir import astexpr as irastexpr
 from metamagic.caos.ir import utils as ir_utils
 from metamagic.caos import caosql
 
+from metamagic.caos.schema import atoms as s_atoms
+from metamagic.caos.schema import concepts as s_concepts
+from metamagic.caos.schema import links as s_links
+from metamagic.caos.schema import name as sn
+from metamagic.caos.schema import types as s_types
+
 from metamagic.utils import ast
-from metamagic.utils import datastructures
-from metamagic.utils import markup
-from importkit import yaml
-from importkit.import_ import get_object
 
 from .datasources import introspection
 from . import ast as pg_ast
-from . import astexpr
 from . import dbops
 from . import deltadbops
 from . import common
 from . import types
-from . import parser
 from . import transformer
 from . import codegen
 
@@ -66,7 +63,7 @@ class ConstraintMech:
         else:
             name = cdata['constraint_description']
             name, _, _ = name.rpartition(';')
-            return caos.name.Name(name)
+            return sn.Name(name)
 
     @classmethod
     def _get_unique_refs(cls, tree):
@@ -171,7 +168,7 @@ class ConstraintMech:
         flt = lambda n: isinstance(n, pg_ast.FieldRefNode)
         refs = set(ast.find_children(sql_tree, flt))
 
-        if isinstance(subject, proto.Atom):
+        if isinstance(subject, s_atoms.Atom):
             # Domain constraint, replace <atom_name> with VALUE
 
             subject_pg_name = common.caos_name_to_pg_name(subject.name)
@@ -256,7 +253,7 @@ class ConstraintMech:
             pg_constr_data['scope'] = 'row'
             pg_constr_data['type'] = 'check'
 
-        if isinstance(constraint.subject, caos.types.ProtoAtom):
+        if isinstance(constraint.subject, s_atoms.Atom):
             constraint = SchemaDomainConstraint(subject=subject,
                                                 constraint=constraint,
                                                 pg_constr_data=pg_constr_data)
@@ -483,7 +480,7 @@ class TypeMech:
 
             cols = []
 
-            if isinstance(prototype, caos.types.ProtoLink):
+            if isinstance(prototype, s_links.Link):
                 cols.extend([
                     dbops.Column(name='link_type_id', type='int'),
                     dbops.Column(name='metamagic.caos.builtins.linkid', type='uuid'),
@@ -491,7 +488,7 @@ class TypeMech:
                     dbops.Column(name='metamagic.caos.builtins.target', type='uuid')
                 ])
 
-            elif isinstance(prototype, caos.types.ProtoConcept):
+            elif isinstance(prototype, s_concepts.Concept):
                 cols.extend([
                     dbops.Column(name='concept_id', type='int')
                 ])
@@ -499,7 +496,7 @@ class TypeMech:
             else:
                 assert False
 
-            if isinstance(prototype, proto.Concept):
+            if isinstance(prototype, s_concepts.Concept):
                 expected_table_type = 'concept'
             else:
                 expected_table_type = 'link'

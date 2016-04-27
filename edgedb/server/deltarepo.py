@@ -6,8 +6,11 @@
 ##
 
 
-from metamagic.caos import caosql, proto, delta
+from metamagic.caos import caosql
 from metamagic.caos import schema as so
+from metamagic.caos.schema import delta as sd
+from metamagic.caos.schema import realm as s_realm
+
 from metamagic.utils.debug import debug
 
 
@@ -21,13 +24,13 @@ class MetaDeltaRepository:
         if d.script:
             delta_script = caosql.parse_block(d.script)
 
-            alter_realm = delta.AlterRealm()
-            context = delta.CommandContext()
+            alter_realm = s_realm.AlterRealm()
+            context = sd.CommandContext()
 
-            with context(delta.RealmCommandContext(alter_realm)):
+            with context(s_realm.RealmCommandContext(alter_realm)):
                 for ddl in delta_script:
                     ddl = caosql.deoptimize(ddl)
-                    cmd = delta.Command.from_ast(ddl, context=context)
+                    cmd = sd.Command.from_ast(ddl, context=context)
                     alter_realm.add(cmd)
 
             d.deltas = [alter_realm]
@@ -38,16 +41,16 @@ class MetaDeltaRepository:
         raise NotImplementedError
 
     def resolve_delta_ref(self, ref):
-        ref = delta.DeltaRef.parse(ref)
+        ref = sd.DeltaRef.parse(ref)
         if not ref:
-            raise delta.DeltaRefError('unknown revision: %s' % ref)
+            raise sd.DeltaRefError('unknown revision: %s' % ref)
         return self.delta_ref_to_id(ref)
 
     def update_delta_ref(self, ref, id):
         raise NotImplementedError
 
     def write_delta(self, delta_obj):
-        delta_set = delta.DeltaSet(deltas=[delta_obj])
+        delta_set = sd.DeltaSet(deltas=[delta_obj])
         return self.write_delta_set(delta_set)
 
     def write_delta_set(self, delta_set):
@@ -66,7 +69,7 @@ class MetaDeltaRepository:
 
         deltas = self.walk_deltas(end_rev, start_rev, reverse=True,
                                   take_closest_snapshot=take_closest_snapshot)
-        return delta.DeltaSet(deltas)
+        return sd.DeltaSet(deltas)
 
     def walk_deltas(self, end_rev, start_rev, reverse=False,
                                    take_closest_snapshot=False,
@@ -93,14 +96,14 @@ class MetaDeltaRepository:
 
     @debug
     def upgrade(self, start_rev=None, end_rev=None,
-                      new_format_ver=delta.Delta.CURRENT_FORMAT_VERSION):
+                      new_format_ver=sd.Delta.CURRENT_FORMAT_VERSION):
 
         if end_rev is None:
             end_rev = self.get_delta(id='HEAD', compat_mode=True).id
 
         schema = so.ProtoSchema()
 
-        context = delta.DeltaUpgradeContext(delta.Delta.CURRENT_FORMAT_VERSION)
+        context = sd.DeltaUpgradeContext(sd.Delta.CURRENT_FORMAT_VERSION)
         for d in self.walk_deltas(end_rev, start_rev, reverse=True,
                                                       compat_mode=True):
             d.upgrade(context, schema)
@@ -112,7 +115,8 @@ class MetaDeltaRepository:
             self.write_delta(d)
 
     def get_schema(self, delta_obj):
-        deltas = self.get_deltas(None, delta_obj.id, take_closest_snapshot=True)
+        deltas = self.get_deltas(None, delta_obj.id,
+                                 take_closest_snapshot=True)
         schema = so.ProtoSchema()
         deltas.apply(schema)
         return schema
@@ -127,10 +131,11 @@ class MetaDeltaRepository:
     def get_snapshot_at(self, ref):
         org_delta = self.get_delta(ref)
         full_delta = self.cumulative_delta(None, org_delta.id)
-        snapshot = delta.Delta(parent_id=org_delta.parent_id, checksum=org_delta.checksum,
-                               deltas=org_delta.deltas,
-                               formatver=delta.Delta.CURRENT_FORMAT_VERSION,
-                               comment=org_delta.comment, snapshot=full_delta)
+        snapshot = sd.Delta(parent_id=org_delta.parent_id,
+                            checksum=org_delta.checksum,
+                            deltas=org_delta.deltas,
+                            formatver=sd.Delta.CURRENT_FORMAT_VERSION,
+                            comment=org_delta.comment, snapshot=full_delta)
         return snapshot
 
     def _cumulative_delta(self, ref1, ref2):
@@ -150,7 +155,7 @@ class MetaDeltaRepository:
             v1_schema = so.ProtoSchema()
 
         if v1 is None or v1.checksum != v2_schema.get_checksum():
-            d = delta.delta_schemas(v2_schema, v1_schema)
+            d = sd.delta_schemas(v2_schema, v1_schema)
         else:
             d = None
 
@@ -160,11 +165,12 @@ class MetaDeltaRepository:
         return self._cumulative_delta(ref1, ref2)[4]
 
     @debug
-    def calculate_delta(self, ref1, ref2, *, comment=None, preprocess=None, postprocess=None):
+    def calculate_delta(self, ref1, ref2, *, comment=None,
+                        preprocess=None, postprocess=None):
         v1, v1_schema, v2, v2_schema, d = self._cumulative_delta(ref1, ref2)
 
         if d is None and (preprocess is not None or postprocess is not None):
-            d = delta.AlterRealm()
+            d = s_realm.AlterRealm()
 
         if d is not None:
             parent_id = v1.id if v1 else None
@@ -176,11 +182,11 @@ class MetaDeltaRepository:
             checksum_details = v2_schema.get_checksum_details()
             """
 
-            return delta.Delta(parent_id=parent_id, checksum=checksum,
-                               checksum_details=checksum_details,
-                               comment=comment, deltas=[d],
-                               preprocess=preprocess,
-                               postprocess=postprocess,
-                               formatver=delta.Delta.CURRENT_FORMAT_VERSION)
+            return sd.Delta(parent_id=parent_id, checksum=checksum,
+                            checksum_details=checksum_details,
+                            comment=comment, deltas=[d],
+                            preprocess=preprocess,
+                            postprocess=postprocess,
+                            formatver=sd.Delta.CURRENT_FORMAT_VERSION)
         else:
             return None

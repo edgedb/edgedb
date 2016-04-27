@@ -295,7 +295,7 @@ mapping:
 
                     "exposed_behaviour": &LINK_EXPOSED_BEHAVIOUR
                         type: str
-                        object: metamagic.caos.backends.yaml.LinkExposedBehaviour
+                        object: metamagic.caos.backends.yaml.PointerExposedBehaviour
                         enum: ["first-item", "set"]
                         default: null
 

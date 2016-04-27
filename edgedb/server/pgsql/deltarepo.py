@@ -8,7 +8,7 @@
 
 from metamagic.caos.backends import deltarepo
 
-from metamagic.caos import delta as base_delta
+from metamagic.caos.schema import delta as sd
 
 from . import common
 from . import dbops, deltadbops, delta
@@ -44,7 +44,7 @@ class MetaDeltaRepository(deltarepo.MetaDeltaRepository):
                 result = deltalog.DeltaLog(self.connection).fetch(rev_id=rev_id, offset=ref.offset)
 
                 if not result:
-                    raise base_delta.DeltaRefError('unknown revision: %s' % ref)
+                    raise sd.DeltaRefError('unknown revision: %s' % ref)
                 result = int(result[0][0], 16)
 
             return result

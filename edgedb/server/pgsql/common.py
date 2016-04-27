@@ -13,8 +13,9 @@ import base64
 
 import postgresql
 
-from metamagic.caos import proto
-from metamagic.caos import types as caos_types
+from metamagic.caos.schema import concepts as s_concepts
+from metamagic.caos.schema import links as s_links
+from metamagic.caos.schema import objects as s_obj
 
 from . import driver
 from .driver import io as custom_type_io
@@ -88,9 +89,9 @@ def link_name_to_table_name(name, catenate=True):
 
 
 def get_table_name(obj, catenate=True):
-    if isinstance(obj, proto.Concept):
+    if isinstance(obj, s_concepts.Concept):
         return concept_name_to_table_name(obj.name, catenate)
-    elif isinstance(obj, proto.Link):
+    elif isinstance(obj, s_links.Link):
         return link_name_to_table_name(obj.name, catenate)
     else:
         assert False
@@ -130,14 +131,14 @@ def py_type_to_pg_type(typ):
         supertyp, typ = typ
         assert issubclass(supertyp, list)
 
-        if isinstance(typ, caos_types.PrototypeClass):
+        if isinstance(typ, s_obj.PrototypeClass):
             basetyp = 'int'
         else:
             basetyp = _type_index[typ]
 
         return '%s[]' % basetyp
     else:
-        if isinstance(typ, caos_types.PrototypeClass):
+        if isinstance(typ, s_obj.PrototypeClass):
             return 'int'
         else:
             return _type_index[typ]

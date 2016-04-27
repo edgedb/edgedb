@@ -7,7 +7,8 @@
 
 
 from metamagic.caos.ir import ast as irast
-from metamagic.caos import types as caos_types
+from metamagic.caos.schema import enum as s_enum
+
 from metamagic.utils import ast
 
 
@@ -384,26 +385,12 @@ IS_OF = CaosQLOperator('IS OF')
 IS_NOT_OF = CaosQLOperator('IS NOT OF')
 
 
-class SortOrder(irast.SortOrder):
-    _map = {
-        irast.SortAsc: 'SortAsc',
-        irast.SortDesc: 'SortDesc',
-        irast.SortDefault: 'SortDefault'
-    }
+SortAsc = irast.SortAsc
+SortDesc = irast.SortDesc
+SortDefault = irast.SortDefault
 
-SortAsc = SortOrder(irast.SortAsc)
-SortDesc = SortOrder(irast.SortDesc)
-SortDefault = SortOrder(irast.SortDefault)
-
-
-class NonesOrder(irast.NonesOrder):
-    _map = {
-        irast.NonesFirst: 'NonesFirst',
-        irast.NonesLast: 'NonesLast'
-    }
-
-NonesFirst = NonesOrder(irast.NonesFirst)
-NonesLast = NonesOrder(irast.NonesLast)
+NonesFirst = irast.NonesFirst
+NonesLast = irast.NonesLast
 
 
 class SetOperator(CaosQLOperator):
@@ -414,15 +401,13 @@ INTERSECT = SetOperator('INTERSECT')
 EXCEPT = SetOperator('EXCEPT')
 
 
-class Position(caos_types.StrSingleton):
-    _map = {
-        'AFTER': 'AFTER',
-        'BEFORE': 'BEFORE',
-        'FIRST': 'FIRST',
-        'LAST': 'LAST'
-    }
+class Position(s_enum.StrEnum):
+    AFTER = 'AFTER'
+    BEFORE = 'BEFORE'
+    FIRST = 'FIRST'
+    LAST = 'LAST'
 
-AFTER = Position('AFTER')
-BEFORE = Position('BEFORE')
-FIRST = Position('FIRST')
-LAST = Position('LAST')
+AFTER = Position.AFTER
+BEFORE = Position.BEFORE
+FIRST = Position.FIRST
+LAST = Position.LAST
