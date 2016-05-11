@@ -1406,8 +1406,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                         except ImportError:
                             # Module has moved, create a dummy
                             impmod = so.DummyModule(imp_name)
-                        # Again, it must not be a schema module
-                        assert not isinstance(impmod, so.SchemaModule)
 
                         self.schema.add_module(impmod)
 

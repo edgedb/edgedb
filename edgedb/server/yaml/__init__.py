@@ -6,8 +6,6 @@
 ##
 
 
-import io
-
 import importlib
 import builtins
 import itertools
@@ -16,21 +14,17 @@ import re
 
 import yaml as pyyaml
 
-import importkit
 from importkit import context as lang_context
 from importkit import yaml
 
-from metamagic.utils import lang
 from metamagic.utils.lang.yaml.struct import MixedStructMeta
 from metamagic.utils.nlang import morphology
 from metamagic.utils.algos.persistent_hash import persistent_hash
 from metamagic.utils.algos import topological
-from metamagic.utils.datastructures import xvalue, OrderedSet, typed
+from metamagic.utils.datastructures import OrderedSet, typed
 
-from metamagic import caos
-from metamagic.caos import schema as lang_protoschema
+from metamagic.caos.schemaloaders import import_ as sl
 from metamagic.caos import backends
-from metamagic.caos import objects
 
 from metamagic.caos.schema import atoms as s_atoms
 from metamagic.caos.schema import attributes as s_attrs
@@ -81,44 +75,6 @@ class LangObject(yaml.Object, metaclass=LangObjectMeta):
                 return base
 
         return cls
-
-
-class ImportContext(yaml.Object, adapts=lang_protoschema.ImportContext):
-    @classmethod
-    def __sx_getstate__(cls, data):
-        return str(data)
-
-
-class Bool(yaml.Object, adapts=objects.boolean.Bool, ignore_aliases=True):
-    @classmethod
-    def __sx_getstate__(cls, data):
-        return bool(data)
-
-
-class TimedeltaRepresenter(pyyaml.representer.SafeRepresenter):
-    def represent_timedelta(self, data):
-        value = str(data)
-        return self.represent_scalar(
-            'tag:metamagic.sprymix.com,2009/metamagic/timedelta', value)
-
-pyyaml.representer.SafeRepresenter.add_representer(objects.datetime.TimeDelta,
-    TimedeltaRepresenter.represent_timedelta)
-
-
-class TimedeltaConstructor(pyyaml.constructor.Constructor):
-    def construct_timedelta(self, data):
-        value = self.construct_scalar(node)
-        return objects.datetime.TimeDelta(value)
-
-pyyaml.constructor.Constructor.add_constructor(
-    'tag:metamagic.sprymix.com,2009/metamagic/timedelta',
-    TimedeltaConstructor.construct_timedelta)
-
-
-class Int(yaml.Object, adapts=objects.int.Int, ignore_aliases=True):
-    @classmethod
-    def __sx_getstate__(cls, data):
-        return int(data)
 
 
 class WordCombination(LangObject, adapts=morphology.WordCombination, ignore_aliases=True):
@@ -1044,7 +1000,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
             else:
                 localschema.add_module(proto_module, alias=alias)
 
-            lang_protoschema.populate_proto_modules(localschema, module)
+            sl.populate_proto_modules(localschema, module)
 
 
     def _add_proto(self, schema, proto):
@@ -2082,188 +2038,7 @@ class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
         return concepts
 
 
-class LinkProps(LangObject):
-    def __sx_setstate__(self, data):
-        self.props = data['@']
-
-
-class EntityShellMeta(type(LangObject), type(caos.concept.EntityShell)):
-    def __init__(cls, name, bases, dct, *, adapts=None, ignore_aliases=False):
-        type(LangObject).__init__(cls, name, bases, dct, adapts=adapts,
-                                                         ignore_aliases=ignore_aliases)
-        type(caos.concept.EntityShell).__init__(cls, name, bases, dct)
-
-
-class EntityShell(LangObject, adapts=caos.concept.EntityShell,
-                              metaclass=EntityShellMeta):
-    def __sx_setstate__(self, data):
-        caos.concept.EntityShell.__init__(self)
-
-        if isinstance(data, str):
-            self.id = data
-        elif isinstance(data, dict) and 'query' in data:
-            query = data['query']
-
-            ent_context = lang_context.SourceContext.from_object(self)
-
-            aliases = {alias: mod.__name__ for alias, mod in ent_context.document.imports.items()}
-            session = ent_context.document.import_context.session
-
-            selector = session.selector(query, module_aliases=aliases)
-            proto = getattr(selector, '__sx_prototype__', None)
-
-            if not isinstance(proto, s_concepts.Concept):
-                raise MetaError('query expressions must return a single entity')
-
-            selector_iter = iter(selector)
-
-            try:
-                self.entity = next(selector_iter)
-            except StopIteration:
-                raise MetaError('query expressions must return a single entity')
-
-            try:
-                next(selector_iter)
-            except StopIteration:
-                pass
-            else:
-                raise MetaError('query expressions must return a single entity')
-
-            if data['properties']:
-                self.props = data['properties']
-        else:
-            ent_context = lang_context.SourceContext.from_object(self)
-
-            aliases = {alias: mod.__name__ for alias, mod in ent_context.document.imports.items()}
-            session = ent_context.document.import_context.session
-
-            concept, data = next(iter(data.items()))
-
-            links = {}
-            props = {}
-            for link_name, linkval in data.items():
-                if isinstance(linkval, list):
-                    links[link_name] = list()
-                    for item in linkval:
-                        if isinstance(item, dict):
-                            links[link_name].append(item['target'])
-                            props[(link_name, item['target'])] = item['properties']
-                        elif isinstance(item, xvalue):
-                            links[link_name].append(item.value)
-                            props[(link_name, item.value)] = item.attrs
-                        elif isinstance(item, EntityShell):
-                            links[link_name].append(item)
-                            props[(link_name, item)] = getattr(item, 'props', {})
-                        else:
-                            links[link_name].append(item)
-                else:
-                    links[link_name] = linkval
-
-            self.entity = session.schema.get(concept, aliases=aliases)(**links)
-            for (link_name, target), link_properties in props.items():
-                linkcls = caos.concept.getlink(self.entity, link_name, target)
-                linkcls.update(**link_properties)
-
-            ent_context.document.import_context.entities.append(self.entity)
-
-
-class EntityShell2(LangObject, adapts=caos.concept.EntityShell2,
-                               metaclass=EntityShellMeta):
-
-    def _construct(self, concept):
-        ent_context = lang_context.SourceContext.from_object(self)
-        aliases = {alias: mod.__name__
-                   for alias, mod in ent_context.document.imports.items()}
-        session = ent_context.document.import_context.session
-        cls = session.schema.get(concept, aliases=aliases)
-        self.entity = cls(**self.links)
-
-        for (link_name, target), link_properties in self.props.items():
-            linkcls = caos.concept.getlink(self.entity, link_name, target)
-            linkcls.update(**link_properties)
-
-        imp_ctx = ent_context.document.import_context
-        imp_ctx.entities.append(self.entity)
-        imp_ctx.unconstructed_entities.discard(self)
-
-    def _process_expr(self, expr):
-        ent_context = lang_context.SourceContext.from_object(self)
-
-        aliases = {alias: mod.__name__
-                   for alias, mod in ent_context.document.imports.items()}
-        session = ent_context.document.import_context.session
-
-        selector = session.selector(expr, module_aliases=aliases)
-        proto = getattr(selector, '__sx_prototype__', None)
-
-        if not isinstance(proto, s_concepts.Concept):
-            raise MetaError('query expressions must return a single entity')
-
-        selector_iter = iter(selector)
-
-        try:
-            entity = next(selector_iter)
-        except StopIteration:
-            msg = 'query returned zero results, expecting exactly one'
-            raise MetaError(msg, details=expr, context=ent_context)
-
-        try:
-            next(selector_iter)
-        except StopIteration:
-            pass
-        else:
-            msg = 'query returned multiple results, expecting exactly one'
-            raise MetaError(msg, details=expr, context=ent_context)
-
-        return entity
-
-    def _process_target(self, data):
-        if isinstance(data, dict):
-            clsname, target = next(iter(data.items()))
-            target._construct(clsname)
-
-        elif isinstance(data, ExpressionText):
-            target = caos.concept.EntityShell()
-            target.entity = self._process_expr(data)
-
-        else:
-            target = data
-
-        return target
-
-    def _process_link(self, data):
-        if isinstance(data, LinkProps):
-            value = self._process_target(data.props.pop('target'))
-            target = xvalue(value, **data.props)
-        else:
-            target = xvalue(self._process_target(data))
-
-        return target
-
-    def __sx_setstate__(self, data):
-        caos.concept.EntityShell2.__init__(self)
-        ent_ctx = lang_context.SourceContext.from_object(self)
-        imp_ctx = ent_ctx.document.import_context
-        imp_ctx.unconstructed_entities.add(self)
-
-        links = self.links = {}
-        props = self.props = {}
-
-        for link_name, linkval in data.items():
-            if not isinstance(linkval, list):
-                linkval = [linkval]
-
-            links[link_name] = list()
-            for item in linkval:
-                lspec = self._process_link(item)
-
-                target = lspec.value
-                links[link_name].append(target)
-                if lspec.attrs:
-                    props[link_name, target] = lspec.attrs
-
-
-class ProtoSchema(LangObject, adapts=lang_protoschema.ProtoSchema):
+class ProtoSchema(LangObject, adapts=s_schema.ProtoSchema):
     @classmethod
     def __sx_getstate__(cls, data):
         result = {}
@@ -2288,36 +2063,6 @@ class ProtoSchema(LangObject, adapts=lang_protoschema.ProtoSchema):
         return result
 
 
-class DataSet(LangObject):
-    def __sx_setstate__(self, data):
-        entities = {id: [shell.entity for shell in shells]
-                    for id, shells in data.items() if id}
-        context = lang_context.SourceContext.from_object(self)
-        session = context.document.import_context.session
-        with session.transaction():
-            for entity in context.document.import_context.entities:
-                entity.__class__.materialize_links(entity, entities)
-
-
-class DataSet2(LangObject):
-    def __sx_setstate__(self, data):
-        context = lang_context.SourceContext.from_object(self)
-        imp_ctx = context.document.import_context
-        session = imp_ctx.session
-
-        with session.transaction():
-            for clsname, shell in data:
-                shell._construct(clsname)
-
-            if imp_ctx.unconstructed_entities:
-                entity = next(iter(imp_ctx.unconstructed_entities))
-                e_ctx = lang_context.SourceContext.from_object(entity)
-                raise MetaError('invalid link target', context=e_ctx)
-
-            for entity in context.document.import_context.entities:
-                entity.__class__.materialize_links(entity, None)
-
-
 class CaosName(StrLangObject, adapts=sn.Name, ignore_aliases=True):
     def __new__(cls, data):
         return sn.Name.__new__(cls, data)
@@ -2327,64 +2072,18 @@ class CaosName(StrLangObject, adapts=sn.Name, ignore_aliases=True):
         return str(data)
 
 
-class ModuleFromData:
-    def __init__(self, name):
-        self.__name__ = name
-
-
-class FixtureImportContext(importkit.ImportContext):
-    def __new__(cls, name, *, loader=None, session=None, entities=None):
-        result = super().__new__(cls, name, loader=loader)
-        result.session = session
-        result.entities = entities if entities is not None else []
-        result.unconstructed_entities = set()
-        return result
-
-    def __init__(self, name, *, loader=None, session=None, entities=None):
-        super().__init__(name, loader=loader)
-
-    @classmethod
-    def from_parent(cls, name, parent):
-        if parent and isinstance(parent, FixtureImportContext):
-            result = cls(name, loader=parent.loader, session=parent.session)
-        else:
-            result = cls(name)
-        return result
-
-    @classmethod
-    def copy(cls, name, other):
-        if isinstance(other, FixtureImportContext):
-            result = cls(other, loader=other.loader, session=other.session)
-        else:
-            result = cls(other)
-        return result
-
-
 class Backend(backends.MetaBackend):
 
-    def __init__(self, deltarepo, module=None, data=None):
-        if module:
-            self.metadata = module
-            module_name = module.__name__
-        else:
-            self.metadata = self.load_from_string(data)
-            module_name = '<string>'
-
+    def __init__(self, deltarepo, module):
+        self.metadata = module
+        module_name = module.__name__
         modhash = persistent_hash(module_name)
 
-        self._schema = lang_protoschema.get_loaded_proto_schema(self.metadata.__class__)
+        self._schema = sl.get_loaded_proto_schema(
+                            self.metadata.__class__)
 
         repo = deltarepo(module=module_name, id=modhash)
         super().__init__(repo)
-
-    def load_from_string(self, data):
-        import_context = s_schema.ImportContext('<string>')
-        module = ModuleFromData('<string>')
-        context = lang_context.DocumentContext(module=module, import_context=import_context)
-        for k, v in lang.yaml.Language.load_dict(io.StringIO(data), context):
-            setattr(module, str(k), v)
-
-        return module
 
     def getschema(self):
         return self._schema

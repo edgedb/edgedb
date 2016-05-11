@@ -2694,8 +2694,8 @@ class UpgradeBackend(MetaCommand):
 
         op.add_command(cmd)
 
-        from metamagic.caos import protoschema
-        schema = protoschema.get_loaded_proto_schema(proto.SchemaModule)
+        from metamagic.caos.schemaloaders import import_ as sl
+        schema = sl.get_global_proto_schema()
 
         modtab = deltadbops.ModuleTable()
 

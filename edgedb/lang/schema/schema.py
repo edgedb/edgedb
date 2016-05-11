@@ -9,14 +9,11 @@
 import builtins
 import collections
 import sys
-import types
 
-import importkit
 from importkit.import_ import module as module_types
 
 from metamagic.caos import classfactory
 
-from metamagic.exceptions import MetamagicError
 from metamagic.utils.datastructures import Void
 from metamagic.utils.algos.persistent_hash import persistent_hash
 
@@ -25,104 +22,8 @@ from . import modules as schema_module
 from . import name as schema_name
 
 
-class ImportContext(importkit.ImportContext):
-    @classmethod
-    def new_schema(cls, builtin):
-        return ProtoSchema()
-
-
-_schemas = {}
-
-
-def get_loaded_proto_schema(module_class):
-    try:
-        schema = _schemas[module_class]
-    except KeyError:
-        schema = _schemas[module_class] = module_class.get_schema_class()()
-
-    return schema
-
-
-def drop_loaded_proto_schema(module_class, unload_modules=True):
-    try:
-        schema = _schemas[module_class]
-    except KeyError:
-        pass
-    else:
-        for module in schema.iter_modules():
-            try:
-                del sys.modules[module]
-            except KeyError:
-                pass
-
-        schema.clear()
-
-
-def populate_proto_modules(schema, module):
-    process_subimports = True
-
-    if not schema.has_module(module.__name__):
-        try:
-            proto_module = module.__sx_prototypes__
-        except AttributeError:
-            schema.add_module(module)
-            process_subimports = False
-        else:
-            schema.add_module(proto_module)
-
-    if process_subimports:
-        try:
-            subimports = module.__sx_imports__
-        except AttributeError:
-            pass
-        else:
-            for subimport in subimports:
-                submodule = sys.modules[subimport]
-                populate_proto_modules(schema, submodule)
-
-
-def get_global_proto_schema():
-    return get_loaded_proto_schema(SchemaModule)
-
-
-class SchemaModule(types.ModuleType):
-    def __sx_finalize_load__(self):
-        schema = get_loaded_proto_schema(self.__class__)
-        populate_proto_modules(schema, self)
-
-    def __getattr__(self, name):
-        if name.startswith('__') and name.endswith('__'):
-            return super().__getattribute__(name)
-
-        try:
-            proto = self.__sx_prototypes__.get(name)
-        except SchemaError:
-            raise AttributeError('{!r} object has no attribute {!r}'.
-                                    format(self, name))
-
-        schema = get_loaded_proto_schema(self.__class__)
-
-        try:
-            cls = proto(schema, cache=False)
-        except Exception as e:
-            err = 'could not create class from prototype'
-            raise MetamagicError(err) from e
-
-        setattr(self, name, cls)
-        return cls
-
-    @classmethod
-    def get_schema_class(cls):
-        return ProtoSchema
-
-
 class ObjectClass(type):
     pass
-
-
-class DummyModule(types.ModuleType):
-    def __getattr__(self, name):
-        return type
 
 
 class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):

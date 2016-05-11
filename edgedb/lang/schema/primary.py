@@ -151,7 +151,9 @@ class Prototype(referencing.ReferencingPrototype):
 
         assert metaclass is not None and metaclass is not type
 
-        global_protoschema = s_schema.get_global_proto_schema()
+        from metamagic.caos.schemaloaders import import_ as sl
+
+        global_protoschema = sl.get_global_proto_schema()
         root_cache_in_schema = proto_schema is not global_protoschema
 
         if cache or subclass_name is not None:

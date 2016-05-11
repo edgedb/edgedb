@@ -45,7 +45,6 @@ class AlterRealm(sd.Command):
                             # which might have disappeared.
                             pass
                         else:
-                            assert not isinstance(impmod, ss.SchemaModule)
                             schema.add_module(impmod)
 
             for op in self:
