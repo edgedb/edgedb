@@ -37,6 +37,7 @@ from metamagic.caos.schema import expr as s_expr
 from metamagic.caos.schema import indexes as s_indexes
 from metamagic.caos.schema import links as s_links
 from metamagic.caos.schema import lproperties as s_lprops
+from metamagic.caos.schema import modules as s_mod
 from metamagic.caos.schema import name as sn
 from metamagic.caos.schema import objects as s_obj
 from metamagic.caos.schema import pointers as s_pointers
@@ -49,11 +50,19 @@ from metamagic.caos.caosql import errors as caosql_exc
 from metamagic.caos.caosql import utils as caosql_utils
 
 from . import delta
-from . import protoschema as yaml_protoschema
 
 
-class MetaError(yaml_protoschema.SchemaError, s_err.SchemaError):
-    pass
+class MetaError(s_err.SchemaError):
+    def __init__(self, msg, *, hint=None, details=None, context=None):
+        super().__init__(msg, hint=hint, details=details)
+        self.context = context
+
+    def __str__(self):
+        result = super().__str__()
+        if self.context and self.context.start:
+            result += '\ncontext: %s, line %d, column %d' % \
+                        (self.context.name, self.context.start.line, self.context.start.column)
+        return result
 
 
 class SimpleLangObject(yaml.Object):
@@ -976,7 +985,26 @@ class SpecializedLink(LangObject):
             raise MetaError('unexpected specialized link format: %s', type(data), context=context)
 
 
-class ProtoSchemaAdapter(yaml_protoschema.ProtoSchemaAdapter):
+class ProtoSchemaAdapter(yaml.Object):
+    def __sx_setstate__(self, data):
+        context = lang_context.SourceContext.from_object(self)
+
+        module_name = context.document.module.__name__
+        self.module = s_mod.ProtoModule(name=module_name)
+
+        # Local schema is the module itself plus direct imports.
+        # There must be zero references to prototypes outside this schema
+        # in the module being loaded.
+        self.localschema = localschema = s_schema.ProtoSchema()
+        localschema.add_module(self.module, alias=None)
+
+        self.load_imports(context, localschema)
+
+        self.process_data(data, localschema)
+
+    def items(self):
+        yield ('__sx_prototypes__', self.module)
+
     def load_imports(self, context, localschema):
         this_module = self.module.name
 
