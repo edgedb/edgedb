@@ -10,7 +10,6 @@ from metamagic.utils import url as url_module
 from metamagic.caos.backends.resolver.error import BackendResolverError
 from metamagic.caos.backends.yaml.resolver import BackendResolver as YamlBackendResolver
 from metamagic.caos.backends.pgsql.resolver import BackendResolver as PgsqlBackendResolver
-from metamagic.caos.backends.dummy.resolver import BackendResolver as DummyBackendResolver
 from metamagic.caos.backends.resolver.pymod import PyModResolver
 
 
@@ -31,8 +30,6 @@ class BackendResolver(object):
 
         if parsed_url[0] == 'pq':
             resolver = PgsqlBackendResolver()
-        elif parsed_url[0] == 'dummy':
-            resolver = DummyBackendResolver()
         elif parsed_url[0] == 'pymod':
             resolver = PyModResolver()
         else:
