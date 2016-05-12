@@ -12,7 +12,6 @@ from metamagic.caos.backends.yaml.resolver import BackendResolver as YamlBackend
 from metamagic.caos.backends.pgsql.resolver import BackendResolver as PgsqlBackendResolver
 from metamagic.caos.backends.dummy.resolver import BackendResolver as DummyBackendResolver
 from metamagic.caos.backends.resolver.pymod import PyModResolver
-from metamagic.caos.backends.resolver.data import DataResolver
 
 
 class BackendResolver(object):
@@ -36,8 +35,6 @@ class BackendResolver(object):
             resolver = DummyBackendResolver()
         elif parsed_url[0] == 'pymod':
             resolver = PyModResolver()
-        elif parsed_url[0] == 'data':
-            resolver = DataResolver()
         else:
             raise BackendResolverError('unsupported source protocol: %s' % parsed_url[0])
 
