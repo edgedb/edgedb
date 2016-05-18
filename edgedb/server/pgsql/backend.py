@@ -8,6 +8,7 @@
 
 import bisect
 import collections
+import functools
 import importlib
 import itertools
 import json
@@ -18,7 +19,6 @@ import uuid
 
 import postgresql
 import postgresql.copyman
-from postgresql.driver.dbapi20 import Cursor as CompatCursor
 
 from importkit.import_ import get_object
 from metamagic.utils.algos import topological
@@ -177,7 +177,9 @@ class PreparedQuery:
         self.query = query
         self.argmap = query.argmap
 
+        self._session = session
         self._concept_map = session.backend.get_concept_map(session)
+        self._constr_mech = session.backend.get_constr_mech()
 
         if args:
             text = self._embed_args(self.query, args)
@@ -185,7 +187,11 @@ class PreparedQuery:
         else:
             text = query.text
 
-        self.statement = session.get_prepared_statement(text, raw=not query.scrolling_cursor)
+        exc_handler = functools.partial(ErrorMech._interpret_db_error,
+                                        self._session, self._constr_mech)
+        self.statement = session.get_prepared_statement(
+                            text, raw=not query.scrolling_cursor,
+                            exc_handler=exc_handler)
         self.init_args = args
 
         if query.record_info:
@@ -233,10 +239,15 @@ class PreparedQuery:
     def rows(self, **kwargs):
         vars = self._convert_args(kwargs)
 
-        if self.query.scrolling_cursor:
-            return self._cursor_iterator(vars, **kwargs)
-        else:
-            return self._native_iter(*vars)
+        try:
+            if self.query.scrolling_cursor:
+                return self._cursor_iterator(vars, **kwargs)
+            else:
+                return self._native_iter(*vars)
+
+        except postgresql.exceptions.Error as e:
+            raise ErrorMech._interpret_db_error(
+                self._session, self._constr_mech, e) from e
 
     __call__ = rows
     __iter__ = rows
@@ -294,6 +305,93 @@ class PreparedQuery:
             offset = None
 
         return Cursor(self.statement.declare(*vars), offset, limit)
+
+
+class ErrorMech:
+    error_res = {
+        postgresql.exceptions.ICVError: collections.OrderedDict((
+            ('link_mapping',
+             re.compile(r'^.*"(?P<constr_name>.*_link_mapping_idx)".*$')),
+            ('constraint',
+             re.compile(r'^.*"(?P<constr_name>.*;schemaconstr(?:#\d+)?).*"$')),
+            ('id',
+             re.compile(r'^.*"(?P<constr_name>\w+)_data_pkey".*$')),
+        ))
+    }
+
+    @classmethod
+    def _interpret_db_error(cls, session, constr_mech, err):
+        if isinstance(err, postgresql.exceptions.ICVError):
+            connection = session.get_connection()
+            proto_schema = session.proto_schema
+            source = pointer = None
+
+            for ecls, eres in cls.error_res.items():
+                if isinstance(err, ecls):
+                    break
+            else:
+                eres = {}
+
+            error_info = None
+
+            for type, ere in eres.items():
+                m = ere.match(err.message)
+                if m:
+                    error_info = (type, m.group('constr_name'))
+                    break
+            else:
+                return caos.error.UninterpretedStorageError(err.message)
+
+            error_type, error_data = error_info
+
+            if error_type == 'link_mapping':
+                err = 'link mapping cardinality violation'
+                errcls = caos.error.LinkMappingCardinalityViolationError
+                return errcls(err, source=source, pointer=pointer)
+
+            elif error_type == 'constraint':
+                constraint_name = \
+                    constr_mech.constraint_name_from_pg_name(
+                        connection, error_data)
+
+                if constraint_name is None:
+                    return caos.error.UninterpretedStorageError(err.message)
+
+                constraint = proto_schema.get_class(constraint_name)
+                # Unfortunately, Postgres does not include the offending
+                # value in exceptions consistently.
+                offending_value = None
+
+                if pointer is not None:
+                    error_source = pointer
+                else:
+                    error_source = source
+
+                constraint.raise_error(offending_value, source=error_source)
+
+            elif error_type == 'id':
+                msg = 'unique link constraint violation'
+                errcls = caos.error.PointerConstraintUniqueViolationError
+                constraint = cls._get_id_constraint(proto_schema)
+                return errcls(msg=msg, source=source, pointer=pointer,
+                              constraint=constraint)
+        else:
+            return caos.error.UninterpretedStorageError(err.message)
+
+    @classmethod
+    def _get_id_constraint(cls, proto_schema):
+        BObj = proto_schema.get('metamagic.caos.builtins.BaseObject')
+        BObj_id = BObj.pointers['metamagic.caos.builtins.id']
+        unique = proto_schema.get('metamagic.caos.builtins.unique')
+
+        name = s_constr.Constraint.generate_specialized_name(
+                BObj_id.name, unique.name)
+        name = caos.Name(name=name, module='metamagic.caos.builtins')
+        constraint = s_constr.Constraint(name=name, bases=[unique],
+                                         subject=BObj_id)
+        constraint.acquire_ancestor_inheritance(proto_schema)
+
+        return constraint
 
 
 class CaosQLAdapter:
@@ -367,17 +465,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         .*_(?P<language>\w+)_(?P<index_class>\w+)_search_idx$
     """, re.X)
 
-    error_res = {
-        postgresql.exceptions.ICVError: collections.OrderedDict((
-            ('link_mapping',
-             re.compile(r'^.*"(?P<constr_name>.*_link_mapping_idx)".*$')),
-            ('constraint',
-             re.compile(r'^.*"(?P<constr_name>.*;schemaconstr(?:#\d+)?).*"$')),
-            ('id',
-             re.compile(r'^.*"(?P<constr_name>\w+)_data_pkey".*$')),
-        ))
-    }
-
     link_source_colname = common.quote_ident(
                                 common.caos_name_to_pg_name('metamagic.caos.builtins.source'))
     link_target_colname = common.quote_ident(
@@ -422,6 +509,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self._init_introspection_cache()
         super().__init__(repo)
 
+    def get_constr_mech(self):
+        return self._constr_mech
 
     def init_connection(self, connection):
         need_upgrade = False
@@ -860,300 +949,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return [i[1] for i in toplevel]
 
 
-    def load_entity(self, concept, id, session):
-        query = 'SELECT * FROM %s WHERE "metamagic.caos.builtins.id" = $1' % \
-                                                (common.concept_name_to_table_name(concept))
-
-        ps = session.get_connection().prepare(query)
-        result = ps.first(id)
-
-        if result is not None:
-            concept_proto = session.proto_schema.get(concept)
-            ret = {}
-
-            for link_name, link in concept_proto.pointers.items():
-
-                if link.atomic() and link.singular() \
-                                 and not link.is_pure_computable() \
-                            and link_name != 'metamagic.caos.builtins.id' \
-                            and link.loading != s_pointers.PointerLoading.Lazy:
-                    colname = common.caos_name_to_pg_name(link_name)
-
-                    try:
-                        ret[str(link_name)] = result[colname]
-                    except KeyError:
-                        pass
-
-            return ret
-        else:
-            return None
-
-
-    def load_link(self, source, target, link, pointers, session):
-        proto_link = link.__class__.__sx_prototype__
-        table = common.get_table_name(proto_link, catenate=True)
-
-        if pointers:
-            protopointers = [p.__sx_prototype__ for p in pointers]
-            pointers = {p.normal_name(): p for p in protopointers if not p.is_endpoint_pointer()}
-        else:
-            pointers = {n: p for n, p in proto_link.pointers.items()
-                             if p.loading != s_pointers.PointerLoading.Lazy and not p.is_endpoint_pointer()}
-
-        targets = []
-
-        for prop_name in pointers:
-            targets.append(common.qname('l', common.caos_name_to_pg_name(prop_name)))
-
-        source_col = common.caos_name_to_pg_name('metamagic.caos.builtins.source')
-        ptr_stor_info = types.get_pointer_storage_info(
-                            proto_link, schema=session.proto_schema)
-
-        query = '''SELECT
-                       {targets}
-                   FROM
-                       {table} AS l
-                   WHERE
-                       l.{source_col} = $1
-                       AND l.link_type_id = $2
-                '''.format(targets=', '.join(targets), table=table,
-                           source_col=common.quote_ident(source_col))
-
-        if ptr_stor_info.table_type == 'link':
-            query += ' AND l.{target_col} IS NOT DISTINCT FROM $3'.format(
-                        target_col=common.quote_ident(ptr_stor_info.column_name)
-                     )
-
-        ps = session.get_connection().prepare(query)
-
-        link_map = self.get_link_map(session)
-        link_id = link_map[proto_link.name]
-
-        args = [source.id, link_id]
-
-        if ptr_stor_info.table_type == 'link':
-            target_proto = target.__class__.__sx_prototype__
-            if isinstance(target_proto, s_atoms.Atom):
-                target_value = target
-            else:
-                target_value = target.id
-
-            args.append(target_value)
-
-        result = ps(*args)
-
-        if result:
-            result = result[0]
-            ret = {}
-
-            for propname in pointers:
-                colname = common.caos_name_to_pg_name(propname)
-                ret[str(propname)] = result[colname]
-
-            return ret
-
-        else:
-            return {}
-
-    def _get_id_constraint(self, proto_schema):
-        BObj = proto_schema.get('metamagic.caos.builtins.BaseObject')
-        BObj_id = BObj.pointers['metamagic.caos.builtins.id']
-        unique = proto_schema.get('metamagic.caos.builtins.unique')
-
-        name = s_constr.Constraint.generate_specialized_name(
-                BObj_id.name, unique.name)
-        name = caos.Name(name=name, module='metamagic.caos.builtins')
-        constraint = s_constr.Constraint(name=name, bases=[unique],
-                                         subject=BObj_id)
-        constraint.acquire_ancestor_inheritance(proto_schema)
-
-        return constraint
-
-    def _interpret_db_error(self, proto_schema, connection, err, source,
-                                                                 pointer=None):
-        if isinstance(err, postgresql.exceptions.ICVError):
-
-            for ecls, eres in self.error_res.items():
-                if isinstance(err, ecls):
-                    break
-            else:
-                eres = {}
-
-            error_info = None
-
-            for type, ere in eres.items():
-                m = ere.match(err.message)
-                if m:
-                    error_info = (type, m.group('constr_name'))
-                    break
-            else:
-                return caos.error.UninterpretedStorageError(err.message)
-
-            error_type, error_data = error_info
-
-            if error_type == 'link_mapping':
-                err = 'link mapping cardinality violation'
-                errcls = caos.error.LinkMappingCardinalityViolationError
-                return errcls(err, source=source, pointer=pointer)
-
-            elif error_type == 'constraint':
-                constraint_name = self._constr_mech.constraint_name_from_pg_name(
-                                            connection, error_data)
-                if constraint_name is None:
-                    return caos.error.UninterpretedStorageError(err.message)
-
-                constraint = proto_schema.get_class(constraint_name)
-                # Unfortunately, Postgres does not include the offending value in
-                # exceptions consistently.
-                offending_value = None
-
-                if pointer is not None:
-                    error_source = pointer
-                else:
-                    error_source = source
-
-                constraint.raise_error(offending_value, source=error_source)
-
-            elif error_type == 'id':
-                msg = 'unique link constraint violation'
-                pointer = getattr(source.__class__, 'metamagic.caos.builtins.id').as_link()
-                errcls = caos.error.PointerConstraintUniqueViolationError
-                constraint = self._get_id_constraint(proto_schema)
-                return errcls(msg=msg, source=source, pointer=pointer,
-                              constraint=constraint)
-        else:
-            return caos.error.UninterpretedStorageError(err.message)
-
-
-    @debug
-    def store_entity(self, entity, session):
-        cls = entity.__class__
-        prototype = cls.__sx_prototype__
-        concept = prototype.name
-        id = entity.id
-        links = entity._instancedata.pointers
-        table = self._type_mech.get_table(prototype, session.proto_schema)
-
-        connection = session.get_connection() if session else self.connection
-        concept_map = self.get_concept_map(session)
-        context = delta_cmds.CommandContext(connection, session)
-
-        idquery = dbops.Query(text='caos.uuid_generate_v1mc()', params=(), type='uuid')
-        now = dbops.Query(text="'NOW'", params=(), type='timestamptz')
-
-        is_object = issubclass(cls, session.schema.metamagic.caos.builtins.Object)
-
-        with connection.xact():
-
-            attrs = {}
-            for link_name, link_cls in cls._iter_all_pointers():
-                link_proto = link_cls._class_metadata.link.__sx_prototype__
-                if link_proto.atomic() and link_proto.singular() \
-                                       and link_name != 'metamagic.caos.builtins.id' \
-                                       and not link_proto.is_pure_computable() \
-                                       and link_name in links:
-                    value = links[link_name]
-                    if isinstance(value, type):
-                        # The singular atomic link will be represented as a selector if
-                        # it has exposed_behaviour of "set".
-                        value = value[0]
-                    attrs[common.caos_name_to_pg_name(link_name)] = value
-
-            rec = table.record(**attrs)
-
-            returning = ['"metamagic.caos.builtins.id"']
-            if is_object:
-                returning.extend(('"metamagic.caos.builtins.ctime"',
-                                  '"metamagic.caos.builtins.mtime"'))
-
-            if id is not None and not entity._instancedata.new_predefined_id:
-                condition = [('metamagic.caos.builtins.id', id)]
-
-                if is_object:
-                    setattr(rec, 'metamagic.caos.builtins.mtime', now)
-                    condition.append(('metamagic.caos.builtins.mtime', entity.mtime))
-
-                cmd = dbops.Update(table=table, record=rec,
-                                   condition=condition,
-                                   returning=returning)
-            else:
-                setattr(rec, 'metamagic.caos.builtins.id', idquery if id is None else id)
-
-                if is_object:
-                    setattr(rec, 'metamagic.caos.builtins.ctime', now)
-                    setattr(rec, 'metamagic.caos.builtins.mtime', now)
-
-                rec.concept_id = concept_map[concept]
-
-                cmd = dbops.Insert(table=table, records=[rec], returning=returning)
-
-            try:
-                rows = cmd.execute(context)
-            except postgresql.exceptions.Error as e:
-                raise self._interpret_db_error(session.proto_schema, connection, e, entity) from e
-
-            id = list(rows)
-            if not id:
-                err = 'session state of "%s"(%s) conflicts with persistent state' % \
-                      (prototype.name, entity.id)
-                raise caos.session.StaleEntityStateError(err, entity=entity)
-
-            id = id[0]
-
-            """LOG [caos.sync]
-            print('Merged entity %s[%s][%s]' % \
-                    (concept, id[0], (data['name'] if 'name' in data else '')))
-            """
-
-            if is_object:
-                updates = {'metamagic.caos.builtins.id': id[0],
-                           'metamagic.caos.builtins.ctime': id[1],
-                           'metamagic.caos.builtins.mtime': id[2]}
-            else:
-                updates = {'metamagic.caos.builtins.id': id[0]}
-            entity._instancedata.update(entity, updates, register_changes=False, allow_ro=True)
-            session.add(entity)
-
-        return id
-
-
-    @debug
-    def delete_entities(self, entities, session):
-        key = lambda i: i.__class__.__sx_prototype__.name
-        result = set()
-        modstat_t = common.qname(*deltadbops.EntityModStatType().name)
-
-        for concept, entities in itertools.groupby(sorted(entities, key=key), key=key):
-            table = common.concept_name_to_table_name(concept)
-
-            bunch = {(e.id, e.mtime): e for e in entities}
-
-            query = '''DELETE FROM %s
-                       WHERE
-                           ("metamagic.caos.builtins.id", "metamagic.caos.builtins.mtime")
-                           = any($1::%s[])
-                       RETURNING
-                           "metamagic.caos.builtins.id", "metamagic.caos.builtins.mtime"
-                    ''' % (table, modstat_t)
-
-            deleted = list(self.runquery(query, (bunch,), session.get_connection(), compat=False))
-
-            if len(deleted) < len(bunch):
-                # Not everything was removed
-                diff = set(bunch) - set(deleted)
-
-                first = next(iter(diff))
-                entity = bunch[first]
-                prototype = entity.__class__.__sx_prototype__
-
-                err = 'session state of "%s"(%s) conflicts with persistent state' % \
-                      (prototype.name, entity.id)
-                raise caos.session.StaleEntityStateError(err, entity=entity)
-
-            result.update(deleted)
-        return result
-
-
     def get_link_map(self, session):
         if not self.link_cache:
             cl_ds = datasources.schema.links.ConceptLinks(session.get_connection())
@@ -1208,149 +1003,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
 
     def typrelid_for_source_name(self, source_name):
         return self.proto_name_to_table_id_cache.get(source_name)
-
-
-    @debug
-    def store_links(self, source, targets, link_name, session, merge=False):
-        link_map = self.get_link_map(session)
-
-        target_cls = getattr(source.__class__, str(link_name))
-        link_cls = target_cls.as_link()
-        link_proto = link_cls.__sx_prototype__
-
-        if (link_proto.atomic() and link_proto.singular()
-                                and not link_proto.has_user_defined_properties()):
-            return
-
-        source_col = common.caos_name_to_pg_name('metamagic.caos.builtins.source')
-        target_ptr_stor_info = types.get_pointer_storage_info(
-                                    link_proto, schema=session.proto_schema)
-        target_col = target_ptr_stor_info.column_name
-
-        table = self._type_mech.get_table(link_cls.__sx_prototype__, session.proto_schema)
-
-        cmds = []
-        records = []
-
-        context = delta_cmds.CommandContext(session.get_connection(), session)
-
-        target_is_concept = not link_proto.atomic()
-        target_in_table = target_ptr_stor_info.table_type == 'link'
-
-        idcol = 'metamagic.caos.builtins.linkid'
-        returning = ['"' + idcol + '"']
-
-        for link_obj in targets:
-            target = link_obj.target
-
-            if not isinstance(target, target_cls):
-                expected_target = str(target_cls.__sx_prototype__.name)
-                source_name = source.__sx_prototype__.name
-                link_name = link_proto.normal_name()
-                msg = ('unexpected link target when storing "{}"."{}": '
-                       'expected instance of {!r}, got {!r}').format(source_name, link_name,
-                                                                     expected_target, target)
-                raise ValueError(msg)
-
-            attrs = {}
-            for prop_name, prop_cls in link_cls._iter_all_pointers():
-                if prop_name not in {'metamagic.caos.builtins.source',
-                                     'metamagic.caos.builtins.target'}:
-                    try:
-                        # We must look into link object __dict__ directly so as not to
-                        # potentially trigger link object reload for lazy properties,
-                        # which would fail with non-persistent link objects.
-                        prop_value = link_obj.__dict__[prop_name]
-                    except KeyError:
-                        pass
-                    else:
-                        attrs[common.caos_name_to_pg_name(prop_name)] = prop_value
-
-            rec = table.record(**attrs)
-
-            setattr(rec, source_col, source.id)
-            rec.link_type_id = link_map[link_proto.name]
-
-            if target_in_table:
-                if target_is_concept:
-                    setattr(rec, target_col, target.id)
-                else:
-                    setattr(rec, target_col, target)
-
-            linkid = getattr(link_obj, idcol)
-            if linkid is None:
-                linkid = uuid.uuid1()
-                link_obj._instancedata.setattr(link_obj, idcol, linkid,
-                                               register_changes=False,
-                                               allow_ro=True)
-
-            setattr(rec, idcol, linkid)
-
-            if linkid and merge:
-                condition = [(idcol, getattr(rec, idcol))]
-                cmds.append(dbops.Merge(table, rec, condition=condition,
-                                                    returning=returning))
-            else:
-                records.append(rec)
-
-        if records:
-            cmds.append(dbops.Insert(table, records, returning=returning))
-
-        if cmds:
-            try:
-                for cmd in cmds:
-                    cmd.execute(context)
-            except postgresql.exceptions.ICVError as e:
-                raise self._interpret_db_error(session.proto_schema,
-                                               session.get_connection(),
-                                               e, source, link_cls) from e
-
-
-    @debug
-    def delete_links(self, link_name, endpoints, session):
-        table = common.link_name_to_table_name(link_name)
-
-        link = getattr(next(iter(endpoints))[0].__class__, link_name).as_link()
-        link_proto = link.__sx_prototype__
-        if link_proto.atomic() and link_proto.singular() and len(link_proto.pointers) <= 2:
-            return
-
-        complete_source_ids = [s.id for s, t in endpoints if t is None]
-        partial_endpoints = [(s.id, t.id) for s, t in endpoints if t is not None]
-
-        count = 0
-
-        if complete_source_ids:
-            qry = '''
-                DELETE FROM {table} WHERE {source_col} = any($1)
-            '''.format(table=table, source_col=self.link_source_colname)
-            params = (complete_source_ids,)
-
-            result = self.runquery(qry, params,
-                                   connection=session.get_connection(),
-                                   compat=False, return_stmt=True)
-            count += result.first(*params)
-
-        if partial_endpoints:
-            qry = '''DELETE FROM {table}
-                     WHERE ({source_col}, {target_col}) = any($1::caos.link_endpoints_rec_t[])
-                  '''.format(table=table, source_col=self.link_source_colname,
-                             target_col=self.link_target_colname)
-            params = (partial_endpoints,)
-
-            result = self.runquery(qry, params,
-                                   connection=session.get_connection(),
-                                   compat=False, return_stmt=True)
-            partial_count = result.first(*params)
-
-            # Actual deletion count may be less than the list of links,
-            # since the caller may request deletion of a non-existent link,
-            # e.g. through discard().
-            assert partial_count <= len(partial_endpoints)
-
-            count += partial_count
-
-        return count
 
 
     def caosqladapter(self, session):
@@ -1701,7 +1353,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return indexes
 
 
-    def interpret_constant(self, expr):
+    def interpret_sql(self, expr, source=None):
         try:
             expr_tree = self.parser.parse(expr)
         except parser.PgSQLParserError as e:
@@ -1712,15 +1364,16 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         if not self.constant_expr:
             self.constant_expr = astexpr.ConstantExpr()
 
-        value = self.constant_expr.match(expr_tree)
+        result = self.constant_expr.match(expr_tree)
 
-        if value is None:
-            msg = 'could not interpret constant expression "%s"' % expr
-            details = 'Could not match expression:\n{}'.format(markup.dumps(expr_tree))
-            hint = 'Take a look at the matching pattern and adjust'
-            raise s_err.SchemaError(msg, details=details, hint=hint)
+        if result is None:
+            sql_decompiler = transformer.Decompiler()
+            caos_tree = sql_decompiler.transform(expr_tree, source)
+            caosql_tree = caosql.decompile_ir(caos_tree, return_statement=True)
+            result = caosql.generate_source(caosql_tree, pretty=False)
+            result = s_expr.ExpressionText(result)
 
-        return value
+        return result
 
 
     def read_pointer_target_column(self, schema, pointer, constraints_cache):
@@ -1749,7 +1402,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             col_type = col['column_type_formatted'] or col['column_type']
 
         if col['column_default'] is not None:
-            atom_default = self.interpret_constant(col['column_default'])
+            atom_default = self.interpret_sql(col['column_default'], source)
         else:
             atom_default = None
 
@@ -1768,7 +1421,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             col_type = attr['attribute_type_formatted'] or attr['attribute_type']
 
         if attr['attribute_default'] is not None:
-            atom_default = self.interpret_constant(attr['attribute_default'])
+            atom_default = self.interpret_sql(attr['attribute_default'], source)
         else:
             atom_default = None
 
@@ -1783,43 +1436,47 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         return target, attr['attribute_required']
 
 
-    def verify_ptr_const_defaults(self, schema, ptr_name, target_atom, tab_default, schema_defaults):
-        if schema_defaults:
-            ld = list(filter(lambda d: not isinstance(d, s_expr.ExpressionText), schema_defaults))
-        else:
-            ld = ()
+    def verify_ptr_const_defaults(self, schema, ptr, tab_default):
+        schema_default = None
+
+        if ptr.default:
+            for d in ptr.default:
+                if isinstance(d, s_expr.ExpressionText):
+                    default_value = schemamech.ptr_default_to_col_default(
+                        schema, ptr, d)
+                    if default_value is not None:
+                        schema_default = d
+                        break
+                else:
+                    schema_default = d
+                    break
 
         if tab_default is None:
-            if ld:
+            if schema_default:
                 msg = 'internal metadata inconsistency'
                 details = ('Literal default for pointer "%s" is present in the schema, but not '
-                           'in the table') % ptr_name
+                           'in the table') % ptr.name
                 raise s_err.SchemaError(msg, details=details)
             else:
                 return
 
-        typ = target_atom.get_topmost_base(schema)
-        default = self.interpret_constant(tab_default)
-        table_default = typ(default)
+        table_default = self.interpret_sql(tab_default, ptr.source)
 
-        if tab_default is not None and not schema_defaults:
+        if tab_default is not None and not ptr.default:
             msg = 'internal metadata inconsistency'
             details = ('Literal default for pointer "%s" is present in the table, but not '
-                       'in schema declaration') % ptr_name
+                       'in schema declaration') % ptr.name
             raise s_err.SchemaError(msg, details=details)
 
-        if not ld:
-            msg = 'internal metadata inconsistency'
-            details = ('Literal default for pointer "%s" is present in the table, but '
-                       'there are no literal defaults for the link') % ptr_name
-            raise s_err.SchemaError(msg, details=details)
+        if not isinstance(table_default, s_expr.ExpressionText):
+            typ = ptr.target.get_topmost_base(schema)
+            table_default = typ(table_default)
+            schema_default = typ(schema_default)
 
-        schema_value = typ(ld[0])
-
-        if schema_value != table_default:
+        if schema_default != table_default:
             msg = 'internal metadata inconsistency'
             details = ('Value mismatch in literal default pointer link "%s": %r in the '
-                       'table vs. %r in the schema') % (ptr_name, table_default, schema_value)
+                       'table vs. %r in the schema') % (ptr.name, table_default, schema_default)
             raise s_err.SchemaError(msg, details=details)
 
 
@@ -1965,8 +1622,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 cols = self._type_mech.get_table_columns(ptr_stor_info.table_name,
                                                          connection=self.connection)
                 col = cols[ptr_stor_info.column_name]
-                self.verify_ptr_const_defaults(schema, link.name, link.target,
-                                               col['column_default'], link.default)
+                self.verify_ptr_const_defaults(
+                    schema, link, col['column_default'])
 
 
     def read_link_properties(self, schema):
@@ -2051,8 +1708,8 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                                                          connection=self.connection)
                 col_name = common.caos_name_to_pg_name(prop.normal_name())
                 col = cols[col_name]
-                self.verify_ptr_const_defaults(schema, prop.name, prop.target,
-                                               col['column_default'], prop.default)
+                self.verify_ptr_const_defaults(
+                    schema, prop, col['column_default'])
 
 
     def read_attributes(self, schema):
@@ -2275,7 +1932,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                 base, constr = result
 
         if d['default'] is not None:
-            d['default'] = self.interpret_constant(d['default'])
+            d['default'] = self.interpret_sql(d['default'])
 
         return d
 
@@ -2283,20 +1940,15 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     def sequence_next(self, seqcls):
         name = common.atom_name_to_sequence_name(seqcls.__sx_prototype__.name)
         name = postgresql.string.quote_literal(name)
-        return self.runquery("SELECT nextval(%s)" % name, compat=False, return_stmt=True).first()
+        return self.runquery("SELECT nextval(%s)" % name, return_stmt=True).first()
 
 
     @debug
-    def runquery(self, query, params=None, connection=None, compat=True, return_stmt=False):
-        if compat:
-            cursor = CompatCursor(self.connection)
-            query, pxf, nparams = cursor._convert_query(query)
-            params = pxf(params)
-
+    def runquery(self, query, params=None, connection=None, return_stmt=False):
         connection = connection or self.connection
         ps = connection.prepare(query)
 
-        """LOG [caos.sql] Issued SQL
+        """LOG [caos.service.sql] Issued SQL
         print(query)
         print(params)
         """
@@ -2313,7 +1965,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     @debug
     def execquery(self, query, connection=None):
         connection = connection or self.connection
-        """LOG [caos.sql] Issued SQL
+        """LOG [caos.service.sql] Issued SQL
         print(query)
         """
         connection.execute(query)

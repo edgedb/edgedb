@@ -550,341 +550,386 @@ class TreeTransformer:
                 path = None
         return path
 
-    def entityref_to_record(self, expr, schema, *, pathspec=None, prefixes=None,
-                                                   _visited_records=None, _recurse=True):
+    def entityref_to_record(self, expr, schema, *, pathspec=None,
+                            prefixes=None, select_linkprops=False,
+                            _visited_records=None, _recurse=True):
         """Convert an EntitySet node into an Record referencing eager-pointers of EntitySet concept
         """
 
         if not isinstance(expr, irast.PathCombination):
             expr = irast.Conjunction(paths=frozenset((expr,)))
 
+        p = next(iter(expr.paths))
+
+        if not isinstance(p, irast.EntitySet):
+            return expr
+
+        path_rlink = None
+
         if _visited_records is None:
             _visited_records = {}
 
-        p = next(iter(expr.paths))
+            if p.rlink is not None:
+                path_rlink = p.rlink
 
         recurse_links = None
         recurse_metarefs = ['id', 'name']
 
-        if isinstance(p, irast.EntitySet):
-            concepts = {c.concept for c in expr.paths}
-            assert len(concepts) == 1
+        concepts = {c.concept for c in expr.paths}
+        assert len(concepts) == 1
 
-            elements = []
-            atomrefs = []
+        elements = []
+        atomrefs = []
 
-            concept = p.concept
-            ref = p if len(expr.paths) == 1 else expr
-            rec = irast.Record(elements=elements, concept=concept, rlink=p.rlink)
+        concept = p.concept
+        ref = p if len(expr.paths) == 1 else expr
+        rec = irast.Record(elements=elements, concept=concept, rlink=p.rlink)
 
-            _new_visited_records = _visited_records.copy()
+        _new_visited_records = _visited_records.copy()
 
-            if isinstance(concept, s_concepts.Concept):
-                _new_visited_records[concept] = rec
+        if isinstance(concept, s_concepts.Concept):
+            _new_visited_records[concept] = rec
 
-            if concept.is_virtual:
-                ptrs = concept.get_children_common_pointers(schema)
-                ptrs = {ptr.normal_name(): ptr for ptr in ptrs}
-                ptrs.update(concept.pointers)
+        if concept.is_virtual:
+            ptrs = concept.get_children_common_pointers(schema)
+            ptrs = {ptr.normal_name(): ptr for ptr in ptrs}
+            ptrs.update(concept.pointers)
+        else:
+            ptrs = concept.pointers
+
+        if pathspec is not None:
+            must_have_links = (
+                sn.Name('metamagic.caos.builtins.id'),
+                sn.Name('metamagic.caos.builtins.mtime'),
+                sn.Name('metamagic.caos.builtins.ctime')
+            )
+
+            recurse_links = {(l, s_pointers.PointerDirection.Outbound):
+                             irast.PtrPathSpec(ptr_proto=ptrs[l]) for l in must_have_links}
+
+            for ps in pathspec:
+                if isinstance(ps.ptr_proto, s_links.Link):
+                    recurse_links[ps.ptr_proto.normal_name(), ps.ptr_direction] = ps
+
+                elif isinstance(ps.ptr_proto, s_lprops.TypeProperty):
+                    # metaref
+                    recurse_metarefs.append(ps.ptr_proto.normal_name().name)
+
+        if recurse_links is None:
+            recurse_links = {(pn, s_pointers.PointerDirection.Outbound):
+                                irast.PtrPathSpec(ptr_proto=p)
+                                for pn, p in ptrs.items()
+                                    if p.get_loading_behaviour() == s_pointers.PointerLoading.Eager and
+                                       p.target not in _visited_records}
+
+        for (link_name, link_direction), recurse_spec in recurse_links.items():
+            el = None
+
+            link = recurse_spec.ptr_proto
+            link_direction = recurse_spec.ptr_direction or s_pointers.PointerDirection.Outbound
+
+            root_link_proto = schema.get(link_name)
+            link_proto = link
+
+            if link_direction == s_pointers.PointerDirection.Outbound:
+                link_target_proto = link.target
+                link_singular = \
+                    link.mapping in {s_links.LinkMapping.OneToOne,
+                                     s_links.LinkMapping.ManyToOne}
             else:
-                ptrs = concept.pointers
+                link_target_proto = link.source
+                link_singular = \
+                    link.mapping in {s_links.LinkMapping.OneToOne,
+                                     s_links.LinkMapping.OneToMany}
 
-            if pathspec is not None:
-                must_have_links = (
-                    sn.Name('metamagic.caos.builtins.id'),
-                    sn.Name('metamagic.caos.builtins.mtime'),
-                    sn.Name('metamagic.caos.builtins.ctime')
-                )
+            if recurse_spec.target_proto is not None:
+                target_proto = recurse_spec.target_proto
+            else:
+                target_proto = link_target_proto
 
-                recurse_links = {(l, s_pointers.PointerDirection.Outbound):
-                                 irast.PtrPathSpec(ptr_proto=ptrs[l]) for l in must_have_links}
+            recurse_link = recurse_spec.recurse if recurse_spec is not None else None
 
-                for ps in pathspec:
-                    if isinstance(ps.ptr_proto, s_links.Link):
-                        recurse_links[ps.ptr_proto.normal_name(), ps.ptr_direction] = ps
+            full_path_id = LinearPath(ref.id)
+            full_path_id.add(link_proto, link_direction, target_proto)
 
-                    elif isinstance(ps.ptr_proto, s_lprops.TypeProperty):
-                        # metaref
-                        recurse_metarefs.append(ps.ptr_proto.normal_name().name)
+            if not link_singular or recurse_link is not None:
+                lref = self.copy_path(ref, connect_to_origin=True)
+                lref.reference = ref
+            else:
+                lref = ref
 
-            if recurse_links is None:
-                recurse_links = {(pn, s_pointers.PointerDirection.Outbound):
-                                    irast.PtrPathSpec(ptr_proto=p)
-                                    for pn, p in ptrs.items()
-                                        if p.get_loading_behaviour() == s_pointers.PointerLoading.Eager and
-                                           p.target not in _visited_records}
+            if recurse_link is not None:
+                lref.rlink = None
 
-            for (link_name, link_direction), recurse_spec in recurse_links.items():
-                el = None
+            if prefixes and full_path_id in prefixes and lref is ref:
+                targetstep = prefixes[full_path_id]
+                targetstep = next(iter(targetstep))
+                link_node = targetstep.rlink
+                reusing_target = True
+            else:
+                targetstep = irast.EntitySet(conjunction=irast.Conjunction(),
+                                                disjunction=irast.Disjunction(),
+                                                users={self.context.current.location},
+                                                concept=target_proto, id=full_path_id)
 
-                link = recurse_spec.ptr_proto
-                link_direction = recurse_spec.ptr_direction or s_pointers.PointerDirection.Outbound
+                link_node = irast.EntityLink(source=lref, target=targetstep,
+                                                link_proto=link_proto,
+                                                direction=link_direction,
+                                                users={'selector'})
 
-                root_link_proto = schema.get(link_name)
-                link_proto = link
+                targetstep.rlink = link_node
+                reusing_target = False
 
-                if link_direction == s_pointers.PointerDirection.Outbound:
-                    link_target_proto = link.target
-                    link_singular = \
-                        link.mapping in {s_links.LinkMapping.OneToOne,
-                                         s_links.LinkMapping.ManyToOne}
+            if recurse_spec.trigger is not None:
+                link_node.pathspec_trigger = recurse_spec.trigger
+
+            if not link.atomic():
+                lref.conjunction.update(link_node)
+
+            filter_generator = None
+            sorter = []
+
+            newstep = targetstep
+
+            if recurse_link is not None:
+                newstep = lref
+
+            if recurse_spec.generator is not None:
+                filter_generator = recurse_spec.generator
+
+            if recurse_spec.sorter:
+                sort_source = newstep
+
+                for sortexpr in recurse_spec.sorter:
+                    sortpath = sortexpr.expr
+
+                    sort_target = self.copy_path(sortpath)
+
+                    if isinstance(sortpath, irast.LinkPropRef):
+                        if sortpath.ref.link_proto.normal_name() == link_node.link_proto.normal_name():
+                            sort_target.ref = link_node
+                            link_node.proprefs.add(sort_target)
+                        else:
+                            raise ValueError('Cannot sort by property ref of link other than self')
+                    else:
+                        sortpath_link = sortpath.rlink
+                        sort_target.ref = sort_source
+
+                        sort_link = irast.EntityLink(source=sort_source,
+                                                        target=sort_target,
+                                                        link_proto=sortpath_link.link_proto,
+                                                        direction=sortpath_link.direction,
+                                                        users=sortpath_link.users.copy())
+
+                        sort_target.rlink = sort_link
+                        sort_source.atomrefs.add(sort_target)
+
+                    sorter.append(irast.SortExpr(expr=sort_target,
+                                                    direction=sortexpr.direction,
+                                                    nones_order=sortexpr.nones_order))
+
+            if isinstance(target_proto, s_atoms.Atom):
+                if link_singular:
+                    if not reusing_target:
+                        newstep = irast.AtomicRefSimple(ref=lref, name=link_name,
+                                                           id=full_path_id,
+                                                           ptr_proto=link_proto,
+                                                           rlink=link_node,
+                                                           users=link_node.users.copy())
+                        link_node.target = newstep
+                        atomrefs.append(newstep)
                 else:
-                    link_target_proto = link.source
-                    link_singular = \
-                        link.mapping in {s_links.LinkMapping.OneToOne,
-                                         s_links.LinkMapping.OneToMany}
+                    ptr_name = sn.Name('metamagic.caos.builtins.target')
+                    prop_id = LinearPath(ref.id)
+                    prop_id.add(root_link_proto, s_pointers.PointerDirection.Outbound, None)
+                    prop_proto = link.pointers[ptr_name]
+                    newstep = irast.LinkPropRefSimple(name=ptr_name, id=full_path_id,
+                                                         ptr_proto=prop_proto)
 
-                if recurse_spec.target_proto is not None:
-                    target_proto = recurse_spec.target_proto
+                el = newstep
+            else:
+                if _recurse:
+                    _memo = _new_visited_records
+
+                    if recurse_spec is not None and recurse_spec.recurse is not None:
+                        _memo = {}
+                        new_recurse = True
+                    elif isinstance(recurse_spec.trigger, irast.ExplicitPathSpecTrigger):
+                        new_recurse = True
+                    elif newstep.concept not in _visited_records:
+                        new_recurse = True
+                    else:
+                        new_recurse = False
+
+                    recurse_pathspec = recurse_spec.pathspec if recurse_spec is not None \
+                                                             else None
+                    el = self.entityref_to_record(newstep, schema,
+                                                  pathspec=recurse_pathspec,
+                                                  _visited_records=_memo,
+                                                  _recurse=new_recurse)
+
+            prop_elements = []
+            if link.has_user_defined_properties():
+                if recurse_spec.pathspec is not None:
+                    must_have_props = (
+                        sn.Name('metamagic.caos.builtins.linkid'),
+                    )
+
+                    recurse_props = {propn: irast.PtrPathSpec(ptr_proto=link.pointers[propn])
+                                     for propn in must_have_props}
+
+                    for ps in recurse_spec.pathspec:
+                        if (isinstance(ps.ptr_proto, s_lprops.LinkProperty)
+                                and not ps.ptr_proto.is_endpoint_pointer()):
+                            recurse_props[ps.ptr_proto.normal_name()] = ps
                 else:
-                    target_proto = link_target_proto
+                    recurse_props = {pn: irast.PtrPathSpec(ptr_proto=p)
+                                        for pn, p in link.pointers.items()
+                                            if p.get_loading_behaviour() == s_pointers.PointerLoading.Eager
+                                               and not p.is_endpoint_pointer()}
 
-                recurse_link = recurse_spec.recurse if recurse_spec is not None else None
+                proprec = irast.Record(elements=prop_elements, concept=root_link_proto)
 
-                full_path_id = LinearPath(ref.id)
-                full_path_id.add(link_proto, link_direction, target_proto)
+                for prop_name, prop_proto in link.pointers.items():
+                    if prop_name not in recurse_props:
+                        continue
 
-                if not link_singular or recurse_link is not None:
-                    lref = self.copy_path(ref, connect_to_origin=True)
-                    lref.reference = ref
-                else:
-                    lref = ref
+                    prop_id = LinearPath(ref.id)
+                    prop_id.add(root_link_proto, s_pointers.PointerDirection.Outbound, None)
+                    prop_ref = irast.LinkPropRefSimple(name=prop_name, id=full_path_id,
+                                                          ptr_proto=prop_proto,
+                                                          ref=link_node)
+                    prop_elements.append(prop_ref)
+                    link_node.proprefs.add(prop_ref)
 
-                if recurse_link is not None:
-                    lref.rlink = None
+                if prop_elements:
+                    xvalue_elements = [el, proprec]
+                    if isinstance(link_node.target, irast.AtomicRefSimple):
+                        ln = link_node.link_proto.normal_name()
+                        concept = link_node.source.concept.pointers[ln]
+                    else:
+                        concept = link_node.target.concept
+                    el = irast.Record(elements=xvalue_elements,
+                                         concept=concept,
+                                         rlink=link_node, linkprop_xvalue=True)
 
-                if prefixes and full_path_id in prefixes and lref is ref:
-                    targetstep = prefixes[full_path_id]
-                    targetstep = next(iter(targetstep))
-                    link_node = targetstep.rlink
-                    reusing_target = True
-                else:
-                    targetstep = irast.EntitySet(conjunction=irast.Conjunction(),
-                                                    disjunction=irast.Disjunction(),
-                                                    users={self.context.current.location},
-                                                    concept=target_proto, id=full_path_id)
+            if not link.atomic() or prop_elements:
+                lref.conjunction.update(link_node)
 
-                    link_node = irast.EntityLink(source=lref, target=targetstep,
-                                                    link_proto=link_proto,
-                                                    direction=link_direction,
-                                                    users={'selector'})
+            if isinstance(newstep, irast.LinkPropRefSimple):
+                newstep.ref = link_node
+                lref.disjunction.update(link_node)
 
-                    targetstep.rlink = link_node
-                    reusing_target = False
+            if (not link_singular or recurse_spec.recurse is not None) and el is not None:
+                if link.atomic():
+                    link_node.proprefs.add(newstep)
 
-                if recurse_spec.trigger is not None:
-                    link_node.pathspec_trigger = recurse_spec.trigger
+                generator = irast.Conjunction(paths=frozenset((targetstep,)))
 
-                if not link.atomic():
-                    lref.conjunction.update(link_node)
+                if filter_generator is not None:
+                    ref_gen = irast.Conjunction(paths=frozenset((targetstep,)))
+                    generator.paths = frozenset(generator.paths | {filter_generator})
+                    generator = self.merge_paths(generator)
 
-                filter_generator = None
-                sorter = []
+                    # merge_paths fails to update all refs, because
+                    # some nodes that need to be updated are behind
+                    # non-traversable rlink attribute.  Do the
+                    # proper update manually.  Also, make sure
+                    # aggregate_result below gets a correct ref.
+                    #
+                    new_targetstep = next(iter(ref_gen.paths))
+                    if new_targetstep != targetstep:
+                        el.replace_refs([targetstep], new_targetstep,
+                                        deep=True)
 
-                newstep = targetstep
-
-                if recurse_link is not None:
-                    newstep = lref
-
-                if recurse_spec.generator is not None:
-                    filter_generator = recurse_spec.generator
-
-                if recurse_spec.sorter:
-                    sort_source = newstep
-
-                    for sortexpr in recurse_spec.sorter:
-                        sortpath = sortexpr.expr
-
-                        sort_target = self.copy_path(sortpath)
-
-                        if isinstance(sortpath, irast.LinkPropRef):
-                            if sortpath.ref.link_proto.normal_name() == link_node.link_proto.normal_name():
-                                sort_target.ref = link_node
-                                link_node.proprefs.add(sort_target)
+                        for elem in el.elements:
+                            try:
+                                rlink = elem.rlink
+                            except AttributeError:
+                                pass
                             else:
-                                raise ValueError('Cannot sort by property ref of link other than self')
-                        else:
-                            sortpath_link = sortpath.rlink
-                            sort_target.ref = sort_source
+                                if rlink:
+                                    rlink.replace_refs([targetstep],
+                                                       new_targetstep,
+                                                       deep=True)
 
-                            sort_link = irast.EntityLink(source=sort_source,
-                                                            target=sort_target,
-                                                            link_proto=sortpath_link.link_proto,
-                                                            direction=sortpath_link.direction,
-                                                            users=sortpath_link.users.copy())
+                        targetstep = new_targetstep
 
-                            sort_target.rlink = sort_link
-                            sort_source.atomrefs.add(sort_target)
+                subgraph = irast.GraphExpr()
+                subgraph.generator = generator
+                subgraph.aggregate_result = irast.FunctionCall(name=('agg', 'list'),
+                                                                  aggregates=True,
+                                                                  args=[targetstep])
 
-                        sorter.append(irast.SortExpr(expr=sort_target,
-                                                        direction=sortexpr.direction,
-                                                        nones_order=sortexpr.nones_order))
+                if sorter:
+                    subgraph.sorter = sorter
 
-                if isinstance(target_proto, s_atoms.Atom):
-                    if link_singular:
-                        if not reusing_target:
-                            newstep = irast.AtomicRefSimple(ref=lref, name=link_name,
-                                                               id=full_path_id,
-                                                               ptr_proto=link_proto,
-                                                               rlink=link_node,
-                                                               users=link_node.users.copy())
-                            link_node.target = newstep
-                            atomrefs.append(newstep)
-                    else:
-                        ptr_name = sn.Name('metamagic.caos.builtins.target')
-                        prop_id = LinearPath(ref.id)
-                        prop_id.add(root_link_proto, s_pointers.PointerDirection.Outbound, None)
-                        prop_proto = link.pointers[ptr_name]
-                        newstep = irast.LinkPropRefSimple(name=ptr_name, id=full_path_id,
-                                                             ptr_proto=prop_proto)
+                subgraph.offset = recurse_spec.offset
+                subgraph.limit = recurse_spec.limit
 
-                    el = newstep
-                else:
-                    if _recurse:
-                        _memo = _new_visited_records
+                if recurse_spec.recurse is not None:
+                    subgraph.recurse_link = link_node
+                    subgraph.recurse_depth = recurse_spec.recurse
 
-                        if recurse_spec is not None and recurse_spec.recurse is not None:
-                            _memo = {}
-                            new_recurse = True
-                        elif isinstance(recurse_spec.trigger, irast.ExplicitPathSpecTrigger):
-                            new_recurse = True
-                        elif newstep.concept not in _visited_records:
-                            new_recurse = True
-                        else:
-                            new_recurse = False
+                selexpr = irast.SelectorExpr(expr=el, name=link_name)
 
-                        recurse_pathspec = recurse_spec.pathspec if recurse_spec is not None \
-                                                                 else None
-                        el = self.entityref_to_record(newstep, schema,
-                                                      pathspec=recurse_pathspec,
-                                                      _visited_records=_memo,
-                                                      _recurse=new_recurse)
+                subgraph.selector.append(selexpr)
+                el = irast.SubgraphRef(ref=subgraph, name=link_name, rlink=link_node)
 
-                prop_elements = []
-                if link.has_user_defined_properties():
-                    if recurse_spec.pathspec is not None:
-                        must_have_props = (
-                            sn.Name('metamagic.caos.builtins.linkid'),
-                        )
+            # Record element may be none if link target is non-atomic and
+            # recursion has been prohibited on this level to prevent infinite looping.
+            if el is not None:
+                elements.append(el)
 
-                        recurse_props = {propn: irast.PtrPathSpec(ptr_proto=link.pointers[propn])
-                                         for propn in must_have_props}
+        metarefs = []
 
-                        for ps in recurse_spec.pathspec:
-                            if (isinstance(ps.ptr_proto, s_lprops.LinkProperty)
-                                    and not ps.ptr_proto.is_endpoint_pointer()):
-                                recurse_props[ps.ptr_proto.normal_name()] = ps
-                    else:
-                        recurse_props = {pn: irast.PtrPathSpec(ptr_proto=p)
-                                            for pn, p in link.pointers.items()
-                                                if p.get_loading_behaviour() == s_pointers.PointerLoading.Eager
-                                                   and not p.is_endpoint_pointer()}
+        for metaref in recurse_metarefs:
+            metarefs.append(irast.MetaRef(name=metaref, ref=ref))
 
-                    proprec = irast.Record(elements=prop_elements, concept=root_link_proto)
+        for p in expr.paths:
+            p.atomrefs.update(atomrefs)
+            p.metarefs.update(metarefs)
 
-                    for prop_name, prop_proto in link.pointers.items():
-                        if prop_name not in recurse_props:
-                            continue
+        elements.extend(metarefs)
+        expr = rec
 
-                        prop_id = LinearPath(ref.id)
-                        prop_id.add(root_link_proto, s_pointers.PointerDirection.Outbound, None)
-                        prop_ref = irast.LinkPropRefSimple(name=prop_name, id=full_path_id,
-                                                              ptr_proto=prop_proto,
-                                                              ref=link_node)
-                        prop_elements.append(prop_ref)
-                        link_node.proprefs.add(prop_ref)
+        if path_rlink is not None and select_linkprops:
+            # Linked selector paths must fetch links pointing to it
+            link_node = path_rlink
+            link = path_rlink.link_proto
+            root_link_proto = schema.get(link.normal_name())
 
-                    if prop_elements:
-                        xvalue_elements = [el, proprec]
-                        if isinstance(link_node.target, irast.AtomicRefSimple):
-                            ln = link_node.link_proto.normal_name()
-                            concept = link_node.source.concept.pointers[ln]
-                        else:
-                            concept = link_node.target.concept
-                        el = irast.Record(elements=xvalue_elements,
-                                             concept=concept,
-                                             rlink=link_node, linkprop_xvalue=True)
+            recurse_props = {pn: irast.PtrPathSpec(ptr_proto=p)
+                                for pn, p in link.pointers.items()
+                                    if p.get_loading_behaviour() == s_pointers.PointerLoading.Eager
+                                       and not p.is_endpoint_pointer()}
 
-                if not link.atomic() or prop_elements:
-                    lref.conjunction.update(link_node)
+            prop_elements = []
+            proprec = irast.Record(elements=prop_elements,
+                                   concept=root_link_proto)
 
-                if isinstance(newstep, irast.LinkPropRefSimple):
-                    newstep.ref = link_node
-                    lref.disjunction.update(link_node)
+            for prop_name, prop_proto in link.pointers.items():
+                if prop_name not in recurse_props:
+                    continue
 
-                if (not link_singular or recurse_spec.recurse is not None) and el is not None:
-                    if link.atomic():
-                        link_node.proprefs.add(newstep)
+                prop_id = LinearPath(ref.id)
+                prop_id.add(root_link_proto, s_pointers.PointerDirection.Outbound, None)
+                prop_ref = irast.LinkPropRefSimple(name=prop_name,
+                                                   id=p.id,
+                                                   ptr_proto=prop_proto,
+                                                   ref=link_node)
+                prop_elements.append(prop_ref)
+                link_node.proprefs.add(prop_ref)
 
-                    generator = irast.Conjunction(paths=frozenset((targetstep,)))
-
-                    if filter_generator is not None:
-                        ref_gen = irast.Conjunction(paths=frozenset((targetstep,)))
-                        generator.paths = frozenset(generator.paths | {filter_generator})
-                        generator = self.merge_paths(generator)
-
-                        # merge_paths fails to update all refs, because
-                        # some nodes that need to be updated are behind
-                        # non-traversable rlink attribute.  Do the
-                        # proper update manually.  Also, make sure
-                        # aggregate_result below gets a correct ref.
-                        #
-                        new_targetstep = next(iter(ref_gen.paths))
-                        if new_targetstep != targetstep:
-                            el.replace_refs([targetstep], new_targetstep,
-                                            deep=True)
-
-                            for elem in el.elements:
-                                try:
-                                    rlink = elem.rlink
-                                except AttributeError:
-                                    pass
-                                else:
-                                    if rlink:
-                                        rlink.replace_refs([targetstep],
-                                                           new_targetstep,
-                                                           deep=True)
-
-                            targetstep = new_targetstep
-
-                    subgraph = irast.GraphExpr()
-                    subgraph.generator = generator
-                    subgraph.aggregate_result = irast.FunctionCall(name=('agg', 'list'),
-                                                                      aggregates=True,
-                                                                      args=[targetstep])
-
-                    if sorter:
-                        subgraph.sorter = sorter
-
-                    subgraph.offset = recurse_spec.offset
-                    subgraph.limit = recurse_spec.limit
-
-                    if recurse_spec.recurse is not None:
-                        subgraph.recurse_link = link_node
-                        subgraph.recurse_depth = recurse_spec.recurse
-
-                    selexpr = irast.SelectorExpr(expr=el, name=link_name)
-
-                    subgraph.selector.append(selexpr)
-                    el = irast.SubgraphRef(ref=subgraph, name=link_name, rlink=link_node)
-
-                # Record element may be none if link target is non-atomic and
-                # recursion has been prohibited on this level to prevent infinite looping.
-                if el is not None:
-                    elements.append(el)
-
-            metarefs = []
-
-            for metaref in recurse_metarefs:
-                metarefs.append(irast.MetaRef(name=metaref, ref=ref))
-
-            for p in expr.paths:
-                p.atomrefs.update(atomrefs)
-                p.metarefs.update(metarefs)
-
-            elements.extend(metarefs)
-            expr = rec
-
+            xvalue_elements = [expr, proprec]
+            if isinstance(link_node.target, irast.AtomicRefSimple):
+                ln = link_node.link_proto.normal_name()
+                concept = link_node.source.concept.pointers[ln]
+            else:
+                concept = link_node.target.concept
+            expr = irast.Record(elements=xvalue_elements,
+                                concept=concept,
+                                rlink=link_node, linkprop_xvalue=True)
         return expr
 
     def entityref_to_idref(self, expr, schema):

@@ -53,6 +53,7 @@ class ParseContextLevel(object):
                 self.weak_path = None
                 self.apply_access_control_rewrite = \
                         prevlevel.apply_access_control_rewrite
+                self.local_link_source = None
             else:
                 self.graph = prevlevel.graph
                 self.pathvars = prevlevel.pathvars
@@ -72,6 +73,7 @@ class ParseContextLevel(object):
                 self.weak_path = prevlevel.weak_path
                 self.apply_access_control_rewrite = \
                         prevlevel.apply_access_control_rewrite
+                self.local_link_source = prevlevel.local_link_source
         else:
             self.graph = None
             self.pathvars = {}
@@ -90,6 +92,7 @@ class ParseContextLevel(object):
             self.cge_map = {}
             self.weak_path = None
             self.apply_access_control_rewrite = False
+            self.local_link_source = None
 
     def genalias(self, hint=None):
         if hint is None:
@@ -183,6 +186,8 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
         if isinstance(caosql_tree, qlast.SelectQueryNode):
             stree = self._transform_select(context, caosql_tree, arg_types)
+        elif isinstance(caosql_tree, qlast.InsertQueryNode):
+            stree = self._transform_insert(context, caosql_tree, arg_types)
         elif isinstance(caosql_tree, qlast.UpdateQueryNode):
             stree = self._transform_update(context, caosql_tree, arg_types)
         elif isinstance(caosql_tree, qlast.DeleteQueryNode):
@@ -398,6 +403,78 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
         return graph
 
+    def _transform_insert(self, context, caosql_tree, arg_types):
+        self.arg_types = arg_types or {}
+
+        graph = context.current.graph = irast.GraphExpr()
+        graph.op = 'insert'
+
+        if caosql_tree.namespaces:
+            for ns in caosql_tree.namespaces:
+                context.current.namespaces[ns.alias] = ns.namespace
+
+        if context.current.module_aliases:
+            context.current.namespaces.update(context.current.module_aliases)
+
+        if caosql_tree.cges:
+            graph.cges = []
+
+            for cge in caosql_tree.cges:
+                with context(ParseContext.SUBQUERY):
+                    _cge = self._transform_select(context, cge.expr, arg_types)
+                context.current.cge_map[cge.alias] = _cge
+                graph.cges.append(
+                    irast.CommonGraphExpr(expr=_cge, alias=cge.alias))
+
+        tgt = graph.optarget = self._process_select_where(
+                                context, caosql_tree.subject)
+
+        idname = sn.Name('metamagic.caos.builtins.id')
+        idref = irast.AtomicRefSimple(
+                    name=idname, ref=tgt,
+                    ptr_proto=tgt.concept.pointers[idname])
+        tgt.atomrefs.add(idref)
+        selexpr = irast.SelectorExpr(expr=idref, name=None)
+        graph.selector.append(selexpr)
+
+        with context():
+            context.current.location = 'optarget_shaper'
+            graph.opselector = self._process_select_targets(
+                                    context, caosql_tree.targets)
+
+        if caosql_tree.pathspec:
+            with context():
+                context.current.location = 'opvalues'
+                graph.opvalues = self._process_insert_values(
+                    context, graph, caosql_tree.pathspec)
+
+        context.current.location = 'top'
+
+        paths = [s.expr for s in graph.opselector] + \
+                    [s.expr for s in graph.selector] + [graph.optarget]
+
+        if graph.generator:
+            paths.append(graph.generator)
+
+        union = irast.Disjunction(paths=frozenset(paths))
+        self.flatten_and_unify_path_combination(union, deep=True,
+                                                merge_filters=True)
+
+        # Reorder aggregate expressions so that all of them appear as the
+        # first sub-tree in the generator expression.
+        #
+        if graph.generator:
+            self.reorder_aggregates(graph.generator)
+
+        graph.result_types = self.get_selector_types(
+                                graph.opselector, self.proto_schema)
+        graph.argument_types = self.context.current.arguments
+        graph.context_vars = self.context.current.context_vars
+
+        self.link_subqueries(graph)
+
+        return graph
+
     def _transform_update(self, context, caosql_tree, arg_types):
         self.arg_types = arg_types or {}
 
@@ -442,8 +519,8 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
         with context():
             context.current.location = 'opvalues'
-            graph.opvalues = self._process_op_values(context, graph,
-                                                     caosql_tree.values)
+            graph.opvalues = self._process_update_values(context, graph,
+                                                         caosql_tree.pathspec)
 
         context.current.location = 'top'
 
@@ -472,21 +549,15 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
         return graph
 
-    def _process_op_values(self, context, graph, opvalues):
+    def _process_insert_values(self, context, graph, opvalues):
         refs = []
 
-        for updexpr in opvalues:
-            targetexpr = updexpr.expr
-            value = updexpr.value
+        for pathspec in opvalues:
+            value = pathspec.compexpr
 
             tpath = qlast.PathNode(
                 steps=[
-                    qlast.LinkExprNode(
-                        expr=qlast.LinkNode(
-                            name=targetexpr.name,
-                            namespace=targetexpr.module
-                        )
-                    )
+                    pathspec.expr
                 ]
             )
 
@@ -505,19 +576,55 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                             paths=frozenset((v, graph.optarget)))
                 self.flatten_and_unify_path_combination(
                     paths, deep=True, merge_filters=True)
-                self._check_update_expr(graph.optarget, v)
+                self._check_update_expr(graph.optarget, targetexpr, v)
 
             ref = irast.UpdateExpr(expr=targetexpr, value=v)
             refs.append(ref)
 
         return refs
 
-    def _check_update_expr(self, source, expr):
-        # Check that all refs in expr point to source and are atomic
+    def _process_update_values(self, context, graph, opvalues):
+        refs = []
+
+        for pathspec in opvalues:
+            value = pathspec.compexpr
+
+            tpath = qlast.PathNode(
+                steps=[
+                    pathspec.expr
+                ]
+            )
+
+            targetexpr = self._process_path(context, tpath,
+                                            path_tip=graph.optarget)
+
+            if isinstance(value, qlast.ConstantNode):
+                v = self._process_constant(context, value)
+            else:
+                with context():
+                    context.current.local_link_source = graph.optarget
+                    v = self._process_expr(context, value)
+
+                paths = irast.Conjunction(
+                            paths=frozenset((v, graph.optarget)))
+                self.flatten_and_unify_path_combination(
+                    paths, deep=True, merge_filters=True)
+                self._check_update_expr(graph.optarget, targetexpr, v)
+
+            ref = irast.UpdateExpr(expr=targetexpr, value=v)
+            refs.append(ref)
+
+        return refs
+
+    def _check_update_expr(self, source, target, expr):
+        # Check that all refs in expr point to source and are atomic,
+        # or, if not, are in the form ptr := ptr {+|-} set
+        #
         schema_scope = self.get_query_schema_scope(expr)
         ok = (len(schema_scope) == 0 or
                     (len(schema_scope) == 1
-                        and schema_scope[0].concept == source.concept))
+                        and (schema_scope[0].id == source.id
+                             or schema_scope[0].id == target.id)))
 
         if not ok:
             msg = "update expression can only reference local atoms"
@@ -679,7 +786,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                                'used in an aggregate function ') % p.id
                         raise errors.CaosQLError(err)
 
-            if (context.current.location not in {'generator', 'selector'} \
+            if (context.current.location not in {'generator', 'selector', 'opvalues'} \
                             and not context.current.in_func_call) or context.current.in_aggregate:
                 if isinstance(node, irast.EntitySet):
                     node = self.entityref_to_record(node, self.proto_schema)
@@ -790,7 +897,25 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
             aliases = context.current.namespaces
 
             if subtype:
-                subtype = schema.get(subtype.maintype, module_aliases=aliases)
+                if isinstance(subtype, qlast.PathNode):
+                    stype = self._process_path(context, subtype)
+                    if isinstance(stype, irast.LinkPropRefSimple):
+                        stype = stype.ref
+                    elif not isinstance(stype, irast.EntityLink):
+                        stype = stype.rlink
+
+                    if subtype.pathspec:
+                        pathspec = self._process_pathspec(
+                            context, stype.link_proto, None, subtype.pathspec)
+                    else:
+                        pathspec = None
+
+                    subtype = irast.CompositeType(
+                        node=stype, pathspec=pathspec)
+                else:
+                    subtype = schema.get(subtype.maintype,
+                                         module_aliases=aliases)
+
                 typ = (maintype, subtype)
             else:
                 maintype = schema.get(maintype, module_aliases=aliases)
@@ -903,10 +1028,14 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
                 if lexpr.type == 'property':
                     if rlink_proto is None:
-                        msg = 'link properties are not available at this point in path'
-                        raise errors.CaosQLError(msg)
+                        if isinstance(source, s_links.Link):
+                            ptrsource = source
+                        else:
+                            msg = 'link properties are not available at this point in path'
+                            raise errors.CaosQLError(msg)
+                    else:
+                        ptrsource = rlink_proto
 
-                    ptrsource = rlink_proto
                     ptrtype = s_lprops.LinkProperty
                 else:
                     ptrsource = source
@@ -918,6 +1047,7 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                     target_name = None
 
                 ptr_direction = lexpr.direction or s_pointers.PointerDirection.Outbound
+
                 ptr = self._resolve_ptr(context, ptrsource, ptrname,
                                         ptr_direction, ptr_type=ptrtype,
                                         target=target_name)
@@ -1027,6 +1157,20 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
 
             tip_is_link = path_tip and isinstance(path_tip, irast.EntityLink)
             tip_is_cge = path_tip and isinstance(path_tip, irast.GraphExpr)
+
+            if (path_tip is None and
+                    context.current.local_link_source is not None
+                    and isinstance(tip, qlast.PathStepNode)):
+                proto = self._normalize_concept(
+                            context, tip.expr, tip.namespace)
+                if isinstance(proto, s_links.Link):
+                    tip = qlast.LinkExprNode(
+                        expr=qlast.LinkNode(
+                            namespace=tip.namespace,
+                            name=tip.expr
+                        )
+                    )
+                    path_tip = context.current.local_link_source
 
             if isinstance(tip, qlast.PathStepNode):
 
@@ -1203,7 +1347,8 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
             else:
                 assert False, 'Unexpected path step expression: "%s"' % tip
 
-        if isinstance(path_tip, irast.EntityLink):
+        if (isinstance(path_tip, irast.EntityLink) and
+                path_tip.source is not None):
             # Dangling link reference, possibly from an anchor ref,
             # complement it to target ref
             link_proto = path_tip.link_proto
@@ -1286,6 +1431,9 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
     def _process_select_targets(self, context, targets):
         selector = list()
 
+        is_path_selector = (len(targets) == 1 and
+                                isinstance(targets[0].expr, qlast.PathNode))
+
         with context():
             context.current.location = 'selector'
             for target in targets:
@@ -1307,12 +1455,14 @@ class CaosQLCompiler(irtransformer.TreeTransformer):
                             rlink_proto = path.rlink.link_proto
                         else:
                             rlink_proto = None
-                        pathspec = self._process_pathspec(context, path.concept,
-                                                          rlink_proto,
-                                                          target.expr.pathspec)
+                        pathspec = self._process_pathspec(
+                            context, path.concept, rlink_proto,
+                            target.expr.pathspec)
                     else:
                         pathspec = None
-                    expr = self.entityref_to_record(expr, self.proto_schema, pathspec=pathspec)
+                    expr = self.entityref_to_record(
+                            expr, self.proto_schema, pathspec=pathspec,
+                            select_linkprops=is_path_selector)
 
                 t = irast.SelectorExpr(expr=expr, **params)
                 selector.append(t)

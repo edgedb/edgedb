@@ -39,6 +39,7 @@ class FunctionCallNode(ast.AST):
 class VarNode(ast.AST): __fields = ['name']
 class PathVarNode(VarNode): pass
 class ConstantNode(ast.AST): __fields = ['value', 'index']
+class DefaultValueNode(ast.AST): pass
 
 class UnaryOpNode(ast.AST): __fields = ['op', 'operand']
 
@@ -301,8 +302,14 @@ class SelectQueryNode(StatementNode):
                 ('groupby', list), ('orderby', list), 'offset', 'limit',
                 '_hash', ('cges', list), 'op', 'op_larg', 'op_rarg']
 
+
+class InsertQueryNode(StatementNode):
+    __fields = ['subject', ('pathspec', list),
+                ('targets', list), ('cges', list)]
+
+
 class UpdateQueryNode(StatementNode):
-    __fields = ['subject', 'where', ('values', list),
+    __fields = ['subject', ('pathspec', list), 'where',
                 ('targets', list), ('cges', list)]
 
 class UpdateExprNode(ast.AST):
@@ -334,7 +341,7 @@ class SelectExprNode(ast.AST): __fields = ['expr', 'alias']
 
 class SelectPathSpecNode(ast.AST):
     __fields = ['expr', 'pathspec', 'recurse', 'where', 'orderby', 'offset',
-                'limit']
+                'limit', 'compexpr']
 
 class SelectTypeRefNode(ast.AST):
     __fields = ['attrs']

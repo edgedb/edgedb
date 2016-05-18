@@ -1571,10 +1571,15 @@ class PointerMetaCommand(MetaCommand):
         if default:
             default = default[1]
             if default:
-                ld = list(filter(lambda i: not isinstance(i, s_expr.ExpressionText),
-                                 default))
-                if ld:
-                    default_value = postgresql.string.quote_literal(str(ld[0]))
+                for d in default:
+                    if isinstance(d, s_expr.ExpressionText):
+                        default_value = schemamech.ptr_default_to_col_default(
+                            schema, link, d)
+                        if default_value is not None:
+                            break
+                    else:
+                        default_value = postgresql.string.quote_literal(str(d))
+                        break
 
         return default_value
 
@@ -1855,6 +1860,14 @@ class CreateLink(LinkMetaCommand, adapts=s_links.CreateLink):
         concept = context.get(s_concepts.ConceptCommandContext)
         self.pgops.add(dbops.Insert(table=self.table, records=[rec],
                                     priority=1))
+
+        if not link.generic() and self.has_table(link, schema):
+            alter_table = self.get_alter_table(context)
+            constraint = dbops.PrimaryKey(
+                            table_name=alter_table.name,
+                            columns=['metamagic.caos.builtins.linkid'])
+            alter_table.add_operation(
+                dbops.AlterTableAddConstraint(constraint))
 
         if not link.generic() and link.mapping != s_links.LinkMapping.ManyToMany:
             self.schedule_mapping_update(link, schema, context)

@@ -16,6 +16,7 @@ from metamagic.caos import caosql
 
 from metamagic.caos.schema import atoms as s_atoms
 from metamagic.caos.schema import concepts as s_concepts
+from metamagic.caos.schema import error as s_err
 from metamagic.caos.schema import links as s_links
 from metamagic.caos.schema import name as sn
 from metamagic.caos.schema import types as s_types
@@ -430,7 +431,7 @@ class TypeMech:
 
             table_cols[col['column_name']] = col
 
-    def get_table_columns(self, table_name, connection, cache='auto'):
+    def get_table_columns(self, table_name, connection=None, cache='auto'):
         if cache is not None and self._column_cache is not None:
             cols = self._column_cache.get(table_name)
         else:
@@ -525,3 +526,21 @@ class TypeMech:
             self._table_cache[prototype] = table
 
         return table
+
+
+def ptr_default_to_col_default(schema, ptr, expr):
+    try:
+        ir = caosql.compile_to_ir(expr, schema)
+    except s_err.SchemaError:
+        # Referene errors mean that is is a non-constant default
+        # referring to a not-yet-existing objects.
+        return None
+
+    if not ir_utils.is_const(ir):
+        return None
+
+    ircompiler = transformer.SimpleIRCompiler()
+    sql_tree = ircompiler.transform(ir, protoschema=schema, local=True)
+    sql_expr = codegen.SQLSourceGenerator.to_source(sql_tree)
+
+    return sql_expr

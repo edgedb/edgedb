@@ -304,6 +304,12 @@ class Decompiler(ast.visitor.NodeVisitor):
         if expr.name in ('lower', 'upper'):
             fname = ('str', expr.name)
             args = [self._process_expr(context, a) for a in expr.args]
+        elif expr.name == 'now':
+            fname = ('datetime', 'current_datetime')
+            args = [self._process_expr(context, a) for a in expr.args]
+        elif expr.name == ('caos', 'uuid_generate_v1mc'):
+            fname = ('uuid', 'generate_v1mc')
+            args = [self._process_expr(context, a) for a in expr.args]
         else:
             raise ValueError('unexpected function: {}'.format(expr.name))
 
@@ -816,6 +822,8 @@ class IRCompilerBase:
                 result = pgsql.ast.FunctionCallNode(name='current_time', noparens=True)
             elif expr.name == ('datetime', 'current_datetime'):
                 result = pgsql.ast.FunctionCallNode(name='current_timestamp', noparens=True)
+            elif expr.name == ('uuid', 'generate_v1mc'):
+                name = common.qname('caos', 'uuid_generate_v1mc')
             elif expr.name == ('str', 'replace'):
                 name = 'replace'
             elif expr.name == ('str', 'len'):
@@ -1100,15 +1108,15 @@ class IRCompilerBase:
         if expr.type:
             if isinstance(expr.type, s_atoms.Atom):
                 const_type = types.pg_type_from_atom(context.current.proto_schema, expr.type, topbase=True)
-            elif isinstance(expr.type, s_concepts.Concept):
-                const_type = 'record'
+            elif isinstance(expr.type, (s_concepts.Concept, s_links.Link)):
+                const_type = 'json'
             elif isinstance(expr.type, tuple):
                 item_type = expr.type[1]
                 if isinstance(item_type, s_atoms.Atom):
                     item_type = types.pg_type_from_atom(context.current.proto_schema, item_type, topbase=True)
                     const_type = '%s[]' % item_type
-                elif isinstance(item_type, s_concepts.Concept):
-                    item_type = 'record'
+                elif isinstance(item_type, (s_concepts.Concept, s_links.Link)):
+                    item_type = 'json'
                     const_type = '%s[]' % item_type
                 else:
                     const_type = common.py_type_to_pg_type(expr.type)
@@ -1446,13 +1454,16 @@ class IRCompiler(IRCompilerBase):
         if graph.limit:
             context.current.query.limit = self._process_constant(context, graph.limit)
 
-        if graph.op in ('update', 'delete'):
+        if graph.op in ('insert', 'update', 'delete'):
             if graph.op == 'delete':
                 query = pgsql.ast.DeleteQueryNode()
+            elif graph.op == 'insert':
+                query = pgsql.ast.InsertQueryNode()
             else:
                 query = pgsql.ast.UpdateQueryNode()
 
             op_is_update = graph.op == 'update'
+            op_is_insert = graph.op == 'insert'
             opvalues = graph.opvalues
 
             # Standard entity set processing produces a whole CTE, while for UPDATE and DELETE
@@ -1534,14 +1545,183 @@ class IRCompiler(IRCompilerBase):
                 self._process_selector(context, graph.opselector, query)
 
                 if op_is_update:
+                    external_updates = []
+
                     for expr in opvalues:
-                        field = self._process_expr(context, expr.expr)
+                        updtarget = expr.expr
+                        updvalue = expr.value
 
-                        with context(TransformerContext.NEW_TRANSPARENT):
-                            context.current.local_atom_expr_source = graph.optarget
-                            value = self._process_expr(context, expr.value)
+                        if isinstance(updvalue, irast.BaseRefExpr):
+                            updvalue = updvalue.expr
 
-                        query.values.append(pgsql.ast.UpdateExprNode(expr=field, value=value))
+                        if isinstance(updtarget, irast.LinkPropRefSimple):
+                            # Update on non-singular atomic link
+                            lproto = updtarget.ref.link_proto
+                        else:
+                            lproto = updtarget.rlink.link_proto
+
+                        ptr_info = pg_types.get_pointer_storage_info(
+                                        lproto,
+                                        schema=context.current.proto_schema,
+                                        resolve_type=True,
+                                        link_bias=False)
+                        props_only = False
+                        upd_props = None
+                        operation = None
+
+                        if isinstance(updvalue, irast.BinOp):
+                            leftmost_operand = \
+                                self._get_leftmost_binop_operand(updvalue)
+
+                            op_path = leftmost_operand
+                            if not isinstance(op_path, irast.Record):
+                                op_path = irutils.extract_paths(
+                                    leftmost_operand, resolve_arefs=False)
+
+                            if isinstance(op_path, irast.EntityLink):
+                                op_link = op_path
+                            elif isinstance(op_path, irast.LinkPropRefSimple):
+                                op_link = op_path.ref
+                            else:
+                                op_link = op_path.rlink if op_path else None
+
+                            if op_link is not None:
+                                op_link = op_link.link_proto
+
+                            tg_path = irutils.extract_paths(
+                                updtarget, resolve_arefs=False)
+
+                            if isinstance(tg_path, irast.EntityLink):
+                                tg_link = tg_path
+                            elif isinstance(tg_path, irast.LinkPropRefSimple):
+                                tg_link = tg_path.ref
+                            else:
+                                tg_link = tg_path.rlink if tg_path else None
+
+                            if tg_link is not None:
+                                tg_link = tg_link.link_proto
+
+                            is_relative = \
+                                (not (tg_link is None and op_link is None) and
+                                    (tg_link == op_link))
+
+                            if is_relative:
+                                operation = updvalue.op
+
+                        # First, process all internal link updates
+                        if ptr_info.table_type == 'concept':
+                            field = self._process_expr(context, expr.expr)
+                            props_only = True
+
+                            with context(TransformerContext.NEW_TRANSPARENT):
+                                context.current.local_atom_expr_source = \
+                                    graph.optarget
+
+                                if isinstance(updvalue, irast.BinOp) and \
+                                        self._is_composite_cast(updvalue.right):
+                                    updvalue, upd_props = \
+                                        self._extract_update_value(
+                                            context, updvalue.right,
+                                            ptr_info.column_type)
+                                elif self._is_composite_cast(updvalue):
+                                    updvalue, upd_props = \
+                                        self._extract_update_value(
+                                            context, updvalue,
+                                            ptr_info.column_type)
+                                else:
+                                    updvalue = pgsql.ast.TypeCastNode(
+                                        expr=self._process_expr(
+                                                context, updvalue),
+                                        type=pgsql.ast.TypeNode(
+                                                name=ptr_info.column_type))
+
+                                query.values.append(pgsql.ast.UpdateExprNode(
+                                    expr=field, value=updvalue))
+
+                        ptr_info = pg_types.get_pointer_storage_info(
+                                        lproto,
+                                        resolve_type=False,
+                                        link_bias=True)
+                        if ptr_info and ptr_info.table_type == 'link':
+                            external_updates.append(
+                                (expr, props_only, operation))
+
+                    if not query.values:
+                        # No atomic updates
+                        query = pgsql.ast.CTENode(
+                            targets=query.targets,
+                            fromlist=[query.fromexpr],
+                            where=query.where
+                        )
+
+                    toplevel = None
+
+                    # Updating externally-stored links
+                    # requires repackaging everything into a
+                    # series of CTEs so that multiple statements
+                    # can be executed as a single query.
+                    #
+                    for expr, props_only, operation in external_updates:
+                        if toplevel is None:
+                            toplevel = pgsql.ast.SelectQueryNode()
+                            toplevel.ctes.add(query)
+                            query.alias = context.current.genalias(
+                                hint='m')
+
+                            ref = pgsql.ast.FieldRefNode(
+                                table=query, field='*')
+
+                            toplevel.targets.append(
+                                pgsql.ast.SelectExprNode(expr=ref)
+                            )
+
+                            toplevel.fromlist.append(
+                                pgsql.ast.CTERefNode(cte=query)
+                            )
+
+                        self._process_update_expr(context, expr, props_only,
+                                                  operation, toplevel, query)
+
+                    if toplevel is not None:
+                        query = toplevel
+
+                elif op_is_insert:
+                    cols = [pgsql.ast.FieldRefNode(field='concept_id')]
+                    select = pgsql.ast.SelectQueryNode()
+                    values = pgsql.ast.SequenceNode()
+
+                    values.elements.append(
+                        pgsql.ast.SelectQueryNode(
+                            targets=[pgsql.ast.SelectExprNode(
+                                expr=pgsql.ast.FieldRefNode(field='id'))],
+                            fromlist=[pgsql.ast.TableNode(name='concept',
+                                                          schema='caos')],
+                            where=pgsql.ast.BinOpNode(
+                                op=ast.ops.EQ,
+                                left=pgsql.ast.FieldRefNode(field='name'),
+                                right=pgsql.ast.ConstantNode(
+                                    value=graph.optarget.concept.name)
+                            )
+                        )
+                    )
+
+                    if opvalues:
+                        for expr in opvalues:
+                            field = self._process_expr(context, expr.expr, query)
+                            field.table = None
+
+                            with context(TransformerContext.NEW_TRANSPARENT):
+                                context.current.local_atom_expr_source = graph.optarget
+                                value = self._process_expr(context, expr.value, query)
+                                values.elements.append(value)
+
+                            cols.append(field)
+
+                    select.values = [values]
+
+                    # query.fromexpr.alias = None
+                    query.cols = cols
+                    query.select = select
         else:
             query = context.current.query
 
@@ -1714,6 +1894,372 @@ class IRCompiler(IRCompilerBase):
             query.text_override = text_override
 
         return query
+
+    def _extract_update_value(self, context, updvalexpr, target_type):
+        typ = updvalexpr.type
+        expr = self._process_expr(context, updvalexpr.expr)
+
+        if (isinstance(expr, pgsql.ast.ConstantNode) and
+                expr.type.endswith('[]')):
+            pspec = typ[1].pathspec
+
+            expr = pgsql.ast.IndirectionNode(
+                expr=expr, indirection=pgsql.ast.IndexIndirectionNode(
+                    upper=pgsql.ast.ConstantNode(value=1)))
+        else:
+            pspec = typ.pathspec
+
+        props = [p.ptr_proto.normal_name() for p in pspec]
+        tgt_col = props.index('metamagic.caos.builtins.target')
+
+        upd_props = [p.ptr_proto.normal_name() for p in pspec
+                     if not p.ptr_proto.is_special_pointer()]
+
+        assert tgt_col >= 0
+
+        expr = pgsql.ast.TypeCastNode(
+            expr=pgsql.ast.BinOpNode(
+                    left=expr, op='->>',
+                    right=pgsql.ast.ConstantNode(value=tgt_col)),
+            type=pgsql.ast.TypeNode(name=target_type)
+        )
+
+        return expr, upd_props
+
+    def _is_composite_cast(self, expr):
+        return (isinstance(expr, irast.TypeCast) and
+                (isinstance(expr.type, irast.CompositeType)
+                 or (isinstance(expr.type, tuple) and
+                     isinstance(expr.type[1], irast.CompositeType))))
+
+    def _get_leftmost_binop_operand(self, expr):
+        if isinstance(expr.left, irast.BinOp):
+            return self._get_leftmost_binop_operand(expr.left)
+        else:
+            return expr.left
+
+    def _process_update_values(self, context, updvalexpr, target_tab,
+                               tab_cols, col_data, sources, props_only,
+                               target_is_atom):
+        """Unpack data from an update expression into a series of selects"""
+
+        # Recurse down to process update expressions like
+        # col := col + val1 + val2
+        #
+        if (isinstance(updvalexpr, irast.BinOp) and
+                isinstance(updvalexpr.left, irast.BinOp)):
+            tranches = self._process_update_values(
+                context, updvalexpr.left, target_tab, tab_cols, col_data,
+                sources, props_only, target_is_atom)
+        else:
+            tranches = []
+
+        if isinstance(updvalexpr, irast.BinOp):
+            updval = updvalexpr.right
+        else:
+            updval = updvalexpr
+
+        if isinstance(updval, irast.TypeCast):
+            # Link property updates will have the data casted into
+            # an appropriate selector shape which specifies which properties
+            # are being updated.
+            #
+            data = updval.expr
+            typ = updval.type
+
+            if not isinstance(typ, tuple):
+                raise ValueError(
+                    'unexpected value type in update expr: {!r}'.format(typ))
+
+            if not isinstance(typ[1], irast.CompositeType):
+                raise ValueError(
+                    'unexpected value type in update expr: {!r}'.format(typ))
+
+            props = [p.ptr_proto.normal_name() for p in typ[1].pathspec]
+
+        else:
+            # Target-only update
+            #
+            data = updval
+            props = ['metamagic.caos.builtins.target']
+
+        e = pgsql.common.caos_name_to_pg_name
+
+        spec_cols = {e(prop): i for i, prop in enumerate(props)}
+
+        if (props == ['metamagic.caos.builtins.target'] and
+                props_only and not target_is_atom):
+            # No property upates and the target value is stored
+            # in the source table, so we don't need to modify
+            # any link tables.
+            #
+            return tranches
+
+        input_data = self._process_expr(context, data)
+
+        if (isinstance(input_data, pgsql.ast.ConstantNode) and
+                input_data.type.endswith('[]')):
+            data_is_json = input_data.type == 'json[]'
+            input_data = pgsql.ast.FunctionCallNode(
+                name='UNNEST',
+                args=[input_data]
+            )
+        else:
+            data_is_json = False
+
+        unnested = pgsql.ast.SelectQueryNode(
+            targets=[pgsql.ast.SelectExprNode(
+                expr=input_data,
+            )],
+
+            alias='j',
+            coldef='(_)'
+        )
+
+        row = pgsql.ast.SequenceNode()
+
+        for col in tab_cols:
+            if (col == 'metamagic.caos.builtins.target' and
+                    (props_only or target_is_atom)):
+                expr = pgsql.ast.TypeCastNode(
+                        expr=pgsql.ast.ConstantNode(value=None),
+                        type=pgsql.ast.TypeNode(name='uuid'))
+            else:
+                if col == 'metamagic.caos.builtins.target@atom':
+                    col = 'metamagic.caos.builtins.target'
+
+                data_idx = spec_cols.get(col)
+                if data_idx is None:
+                    try:
+                        expr = col_data[col]
+                    except KeyError:
+                        if tab_cols[col]['column_default'] is not None:
+                            expr = pgsql.ast.LiteralExprNode(
+                                expr=tab_cols[col]['column_default'])
+                        else:
+                            expr = pgsql.ast.ConstantNode(value=None)
+                else:
+                    expr = pgsql.ast.FieldRefNode(table=unnested, field='_')
+                    if data_is_json:
+                        expr = pgsql.ast.BinOpNode(
+                            left=expr,
+                            op='->>',
+                            right=pgsql.ast.ConstantNode(value=data_idx)
+                        )
+
+            row.elements.append(expr)
+
+        tranch_data = pgsql.ast.SelectQueryNode(
+            targets=[
+                pgsql.ast.SelectExprNode(
+                    expr=pgsql.ast.IndirectionNode(
+                        expr=pgsql.ast.TypeCastNode(
+                            expr=row,
+                            type=pgsql.ast.TypeNode(
+                                name=pgsql.common.qname(*target_tab))
+                        ),
+                        indirection=pgsql.ast.StarIndirectionNode()
+                    )
+                )
+            ],
+
+            fromlist=[unnested],
+
+            alias=context.current.genalias(hint='r')
+        )
+
+        tranch_data.fromlist.extend(sources)
+
+        tranches.append((tab_cols, tranch_data))
+
+        return tranches
+
+    def _process_update_expr(self, context, updexpr, props_only, operation,
+                             query, scope_cte):
+        caos_link = pgsql.ast.TableNode(
+                            schema='caos', name='link',
+                            alias=context.current.genalias(hint='l'))
+
+        updtarget = updexpr.expr
+
+        if isinstance(updtarget, irast.LinkPropRefSimple):
+            # Update on non-singular atomic link
+            lproto = updtarget.ref.link_proto
+            target_is_atom = True
+        else:
+            lproto = updtarget.rlink.link_proto
+            target_is_atom = False
+
+        lname_to_id = pgsql.ast.CTENode(
+            fromlist=[
+                caos_link
+            ],
+            targets=[
+                pgsql.ast.SelectExprNode(
+                    expr=pgsql.ast.FieldRefNode(
+                        table=caos_link,
+                        field='id'
+                    ),
+                    alias='id'
+                )
+            ],
+            where=pgsql.ast.BinOpNode(
+                left=pgsql.ast.FieldRefNode(
+                    table=caos_link,
+                    field='name'
+                ),
+                op=ast.ops.EQ,
+                right=pgsql.ast.ConstantNode(
+                    value=lproto.name
+                )
+            ),
+            alias=context.current.genalias(hint='lid')
+        )
+
+        query.ctes.add(lname_to_id)
+
+        updvalue = updexpr.value
+
+        if isinstance(updvalue, irast.BaseRefExpr):
+            updvalue = updvalue.expr
+
+        target_tab = self._table_from_link_proto(context, lproto)
+
+        if target_is_atom:
+            target_tab_name = (target_tab.schema, target_tab.name)
+        else:
+            target_tab_name = pgsql.common.link_name_to_table_name(
+                                lproto.normal_name(), catenate=False)
+
+        data_backend = context.current.backend
+        tab_cols = data_backend._type_mech.get_table_columns(
+                    target_tab_name, cache='always')
+
+        assert tab_cols, "could not get cols for {!r}".format(target_tab_name)
+
+        col_data = {
+            'link_type_id':
+                pgsql.ast.SelectExprNode(
+                    expr=pgsql.ast.FieldRefNode(
+                        table=lname_to_id,
+                        field='id'
+                    )
+                ),
+            'metamagic.caos.builtins.source':
+                pgsql.ast.FieldRefNode(
+                    table=scope_cte,
+                    field='metamagic.caos.builtins.id'
+                )
+        }
+
+        if operation is None:
+            # Drop previous entries first
+            delcte = pgsql.ast.DeleteQueryNode(
+                fromexpr=target_tab,
+                where=pgsql.ast.BinOpNode(
+                    left=col_data['metamagic.caos.builtins.source'],
+                    op=ast.ops.EQ,
+                    right=pgsql.ast.FieldRefNode(
+                        table=target_tab,
+                        field='metamagic.caos.builtins.source'
+                    )
+                ),
+                alias=context.current.genalias(hint='d'),
+                using=[scope_cte],
+                targets=[
+                    pgsql.ast.SelectExprNode(
+                        expr=col_data['metamagic.caos.builtins.source'],
+                        alias='metamagic.caos.builtins.id'
+                    )
+                ]
+            )
+            query.ctes.add(delcte)
+            scope_cte = pgsql.ast.JoinNode(
+                type='NATURAL LEFT',
+                left=pgsql.ast.CTERefNode(cte=scope_cte),
+                right=pgsql.ast.CTERefNode(cte=delcte))
+        else:
+            delcte = None
+
+        tranches = self._process_update_values(
+            context, updvalue, target_tab_name, tab_cols, col_data,
+            [scope_cte, lname_to_id], props_only, target_is_atom)
+
+        for cols, data in tranches:
+            query.ctes.add(data)
+            data = pgsql.ast.SelectQueryNode(
+                targets=[pgsql.ast.SelectExprNode(
+                    expr=pgsql.ast.FieldRefNode(field='*', table=data)
+                )],
+                fromlist=[pgsql.ast.CTERefNode(cte=data)]
+            )
+
+            if operation == ast.ops.SUB:
+                # Removing links
+                updcte = pgsql.ast.DeleteQueryNode(
+                    alias=context.current.genalias(hint='d'),
+                    targets=[
+                        pgsql.ast.SelectExprNode(
+                            expr=pgsql.ast.FieldRefNode(
+                                field='metamagic.caos.builtins.source'),
+                            alias='metamagic.caos.builtins.id'
+                        )
+                    ])
+
+                updcte.fromexpr = target_tab
+                data.alias = context.current.genalias(hint='q')
+                updcte.where = pgsql.ast.BinOpNode(
+                    left=pgsql.ast.FieldRefNode(
+                            field='metamagic.caos.builtins.linkid'),
+                    op=ast.ops.IN,
+                    right=pgsql.ast.SelectQueryNode(
+                        targets=[
+                            pgsql.ast.SelectExprNode(
+                                expr=pgsql.ast.FieldRefNode(
+                                    field='metamagic.caos.builtins.linkid'
+                                )
+                            )
+                        ],
+                        fromlist=[data]
+                    )
+                )
+
+            else:
+                # Inserting links
+                updcte = pgsql.ast.InsertQueryNode(
+                    alias=context.current.genalias(hint='i'),
+                    targets=[
+                        pgsql.ast.SelectExprNode(
+                            expr=pgsql.ast.FieldRefNode(
+                                field='metamagic.caos.builtins.source'),
+                            alias='metamagic.caos.builtins.id'
+                        )
+                    ])
+
+                updcte.fromexpr = target_tab
+
+                updcte.select = data
+                updcte.cols = [pgsql.ast.FieldRefNode(field=col)
+                               for col in cols]
+
+                update_clause = pgsql.ast.UpdateExprNode(
+                    expr=pgsql.ast.SequenceNode(elements=updcte.cols),
+                    value=data
+                )
+
+                updcte.on_conflict = pgsql.ast.OnConflictNode(
+                    action='update',
+                    infer=[pgsql.ast.FieldRefNode(
+                            field='metamagic.caos.builtins.linkid')],
+                    targets=[update_clause]
+                )
+
+            query.ctes.add(updcte)
+
+            query.fromlist[0] = pgsql.ast.JoinNode(
+                type='NATURAL LEFT',
+                left=query.fromlist[0],
+                right=pgsql.ast.CTERefNode(cte=updcte))
 
     def _wrap_subquery(self, context, query):
         query.alias = context.current.genalias(hint='q')
@@ -2714,7 +3260,7 @@ class IRCompiler(IRCompilerBase):
             self._process_expr(context, expr.ref, cte)
 
             if context.current.local_atom_expr_source is not None:
-                if context.current.local_atom_expr_source != expr.ref:
+                if context.current.local_atom_expr_source.id != expr.ref.id:
                     msg = "invalid reference to non-local atom in local expression context"
                     raise ValueError(msg)
 

@@ -72,6 +72,9 @@ class T_SLASH(Token, lextoken='/'):
 class T_PERCENT(Token, lextoken='%'):
     pass
 
+class T_CIRCUMFLEX(Token, lextoken='^'):
+    pass
+
 class T_AT(Token, lextoken='@'):
     pass
 
@@ -131,4 +134,3 @@ def _gen_keyword_tokens():
         cls = types.new_class(clsname, (Token,), clskwds, clsexec)
         setattr(mod, clsname, cls)
 _gen_keyword_tokens()
-

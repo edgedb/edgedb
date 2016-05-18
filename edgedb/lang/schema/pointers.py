@@ -402,7 +402,12 @@ class BasePointer(primary.Prototype, derivable.DerivablePrototype):
         derived.finalize(schema, bases=merge_bases)
 
     def is_pure_computable(self):
-        return self.readonly and bool(self.default)
+        return self.readonly and bool(self.default) and \
+                not self.is_id_pointer() and \
+                not self.normal_name() in {
+                    'metamagic.caos.builtins.ctime',
+                    'metamagic.caos.builtins.mtime',
+                }
 
     def is_id_pointer(self):
         return self.normal_name() in {'metamagic.caos.builtins.linkid',

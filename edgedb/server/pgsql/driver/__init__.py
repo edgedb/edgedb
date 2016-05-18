@@ -19,6 +19,8 @@ from postgresql.types.io import lib as pg_types_io_lib
 from postgresql.string import quote_ident
 from postgresql.protocol import element3 as element
 
+from metamagic import json
+
 from metamagic.caos.objects import numeric, string
 from metamagic.caos.backends import pool as caos_pool
 from metamagic.caos import CaosError
@@ -108,9 +110,11 @@ class TypeIO(pq3.TypeIO):
         return super().array_from_parts(parts, ArrayType=Array)
 
     def json_io_factory(self):
+        def _pack_json(data):
+            return json.dumpb(data)
         def _unpack_json(data):
             return Json(data)
-        return (None, _unpack_json, Json)
+        return (_pack_json, _unpack_json, Json)
 
     def array_io_factory(self, pack_element, unpack_element, typoid, hasbin_input, hasbin_output,
                                array_unpack=pg_types_io_lib.array_unpack):
@@ -142,6 +146,19 @@ class TypeIO(pq3.TypeIO):
                 (b'C', '--cIO',),
                 (b'S', 'ERROR',),
                 (b'M', 'Could not unpack element {} from anonymous record'.format(itemnum)),
+                (b'W', data,),
+                (b'P', str(itemnum),)
+            )), cause = cause)
+
+        def raise_pack_tuple_error(cause, procs, tup, itemnum):
+            data = repr(tup[itemnum])
+            if len(data) > 80:
+                # Be sure not to fill screen with noise.
+                data = data[:75] + ' ...'
+            self.raise_client_error(element.ClientError((
+                (b'C', '--cIO',),
+                (b'S', 'ERROR',),
+                (b'M', 'Could not pack element {} in anonymous record'.format(itemnum)),
                 (b'W', data,),
                 (b'P', str(itemnum),)
             )), cause = cause)
@@ -219,11 +236,23 @@ class ProxyBase:
 class InstructionProxy(ProxyBase):
     _intercepted_attrs = ProxyBase._intercepted_attrs + ('__next__',)
 
+    def __init__(self, stmt, *, exc_handler=None):
+        super().__init__(stmt)
+        self.exc_handler = exc_handler
+
     def __next__(self):
         tinfo = 'query-fetch-chunk: {}'.format(self.statement.statement_id)
         with tracepoints.if_tracing(pgsql_trace.Query,
-                                    info=tinfo, id=self.statement.statement_id):
-            return self.__wrapped__.__next__()
+                                    info=tinfo,
+                                    id=self.statement.statement_id):
+            try:
+                return self.__wrapped__.__next__()
+            except postgresql.exceptions.Error as e:
+                if self.exc_handler:
+                    err = self.exc_handler(e)
+                    raise err from e
+                else:
+                    raise
 
     def __iter__(self):
         return self
@@ -259,6 +288,10 @@ class StatementProxy(ProxyBase):
     _intercepted_attrs = ProxyBase._intercepted_attrs + \
         ('declare', 'rows', '__iter__', 'chunks', 'column', 'first', '__call__', 'clone', '_fini')
 
+    def __init__(self, stmt, *, exc_handler=None):
+        super().__init__(stmt)
+        self.exc_handler = exc_handler
+
     def clone(self, *args, **kwargs):
         return StatementProxy(self.__wrapped__.clone(*args, **kwargs))
 
@@ -276,7 +309,7 @@ class StatementProxy(ProxyBase):
         tinfo = 'query-fetch-chunk-init: {}'.format(self.statement_id)
         with tracepoints.if_tracing(pgsql_trace.Query, info=tinfo, id=self.statement_id):
             result = self.__wrapped__.__class__.chunks(self, *args, **kwargs)
-            return InstructionProxy(result)
+            return InstructionProxy(result, exc_handler=self.exc_handler)
 
     def column(self, *args, **kwargs):
         return self.__wrapped__.__class__.column(self, *args, **kwargs)
@@ -304,7 +337,7 @@ class Connection(pq3.Connection, caos_pool.Connection):
 
         self._prepared_statements = {}
 
-    def get_prepared_statement(self, query, raw=True):
+    def get_prepared_statement(self, query, raw=True, exc_handler=None):
         try:
             statement = self._prepared_statements[query, raw]
         except KeyError:
@@ -314,10 +347,12 @@ class Connection(pq3.Connection, caos_pool.Connection):
                         stmt_id = 'sx_{:x}'.format(hash(query)).replace('-', '_')
                         prefix = 'PREPARE {} AS '.format(stmt_id)
                         self.execute('{}{}'.format(prefix, query))
-                        statement = self.statement_from_id(stmt_id)
+                        statement = self.statement_from_id(
+                                        stmt_id, exc_handler=exc_handler)
                     else:
                         prefix = ''
-                        statement = self.prepare(query)
+                        statement = self.prepare(
+                                        query, exc_handler=exc_handler)
 
             except postgresql.exceptions.Error as e:
                 e.__suppress_context__ = True
@@ -332,13 +367,13 @@ class Connection(pq3.Connection, caos_pool.Connection):
 
         return statement
 
-    def prepare(self, *args, **kwargs):
+    def prepare(self, *args, exc_handler=None, **kwargs):
         stmt = super().prepare(*args, **kwargs)
-        return StatementProxy(stmt)
+        return StatementProxy(stmt, exc_handler=exc_handler)
 
-    def statement_from_id(self, *args, **kwargs):
+    def statement_from_id(self, *args, exc_handler=None, **kwargs):
         stmt = super().statement_from_id(*args, **kwargs)
-        return StatementProxy(stmt)
+        return StatementProxy(stmt, exc_handler=exc_handler)
 
     def connect(self):
         super().connect()

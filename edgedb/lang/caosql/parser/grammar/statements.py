@@ -19,6 +19,9 @@ class Stmt(Nonterm):
     def reduce_SelectStmt(self, *kids):
         self.val = kids[0].val
 
+    def reduce_InsertStmt(self, *kids):
+        self.val = kids[0].val
+
     def reduce_UpdateStmt(self, *kids):
         self.val = kids[0].val
 
@@ -36,17 +39,30 @@ class SelectStmt(Nonterm):
         self.val = kids[0].val
 
 
+class InsertStmt(Nonterm):
+    def reduce_InsertStmt(self, *kids):
+        r"%reduce OptAliasBlock INSERT Path OptSelectPathSpec \
+                  OptReturningClause"
+        self.val = qlast.InsertQueryNode(
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            subject=kids[2].val,
+            pathspec=kids[3].val,
+            targets=kids[4].val
+        )
+
+
 class UpdateStmt(Nonterm):
     def reduce_UpdateStmt(self, *kids):
-        r"%reduce OptAliasBlock UPDATE Path SET SetClauseList \
+        r"%reduce OptAliasBlock UPDATE Path SelectPathSpec \
                   OptWhereClause OptReturningClause"
         self.val = qlast.UpdateQueryNode(
-            namespaces = kids[0].val[0],
-            aliases = kids[0].val[1],
-            subject = kids[2].val,
-            values = kids[4].val,
-            where = kids[5].val,
-            targets = kids[6].val
+            namespaces=kids[0].val[0],
+            aliases=kids[0].val[1],
+            subject=kids[2].val,
+            pathspec=kids[3].val,
+            where=kids[4].val,
+            targets=kids[5].val
         )
 
 
@@ -91,4 +107,3 @@ class OptReturningClause(Nonterm):
 
     def reduce_empty(self, *kids):
         self.val = None
-

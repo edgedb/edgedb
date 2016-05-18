@@ -139,6 +139,19 @@ class CaosQLOptimizer:
             if expr.limit:
                 self._process_expr(context, expr.limit)
 
+        elif isinstance(expr, qlast.InsertQueryNode):
+            if expr.namespaces:
+                context.current.namespaces.update(
+                    (ns.alias, ns.namespace) for ns in expr.namespaces)
+
+            self._process_expr(context, expr.subject)
+
+            if expr.pathspec:
+                self._process_pathspec(context, expr.pathspec)
+
+            for tgt in expr.targets:
+                self._process_expr(context, tgt.expr)
+
         elif isinstance(expr, qlast.UpdateQueryNode):
             if expr.namespaces:
                 context.current.namespaces.update(
@@ -149,9 +162,8 @@ class CaosQLOptimizer:
             if expr.where:
                 self._process_expr(context, expr.where)
 
-            for v in expr.values:
-                self._process_expr(context, v.expr)
-                self._process_expr(context, v.value)
+            if expr.pathspec:
+                self._process_pathspec(context, expr.pathspec)
 
             for tgt in expr.targets:
                 self._process_expr(context, tgt.expr)
@@ -334,6 +346,9 @@ class CaosQLOptimizer:
                         self._process_expr(context, orderby.path)
 
                 self._process_expr(context, spec.expr)
+
+                if spec.compexpr:
+                    self._process_expr(context, spec.compexpr)
 
                 if spec.pathspec:
                     self._process_pathspec(context, spec.pathspec)

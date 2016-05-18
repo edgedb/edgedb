@@ -225,6 +225,22 @@ def get_terminal_references(ir):
     return result
 
 
+def get_variables(ir):
+    result = set()
+
+    flt = lambda n: isinstance(n, irast.Constant) and n.index is not None
+    result.update(ast.find_children(ir, flt))
+
+    return result
+
+
+def is_const(ir):
+    refs = extract_paths(ir, reverse=True, resolve_arefs=True,
+                             recurse_subqueries=1)
+    variables = get_variables(ir)
+    return not refs and not variables
+
+
 def is_weak_op(op):
     return op in (ast.ops.OR, ast.ops.IN, ast.ops.NOT_IN)
 

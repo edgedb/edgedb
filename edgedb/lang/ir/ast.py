@@ -434,6 +434,11 @@ class FunctionCall(Expr):
 class TypeCast(Expr):
     __fields = ['expr', 'type']
 
+
+class CompositeType(Base):
+    __fields = ['node', 'pathspec']
+
+
 class CaosOperator(ast.ops.Operator):
     pass
 

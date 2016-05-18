@@ -26,10 +26,11 @@ class IRDecompiler(irtransformer.TreeTransformer):
         context.inline_anchors = inline_anchors
         caosql_tree = self._process_expr(context, caos_tree)
 
-        if return_statement and not isinstance(caosql_tree, qlast.StatementNode):
-            selnode = qlast.SelectQueryNode()
-            selnode.targets = [qlast.SelectExprNode(expr=caosql_tree)]
-            caosql_tree = selnode
+        if return_statement:
+            if not isinstance(caosql_tree, qlast.StatementNode):
+                selnode = qlast.SelectQueryNode()
+                selnode.targets = [qlast.SelectExprNode(expr=caosql_tree)]
+                caosql_tree = selnode
 
         return caosql_tree
 

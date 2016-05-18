@@ -37,7 +37,7 @@ class Sql(Datasource):
         query = self.descriptor['source']
 
         query, pxf, nparams = cursor._convert_query(query)
-        """LOG [caos.sql] Datasource Fetch
+        """LOG [caos.service.sql] Datasource Fetch
         print('%s.%s' % (self.__class__.__module__, self.__class__.__name__))
         print(query)
         if params:

@@ -30,6 +30,9 @@ class IdentNode(Base):
 class PathVarNode(VarNode):
     pass
 
+class LiteralExprNode(Base):
+    __fields = ['expr']
+
 class ConstantNode(Base):
     __fields = ['value', 'index', 'expr', 'type', 'origin_field']
 
@@ -59,7 +62,8 @@ class TableFuncElement(Base):
 
 class RelationNode(Base):
     __fields = [('concepts', frozenset), 'alias', ('_bonds', dict), 'caosnode',
-                ('outerbonds', list), ('proxyouterbonds', dict), ('aggregates', bool)]
+                ('outerbonds', list), ('proxyouterbonds', dict), ('aggregates', bool),
+                'coldef']
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
@@ -100,22 +104,38 @@ class SelectQueryNode(RelationNode):
     __fields = ['distinct', ('fromlist', list), ('targets', list),
                 'where', 'where_weak', 'where_strong',
                 ('from_only', bool),
+                ('values', list),
                 ('orderby', list), 'offset', 'limit', ('groupby', list), 'having',
                 ('ctes', datastructures.OrderedSet),
                 ('concept_node_map', dict), ('link_node_map', dict), ('linkmap', dict),
                 ('subquery_referrers', list),
                 'op', 'larg', 'rarg', 'recursive', 'text_override']
 
-class UpdateQueryNode(Base):
+
+class DMLNode(Base):
+    pass
+
+class OnConflictNode(Base):
+    __fields = ['action', 'infer', ('targets', list), 'where']
+
+class InsertQueryNode(DMLNode):
+    __fields = ['fromexpr', ('cols', list), 'select', ('targets', list),
+                ('subquery_referrers', list), 'alias',
+                ('ctes', datastructures.OrderedSet),
+                ('on_conflict', OnConflictNode, None)]
+
+class UpdateQueryNode(DMLNode):
     __fields = ['fromexpr', ('values', list), 'where', ('targets', list),
-                ('subquery_referrers', list), ('ctes', datastructures.OrderedSet)]
+                ('subquery_referrers', list),
+                ('ctes', datastructures.OrderedSet), 'alias']
 
 class UpdateExprNode(Base):
     __fields = ['expr', 'value']
 
-class DeleteQueryNode(Base):
+class DeleteQueryNode(DMLNode):
     __fields = ['fromexpr', 'where', ('targets', list),
-                ('subquery_referrers', list), ('ctes', datastructures.OrderedSet)]
+                ('subquery_referrers', list), ('ctes', datastructures.OrderedSet),
+                'alias', ('using', list)]
 
 class CompositeNode(RelationNode):
     __fields = [('queries', list), ('ctes', datastructures.OrderedSet),
@@ -123,6 +143,9 @@ class CompositeNode(RelationNode):
 
 class CTENode(SelectQueryNode):
     __fields = [('referrers', weakref.WeakSet)]
+
+class CTERefNode(Base):
+    __fields = ['cte']
 
 class CTEAttrRefNode(Base):
     __fields = ['cte', 'attr']

@@ -45,6 +45,7 @@ caosql_keywords = {
     "index": ("INDEX", UNRESERVED_KEYWORD),
     "inherit": ("INHERIT", UNRESERVED_KEYWORD),
     "inheriting": ("INHERITING", UNRESERVED_KEYWORD),
+    "insert": ("INSERT", RESERVED_KEYWORD),
     "intersect": ("INTERSECT", RESERVED_KEYWORD),
     "is": ("IS", TYPE_FUNC_NAME_KEYWORD),
     "last": ("LAST", UNRESERVED_KEYWORD),

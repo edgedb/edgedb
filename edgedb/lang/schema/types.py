@@ -14,6 +14,7 @@ from metamagic.utils import functional
 
 from . import error as s_err
 from . import objects as so
+from . import pointers as s_pointers
 
 
 class TypeRules:
@@ -186,6 +187,9 @@ def proto_name_from_type(typ):
     elif isinstance(item_type, so.ProtoNode):
         proto_name = item_type.name
 
+    elif isinstance(item_type, s_pointers.Pointer):
+        proto_name = item_type.name
+
     elif isinstance(item_type, so.PrototypeClass):
         proto_name = item_type
 
@@ -199,6 +203,10 @@ def proto_name_from_type(typ):
         else:
             if hasattr(item_type.__class__, '__sx_prototype__'):
                 proto_name = item_type.__class__.__sx_prototype__.name
+
+    if proto_name is None:
+        raise s_err.SchemaError(
+            'could not find matching prototype for %r' % typ)
 
     if is_composite:
         result = (container_type, proto_name)

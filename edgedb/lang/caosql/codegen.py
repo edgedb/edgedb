@@ -56,6 +56,31 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         self.new_lines = 1
         self.write(')')
 
+    def visit_InsertQueryNode(self, node):
+        self._visit_namespaces(node)
+        self._visit_cges(node.cges)
+
+        self.write('INSERT')
+
+        self.indentation += 1
+        self.new_lines = 1
+        self.visit(node.subject)
+        self.indentation -= 1
+        self.new_lines = 1
+
+        if node.pathspec:
+            self.indentation += 1
+            self._visit_pathspec(node.pathspec)
+            self.indentation -= 1
+
+        if node.targets:
+            self.new_lines = 1
+            self.write('RETURNING')
+            self.indentation += 1
+            self.new_lines = 1
+            self.visit_list(node.targets)
+            self.indentation -= 1
+
     def visit_UpdateQueryNode(self, node):
         self._visit_namespaces(node)
         self._visit_cges(node.cges)
@@ -68,16 +93,10 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         self.indentation -= 1
         self.new_lines = 1
 
-        self.write('SET')
-
-        self.indentation += 1
-        self.new_lines = 1
-        for i, e in enumerate(node.values):
-            if i > 0:
-                self.write(',')
-                self.new_lines = 1
-            self.visit(e)
-        self.indentation -= 1
+        if node.pathspec:
+            self.indentation += 1
+            self._visit_pathspec(node.pathspec)
+            self.indentation -= 1
 
         if node.where:
             self.new_lines = 1
@@ -92,10 +111,7 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
             self.write('RETURNING')
             self.indentation += 1
             self.new_lines = 1
-            for i, e in enumerate(node.targets):
-                if i > 0:
-                    self.write(', ')
-                self.visit(e)
+            self.visit_list(node.targets)
             self.indentation -= 1
 
     def visit_UpdateExprNode(self, node):
@@ -369,6 +385,10 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
         if node.pathspec:
             self._visit_pathspec(node.pathspec)
 
+        if node.compexpr:
+            self.write(' := ')
+            self.visit(node.compexpr)
+
     def visit_ConstantNode(self, node):
         if node.value is not None:
             try:
@@ -392,6 +412,9 @@ class CaosQLSourceGenerator(codegen.SourceGenerator):
                 self.write(']')
         else:
             self.write('None')
+
+    def visit_DefaultValueNode(self, node):
+        self.write('DEFAULT')
 
     def visit_FunctionCallNode(self, node):
         if isinstance(node.func, tuple):

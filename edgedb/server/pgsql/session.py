@@ -105,31 +105,16 @@ class Session(session.Session):
             self.init_connection()
         return self._connection
 
-    def get_prepared_statement(self, query, raw=True):
+    def get_prepared_statement(self, query, raw=True, exc_handler=None):
         connection = self.get_connection()
-        return connection.get_prepared_statement(query, raw=raw)
+        return connection.get_prepared_statement(query, raw=raw,
+                                                 exc_handler=exc_handler)
 
     def _transaction(self, parent):
         return Transaction(session=self, parent=parent)
 
     def _get_query_adapter(self):
         return self.backend.caosqladapter(self)
-
-    def _store_entity(self, entity):
-        self.backend.store_entity(entity, self)
-
-    def _delete_entities(self, entities):
-        self.backend.delete_entities(entities, self)
-
-    def _store_links(self, source, targets, link_name, merge=False):
-        self.backend.store_links(source, targets, link_name, self, merge=merge)
-
-    def _delete_links(self, link_name, endpoints):
-        self.backend.delete_links(link_name, endpoints, self)
-
-    def _load_link(self, link, pointers):
-        return self.backend.load_link(link._instancedata.source, link._instancedata.target, link,
-                                      pointers, self)
 
     def load(self, id, concept=None, access_control=True):
         if concept is None:

@@ -244,6 +244,14 @@ class SelectPointerSpecList(Nonterm):
         self.val = kids[0].val + [kids[2].val]
 
 
+class OptSelectPathCompExpr(Nonterm):
+    def reduce_COLONEQUALS_Expr(self, *kids):
+        self.val = kids[1].val
+
+    def reduce_empty(self, *kids):
+        self.val = None
+
+
 class SelectPointerSpec(Nonterm):
     def reduce_PointerGlob(self, *kids):
         self.val = kids[0].val
@@ -253,11 +261,12 @@ class SelectPointerSpec(Nonterm):
             expr=qlast.LinkExprNode(expr=kids[1].val)
         )
 
-    def reduce_PointerSpecSetExpr_OptPointerRecursionSpec_OptSelectPathSpec(
+    def reduce_PointerSpecSetExpr_OptPointerRecursionSpec_OptSelectPathSpec_OptSelectPathCompExpr(
                                                     self, *kids):
         self.val = kids[0].val
         self.val.recurse = kids[1].val
         self.val.pathspec = kids[2].val
+        self.val.compexpr = kids[3].val
 
 
 class PointerSpecSetExpr(Nonterm):
@@ -922,7 +931,7 @@ class OptFilterClause(Nonterm):
 
 
 class FuncApplication(Nonterm):
-    def reduce_CAST_LPAREN_Expr_AS_TypeName_RPAREN(self, *kids):
+    def reduce_CAST_LPAREN_Expr_AS_ExtTypeExpr_RPAREN(self, *kids):
         self.val = qlast.TypeCastNode(expr=kids[2].val, type=kids[4].val)
 
     def reduce_FqFuncName_LPAREN_FuncArgList_OptSortClause_RPAREN_OptFilterClause(
@@ -1096,6 +1105,21 @@ class TypeName(Nonterm):
         self.val = qlast.TypeNameNode(maintype=kids[0].val)
 
     def reduce_ArgName_LANGBRACKET_TypeName_RANGBRACKET(self, *kids):
+        self.val = qlast.TypeNameNode(maintype=kids[0].val,
+                                      subtype=kids[2].val)
+
+
+class ExtTypeExpr(Nonterm):
+    def reduce_ArgName(self, *kids):
+        self.val = qlast.TypeNameNode(maintype=kids[0].val)
+
+    def reduce_PathStart_SelectPathSpec(self, *kids):
+        self.val = qlast.PathNode(
+            steps=[kids[0].val],
+            pathspec=kids[1].val
+        )
+
+    def reduce_ArgName_LANGBRACKET_ExtTypeExpr_RANGBRACKET(self, *kids):
         self.val = qlast.TypeNameNode(maintype=kids[0].val,
                                       subtype=kids[2].val)
 

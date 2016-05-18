@@ -65,29 +65,44 @@ class SQLSourceGenerator(codegen.SourceGenerator):
     def generic_visit(self, node):
         raise SQLSourceGeneratorError('No method to generate code for %s' % node.__class__.__name__)
 
+    def visit_LiteralExprNode(self, node):
+        self.write(node.expr)
+
     def visit_CTENode(self, node):
         if isinstance(node.alias, str):
             self.write(common.quote_ident(node.alias))
         else:
             self.write(common.quote_ident(node.alias.alias))
 
+    def visit_CTERefNode(self, node):
+        if isinstance(node.cte.alias, str):
+            self.write(common.quote_ident(node.cte.alias))
+        else:
+            self.write(common.quote_ident(node.cte.alias.alias))
+
     def gen_ctes(self, ctes):
         self.write('WITH')
         count = len(ctes)
         for i, cte in enumerate(ctes):
             self.new_lines = 1
-            if cte.recursive:
+            if getattr(cte, 'recursive', None):
                 self.write('RECURSIVE ')
             if isinstance(cte.alias, str):
                 self.write(common.quote_ident(cte.alias))
             else:
                 self.visit(cte.alias)
             self.write(' AS ')
-            self.indentation += 2
-            self.visit_SelectQueryNode(cte, use_alias=False)
+            self.indentation += 1
+            if isinstance(cte, pgast.SelectQueryNode):
+                self.visit_SelectQueryNode(cte, use_alias=False)
+            else:
+                self.new_lines = 1
+                self.write('(')
+                self.visit(cte)
+                self.write(')')
             if i != count - 1:
                 self.write(',')
-            self.indentation -= 2
+            self.indentation -= 1
 
         self.new_lines = 1
 
@@ -139,7 +154,10 @@ class SQLSourceGenerator(codegen.SourceGenerator):
                 count = len(node.fromlist)
                 for i, source in enumerate(node.fromlist):
                     self.new_lines = 1
-                    self.visit(source)
+                    if isinstance(source, pgast.DMLNode):
+                        self.visit_CTENode(source)
+                    else:
+                        self.visit(source)
                     if i != count - 1:
                         self.write(',')
 
@@ -210,6 +228,8 @@ class SQLSourceGenerator(codegen.SourceGenerator):
 
         if node.alias and use_alias:
             self.write(' AS ' + common.quote_ident(node.alias))
+            if node.coldef:
+                self.write(node.coldef)
 
     def visit_ExistsNode(self, node):
         self.write('EXISTS (')
@@ -219,6 +239,66 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.indentation -= 1
         self.new_lines = 1
         self.write(')')
+
+    def visit_InsertQueryNode(self, node):
+        self.write('INSERT INTO ')
+        self.visit(node.fromexpr)
+        if node.cols:
+            self.new_lines = 1
+            self.indentation += 1
+            self.write('(')
+            self.visit_list(node.cols, newlines=False)
+            self.write(')')
+            self.indentation -= 1
+
+        self.indentation += 1
+        self.new_lines = 1
+
+        if node.select.values:
+            self.write('VALUES ')
+            self.new_lines = 1
+            self.indentation += 1
+            self.visit_list(node.select.values)
+            self.indentation -= 1
+        else:
+            self.write('(')
+            self.visit(node.select)
+            self.write(')')
+
+        if node.on_conflict:
+            self.new_lines = 1
+            self.write('ON CONFLICT')
+
+            if node.on_conflict.infer:
+                self.write(' (')
+                self.visit_list(node.on_conflict.infer, newlines=False)
+                self.write(')')
+
+            self.write(' DO ')
+            self.write(node.on_conflict.action.upper())
+
+            if node.on_conflict.targets:
+                self.write(' SET')
+                self.new_lines = 1
+                self.indentation += 1
+                self.visit_list(node.on_conflict.targets)
+                self.indentation -= 1
+
+        if node.targets:
+            self.new_lines = 1
+            self.write('RETURNING')
+            self.new_lines = 1
+            self.indentation += 1
+
+            count = len(node.targets)
+            for i, expr in enumerate(node.targets):
+                self.new_lines = 1
+                self.visit(expr)
+                if i != count - 1:
+                    self.write(',')
+            self.indentation -= 1
+
+        self.indentation -= 1
 
     def visit_UpdateQueryNode(self, node):
         self.write('UPDATE ')
@@ -263,6 +343,19 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.indentation += 1
         self.visit(node.fromexpr)
         self.indentation -= 1
+        if node.using:
+            self.new_lines = 1
+            self.write('USING')
+            self.indentation += 1
+            for i, source in enumerate(node.using):
+                if i > 0:
+                    self.write(',')
+                self.new_lines = 1
+                if isinstance(source, pgast.DMLNode):
+                    self.visit_CTENode(source)
+                else:
+                    self.visit(source)
+            self.indentation -= 1
         self.new_lines = 1
         self.write('WHERE')
         self.new_lines = 1
@@ -270,17 +363,19 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         self.visit(node.where)
         self.new_lines = 1
         self.indentation -= 1
-        self.write('RETURNING')
-        self.new_lines = 1
-        self.indentation += 1
 
-        count = len(node.targets)
-        for i, expr in enumerate(node.targets):
+        if node.targets:
+            self.write('RETURNING')
             self.new_lines = 1
-            self.visit(expr)
-            if i != count - 1:
-                self.write(',')
-        self.indentation -= 1
+            self.indentation += 1
+
+            count = len(node.targets)
+            for i, expr in enumerate(node.targets):
+                self.new_lines = 1
+                self.visit(expr)
+                if i != count - 1:
+                    self.write(',')
+            self.indentation -= 1
 
     def visit_SelectExprNode(self, node):
         self.visit(node.expr)
@@ -291,7 +386,10 @@ class SQLSourceGenerator(codegen.SourceGenerator):
         # Do no call visit_FieldRefNode here, since fields in UPDATE clause
         # must not have table qualifiers
         #
-        self.write(common.qname(str(node.expr.field)))
+        if isinstance(node.expr, pgast.FieldRefNode):
+            self.write(common.qname(str(node.expr.field)))
+        else:
+            self.visit(node.expr)
         self.write(' = ')
         self.visit(node.value)
 
@@ -348,8 +446,9 @@ class SQLSourceGenerator(codegen.SourceGenerator):
             self.visit(node.right)
             if isinstance(node.right, pgast.JoinNode) and node.right.right is not None:
                 self.write(')')
-            self.write(' ON ')
-            self.visit(node.condition)
+            if node.condition is not None:
+                self.write(' ON ')
+                self.visit(node.condition)
 
     def visit_TableNode(self, node):
         self.write(common.qname(node.schema, node.name))

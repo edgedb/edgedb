@@ -21,6 +21,7 @@ class Literal(metaclass=abc.ABCMeta):
 Literal.register(numbers.Number)
 Literal.register(uuid.UUID)
 Literal.register(str)
+Literal.register(bytes)
 Literal.register(datetime.DateTime)
 Literal.register(datetime.Date)
 Literal.register(datetime.TimeDelta)
