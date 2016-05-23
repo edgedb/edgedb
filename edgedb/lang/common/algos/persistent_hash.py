@@ -33,6 +33,8 @@ class persistent_hash(int):
             hash = cls.str_hash('__metamagic__NONE__')
         elif isinstance(value, str):
             hash = cls.str_hash(value)
+        elif isinstance(value, bytes):
+            hash = cls.bytes_hash(value)
         elif isinstance(value, bool):
             hash = cls.str_hash('__metamagic__TRUE__' if value else '__metamagic__FALSE__')
         elif isinstance(value, int):
@@ -66,6 +68,11 @@ class persistent_hash(int):
     def str_hash(cls, value):
         """Compute a persistent hash for a string value"""
         return int(md5(value.encode()).hexdigest(), 16)
+
+    @classmethod
+    def bytes_hash(cls, value):
+        """Compute a persistent hash for a bytes value"""
+        return int(md5(value).hexdigest(), 16)
 
     @classmethod
     def int_hash(cls, value):
