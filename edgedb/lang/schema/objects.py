@@ -642,6 +642,9 @@ class Collection(BasePrototype, ProtoNode):
         raise NotImplementedError
 
     def coerce(self, items, schema):
+        from . import atoms as s_atoms
+        from . import types as s_types
+
         container = self.get_container()
 
         elements = []
@@ -651,8 +654,9 @@ class Collection(BasePrototype, ProtoNode):
             else:
                 eltype = self.element_type
 
-            if hasattr(eltype, 'get_topmost_base'):  # atoms
-                eltype = eltype.get_topmost_base(schema)
+            if isinstance(eltype, s_atoms.Atom):
+                eltype = eltype.get_topmost_base()
+                eltype = s_types.BaseTypeMeta.get_implementation(eltype.name)
 
             for item in items:
                 if not isinstance(item, eltype):

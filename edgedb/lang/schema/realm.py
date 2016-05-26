@@ -58,7 +58,6 @@ class AlterRealm(sd.Command):
 
                 link.acquire_ancestor_inheritance(schema)
                 link.finalize(schema)
-                link._clear_caches()
 
             for link in schema(type='computable'):
                 if link.target and not isinstance(link.target, so.BasePrototype):
@@ -67,4 +66,3 @@ class AlterRealm(sd.Command):
             for concept in schema(type='concept'):
                 concept.acquire_ancestor_inheritance(schema)
                 concept.finalize(schema)
-                concept._clear_caches()

@@ -910,7 +910,7 @@ class IRCompilerBase:
                                 expr.args[0], context.current.proto_schema)
 
                 if isinstance(arg_type, s_atoms.Atom):
-                    b = arg_type.get_topmost_base(context.current.proto_schema, top_prototype=True)
+                    b = arg_type.get_topmost_base()
                     is_string = b.name == 'metamagic.caos.builtins.str'
 
                 one = pgsql.ast.ConstantNode(value=1)
@@ -934,7 +934,7 @@ class IRCompilerBase:
                                 expr.args[0], context.current.proto_schema)
 
                 if isinstance(arg_type, s_atoms.Atom):
-                    b = arg_type.get_topmost_base(context.current.proto_schema, top_prototype=True)
+                    b = arg_type.get_topmost_base()
                     is_string = b.name == 'metamagic.caos.builtins.str'
 
                 if is_string:

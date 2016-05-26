@@ -7,7 +7,7 @@
 
 
 from metamagic.utils.gis.serialization import wkb
-from metamagic.caos.objects import geo as geo_objects
+from metamagic.caos.schema.types import geo as geo_objects
 
 
 def postgis_factory(oid, typio):

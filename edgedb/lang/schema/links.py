@@ -766,10 +766,6 @@ class Link(pointers.Pointer, sources.Source):
 
         return ptr
 
-    def finalize(self, schema, bases=None):
-        super().finalize(schema, bases=bases)
-        self._clear_caches()
-
     def merge_specialized(self, schema, other, relaxed=False):
         if isinstance(other, Link):
             self.readonly = max(self.readonly, other.readonly)

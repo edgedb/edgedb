@@ -12,8 +12,6 @@ import sys
 
 from importkit.import_ import module as module_types
 
-from metamagic.caos import classfactory
-
 from metamagic.utils.datastructures import Void
 from metamagic.utils.algos.persistent_hash import persistent_hash
 
@@ -26,7 +24,7 @@ class ObjectClass(type):
     pass
 
 
-class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
+class ProtoSchema:
     global_dep_order = ('action', 'event', 'attribute', 'constraint',
                         'atom', 'link_property', 'link', 'concept')
 
@@ -37,8 +35,6 @@ class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
         return 'metamagic.caos.builtins'
 
     def __init__(self):
-        classfactory.ClassCache.__init__(self)
-
         self.modules = collections.OrderedDict()
         self.foreign_modules = collections.OrderedDict()
         self.module_aliases = {}
@@ -126,7 +122,6 @@ class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
         self.foreign_modules.clear()
         self.module_aliases.clear()
         self.module_aliases_r.clear()
-        self.clear_class_cache()
         self._virtual_inheritance_cache.clear()
         self._inheritance_cache.clear()
         self._policy_schema = None
@@ -326,10 +321,6 @@ class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
 
         return self.get(name, type=cls)
 
-    def get_class(self, name, module_aliases=None):
-        proto = self.get(name, module_aliases=module_aliases)
-        return proto(self)
-
     def get_event_policy(self, subject_proto, event_proto):
         from . import policy as spol
 
@@ -365,12 +356,3 @@ class ProtoSchema(classfactory.ClassCache, classfactory.ClassFactory):
         for mod in self.modules.values():
             for proto in mod(type=type):
                 yield proto
-
-    def __eq__(self, other):
-        if not isinstance(other, ProtoSchema):
-            return NotImplemented
-
-        return self.get_checksum() == other.get_checksum()
-
-    def __hash__(self):
-        return self.get_checksum()

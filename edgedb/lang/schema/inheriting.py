@@ -159,6 +159,9 @@ class InheritingPrototype(named.NamedPrototype):
     def get_base_names(self):
         return self.bases.get_names()
 
+    def get_topmost_base(self):
+        return self.get_mro()[-1]
+
     def _merge_mro(self, mros):
         result = []
 
@@ -207,7 +210,7 @@ class InheritingPrototype(named.NamedPrototype):
                 else:
                     return False
         else:
-            mro = self.get_mro(full_mro=True)
+            mro = self.get_mro()
 
             if not isinstance(parent, tuple):
                 parents = (parent,)

@@ -48,6 +48,7 @@ from metamagic.caos.schema import name as sn
 from metamagic.caos.schema import objects as s_obj
 from metamagic.caos.schema import pointers as s_pointers
 from metamagic.caos.schema import policy as s_policy
+from metamagic.caos.schema import types as s_types
 
 from metamagic.caos import caosql
 
@@ -357,7 +358,12 @@ class ErrorMech:
                 if constraint_name is None:
                     return caos.error.UninterpretedStorageError(err.message)
 
-                constraint = proto_schema.get_class(constraint_name)
+                # XXX: decouple
+                from metamagic.caos import classfactory as caos_clsfactory
+                class_factory = caos_clsfactory.get_schema_class_factory(
+                    proto_schema)
+
+                constraint = class_factory.get_class(constraint_name)
                 # Unfortunately, Postgres does not include the offending
                 # value in exceptions consistently.
                 offending_value = None
@@ -738,7 +744,6 @@ class Backend(backends.MetaBackend, backends.DataBackend):
                     # Apply and adapt delta, build native delta plan
                     plan = self.process_delta(delta, proto_schema)
 
-                    proto_schema.clear_class_cache()
                     # Reinitialize the session with the mutated schema
                     session.replace_schema(proto_schema)
 
@@ -1469,9 +1474,10 @@ class Backend(backends.MetaBackend, backends.DataBackend):
             raise s_err.SchemaError(msg, details=details)
 
         if not isinstance(table_default, s_expr.ExpressionText):
-            typ = ptr.target.get_topmost_base(schema)
-            table_default = typ(table_default)
-            schema_default = typ(schema_default)
+            typ = ptr.target.get_topmost_base()
+            typ_t = s_types.BaseTypeMeta.get_implementation(typ.name)
+            table_default = typ_t(table_default)
+            schema_default = typ_t(schema_default)
 
         if schema_default != table_default:
             msg = 'internal metadata inconsistency'

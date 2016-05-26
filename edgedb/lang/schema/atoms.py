@@ -19,7 +19,7 @@ from . import name as sn
 from . import named
 from . import objects as so
 from . import primary
-from . import types
+from . import types as s_types
 
 
 class AtomCommandContext(sd.PrototypeCommandContext,
@@ -201,19 +201,10 @@ class Atom(primary.Prototype, constraints.ConsistencySubject,
 
         return deps
 
-    def get_topmost_base(self, schema, top_prototype=False):
-        base = self
-        while base.bases:
-            base = base.bases[0]
-        if top_prototype:
-            return base
-        else:
-            return types.BaseTypeMeta.get_implementation(base.name)
-
     def get_metaclass(self, schema):
         from metamagic.caos.atom import AtomMeta
 
-        base = self.get_topmost_base(schema)
+        base = self.get_topmost_base()
         if issubclass(type(base), AtomMeta):
             metaclass = type(base)
         else:
@@ -233,8 +224,10 @@ class Atom(primary.Prototype, constraints.ConsistencySubject,
         return result
 
     def coerce(self, value, schema):
-        base = self.get_topmost_base(schema)
-        if not isinstance(value, base):
-            return base(value)
+        base_proto = self.get_topmost_base()
+        base_t = s_types.BaseTypeMeta.get_implementation(base_proto.name)
+
+        if not isinstance(value, base_t):
+            return base_t(value)
         else:
             return value

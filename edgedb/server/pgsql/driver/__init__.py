@@ -21,7 +21,7 @@ from postgresql.protocol import element3 as element
 
 from metamagic import json
 
-from metamagic.caos.objects import numeric, string
+from metamagic.caos.schema.types import numeric, string
 from metamagic.caos.backends import pool as caos_pool
 from metamagic.caos import CaosError
 from metamagic.utils import datetime as sx_datetime

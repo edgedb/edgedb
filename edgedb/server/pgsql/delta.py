@@ -480,7 +480,7 @@ class AtomMetaCommand(NamedPrototypeMetaCommand):
         return seq is not None and atom.issubclass(seq)
 
     def is_geometry(self, schema, atom):
-        base = atom.get_topmost_base(schema, top_prototype=True)
+        base = atom.get_topmost_base()
         return base.name.module == 'metamagic.caos.geo'
 
     def fill_record(self, schema, rec=None, obj=None):

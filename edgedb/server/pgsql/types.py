@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.caos.objects import geo as geo_objects
+from metamagic.caos.schema.types import geo as geo_objects
 
 from metamagic.caos.schema import atoms as s_atoms
 from metamagic.caos.schema import concepts as s_concepts
@@ -99,7 +99,7 @@ def get_atom_base(schema, atom):
 
 def pg_type_from_atom(schema, atom, topbase=False):
     if topbase:
-        base = atom.get_topmost_base(schema, top_prototype=True)
+        base = atom.get_topmost_base()
     else:
         base = get_atom_base(schema, atom)
 

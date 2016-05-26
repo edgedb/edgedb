@@ -12,9 +12,9 @@ import types
 from metamagic.utils import ast
 from metamagic.utils import functional
 
-from . import error as s_err
-from . import objects as so
-from . import pointers as s_pointers
+from metamagic.caos.schema import error as s_err
+from metamagic.caos.schema import objects as s_obj
+from metamagic.caos.schema import pointers as s_pointers
 
 
 class TypeRules:
@@ -22,7 +22,39 @@ class TypeRules:
 
     @classmethod
     def add_rule(cls, op, args, result):
-        cls.rules.setdefault(op, {}).setdefault(len(args), {})[tuple(args)] = result
+        try:
+            oprules = cls.rules[op]
+        except KeyError:
+            oprules = cls.rules[op] = {}
+
+        arglen = len(args)
+
+        try:
+            argrules = oprules[arglen]
+        except KeyError:
+            argrules = oprules[arglen] = {}
+
+        args = tuple(args)
+        argrules[tuple(args)] = result
+
+    @classmethod
+    def _issubclass(cls, schema, arg, sig_arg):
+        if sig_arg is Ellipsis:
+            return True
+
+        is_subclass = isinstance(arg, type) and issubclass(arg, sig_arg)
+
+        if not is_subclass and isinstance(arg, s_obj.ProtoObject):
+            if not isinstance(sig_arg, s_obj.ProtoObject):
+                sig_arg_typ = BaseTypeMeta.type_to_caos_builtin(sig_arg)
+                if not sig_arg_typ:
+                    return False
+                else:
+                    sig_arg = schema.get(sig_arg_typ)
+
+            is_subclass = arg.issubclass(sig_arg)
+
+        return is_subclass
 
     @classmethod
     def get_result(cls, op, args, schema):
@@ -36,8 +68,8 @@ class TypeRules:
             for sig, result in rules.items():
                 for i, arg in enumerate(args):
                     sig_arg = sig[i]
-                    if not (isinstance(arg, type) and issubclass(arg, sig_arg)) and \
-                            not (isinstance(arg, so.ProtoObject) and arg.issubclass(sig_arg)):
+
+                    if not cls._issubclass(schema, arg, sig_arg):
                         break
                 else:
                     match = result
@@ -64,7 +96,9 @@ class TypeInfoMeta(type):
                     args = functional.get_argsspec(proc)
 
                     argtypes = []
-                    for i, arg in enumerate(itertools.chain(args.args, args.kwonlyargs)):
+
+                    allargs = itertools.chain(args.args, args.kwonlyargs)
+                    for i, arg in enumerate(allargs):
                         if i == 0:
                             argtypes.append((type,))
                         else:
@@ -101,7 +135,14 @@ class FunctionMeta(type):
             signature = get_signature()
 
         if signature:
-            signature = (signature[0], (signature[1],) if signature[1] else (), signature[2])
+            args = signature[1]
+            if args is not None:
+                if not isinstance(args, tuple):
+                    args = (args,)
+            else:
+                args = ()
+
+            signature = (signature[0], args, signature[2])
             TypeRules.add_rule(*signature)
 
         get_canonical_name = getattr(result, 'get_canonical_name', None)
@@ -120,6 +161,7 @@ class FunctionMeta(type):
 class BaseTypeMeta:
     base_type_map = {}
     implementation_map = {}
+    meta_implementation_map = {}
     mixin_map = {}
 
     @classmethod
@@ -137,6 +179,16 @@ class BaseTypeMeta:
         cls.implementation_map[caos_name] = type
 
     @classmethod
+    def add_meta_implementation(cls, schema_type, type):
+        existing = cls.meta_implementation_map.get(schema_type)
+        if existing is not None:
+            msg = ('cannot set {!r} as implementation: {!r} is already ' +
+                   'implemented by {!r}').format(type, schema_type, existing)
+            raise ValueError(msg)
+
+        cls.meta_implementation_map[schema_type] = type
+
+    @classmethod
     def add_mixin(cls, caos_name, type):
         try:
             mixins = cls.mixin_map[caos_name]
@@ -147,11 +199,19 @@ class BaseTypeMeta:
 
     @classmethod
     def type_to_caos_builtin(cls, type):
-        return cls.base_type_map.get(type)
+        for t in type.__mro__:
+            try:
+                return cls.base_type_map[t]
+            except KeyError:
+                continue
 
     @classmethod
     def get_implementation(cls, caos_name):
         return cls.implementation_map.get(caos_name)
+
+    @classmethod
+    def get_meta_implementation(cls, schema_type):
+        return cls.meta_implementation_map.get(schema_type)
 
     @classmethod
     def get_mixins(cls, caos_name):
@@ -180,17 +240,18 @@ def proto_name_from_type(typ):
         item_type = typ
 
     proto_name = None
+    NoneType = type(None)
 
-    if item_type is None or item_type is type(None):
+    if item_type is None or item_type is NoneType:
         proto_name = 'metamagic.caos.builtins.none'
 
-    elif isinstance(item_type, so.ProtoNode):
+    elif isinstance(item_type, s_obj.ProtoNode):
         proto_name = item_type.name
 
     elif isinstance(item_type, s_pointers.Pointer):
         proto_name = item_type.name
 
-    elif isinstance(item_type, so.PrototypeClass):
+    elif isinstance(item_type, s_obj.PrototypeClass):
         proto_name = item_type
 
     else:
@@ -242,7 +303,7 @@ def normalize_type(type, proto_schema):
     else:
         item_proto_name = proto_name
 
-    if isinstance(item_proto_name, so.PrototypeClass):
+    if isinstance(item_proto_name, s_obj.PrototypeClass):
         item_proto = item_proto_name
     else:
         item_proto = proto_schema.get(item_proto_name)
