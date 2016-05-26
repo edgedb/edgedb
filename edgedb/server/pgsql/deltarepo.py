@@ -6,8 +6,7 @@
 ##
 
 
-from metamagic.caos.backends import deltarepo
-
+from metamagic.caos.schema import deltarepo
 from metamagic.caos.schema import delta as sd
 
 from . import common

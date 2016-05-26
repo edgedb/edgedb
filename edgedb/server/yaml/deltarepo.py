@@ -13,7 +13,7 @@ import re
 import importkit
 
 from metamagic.caos.schema import delta as sd
-from metamagic.caos.backends import deltarepo
+from metamagic.caos.schema import deltarepo
 
 from importkit import yaml
 
