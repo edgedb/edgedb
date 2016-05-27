@@ -8,9 +8,9 @@
 
 import itertools
 
-from metamagic.caos.ir import utils as ir_utils
-from metamagic.caos import caosql
-from metamagic.caos.caosql import ast as qlast
+from metamagic.caos.lang.ir import utils as ir_utils
+from metamagic.caos.lang import caosql
+from metamagic.caos.lang.caosql import ast as qlast
 
 from . import delta as sd
 from . import derivable
@@ -401,7 +401,7 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
     @classmethod
     def _parse_constraint_expr(cls, schema, module_aliases, expr, subject,
                                     inline_anchors=False):
-        from metamagic.caos.caosql import utils as caosql_utils
+        from metamagic.caos.lang.caosql import utils as caosql_utils
 
         ir, caosql_tree, _ = caosql_utils.normalize_tree(
                                     expr, schema,
@@ -440,7 +440,7 @@ class Constraint(primary.Prototype, derivable.DerivablePrototype):
 
     @classmethod
     def process_specialized_constraint(cls, schema, constraint):
-        from metamagic.caos.caosql import utils as caosql_utils
+        from metamagic.caos.lang.caosql import utils as caosql_utils
 
         assert constraint.subject is not None
 

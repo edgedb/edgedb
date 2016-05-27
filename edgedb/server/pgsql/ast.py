@@ -9,7 +9,7 @@
 import weakref
 
 from metamagic.utils import datastructures, ast
-from metamagic.caos.ir import ast as irast
+from metamagic.caos.lang.ir import ast as irast
 
 
 class Base(ast.AST):

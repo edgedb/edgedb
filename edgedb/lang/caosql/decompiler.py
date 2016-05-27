@@ -9,9 +9,9 @@
 import collections
 
 from metamagic.caos import types as caos_types
-from metamagic.caos.ir import ast as irast
-from metamagic.caos.ir import transformer as irtransformer
-from metamagic.caos.caosql import ast as qlast
+from metamagic.caos.lang.ir import ast as irast
+from metamagic.caos.lang.ir import transformer as irtransformer
+from metamagic.caos.lang.caosql import ast as qlast
 
 from metamagic.utils import ast
 

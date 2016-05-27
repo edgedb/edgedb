@@ -8,8 +8,8 @@
 
 from metamagic.utils import datastructures as ds
 
-from metamagic.caos import caosql
-from metamagic.caos.caosql import ast as qlast
+from metamagic.caos.lang import caosql
+from metamagic.caos.lang.caosql import ast as qlast
 
 from . import constraints
 from . import delta as sd

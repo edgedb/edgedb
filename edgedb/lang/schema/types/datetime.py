@@ -11,7 +11,7 @@ import datetime
 from metamagic.utils import ast
 
 from metamagic.caos import error as caos_exc
-from metamagic.caos.caosql import quote as caosql_quote
+from metamagic.caos.lang.caosql import quote as caosql_quote
 
 from metamagic.utils.datetime import DateTime, Date, Time, TimeDelta
 from metamagic.utils.algos.persistent_hash import persistent_hash

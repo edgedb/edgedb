@@ -6,7 +6,7 @@
 ##
 
 
-from metamagic.caos.caosql import ast as qlast
+from metamagic.caos.lang.caosql import ast as qlast
 
 from . import constraints
 from . import delta as sd

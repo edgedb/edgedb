@@ -6,14 +6,14 @@
 ##
 
 
-from metamagic.caos.schema.types import geo as geo_objects
+from metamagic.caos.lang.schema.types import geo as geo_objects
 
-from metamagic.caos.schema import atoms as s_atoms
-from metamagic.caos.schema import concepts as s_concepts
-from metamagic.caos.schema import error as s_err
-from metamagic.caos.schema import lproperties as s_lprops
-from metamagic.caos.schema import name as sn
-from metamagic.caos.schema import types as s_types
+from metamagic.caos.lang.schema import atoms as s_atoms
+from metamagic.caos.lang.schema import concepts as s_concepts
+from metamagic.caos.lang.schema import error as s_err
+from metamagic.caos.lang.schema import lproperties as s_lprops
+from metamagic.caos.lang.schema import name as sn
+from metamagic.caos.lang.schema import types as s_types
 
 from . import common
 

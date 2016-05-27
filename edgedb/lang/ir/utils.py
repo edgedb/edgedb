@@ -8,9 +8,9 @@
 
 from metamagic.utils import ast
 
-from metamagic.caos.schema import objects as s_obj
-from metamagic.caos.schema import types as s_types
-from metamagic.caos.schema import utils as s_utils
+from metamagic.caos.lang.schema import objects as s_obj
+from metamagic.caos.lang.schema import types as s_types
+from metamagic.caos.lang.schema import utils as s_utils
 
 from . import ast as irast
 
@@ -48,7 +48,7 @@ def infer_arg_types(ir, schema):
             typ = infer_type(expr, schema)
 
         elif isinstance(binop.op, ast.ops.MembershipOperator) and not reversed:
-            from metamagic.caos.schema import objects as s_obj
+            from metamagic.caos.lang.schema import objects as s_obj
 
             elem_type = infer_type(expr, schema)
             typ = s_obj.Set(element_type=elem_type)

@@ -8,7 +8,7 @@
 
 from metamagic.utils.functional import hybridmethod
 
-from metamagic.caos.caosql import ast as qlast
+from metamagic.caos.lang.caosql import ast as qlast
 
 from . import atoms
 from . import constraints

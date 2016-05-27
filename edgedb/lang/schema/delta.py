@@ -12,8 +12,8 @@ import re
 from metamagic.exceptions import MetamagicError
 from metamagic import caos, exceptions as base_err
 from metamagic.caos import debug as caos_debug
-from metamagic.caos import caosql
-from metamagic.caos.caosql import ast as qlast
+from metamagic.caos.lang import caosql
+from metamagic.caos.lang.caosql import ast as qlast
 
 from metamagic.utils import datastructures, functional, markup
 from metamagic.utils.datastructures import Field

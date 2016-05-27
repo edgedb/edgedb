@@ -9,17 +9,17 @@
 import collections
 import itertools
 
-from metamagic.caos.ir import ast as irast
-from metamagic.caos.ir import astexpr as irastexpr
-from metamagic.caos.ir import utils as ir_utils
-from metamagic.caos import caosql
+from metamagic.caos.lang.ir import ast as irast
+from metamagic.caos.lang.ir import astexpr as irastexpr
+from metamagic.caos.lang.ir import utils as ir_utils
+from metamagic.caos.lang import caosql
 
-from metamagic.caos.schema import atoms as s_atoms
-from metamagic.caos.schema import concepts as s_concepts
-from metamagic.caos.schema import error as s_err
-from metamagic.caos.schema import links as s_links
-from metamagic.caos.schema import name as sn
-from metamagic.caos.schema import types as s_types
+from metamagic.caos.lang.schema import atoms as s_atoms
+from metamagic.caos.lang.schema import concepts as s_concepts
+from metamagic.caos.lang.schema import error as s_err
+from metamagic.caos.lang.schema import links as s_links
+from metamagic.caos.lang.schema import name as sn
+from metamagic.caos.lang.schema import types as s_types
 
 from metamagic.utils import ast
 

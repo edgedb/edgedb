@@ -11,20 +11,20 @@ import itertools
 
 from metamagic.caos import error as caos_error
 
-from metamagic.caos.ir import ast as irast
-from metamagic.caos.ir import utils as irutils
-from metamagic.caos.ir.utils import LinearPath
+from metamagic.caos.lang.ir import ast as irast
+from metamagic.caos.lang.ir import utils as irutils
+from metamagic.caos.lang.ir.utils import LinearPath
 
-from metamagic.caos.schema import atoms as s_atoms
-from metamagic.caos.schema import concepts as s_concepts
-from metamagic.caos.schema import expr as s_expr
-from metamagic.caos.schema import hooks as s_hooks
-from metamagic.caos.schema import links as s_links
-from metamagic.caos.schema import lproperties as s_lprops
-from metamagic.caos.schema import name as sn
-from metamagic.caos.schema import objects as s_obj
-from metamagic.caos.schema import pointers as s_pointers
-from metamagic.caos.schema import types as s_types
+from metamagic.caos.lang.schema import atoms as s_atoms
+from metamagic.caos.lang.schema import concepts as s_concepts
+from metamagic.caos.lang.schema import expr as s_expr
+from metamagic.caos.lang.schema import hooks as s_hooks
+from metamagic.caos.lang.schema import links as s_links
+from metamagic.caos.lang.schema import lproperties as s_lprops
+from metamagic.caos.lang.schema import name as sn
+from metamagic.caos.lang.schema import objects as s_obj
+from metamagic.caos.lang.schema import pointers as s_pointers
+from metamagic.caos.lang.schema import types as s_types
 
 from metamagic.utils.algos import boolean
 from metamagic.utils import datastructures, ast, debug, markup
@@ -352,7 +352,7 @@ class TreeTransformer:
                     self._rewrite_with_caosql_expr(expr, caosql_expr, anchors)
 
     def _rewrite_with_caosql_expr(self, expr, caosql_expr, anchors):
-        from metamagic.caos import caosql
+        from metamagic.caos.lang import caosql
 
         schema = self.context.current.proto_schema
         ir = caosql.compile_fragment_to_ir(caosql_expr, schema,

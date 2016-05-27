@@ -393,7 +393,7 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
         return val
 
     def delta_properties(self, delta, other, reverse=False, context=None):
-        from metamagic.caos.schema import delta as sd
+        from metamagic.caos.lang.schema import delta as sd
 
         old, new = (other, self) if not reverse else (self, other)
 
@@ -454,8 +454,8 @@ class BasePrototype(struct.MixedStruct, ProtoObject, metaclass=PrototypeMeta):
     # @debug.debug
     def _delta_sets(cls, old, new, context=None, *,
                                    old_schema=None, new_schema=None):
-        from metamagic.caos.schema import named as s_named
-        from metamagic.caos.schema import realm as s_realm
+        from metamagic.caos.lang.schema import named as s_named
+        from metamagic.caos.lang.schema import realm as s_realm
 
         adds_mods = s_realm.AlterRealm()
         dels = s_realm.AlterRealm()

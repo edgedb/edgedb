@@ -9,8 +9,8 @@
 from metamagic.utils import ast
 from metamagic.utils import parsing
 
-from metamagic.caos.caosql import ast as qlast
-from metamagic.caos.ir import ast as irast
+from metamagic.caos.lang.caosql import ast as qlast
+from metamagic.caos.lang.ir import ast as irast
 from metamagic.caos import types as caos_types
 
 from ..errors import CaosQLSyntaxError

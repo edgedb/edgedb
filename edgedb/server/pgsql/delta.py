@@ -12,25 +12,25 @@ import pickle
 import postgresql.string
 import re
 
-from metamagic.caos import caosql
+from metamagic.caos.lang import caosql
 
-from metamagic.caos.schema import attributes as s_attrs
-from metamagic.caos.schema import atoms as s_atoms
-from metamagic.caos.schema import concepts as s_concepts
-from metamagic.caos.schema import constraints as s_constr
-from metamagic.caos.schema import delta as sd
-from metamagic.caos.schema import error as s_err
-from metamagic.caos.schema import expr as s_expr
-from metamagic.caos.schema import indexes as s_indexes
-from metamagic.caos.schema import links as s_links
-from metamagic.caos.schema import lproperties as s_lprops
-from metamagic.caos.schema import modules as s_mod
-from metamagic.caos.schema import name as sn
-from metamagic.caos.schema import named as s_named
-from metamagic.caos.schema import objects as s_obj
-from metamagic.caos.schema import pointers as s_pointers
-from metamagic.caos.schema import policy as s_policy
-from metamagic.caos.schema import realm as s_realm
+from metamagic.caos.lang.schema import attributes as s_attrs
+from metamagic.caos.lang.schema import atoms as s_atoms
+from metamagic.caos.lang.schema import concepts as s_concepts
+from metamagic.caos.lang.schema import constraints as s_constr
+from metamagic.caos.lang.schema import delta as sd
+from metamagic.caos.lang.schema import error as s_err
+from metamagic.caos.lang.schema import expr as s_expr
+from metamagic.caos.lang.schema import indexes as s_indexes
+from metamagic.caos.lang.schema import links as s_links
+from metamagic.caos.lang.schema import lproperties as s_lprops
+from metamagic.caos.lang.schema import modules as s_mod
+from metamagic.caos.lang.schema import name as sn
+from metamagic.caos.lang.schema import named as s_named
+from metamagic.caos.lang.schema import objects as s_obj
+from metamagic.caos.lang.schema import pointers as s_pointers
+from metamagic.caos.lang.schema import policy as s_policy
+from metamagic.caos.lang.schema import realm as s_realm
 
 from metamagic import json
 

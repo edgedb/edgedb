@@ -8,15 +8,15 @@
 
 from metamagic.utils import parsing, debug
 
-from metamagic.caos.caosql.errors import CaosQLQueryError
-from metamagic.caos.caosql.parser.errors import CaosQLSyntaxError
+from metamagic.caos.lang.caosql.errors import CaosQLQueryError
+from metamagic.caos.lang.caosql.parser.errors import CaosQLSyntaxError
 
 from .grammar import lexer
 
 
 class CaosQLParserBase(parsing.Parser):
     def get_debug(self):
-        return 'caos.caosql.parser' in debug.channels
+        return 'caos.lang.caosql.parser' in debug.channels
 
     def get_exception(self, native_err, context):
         return CaosQLQueryError(native_err.args[0], context=context)

@@ -6,10 +6,10 @@
 ##
 
 
-from metamagic.caos import caosql
-from metamagic.caos import schema as so
-from metamagic.caos.schema import delta as sd
-from metamagic.caos.schema import realm as s_realm
+from metamagic.caos.lang import caosql
+from metamagic.caos.lang import schema as so
+from metamagic.caos.lang.schema import delta as sd
+from metamagic.caos.lang.schema import realm as s_realm
 
 from metamagic.utils.debug import debug
 

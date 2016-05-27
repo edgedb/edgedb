@@ -31,27 +31,27 @@ from metamagic import caos
 from metamagic.caos import backends
 from metamagic.caos import error as caos_error
 
-from metamagic.caos import schema as so
-from metamagic.caos.schema import delta as sd
+from metamagic.caos.lang import schema as so
+from metamagic.caos.lang.schema import delta as sd
 
-from metamagic.caos.schema import attributes as s_attrs
-from metamagic.caos.schema import atoms as s_atoms
-from metamagic.caos.schema import concepts as s_concepts
-from metamagic.caos.schema import constraints as s_constr
-from metamagic.caos.schema import deltarepo as s_deltarepo
-from metamagic.caos.schema import error as s_err
-from metamagic.caos.schema import expr as s_expr
-from metamagic.caos.schema import indexes as s_indexes
-from metamagic.caos.schema import links as s_links
-from metamagic.caos.schema import lproperties as s_lprops
-from metamagic.caos.schema import modules as s_mod
-from metamagic.caos.schema import name as sn
-from metamagic.caos.schema import objects as s_obj
-from metamagic.caos.schema import pointers as s_pointers
-from metamagic.caos.schema import policy as s_policy
-from metamagic.caos.schema import types as s_types
+from metamagic.caos.lang.schema import attributes as s_attrs
+from metamagic.caos.lang.schema import atoms as s_atoms
+from metamagic.caos.lang.schema import concepts as s_concepts
+from metamagic.caos.lang.schema import constraints as s_constr
+from metamagic.caos.lang.schema import deltarepo as s_deltarepo
+from metamagic.caos.lang.schema import error as s_err
+from metamagic.caos.lang.schema import expr as s_expr
+from metamagic.caos.lang.schema import indexes as s_indexes
+from metamagic.caos.lang.schema import links as s_links
+from metamagic.caos.lang.schema import lproperties as s_lprops
+from metamagic.caos.lang.schema import modules as s_mod
+from metamagic.caos.lang.schema import name as sn
+from metamagic.caos.lang.schema import objects as s_obj
+from metamagic.caos.lang.schema import pointers as s_pointers
+from metamagic.caos.lang.schema import policy as s_policy
+from metamagic.caos.lang.schema import types as s_types
 
-from metamagic.caos import caosql
+from metamagic.caos.lang import caosql
 
 from metamagic.caos.backends import query as backend_query
 from metamagic.caos.backends.pgsql import common

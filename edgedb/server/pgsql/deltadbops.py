@@ -13,8 +13,8 @@ related to the Caos schema."""
 import re
 import postgresql.installation
 
-from metamagic.caos.schema import delta as sd
-from metamagic.caos.schema import objects as s_obj
+from metamagic.caos.lang.schema import delta as sd
+from metamagic.caos.lang.schema import objects as s_obj
 
 from metamagic.utils import datastructures
 from metamagic.utils import functional

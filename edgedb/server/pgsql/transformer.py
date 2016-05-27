@@ -13,18 +13,18 @@ import re
 
 from metamagic import exceptions as base_err
 
-from metamagic.caos import caosql
+from metamagic.caos.lang import caosql
 
-from metamagic.caos.ir import ast as irast
-from metamagic.caos.ir import utils as irutils
+from metamagic.caos.lang.ir import ast as irast
+from metamagic.caos.lang.ir import utils as irutils
 
-from metamagic.caos.schema import atoms as s_atoms
-from metamagic.caos.schema import concepts as s_concepts
-from metamagic.caos.schema import links as s_links
-from metamagic.caos.schema import name as sn
-from metamagic.caos.schema import objects as s_obj
-from metamagic.caos.schema import pointers as s_pointers
-from metamagic.caos.schema import utils as s_utils
+from metamagic.caos.lang.schema import atoms as s_atoms
+from metamagic.caos.lang.schema import concepts as s_concepts
+from metamagic.caos.lang.schema import links as s_links
+from metamagic.caos.lang.schema import name as sn
+from metamagic.caos.lang.schema import objects as s_obj
+from metamagic.caos.lang.schema import pointers as s_pointers
+from metamagic.caos.lang.schema import utils as s_utils
 
 from metamagic.caos.backends import pgsql
 from metamagic.caos.backends.pgsql import common, session as pg_session, driver as pg_driver

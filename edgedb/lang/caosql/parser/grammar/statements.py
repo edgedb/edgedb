@@ -8,7 +8,7 @@
 
 from metamagic.utils import parsing
 
-from metamagic.caos.caosql import ast as qlast
+from metamagic.caos.lang.caosql import ast as qlast
 
 from .precedence import *
 from .tokens import *

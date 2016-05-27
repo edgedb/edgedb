@@ -13,9 +13,9 @@ import base64
 
 import postgresql
 
-from metamagic.caos.schema import concepts as s_concepts
-from metamagic.caos.schema import links as s_links
-from metamagic.caos.schema import objects as s_obj
+from metamagic.caos.lang.schema import concepts as s_concepts
+from metamagic.caos.lang.schema import links as s_links
+from metamagic.caos.lang.schema import objects as s_obj
 
 from . import driver
 from .driver import io as custom_type_io

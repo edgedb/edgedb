@@ -12,9 +12,9 @@ import types
 from metamagic.utils import ast
 from metamagic.utils import functional
 
-from metamagic.caos.schema import error as s_err
-from metamagic.caos.schema import objects as s_obj
-from metamagic.caos.schema import pointers as s_pointers
+from metamagic.caos.lang.schema import error as s_err
+from metamagic.caos.lang.schema import objects as s_obj
+from metamagic.caos.lang.schema import pointers as s_pointers
 
 
 class TypeRules:

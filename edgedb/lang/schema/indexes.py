@@ -6,8 +6,8 @@
 ##
 
 
-from metamagic.caos import caosql
-from metamagic.caos.caosql import ast as qlast
+from metamagic.caos.lang import caosql
+from metamagic.caos.lang.caosql import ast as qlast
 
 from . import delta as sd
 from . import derivable

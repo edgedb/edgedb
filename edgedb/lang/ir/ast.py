@@ -13,9 +13,9 @@ from metamagic.exceptions import MetamagicError
 from metamagic.utils import ast
 from metamagic.utils.datastructures import typed
 
-from metamagic.caos.schema import enum as s_enum
-from metamagic.caos.schema import name as sn
-from metamagic.caos.schema import objects as so
+from metamagic.caos.lang.schema import enum as s_enum
+from metamagic.caos.lang.schema import name as sn
+from metamagic.caos.lang.schema import objects as so
 
 
 class ASTError(MetamagicError):

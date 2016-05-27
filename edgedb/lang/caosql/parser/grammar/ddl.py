@@ -9,7 +9,7 @@
 import collections
 import types
 
-from metamagic.caos.caosql import ast as qlast
+from metamagic.caos.lang.caosql import ast as qlast
 from metamagic.utils.parsing import ListNonterm
 
 from .precedence import *

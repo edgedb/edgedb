@@ -10,22 +10,22 @@
 
 import itertools
 
-from metamagic.caos.ir import ast as irast
-from metamagic.caos.ir import transformer as irtransformer
-from metamagic.caos.ir import utils as irutils
+from metamagic.caos.lang.ir import ast as irast
+from metamagic.caos.lang.ir import transformer as irtransformer
+from metamagic.caos.lang.ir import utils as irutils
 
-from metamagic.caos.schema import atoms as s_atoms
-from metamagic.caos.schema import concepts as s_concepts
-from metamagic.caos.schema import links as s_links
-from metamagic.caos.schema import lproperties as s_lprops
-from metamagic.caos.schema import name as sn
-from metamagic.caos.schema import objects as s_obj
-from metamagic.caos.schema import pointers as s_pointers
-from metamagic.caos.schema import types as s_types
+from metamagic.caos.lang.schema import atoms as s_atoms
+from metamagic.caos.lang.schema import concepts as s_concepts
+from metamagic.caos.lang.schema import links as s_links
+from metamagic.caos.lang.schema import lproperties as s_lprops
+from metamagic.caos.lang.schema import name as sn
+from metamagic.caos.lang.schema import objects as s_obj
+from metamagic.caos.lang.schema import pointers as s_pointers
+from metamagic.caos.lang.schema import types as s_types
 
-from metamagic.caos.caosql import ast as qlast
-from metamagic.caos.caosql import errors
-from metamagic.caos.caosql import parser
+from metamagic.caos.lang.caosql import ast as qlast
+from metamagic.caos.lang.caosql import errors
+from metamagic.caos.lang.caosql import parser
 
 from metamagic.utils import ast
 from metamagic.utils import debug

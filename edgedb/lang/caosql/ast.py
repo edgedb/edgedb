@@ -6,8 +6,8 @@
 ##
 
 
-from metamagic.caos.ir import ast as irast
-from metamagic.caos.schema import enum as s_enum
+from metamagic.caos.lang.ir import ast as irast
+from metamagic.caos.lang.schema import enum as s_enum
 
 from metamagic.utils import ast
 
