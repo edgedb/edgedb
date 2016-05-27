@@ -38,6 +38,7 @@ from metamagic.caos.schema import attributes as s_attrs
 from metamagic.caos.schema import atoms as s_atoms
 from metamagic.caos.schema import concepts as s_concepts
 from metamagic.caos.schema import constraints as s_constr
+from metamagic.caos.schema import deltarepo as s_deltarepo
 from metamagic.caos.schema import error as s_err
 from metamagic.caos.schema import expr as s_expr
 from metamagic.caos.schema import indexes as s_indexes
@@ -72,6 +73,7 @@ from . import transformer
 from . import pool
 from . import session
 from . import schemamech
+from . import deltarepo as pgsql_deltarepo
 
 
 class Cursor:
@@ -462,7 +464,7 @@ class CaosQLAdapter:
                      record_info=record_info, output_format=output_format)
 
 
-class Backend(backends.MetaBackend, backends.DataBackend):
+class Backend(s_deltarepo.DeltaProvider):
 
     typlen_re = re.compile(r"(?P<type>.*) \( (?P<length>\d+ (?:\s*,\s*(\d+))*) \)$",
                            re.X)
@@ -476,9 +478,9 @@ class Backend(backends.MetaBackend, backends.DataBackend):
     link_target_colname = common.quote_ident(
                                 common.caos_name_to_pg_name('metamagic.caos.builtins.target'))
 
-    def __init__(self, deltarepo, connector_factory):
-        connector = connector_factory()
-        async_connector = connector_factory(async=True)
+    def __init__(self, connection_uri):
+        connector = driver.connector(connection_uri)
+        async_connector = driver.connector(connection_uri, async=True)
 
         self.features = None
         self.backend_info = None
@@ -511,7 +513,7 @@ class Backend(backends.MetaBackend, backends.DataBackend):
         self.connection = connector(pool=self.connection_pool)
         self.connection.connect()
 
-        repo = deltarepo(self.connection)
+        repo = pgsql_deltarepo.MetaDeltaRepository(self.connection)
         self._init_introspection_cache()
         super().__init__(repo)
 
