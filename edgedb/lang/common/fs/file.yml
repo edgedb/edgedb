@@ -6,7 +6,7 @@
 ##
 
 
-%SCHEMA metamagic.caos.backends.yaml.schemas.Semantics
+%SCHEMA metamagic.caos.schemaloaders.yaml.Schema
 %IMPORT metamagic.caos.extras AS extras
 ---
 
